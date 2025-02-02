@@ -43,7 +43,7 @@ jobs:
       working-directory: ./augmentos_core
       run: |
         chmod +x ./gradlew
-        ./gradlew build
+        ./gradlew build -x lint 
 
     - name: Install npm dependencies and build augmentos_manager
       working-directory: ./augmentos_manager

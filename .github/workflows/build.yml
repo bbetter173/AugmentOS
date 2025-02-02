@@ -49,10 +49,9 @@ jobs:
       working-directory: ./augmentos_manager
       run: |
         npm install
-        npm run build
 
     - name: Build augmentos_manager Android
       working-directory: ./augmentos_manager/android
       run: |
         chmod +x ./gradlew
-        ./gradlew build 
+        ./gradlew build

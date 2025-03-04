@@ -51,6 +51,14 @@ const explicitWakeWords = [
   "he mirah",
   "hey meera",
   "he meera",
+  "the question is",
+  "so the question is",
+  "so the question was",
+  "want to know is",
+  "want to know was",
+  "wanted to know was",
+  "so whats the question",
+  "so what the question",
 ];
 
 // Parse JSON bodies

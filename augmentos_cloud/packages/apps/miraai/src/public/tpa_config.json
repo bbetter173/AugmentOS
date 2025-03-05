@@ -1,0 +1,173 @@
+{
+  "name": "Mira AI",
+  "description": "Voice-activated AI assistant for smart glasses.",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "type": "group",
+      "title": "Assistant settings"
+    },
+    {
+      "key": "ai_model",
+      "type": "select",
+      "label": "AI Model",
+      "defaultValue": "GPT-4",
+      "options": [
+        {
+          "label": "GPT-4",
+          "value": "GPT-4"
+        },
+        {
+          "label": "GPT-3.5",
+          "value": "GPT-3.5"
+        },
+        {
+          "label": "Claude",
+          "value": "Claude"
+        },
+        {
+          "label": "Claude Instant",
+          "value": "Claude Instant"
+        }
+      ]
+    },
+    {
+      "key": "response_length",
+      "type": "select",
+      "label": "Response Length",
+      "defaultValue": "Medium",
+      "options": [
+        {
+          "label": "Brief",
+          "value": "Brief"
+        },
+        {
+          "label": "Medium",
+          "value": "Medium"
+        },
+        {
+          "label": "Detailed",
+          "value": "Detailed"
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "title": "Wake word settings"
+    },
+    {
+      "key": "enable_wake_word",
+      "type": "toggle",
+      "label": "Enable wake word",
+      "defaultValue": true
+    },
+    {
+      "key": "custom_wake_word",
+      "type": "text",
+      "label": "Custom wake word",
+      "defaultValue": "Hey Mira"
+    },
+    {
+      "type": "group",
+      "title": "Display settings"
+    },
+    {
+      "key": "display_duration",
+      "type": "select",
+      "label": "Display duration",
+      "defaultValue": "Medium",
+      "options": [
+        {
+          "label": "Short (5s)",
+          "value": "Short"
+        },
+        {
+          "label": "Medium (8s)",
+          "value": "Medium"
+        },
+        {
+          "label": "Long (12s)",
+          "value": "Long"
+        }
+      ]
+    },
+    {
+      "key": "text_width",
+      "type": "select",
+      "label": "Text width",
+      "defaultValue": "Medium",
+      "options": [
+        {
+          "label": "Narrow",
+          "value": "Narrow"
+        },
+        {
+          "label": "Medium",
+          "value": "Medium"
+        },
+        {
+          "label": "Wide",
+          "value": "Wide"
+        },
+        {
+          "label": "Very Wide",
+          "value": "Very Wide"
+        }
+      ]
+    },
+    {
+      "key": "number_of_lines",
+      "type": "select",
+      "label": "Maximum lines",
+      "defaultValue": 4,
+      "options": [
+        {
+          "label": "3",
+          "value": 3
+        },
+        {
+          "label": "4",
+          "value": 4
+        },
+        {
+          "label": "5",
+          "value": 5
+        },
+        {
+          "label": "6",
+          "value": 6
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "title": "Feature settings"
+    },
+    {
+      "key": "web_search_enabled",
+      "type": "toggle",
+      "label": "Enable web search",
+      "defaultValue": true
+    },
+    {
+      "key": "context_window",
+      "type": "select",
+      "label": "Context window",
+      "defaultValue": "Medium",
+      "options": [
+        {
+          "label": "Short",
+          "value": "Short"
+        },
+        {
+          "label": "Medium",
+          "value": "Medium"
+        },
+        {
+          "label": "Long",
+          "value": "Long"
+        }
+      ]
+    }
+  ]
+} 

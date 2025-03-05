@@ -6,6 +6,8 @@ export interface SystemApp {
   port: number;
   packageName: string;
   name: string; // Making name required since it's accessed in the code
+  host: string;
+  description: string; // Add description to the interface
 }
 
 export const BASE_PORT = 8000;
@@ -18,37 +20,50 @@ export const systemApps = {
     host: 'live-captions',
     port: BASE_PORT + 10,
     packageName: 'org.augmentos.live-captions',
-    name: 'Live Captions'
+    name: 'Live Captions',
+    description: 'Live speech-to-text captions'
   },
   flash: {
     host: 'flash',
     port: BASE_PORT + 11,
     packageName: 'org.augmentos.flash',
-    name: 'Flash'
+    name: 'Flash',
+    description: 'Quick information'
   },
   dashboard: {
     host: 'dashboard-manager',
     port: BASE_PORT + 12,
     packageName: 'org.augmentos.dashboard',
-    name: 'Dashboard'
+    name: 'Dashboard',
+    description: 'System dashboard'
   },
   merge: {
     host: 'localhost',
     port: BASE_PORT + 13,
     packageName: 'org.augmentos.agentgatekeeper',
-    name: 'Agent Gatekeeper'
+    name: 'Agent Gatekeeper',
+    description: 'Agent management'
   },
   notify: {
     host: 'notify',
     port: BASE_PORT + 14,
     packageName: 'org.augmentos.shownotifications',
-    name: 'Notifications'
+    name: 'Notifications',
+    description: 'System notifications'
   },
   mira: {
     host: 'miraai',
     port: BASE_PORT + 15,
     packageName: 'org.augmentos.miraai',
-    name: 'Mira AI'
+    name: 'Mira AI',
+    description: 'AI assistant'
+  },
+  liveTranslation: {
+    host: 'live-translation',
+    port: BASE_PORT + 16,
+    packageName: 'org.augmentos.live-translation',
+    name: 'Live Translation',
+    description: 'Real-time language translation'
   }
 };
 

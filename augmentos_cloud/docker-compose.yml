@@ -193,6 +193,31 @@ services:
       - mongodb
       - cloud
 
+  live-translation:
+    build:
+      context: .
+      dockerfile: Dockerfile.live-translation
+    restart: unless-stopped
+    ports:
+      - "8016:8016"
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      # MongoDB
+      - MONGO_URL=mongodb://mongodb:27017/augmentos
+      # JWT Secrets
+      - AUGMENTOS_AUTH_JWT_SECRET=${AUGMENTOS_AUTH_JWT_SECRET}
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - augmentos-network
+    depends_on:
+      - augmentos-cloud-base
+      - mongodb
+      - cloud
+
   mongodb:
     image: mongo:latest
     restart: unless-stopped

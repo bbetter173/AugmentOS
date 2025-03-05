@@ -1,0 +1,16 @@
+# Dockerfile for the live-translation app
+FROM augmentos-cloud-base as runner
+
+# Set the working directory
+WORKDIR /app
+
+# Set environment variables with default values
+ENV NODE_ENV=production
+ENV PORT=8016
+
+# Command to run the app
+CMD ["bun", "run", "packages/apps/live-translation/dist/index.js"]
+
+# Health check using the health endpoint
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
+  CMD wget -q -O - http://localhost:$PORT/health || exit 1 

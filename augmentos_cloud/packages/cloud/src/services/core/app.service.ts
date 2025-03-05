@@ -34,8 +34,7 @@ export const LOCAL_APPS: AppI[] = [
     tpaType: TpaType.BACKGROUND,
     webhookURL: `http://${systemApps.notify.host}:${systemApps.notify.port}/webhook`,
     logoURL: `https://cloud.augmentos.org/${systemApps.notify.packageName}.png`,
-    description: systemApps.notify.description,
-
+    description: systemApps.notify.description
   },
   {
     packageName: systemApps.mira.packageName,
@@ -43,7 +42,7 @@ export const LOCAL_APPS: AppI[] = [
     tpaType: TpaType.BACKGROUND,
     webhookURL: `http://${systemApps.mira.host}:${systemApps.mira.port}/webhook`,
     logoURL: `https://cloud.augmentos.org/${systemApps.mira.packageName}.png`,
-    description: systemApps.mira.description,
+    description: systemApps.mira.description
   },
   {
     packageName: systemApps.merge.packageName,
@@ -51,7 +50,7 @@ export const LOCAL_APPS: AppI[] = [
     tpaType: TpaType.BACKGROUND,
     webhookURL: `http://${systemApps.merge.host}:${systemApps.merge.port}/webhook`,
     logoURL: `https://cloud.augmentos.org/${systemApps.merge.packageName}.png`,
-    description: systemApps.merge.description,
+    description: systemApps.merge.description
   },
   {
     packageName: systemApps.liveTranslation.packageName,
@@ -59,7 +58,7 @@ export const LOCAL_APPS: AppI[] = [
     tpaType: TpaType.STANDARD,
     webhookURL: `http://${systemApps.liveTranslation.host}:${systemApps.liveTranslation.port}/webhook`,
     logoURL: `https://cloud.augmentos.org/${systemApps.liveTranslation.packageName}.png`,
-    description: systemApps.liveTranslation.description,
+    description: systemApps.liveTranslation.description
   }
 ];
 

@@ -803,15 +803,15 @@ void protobuf_set_brightness_level(uint32_t level)
 		}
 	}
 	
-	// Update display projector brightness (0-100% -> 0-9 levels)
-	// Map 0-100% to 0-9 brightness levels for the projector
-	uint8_t projector_level = (level * 9) / 100;  // Linear mapping: 0%->0, 100%->9
+	// Update display projector brightness (0-100% -> 0x00-0xFF register values)
+	// Map 0-100% to 0x00-0xFF register values for A6N projector
+	uint8_t projector_reg_value = (level * 255) / 100;  // Linear mapping: 0%->0x00, 100%->0xFF
 	
-	LOG_INF("Setting projector brightness: %u%% -> level %u (0-9)", level, projector_level);
+	LOG_INF("Setting projector brightness: %u%% -> reg_value 0x%02X (0x00-0xFF)", level, projector_reg_value);
 	
-	int ret = a6n_set_brightness(projector_level);
+	int ret = a6n_set_brightness(projector_reg_value);
 	if (ret == 0) {
-		LOG_INF("✅ Display projector brightness set to level %u/9", projector_level);
+		LOG_INF("✅ Display projector brightness set to reg_value 0x%02X/0xFF", projector_reg_value);
 	} else {
 		LOG_ERR("❌ Failed to set display projector brightness: %d", ret);
 	}

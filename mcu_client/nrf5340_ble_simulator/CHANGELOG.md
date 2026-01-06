@@ -3,6 +3,10 @@
 - Device name format updated from "NexSim XXXXXX" to "Nex1-XXXXXX" for BLE and UI display
 - Improved dynamic device name display in welcome message (mos_lvgl_display.c)
 - UI container and font improvements for A6N projector display
+- USB device configuration updated with MentraOS branding (Vendor ID: 0x1915, Product ID: 0x530A)
+- USB device product name set to "Mentra Nex1 Glasses" with manufacturer "MENTRA LABS .INC"
+- Shell prompt updated from "nrf5340:~$" to "MentraOS:~$" for both UART and RTT
+- Added USB CDC ACM configuration for enhanced shell and logging via USB
 # Changelog
 
 All notable changes to the nRF5340 DK BLE Glasses Protobuf Simulator will be documented in this file.

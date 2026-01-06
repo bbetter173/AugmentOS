@@ -1,6 +1,11 @@
+# 2026-01-06
+## Changed
+- Device name format updated from "NexSim XXXXXX" to "Nex1-XXXXXX" for BLE and UI display
+- Improved dynamic device name display in welcome message (mos_lvgl_display.c)
+- UI container and font improvements for A6N projector display
 # Changelog
 
-All notable changes to the Mentra Nex1 Glasses BLE Firmware (MentraOS) will be documented in this file.
+All notable changes to the nRF5340 DK BLE Glasses Protobuf Simulator will be documented in this file.
 
 ## Unreleased
 
@@ -357,7 +362,7 @@ Battery Module:
 #### Hardware Connection
 
 1. Connect nRF USB port on development board (not J-Link USB)
-2. System will enumerate as "Mentra Nex1 Glasses"
+2. System will enumerate as "Nordic Semiconductor nRF5340 BLE Simulator"
 
 #### Testing Status
 
@@ -760,8 +765,8 @@ Modified Files:
 #### Major Git Workflow Restructuring
 - **🌳 nexfirmware Branch**: Established as primary firmware development branch
 - **🔄 Branch Migration**: Successfully merged `dev-loay-nexfirmware` → `nexfirmware`
-- **🏷️ Naming Integration**: MentraOS/Nex1 Glasses branding, Zephyr shell prompt now 'MentraOS:~$' (UART/RTT), USB CDC name is 'Mentra Nex1 Glasses'
-- **📋 Legacy Cleanup**: Replaced all nRF5340/Simulator references with MentraOS/Nex1 Glasses branding
+- **🏷️ Naming Integration**: Integrated Cole's updated naming conventions (mentraos_nrf5340/mos_*)
+- **📋 Legacy Cleanup**: Replaced old K901_NRF5340/xyzn_* OEM naming throughout codebase
 - **🔗 Feature Branch Targets**: Updated dev-nexfirmware-* branches to target nexfirmware
 
 #### Complete Display System Testing & Validation

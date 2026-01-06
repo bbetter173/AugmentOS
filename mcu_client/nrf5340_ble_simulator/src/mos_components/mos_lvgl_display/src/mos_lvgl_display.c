@@ -24,6 +24,7 @@
 #include "display_manager.h"  // **NEW: For font mapping function**
 #include "display_config.h"   // **NEW: Modular display configuration system**
 #include "mos_lvgl_display.h"
+#include "main.h"             // **NEW: For BLE device name function**
 // #include "bspal_icm42688p.h"
 // #include "task_ble_receive.h"
 #include <zephyr/logging/log.h>
@@ -623,18 +624,24 @@ static void create_scrolling_text_container(lv_obj_t *screen)
 
     // **NEW: Set simple initial text for disconnected/unpaired state**
     const char *initial_text;
+    const char *device_name = get_ble_device_name();  // Get dynamic BLE device name
+    static char large_display_text[128];
+    static char small_display_text[64];
+    
     if (config->width >= 500) {
         // Large display - simple welcome message with device info
-        initial_text = 
-            "Welcome to MentraOS\n"
-            "Waiting for connection\n"
-            "Device Name: NexSim";
+        snprintf(large_display_text, sizeof(large_display_text),
+                 "Welcome to MentraOS\n"
+                 "Waiting for connection\n"
+                 "Device Name: %s", device_name);
+        initial_text = large_display_text;
     } else {
         // Small display - compact welcome message
-        initial_text =
-            "Welcome to MentraOS\n"
-            "Waiting for connection\n" 
-            "Device: NexSim";
+        snprintf(small_display_text, sizeof(small_display_text),
+                 "Welcome to MentraOS\n"
+                 "Waiting for connection\n" 
+                 "Device: %s", device_name);
+        initial_text = small_display_text;
     }
 
     lv_label_set_text(label, initial_text);

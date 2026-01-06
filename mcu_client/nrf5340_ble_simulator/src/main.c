@@ -254,6 +254,11 @@ static void setup_dynamic_advertising(void)
 	ad[1].data_len = strlen(dynamic_device_name);
 }
 
+const char *get_ble_device_name(void)
+{
+	return dynamic_device_name;
+}
+
 #ifdef CONFIG_UART_ASYNC_ADAPTER
 UART_ASYNC_ADAPTER_INST_DEFINE(async_adapter);
 #else

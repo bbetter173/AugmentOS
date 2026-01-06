@@ -117,11 +117,11 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         .width = 640, .height = 480,
         .layout = {
             .margin = 100, .padding = 8, .border_width = 2,
-            .usable_width = 440, .usable_height = 200
+            .usable_width = 470, .usable_height = 180
         },
         .fonts = {
-            .primary = &lv_font_montserrat_14,    // Use 14 instead of 30 (not available)
-            .secondary = &lv_font_montserrat_30,  // Use 12 instead of 24 (not available)
+              .primary = &lv_font_montserrat_14,    // Use 14 instead of 30 (not available)
+              .secondary = &lv_font_montserrat_24,  // Use 24 for secondary text
             .large = &lv_font_montserrat_48,      // Use 14 instead of 48 (not available)
             .cjk = &lv_font_montserrat_48,        // Only CJK font available
             .line_spacing = 4

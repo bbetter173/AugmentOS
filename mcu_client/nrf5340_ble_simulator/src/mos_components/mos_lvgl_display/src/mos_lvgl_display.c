@@ -610,8 +610,8 @@ static void create_scrolling_text_container(lv_obj_t *screen)
     // Style the container using configuration values
     lv_obj_set_style_bg_color(container, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(container, lv_color_black(), 0);
-    lv_obj_set_style_border_opa(container, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(container, 0, 0); // Hide border
+    lv_obj_set_style_border_opa(container, LV_OPA_TRANSP, 0); // Make border transparent
 
     // Create label inside container with protobuf text
     lv_obj_t *label = lv_label_create(container);
@@ -646,11 +646,11 @@ static void create_scrolling_text_container(lv_obj_t *screen)
 
     // **NEW: Style the label using modular font configuration**
     lv_obj_set_style_text_color(label, lv_color_black(), 0);
-    lv_obj_set_style_text_font(label, display_get_font("secondary"), 0);  
+    lv_obj_set_style_text_font(label, display_get_font("secondary"), 0);  // Now uses montserrat_24
     lv_obj_set_style_text_line_space(label, config->fonts.line_spacing, 0);
 
-    // Position label at top of container
-    lv_obj_align(label, LV_ALIGN_TOP_LEFT, 0, 0);
+    // Center-align text in container
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
     // AUTO-SCROLL TO BOTTOM to show latest content
     lv_obj_update_layout(container);  // Ensure layout is calculated

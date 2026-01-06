@@ -4,6 +4,18 @@ All notable changes to the nRF5340 DK BLE Glasses Protobuf Simulator will be doc
 
 ## Unreleased
 
+### 🎨 MentraOS System Branding Update - 2025-01-06
+
+#### Shell Interface Branding
+- **Zephyr Shell Names Updated**: Changed CDC and RTT shell prompts from "nrf5340" to "MentraOS"
+- **USB CDC Device Name**: Updated from "nRF5340 BLE Simulator" to "Mentra Nex1-XXXXXX" format
+- **Enhanced Branding Consistency**: Unified device identification across all user interfaces
+
+#### Device Naming System Enhancement 
+- **Dynamic BLE Device Names**: Implemented get_ble_device_name() function with MAC address suffix
+- **Device Name Format**: "Nex1-XXXXXX" where XXXXXX represents last 3 bytes of MAC address
+- **UI Integration**: Dynamic device name display in welcome screens and connection status
+
 ### 🔧 GPIO Pin Remapping & I2C Shell Testing - 2025-11-26
 
 #### GPIO Pin Reassignment

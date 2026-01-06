@@ -106,7 +106,7 @@ static struct bt_conn *my_current_conn;
 static K_FIFO_DEFINE(fifo_uart_tx_data);
 static K_FIFO_DEFINE(fifo_uart_rx_data);
 
-static char dynamic_device_name[32] = "NexSim";
+static char dynamic_device_name[32] = "Nex1";
 static struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA(BT_DATA_NAME_COMPLETE, "NexSim", 6),
@@ -238,7 +238,7 @@ static void setup_dynamic_advertising(void)
 	
 	// Create device name with MAC suffix (last 6 hex digits)
 	snprintf(dynamic_device_name, sizeof(dynamic_device_name), 
-		 "NexSim %02X%02X%02X", 
+		 "Nex1-%02X%02X%02X", 
 		 addr.a.val[2], addr.a.val[1], addr.a.val[0]);
 	
 	LOG_INF("Device name: %s", dynamic_device_name);

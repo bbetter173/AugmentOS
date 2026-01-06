@@ -213,6 +213,7 @@ zephyr_udc0: &usbd {
 
     cdc_acm_uart0: cdc_acm_uart0 {
             compatible = "zephyr,cdc-acm-uart";
+            product = "Mentra Nex1 Glasses";
     };
 };
 

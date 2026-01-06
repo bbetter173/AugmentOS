@@ -621,25 +621,20 @@ static void create_scrolling_text_container(lv_obj_t *screen)
     // **NEW: Store global reference for protobuf text updates**
     protobuf_label = label;
 
-    // **NEW: Set adaptive initial text based on display size**
+    // **NEW: Set simple initial text for disconnected/unpaired state**
     const char *initial_text;
     if (config->width >= 500) {
-        // Large display - detailed welcome message
+        // Large display - simple welcome message with device info
         initial_text = 
-            "MentraOS AR Display System Ready\n"
-            "Waiting for protobuf text messages from mobile app...\n"
-            "This container will automatically update with incoming content.\n"
-            "English/Chinese multilingual support enabled.\n"
-            "系统已完全初始化，准备接收消息！\n"
-            "Hello 你好 World 世界";
+            "Welcome to MentraOS\n"
+            "Waiting for connection\n"
+            "Device Name: NexSim";
     } else {
         // Small display - compact welcome message
         initial_text =
-            "MentraOS AR Ready\n"
-            "Waiting for messages...\n" 
-            "EN/CN Support Ready\n"
-            "系统已初始化!\n"
-            "Hello 你好 World 世界";
+            "Welcome to MentraOS\n"
+            "Waiting for connection\n" 
+            "Device: NexSim";
     }
 
     lv_label_set_text(label, initial_text);

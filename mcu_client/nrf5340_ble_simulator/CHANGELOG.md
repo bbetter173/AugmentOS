@@ -1,4 +1,7 @@
-# 2026-01-06
+# 2026-01-08
+
+## Changed
+- Pattern 4 (A6N projector) secondary font size changed from 24px to 22px (`lv_font_montserrat_24` → `lv_font_montserrat_22`).
 ## Changed
 - Device name format updated from "NexSim XXXXXX" to "Nex1-XXXXXX" for BLE and UI display
 - Improved dynamic device name display in welcome message (mos_lvgl_display.c)

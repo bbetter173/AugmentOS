@@ -1,7 +1,10 @@
 # 2026-01-08
 
 ## Changed
+- Added build information display: "Build V1.2.3 [DATE] [TIME]" line to welcome message
 - Pattern 4 (A6N projector) secondary font size changed from 24px to 22px (`lv_font_montserrat_24` → `lv_font_montserrat_22`).
+- LVGL font configuration updated: enabled `CONFIG_LV_FONT_MONTSERRAT_22` and disabled `CONFIG_LV_FONT_MONTSERRAT_24`
+
 ## Changed
 - Device name format updated from "NexSim XXXXXX" to "Nex1-XXXXXX" for BLE and UI display
 - Improved dynamic device name display in welcome message (mos_lvgl_display.c)

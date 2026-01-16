@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-31 10:40:40
- * @LastEditTime : 2025-09-30 09:40:16
+ * @LastEditTime : 2026-01-16 10:06:10
  * @FilePath     : mos_pdm.c
  * @Description  :
  *
@@ -40,7 +40,7 @@ static volatile uint8_t fifo_tail = 0;  // 读指针（上层用）;read pointer
 //==============================================================================================
 #define NRF_GPIO_PIN_MAP(port, pin) (((port) << 5) | ((pin) & 0x1F))
 #define PDM_CLK                     NRF_GPIO_PIN_MAP(1, 12)
-#define PDM_DIN                     NRF_GPIO_PIN_MAP(1, 11)
+#define PDM_DIN                     NRF_GPIO_PIN_MAP(0, 27)
 
 static const nrfx_pdm_config_t pdm_config_default = NRFX_PDM_DEFAULT_CONFIG(PDM_CLK, PDM_DIN);
 static nrfx_pdm_config_t       pdm_config;

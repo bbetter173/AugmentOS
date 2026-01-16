@@ -110,7 +110,7 @@ static int jlink_usb_gpio_set(bool jlink_mode)
     }
     
     current_mode_jlink = jlink_mode;
-    LOG_INF("J-Link/USB switch GPIO (P0.27) set to %s (%s mode)", 
+    LOG_INF("J-Link/USB switch GPIO (P1.11) set to %s (%s mode)", 
             jlink_mode ? "LOW" : "HIGH",
             jlink_mode ? "J-Link" : "USB");
     return 0;
@@ -144,7 +144,7 @@ static int cmd_jlink_usb_help(const struct shell *shell, size_t argc, char **arg
     shell_print(shell, "  jlink_usb usb         - Switch to USB mode (GPIO HIGH)");
     shell_print(shell, "  jlink_usb toggle     - Toggle between J-Link and USB mode");
     shell_print(shell, "");
-    shell_print(shell, "📊 GPIO Pin: P0.27");
+    shell_print(shell, "📊 GPIO Pin: P1.11");
     shell_print(shell, "  HIGH = USB mode");
     shell_print(shell, "  LOW  = J-Link mode");
     shell_print(shell, "");

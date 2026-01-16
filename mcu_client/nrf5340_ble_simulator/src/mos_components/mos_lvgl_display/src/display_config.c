@@ -121,7 +121,7 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         },
         .fonts = {
             .primary = &lv_font_montserrat_14,    // Use 14 instead of 30 (not available)
-            .secondary = &lv_font_montserrat_22,  // Use 22 for secondary text
+            .secondary = &lv_font_montserrat_18,  // Use 18 for secondary text
             .large = &lv_font_montserrat_48,      // Use 14 instead of 48 (not available)
             .cjk = &lv_font_montserrat_48,        // Only CJK font available
             .line_spacing = 4

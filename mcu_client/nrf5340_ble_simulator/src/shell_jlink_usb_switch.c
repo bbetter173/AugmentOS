@@ -1,14 +1,15 @@
 /*
  * Shell J-Link/USB Switch Control Module
  * 
- * Control P0.27 GPIO to switch between J-Link and USB modes
- * 控制 P0.27 GPIO 在 J-Link 和 USB 模式之间切换
+ * Control P1.11 GPIO to switch between J-Link and USB modes
+ * 控制 P1.11 GPIO 在 J-Link 和 USB 模式之间切换
+ * Hardware logic: HIGH = USB, LOW = J-Link | 硬件逻辑：高电平=USB，低电平=J-Link
  * 
  * Available Commands:
  * - jlink_usb help        : Show all J-Link/USB switch commands
  * - jlink_usb status      : Show current switch status
- * - jlink_usb jlink       : Switch to J-Link mode (GPIO HIGH)
- * - jlink_usb usb         : Switch to USB mode (GPIO LOW)
+ * - jlink_usb jlink       : Switch to J-Link mode (GPIO LOW)
+ * - jlink_usb usb         : Switch to USB mode (GPIO HIGH)
  * - jlink_usb toggle      : Toggle between J-Link and USB mode
  * 
  * Created: 2025-11-20
@@ -29,7 +30,7 @@ LOG_MODULE_REGISTER(shell_jlink_usb_switch, LOG_LEVEL_INF);
 #if DT_NODE_EXISTS(USER_NODE) && DT_NODE_HAS_PROP(USER_NODE, jlink_usb_switch_gpios)
 static const struct gpio_dt_spec jlink_usb_switch_gpio = GPIO_DT_SPEC_GET(USER_NODE, jlink_usb_switch_gpios);
 static bool jlink_usb_gpio_initialized = false;
-static bool current_mode_jlink = false;  // false = USB mode, true = J-Link mode
+static bool current_mode_jlink = false;  // false = USB mode, true = J-Link mode (default: USB)
 
 /**
  * Initialize J-Link/USB switch GPIO | 初始化J-Link/USB切换GPIO
@@ -66,7 +67,7 @@ static int jlink_usb_gpio_init(void)
     
     current_mode_jlink = false;  // Start in USB mode | 从USB模式开始
     jlink_usb_gpio_initialized = true;
-    LOG_INF("J-Link/USB switch GPIO (P0.27) initialized as output, initial state: HIGH (USB mode)");
+    LOG_INF("J-Link/USB switch GPIO (P1.11) initialized as output, initial state: HIGH (USB mode)");
     return 0;
 }
 
@@ -145,13 +146,13 @@ static int cmd_jlink_usb_help(const struct shell *shell, size_t argc, char **arg
     shell_print(shell, "  jlink_usb toggle     - Toggle between J-Link and USB mode");
     shell_print(shell, "");
     shell_print(shell, "📊 GPIO Pin: P1.11");
-    shell_print(shell, "  HIGH = USB mode");
-    shell_print(shell, "  LOW  = J-Link mode");
+    shell_print(shell, "  HIGH = USB mode | 高电平 = USB模式");
+    shell_print(shell, "  LOW  = J-Link mode | 低电平 = J-Link模式");
     shell_print(shell, "");
     shell_print(shell, "📊 Examples:");
     shell_print(shell, "  jlink_usb status     - Check current mode");
-    shell_print(shell, "  jlink_usb jlink       - Enable J-Link mode");
-    shell_print(shell, "  jlink_usb usb         - Enable USB mode");
+    shell_print(shell, "  jlink_usb jlink       - Switch to J-Link mode");
+    shell_print(shell, "  jlink_usb usb         - Switch to USB mode");
     shell_print(shell, "  jlink_usb toggle     - Switch to opposite mode");
     shell_print(shell, "");
     
@@ -166,7 +167,7 @@ static int cmd_jlink_usb_status(const struct shell *shell, size_t argc, char **a
     shell_print(shell, "");
     shell_print(shell, "🔌 J-Link/USB Switch Status");
     shell_print(shell, "==========================================");
-    shell_print(shell, "GPIO Pin:          P0.27");
+    shell_print(shell, "GPIO Pin:          P1.11");
     
 #if DT_NODE_EXISTS(USER_NODE) && DT_NODE_HAS_PROP(USER_NODE, jlink_usb_switch_gpios)
     bool is_ready = jlink_usb_gpio_initialized;
@@ -189,7 +190,7 @@ static int cmd_jlink_usb_status(const struct shell *shell, size_t argc, char **a
     shell_print(shell, "GPIO State:        ❌ Not available");
     shell_print(shell, "");
     shell_warn(shell, "⚠️  J-Link/USB switch GPIO not defined in device tree");
-    shell_print(shell, "   Add 'jlink_usb_switch-gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;' to zephyr,user node");
+    shell_print(shell, "   Add 'jlink_usb_switch-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;' to zephyr,user node");
 #endif
     
     shell_print(shell, "==========================================");
@@ -273,8 +274,8 @@ static int cmd_jlink_usb_toggle(const struct shell *shell, size_t argc, char **a
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_jlink_usb,
     SHELL_CMD(help, NULL, "Show J-Link/USB switch commands help", cmd_jlink_usb_help),
     SHELL_CMD(status, NULL, "Show current switch status", cmd_jlink_usb_status),
-    SHELL_CMD(jlink, NULL, "Switch to J-Link mode (GPIO HIGH)", cmd_jlink_usb_jlink),
-    SHELL_CMD(usb, NULL, "Switch to USB mode (GPIO LOW)", cmd_jlink_usb_usb),
+    SHELL_CMD(jlink, NULL, "Switch to J-Link mode (GPIO LOW)", cmd_jlink_usb_jlink),
+    SHELL_CMD(usb, NULL, "Switch to USB mode (GPIO HIGH)", cmd_jlink_usb_usb),
     SHELL_CMD(toggle, NULL, "Toggle between J-Link and USB mode", cmd_jlink_usb_toggle),
     SHELL_SUBCMD_SET_END /* Array terminated. */
 );

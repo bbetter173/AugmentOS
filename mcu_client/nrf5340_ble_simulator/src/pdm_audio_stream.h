@@ -9,9 +9,9 @@
  * to mobile app via BLE protobuf messages.
  * 
  * HARDWARE CONFIGURATION:
- * - PDM_CLK: P1.12 (nRF5340 PDM Clock Output)  
- * - PDM_DIN: P1.11 (nRF5340 PDM Data Input)
- * - Microphone: Dual MSM261DCB002 digital PDM microphones connected to P1.11/P1.12
+ * - PDM_CLK: P0.20 (nRF5340 PDM Clock Output)  
+ * - PDM_DIN: P0.21 (nRF5340 PDM Data Input)
+ * - Microphone: Dual MSM261DCB002 digital PDM microphones connected to P0.20/P0.21
  * 
  * AUDIO SPECIFICATIONS:
  * - Sample Rate: 16 kHz (optimized for voice)

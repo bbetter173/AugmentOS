@@ -6,7 +6,7 @@
  * Provides real-time audio loopback: PDM microphone → I2S output
  * 
  * Hardware Configuration:
- * - PDM: P1.12 (CLK), P1.11 (DIN) 
+ * - PDM: P0.20 (CLK), P0.21 (DIN) 
  * - I2S: P1.06 (LRCK), P1.07 (BCLK), P1.08 (SDIN)
  * 
  * Audio Format:

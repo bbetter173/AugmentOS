@@ -1268,8 +1268,8 @@ void protobuf_process_mic_state_config(const mentraos_ble_MicStateConfig *mic_st
 	
 	// Hardware configuration details
 	LOG_INF("Hardware Configuration:");
-	LOG_INF("  - PDM Clock Pin: P1.12 (PDM_CLK)");
-	LOG_INF("  - PDM Data Pin: P1.11 (PDM_DIN)");
+	LOG_INF("  - PDM Clock Pin: P0.20 (PDM_CLK)");
+	LOG_INF("  - PDM Data Pin: P0.21 (PDM_DIN)");
 	LOG_INF("  - Sample Rate: %d Hz", PDM_SAMPLE_RATE);
 	LOG_INF("  - Bit Depth: 16-bit PCM");
 	LOG_INF("  - Channels: %d (Mono)", PDM_CHANNELS);

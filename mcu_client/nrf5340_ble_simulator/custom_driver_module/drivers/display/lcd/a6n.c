@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-28 11:31:02
- * @LastEditTime : 2025-10-14 16:27:09
+ * @LastEditTime : 2026-01-22 11:26:44
  * @FilePath     : a6n.c
  * @Description  :
  *
@@ -1150,12 +1150,12 @@ static int a6n_init(const struct device *dev)
     a6n_data   *data = (a6n_data *)dev->data;
     int              ret;
     // **NEW: Log SPI configuration for debugging**
-    LOG_INF("🚀 A6N SPI Configuration:");
-    LOG_INF("  - Device: %s", cfg->spi.bus->name);
-    LOG_INF("  - Max Frequency: %d Hz (%.2f MHz)", cfg->spi.config.frequency,
-            (float)cfg->spi.config.frequency / 1000000.0f);
-    LOG_INF("  - Operation Mode: 0x%08X", cfg->spi.config.operation);
-    LOG_INF("  - Slave ID: %d", cfg->spi.config.slave);
+    // LOG_INF("🚀 A6N SPI Configuration:");
+    // LOG_INF("  - Device: %s", cfg->spi.bus->name);
+    // LOG_INF("  - Max Frequency: %d Hz (%.2f MHz)", cfg->spi.config.frequency,
+    //         (float)cfg->spi.config.frequency / 1000000.0f);
+    // LOG_INF("  - Operation Mode: 0x%08X", cfg->spi.config.operation);
+    // LOG_INF("  - Slave ID: %d", cfg->spi.config.slave);
 
     if (!spi_is_ready_dt(&cfg->spi))
     {
@@ -1290,7 +1290,7 @@ static int a6n_init(const struct device *dev)
     // LOG_INF("🧹 Clearing display for LVGL (setting to OFF/black)");
     // a6n_clear_screen(false);  // Start with display OFF (black)
 
-    LOG_INF("Display initialized");
+    // LOG_INF("Display initialized");
     return 0;
 }
 /********************************************************************************/

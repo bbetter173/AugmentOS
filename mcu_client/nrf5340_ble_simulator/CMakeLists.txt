@@ -5,6 +5,19 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
+
+macro(app_set_runner_args)
+  # CRITICAL: Use mx25u256_nrfutil_config.json for 32MB flash with MODE32BIT
+  # 关键：使用 mx25u256_nrfutil_config.json 以支持 32MB flash 和 32 位地址模式
+  # 
+  # mx25u256_nrfutil_config.json has:
+  #   - flash_size: 33554432 (32MB)
+  #   - address_mode: "MODE32BIT" (required for 32MB flash)
+  #   - JEDEC ID: 0xC2 0x25 0x39 (MX25U256)
+  board_runner_args(nrfutil
+    "--ext-mem-config-file=${CMAKE_CURRENT_SOURCE_DIR}/mx25u256_nrfutil_config.json")
+endmacro()
+
 # Note: custom driver module registration enabled for A6N integration
 set(ZEPHYR_EXTRA_MODULES ${CMAKE_CURRENT_SOURCE_DIR}/custom_driver_module)
 
@@ -37,6 +50,7 @@ target_sources(app PRIVATE
     src/shell_lsm6dsv16x.c
     src/shell_jlink_usb_switch.c
     src/shell_npm1300_led.c
+    src/shell_flash.c
     src/mos_components/mos_sysport/src/bal_os.c
     src/mos_components/mos_lvgl_display/src/mos_lvgl_display.c
     src/mos_components/mos_lvgl_display/src/display_config.c

@@ -1,0 +1,46 @@
+
+# Partition Manager Configuration for nRF5340
+# 分区管理器配置
+#
+# External Flash Layout (32MB total):
+# 外部 Flash 布局（总共 32MB）:
+# - 0x000000 - 0x100000 (1MB):   littlefs_storage (文件系统存储)
+# - 0x100000 - 0x900000 (8MB):   font_storage (字库文件存储，支持最大 6.8MB 字库)
+# - 0x900000 - 0x2000000 (23MB): external_flash (其他用途)
+
+# LittleFS storage partition for general file system
+# LittleFS 文件系统存储分区
+# littlefs_storage:
+#   address: 0x0
+#   end_address: 0x100000
+#   region: external_flash
+#   size: 0x100000
+
+# Font storage partition for font binary files
+# 字库文件存储分区（用于存储 .bin 字库文件）
+# Size: 8MB (0x800000) - supports font files up to ~7MB
+# 大小：8MB (0x800000) - 支持最大约 7MB 的字库文件
+font_storage:
+  address: 0x0
+  end_address: 0x900000
+  region: external_flash
+  size: 0x900000
+
+# General external flash partition for other uses
+# 通用外部 flash 分区（用于其他用途）
+external_flash:
+  address: 0x900000
+  end_address: 0x2000000
+  region: external_flash
+  size: 0x1700000
+
+# MCUboot secondary partition for OTA updates (commented out, enable if needed)
+# MCUboot 升级分区（用于 OTA 更新，已注释，需要时启用）
+# mcuboot_secondary:
+#   address: 0x0
+#   device: DT_CHOSEN(nordic_pm_ext_flash)
+#   end_address: 0xEC000
+#   region: external_flash
+#   share_size:
+#   - mcuboot_primary
+#   size: 0xEC000

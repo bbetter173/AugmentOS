@@ -37,6 +37,11 @@ typedef enum
     LCD_CMD_CHESS_PATTERN,         // **NEW: Direct A6N chess pattern**
     LCD_CMD_SHOW_PATTERN,          // **NEW: Show specific pattern by ID**
 } display_cmd_type_t;
+
+/* Display on/off control functions | 显示开关控制函数 */
+void set_display_onoff(bool state);
+bool get_display_onoff(void);
+
 #define MAX_TEXT_LEN 128
 typedef struct
 {

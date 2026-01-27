@@ -1,3 +1,150 @@
+# 2026-01-27
+
+## Added - Button Application, Interrupt Handler, Power Management
+
+This update introduces major improvements to the nRF5340 BLE simulator firmware, including new modular components and power management enhancements.
+
+### New Components
+
+#### Button Application Module (mos_button_app)
+- Implemented complete button application logic with long-press detection (2.5s)
+- Added System OFF sleep mode support with GPIO wakeup
+- Integrated with interrupt handler framework for reliable button event processing
+- Supports power-on long press requirement after System OFF wakeup
+- Automatic peripheral shutdown on long press (display, VAD, LDSW)
+
+#### Interrupt Handler Framework (mos_interrupt)
+- Created unified interrupt handler framework for extensible interrupt management
+- Supports multiple interrupt types with callback registration
+- Thread-safe interrupt event processing
+- Used by button app and other components
+
+#### J-Link/USB Switch Application (mos_jlink_usb_switch_app)
+- Automatic switching between J-Link and USB modes based on USB connection status
+- USB cable detection via polling (1 second interval)
+- GPIO control for P1.11 switch pin
+- Integrated with USB detection system
+
+#### NPM1300 LDSW Driver (mos_npm1300_ldsw)
+- Low-dropout switch control for power management
+- Enable/disable functionality
+- Initialization and configuration support
+
+### Power Management Improvements
+
+#### VAD Power Control
+- Added VAD power control functions (vad_power_on/off/control)
+- Automatic VAD power on during system startup
+- Automatic VAD power off during shutdown and sleep
+- Fixed GPIO logic (GPIO_ACTIVE_HIGH means HIGH = ON)
+
+#### I2C3 Power Management
+- Added i2c3 PM suspend before sleep in lsm6dsv16x driver
+- Pull down P1.04 (SDA) and P1.05 (SCL) after PM suspend
+- Prevents power leakage during System OFF sleep
+- Function: pull_down_i2c3_pins_for_sleep()
+
+#### USB Detection
+- Implemented USB cable detection using polling mode
+- Automatic J-Link/USB switch control based on USB status
+- 1 second polling interval for USB status monitoring
+- Initial USB state detection on startup
+
+### GPIO Management
+
+#### User GPIO Initialization
+- Enhanced init_user_gpio() with comprehensive GPIO array management
+- Support for conditional GPIO definitions (sda4/scl4 used by i2c3)
+- Proper initialization of all user GPIOs as outputs with LOW default state
+- GPIOs: vad_power, sda5, scl5, user1_p1_12, spi_rst, user1_p0_28, int4, spi_cs2, spi_cs1
+
+### Code Refactoring
+
+#### main.c Improvements
+- Removed dependency on DK buttons/leds library
+- Reorganized includes for better organization
+- Added USB detection and J-Link/USB switch initialization
+- Integrated button app and interrupt handler initialization
+- Added VAD power control on startup
+
+#### LSM6DSV16X Driver
+- Added PM device support includes
+- Implemented i2c3 suspend and GPIO pull-down for sleep
+- Direct GPIO access using nrf_gpio API for P1.04/P1.05
+
+### Device Tree Updates
+
+#### nrf5340dk_nrf5340_cpuapp_ns.overlay
+- Updated GPIO definitions for new components
+- Added J-Link/USB switch GPIO (P1.11)
+- Added button GPIO (P0.23)
+- Added VAD power GPIO (P1.00)
+- Configured i2c3 for LSM6DSV16X and OPT3006
+- Added GPIO sense-edge-mask for low-power button wakeup
+
+### Build System
+
+#### CMakeLists.txt Updates
+- Added new component CMakeLists.txt files:
+  - mos_button/CMakeLists.txt
+  - mos_interrupt/CMakeLists.txt
+  - mos_jlink_usb_switch/CMakeLists.txt
+- Updated main CMakeLists.txt and mos_driver CMakeLists.txt
+- Added new source files to build system
+
+### Configuration
+
+#### prj.conf
+- Added configuration options for new components
+- Power management settings
+- Interrupt handler configuration
+
+### Files Changed
+
+#### New Files (15)
+- src/mos_components/mos_button/CMakeLists.txt
+- src/mos_components/mos_button/include/mos_button_app.h
+- src/mos_components/mos_button/src/mos_button_app.c
+- src/mos_components/mos_interrupt/CMakeLists.txt
+- src/mos_components/mos_interrupt/include/interrupt_handler.h
+- src/mos_components/mos_interrupt/src/interrupt_handler.c
+- src/mos_components/mos_jlink_usb_switch/CMakeLists.txt
+- src/mos_components/mos_jlink_usb_switch/include/mos_jlink_usb_switch_app.h
+- src/mos_components/mos_jlink_usb_switch/src/mos_jlink_usb_switch_app.c
+- src/mos_driver/include/mos_npm1300_ldsw.h
+- src/mos_driver/src/mos_npm1300_ldsw.c
+- src/mos_driver/include/mos_button.h
+- src/mos_driver/src/mos_button.c
+- src/mos_driver/include/mos_jlink_usb_switch.h
+- src/mos_driver/src/mos_jlink_usb_switch.c
+
+#### Modified Files (13)
+- src/main.c (major refactoring, ~1000 lines changed)
+- src/mos_driver/src/lsm6dsv16x.c (PM suspend and GPIO pull-down)
+- src/mos_components/mos_lvgl_display/src/mos_lvgl_display.c (display init optimization)
+- src/protobuf_handler.c (major refactoring)
+- src/shell_jlink_usb_switch.c (updated for new API)
+- boards/nrf5340dk_nrf5340_cpuapp_ns.overlay (GPIO and device tree updates)
+- custom_driver_module/drivers/display/lcd/a6n.c (minor updates)
+- CMakeLists.txt files (build system updates)
+- prj.conf (configuration updates)
+
+### Testing Notes
+- Button long press (2.5s) triggers peripheral shutdown and System OFF sleep
+- USB detection automatically switches J-Link/USB mode
+- VAD power automatically turns on at startup and off at shutdown
+- I2C3 pins properly pulled low during sleep to prevent power leakage
+
+### Breaking Changes
+- Removed dependency on DK buttons/leds library
+- Button handling now uses new mos_button_app module
+- GPIO initialization requires device tree configuration
+
+### Related Issues
+- Implements proper power management for sleep mode
+- Adds USB detection and automatic mode switching
+- Improves button handling reliability
+
 # 2026-01-08
 
 ## Changed

@@ -19,6 +19,9 @@ include(nanopb)
 add_subdirectory(src/mos_components/mos_pdm)
 add_subdirectory(src/mos_driver)
 add_subdirectory(src/mos_components/mos_battery)
+add_subdirectory(src/mos_components/mos_button)
+add_subdirectory(src/mos_components/mos_interrupt)
+add_subdirectory(src/mos_components/mos_jlink_usb_switch)
 
 target_sources(app PRIVATE
     src/main.c
@@ -55,6 +58,7 @@ target_include_directories(app PRIVATE
     src/BspLog
     src/mos_components/mos_sysport/include
     src/mos_components/mos_lvgl_display/include
+    src/mos_components/mos_jlink_usb_switch/include
     custom_driver_module/drivers
 )
 

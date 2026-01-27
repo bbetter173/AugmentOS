@@ -8,18 +8,28 @@
         nordic,pm-ext-flash = &mx25u256;
         // nordic,pm-ext-flash = &mx25r64;  // For testing with MX25R64
     };
-
+    /delete-node/ aliases;
     aliases {
         myals = &i2c3;  // My Ambient Light Sensor I2C bus
         lsm6dsv16x = &lsm6dsv16x;  // LSM6DSV16X IMU sensor
     };
 
     zephyr_user: zephyr,user {
-        es_power_en-gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>;
-        mic_pwr_en-gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
         imu_ctrl-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>;  // P1.05 for IMU start/stop control
         imu_ctrl_init-gpios = <&gpio0 26 GPIO_ACTIVE_HIGH>;// P1.04 for IMU initial power control
         jlink_usb_switch-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;  // P1.11 for J-Link/USB switch control
+        button-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;  // P0.23 for button input
+        vad_power-gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>;  // P1.00 for VAD_EN power control
+        
+        /* User GPIO definitions | 用户GPIO定义 */
+        sda5-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;      // P0.31 SDA5
+        scl5-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;      // P0.30 SCL5
+        user1_p1_12-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;  // P1.12 user1
+        spi_rst-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;     // P1.01 SPI_RST
+        user1_p0_28-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;  // P0.28 user1
+        int4-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;     // P0.22 INT4
+        spi_cs2-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;  // P0.12 SPI_CS2
+        spi_cs1-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;  // P0.11 SPI_CS1
     };
 };
 
@@ -40,7 +50,7 @@
             low-power-enable;
         };
     };
-    
+
     pwm1_default: pwm1_default {
         group1 {
             psels = <NRF_PSEL(PWM_OUT0, 0, 13)>;  /* P0.13 */
@@ -52,32 +62,19 @@
             low-power-enable;
         };
     };
-    
+
     pdm0_default: pdm0_default {
         group1 {
             psels = <NRF_PSEL(PDM_CLK, 0, 20)>,
                     <NRF_PSEL(PDM_DIN, 0, 21)>;
         };
     };
-    
-    i2c2_default: i2c2_default {
-        group1 {
-            psels = <NRF_PSEL(TWIM_SDA, 1, 14)>,
-                    <NRF_PSEL(TWIM_SCL, 1, 15)>;
-        };
-    };
-    i2c2_sleep: i2c2_sleep {
-        group1 {
-            psels = <NRF_PSEL(TWIM_SDA, 1, 14)>,
-                    <NRF_PSEL(TWIM_SCL, 1, 15)>;
-            low-power-enable;
-        };
-    };
+
 
     i2c3_default: i2c3_default {
         group1 {
-            psels = <NRF_PSEL(TWIM_SDA, 1, 4)>, 
-                    <NRF_PSEL(TWIM_SCL, 1, 5)>;  
+            psels = <NRF_PSEL(TWIM_SDA, 1, 4)>,
+                    <NRF_PSEL(TWIM_SCL, 1, 5)>;
             bias-pull-up;
             nordic,drive-mode = <NRF_DRIVE_S0D1>;
         };
@@ -91,14 +88,14 @@
     };
 
     i2s0_default: i2s0_default {
-		group1 {
-			psels = <NRF_PSEL(I2S_SDOUT, 1, 6)>,
-					<NRF_PSEL(I2S_SCK_M, 1, 7)>,
-					<NRF_PSEL(I2S_LRCK_M, 1, 8)>;
-			// <NRF_PSEL(I2S_SDIN, 0, 0)>;
+        group1 {
+            psels = <NRF_PSEL(I2S_SDOUT, 1, 6)>,
+                    <NRF_PSEL(I2S_SCK_M, 1, 7)>,
+                    <NRF_PSEL(I2S_LRCK_M, 1, 8)>;
+            // <NRF_PSEL(I2S_SDIN, 0, 0)>;
 
-		};
-	};
+        };
+    };
 };
 
 /* Disable SPI3 (8MHz limited) */
@@ -113,7 +110,7 @@
     pinctrl-0 = <&spi4_default>;
     pinctrl-1 = <&spi4_sleep>;
     pinctrl-names = "default", "sleep";
-    
+
     a6n: a6n@0 {
         compatible = "zephyr,custom-a6n";
         reg = <0>;
@@ -122,10 +119,10 @@
         left_cs-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>; // cs0
         right_cs-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;// cs1
         /* Power enables and reset */
-        v0_9-gpios     = <&gpio0 5 GPIO_ACTIVE_HIGH>;  /* P0.05 */
-        v1_8-gpios     = <&gpio0 6 GPIO_ACTIVE_HIGH>;  /* P0.06 */
-        vcom-gpios     = <&gpio0 7 GPIO_ACTIVE_HIGH>;  /* P0.07 */
-        reset-gpios    = <&gpio1 1 GPIO_ACTIVE_HIGH>;  /* P1.01 */
+        v0_9-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;  /* P0.05 */
+        v1_8-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;  /* P0.06 */
+        vcom-gpios = <&gpio0 7 GPIO_ACTIVE_HIGH>;  /* P0.07 */
+        reset-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;  /* P1.01 */
 
         width = <640>;
         height = <480>;
@@ -149,31 +146,6 @@
     queue-size = <4>;
 };
 
-/* Enable I2C2 for SSD1306 display */
-&i2c2 {
-    compatible = "nordic,nrf-twim";
-    status = "okay";
-    pinctrl-0 = <&i2c2_default>;
-    pinctrl-1 = <&i2c2_sleep>;
-    pinctrl-names = "default", "sleep";
-    clock-frequency = <I2C_BITRATE_FAST_PLUS>;
-    zephyr,concat-buf-size = <4096>;
-    
-    ssd1306: ssd1306@3c {
-        compatible = "solomon,ssd1306fb";  
-        reg = <0x3c>;    
-        width = <128>;
-        height = <64>;
-        segment-offset = <0>;
-        page-offset = <0>;
-        display-offset = <0>;
-        multiplex-ratio = <63>;
-        com-invdir;
-        prechargep = <0x22>;
-        segment-remap;
-        status = "disabled";  // Disable SSD1306 for A6N testing
-    };
-};
 &i2c1 {
     status = "disabled";
 };
@@ -186,7 +158,7 @@
     pinctrl-1 = <&i2c3_sleep>;
     pinctrl-names = "default", "sleep";
     clock-frequency = <I2C_BITRATE_STANDARD>;  // 100kHz for LSM6DSV16X
-    
+
     lsm6dsv16x: lsm6dsv16x@6a {
         compatible = "st,lsm6dsv16x";
         //   AD0 = VDD → I2C address = 0x6b
@@ -203,8 +175,8 @@
 
 
 &gpio_fwd {
-	status = "disabled";
-	/delete-node/ uart;
+    status = "disabled";
+    /delete-node/ uart;
 };
 
 zephyr_udc0: &usbd {
@@ -212,75 +184,81 @@ zephyr_udc0: &usbd {
     status = "okay";
 
     cdc_acm_uart0: cdc_acm_uart0 {
-            compatible = "zephyr,cdc-acm-uart";
+        compatible = "zephyr,cdc-acm-uart";
     };
 };
 
 &i2s0 {
-	compatible = "nordic,nrf-i2s";
-	status = "okay";
-	pinctrl-0 = <&i2s0_default>;
-	pinctrl-names = "default";
-	// clock-source = "ACLK";
+    compatible = "nordic,nrf-i2s";
+    status = "okay";
+    pinctrl-0 = <&i2s0_default>;
+    pinctrl-names = "default";
+    // clock-source = "ACLK";
 };
 
 
 
 // &qspi {
-//     status = "okay";
-//     pinctrl-0 = <&qspi_default>;
-//     pinctrl-1 = <&qspi_sleep>;
-//     pinctrl-names = "default", "sleep";
-//     mx25r64: mx25r6435f@0 {
-//         compatible = "nordic,qspi-nor";
-//         reg = <0>;
-//         /* MX25R64 supports only pp and pp4io */
-//         writeoc = "pp4io";
-//         /* MX25R64 supports all readoc options */
-//         readoc = "read4io";
-//         sck-frequency = <8000000>;
-//         jedec-id = [ c2 28 17 ];
-//         sfdp-bfp = [
-//             e5 20 f1 ff  ff ff ff 03  44 eb 08 6b  08 3b 04 bb
-//             ee ff ff ff  ff ff 00 ff  ff ff 00 ff  0c 20 0f 52
-//             10 d8 00 ff  23 72 f5 00  82 ed 04 cc  44 83 68 44
-//             30 b0 30 b0  f7 c4 d5 5c  00 be 29 ff  f0 d0 ff ff];
-//         size = <67108864>;
-//         has-dpd;
-//         t-enter-dpd = <10000>;
-//         t-exit-dpd = <35000>;
-// 	};
+    //     status = "okay";
+    //     pinctrl-0 = <&qspi_default>;
+    //     pinctrl-1 = <&qspi_sleep>;
+    //     pinctrl-names = "default", "sleep";
+    //     mx25r64: mx25r6435f@0 {
+        //         compatible = "nordic,qspi-nor";
+        //         reg = <0>;
+        //         /* MX25R64 supports only pp and pp4io */
+        //         writeoc = "pp4io";
+        //         /* MX25R64 supports all readoc options */
+        //         readoc = "read4io";
+        //         sck-frequency = <8000000>;
+        //         jedec-id = [ c2 28 17  ];
+        //         sfdp-bfp = [
+        //             e5 20 f1 ff  ff ff ff 03  44 eb 08 6b  08 3b 04 bb
+        //             ee ff ff ff  ff ff 00 ff  ff ff 00 ff  0c 20 0f 52
+        //             10 d8 00 ff  23 72 f5 00  82 ed 04 cc  44 83 68 44
+        //             30 b0 30 b0  f7 c4 d5 5c  00 be 29 ff  f0 d0 ff ff];
+        //         size = <67108864>;
+        //         has-dpd;
+        //         t-enter-dpd = <10000>;
+        //         t-exit-dpd = <35000>;
+    //     };
 // };
-
+/* Remove LED nodes to avoid aliases conflicts with DK LEDs */
 /delete-node/ &mx25r64;
+/delete-node/ &led0;
+/delete-node/ &led1;
+/delete-node/ &led2;
+/delete-node/ &led3;
 &qspi {
-	status = "okay";
-	pinctrl-0 = <&qspi_default>;
-	pinctrl-1 = <&qspi_sleep>;
-	pinctrl-names = "default", "sleep";
-	mx25u256: mx25u256@0 {
-		compatible = "nordic,qspi-nor";
-		reg = <0>;
-		/* MX25U256 supports only pp and pp4io */
-		writeoc = "pp4io";
-		/* MX25U256 supports all readoc options */
-		readoc = "read4io";
-		sck-frequency = <32000000>;//最高 48Mhz
-		address-size-32;
-		enter-4byte-addr = <0xb7>;
-		jedec-id = [ c2 25 39  ];
-		sfdp-bfp = [ 
-			e5 20 fb ff ff ff ff 0f 44 eb 08 6b 08 3b 04 bb 
-			fe ff ff ff ff ff 00 ff ff ff 44 eb 0c 20 0f 52 
-			10 d8 00 ff 25 52 dd 00 84 a5 04 e2 44 03 17 38 
-			30 b0 30 b0 f7 bd d5 5c 4a 9e 29 ff f0 50 f9 85 ];
-		size = <0x2000000>;// 32M
-		has-dpd;
-		t-enter-dpd = <10000>;
-		t-exit-dpd = <35000>;
-	};
+    status = "okay";
+    pinctrl-0 = <&qspi_default>;
+    pinctrl-1 = <&qspi_sleep>;
+    pinctrl-names = "default", "sleep";
+    mx25u256: mx25u256@0 {
+        compatible = "nordic,qspi-nor";
+        reg = <0>;
+        /* MX25U256 supports only pp and pp4io */
+        writeoc = "pp4io";
+        /* MX25U256 supports all readoc options */
+        readoc = "read4io";
+        sck-frequency = <32000000>;//最高 48Mhz
+        address-size-32;
+        enter-4byte-addr = <0xb7>;
+        jedec-id = [ c2 25 39  ];
+        sfdp-bfp = [ e5 20 fb ff ff ff ff 0f 44 eb 08 6b 08 3b 04 bb fe ff ff ff ff ff 00 ff ff ff 44 eb 0c 20 0f 52 10 d8 00 ff 25 52 dd 00 84 a5 04 e2 44 03 17 38 30 b0 30 b0 f7 bd d5 5c 4a 9e 29 ff f0 50 f9 85  ];
+        size = <0x2000000>;// 32M
+        has-dpd;
+        t-enter-dpd = <10000>;
+        t-exit-dpd = <35000>;
+    };
 };
 
 &uart0 {
     status = "disabled";
+};
+
+/* Configure GPIO0 sense-edge-mask for low-power button wakeup | 配置GPIO0 sense-edge-mask用于低功耗按键唤醒 */
+/* P0.23 is bit 23, so mask = (1 << 23) = 0x800000 | P0.23是第23位，所以掩码 = (1 << 23) = 0x800000 */
+&gpio0 {
+    sense-edge-mask = <0x800000>;  /* Enable SENSE for P0.23 (button) | 为P0.23（按键）启用SENSE */
 };

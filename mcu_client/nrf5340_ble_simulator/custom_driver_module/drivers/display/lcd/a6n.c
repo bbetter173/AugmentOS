@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-28 11:31:02
- * @LastEditTime : 2025-10-14 16:27:09
+ * @LastEditTime : 2026-01-26 20:11:06
  * @FilePath     : a6n.c
  * @Description  :
  *
@@ -858,6 +858,14 @@ static int a6n_get_capabilities(struct device *dev, struct display_capabilities 
     cap->current_orientation = DISPLAY_ORIENTATION_NORMAL;
     return 0;
 }
+void a6n_io_off(void)
+{
+    const a6n_config *cfg = (a6n_config *)dev_a6n->config;
+    gpio_pin_set_dt(&cfg->left_cs, 0);
+    gpio_pin_set_dt(&cfg->right_cs, 0);
+    gpio_pin_set_dt(&cfg->reset, 0);
+}
+
 void a6n_power_on(void)
 {
     LOG_INF("bsp_lcd_power_on");
@@ -1148,14 +1156,7 @@ static int a6n_init(const struct device *dev)
 {
     a6n_config *cfg  = (a6n_config *)dev->config;
     a6n_data   *data = (a6n_data *)dev->data;
-    int              ret;
-    // **NEW: Log SPI configuration for debugging**
-    LOG_INF("🚀 A6N SPI Configuration:");
-    LOG_INF("  - Device: %s", cfg->spi.bus->name);
-    LOG_INF("  - Max Frequency: %d Hz (%.2f MHz)", cfg->spi.config.frequency,
-            (float)cfg->spi.config.frequency / 1000000.0f);
-    LOG_INF("  - Operation Mode: 0x%08X", cfg->spi.config.operation);
-    LOG_INF("  - Slave ID: %d", cfg->spi.config.slave);
+    int ret;
 
     if (!spi_is_ready_dt(&cfg->spi))
     {

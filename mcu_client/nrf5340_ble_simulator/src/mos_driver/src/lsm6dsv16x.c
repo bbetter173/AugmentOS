@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-11-19 20:05:11
- * @LastEditTime : 2025-11-20 11:54:46
+ * @LastEditTime : 2026-01-27 10:22:00
  * @FilePath     : lsm6dsv16x.c
  * @Description  : LSM6DSV16X 6-axis IMU sensor driver wrapper
  *                 LSM6DSV16X 6轴IMU传感器驱动封装
@@ -21,9 +21,15 @@
 #include <zephyr/drivers/sensor_data_types.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/sys/util.h>
+#include <hal/nrf_gpio.h>
 
 LOG_MODULE_REGISTER(lsm6dsv16x, LOG_LEVEL_INF);
+
+/* i2c3 pinout: P1.04 = SDA, P1.05 = SCL | i2c3 引脚：P1.04=SDA, P1.05=SCL */
+#define I2C3_SDA_PIN 4
+#define I2C3_SCL_PIN 5
 
 // Device tree node | 设备树节点
 #define LSM6DSV16X_NODE DT_ALIAS(lsm6dsv16x)
@@ -105,6 +111,39 @@ static int imu_init_gpio_set(bool high)
 static int imu_init_gpio_init(void) { return 0; }
 static int imu_init_gpio_set(bool high) { (void)high; return 0; }
 #endif
+/**
+ * @brief Suspend i2c3 via PM, then pull P1.04 (SDA) and P1.05 (SCL) low for sleep.
+ * 挂起 i2c3 外设（PM），再将 P1.04（SDA）、P1.05（SCL）拉低，用于休眠。
+ */
+void pull_down_i2c3_pins_for_sleep(void)
+{
+    const struct device *i2c3 = DEVICE_DT_GET(DT_NODELABEL(i2c3));
+
+    /* 1. Suspend i2c3 peripheral via PM | 通过 PM 挂起 i2c3 外设 */
+    if (device_is_ready(i2c3))
+    {
+        int ret = pm_device_action_run(i2c3, PM_DEVICE_ACTION_SUSPEND);
+        if (ret == 0)
+        {
+            LOG_INF("i2c3 suspended via PM");
+        }
+        else
+        {
+            LOG_WRN("i2c3 PM suspend failed: %d (continuing to pull GPIOs low)", ret);
+        }
+    }
+    else
+    {
+        LOG_WRN("i2c3 not ready, skipping PM suspend");
+    }
+
+    /* 2. Pull P1.04 (SDA) and P1.05 (SCL) low | 将 P1.04（SDA）、P1.05（SCL）拉低 */
+    nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, I2C3_SDA_PIN));
+    nrf_gpio_pin_write(NRF_GPIO_PIN_MAP(1, I2C3_SDA_PIN), 0);
+    nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, I2C3_SCL_PIN));
+    nrf_gpio_pin_write(NRF_GPIO_PIN_MAP(1, I2C3_SCL_PIN), 0);
+    LOG_INF("i2c3 pins (P1.04 SDA, P1.05 SCL) pulled low for sleep");
+}
 
 int lsm6dsv16x_init(void)
 {

@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-31 10:40:40
- * @LastEditTime : 2025-11-14 18:03:50
+ * @LastEditTime : 2026-01-27 10:57:39
  * @FilePath     : mos_lvgl_display.c
  * @Description  :
  *
@@ -991,8 +991,13 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                     
                     LOG_INF("LCD init complete - GRAY16 mode + 90Hz refresh rate configured");
                     mos_delay_ms(2);
-                    a6n_open_display();
+                    
+                    // Clear screen BEFORE opening display to avoid visible flash | 在打开显示前清屏，避免可见闪烁
+                    // A6N requires a full screen clear after power-on for proper operation | A6N上电后必须做一次全屏清屏才能正常工作
                     a6n_clear_screen(false);
+                    
+                    // Now open display - screen is already cleared, so no flash visible | 现在打开显示 - 屏幕已清屏，无闪烁
+                    a6n_open_display();
      
                     state_type = LCD_STATE_ON;
 

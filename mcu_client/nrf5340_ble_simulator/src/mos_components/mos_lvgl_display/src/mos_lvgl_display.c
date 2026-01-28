@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-31 10:40:40
- * @LastEditTime : 2026-01-27 10:57:39
+ * @LastEditTime : 2026-01-28 18:57:38
  * @FilePath     : mos_lvgl_display.c
  * @Description  :
  *
@@ -996,6 +996,7 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                     // A6N requires a full screen clear after power-on for proper operation | A6N上电后必须做一次全屏清屏才能正常工作
                     a6n_clear_screen(false);
                     
+                    mos_delay_ms(20);
                     // Now open display - screen is already cleared, so no flash visible | 现在打开显示 - 屏幕已清屏，无闪烁
                     a6n_open_display();
      

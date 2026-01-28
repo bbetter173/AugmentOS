@@ -64,8 +64,19 @@ int mos_button_app_enter_sleep(void);
  * @brief Check if device is waking from System OFF | 检查设备是否从System OFF唤醒
  * @return true if waking from System OFF, false otherwise
  * @return 如果从System OFF唤醒返回true，否则返回false
+ * @note This function clears the reset reason, so should only be called once | 此函数会清除复位原因，因此只应调用一次
  */
 bool mos_button_app_is_waking_from_sleep(void);
+
+/**
+ * @brief Check wakeup state and button immediately after wakeup (before full initialization) | 唤醒后立即检查唤醒状态和按键（在完整初始化之前）
+ * @return true if device woke from sleep, false otherwise
+ * @return 如果设备从休眠唤醒返回true，否则返回false
+ * @note This should be called as early as possible in main() after wakeup | 这应在 main() 中唤醒后尽可能早地调用
+ * @note Records the wakeup time if button is already pressed on wakeup | 如果唤醒时按键已按下，记录唤醒时间
+ * @note This function calls mos_button_app_is_waking_from_sleep() internally, so don't call it again | 此函数内部调用mos_button_app_is_waking_from_sleep()，所以不要再次调用
+ */
+bool mos_button_app_check_wakeup_state(void);
 
 /**
  * @brief Wait for button long press (2500ms) to power on | 等待按键长按（2500ms）以开机
@@ -74,6 +85,7 @@ bool mos_button_app_is_waking_from_sleep(void);
  * @return 如果检测到长按返回0，超时或失败返回负数错误码
  * @note This function should be called after System OFF wakeup | 此函数应在System OFF唤醒后调用
  * @note If long press is not detected within timeout, device will enter sleep again | 如果在超时时间内未检测到长按，设备将再次进入休眠
+ * @note Uses wakeup button press time if button was already pressed on wakeup | 如果唤醒时按键已按下，使用唤醒按键按下时间
  */
 int mos_button_app_wait_for_power_on(uint32_t timeout_ms);
 

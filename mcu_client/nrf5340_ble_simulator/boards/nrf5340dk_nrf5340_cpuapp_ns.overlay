@@ -24,12 +24,8 @@
         /* User GPIO definitions | 用户GPIO定义 */
         sda5-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;      // P0.31 SDA5
         scl5-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;      // P0.30 SCL5
-        user1_p1_12-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;  // P1.12 user1
-        spi_rst-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;     // P1.01 SPI_RST
         user1_p0_28-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;  // P0.28 user1
         int4-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;     // P0.22 INT4
-        spi_cs2-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;  // P0.12 SPI_CS2
-        spi_cs1-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;  // P0.11 SPI_CS1
     };
 };
 
@@ -229,6 +225,10 @@ zephyr_udc0: &usbd {
 /delete-node/ &led1;
 /delete-node/ &led2;
 /delete-node/ &led3;
+/delete-node/ &button0;
+/delete-node/ &button1;
+/delete-node/ &button2;
+/delete-node/ &button3;
 &qspi {
     status = "okay";
     pinctrl-0 = <&qspi_default>;
@@ -254,6 +254,12 @@ zephyr_udc0: &usbd {
 };
 
 &uart0 {
+    status = "disabled";
+};
+&pwm0 {
+    status = "disabled";
+};
+&pwm1 {
     status = "disabled";
 };
 

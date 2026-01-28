@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2026-01-24 11:14:00
- * @LastEditTime : 2026-01-26 17:57:36
+ * @LastEditTime : 2026-01-28 19:01:48
  * @FilePath     : mos_button.c
  * @Description  : 
  * 
@@ -197,10 +197,6 @@ int mos_button_configure_wakeup(void)
         LOG_ERR("Failed to reconfigure button GPIO: %d", ret);
         return ret;
     }
-
-    /* Configure GPIO SENSE for System OFF wakeup | 配置GPIO SENSE用于System OFF唤醒 */
-    /* Button is active LOW, so use SENSE_LOW to wake on press | 按键为低电平有效，所以使用SENSE_LOW以便按下时唤醒 */
-    /* Since we wait for release before entering sleep, button will be released (HIGH) when entering sleep | 由于我们在进入休眠前等待释放，进入休眠时按键将是释放状态（高电平）*/
     uint32_t pin = button_gpio.pin;
     nrf_gpio_cfg_input(pin, NRF_GPIO_PIN_PULLUP);
     nrf_gpio_cfg_sense_set(pin, NRF_GPIO_PIN_SENSE_LOW);

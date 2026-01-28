@@ -1,167 +1,224 @@
-/*
- * Copyright (c) 2022 Nordic Semiconductor ASA
- *
- * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
- */
-
 / {
-	chosen {
-		nordic,nus-uart = &uart0;
-		/* Use HLS12VGA projector display */
-		// zephyr,display = &hls12vga;
-		zephyr,display = &ssd1306;
-		/* UART2 for console/shell output on P0.20 (TX) and P0.22 (RX) */
-		zephyr,console = &uart2;
-		zephyr,shell-uart = &uart2;
-	};
-	
-	pwmleds {
-		compatible = "pwm-leds";
-		
-		/* PWM LED for brightness control on LED 3 (P0.31) */
-		pwm_led3: pwm_led_3 {
-			pwms = <&pwm1 0 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
-			label = "PWM LED 3";
-		};
-	};
-	
-	aliases {
-		pwm-led3 = &pwm_led3;
-	};
+    chosen {
+        zephyr,display = &a6n;  // Switch to A6N projector for testing
+        // nordic-nus-uart = &uart0;
+        // /* USB CDC ACM for console/shell */
+        zephyr,console = &cdc_acm_uart0;
+        zephyr,shell-uart = &cdc_acm_uart0;
+        nordic,pm-ext-flash = &mx25u256;
+        // nordic,pm-ext-flash = &mx25r64;  // For testing with MX25R64
+    };
+    /delete-node/ aliases;
+    aliases {
+        myals = &i2c3;  // My Ambient Light Sensor I2C bus
+        lsm6dsv16x = &lsm6dsv16x;  // LSM6DSV16X IMU sensor
+    };
 
-	/* Dummy display for testing (until projector driver properly integrated) */
-	dummy_display: dummy_display {
-		compatible = "zephyr,dummy-dc";
-		width = <640>;
-		height = <480>;
-		status = "disabled";  // Disabled since we're using SSD1306
-	};
+    zephyr_user: zephyr,user {
+        imu_ctrl-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>;  // P1.05 for IMU start/stop control
+        imu_ctrl_init-gpios = <&gpio0 26 GPIO_ACTIVE_HIGH>;// P1.04 for IMU initial power control
+        jlink_usb_switch-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;  // P1.11 for J-Link/USB switch control
+        button-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;  // P0.23 for button input
+        vad_power-gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>;  // P1.00 for VAD_EN power control
+        
+        /* User GPIO definitions | 用户GPIO定义 */
+        sda5-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;      // P0.31 SDA5
+        scl5-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;      // P0.30 SCL5
+        user1_p0_28-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;  // P0.28 user1
+        int4-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;     // P0.22 INT4
+    };
 };
 
 &pinctrl {
-	spi4_default: spi4_default {
-		group1 {
-			psels = <NRF_PSEL(SPIM_SCK,  0, 8)>,
-			        <NRF_PSEL(SPIM_MOSI, 0, 9)>,
-			        <NRF_PSEL(SPIM_MISO, 0, 10)>;
-			nordic,drive-mode = <NRF_DRIVE_E0E1>;
-		};
-	};
-	spi4_sleep: spi4_sleep {
-		group1 {
-			psels = <NRF_PSEL(SPIM_SCK,  0, 8)>,
-			        <NRF_PSEL(SPIM_MOSI, 0, 9)>,
-			        <NRF_PSEL(SPIM_MISO, 0, 10)>;
-			low-power-enable;
-		};
-	};
-	i2s0_default: i2s0_default {
-		group1 {
-			psels = <NRF_PSEL(I2S_SDOUT, 1, 06)>,
-					<NRF_PSEL(I2S_SCK_M, 1, 07)>,
-					<NRF_PSEL(I2S_LRCK_M, 1, 8)>;
-			// <NRF_PSEL(I2S_SDIN, 0, 0)>;
+    spi4_default: spi4_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 8)>,
+                    <NRF_PSEL(SPIM_MISO, 0, 10)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 9)>;
+            nordic,drive-mode = <NRF_DRIVE_E0E1>;
+        };
+    };
+    spi4_sleep: spi4_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 8)>,
+                    <NRF_PSEL(SPIM_MISO, 0, 10)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 9)>;
+            low-power-enable;
+        };
+    };
+    pdm0_default: pdm0_default {
+        group1 {
+            psels = <NRF_PSEL(PDM_CLK, 0, 20)>,
+                    <NRF_PSEL(PDM_DIN, 0, 21)>;
+        };
+    };
 
-		};
-	};
-	pdm0_default_alt: pdm0_default_alt {
-		group1 {
-			psels = <NRF_PSEL(PDM_CLK, 1, 12)>,
-					<NRF_PSEL(PDM_DIN, 1, 11)>;
 
-		};
-	};
+    i2c3_default: i2c3_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 1, 4)>,
+                    <NRF_PSEL(TWIM_SCL, 1, 5)>;
+            bias-pull-up;
+            nordic,drive-mode = <NRF_DRIVE_S0D1>;
+        };
+    };
+    i2c3_sleep: i2c3_sleep {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 1, 4)>,
+                    <NRF_PSEL(TWIM_SCL, 1, 5)>;
+            low-power-enable;
+        };
+    };
 
-	// UART2 pinctrl configuration for P0.20 (TX) and P0.22 (RX)
-	uart2_default: uart2_default {
-		group1 {
-			psels = <NRF_PSEL(UART_TX, 0, 20)>,
-					<NRF_PSEL(UART_RX, 0, 22)>;
-		};
-	};
-	uart2_sleep: uart2_sleep {
-		group1 {
-			psels = <NRF_PSEL(UART_TX, 0, 20)>,
-					<NRF_PSEL(UART_RX, 0, 22)>;
-			low-power-enable;
-		};
-	};
+    i2s0_default: i2s0_default {
+        group1 {
+            psels = <NRF_PSEL(I2S_SDOUT, 1, 6)>,
+                    <NRF_PSEL(I2S_SCK_M, 1, 7)>,
+                    <NRF_PSEL(I2S_LRCK_M, 1, 8)>;
+            // <NRF_PSEL(I2S_SDIN, 0, 0)>;
 
-	// I2C2 pinctrl moved to board overlay
+        };
+    };
 };
 
+/* Disable SPI3 (8MHz limited) */
+&spi3 {
+    status = "disabled";
+};
+
+/* Enable SPI4 with 32MHz capability for A6N */
 &spi4 {
-	compatible = "nordic,nrf-spim";
-	status = "disabled";
-	pinctrl-0 = <&spi4_default>;
-	pinctrl-1 = <&spi4_sleep>;
-	pinctrl-names = "default", "sleep";
+    compatible = "nordic,nrf-spim";
+    status = "okay";
+    pinctrl-0 = <&spi4_default>;
+    pinctrl-1 = <&spi4_sleep>;
+    pinctrl-names = "default", "sleep";
 
-	hls12vga: hls12vga@0 {
-		compatible = "zephyr,custom-hls12vga";
-		reg = <0>;
-		status = "disabled";
-		spi-max-frequency = <32000000>;
+    a6n: a6n@0 {
+        compatible = "zephyr,custom-a6n";
+        reg = <0>;
+        status = "okay";  // Enable A6N for projector testing
+        spi-max-frequency = <32000000>;
+        left_cs-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>; // cs0
+        right_cs-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;// cs1
+        /* Power enables and reset */
+        v0_9-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;  /* P0.05 */
+        v1_8-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;  /* P0.06 */
+        vcom-gpios = <&gpio0 7 GPIO_ACTIVE_HIGH>;  /* P0.07 */
+        reset-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;  /* P1.01 */
 
-		left_cs-gpios  = <&gpio1 4 GPIO_ACTIVE_HIGH>;
-		right_cs-gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
-		v0_9-gpios     = <&gpio0 5 GPIO_ACTIVE_HIGH>;
-		v1_8-gpios     = <&gpio0 6 GPIO_ACTIVE_HIGH>;
-		vcom-gpios     = <&gpio0 7 GPIO_ACTIVE_HIGH>;
-		reset-gpios    = <&gpio1 1 GPIO_ACTIVE_HIGH>;
-		width = <640>;
-		height = <480>;
-	};
+        width = <640>;
+        height = <480>;
+    };
 };
 
-&pinctrl {
-	pwm1_default: pwm1_default {
-		group1 {
-			psels = <NRF_PSEL(PWM_OUT0, 0, 31)>;
-		};
-	};
 
-	pwm1_sleep: pwm1_sleep {
-		group1 {
-			psels = <NRF_PSEL(PWM_OUT0, 0, 31)>;
-			low-power-enable;
-		};
-	};
+
+/* Enable PDM for microphone audio streaming */
+&pdm0 {
+    status = "okay";
+    pinctrl-0 = <&pdm0_default>;
+    pinctrl-names = "default";
+    clock-source = "PCLK32M_HFXO";
+    queue-size = <4>;
 };
 
-&pwm1 {
-	status = "okay";
-	pinctrl-0 = <&pwm1_default>;
-	pinctrl-1 = <&pwm1_sleep>;
-	pinctrl-names = "default", "sleep";
+&i2c1 {
+    status = "disabled";
+};
+
+/* Enable I2C3 for OPT3006 light sensor and LSM6DSV16X IMU */
+&i2c3 {
+    compatible = "nordic,nrf-twim";
+    status = "okay";
+    pinctrl-0 = <&i2c3_default>;
+    pinctrl-1 = <&i2c3_sleep>;
+    pinctrl-names = "default", "sleep";
+    clock-frequency = <I2C_BITRATE_STANDARD>;  // 100kHz for LSM6DSV16X
+
+    lsm6dsv16x: lsm6dsv16x@6a {
+        compatible = "st,lsm6dsv16x";
+        //   AD0 = VDD → I2C address = 0x6b
+        //   AD0 = GND → I2C address = 0x6a (current configuration)
+        reg = <0x6a>;
+        status = "okay";
+        // Enable hardware sensor fusion (SFLP) for quaternion output
+        // 启用硬件传感器融合（SFLP）以输出四元数
+        sflp-odr = <0x3>;  // 120Hz SFLP output rate | SFLP输出频率120Hz
+        sflp-fifo-enable = <0x1>;  // Enable game rotation vector (quaternion) | 启用游戏旋转向量（四元数）
+        fifo-watermark = <32>;  // FIFO watermark for batch reading | FIFO水位标记用于批量读取
+    };
+};
+
+
+&gpio_fwd {
+    status = "disabled";
+    /delete-node/ uart;
+};
+
+zephyr_udc0: &usbd {
+    compatible = "nordic,nrf-usbd";
+    status = "okay";
+
+    cdc_acm_uart0: cdc_acm_uart0 {
+        compatible = "zephyr,cdc-acm-uart";
+    };
 };
 
 &i2s0 {
-	compatible = "nordic,nrf-i2s";
-	status = "okay";
-	pinctrl-0 = <&i2s0_default>;
-	pinctrl-names = "default";
-	// clock-source = "ACLK";
+    compatible = "nordic,nrf-i2s";
+    status = "okay";
+    pinctrl-0 = <&i2s0_default>;
+    pinctrl-names = "default";
+    // clock-source = "ACLK";
+};
+/delete-node/ &mx25r64;
+/delete-node/ &led0;
+/delete-node/ &led1;
+/delete-node/ &led2;
+/delete-node/ &led3;
+/delete-node/ &button0;
+/delete-node/ &button1;
+/delete-node/ &button2;
+/delete-node/ &button3;
+
+&qspi {
+    status = "okay";
+    pinctrl-0 = <&qspi_default>;
+    pinctrl-1 = <&qspi_sleep>;
+    pinctrl-names = "default", "sleep";
+    mx25u256: mx25u256@0 {
+        compatible = "nordic,qspi-nor";
+        reg = <0>;
+        /* MX25U256 supports only pp and pp4io */
+        writeoc = "pp4io";
+        /* MX25U256 supports all readoc options */
+        readoc = "read4io";
+        sck-frequency = <32000000>;//最高 48Mhz
+        address-size-32;
+        enter-4byte-addr = <0xb7>;
+        jedec-id = [ c2 25 39  ];
+        sfdp-bfp = [ e5 20 fb ff ff ff ff 0f 44 eb 08 6b 08 3b 04 bb fe ff ff ff ff ff 00 ff ff ff 44 eb 0c 20 0f 52 10 d8 00 ff 25 52 dd 00 84 a5 04 e2 44 03 17 38 30 b0 30 b0 f7 bd d5 5c 4a 9e 29 ff f0 50 f9 85  ];
+        size = <0x2000000>;// 32M
+        has-dpd;
+        t-enter-dpd = <10000>;
+        t-exit-dpd = <35000>;
+    };
 };
 
-dmic_dev: &pdm0 {
-	status = "okay";
-	compatible = "nordic,nrf-pdm";
-	pinctrl-0 = <&pdm0_default_alt>;
-	pinctrl-names = "default";
-	// clock-source = "ACLK";
+&uart0 {
+    status = "disabled";
+};
+&pwm0 {
+	status = "disabled";
 };
 
-// Enable UART2 for console/shell on P0.20 (TX) and P0.22 (RX)
-&uart2 {
-	compatible = "nordic,nrf-uarte";
-	status = "okay";
-	current-speed = <115200>;
-	pinctrl-0 = <&uart2_default>;
-	pinctrl-1 = <&uart2_sleep>;
-	pinctrl-names = "default", "sleep";
+&pwm1 {
+    status = "disabled";
 };
 
-&i2c2 {
-    // SSD1306 configuration moved to board overlay
+/* Configure GPIO0 sense-edge-mask for low-power button wakeup | 配置GPIO0 sense-edge-mask用于低功耗按键唤醒 */
+/* P0.23 is bit 23, so mask = (1 << 23) = 0x800000 | P0.23是第23位，所以掩码 = (1 << 23) = 0x800000 */
+&gpio0 {
+    sense-edge-mask = <0x800000>;  /* Enable SENSE for P0.23 (button) | 为P0.23（按键）启用SENSE */
 };

@@ -45,6 +45,7 @@
 #include "mos_button_app.h"  // Button application logic
 #include "interrupt_handler.h"  // Interrupt handler framework
 #include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
+#include "mos_npm1300_ldsw.h"  // NPM1300 LDSW (load switch) control
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -570,12 +571,8 @@ extern int  bsp_log_runtime_level;
 static const struct gpio_dt_spec vad_power   = GPIO_DT_SPEC_GET(USER_NODE, vad_power_gpios);
 static const struct gpio_dt_spec sda5       = GPIO_DT_SPEC_GET(USER_NODE, sda5_gpios);
 static const struct gpio_dt_spec scl5       = GPIO_DT_SPEC_GET(USER_NODE, scl5_gpios);
-static const struct gpio_dt_spec user1_p1_12 = GPIO_DT_SPEC_GET(USER_NODE, user1_p1_12_gpios);
-static const struct gpio_dt_spec spi_rst     = GPIO_DT_SPEC_GET(USER_NODE, spi_rst_gpios);
 static const struct gpio_dt_spec user1_p0_28 = GPIO_DT_SPEC_GET(USER_NODE, user1_p0_28_gpios);
 static const struct gpio_dt_spec int4        = GPIO_DT_SPEC_GET(USER_NODE, int4_gpios);
-static const struct gpio_dt_spec spi_cs2     = GPIO_DT_SPEC_GET(USER_NODE, spi_cs2_gpios);
-static const struct gpio_dt_spec spi_cs1     = GPIO_DT_SPEC_GET(USER_NODE, spi_cs1_gpios);
 
 int init_user_gpio(void)
 {
@@ -584,29 +581,15 @@ int init_user_gpio(void)
         &vad_power,
         &sda5,
         &scl5,
-        &user1_p1_12,
-        &spi_rst,
         &user1_p0_28,
         &int4,
-        &spi_cs2,
-        &spi_cs1,
     };
     const char *gpio_names[] = {
         "vad_power (P1.00)",
         "sda5 (P0.31)",
         "scl5 (P0.30)",
-        "user1_p1_12 (P1.12)",
-        "spi_rst (P1.01)",
         "user1_p0_28 (P0.28)",
-#if DT_NODE_HAS_PROP(USER_NODE, sda4_gpios)
-        "sda4 (P1.04)",
-#endif
-#if DT_NODE_HAS_PROP(USER_NODE, scl4_gpios)
-        "scl4 (P1.05)",
-#endif
         "int4 (P0.22)",
-        "spi_cs2 (P0.12)",
-        "spi_cs1 (P0.11)",
     };
 
     /* Initialize all user GPIOs as output, default LOW | 初始化所有用户GPIO为输出，默认低电平 */
@@ -683,6 +666,8 @@ int main(void)
     int err = 0;
     bsp_log_init();
     LOG_INF("🚀🚀🚀 MAIN FUNCTION STARTED - v2.2.0-DISPLAY_OPEN_FIX 🚀🚀🚀");
+ 
+    bool woke_from_sleep = mos_button_app_check_wakeup_state();
 
     // Initialize user GPIOs (ES power and Microphone power from A6M)
     err = init_user_gpio();
@@ -743,15 +728,14 @@ int main(void)
     mos_jlink_usb_switch_app_init();
     mos_npm1300_ldsw1_init();
 	mos_npm1300_ldsw1_enable();
-    /* Check if waking from System OFF and wait for power-on long press | 检查是否从System OFF唤醒并等待开机长按 */
-    if (mos_button_app_is_waking_from_sleep())
+    
+    /* woke_from_sleep is already set by mos_button_app_check_wakeup_state() called at the start of main() | woke_from_sleep已由main()开始时调用的mos_button_app_check_wakeup_state()设置 */
+    if (woke_from_sleep)
     {
         LOG_INF("Device woke from System OFF - waiting for power-on long press (2.5s)...");
         
-        /* Wait for button long press (2500ms) to power on | 等待按键长按（2500ms）以开机 */
-        /* Timeout: 10 seconds - if no long press detected, enter sleep again | 超时：10秒 - 如果未检测到长按，再次进入休眠 */
-        int ret = mos_button_app_wait_for_power_on(2500);
-
+        int ret = mos_button_app_wait_for_power_on(1500);
+        
         if (ret != 0)
         {
             LOG_WRN("Power-on long press not detected - entering sleep again");
@@ -762,6 +746,8 @@ int main(void)
         
         LOG_INF("Power-on long press confirmed - starting device normally");
     }
+    
+    /* Initialize button app | 初始化按键应用 */
     mos_button_app_init();
 
     lvgl_display_thread();
@@ -781,12 +767,6 @@ int main(void)
     // lsm6dsv16x_init();
     usb_detect_init();
     npm1300_led_init();
-
-    /* Check if waking from System OFF | 检查是否从System OFF唤醒 */
-    if (mos_button_app_is_waking_from_sleep())
-    {
-        LOG_INF("Device woke up from System OFF sleep");
-    }
 
 	
     for (;;)

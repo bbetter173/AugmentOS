@@ -1003,11 +1003,10 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                     state_type = LCD_STATE_ON;
 
                     LOG_INF("🚀 About to call show_default_ui()...");
-                    show_default_ui();  // 显示默认图像
+                    show_default_ui();  
                     LOG_INF("✅ show_default_ui() completed");
                     break;
                 case LCD_CMD_DATA:
-                    /* 处理帧数据*/
                     break;
                 case LCD_CMD_CYCLE_PATTERN:
                     /* **NEW: Handle pattern cycling safely in LVGL thread** */

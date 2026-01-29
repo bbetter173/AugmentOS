@@ -67,7 +67,7 @@ static bool     ble_connected = false;
 static char dynamic_device_name[30];
 static struct bt_data ad[]                    = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA(BT_DATA_NAME_COMPLETE, "Display", 7),
+    BT_DATA(BT_DATA_NAME_COMPLETE, "MENTRA_DISPLAY_", 16),
 };
 static struct bt_data sd[] = {
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_MENTRA_VAL),
@@ -82,7 +82,7 @@ static void setup_dynamic_advertising(void)
     bt_id_get(&addr, &count);
 
     // Create device name with MAC suffix (last 6 hex digits)
-    snprintf(dynamic_device_name, sizeof(dynamic_device_name), "Display-%02X%02X%02X", addr.a.val[2], addr.a.val[1],
+    snprintf(dynamic_device_name, sizeof(dynamic_device_name), "MENTRA_DISPLAY_%02X%02X%02X", addr.a.val[2], addr.a.val[1],
              addr.a.val[0]);
 
     LOG_INF("Device name: %s", dynamic_device_name);

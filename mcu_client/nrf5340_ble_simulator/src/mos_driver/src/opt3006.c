@@ -19,7 +19,7 @@
 LOG_MODULE_REGISTER(opt3006, LOG_LEVEL_INF);
 
 
-#define I2C_NODE DT_ALIAS(myals)
+#define I2C_NODE DT_ALIAS(opt3006)
 
 // Global I2C device pointer | 全局I2C设备指针
 static const struct device* i2c_dev = NULL;

@@ -31,7 +31,8 @@ static int64_t ref_time;              /* Reference time for delta calculation / 
 
 /* Battery model parameters / 电池模型参数 */
 static const struct battery_model battery_model = {
-#include "battery_model.inc"
+// #include "battery_model.inc"
+#include "GY051023C21250310k_25C.inc"
 };
 
 /**

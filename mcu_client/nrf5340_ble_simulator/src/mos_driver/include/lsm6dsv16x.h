@@ -106,4 +106,18 @@ int lsm6dsv16x_read_device_id(uint8_t* device_id);
  */
 const struct device* lsm6dsv16x_get_device(void);
 
+/**
+ * @brief Initialize IMU control GPIO (start/stop, e.g. P1.05) | 初始化IMU控制GPIO（启停，如P1.05）
+ * @return 0 on success, negative error code on failure | 成功返回0，失败返回负数错误码
+ * @note Call from main.c at startup; GPIO is set LOW by default | 在 main.c 启动时调用；GPIO 默认为低电平
+ */
+int lsm6dsv16x_imu_ctrl_gpio_init(void);
+
+/**
+ * @brief Set IMU control GPIO state (start=HIGH, stop=LOW) | 设置IMU控制GPIO状态（启动=高，停止=低）
+ * @param high true to set high (IMU on), false to set low (IMU off) | true 为高（IMU开），false 为低（IMU关）
+ * @return 0 on success, negative error code on failure | 成功返回0，失败返回负数错误码
+ */
+int lsm6dsv16x_imu_ctrl_gpio_set(bool high);
+
 #endif  // LSM6DSV16X_H_

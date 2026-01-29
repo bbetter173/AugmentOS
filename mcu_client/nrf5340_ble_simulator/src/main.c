@@ -25,7 +25,6 @@
 #include "pdm_audio_stream.h"
 #include "protobuf_handler.h"
 // #include "display/lcd/a6n.h"  // Working A6N driver
-#include <hal/nrf_usbreg.h>
 #include <nrfx_clock.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -46,6 +45,7 @@
 #include "interrupt_handler.h"  // Interrupt handler framework
 #include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
 #include "mos_npm1300_ldsw.h"  // NPM1300 LDSW (load switch) control
+#include "usb_detect.h"  // USB cable detection (polling mode)
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -61,15 +61,10 @@ static struct bt_conn* current_conn;
 static struct bt_conn* auth_conn;
 static struct k_work   adv_work;
 
-/* USB cable detection using polling mode / USB线缆检测使用轮询模式 */
-static struct k_work_delayable usb_detect_work;
-static bool                    usb_connected = false;
-#define USB_DETECT_POLL_INTERVAL_MS 1000 /* Poll every 1 second / 每1秒轮询一次 */
-
 static uint16_t payload_mtu   = 20;
 static bool     ble_connected = false;
 
-static char           dynamic_device_name[32] = "Display";
+static char dynamic_device_name[30];
 static struct bt_data ad[]                    = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
     BT_DATA(BT_DATA_NAME_COMPLETE, "Display", 7),
@@ -77,145 +72,6 @@ static struct bt_data ad[]                    = {
 static struct bt_data sd[] = {
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_MENTRA_VAL),
 };
-
-/**
- * @brief USB cable connected callback
- * USB线缆连接回调函数
- */
-static void usb_cable_connected(void)
-{
-    LOG_INF("🔌 USB cable connected / USB线缆已连接");
-    usb_connected = true;
-
-    /* Set J-Link/USB switch to USB mode (HIGH) when USB is connected | USB连接时设置J-Link/USB切换为USB模式（高电平）*/
-    int ret = mos_jlink_usb_switch_app_set_by_usb_status(true);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set J-Link/USB switch to USB mode: %d", ret);
-    }
-
-    /* Display USB status on A6N screen / 在A6N屏幕上显示USB状态 */
-    // display_update_xy_text(350, 20, "[USB: ON]", 48, 0xFFFFFF);
-}
-
-/**
- * @brief USB cable disconnected callback
- * USB线缆断开回调函数
- */
-static void usb_cable_disconnected(void)
-{
-    LOG_INF("🔌 USB cable disconnected / USB线缆已断开");
-    usb_connected = false;
-
-    /* Set J-Link/USB switch to J-Link mode (LOW) when USB is disconnected | USB断开时设置J-Link/USB切换为J-Link模式（低电平）*/
-    int ret = mos_jlink_usb_switch_app_set_by_usb_status(false);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set J-Link/USB switch to J-Link mode: %d", ret);
-    }
-
-    /* Display USB status on A6N screen / 在A6N屏幕上显示USB状态 */
-    // display_update_xy_text(350, 20, "[USB: OFF]", 48, 0xFFFFFF);
-}
-
-/**
- * @brief USB detection work handler (polling mode)
- * USB检测工作处理函数（轮询模式）
- *
- * Periodically polls the USBREGULATOR status register to detect
- * USB cable insertion/removal.
- *
- * 定期轮询USBREGULATOR状态寄存器以检测USB线缆插拔。
- */
-static void usb_detect_work_handler(struct k_work* work)
-{
-    uint32_t status       = nrf_usbreg_status_get(NRF_USBREGULATOR_NS);
-    bool     current_vbus = (status & NRF_USBREG_STATUS_VBUSDETECT_MASK) != 0;
-
-    if (current_vbus && !usb_connected)
-    {
-        usb_cable_connected();
-    }
-    else if (!current_vbus && usb_connected)
-    {
-        usb_cable_disconnected();
-    }
-
-    /* Schedule next poll / 安排下次轮询 */
-    k_work_schedule(&usb_detect_work, K_MSEC(USB_DETECT_POLL_INTERVAL_MS));
-}
-
-/**
- * Initializes USB cable detection using polling mode.
- * 初始化USB线缆检测，使用轮询模式。
- *
- * @return 0 on success, negative error code on failure
- */
-static int usb_detect_init(void)
-{
-	LOG_INF("🔌 Initializing USB cable detection (polling mode)");
-	LOG_INF("Polling interval: %d ms / 轮询间隔: %d毫秒", 
-		USB_DETECT_POLL_INTERVAL_MS, USB_DETECT_POLL_INTERVAL_MS);
-	
-	/* Initialize delayed work for polling / 初始化延迟工作用于轮询 */
-	k_work_init_delayable(&usb_detect_work, usb_detect_work_handler);
-	
-	/* Check initial USB cable state and display on screen / 检查初始USB线缆状态并显示在屏幕上 */
-	uint32_t status = nrf_usbreg_status_get(NRF_USBREGULATOR_NS);
-	
-	if (status & NRF_USBREG_STATUS_VBUSDETECT_MASK)
-	{
-		usb_connected = true;
-		LOG_INF("🔌 USB cable already connected / USB线缆已连接");
-		/* Set J-Link/USB switch to USB mode (HIGH) on startup if USB is connected 
-		启动时如果USB已连接，设置J-Link/USB切换为USB模式（高电平）*/
-		int ret = mos_jlink_usb_switch_app_set_by_usb_status(true);
-		if (ret != 0)
-		{
-			LOG_ERR("Failed to set J-Link/USB switch to USB mode: %d", ret);
-		}
-		/* Display initial status on A6N screen / 在A6N屏幕上显示初始状态 */
-		// display_update_xy_text(350, 20, "[USB: ON]", 48, 0xFFFFFF);
-	}
-	else
-	{
-		usb_connected = false;
-		LOG_INF("🔌 USB cable not connected / USB线缆未连接");
-		/* Set J-Link/USB switch to J-Link mode (LOW) on startup if USB is not connected 
-		启动时如果USB未连接，设置J-Link/USB切换为J-Link模式（低电平）*/
-		int ret = mos_jlink_usb_switch_app_set_by_usb_status(false);
-		if (ret != 0)
-		{
-			LOG_ERR("Failed to set J-Link/USB switch to J-Link mode: %d", ret);
-		}
-		/* Display initial status on A6N screen / 在A6N屏幕上显示初始状态 */
-		// display_update_xy_text(350, 20, "[USB: OFF]", 48, 0xFFFFFF);
-	}
-	
-	/* Start polling / 开始轮询 */
-	k_work_schedule(&usb_detect_work, K_MSEC(USB_DETECT_POLL_INTERVAL_MS));
-	
-	LOG_INF("✅ USB detection started / USB检测已启动");
-	
-	return 0;
-}
-
-/**
- * @brief Query USB cable connection status
-
- * Returns the current USB connection status.
- * Status is updated every second by the polling task.
- *
- * 返回当前USB连接状态。
- * 状态由轮询任务每秒更新一次。
- *
- * @return true if USB cable is connected / USB线缆已连接返回true
- * @return false if USB cable is disconnected / USB线缆已断开返回false
- */
-bool usb_is_connected(void)
-{
-    return usb_connected;
-}
 
 static void setup_dynamic_advertising(void)
 {
@@ -241,6 +97,12 @@ static void setup_dynamic_advertising(void)
     // Update the advertising data with the new name
     ad[1].data     = (const uint8_t*)dynamic_device_name;
     ad[1].data_len = strlen(dynamic_device_name);
+    
+    // err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+    // if (err != 0)
+    // {
+    //     LOG_ERR("Failed to update adv data (err %d)", err);
+    // }
 }
 
 const char* get_ble_device_name(void)
@@ -532,27 +394,7 @@ static void num_comp_reply(bool accept)
 }
 #endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
 
-void button_changed(uint32_t button_state, uint32_t has_changed)
-{
-    uint32_t buttons = button_state & has_changed;
 
-    // **DEBUG: Enhanced button logging**
-    if (has_changed != 0)
-    {
-        LOG_INF("� Button Event: state=0x%02X, changed=0x%02X, pressed=0x%02X", button_state, has_changed, buttons);
-    }
-
-#ifdef CONFIG_BT_NUS_SECURITY_ENABLED
-    if (auth_conn)
-    {
-        // Handle authentication buttons when in authentication mode
-        LOG_INF("Button pressed during authentication");
-        return;  // Don't handle other buttons during authentication
-    }
-#endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
-
-    LOG_INF("Button handling stub - DK library removed");
-}
 
 
 
@@ -569,25 +411,22 @@ extern int  bsp_log_runtime_level;
 
 #if DT_NODE_EXISTS(USER_NODE)
 static const struct gpio_dt_spec vad_power   = GPIO_DT_SPEC_GET(USER_NODE, vad_power_gpios);
-static const struct gpio_dt_spec sda5       = GPIO_DT_SPEC_GET(USER_NODE, sda5_gpios);
-static const struct gpio_dt_spec scl5       = GPIO_DT_SPEC_GET(USER_NODE, scl5_gpios);
 static const struct gpio_dt_spec user1_p0_28 = GPIO_DT_SPEC_GET(USER_NODE, user1_p0_28_gpios);
 static const struct gpio_dt_spec int4        = GPIO_DT_SPEC_GET(USER_NODE, int4_gpios);
+#if DT_NODE_HAS_PROP(USER_NODE, ear_en_gpios)
+static const struct gpio_dt_spec ear_en      = GPIO_DT_SPEC_GET(USER_NODE, ear_en_gpios);
+#endif
 
 int init_user_gpio(void)
 {
     int err;
     const struct gpio_dt_spec *gpios[] = {
         &vad_power,
-        &sda5,
-        &scl5,
         &user1_p0_28,
         &int4,
     };
     const char *gpio_names[] = {
         "vad_power (P1.00)",
-        "sda5 (P0.31)",
-        "scl5 (P0.30)",
         "user1_p0_28 (P0.28)",
         "int4 (P0.22)",
     };
@@ -617,10 +456,34 @@ int init_user_gpio(void)
             return err;
         }
 
-        LOG_DBG("%s configured as output, set to LOW", gpio_names[i]);
+        // LOG_DBG("%s configured as output, set to LOW", gpio_names[i]);
     }
 
-    LOG_INF("User GPIOs configured successfully (all set to LOW)");
+#if DT_NODE_HAS_PROP(USER_NODE, ear_en_gpios)
+    /* ear_en: configure as output and pull HIGH | ear_en：配置为输出并拉高 */
+    if (gpio_is_ready_dt(&ear_en))
+    {
+        err = gpio_pin_configure_dt(&ear_en, GPIO_OUTPUT_ACTIVE);
+        if (err != 0)
+        {
+            LOG_ERR("ear_en GPIO config error: %d", err);
+            return err;
+        }
+        err = gpio_pin_set_dt(&ear_en, 1);
+        if (err != 0)
+        {
+            LOG_ERR("Failed to set ear_en to HIGH: %d", err);
+            return err;
+        }
+        LOG_INF("ear_en GPIO configured and set to HIGH");
+    }
+    else
+    {
+        LOG_WRN("ear_en GPIO not ready, skipping");
+    }
+#endif
+
+    LOG_INF("User GPIOs configured successfully");
     return 0;
 }
 #else
@@ -666,10 +529,9 @@ int main(void)
     int err = 0;
     bsp_log_init();
     LOG_INF("🚀🚀🚀 MAIN FUNCTION STARTED - v2.2.0-DISPLAY_OPEN_FIX 🚀🚀🚀");
- 
+    
     bool woke_from_sleep = mos_button_app_check_wakeup_state();
 
-    // Initialize user GPIOs (ES power and Microphone power from A6M)
     err = init_user_gpio();
     if (err != 0)
     {
@@ -719,6 +581,9 @@ int main(void)
         LOG_ERR("Failed to initialize Mentra BLE service (err: %d)", err);
         return 0;
     }
+    
+    k_work_init(&adv_work, adv_work_handler);
+    advertising_start();
     bt_gatt_cb_register(&gatt_callbacks);
     
     /* Initialize interrupt handler framework early | 早期初始化中断处理框架 */
@@ -759,19 +624,20 @@ int main(void)
 
     protobuf_init_ping_monitoring();
 
-    k_work_init(&adv_work, adv_work_handler);
-	
-    advertising_start();
-    // opt3006_initialize();
+    opt3006_initialize();
+
     pm1300_init();
-    // lsm6dsv16x_init();
+
+    lsm6dsv16x_init();
+
     usb_detect_init();
+    
     npm1300_led_init();
 
 	
     for (;;)
     {
-		LOG_INF("MAIN LOOP");
+		// LOG_INF("MAIN LOOP");
         k_sleep(K_MSEC(1000));
     }
 }

@@ -22,104 +22,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/devicetree.h>
-#include <zephyr/drivers/gpio.h>
-#include <zephyr/init.h>
 #include <string.h>
 #include <stdlib.h>
 
 #include "lsm6dsv16x.h"
 
 LOG_MODULE_REGISTER(shell_lsm6dsv16x, LOG_LEVEL_INF);
-
-// GPIO control for IMU start/stop
-#define USER_NODE DT_PATH(zephyr_user)
-#if DT_NODE_EXISTS(USER_NODE) && DT_NODE_HAS_PROP(USER_NODE, imu_ctrl_gpios)
-static const struct gpio_dt_spec imu_ctrl_gpio = GPIO_DT_SPEC_GET(USER_NODE, imu_ctrl_gpios);
-static bool imu_gpio_initialized = false;
-
-/**
- * Initialize IMU control GPIO | 初始化IMU控制GPIO
- */
-static int imu_gpio_init(void)
-{
-    if (imu_gpio_initialized)
-    {
-        return 0;  // Already initialized
-    }
-    
-    if (!gpio_is_ready_dt(&imu_ctrl_gpio))
-    {
-        LOG_ERR("IMU control GPIO port not ready");
-        return -ENODEV;
-    }
-    
-    // Configure as output, initial state LOW (inactive) | 配置为输出，初始状态为低电平（非激活）
-    int ret = gpio_pin_configure_dt(&imu_ctrl_gpio, GPIO_OUTPUT_INACTIVE);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to configure IMU control GPIO: %d", ret);
-        return ret;
-    }
-    
-    // Explicitly set to LOW to ensure initial state | 显式设置为低电平确保初始状态
-    ret = gpio_pin_set_dt(&imu_ctrl_gpio, 0);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set IMU control GPIO to LOW: %d", ret);
-        return ret;
-    }
-    
-    imu_gpio_initialized = true;
-    LOG_INF("IMU control GPIO (P1.05) initialized as output, initial state: LOW");
-    return 0;
-}
-
-/**
- * Initialize IMU control GPIO at system startup | 系统启动时初始化IMU控制GPIO
- * This ensures GPIO is LOW by default even if imu start is never called
- * 这确保即使从未调用imu start，GPIO也默认为低电平
- */
-static int imu_gpio_sys_init(void)
-{
-    // Initialize GPIO to LOW state at system startup | 系统启动时将GPIO初始化为低电平状态
-    imu_gpio_init();
-    return 0;
-}
-
-// Initialize GPIO at POST_KERNEL stage (after kernel is ready) | 在POST_KERNEL阶段初始化GPIO（内核就绪后）
-SYS_INIT(imu_gpio_sys_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
-
-/**
- * Set IMU control GPIO state | 设置IMU控制GPIO状态
- * @param high true to set high, false to set low | true为高电平，false为低电平
- */
-static int imu_gpio_set(bool high)
-{
-    if (!imu_gpio_initialized)
-    {
-        int ret = imu_gpio_init();
-        if (ret != 0)
-        {
-            LOG_ERR("IMU GPIO init failed: %d", ret);
-            return ret;
-        }
-    }
-    
-    int ret = gpio_pin_set_dt(&imu_ctrl_gpio, high ? 1 : 0);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set IMU control GPIO to %s: %d", high ? "HIGH" : "LOW", ret);
-        return ret;
-    }
-    
-    LOG_INF("IMU control GPIO (P1.05) set to %s", high ? "HIGH" : "LOW");
-    return 0;
-}
-#else
-static int imu_gpio_init(void) { return 0; }
-static int imu_gpio_set(bool high) { (void)high; return 0; }
-#endif
 
 // Continuous reading control
 static bool continuous_start_active = false;
@@ -315,11 +223,11 @@ static int cmd_imu_start(const struct shell *shell, size_t argc, char **argv)
     continuous_start_active = true;
     start_count = 0;
     
-    // Set GPIO to HIGH when starting | 启动时设置GPIO为高电平
-    int gpio_ret = imu_gpio_set(true);
+    // Set IMU control GPIO HIGH when starting (driver API) | 启动时设置IMU控制GPIO为高电平（驱动接口）
+    int gpio_ret = lsm6dsv16x_imu_ctrl_gpio_set(true);
     if (gpio_ret != 0)
     {
-        shell_warn(shell, "⚠️  Failed to set GPIO: %d", gpio_ret);
+        shell_warn(shell, "⚠️  Failed to set IMU ctrl GPIO: %d", gpio_ret);
     }
     
     k_work_schedule(&start_reading_work, K_NO_WAIT);
@@ -342,15 +250,15 @@ static int cmd_imu_stop(const struct shell *shell, size_t argc, char **argv)
         k_work_cancel_delayable(&start_reading_work);
         shell_print(shell, "✅ Stopped continuous reading (total: %u)", start_count);
         
-        // Set GPIO to LOW when stopping | 停止时设置GPIO为低电平
-        int gpio_ret = imu_gpio_set(false);
+        // Set IMU control GPIO LOW when stopping (driver API) | 停止时设置IMU控制GPIO为低电平（驱动接口）
+        int gpio_ret = lsm6dsv16x_imu_ctrl_gpio_set(false);
         if (gpio_ret != 0)
         {
-            shell_warn(shell, "⚠️  Failed to set GPIO LOW: %d", gpio_ret);
+            shell_warn(shell, "⚠️  Failed to set IMU ctrl GPIO LOW: %d", gpio_ret);
         }
         else
         {
-            shell_print(shell, "   GPIO P1.05 set to LOW");
+            shell_print(shell, "   IMU ctrl GPIO (P1.05) set to LOW");
         }
     }
     else

@@ -1,17 +1,15 @@
 / {
     chosen {
-        zephyr,display = &a6n;  // Switch to A6N projector for testing
-        // nordic-nus-uart = &uart0;
+        zephyr,display = &a6n;  
         // /* USB CDC ACM for console/shell */
         zephyr,console = &cdc_acm_uart0;
         zephyr,shell-uart = &cdc_acm_uart0;
         nordic,pm-ext-flash = &mx25u256;
-        // nordic,pm-ext-flash = &mx25r64;  // For testing with MX25R64
     };
     /delete-node/ aliases;
     aliases {
-        myals = &i2c3;  // My Ambient Light Sensor I2C bus
-        lsm6dsv16x = &lsm6dsv16x;  // LSM6DSV16X IMU sensor
+        opt3006 = &i2c3;  // OPT3006 Ambient Light Sensor I2C bus (raw I2C mode)
+        lsm6dsv16x = &i2c2;  // LSM6DSV16X IMU sensor I2C bus (raw I2C mode)
     };
 
     zephyr_user: zephyr,user {
@@ -21,11 +19,9 @@
         button-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;  // P0.23 for button input
         vad_power-gpios = <&gpio1 0 GPIO_ACTIVE_HIGH>;  // P1.00 for VAD_EN power control
         
-        /* User GPIO definitions | 用户GPIO定义 */
-        sda5-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;      // P0.31 SDA5
-        scl5-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;      // P0.30 SCL5
         user1_p0_28-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;  // P0.28 user1
         int4-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;     // P0.22 INT4
+        ear_en-gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>;  // P1.12 for Ear Power Enable
     };
 };
 
@@ -53,19 +49,33 @@
         };
     };
 
-
+ 	i2c2_default: i2c2_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 30)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 31)>;
+            bias-pull-up;
+            nordic,drive-mode = <NRF_DRIVE_S0D1>;
+        };
+    };
+    i2c2_sleep: i2c2_sleep {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 30)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 31)>;
+            low-power-enable;
+        };
+    };
     i2c3_default: i2c3_default {
         group1 {
-            psels = <NRF_PSEL(TWIM_SDA, 1, 4)>,
-                    <NRF_PSEL(TWIM_SCL, 1, 5)>;
+            psels = <NRF_PSEL(TWIM_SDA, 1, 3)>,
+                    <NRF_PSEL(TWIM_SCL, 1, 2)>;
             bias-pull-up;
             nordic,drive-mode = <NRF_DRIVE_S0D1>;
         };
     };
     i2c3_sleep: i2c3_sleep {
         group1 {
-            psels = <NRF_PSEL(TWIM_SDA, 1, 4)>,
-                    <NRF_PSEL(TWIM_SCL, 1, 5)>;
+            psels = <NRF_PSEL(TWIM_SDA, 1, 3)>,
+                    <NRF_PSEL(TWIM_SCL, 1, 2)>;
             low-power-enable;
         };
     };
@@ -81,7 +91,6 @@
     };
 };
 
-/* Disable SPI3 (8MHz limited) */
 &spi3 {
     status = "disabled";
 };
@@ -126,29 +135,22 @@
 &i2c1 {
     status = "disabled";
 };
+&i2c2 {
+	compatible = "nordic,nrf-twim";
+	status = "okay";
+	pinctrl-0 = <&i2c2_default>;
+    pinctrl-1 = <&i2c2_sleep>;
+    pinctrl-names = "default", "sleep";
+};
 
-/* Enable I2C3 for OPT3006 light sensor and LSM6DSV16X IMU */
 &i2c3 {
     compatible = "nordic,nrf-twim";
     status = "okay";
     pinctrl-0 = <&i2c3_default>;
     pinctrl-1 = <&i2c3_sleep>;
     pinctrl-names = "default", "sleep";
-    clock-frequency = <I2C_BITRATE_STANDARD>;  // 100kHz for LSM6DSV16X
-
-    lsm6dsv16x: lsm6dsv16x@6a {
-        compatible = "st,lsm6dsv16x";
-        //   AD0 = VDD → I2C address = 0x6b
-        //   AD0 = GND → I2C address = 0x6a (current configuration)
-        reg = <0x6a>;
-        status = "okay";
-        // Enable hardware sensor fusion (SFLP) for quaternion output
-        // 启用硬件传感器融合（SFLP）以输出四元数
-        sflp-odr = <0x3>;  // 120Hz SFLP output rate | SFLP输出频率120Hz
-        sflp-fifo-enable = <0x1>;  // Enable game rotation vector (quaternion) | 启用游戏旋转向量（四元数）
-        fifo-watermark = <32>;  // FIFO watermark for batch reading | FIFO水位标记用于批量读取
-    };
 };
+
 
 
 &gpio_fwd {

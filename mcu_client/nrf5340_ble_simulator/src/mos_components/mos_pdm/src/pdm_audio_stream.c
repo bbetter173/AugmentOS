@@ -19,7 +19,7 @@
 #include <errno.h>
 
 #include "mos_audio_i2s.h"
-#include "mentra_ble_service.h"
+#include "mos_ble_service.h"
 #include "sw_codec_lc3.h"
 
 extern bool get_ble_connected_status(void);

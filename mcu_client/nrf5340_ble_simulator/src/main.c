@@ -19,7 +19,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 
-#include "mentra_ble_service.h"
+#include "mos_ble_service.h"
 #include "mos_lvgl_display.h"  // Working LVGL display integration
 #include "pdm_audio_stream.h"
 #include "protobuf_handler.h"
@@ -290,7 +290,7 @@ static void bt_receive_cb(struct bt_conn* conn, const uint8_t* const data, uint1
     if (echo_len > 0)
     {
         LOG_INF("🔄 Attempting to send echo response (%d bytes)...", echo_len);
-        int err = mentra_ble_send(conn, echo_buffer, echo_len);
+        int err = custom_nus_send(conn, echo_buffer, echo_len);
         if (err)
         {
             LOG_ERR("❌ Failed to send echo response: %d (likely notification subscription issue)", err);
@@ -306,8 +306,8 @@ static void bt_receive_cb(struct bt_conn* conn, const uint8_t* const data, uint1
     }
 }
 
-static struct mentra_ble_cb mentra_cb = {
-    .received = bt_receive_cb,
+static struct custom_nus_cb nus_cb = {
+	.received     = bt_receive_cb,
 };
 uint16_t get_ble_payload_mtu(void)
 {
@@ -347,7 +347,7 @@ int ble_send_data(const uint8_t* data, uint16_t len)
         int      err;
         do
         {
-            err = mentra_ble_send(NULL, &data[offset], chunk_len);
+            err = custom_nus_send(NULL, &data[offset], chunk_len);
             if (err == 0)
                 break;
             LOG_ERR(" Chunk send failed (offset=%u len=%u), retry %d", offset, chunk_len, retry);
@@ -568,10 +568,10 @@ int main(void)
         settings_load();
     }
 
-    err = mentra_ble_init(&mentra_cb);
+    err = custom_nus_init(&nus_cb);
     if (err)
     {
-        LOG_ERR("Failed to initialize Mentra BLE service (err: %d)", err);
+        LOG_ERR("Failed to initialize BLE service (err: %d)", err);
         return 0;
     }
     
@@ -604,9 +604,10 @@ int main(void)
         
         LOG_INF("Power-on long press confirmed - starting device normally");
     }
-    
-    /* Initialize button app | 初始化按键应用 */
     mos_button_app_init();
+    
+    pm1300_init();
+    battery_monitor_auto_start();
 
     lvgl_display_thread();
 
@@ -615,8 +616,6 @@ int main(void)
     protobuf_init_ping_monitoring();
 
     opt3006_initialize();
-
-    pm1300_init();
 
     lsm6dsv16x_init();
 

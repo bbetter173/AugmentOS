@@ -49,8 +49,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include "../custom_driver_module/drivers/display/lcd/a6n.h"
-#include "mentra_ble_service.h"
+#include "../../custom_driver_module/drivers/display/lcd/a6n.h"
+#include "mos_ble_service.h"
 #include "mos_components/mos_lvgl_display/include/mos_lvgl_display.h"  // **NEW: For protobuf text display**
 #include "pdm_audio_stream.h"                                          // **NEW: For microphone audio streaming**
 #include "proto/mentraos_ble.pb.h"
@@ -101,10 +101,6 @@ void protobuf_analyze_message(const uint8_t* data, uint16_t len)
         LOG_WRN("Received empty data - ignoring");
         return;
     }
-
-    LOG_INF("🚨🚨🚨 BLE MESSAGE RECEIVED! 🚨🚨🚨");
-    LOG_INF("🚨🚨🚨 BLE MESSAGE RECEIVED via LOG_INF! 🚨🚨🚨\n");
-
     LOG_INF("=== BLE DATA RECEIVED ===");
     LOG_INF("Received BLE data (%u bytes):", len);
 
@@ -138,32 +134,6 @@ void protobuf_analyze_message(const uint8_t* data, uint16_t len)
             }
             break;
     }
-
-    // Show raw ASCII if printable and check for brightness text
-    // LOG_INF("[ASCII] Raw string: \"");
-    // char ascii_buffer[256] = {0};
-    // int ascii_idx = 0;
-
-    // for (int i = 0; i < len && ascii_idx < 255; i++) {
-    // 	if (data[i] >= 32 && data[i] <= 126) {
-    // 		LOG_INF("%c", data[i]);
-    // 		ascii_buffer[ascii_idx++] = data[i];
-    // 	} else {
-    // 		LOG_INF(".");
-    // 	}
-    // }
-    // LOG_INF("\"\n");
-    // TODO: Discuss with mobile app team - brightness text messages are not part of official protocol
-    // The official protocol uses BrightnessConfig protobuf (tag 37), but mobile app sends debug text
-    // Commenting out for now to focus on official protocol compliance
-    /*
-    // Check if this is a brightness adjustment message in text format
-    if (strstr(ascii_buffer, "Brightness Adjustment") ||
-        strstr(ascii_buffer, "brightness to")) {
-            protobuf_parse_text_brightness(ascii_buffer);
-    }
-    */
-
     LOG_INF("=== END BLE DATA ===");
 }
 
@@ -679,7 +649,7 @@ void protobuf_send_battery_notification(void)
 
         // Send via BLE (to all connected clients)
         LOG_INF("BLE Transmission:");
-        int ret = mentra_ble_send(NULL, buffer, bytes_written + 1);
+        int ret = custom_nus_send(NULL, buffer, bytes_written + 1);
         if (ret == 0)
         {
             LOG_INF("  - Status: SUCCESS");
@@ -1462,7 +1432,7 @@ static void protobuf_send_ping_request(void)
         }
 
         // TODO: Get current BLE connection handle and send
-        // int result = mentra_ble_send(conn, buffer, message_length);
+        // int result = custom_nus_send(conn, buffer, message_length);
 
         // Start timeout timer
         k_timer_start(&ping_timeout_timer, K_MSEC(PING_TIMEOUT_MS), K_NO_WAIT);

@@ -16,6 +16,7 @@ list(APPEND CMAKE_MODULE_PATH ${ZEPHYR_BASE}/modules/nanopb)
 include(nanopb)
 
 add_subdirectory(src/mos_driver)
+add_subdirectory(src/mos_components/mos_ble)
 add_subdirectory(src/mos_components/mos_sysport)
 add_subdirectory(src/mos_components/mos_pdm)
 add_subdirectory(src/mos_components/mos_battery)
@@ -24,12 +25,11 @@ add_subdirectory(src/mos_components/mos_interrupt)
 add_subdirectory(src/mos_components/mos_lvgl_display)
 add_subdirectory(src/mos_components/mos_jlink_usb_switch)
 
-target_include_directories(app PRIVATE src)
+target_include_directories(app PRIVATE src src/protobuf)
 
 target_sources(app PRIVATE
     src/main.c
-    src/protobuf_handler.c
-    src/mentra_ble_service.c
+    src/protobuf/protobuf_handler.c
     src/shell_display_control.c
     src/shell_opt3006.c
     src/shell_battery_control.c

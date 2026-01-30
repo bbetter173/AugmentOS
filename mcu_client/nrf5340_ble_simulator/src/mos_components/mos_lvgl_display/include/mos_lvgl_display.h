@@ -32,6 +32,7 @@ typedef enum
     LCD_CMD_CYCLE_PATTERN,  // **NEW: Pattern cycling command**
     LCD_CMD_UPDATE_PROTOBUF_TEXT,  // **NEW: Update container with protobuf text**
     LCD_CMD_UPDATE_XY_TEXT,        // **NEW: Pattern 5 XY positioned text**
+    LCD_CMD_UPDATE_WELCOME_BATTERY,  // **NEW: Refresh welcome label with current battery (60s period)**
     LCD_CMD_GRAYSCALE_HORIZONTAL,  // **NEW: Direct A6N horizontal grayscale**
     LCD_CMD_GRAYSCALE_VERTICAL,    // **NEW: Direct A6N vertical grayscale**
     LCD_CMD_CHESS_PATTERN,         // **NEW: Direct A6N chess pattern**
@@ -136,6 +137,9 @@ void display_update_xy_text(uint16_t x, uint16_t y, const char *text_content, ui
 int display_get_current_pattern(void);
 
 void display_close(void);
+
+/** Request welcome screen to refresh battery line (no-op if welcome not active). Call after battery update. */
+void display_request_welcome_battery_refresh(void);
 
 void display_send_frame(void *data_ptr);
 

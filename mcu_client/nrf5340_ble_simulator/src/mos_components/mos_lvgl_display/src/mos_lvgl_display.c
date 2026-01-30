@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-31 10:40:40
- * @LastEditTime : 2026-01-28 18:57:38
+ * @LastEditTime : 2026-01-29 18:28:11
  * @FilePath     : mos_lvgl_display.c
  * @Description  :
  *
@@ -653,8 +653,8 @@ static void create_scrolling_text_container(lv_obj_t *screen)
     lv_obj_set_style_text_font(label, display_get_font("secondary"), 0);  // Now uses montserrat_24
     lv_obj_set_style_text_line_space(label, config->fonts.line_spacing, 0);
 
-    // Center-align text in container
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+    // Align welcome text to same height as BLE text (80px from top) so it isn't cut off
+    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 80);
 
     // AUTO-SCROLL TO BOTTOM to show latest content
     lv_obj_update_layout(container);  // Ensure layout is calculated
@@ -786,6 +786,9 @@ static void update_protobuf_text_content(const char *text_content)
 
     // **CLEAR AND UPDATE: Replace existing text with new protobuf content**
     lv_label_set_text(protobuf_label, text_content);
+
+    // BLE text offset: position label 100px down from top (welcome message stays centered)
+    lv_obj_align(protobuf_label, LV_ALIGN_TOP_MID, 0, 80);
 
     // **AUTO-SCROLL TO BOTTOM: Show latest content**
     lv_obj_update_layout(protobuf_container);  // Ensure layout is calculated
@@ -962,8 +965,10 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                     a6n_read_reg(0, 1, 0xe2);  
                     mos_delay_us(6);
                     
-                    // 配置 Bank0 寄存器 | Configure Bank0 registers
-                    a6n_set_brightness(0xff);
+                    // // 配置 Bank0 寄存器 | Configure Bank0 registers (50% = 127/255)
+                    // a6n_set_brightness(0x7f);
+                     // Set initial brightness to 30%
+                    protobuf_set_brightness_level(30);
                     mos_delay_us(6);
                     
                     // 设置显示格式为 GRAY16 (4-bit) | Set display format to GRAY16 (4-bit)

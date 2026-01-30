@@ -970,10 +970,13 @@ void protobuf_process_display_text(const mentraos_ble_DisplayText* display_text)
     if (current_pattern == 5)
     {
         // Pattern 5: XY Text Positioning - use coordinates and font size from protobuf
+        // BLE text offset: move down 100px from phone-sent position
+        uint32_t y_offset = (uint32_t)display_text->y + 80U;
+        uint16_t y_clamped = (y_offset > 65535U) ? 65535 : (uint16_t)y_offset;
         uint16_t font_size = (display_text->size > 0) ? display_text->size : 12;  // Default to 12pt
-        display_update_xy_text(display_text->x, display_text->y, display_text->text, font_size, color_rgb565);
+        display_update_xy_text(display_text->x, y_clamped, display_text->text, font_size, color_rgb565);
         LOG_INF("✅ LVGL: XY positioned text at (%u,%u) with font %upt in Pattern 5\n", display_text->x,
-                display_text->y, font_size);
+                y_clamped, font_size);
     }
     else
     {

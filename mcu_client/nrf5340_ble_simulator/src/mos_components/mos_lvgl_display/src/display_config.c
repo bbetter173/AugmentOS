@@ -1,7 +1,7 @@
 /*
  * @Author       : Loay Yari
  * @Date         : 2025-09-15 
- * @LastEditTime : 2025-11-14 18:06:08
+ * @LastEditTime : 2026-01-29 18:22:18
  * @FilePath     : display_config.c
  * @Description  : Modular display configuration system implementation
  *
@@ -32,7 +32,7 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         .name = "Unknown Display",
         .width = 128, .height = 64,
         .layout = {
-            .margin = 2, .padding = 2, .border_width = 1,
+            .margin_left = 2, .margin_top = 2, .padding = 2, .border_width = 1,
             .usable_width = 124, .usable_height = 60
         },
         .fonts = {
@@ -60,7 +60,7 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         .name = "Dummy Display 640x480",
         .width = 640, .height = 480,
         .layout = {
-            .margin = 100, .padding = 10, .border_width = 2,
+            .margin_left = 100, .margin_top = 100, .padding = 10, .border_width = 2,
             .usable_width = 440, .usable_height = 200
         },
         .fonts = {
@@ -88,7 +88,7 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         .name = "SSD1306 OLED 128x64",
         .width = 128, .height = 64,
         .layout = {
-            .margin = 2, .padding = 2, .border_width = 1,
+            .margin_left = 2, .margin_top = 2, .padding = 2, .border_width = 1,
             .usable_width = 124, .usable_height = 60
         },
         .fonts = {
@@ -116,8 +116,8 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         .name = "A6N Projector 640x480", 
         .width = 640, .height = 480,
         .layout = {
-            .margin = 100, .padding = 8, .border_width = 2,
-            .usable_width = 470, .usable_height = 180
+            .margin_left = 80, .margin_top = 200, .padding = 8, .border_width = 2,
+            .usable_width = 480, .usable_height = 480
         },
         .fonts = {
             .primary = &lv_font_montserrat_14,    // Use 14 instead of 30 (not available)
@@ -227,7 +227,7 @@ int display_apply_container_config(lv_obj_t *container, lv_obj_t *parent, const 
 
     // Apply layout configuration
     lv_obj_set_size(container, config->layout.usable_width, config->layout.usable_height);
-    lv_obj_set_pos(container, config->layout.margin, config->layout.margin);
+    lv_obj_set_pos(container, config->layout.margin_left, config->layout.margin_top);
 
     // Apply styling
     lv_obj_set_style_border_width(container, config->layout.border_width, 0);
@@ -235,7 +235,7 @@ int display_apply_container_config(lv_obj_t *container, lv_obj_t *parent, const 
 
     LOG_DBG("Applied container config: %dx%d at (%d,%d), border=%d, padding=%d",
             config->layout.usable_width, config->layout.usable_height,
-            config->layout.margin, config->layout.margin,
+            config->layout.margin_left, config->layout.margin_top,
             config->layout.border_width, config->layout.padding);
 
     return 0;
@@ -269,8 +269,8 @@ void display_calculate_container_dimensions(uint16_t *width, uint16_t *height, u
     
     if (width) *width = config->layout.usable_width;
     if (height) *height = config->layout.usable_height;
-    if (x) *x = config->layout.margin;
-    if (y) *y = config->layout.margin;
+    if (x) *x = config->layout.margin_left;
+    if (y) *y = config->layout.margin_top;
 }
 
 lv_color_t display_get_text_color(void)

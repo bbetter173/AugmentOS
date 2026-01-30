@@ -40,7 +40,8 @@ typedef struct {
     
     // Container layout configuration
     struct {
-        uint16_t margin;              // Margin from screen edges
+        uint16_t margin_left;         // Margin from left edge
+        uint16_t margin_top;          // Margin from top edge
         uint16_t padding;             // Internal container padding
         uint16_t border_width;        // Border thickness
         uint16_t usable_width;        // Available content width

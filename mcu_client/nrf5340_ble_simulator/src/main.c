@@ -617,9 +617,6 @@ int main(void)
 
     lvgl_display_thread();
 
-	 // Set initial brightness to 50%
-    protobuf_set_brightness_level(50);
-
     pdm_audio_stream_init();
 
     protobuf_init_ping_monitoring();

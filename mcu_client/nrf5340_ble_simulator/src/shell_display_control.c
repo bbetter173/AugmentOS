@@ -1103,7 +1103,7 @@ static int cmd_display_layout_margin(const struct shell *shell, size_t argc, cha
     shell_print(shell, "To change margin from default 10px to %dpx:", margin);
     shell_print(shell, "  1. Edit src/mos_components/mos_lvgl_display/src/display_config.c");
     shell_print(shell, "  2. Find DISPLAY_TYPE_A6N_640x480 section");
-    shell_print(shell, "  3. Change .margin = 10 to .margin = %d", margin);
+    shell_print(shell, "  3. Change .margin_left / .margin_top in display_config.c to %d", margin);
     shell_print(shell, "  4. Rebuild and flash firmware");
     shell_print(shell, "");
     return 0;

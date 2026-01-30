@@ -2,7 +2,7 @@
  * @Author       : Cole
  * @Date         : 2025-11-19 20:05:11
  * @LastEditTime : 2026-01-27 10:22:00
- * @FilePath     : lsm6dsv16x.c
+ * @FilePath     : mos_lsm6dsv16x.c
  * @Description  : LSM6DSV16X 6-axis IMU sensor driver wrapper
  *                 LSM6DSV16X 6轴IMU传感器驱动封装
  *
@@ -10,7 +10,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-#include "lsm6dsv16x.h"
+#include "mos_lsm6dsv16x.h"
 
 #include <math.h>
 #include <zephyr/device.h>
@@ -25,7 +25,7 @@
 #include <zephyr/sys/util.h>
 #include <hal/nrf_gpio.h>
 
-LOG_MODULE_REGISTER(lsm6dsv16x, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mos_lsm6dsv16x, LOG_LEVEL_INF);
 
 /* i2c3 pinout: P1.04 = SDA, P1.05 = SCL | i2c3 引脚：P1.04=SDA, P1.05=SCL */
 #define I2C3_SDA_PIN 4

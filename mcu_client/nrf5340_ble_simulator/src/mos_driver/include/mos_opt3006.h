@@ -2,7 +2,7 @@
  * @Author       : Cole
  * @Date         : 2025-10-15 16:01:10
  * @LastEditTime : 2026-01-29 10:44:40
- * @FilePath     : opt3006.h
+ * @FilePath     : mos_opt3006.h
  * @Description  : 
  * @
  * @ Copyright (c) MentraOS Contributors 2025 
@@ -10,8 +10,8 @@
  */
 
 
-#ifndef OPT3006_H_
-#define OPT3006_H_
+#ifndef MOS_OPT3006_H_
+#define MOS_OPT3006_H_
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/i2c.h>
@@ -219,4 +219,4 @@ int opt3006_write_reg(uint8_t reg, uint16_t value);
  * @brief Initialize OPT3006 | 初始化OPT3006
 */
 int opt3006_initialize(void);
-#endif  // OPT3006_H_
+#endif  /* MOS_OPT3006_H_ */

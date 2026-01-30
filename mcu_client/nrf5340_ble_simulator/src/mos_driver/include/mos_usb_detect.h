@@ -1,12 +1,17 @@
-/**
- * @file usb_detect.h
- * @brief USB cable detection (polling mode) | USB线缆检测（轮询模式）
- *
- * SPDX-License-Identifier: Apache-2.0
+/***
+ * @Author       : Cole
+ * @Date         : 2026-01-29 10:09:31
+ * @LastEditTime : 2026-01-30 10:00:20
+ * @FilePath     : mos_usb_detect.h
+ * @Description  :
+ * @
+ * @ Copyright (c) MentraOS Contributors 2026
+ * @ SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef USB_DETECT_H_
-#define USB_DETECT_H_
+
+#ifndef MOS_USB_DETECT_H_
+#define MOS_USB_DETECT_H_
 
 #include <stdbool.h>
 
@@ -23,4 +28,4 @@ int usb_detect_init(void);
  */
 bool usb_is_connected(void);
 
-#endif /* USB_DETECT_H_ */
+#endif /* MOS_USB_DETECT_H_ */

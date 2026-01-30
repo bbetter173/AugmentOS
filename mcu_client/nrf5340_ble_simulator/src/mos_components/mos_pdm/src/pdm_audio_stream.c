@@ -1,6 +1,12 @@
 /*
- * PDM Audio Stream Implementation
- * Simple stub implementation for protobuf MicStateConfig testing
+ * @Author       : Cole
+ * @Date         : 2026-01-17 15:30:32
+ * @LastEditTime : 2026-01-29 15:54:05
+ * @FilePath     : pdm_audio_stream.c
+ * @Description  : 
+ * 
+ *  Copyright (c) MentraOS Contributors 2026 
+ *  SPDX-License-Identifier: Apache-2.0
  */
 
 #include "pdm_audio_stream.h"
@@ -12,9 +18,8 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include "bspal_audio_i2s.h"
+#include "mos_audio_i2s.h"
 #include "mentra_ble_service.h"
-#include "mos_pdm.h"
 #include "sw_codec_lc3.h"
 
 extern bool get_ble_connected_status(void);
@@ -112,7 +117,9 @@ static inline void start_fade_out(void)
 static int apply_fade_linear_q15(int16_t *buf, size_t n)
 {
     if ((!fade_in_active && !fade_out_active) || n == 0 || fade_remain_samp == 0)
+    {
         return 0;
+    }
     size_t N = (fade_remain_samp > n) ? n : fade_remain_samp;
     for (size_t i = 0; i < N; ++i)
     {
@@ -158,10 +165,10 @@ static inline void reset_mic_filters(void)
 static inline int16_t apply_mic_filters(int16_t sample)
 {
     const int32_t alpha_q15 = 32512; /* ≈0.995 */
-    int32_t       x         = sample;
-    int32_t       y         = x - dc_prev_in + ((alpha_q15 * dc_prev_out) >> 15);
-    dc_prev_in             = x;
-    dc_prev_out            = y;
+    int32_t x = sample;
+    int32_t y = x - dc_prev_in + ((alpha_q15 * dc_prev_out) >> 15);
+    dc_prev_in = x;
+    dc_prev_out = y;
 
     lp_prev_out += (y - lp_prev_out) >> 3; /* 一阶低通 */
     int32_t filtered = lp_prev_out;
@@ -511,8 +518,14 @@ int pdm_audio_stream_init(void)
 
     // Create audio processing thread
     audio_thread_tid = k_thread_create(&audio_thread_data, audio_thread_stack,
-                                       K_THREAD_STACK_SIZEOF(audio_thread_stack), audio_processing_thread, NULL, NULL,
-                                       NULL, TASK_PDM_AUDIO_THREAD_PRIORITY, 0, K_NO_WAIT);
+                                       K_THREAD_STACK_SIZEOF(audio_thread_stack), 
+                                       audio_processing_thread, 
+                                       NULL, 
+                                       NULL,
+                                       NULL, 
+                                       TASK_PDM_AUDIO_THREAD_PRIORITY, 
+                                       0, 
+                                       K_NO_WAIT);
 
     if (audio_thread_tid)
     {

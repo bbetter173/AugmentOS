@@ -9,7 +9,6 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-#include "bsp_log.h"
 #include "mos_crc.h"
 
 /**

@@ -19,7 +19,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 
-#include "bsp_log.h"
 #include "mentra_ble_service.h"
 #include "mos_lvgl_display.h"  // Working LVGL display integration
 #include "pdm_audio_stream.h"
@@ -36,16 +35,15 @@
 #include <zephyr/sys/util.h>  // For ARRAY_SIZE macro
 #include <hal/nrf_gpio.h>  // For direct GPIO access
 
-#include "lsm6dsv16x.h"  // LSM6DSV16X 6-axis IMU sensor
+#include "mos_lsm6dsv16x.h"  // LSM6DSV16X 6-axis IMU sensor
 #include "mos_fuel_gauge.h"
-#include "npm1300_led.h"
-#include "opt3006.h"  // OPT3006 ambient light sensor
-#include "opt3006.h"
+#include "mos_npm1300_led.h"
+#include "mos_opt3006.h"  // OPT3006 ambient light sensor
 #include "mos_button_app.h"  // Button application logic
 #include "interrupt_handler.h"  // Interrupt handler framework
 #include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
 #include "mos_npm1300_ldsw.h"  // NPM1300 LDSW (load switch) control
-#include "usb_detect.h"  // USB cable detection (polling mode)
+#include "mos_usb_detect.h"  // USB cable detection (polling mode)
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -399,10 +397,6 @@ static void num_comp_reply(bool accept)
 
 
 
-// External BSP log control
-extern void bsp_log_init(void);
-extern int  bsp_log_runtime_level;
-
 /**
  * @brief Initialize user GPIOs (ES power and Microphone power)
  * @return 0 on success, negative value on error
@@ -527,7 +521,6 @@ void vad_power_off(void)
 int main(void)
 {
     int err = 0;
-    bsp_log_init();
     LOG_INF("🚀🚀🚀 MAIN FUNCTION STARTED - v2.2.0-DISPLAY_OPEN_FIX 🚀🚀🚀");
     
     bool woke_from_sleep = mos_button_app_check_wakeup_state();

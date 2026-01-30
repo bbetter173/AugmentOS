@@ -17,10 +17,11 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
 
-#include "mos_ble_service.h"
-#include "bsp_log.h"
+#include <zephyr/logging/log.h>
 
-#define TAG "BLE_SERVICE"
+#include "mos_ble_service.h"
+
+LOG_MODULE_REGISTER(mos_ble_service, LOG_LEVEL_INF);
 
 static struct custom_nus_cb nus_cb;
 
@@ -30,7 +31,7 @@ static void nus_ccc_cfg_changed(const struct bt_gatt_attr *attr, uint16_t value)
     if (nus_cb.send_enabled)
     {
         bool enabled = (value == BT_GATT_CCC_NOTIFY ? CUSTOM_SEND_STATUS_ENABLED : CUSTOM_NUS_SEND_STATUS_DISABLED);
-        BSP_LOGI(TAG, "Custom NUS notify %s", enabled ? "enabled" : "disabled");
+        LOG_INF("Custom NUS notify %s", enabled ? "enabled" : "disabled");
         nus_cb.send_enabled(enabled);
     }
 }

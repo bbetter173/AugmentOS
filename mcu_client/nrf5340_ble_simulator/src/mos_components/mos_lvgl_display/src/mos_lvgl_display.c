@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-07-31 10:40:40
- * @LastEditTime : 2026-01-29 18:28:11
+ * @LastEditTime : 2026-01-30 09:32:30
  * @FilePath     : mos_lvgl_display.c
  * @Description  :
  *
@@ -20,8 +20,6 @@
 #include <display/lcd/a6n.h>
 
 #include "bal_os.h"
-#include "bsp_log.h"
-#include "display_manager.h"  // **NEW: For font mapping function**
 #include "display_config.h"   // **NEW: Modular display configuration system**
 #include "mos_lvgl_display.h"
 #include "main.h"             // **NEW: For BLE device name function**
@@ -880,18 +878,6 @@ static void update_xy_positioned_text(uint16_t x, uint16_t y, const char *text_c
 
 void lvgl_dispaly_init(void *p1, void *p2, void *p3)
 {
-    // 获取当前应用的字体对象
-    // const lv_font_t *font = lv_obj_get_style_text_font(label, 0);
-    // uint32_t unicode = 'A';
-    // lv_font_glyph_dsc_t glyph_dsc;
-    // if (lv_font_get_glyph_dsc(font, &glyph_dsc, unicode, 0))
-    // {
-    //     LOG_INF("字符 'A' 宽度 = %d px", glyph_dsc.adv_w);
-    // }
-    // mos_delay_ms(1000);
-    // LOG_INF("Font pointer: %p", font);
-    // LOG_INF("字体高度：%d px", font->line_height);
-    // LOG_INF("基线位置：%d px", font->base_line);
     const struct device *display_dev;
     display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
     if (!device_is_ready(display_dev))
@@ -902,7 +888,8 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
     
     // **NEW: Initialize modular display configuration system**
     int config_result = display_config_init();
-    if (config_result != 0) {
+    if (config_result != 0)
+    {
         LOG_ERR("Failed to initialize display configuration: %d", config_result);
         return;
     }

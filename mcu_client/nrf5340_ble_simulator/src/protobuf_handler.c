@@ -50,7 +50,6 @@
 #include <zephyr/logging/log.h>
 
 #include "../custom_driver_module/drivers/display/lcd/a6n.h"
-#include "lvgl_interface.h"
 #include "mentra_ble_service.h"
 #include "mos_components/mos_lvgl_display/include/mos_lvgl_display.h"  // **NEW: For protobuf text display**
 #include "pdm_audio_stream.h"                                          // **NEW: For microphone audio streaming**

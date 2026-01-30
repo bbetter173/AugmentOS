@@ -2,7 +2,7 @@
  * @Author       : Cole
  * @Date         : 2025-08-05 18:00:04
  * @LastEditTime : 2025-10-31 09:53:25
- * @FilePath     : bspal_audio_i2s.c
+ * @FilePath     : mos_audio_i2s.c
  * @Description  :
  *
  *  Copyright (c) MentraOS Contributors 2025
@@ -18,8 +18,8 @@
 // #include "audio_sync_timer.h"
 #include <zephyr/logging/log.h>
 
-#include "bspal_audio_i2s.h"
-#include "mos_pdm.h"
+#include "mos_audio_i2s.h"
+#include "pdm_audio_stream.h"
 
 
 LOG_MODULE_REGISTER(audio_iis, LOG_LEVEL_DBG);

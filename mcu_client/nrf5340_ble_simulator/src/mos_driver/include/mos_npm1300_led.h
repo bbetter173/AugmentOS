@@ -2,7 +2,7 @@
  * @Author       : Cole
  * @Date         : 2025-11-22 14:02:36
  * @LastEditTime : 2025-11-22 14:18:38
- * @FilePath     : npm1300_led.h
+ * @FilePath     : mos_npm1300_led.h
  * @Description  :
  * @
  * @ Copyright (c) MentraOS Contributors 2025
@@ -10,8 +10,8 @@
  */
 
 
-#ifndef NPM1300_LED_H
-#define NPM1300_LED_H
+#ifndef MOS_NPM1300_LED_H_
+#define MOS_NPM1300_LED_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -91,5 +91,5 @@ bool npm1300_led_is_on(uint8_t led_id);
  */
 bool npm1300_led_is_blinking(uint8_t led_id);
 
-#endif /* NPM1300_LED_H */
+#endif /* MOS_NPM1300_LED_H_ */
 

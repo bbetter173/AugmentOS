@@ -2,21 +2,21 @@
  * @Author       : Cole
  * @Date         : 2025-11-22 14:05:45
  * @LastEditTime : 2025-11-22 16:10:32
- * @FilePath     : npm1300_led.c
+ * @FilePath     : mos_npm1300_led.c
  * @Description  : 
  * 
  *  Copyright (c) MentraOS Contributors 2025 
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-#include "npm1300_led.h"
+#include "mos_npm1300_led.h"
 #include <zephyr/drivers/led.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
 #include <errno.h>
 
-LOG_MODULE_REGISTER(npm1300_led, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mos_npm1300_led, LOG_LEVEL_INF);
 
 /* Get LED device from device tree */
 #define LED_NODE DT_NODELABEL(npm1300_ek_leds)
@@ -304,4 +304,3 @@ bool npm1300_led_is_blinking(uint8_t led_id)
 	
 	return led_states[led_id].is_blinking;
 }
-

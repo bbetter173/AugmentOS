@@ -2,7 +2,7 @@
  * @Author       : Cole
  * @Date         : 2025-11-19 20:05:11
  * @LastEditTime : 2025-11-20 11:15:30
- * @FilePath     : lsm6dsv16x.h
+ * @FilePath     : mos_lsm6dsv16x.h
  * @Description  : LSM6DSV16X 6-axis IMU sensor driver wrapper
  *                 LSM6DSV16X 6轴IMU传感器驱动封装
  * @
@@ -10,8 +10,8 @@
  * @ SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef LSM6DSV16X_H_
-#define LSM6DSV16X_H_
+#ifndef MOS_LSM6DSV16X_H_
+#define MOS_LSM6DSV16X_H_
 
 #include <stdbool.h>
 #include <zephyr/device.h>
@@ -120,4 +120,4 @@ int lsm6dsv16x_imu_ctrl_gpio_init(void);
  */
 int lsm6dsv16x_imu_ctrl_gpio_set(bool high);
 
-#endif  // LSM6DSV16X_H_
+#endif  /* MOS_LSM6DSV16X_H_ */

@@ -29,12 +29,6 @@
 // Include A6N driver for brightness control
 #include "../custom_driver_module/drivers/display/lcd/a6n.h"
 
-// Include display manager for configuration access
-#include "display_manager.h"
-
-// Include display manager for font mapping
-#include "display_manager.h"
-
 // Include MOS LVGL display functions
 #include "mos_lvgl_display.h"
 
@@ -54,7 +48,7 @@ static const lv_font_t *get_font_by_size(int size)
     switch (size) {
         case 12: return &lv_font_montserrat_12;
         case 14: return &lv_font_montserrat_14;
-        case 30: return &lv_font_montserrat_30;
+        // case 30: return &lv_font_montserrat_30;  // 30pt font commented out
         case 48: return &lv_font_montserrat_48;
         default: return &lv_font_montserrat_14; // Default to 14pt (safe fallback)
     }
@@ -91,7 +85,7 @@ static int cmd_display_help(const struct shell *shell, size_t argc, char **argv)
     shell_print(shell, "  display text \"Hello\" <x> <y> <size> - Write text at specific position");
     shell_print(shell, "    • Text must be in quotes: \"Hello World\"");
     shell_print(shell, "    • x, y: pixel coordinates (0,0 = top-left)");
-    shell_print(shell, "    • size: font size (12, 14, 16, 18, 24, 30, 48) - all sizes available");
+    shell_print(shell, "    • size: font size (12, 14, 16, 18, 24, 48) - 30pt commented out");
     shell_print(shell, "");
     shell_print(shell, "📐 Layout Control:");
     shell_print(shell, "  display layout margin <pixels>     - Set container margin (current: margin from edges)");
@@ -327,10 +321,10 @@ static int cmd_display_text(const struct shell *shell, size_t argc, char **argv)
         return -EINVAL;
     }
     
-    // Validate font size - use available fonts (12, 14, 30, 48)
-    if (size != 12 && size != 14 && size != 30 && size != 48) {
+    // Validate font size - use available fonts (12, 14, 48) - 30pt commented out
+    if (size != 12 && size != 14 && size != 48) {
         shell_print(shell, "⚠️  Font size %d not available, using 14px", size);
-        shell_print(shell, "Available sizes: 12, 14, 30, 48");
+        shell_print(shell, "Available sizes: 12, 14, 48");
         size = 14;
     }
     
@@ -999,7 +993,7 @@ static int cmd_display_fonts_list(const struct shell *shell, size_t argc, char *
     shell_print(shell, "");
     shell_print(shell, "  12pt - Small text (good for details)");
     shell_print(shell, "  14pt - Body text (readable, default)");
-    shell_print(shell, "  30pt - Title size (prominent)");
+    // shell_print(shell, "  30pt - Title size (prominent)");  // 30pt font commented out
     shell_print(shell, "  48pt - Display size (very large)");
     shell_print(shell, "");
     shell_print(shell, "Note: 16pt, 18pt, 24pt fonts require LVGL configuration");
@@ -1013,7 +1007,7 @@ static int cmd_display_fonts_list(const struct shell *shell, size_t argc, char *
  */
 static int cmd_display_fonts_test(const struct shell *shell, size_t argc, char **argv)
 {
-    const int font_sizes[] = {12, 14, 16, 18, 24, 30, 48};
+    const int font_sizes[] = {12, 14, 16, 18, 24, 48};  /* 30pt commented out */
     const char *test_text = "Font Test";
     int y_pos = 20;
     
@@ -1074,7 +1068,7 @@ static int cmd_display_layout_info(const struct shell *shell, size_t argc, char 
     shell_print(shell, "  Usable area: 440x200 pixels");
     shell_print(shell, "");
     shell_print(shell, "Font Information:");
-    shell_print(shell, "  Available fonts: 12pt, 14pt, 30pt, 48pt Montserrat");
+    shell_print(shell, "  Available fonts: 12pt, 14pt, 48pt Montserrat (30pt commented out)");
     shell_print(shell, "  Current default: 14pt");
     shell_print(shell, "");
     shell_print(shell, "Note: Full configuration API under development");

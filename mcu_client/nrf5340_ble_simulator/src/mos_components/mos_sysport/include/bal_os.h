@@ -14,7 +14,6 @@
 
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
-#include "bsp_log.h"
 
 #define TICK_OF_MS(ms) k_ticks_to_ms_floor64(ms) // 将tick滴答的时间值转换为毫秒;Convert ticks to milliseconds. 64 bits. Truncates.
 #define TICK_OF_S(s) k_ticks_to_ms_floor64(s) / 1000

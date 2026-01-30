@@ -1,21 +1,23 @@
-/**
- * @file usb_detect.c
- * @brief USB cable detection using polling mode | USB线缆检测（轮询模式）
- *
- * Periodically polls the USBREGULATOR status register to detect USB cable insertion/removal.
- * 定期轮询 USBREGULATOR 状态寄存器以检测 USB 线缆插拔。
- *
- * SPDX-License-Identifier: Apache-2.0
+/*
+ * @Author       : Cole
+ * @Date         : 2026-01-30 09:47:30
+ * @LastEditTime : 2026-01-30 10:00:11
+ * @FilePath     : mos_usb_detect.c
+ * @Description  : 
+ * 
+ *  Copyright (c) MentraOS Contributors 2026 
+ *  SPDX-License-Identifier: Apache-2.0
  */
 
-#include "usb_detect.h"
+
+#include "mos_usb_detect.h"
 #include "mos_jlink_usb_switch_app.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <hal/nrf_usbreg.h>
 
-LOG_MODULE_REGISTER(usb_detect, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mos_usb_detect, LOG_LEVEL_INF);
 
 #define USB_DETECT_POLL_INTERVAL_MS 1000 /* Poll every 1 second | 每1秒轮询一次 */
 

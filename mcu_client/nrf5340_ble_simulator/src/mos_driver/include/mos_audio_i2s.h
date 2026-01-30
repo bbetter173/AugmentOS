@@ -1,15 +1,15 @@
 /*** 
  * @Author       : Cole
  * @Date         : 2025-08-15 17:43:14
- * @LastEditTime : 2025-08-16 16:16:00
- * @FilePath     : bspal_audio_i2s.h
+ * @LastEditTime : 2026-01-30 09:59:21
+ * @FilePath     : mos_audio_i2s.h
  * @Description  : 
  * @
  * @ Copyright (c) MentraOS Contributors 2025 
  * @ SPDX-License-Identifier: Apache-2.0
  */
-#ifndef _BSPAL_AUDIO_I2S_H_
-#define _BSPAL_AUDIO_I2S_H_
+#ifndef MOS_AUDIO_I2S_H_
+#define MOS_AUDIO_I2S_H_
 
 #include <zephyr/kernel.h>
 #include <stdint.h>
@@ -70,4 +70,4 @@ void audio_i2s_init(void);
  */
 void audio_i2s_uninit(void);
 
-#endif /* _BSPAL_AUDIO_I2S_H_ */
+#endif /* MOS_AUDIO_I2S_H_ */

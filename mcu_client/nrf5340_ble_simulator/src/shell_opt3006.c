@@ -22,7 +22,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "opt3006.h"
+#include "mos_opt3006.h"
 
 LOG_MODULE_REGISTER(shell_opt3006, LOG_LEVEL_INF);
 

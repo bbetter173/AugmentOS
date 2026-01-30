@@ -1,7 +1,7 @@
 /*** 
  * @Author       : Cole
  * @Date         : 2025-07-31 11:52:00
- * @LastEditTime : 2025-08-25 15:29:59
+ * @LastEditTime : 2026-01-30 09:58:09
  * @FilePath     : mos_pdm.h
  * @Description  : 
  * @
@@ -10,8 +10,8 @@
  */
 
 
-#ifndef _MOS_PDM_H_
-#define _MOS_PDM_H_
+#ifndef MOS_PDM_H_
+#define MOS_PDM_H_
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -59,4 +59,4 @@ void pdm_stop(void);
 
 uint32_t get_pdm_sample(int16_t *pdm_pcm_data, uint32_t pdm_pcm_szie);
 
-#endif // _MOS_PDM_H_
+#endif // MOS_PDM_H_

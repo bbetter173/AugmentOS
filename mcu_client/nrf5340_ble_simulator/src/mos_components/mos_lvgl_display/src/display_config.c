@@ -1,20 +1,22 @@
 /*
- * @Author       : Loay Yari
- * @Date         : 2025-09-15 
- * @LastEditTime : 2026-01-29 18:22:18
+ * @Author       : Cole
+ * @Date         : 2026-01-30 09:30:43
+ * @LastEditTime : 2026-01-30 09:35:59
  * @FilePath     : display_config.c
- * @Description  : Modular display configuration system implementation
- *
- *  Copyright (c) MentraOS Contributors 2025
+ * @Description  : 
+ * 
+ *  Copyright (c) MentraOS Contributors 2026 
  *  SPDX-License-Identifier: Apache-2.0
  */
 
+
 #include "display_config.h"
+
+#include <string.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/logging/log.h>
-#include <string.h>
 
 LOG_MODULE_REGISTER(display_config, LOG_LEVEL_DBG);
 
@@ -122,6 +124,7 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
         .fonts = {
             .primary = &lv_font_montserrat_14,    // Use 14 instead of 30 (not available)
             .secondary = &lv_font_montserrat_18,  // Use 18 for secondary text
+            // .secondary = &lv_font_simsun_16_cjk,  // Use 18 for secondary text
             .large = &lv_font_montserrat_48,      // Use 14 instead of 48 (not available)
             .cjk = &lv_font_montserrat_48,        // Only CJK font available
             .line_spacing = 4
@@ -139,24 +142,28 @@ static const display_config_t display_configs[DISPLAY_TYPE_MAX] = {
     }
 };
 
-display_type_t display_detect_type(const char *device_name)
+display_type_t display_detect_type(const char* device_name)
 {
-    if (!device_name) {
+    if (!device_name)
+    {
         return DISPLAY_TYPE_UNKNOWN;
     }
 
     // Detect based on device tree compatible strings or device names
-    if (strstr(device_name, "ssd1306") || strstr(device_name, "solomon,ssd1306fb")) {
+    if (strstr(device_name, "ssd1306") || strstr(device_name, "solomon,ssd1306fb"))
+    {
         LOG_INF("Detected SSD1306 OLED display");
         return DISPLAY_TYPE_SSD1306_128x64;
     }
-    
-    if (strstr(device_name, "dummy") || strstr(device_name, "zephyr,dummy-display")) {
+
+    if (strstr(device_name, "dummy") || strstr(device_name, "zephyr,dummy-display"))
+    {
         LOG_INF("Detected dummy display - using large layout");
         return DISPLAY_TYPE_DUMMY_640x480;
     }
-    
-    if (strstr(device_name, "a6n")) {
+
+    if (strstr(device_name, "a6n"))
+    {
         LOG_INF("Detected A6N projector display");
         return DISPLAY_TYPE_A6N_640x480;
     }
@@ -167,39 +174,45 @@ display_type_t display_detect_type(const char *device_name)
 
 int display_config_init(void)
 {
-    if (config_initialized) {
+    if (config_initialized)
+    {
         return 0;
     }
 
     // Get the chosen display device from device tree
-    const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
-    
-    if (!device_is_ready(display_dev)) {
+    const struct device* display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+
+    if (!device_is_ready(display_dev))
+    {
         LOG_ERR("Display device not ready");
         return -ENODEV;
     }
 
     // Get device name for type detection
-    const char *device_name = display_dev->name;
+    const char* device_name = display_dev->name;
     LOG_INF("Initializing display config for device: %s", device_name);
 
     // Detect display type
     display_type_t detected_type = display_detect_type(device_name);
-    
-    // Also check device tree compatible for additional detection
-    #if DT_NODE_EXISTS(DT_CHOSEN(zephyr_display))
-    const char *compatible = DT_PROP_OR(DT_CHOSEN(zephyr_display), compatible, "unknown");
-    if (detected_type == DISPLAY_TYPE_UNKNOWN) {
+
+// Also check device tree compatible for additional detection
+#if DT_NODE_EXISTS(DT_CHOSEN(zephyr_display))
+    const char* compatible = DT_PROP_OR(DT_CHOSEN(zephyr_display), compatible, "unknown");
+    if (detected_type == DISPLAY_TYPE_UNKNOWN)
+    {
         detected_type = display_detect_type(compatible);
     }
-    #endif
+#endif
 
     // Copy appropriate configuration
-    if (detected_type < DISPLAY_TYPE_MAX) {
+    if (detected_type < DISPLAY_TYPE_MAX)
+    {
         memcpy(&current_config, &display_configs[detected_type], sizeof(display_config_t));
-        LOG_INF("Loaded configuration for %s (%dx%d)", 
-                current_config.name, current_config.width, current_config.height);
-    } else {
+        LOG_INF("Loaded configuration for %s (%dx%d)", current_config.name, current_config.width,
+                current_config.height);
+    }
+    else
+    {
         // Fallback to unknown/default configuration
         memcpy(&current_config, &display_configs[DISPLAY_TYPE_UNKNOWN], sizeof(display_config_t));
         LOG_WRN("Using default display configuration");
@@ -211,17 +224,19 @@ int display_config_init(void)
 
 const display_config_t* display_get_config(void)
 {
-    if (!config_initialized) {
+    if (!config_initialized)
+    {
         LOG_WRN("Display config not initialized, calling display_config_init()");
         display_config_init();
     }
-    
+
     return &current_config;
 }
 
-int display_apply_container_config(lv_obj_t *container, lv_obj_t *parent, const display_config_t *config)
+int display_apply_container_config(lv_obj_t* container, lv_obj_t* parent, const display_config_t* config)
 {
-    if (!container || !config) {
+    if (!container || !config)
+    {
         return -EINVAL;
     }
 
@@ -241,21 +256,29 @@ int display_apply_container_config(lv_obj_t *container, lv_obj_t *parent, const 
     return 0;
 }
 
-const lv_font_t* display_get_font(const char *text_type)
+const lv_font_t* display_get_font(const char* text_type)
 {
-    const display_config_t *config = display_get_config();
-    
-    if (!text_type) {
+    const display_config_t* config = display_get_config();
+
+    if (!text_type)
+    {
         return config->fonts.primary;
     }
 
-    if (strcmp(text_type, "primary") == 0) {
+    if (strcmp(text_type, "primary") == 0)
+    {
         return config->fonts.primary;
-    } else if (strcmp(text_type, "secondary") == 0) {
+    }
+    else if (strcmp(text_type, "secondary") == 0)
+    {
         return config->fonts.secondary;
-    } else if (strcmp(text_type, "large") == 0) {
+    }
+    else if (strcmp(text_type, "large") == 0)
+    {
         return config->fonts.large;
-    } else if (strcmp(text_type, "cjk") == 0) {
+    }
+    else if (strcmp(text_type, "cjk") == 0)
+    {
         return config->fonts.secondary;
     }
 
@@ -263,7 +286,7 @@ const lv_font_t* display_get_font(const char *text_type)
     return config->fonts.primary;
 }
 
-void display_calculate_container_dimensions(uint16_t *width, uint16_t *height, uint16_t *x, uint16_t *y)
+void display_calculate_container_dimensions(uint16_t* width, uint16_t* height, uint16_t* x, uint16_t* y)
 {
     const display_config_t *config = display_get_config();
     
@@ -275,12 +298,15 @@ void display_calculate_container_dimensions(uint16_t *width, uint16_t *height, u
 
 lv_color_t display_get_text_color(void)
 {
-    const display_config_t *config = display_get_config();
-    
-    if (config->color_config.invert_colors) {
+    const display_config_t* config = display_get_config();
+
+    if (config->color_config.invert_colors)
+    {
         // For A6N: invert to make text LEDs turn ON
         return lv_color_black();
-    } else {
+    }
+    else
+    {
         // For SSD1306 and normal displays: white text
         return lv_color_white();
     }
@@ -288,12 +314,15 @@ lv_color_t display_get_text_color(void)
 
 lv_color_t display_get_background_color(void)
 {
-    const display_config_t *config = display_get_config();
-    
-    if (config->color_config.invert_colors) {
+    const display_config_t* config = display_get_config();
+
+    if (config->color_config.invert_colors)
+    {
         // For A6N: invert to make background LEDs turn OFF
         return lv_color_white();
-    } else {
+    }
+    else
+    {
         // For SSD1306 and normal displays: black background
         return lv_color_black();
     }
@@ -301,20 +330,24 @@ lv_color_t display_get_background_color(void)
 
 lv_color_t display_get_adjusted_color(lv_color_t color)
 {
-    const display_config_t *config = display_get_config();
-    
-    if (config && config->color_config.invert_colors) {
+    const display_config_t* config = display_get_config();
+
+    if (config && config->color_config.invert_colors)
+    {
         // For color inversion, swap white and black
         lv_color32_t color32 = lv_color_to_32(color, LV_OPA_COVER);
         lv_color32_t white32 = lv_color_to_32(lv_color_white(), LV_OPA_COVER);
         lv_color32_t black32 = lv_color_to_32(lv_color_black(), LV_OPA_COVER);
-        
-        if (lv_color32_eq(color32, white32)) {
+
+        if (lv_color32_eq(color32, white32))
+        {
             return lv_color_black();
-        } else if (lv_color32_eq(color32, black32)) {
+        }
+        else if (lv_color32_eq(color32, black32))
+        {
             return lv_color_white();
         }
     }
-    
+
     return color;
 }

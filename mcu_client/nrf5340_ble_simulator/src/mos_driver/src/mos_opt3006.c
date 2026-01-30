@@ -2,7 +2,7 @@
  * @Author       : Cole
  * @Date         : 2025-10-15 16:03:00
  * @LastEditTime : 2025-10-16 20:29:00
- * @FilePath     : opt3006.c
+ * @FilePath     : mos_opt3006.c
  * @Description  : 
  * 
  *  Copyright (c) MentraOS Contributors 2025 
@@ -14,9 +14,9 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
 
-#include "opt3006.h"
+#include "mos_opt3006.h"
 
-LOG_MODULE_REGISTER(opt3006, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mos_opt3006, LOG_LEVEL_INF);
 
 
 #define I2C_NODE DT_ALIAS(opt3006)

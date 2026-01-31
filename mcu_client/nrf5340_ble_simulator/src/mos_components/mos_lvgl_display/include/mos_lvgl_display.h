@@ -33,6 +33,9 @@ typedef enum
     LCD_CMD_UPDATE_PROTOBUF_TEXT,  // **NEW: Update container with protobuf text**
     LCD_CMD_UPDATE_XY_TEXT,        // **NEW: Pattern 5 XY positioned text**
     LCD_CMD_UPDATE_WELCOME_BATTERY,  // **NEW: Refresh welcome label with current battery (60s period)**
+    LCD_CMD_SHOW_WELCOME_SCREEN,      // **NEW: Return to welcome screen (e.g. after BLE disconnect)**
+    LCD_CMD_UPDATE_DFU_PROGRESS,      // **NEW: Show/update DFU progress bar below battery on welcome screen**
+    LCD_CMD_UPDATE_DFU_STATUS_TEXT,   // **NEW: Show/hide DFU status line (e.g. "DFU Updating... 45%") below battery**
     LCD_CMD_GRAYSCALE_HORIZONTAL,  // **NEW: Direct A6N horizontal grayscale**
     LCD_CMD_GRAYSCALE_VERTICAL,    // **NEW: Direct A6N vertical grayscale**
     LCD_CMD_CHESS_PATTERN,         // **NEW: Direct A6N chess pattern**
@@ -67,6 +70,12 @@ typedef struct
 
 typedef struct
 {
+    uint8_t show;   // 1 = show bar and set value, 0 = hide bar | 1=显示并更新 0=隐藏
+    uint8_t percent;  // 0..100 progress | 进度 0..100
+} lcd_dfu_progress_param_t;
+
+typedef struct
+{
     char text[MAX_TEXT_LEN + 1];  // **NEW: Protobuf text content**
 } lcd_protobuf_text_param_t;
 
@@ -86,6 +95,7 @@ typedef union
     lcd_pattern_param_t pattern;  // **NEW: Pattern parameter**
     lcd_protobuf_text_param_t protobuf_text;  // **NEW: Protobuf text parameter**
     lcd_xy_text_param_t xy_text;              // **NEW: XY positioned text parameter**
+    lcd_dfu_progress_param_t dfu_progress;    // **NEW: DFU progress bar (show + percent)**
     // 其它命令参数结构体可继续扩展
 } display_param_u;
 
@@ -94,17 +104,7 @@ typedef struct
     display_cmd_type_t type;
     display_param_u p;
 } display_cmd_t;
-/**
- * @brief 在指定区域创建一个垂直循环滚动长文本
- * @param parent  父对象，一般使用 lv_scr_act()
- * @param x       区域左上角 X 坐标
- * @param y       区域左上角 Y 坐标
- * @param w       区域宽度（像素）
- * @param h       区域高度（像素）
- * @param txt     要滚动显示的文本
- * @param font    字体指针，如 &lv_font_montserrat_48
- * @param time_ms 从滚动到末端并返回所用时间（毫秒）
- */
+
 void scroll_text_create(lv_obj_t *parent,
                         lv_coord_t x, lv_coord_t y,
                         lv_coord_t w, lv_coord_t h,
@@ -112,9 +112,7 @@ void scroll_text_create(lv_obj_t *parent,
                         const lv_font_t *font,
                         uint32_t time_ms);
 
-/**
- * @brief 停止并移除滚动区域
- */
+
 void scroll_text_stop(void);
 
 void display_open(void);
@@ -140,6 +138,15 @@ void display_close(void);
 
 /** Request welcome screen to refresh battery line (no-op if welcome not active). Call after battery update. */
 void display_request_welcome_battery_refresh(void);
+
+/** Return to welcome screen (e.g. after BLE disconnect). Thread-safe, sends command to LVGL. */
+void display_show_welcome_screen(void);
+
+/** Update DFU progress bar on welcome screen (below battery). show=1 to show and set percent (0..100), show=0 to hide. Thread-safe. */
+void display_update_dfu_progress(uint8_t show, uint8_t percent);
+
+/** Update DFU status text line below battery (e.g. "DFU Updating... 45% (120 KB)"). text=NULL or "" to hide. Thread-safe. */
+void display_update_dfu_status_text(const char *text);
 
 void display_send_frame(void *data_ptr);
 

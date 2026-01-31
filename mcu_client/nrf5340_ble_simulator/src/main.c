@@ -44,6 +44,7 @@
 #include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
 #include "mos_npm1300_ldsw.h"  // NPM1300 LDSW (load switch) control
 #include "mos_usb_detect.h"  // USB cable detection (polling mode)
+#include "mos_dfu_progress.h"
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -156,6 +157,7 @@ static void disconnected(struct bt_conn* conn, uint8_t reason)
 
     LOG_INF("Disconnected: %s, reason 0x%02x %s", addr, reason, bt_hci_err_to_str(reason));
     set_ble_connected_status(false);
+    display_show_welcome_screen();  /* 断开后自动回到欢迎界面 | Return to welcome screen on disconnect */
     if (auth_conn)
     {
         bt_conn_unref(auth_conn);
@@ -574,7 +576,9 @@ int main(void)
         LOG_ERR("Failed to initialize BLE service (err: %d)", err);
         return 0;
     }
-    
+
+    dfu_progress_init(); 
+
     k_work_init(&adv_work, adv_work_handler);
     advertising_start();
     bt_gatt_cb_register(&gatt_callbacks);

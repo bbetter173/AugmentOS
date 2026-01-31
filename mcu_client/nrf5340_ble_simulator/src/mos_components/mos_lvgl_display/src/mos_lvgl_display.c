@@ -1,7 +1,7 @@
 /*
  * @Author       : Cole
  * @Date         : 2026-01-30 09:30:43
- * @LastEditTime : 2026-01-30 14:28:27
+ * @LastEditTime : 2026-01-31 10:28:20
  * @FilePath     : mos_lvgl_display.c
  * @Description  : 
  * 
@@ -11,6 +11,7 @@
 
 
 #include <math.h>
+#include <string.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/display.h>
@@ -50,6 +51,12 @@ static volatile bool display_onoff = false;
 /* 全局 protobuf 文本容器引用 / Global references for protobuf text container */
 static lv_obj_t *protobuf_container = NULL;
 static lv_obj_t *protobuf_label     = NULL;
+/* DFU 状态文字（电量下面一行）/ DFU status text (one line below battery) */
+static lv_obj_t *dfu_status_label   = NULL;
+/* DFU 进度条：容器(背景条) + 前景条(按 % 设宽度)，避免 lv_bar 显示满格问题 | DFU progress: container + fill rect by % */
+static lv_obj_t *dfu_progress_bar   = NULL;  /* 背景轨道 / track */
+static lv_obj_t *dfu_progress_fill  = NULL;  /* 前景填充，宽度 = 百分比 | fill, width = percent */
+static lv_coord_t dfu_progress_bar_w = 0;    /* 轨道宽度，用于算填充宽度 | track width for fill % */
 
 /* 仅欢迎屏时刷新电量；避免覆盖 BLE 等内容 / Only refresh welcome+battery when welcome screen is active; avoid overwriting BLE/other content */
 static bool welcome_screen_active = true;
@@ -122,6 +129,40 @@ void display_request_welcome_battery_refresh(void)
 {
     display_cmd_t cmd = { .type = LCD_CMD_UPDATE_WELCOME_BATTERY };
     (void)mos_msgq_send(&lvgl_display_msgq, &cmd, (int64_t)50);  /* 50 ms 非阻塞 / 50 ms, non-blocking */
+}
+
+/* 线程安全：回到欢迎界面（如 BLE 断开后）| Thread-safe: return to welcome screen (e.g. after BLE disconnect) */
+void display_show_welcome_screen(void)
+{
+    display_cmd_t cmd = { .type = LCD_CMD_SHOW_WELCOME_SCREEN };
+    (void)mos_msgq_send(&lvgl_display_msgq, &cmd, (int64_t)100);
+}
+
+/* 线程安全：更新欢迎界面 DFU 进度条（电量下方）| Thread-safe: update DFU progress bar on welcome screen (below battery) */
+void display_update_dfu_progress(uint8_t show, uint8_t percent)
+{
+    display_cmd_t cmd = {
+        .type = LCD_CMD_UPDATE_DFU_PROGRESS,
+        .p.dfu_progress = { .show = show, .percent = percent }
+    };
+    (void)mos_msgq_send(&lvgl_display_msgq, &cmd, (int64_t)50);
+}
+
+/* 线程安全：更新电量下方一行 DFU 状态文字（如 "DFU Updating... 45%"）；text 为空或 NULL 则隐藏 
+| Thread-safe: update DFU status line below battery; empty/NULL = hide */
+void display_update_dfu_status_text(const char *text)
+{
+    display_cmd_t cmd = { .type = LCD_CMD_UPDATE_DFU_STATUS_TEXT };
+    if (text != NULL)
+    {
+        strncpy(cmd.p.protobuf_text.text, text, MAX_TEXT_LEN);
+        cmd.p.protobuf_text.text[MAX_TEXT_LEN] = '\0';
+    }
+    else
+    {
+        cmd.p.protobuf_text.text[0] = '\0';
+    }
+    (void)mos_msgq_send(&lvgl_display_msgq, &cmd, (int64_t)50);
 }
 
 /* 线程安全图案切换：发消息到 LVGL 线程 / Thread-safe pattern cycling - sends message to LVGL thread */
@@ -581,6 +622,21 @@ static void create_center_rectangle_pattern_ssd1306(lv_obj_t *screen)
 
 
 /**
+ * Return LVGL Bluetooth symbol for device name line on welcome screen.
+ * 仅未连接时显示蓝牙图标，已连接时不显示。
+ */
+static const char *get_ble_icon(void)
+{
+#ifdef LV_SYMBOL_BLUETOOTH
+    if (!get_ble_connected_status())
+    {
+        return LV_SYMBOL_BLUETOOTH;
+    }
+#endif
+    return "";
+}
+
+/**
  * Return LVGL battery/charging symbol for icon+number display.
  * 返回电量/充电图标字符串，用于“图标+数字”显示。
  * @param pct       Battery percentage (0-100)
@@ -656,25 +712,27 @@ static void create_scrolling_text_container(lv_obj_t *screen)
 
     if (config->width >= 500)
     {
-        /* Large display: icon + number. 大屏：图标+数字 */
+        /* Large display: icon + number, BLE icon before device name. 大屏：图标+数字，设备名前显示蓝牙图标 */
         snprintf(large_display_text, sizeof(large_display_text),
                  "Welcome to MentraOS\n"
                  "Build V1.2.3 %s %s\n"
                  "Waiting for connection\n"
-                 "Device Name: %s\n"
-                 "Battery: %s %u%%", __DATE__, __TIME__, device_name,
+                 "Device Name: %s %s\n"
+                 "Battery: %s %u%%", __DATE__, __TIME__,
+                 get_ble_icon(), device_name,
                  get_battery_icon(battery_pct, charging), (unsigned int)battery_pct);
         initial_text = large_display_text;
     }
     else
     {
-        /* Small display: icon + number. 小屏：图标+数字 */
+        /* Small display: icon + number, BLE icon before device name. 小屏：图标+数字，设备名前显示蓝牙图标 */
         snprintf(small_display_text, sizeof(small_display_text),
                  "Welcome to MentraOS\n"
                  "Build V1.2.3 %s %s\n"
                  "Waiting for connection\n"
-                 "Device: %s\n"
-                 "Battery: %s %u%%", __DATE__, __TIME__, device_name,
+                 "Device: %s %s\n"
+                 "Battery: %s %u%%", __DATE__, __TIME__,
+                 get_ble_icon(), device_name,
                  get_battery_icon(battery_pct, charging), (unsigned int)battery_pct);
         initial_text = small_display_text;
     }
@@ -695,6 +753,36 @@ static void create_scrolling_text_container(lv_obj_t *screen)
 
     /* 与 BLE 文案同高（距顶 80px）避免被裁 / Align welcome text to same height as BLE text (80px from top) so it isn't cut off */
     lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 80);
+
+    /* DFU 状态文字：电量下面一行，居中显示，初始隐藏 | DFU status line below battery, center-aligned, initially hidden */
+    dfu_status_label = lv_label_create(container);
+    lv_label_set_text(dfu_status_label, "");
+    lv_obj_set_width(dfu_status_label, config->layout.usable_width - (config->layout.padding * 2));
+    lv_obj_set_style_text_font(dfu_status_label, display_get_font("secondary"), 0);
+    lv_obj_set_style_text_color(dfu_status_label, lv_color_black(), 0);
+    lv_obj_set_style_text_align(dfu_status_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align_to(dfu_status_label, label, LV_ALIGN_OUT_BOTTOM_MID, 0, 4);
+    lv_obj_add_flag(dfu_status_label, LV_OBJ_FLAG_HIDDEN);
+
+    /* DFU 进度条：单色显示（亮/暗），轨道=背景色、填充=文字色 | Progress bar: monochrome (bright/dark), track=bg, fill=text color */
+    dfu_progress_bar_w = (lv_coord_t)(config->layout.usable_width / 2);
+    dfu_progress_bar   = lv_obj_create(container);
+    lv_obj_set_size(dfu_progress_bar, dfu_progress_bar_w, 12);
+    lv_obj_align_to(dfu_progress_bar, dfu_status_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 4);
+    lv_obj_set_style_bg_color(dfu_progress_bar, display_get_background_color(), 0);
+    lv_obj_set_style_bg_opa(dfu_progress_bar, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(dfu_progress_bar, 0, 0);
+    lv_obj_set_style_radius(dfu_progress_bar, 4, 0);
+    lv_obj_set_style_pad_all(dfu_progress_bar, 0, 0);
+    dfu_progress_fill = lv_obj_create(dfu_progress_bar);
+    lv_obj_set_size(dfu_progress_fill, 0, 12);
+    lv_obj_align(dfu_progress_fill, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_style_bg_color(dfu_progress_fill, display_get_text_color(), 0);
+    lv_obj_set_style_bg_opa(dfu_progress_fill, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(dfu_progress_fill, 0, 0);
+    lv_obj_set_style_radius(dfu_progress_fill, 4, 0);
+    lv_obj_set_style_pad_all(dfu_progress_fill, 0, 0);
+    lv_obj_add_flag(dfu_progress_bar, LV_OBJ_FLAG_HIDDEN);
 
     /* 自动滚到底部以显示最新内容 / AUTO-SCROLL TO BOTTOM to show latest content */
     lv_obj_update_layout(container);  /* 确保布局已计算 / Ensure layout is calculated */
@@ -864,8 +952,9 @@ static void update_welcome_label_with_battery(void)
                  "Welcome to MentraOS\n"
                  "Build V1.2.3 %s %s\n"
                  "Waiting for connection\n"
-                 "Device Name: %s\n"
-                 "Battery: %s %u%%", __DATE__, __TIME__, device_name,
+                 "Device Name: %s %s\n"
+                 "Battery: %s %u%%", __DATE__, __TIME__,
+                 get_ble_icon(), device_name,
                  get_battery_icon(battery_pct, charging), (unsigned int)battery_pct);
     }
     else
@@ -874,8 +963,9 @@ static void update_welcome_label_with_battery(void)
                  "Welcome to MentraOS\n"
                  "Build V1.2.3 %s %s\n"
                  "Waiting for connection\n"
-                 "Device: %s\n"
-                 "Battery: %s %u%%", __DATE__, __TIME__, device_name,
+                 "Device: %s %s\n"
+                 "Battery: %s %u%%", __DATE__, __TIME__,
+                 get_ble_icon(), device_name,
                  get_battery_icon(battery_pct, charging), (unsigned int)battery_pct);
     }
 
@@ -1108,6 +1198,47 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                 case LCD_CMD_UPDATE_WELCOME_BATTERY:
                     /* 用当前电量刷新欢迎标签（60s 周期）/ Refresh welcome label with current battery (60s period) */
                     update_welcome_label_with_battery();
+                    break;
+                case LCD_CMD_SHOW_WELCOME_SCREEN:
+                    /* 回到欢迎界面（如 BLE 断开后）/ Return to welcome screen (e.g. after BLE disconnect) */
+                    welcome_screen_active = true;
+                    update_welcome_label_with_battery();
+                    break;
+                case LCD_CMD_UPDATE_DFU_PROGRESS:
+                    /* 显示/隐藏并更新 DFU 进度条：前景条宽度 = 百分比，随 % 滑动 | Progress bar: fill width = percent */
+                    if (dfu_progress_bar != NULL && dfu_progress_fill != NULL)
+                    {
+                        if (cmd.p.dfu_progress.show)
+                        {
+                            lv_obj_clear_flag(dfu_progress_bar, LV_OBJ_FLAG_HIDDEN);
+                            lv_coord_t fill_w = (dfu_progress_bar_w * (lv_coord_t)cmd.p.dfu_progress.percent) / 100;
+                            if (fill_w < 0)
+                            {
+                                fill_w = 0;
+                            }
+                            lv_obj_set_width(dfu_progress_fill, fill_w);
+                            lv_obj_invalidate(dfu_progress_bar);
+                        }
+                        else
+                        {
+                            lv_obj_add_flag(dfu_progress_bar, LV_OBJ_FLAG_HIDDEN);
+                        }
+                    }
+                    break;
+                case LCD_CMD_UPDATE_DFU_STATUS_TEXT:
+                    /* 电量下面一行：显示/隐藏 DFU 状态文字 | Show/hide DFU status line below battery */
+                    if (dfu_status_label != NULL)
+                    {
+                        if (cmd.p.protobuf_text.text[0] == '\0')
+                        {
+                            lv_obj_add_flag(dfu_status_label, LV_OBJ_FLAG_HIDDEN);
+                        }
+                        else
+                        {
+                            lv_label_set_text(dfu_status_label, cmd.p.protobuf_text.text);
+                            lv_obj_clear_flag(dfu_status_label, LV_OBJ_FLAG_HIDDEN);
+                        }
+                    }
                     break;
                 case LCD_CMD_CLOSE:
                     if (get_display_onoff())

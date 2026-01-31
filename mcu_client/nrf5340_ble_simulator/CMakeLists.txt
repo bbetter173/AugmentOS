@@ -24,12 +24,14 @@ add_subdirectory(src/mos_components/mos_button)
 add_subdirectory(src/mos_components/mos_interrupt)
 add_subdirectory(src/mos_components/mos_lvgl_display)
 add_subdirectory(src/mos_components/mos_jlink_usb_switch)
+add_subdirectory(src/mos_components/mos_dfu_progress)
+add_subdirectory(src/protobuf)
+add_subdirectory(src/proto)
 
-target_include_directories(app PRIVATE src src/protobuf)
+target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_sources(app PRIVATE
     src/main.c
-    src/protobuf/protobuf_handler.c
     src/shell_display_control.c
     src/shell_opt3006.c
     src/shell_battery_control.c
@@ -38,14 +40,5 @@ target_sources(app PRIVATE
     src/shell_jlink_usb_switch.c
     src/shell_npm1300_led.c
 )
-
-# Add protobuf sources when available
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/proto/mentraos_ble.pb.c)
-  target_sources(app PRIVATE src/proto/mentraos_ble.pb.c)
-  target_include_directories(app PRIVATE src/proto)
-elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/mentraos_ble.pb.c)
-  target_sources(app PRIVATE src/mentraos_ble.pb.c)
-endif()
-
 
 zephyr_library_include_directories(.)

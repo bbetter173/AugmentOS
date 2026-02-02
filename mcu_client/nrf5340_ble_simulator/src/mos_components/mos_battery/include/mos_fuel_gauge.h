@@ -34,8 +34,8 @@ int fuel_gauge_update(const struct device *charger, bool vbus_connected);
 int pm1300_init(void);
 
 /**
- * @brief Monitor battery status
- * 监控电池状态
+ * @brief Monitor battery status (one-shot read and sync to protobuf/display)
+ * 监控电池状态（单次读取并同步到 protobuf/显示）
  */
 void battery_monitor(void);
 
@@ -46,5 +46,24 @@ void battery_monitor(void);
  * @return 0 on success, negative error code on failure
  */
 int battery_get_charge_status(int32_t *chg_status);
+
+/** Periodic monitor interval in ms (used by shell status). */
+#define BATTERY_MONITOR_INTERVAL_MS 5000
+
+/**
+ * @brief Start battery monitoring automatically (e.g. from main after pm1300_init).
+ *        One immediate read, then periodic updates every BATTERY_MONITOR_INTERVAL_MS.
+ * 上电后自动启动电池监控：立即读一次，然后按间隔周期更新。
+ */
+void battery_monitor_auto_start(void);
+
+/** Start periodic monitoring (e.g. from shell "battery monitor start"). */
+void battery_monitor_start(void);
+
+/** Stop periodic monitoring. */
+void battery_monitor_stop(void);
+
+/** True if periodic monitoring is running. */
+bool battery_monitor_is_active(void);
 
 #endif /* _MOS_FUEL_GAUGE_H_ */

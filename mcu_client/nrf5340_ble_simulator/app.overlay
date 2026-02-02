@@ -222,5 +222,8 @@ zephyr_udc0: &usbd {
 /* Configure GPIO0 sense-edge-mask for low-power button wakeup | 配置GPIO0 sense-edge-mask用于低功耗按键唤醒 */
 /* P0.23 is bit 23, so mask = (1 << 23) = 0x800000 | P0.23是第23位，所以掩码 = (1 << 23) = 0x800000 */
 &gpio0 {
-    sense-edge-mask = <0x800000>;  /* Enable SENSE for P0.23 (button) | 为P0.23（按键）启用SENSE */
+    sense-edge-mask = <0x800000>;
+};
+&gpio1 {
+    sense-edge-mask = <0x0>;
 };

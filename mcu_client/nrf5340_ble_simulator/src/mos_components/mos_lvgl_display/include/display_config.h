@@ -1,13 +1,14 @@
-/*
- * @Author       : Loay Yari
- * @Date         : 2025-09-15 
- * @LastEditTime : 2025-09-15
+/*** 
+ * @Author       : Cole
+ * @Date         : 2026-01-17 15:30:32
+ * @LastEditTime : 2026-01-29 14:16:25
  * @FilePath     : display_config.h
- * @Description  : Modular display configuration system for different display types
- *
- *  Copyright (c) MentraOS Contributors 2025
- *  SPDX-License-Identifier: Apache-2.0
+ * @Description  : 
+ * @
+ * @ Copyright (c) MentraOS Contributors 2026 
+ * @ SPDX-License-Identifier: Apache-2.0
  */
+
 
 #ifndef DISPLAY_CONFIG_H
 #define DISPLAY_CONFIG_H
@@ -40,7 +41,8 @@ typedef struct {
     
     // Container layout configuration
     struct {
-        uint16_t margin;              // Margin from screen edges
+        uint16_t margin_left;         // Margin from left edge
+        uint16_t margin_top;          // Margin from top edge
         uint16_t padding;             // Internal container padding
         uint16_t border_width;        // Border thickness
         uint16_t usable_width;        // Available content width

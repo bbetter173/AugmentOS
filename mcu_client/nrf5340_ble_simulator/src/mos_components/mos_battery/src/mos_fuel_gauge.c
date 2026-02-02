@@ -4,9 +4,12 @@
  */
 
 #include "mos_fuel_gauge.h"
+#include "protobuf_handler.h"  /* sync SoC & charging to display/BLE */
+#include "mos_lvgl_display.h"  /* display_request_welcome_battery_refresh */
 
 #include <nrf_fuel_gauge.h>
 #include <zephyr/device.h>
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/mfd/npm1300.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor/npm1300_charger.h>
@@ -28,6 +31,16 @@ static const struct device *charger = DEVICE_DT_GET(DT_NODELABEL(npm1300_ek_char
 
 static volatile bool vbus_connected;  /* VBUS connection status / VBUS连接状态 */
 static int64_t ref_time;              /* Reference time for delta calculation / 用于计算时间差的参考时间 */
+
+/* Periodic monitor (auto-start or shell "battery monitor start") */
+static bool monitoring_active = false;
+static bool work_initialized   = false;
+static struct k_work_delayable monitor_work;
+
+/* Boot fast poll: first run 200ms, then 300/500/1000ms (4 runs in ~2s) to catch charger ready. 上电快速轮询 */
+#define BOOT_POLL_COUNT       3
+static const uint32_t boot_poll_delays_ms[BOOT_POLL_COUNT] = { 300, 500, 1000 };
+static int boot_poll_index = 0;
 
 /* Battery model parameters / 电池模型参数 */
 static const struct battery_model battery_model = {
@@ -248,6 +261,18 @@ int fuel_gauge_update(const struct device *charger, bool vbus_connected)
 
 	LOG_INF("V: %.3f, I: %.3f, T: %.2f, ", (double)voltage, (double)current, (double)temp);
 	LOG_INF("SoC: %.2f%%, TTE(s): %.0f, TTF(s): %.0f,", (double)soc, (double)tte, (double)ttf);
+	{
+		uint32_t pct = (uint32_t)(soc + 0.5f);
+		if (pct > 100)
+		{
+			pct = 100;
+		}
+		protobuf_set_battery_level(pct);
+	}
+	{
+		bool charging = (chg_status & (NPM1300_CHG_STATUS_TRICKLE_MASK | NPM1300_CHG_STATUS_CC_MASK | NPM1300_CHG_STATUS_CV_MASK)) != 0;
+		protobuf_set_charging_state(charging);
+	}
 
 	return 0;
 }
@@ -331,14 +356,11 @@ int pm1300_init(void)
 
 void battery_monitor(void)
 {
-	/* Check if charger device is ready / 检查充电器设备是否就绪 */
 	if (!device_is_ready(charger))
 	{
 		LOG_ERR("Charger device not ready for battery monitor / 充电器设备未就绪，无法进行电池监控");
 		return;
 	}
-
-	/* Update fuel gauge with current VBUS status / 使用当前VBUS状态更新电量计 */
 	fuel_gauge_update(charger, vbus_connected);
 }
 
@@ -368,4 +390,84 @@ int battery_get_charge_status(int32_t *chg_status)
 	*chg_status = value.val1;
 
 	return 0;
+}
+
+
+/**
+ * Work handler: read SoC + charging, refresh display; then reschedule (boot fast poll or 5s).
+ * 工作处理：读取电量与充电状态、刷新界面；然后再次调度（上电快速轮询或 5s 周期）。
+ */
+static void battery_monitor_work_handler(struct k_work *work)
+{
+	if (!monitoring_active)
+	{
+		return;
+	}
+	LOG_INF("Battery monitor update... / 电池监控更新中...");
+	battery_monitor();
+	display_request_welcome_battery_refresh();
+
+	if (boot_poll_index < BOOT_POLL_COUNT)
+	{
+		uint32_t delay_ms = boot_poll_delays_ms[boot_poll_index];
+		boot_poll_index++;
+		(void)k_work_schedule((struct k_work_delayable *)work, K_MSEC(delay_ms));
+	}
+	else
+	{
+		(void)k_work_schedule((struct k_work_delayable *)work, K_MSEC(BATTERY_MONITOR_INTERVAL_MS));
+	}
+}
+
+/**
+ * Auto-start: one immediate read + display refresh, then boot fast poll (200/300/500/1000 ms), then 5s.
+ * 上电自动启动：立即读一次并刷新界面，再在 200/300/500/1000 ms 内快速轮询 4 次，之后每 5s。
+ */
+void battery_monitor_auto_start(void)
+{
+	if (monitoring_active)
+	{
+		return;
+	}
+	/* One immediate read and refresh; if charger not ready yet, boot poll will retry.
+	 立即读一次并刷新；若 charger 未就绪则由快速轮询重试 */
+	battery_monitor();
+	display_request_welcome_battery_refresh();
+
+	if (!work_initialized)
+	{
+		k_work_init_delayable(&monitor_work, battery_monitor_work_handler);
+		work_initialized = true;
+	}
+	monitoring_active = true;
+	boot_poll_index = 0;
+	/* First run in 200 ms (boot fast poll). 首次 200 ms 后执行（上电快速轮询） */
+	(void)k_work_schedule(&monitor_work, K_MSEC(200));
+}
+
+void battery_monitor_start(void)
+{
+	if (monitoring_active)
+	{
+		return;
+	}
+	if (!work_initialized)
+	{
+		k_work_init_delayable(&monitor_work, battery_monitor_work_handler);
+		work_initialized = true;
+	}
+	monitoring_active = true;
+	boot_poll_index = BOOT_POLL_COUNT;  /* Skip boot fast poll when started from shell. Shell 启动时跳过快速轮询 */
+	(void)k_work_schedule(&monitor_work, K_MSEC(BATTERY_MONITOR_INTERVAL_MS));
+}
+
+void battery_monitor_stop(void)
+{
+	monitoring_active = false;
+	k_work_cancel_delayable(&monitor_work);
+}
+
+bool battery_monitor_is_active(void)
+{
+	return monitoring_active;
 }

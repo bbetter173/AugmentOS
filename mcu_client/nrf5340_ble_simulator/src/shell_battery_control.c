@@ -31,31 +31,6 @@ LOG_MODULE_REGISTER(shell_battery, LOG_LEVEL_INF);
 #define CHG_STATUS_CC_MASK       (1 << 3)  /* 0x08 / 恒流充电 */
 #define CHG_STATUS_CV_MASK       (1 << 4)  /* 0x10 / 恒压充电 */
 
-/* Monitoring control variables / 监控控制变量 */
-static bool monitoring_active = false;
-static struct k_work_delayable monitor_work;
-
-#define MONITOR_INTERVAL_MS 5000  /* 5 seconds / 5秒 */
-
-/**
- * @brief Battery monitoring work handler (called periodically by work queue)
- * 电池监控工作队列处理函数（由工作队列周期性调用）
- */
-static void battery_monitor_work_handler(struct k_work *work)
-{
-	if (!monitoring_active)
-	{
-		return;
-	}
-
-	/* Update battery status / 更新电池状态 */
-	LOG_INF("Battery monitor update... / 电池监控更新中...");
-	battery_monitor();
-
-	/* Schedule next update / 安排下次更新 */
-	k_work_schedule((struct k_work_delayable *)work, K_MSEC(MONITOR_INTERVAL_MS));
-}
-
 static int cmd_battery_help(const struct shell *shell, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
@@ -157,35 +132,15 @@ static int cmd_battery_monitor_start(const struct shell *shell, size_t argc, cha
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (monitoring_active)
+	if (battery_monitor_is_active())
 	{
 		shell_print(shell, "⚠️  Battery monitoring already running / 电池监控已在运行");
 		return 0;
 	}
 
-	/* Initialize work queue if first time / 首次使用时初始化工作队列 */
-	static bool work_initialized = false;
-	if (!work_initialized)
-	{
-		k_work_init_delayable(&monitor_work, battery_monitor_work_handler);
-		work_initialized = true;
-	}
-
-	monitoring_active = true;
-
-	/* Schedule first monitoring update / 安排首次监控更新 */
-	/* Note: k_work_schedule returns 1 if work is already scheduled, which is OK / 注意：如果工作已调度，返回1是正常的 */
-	int ret = k_work_schedule(&monitor_work, K_NO_WAIT);
-	if (ret < 0)
-	{
-		LOG_ERR("Failed to schedule work: %d / 工作调度失败: %d", ret);
-		monitoring_active = false;
-		shell_print(shell, "❌ Failed to start monitoring / 监控启动失败");
-		return -EIO;
-	}
-
+	battery_monitor_start();
 	shell_print(shell, "✅ Battery monitoring started (interval: %d ms) / 电池监控已启动(间隔: %d毫秒)",
-		    MONITOR_INTERVAL_MS, MONITOR_INTERVAL_MS);
+		    BATTERY_MONITOR_INTERVAL_MS, BATTERY_MONITOR_INTERVAL_MS);
 	shell_print(shell, "");
 
 	return 0;
@@ -196,17 +151,13 @@ static int cmd_battery_monitor_stop(const struct shell *shell, size_t argc, char
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (!monitoring_active)
+	if (!battery_monitor_is_active())
 	{
 		shell_print(shell, "⚠️  Battery monitoring not running / 电池监控未运行");
 		return 0;
 	}
 
-	monitoring_active = false;
-
-	/* Cancel scheduled work / 取消已安排的工作 */
-	k_work_cancel_delayable(&monitor_work);
-
+	battery_monitor_stop();
 	shell_print(shell, "✅ Battery monitoring stopped / 电池监控已停止");
 	shell_print(shell, "");
 
@@ -218,12 +169,11 @@ static int cmd_battery_monitor_status(const struct shell *shell, size_t argc, ch
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
+	bool active = battery_monitor_is_active();
 	shell_print(shell, "");
 	shell_print(shell, "📊 Battery Monitor Status / 电池监控状态:");
-	shell_print(shell, "  Active: %s / %s",
-		    monitoring_active ? "Yes" : "No",
-		    monitoring_active ? "是" : "否");
-	shell_print(shell, "  Interval: %d ms / %d毫秒", MONITOR_INTERVAL_MS, MONITOR_INTERVAL_MS);
+	shell_print(shell, "  Active: %s / %s", active ? "Yes" : "No", active ? "是" : "否");
+	shell_print(shell, "  Interval: %d ms / %d毫秒", BATTERY_MONITOR_INTERVAL_MS, BATTERY_MONITOR_INTERVAL_MS);
 	shell_print(shell, "  Method: Work Queue / 工作队列");
 	shell_print(shell, "");
 

@@ -19,8 +19,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 
-#include "bsp_log.h"
-#include "mentra_ble_service.h"
+#include "mos_ble_service.h"
 #include "mos_lvgl_display.h"  // Working LVGL display integration
 #include "pdm_audio_stream.h"
 #include "protobuf_handler.h"
@@ -36,16 +35,16 @@
 #include <zephyr/sys/util.h>  // For ARRAY_SIZE macro
 #include <hal/nrf_gpio.h>  // For direct GPIO access
 
-#include "lsm6dsv16x.h"  // LSM6DSV16X 6-axis IMU sensor
+#include "mos_lsm6dsv16x.h"  // LSM6DSV16X 6-axis IMU sensor
 #include "mos_fuel_gauge.h"
-#include "npm1300_led.h"
-#include "opt3006.h"  // OPT3006 ambient light sensor
-#include "opt3006.h"
+#include "mos_npm1300_led.h"
+#include "mos_opt3006.h"  // OPT3006 ambient light sensor
 #include "mos_button_app.h"  // Button application logic
 #include "interrupt_handler.h"  // Interrupt handler framework
 #include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
 #include "mos_npm1300_ldsw.h"  // NPM1300 LDSW (load switch) control
-#include "usb_detect.h"  // USB cable detection (polling mode)
+#include "mos_usb_detect.h"  // USB cable detection (polling mode)
+#include "mos_dfu_progress.h"
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -158,6 +157,7 @@ static void disconnected(struct bt_conn* conn, uint8_t reason)
 
     LOG_INF("Disconnected: %s, reason 0x%02x %s", addr, reason, bt_hci_err_to_str(reason));
     set_ble_connected_status(false);
+    display_show_welcome_screen();  /* 断开后自动回到欢迎界面 | Return to welcome screen on disconnect */
     if (auth_conn)
     {
         bt_conn_unref(auth_conn);
@@ -292,7 +292,7 @@ static void bt_receive_cb(struct bt_conn* conn, const uint8_t* const data, uint1
     if (echo_len > 0)
     {
         LOG_INF("🔄 Attempting to send echo response (%d bytes)...", echo_len);
-        int err = mentra_ble_send(conn, echo_buffer, echo_len);
+        int err = custom_nus_send(conn, echo_buffer, echo_len);
         if (err)
         {
             LOG_ERR("❌ Failed to send echo response: %d (likely notification subscription issue)", err);
@@ -308,8 +308,8 @@ static void bt_receive_cb(struct bt_conn* conn, const uint8_t* const data, uint1
     }
 }
 
-static struct mentra_ble_cb mentra_cb = {
-    .received = bt_receive_cb,
+static struct custom_nus_cb nus_cb = {
+	.received     = bt_receive_cb,
 };
 uint16_t get_ble_payload_mtu(void)
 {
@@ -349,7 +349,7 @@ int ble_send_data(const uint8_t* data, uint16_t len)
         int      err;
         do
         {
-            err = mentra_ble_send(NULL, &data[offset], chunk_len);
+            err = custom_nus_send(NULL, &data[offset], chunk_len);
             if (err == 0)
                 break;
             LOG_ERR(" Chunk send failed (offset=%u len=%u), retry %d", offset, chunk_len, retry);
@@ -398,10 +398,6 @@ static void num_comp_reply(bool accept)
 
 
 
-
-// External BSP log control
-extern void bsp_log_init(void);
-extern int  bsp_log_runtime_level;
 
 /**
  * @brief Initialize user GPIOs (ES power and Microphone power)
@@ -527,7 +523,6 @@ void vad_power_off(void)
 int main(void)
 {
     int err = 0;
-    bsp_log_init();
     LOG_INF("🚀🚀🚀 MAIN FUNCTION STARTED - v2.2.0-DISPLAY_OPEN_FIX 🚀🚀🚀");
     
     bool woke_from_sleep = mos_button_app_check_wakeup_state();
@@ -575,13 +570,15 @@ int main(void)
         settings_load();
     }
 
-    err = mentra_ble_init(&mentra_cb);
+    err = custom_nus_init(&nus_cb);
     if (err)
     {
-        LOG_ERR("Failed to initialize Mentra BLE service (err: %d)", err);
+        LOG_ERR("Failed to initialize BLE service (err: %d)", err);
         return 0;
     }
-    
+
+    dfu_progress_init(); 
+
     k_work_init(&adv_work, adv_work_handler);
     advertising_start();
     bt_gatt_cb_register(&gatt_callbacks);
@@ -611,22 +608,18 @@ int main(void)
         
         LOG_INF("Power-on long press confirmed - starting device normally");
     }
-    
-    /* Initialize button app | 初始化按键应用 */
     mos_button_app_init();
+    
+    pm1300_init();
+    battery_monitor_auto_start();
 
     lvgl_display_thread();
-
-	 // Set initial brightness to 50%
-    protobuf_set_brightness_level(50);
 
     pdm_audio_stream_init();
 
     protobuf_init_ping_monitoring();
 
     opt3006_initialize();
-
-    pm1300_init();
 
     lsm6dsv16x_init();
 

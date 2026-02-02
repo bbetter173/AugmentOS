@@ -25,7 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "lsm6dsv16x.h"
+#include "mos_lsm6dsv16x.h"
 
 LOG_MODULE_REGISTER(shell_lsm6dsv16x, LOG_LEVEL_INF);
 

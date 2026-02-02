@@ -24,7 +24,7 @@
 #include <limits.h>
 #include <stdint.h>
 
-#include "npm1300_led.h"
+#include "mos_npm1300_led.h"
 
 LOG_MODULE_REGISTER(shell_npm1300_led, LOG_LEVEL_INF);
 

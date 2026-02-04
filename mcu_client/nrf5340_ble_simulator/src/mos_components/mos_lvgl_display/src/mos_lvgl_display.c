@@ -1250,9 +1250,6 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                     // Clear LVGL screen first
                     lv_obj_clean(lv_screen_active());
                     
-                    // Force immediate LVGL render
-                    lv_timer_handler();
-                    
                     a6n_clear_screen(false);  // Clear to black
                     break;
                 case LCD_CMD_CLOSE:

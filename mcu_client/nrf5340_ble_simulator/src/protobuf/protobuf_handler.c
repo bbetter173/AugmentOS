@@ -1155,6 +1155,8 @@ void protobuf_process_clear_display(void)
 
     LOG_INF("Clear Display Command Processed");
     LOG_INF("=== END CLEAR DISPLAY MESSAGE ===");
+
+    display_clear_screen();
 }
 
 void protobuf_process_auto_brightness_config(const mentraos_ble_AutoBrightnessConfig* auto_brightness_config)

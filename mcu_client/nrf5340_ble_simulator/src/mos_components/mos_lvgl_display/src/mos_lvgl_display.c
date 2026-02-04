@@ -1247,8 +1247,8 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                     }
                     break;
                 case LCD_CMD_CLEAR_DISPLAY:
-                    // Clear LVGL screen first
-                    lv_obj_clean(lv_screen_active());
+                    // NOTE: Not clearing the active screen because that would orphan the protobuf container and label and cause a crash.
+                    // If we need to clear lvgl for some reason in future. We would reinitialize the lvgl display.
                     
                     a6n_clear_screen(false);  // Clear to black
                     break;

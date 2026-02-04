@@ -1,8 +1,8 @@
 /*
  * Shell LSM6DSV16X Control Module
- * 
+ *
  * Manual LSM6DSV16X IMU sensor control commands
- * 
+ *
  * Available Commands:
  * - imu help              : Show all IMU commands
  * - imu status            : Show sensor status and information
@@ -14,16 +14,16 @@
  * - imu gyro_odr <hz>     : Set gyroscope ODR (Hz) (temporarily disabled)
  * - imu accel_range <g>   : Set accelerometer range (±2/±4/±8/±16 g) (temporarily disabled)
  * - imu gyro_range <dps>  : Set gyroscope range (±125/±250/±500/±1000/±2000 dps) (temporarily disabled)
- * 
+ *
  * Created: 2025-11-20
  * Author: MentraOS Team
  */
 
-#include <zephyr/kernel.h>
-#include <zephyr/shell/shell.h>
-#include <zephyr/logging/log.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/shell/shell.h>
 
 #include "mos_lsm6dsv16x.h"
 
@@ -222,14 +222,7 @@ static int cmd_imu_start(const struct shell *shell, size_t argc, char **argv)
     
     continuous_start_active = true;
     start_count = 0;
-    
-    // Set IMU control GPIO HIGH when starting (driver API) | 启动时设置IMU控制GPIO为高电平（驱动接口）
-    int gpio_ret = lsm6dsv16x_imu_ctrl_gpio_set(true);
-    if (gpio_ret != 0)
-    {
-        shell_warn(shell, "⚠️  Failed to set IMU ctrl GPIO: %d", gpio_ret);
-    }
-    
+
     k_work_schedule(&start_reading_work, K_NO_WAIT);
     
     shell_print(shell, "✅ Started continuous reading (interval: %u ms)", start_interval_ms);
@@ -249,17 +242,8 @@ static int cmd_imu_stop(const struct shell *shell, size_t argc, char **argv)
         continuous_start_active = false;
         k_work_cancel_delayable(&start_reading_work);
         shell_print(shell, "✅ Stopped continuous reading (total: %u)", start_count);
-        
-        // Set IMU control GPIO LOW when stopping (driver API) | 停止时设置IMU控制GPIO为低电平（驱动接口）
-        int gpio_ret = lsm6dsv16x_imu_ctrl_gpio_set(false);
-        if (gpio_ret != 0)
-        {
-            shell_warn(shell, "⚠️  Failed to set IMU ctrl GPIO LOW: %d", gpio_ret);
-        }
-        else
-        {
-            shell_print(shell, "   IMU ctrl GPIO (P1.05) set to LOW");
-        }
+
+        /* IMU ctrl GPIO removed; nothing to toggle here */
     }
     else
     {

@@ -1,10 +1,9 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-11-19 20:05:11
- * @LastEditTime : 2026-01-27 10:22:00
+ * @LastEditTime : 2026-02-04 19:15:10
  * @FilePath     : mos_lsm6dsv16x.c
  * @Description  : LSM6DSV16X 6-axis IMU sensor driver wrapper
- *                 LSM6DSV16X 6轴IMU传感器驱动封装
  *
  *  Copyright (c) MentraOS Contributors 2025
  *  SPDX-License-Identifier: Apache-2.0
@@ -12,26 +11,29 @@
 
 #include "mos_lsm6dsv16x.h"
 
+#include <hal/nrf_gpio.h>
 #include <math.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/sensor_data_types.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/pm/device.h>
 #include <zephyr/sys/util.h>
-#include <hal/nrf_gpio.h>
 
 LOG_MODULE_REGISTER(mos_lsm6dsv16x, LOG_LEVEL_INF);
 
-/* i2c3 pinout: P1.04 = SDA, P1.05 = SCL | i2c3 引脚：P1.04=SDA, P1.05=SCL */
-#define I2C3_SDA_PIN 4
-#define I2C3_SCL_PIN 5
+/* LSM6DSV16X INT1 pin: P1.15 | 中断引脚 INT1：P1.15 */
+#define LSM6DSV16X_INT1_PIN 15
 
-// Device tree node | 设备树节点
+/* I2C2 pins for LSM6DSV16X | LSM6DSV16X 使用的 I2C2 引脚 */
+#define I2C2_SCL_PIN 30  // P0.30
+#define I2C2_SDA_PIN 31  // P0.31
+
+// Device tree node (alias points to i2c2 bus) | 设备树节点（别名指向 i2c2 总线）
 #define LSM6DSV16X_NODE DT_ALIAS(lsm6dsv16x)
 
 // I2C address | I2C地址
@@ -44,253 +46,75 @@ LOG_MODULE_REGISTER(mos_lsm6dsv16x, LOG_LEVEL_INF);
 
 // Global sensor device pointer | 全局传感器设备指针
 static const struct device* lsm6dsv16x_dev = NULL;
-static const struct device* i2c_bus        = NULL;
+static const struct device* i2c_bus = NULL;
+static bool lsm6dsv16x_suspended = false;
 
-// GPIO control for IMU initialization | IMU初始化GPIO控制
+/* Shared user node for IMU GPIOs | IMU GPIO 统一使用的 user 节点 */
 #define USER_NODE DT_PATH(zephyr_user)
-#if DT_NODE_EXISTS(USER_NODE) && DT_NODE_HAS_PROP(USER_NODE, imu_ctrl_init_gpios)
-static const struct gpio_dt_spec imu_init_gpio = GPIO_DT_SPEC_GET(USER_NODE, imu_ctrl_init_gpios);
-static bool imu_init_gpio_initialized = false;
 
-/**
- * Initialize IMU init control GPIO | 初始化IMU初始化控制GPIO
- */
-static int imu_init_gpio_init(void)
-{
-    if (imu_init_gpio_initialized)
-    {
-        return 0;  // Already initialized
-    }
-    
-    if (!gpio_is_ready_dt(&imu_init_gpio))
-    {
-        LOG_ERR("IMU init control GPIO port not ready");
-        return -ENODEV;
-    }
-    
-    // Configure as output, initial state LOW (inactive) | 配置为输出，初始状态为低电平（非激活）
-    int ret = gpio_pin_configure_dt(&imu_init_gpio, GPIO_OUTPUT_INACTIVE);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to configure IMU init control GPIO: %d", ret);
-        return ret;
-    }
-    
-    imu_init_gpio_initialized = true;
-    LOG_INF("IMU init control GPIO (P1.04) initialized as output, initial state: LOW");
-    return 0;
-}
-
-/**
- * Set IMU init control GPIO state | 设置IMU初始化控制GPIO状态
- * @param high true to set high, false to set low | true为高电平，false为低电平
- */
-static int imu_init_gpio_set(bool high)
-{
-    if (!imu_init_gpio_initialized)
-    {
-        int ret = imu_init_gpio_init();
-        if (ret != 0)
-        {
-            LOG_ERR("IMU init GPIO init failed: %d", ret);
-            return ret;
-        }
-    }
-    
-    int ret = gpio_pin_set_dt(&imu_init_gpio, high ? 1 : 0);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set IMU init control GPIO to %s: %d", high ? "HIGH" : "LOW", ret);
-        return ret;
-    }
-    
-    LOG_INF("IMU init control GPIO (P1.04) set to %s", high ? "HIGH" : "LOW");
-    return 0;
-}
-#else
-static int imu_init_gpio_init(void) { return 0; }
-static int imu_init_gpio_set(bool high) { (void)high; return 0; }
-#endif
-
-/* IMU control GPIO (start/stop, e.g. P1.05) | IMU控制GPIO（启停，如P1.05） */
-#if DT_NODE_EXISTS(USER_NODE) && DT_NODE_HAS_PROP(USER_NODE, imu_ctrl_gpios)
-static const struct gpio_dt_spec imu_ctrl_gpio = GPIO_DT_SPEC_GET(USER_NODE, imu_ctrl_gpios);
-static bool imu_ctrl_gpio_initialized = false;
-
-static int imu_ctrl_gpio_init_internal(void)
-{
-    if (imu_ctrl_gpio_initialized)
-    {
-        return 0;
-    }
-    if (!gpio_is_ready_dt(&imu_ctrl_gpio))
-    {
-        LOG_ERR("IMU control GPIO port not ready");
-        return -ENODEV;
-    }
-    int ret = gpio_pin_configure_dt(&imu_ctrl_gpio, GPIO_OUTPUT_INACTIVE);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to configure IMU control GPIO: %d", ret);
-        return ret;
-    }
-    ret = gpio_pin_set_dt(&imu_ctrl_gpio, 0);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set IMU control GPIO to LOW: %d", ret);
-        return ret;
-    }
-    imu_ctrl_gpio_initialized = true;
-    LOG_INF("IMU control GPIO (P1.05) initialized as output, initial state: LOW");
-    return 0;
-}
-
-int lsm6dsv16x_imu_ctrl_gpio_init(void)
-{
-    return imu_ctrl_gpio_init_internal();
-}
-
-int lsm6dsv16x_imu_ctrl_gpio_set(bool high)
-{
-    if (!imu_ctrl_gpio_initialized)
-    {
-        int ret = imu_ctrl_gpio_init_internal();
-        if (ret != 0)
-        {
-            return ret;
-        }
-    }
-    int ret = gpio_pin_set_dt(&imu_ctrl_gpio, high ? 1 : 0);
-    if (ret != 0)
-    {
-        LOG_ERR("Failed to set IMU control GPIO to %s: %d", high ? "HIGH" : "LOW", ret);
-        return ret;
-    }
-    LOG_INF("IMU control GPIO (P1.05) set to %s", high ? "HIGH" : "LOW");
-    return 0;
-}
-#else
-int lsm6dsv16x_imu_ctrl_gpio_init(void)
-{
-    return 0;
-}
-int lsm6dsv16x_imu_ctrl_gpio_set(bool high)
-{
-    (void)high;
-    return 0;
-}
-#endif
-
-/**
- * @brief Suspend i2c3 via PM, then pull P1.04 (SDA) and P1.05 (SCL) low for sleep.
- * 挂起 i2c3 外设（PM），再将 P1.04（SDA）、P1.05（SCL）拉低，用于休眠。
- */
-void pull_down_i2c3_pins_for_sleep(void)
-{
-    const struct device *i2c3 = DEVICE_DT_GET(DT_NODELABEL(i2c3));
-
-    /* 1. Suspend i2c3 peripheral via PM | 通过 PM 挂起 i2c3 外设 */
-    if (device_is_ready(i2c3))
-    {
-        int ret = pm_device_action_run(i2c3, PM_DEVICE_ACTION_SUSPEND);
-        if (ret == 0)
-        {
-            LOG_INF("i2c3 suspended via PM");
-        }
-        else
-        {
-            LOG_WRN("i2c3 PM suspend failed: %d (continuing to pull GPIOs low)", ret);
-        }
-    }
-    else
-    {
-        LOG_WRN("i2c3 not ready, skipping PM suspend");
-    }
-
-    /* 2. Pull P1.04 (SDA) and P1.05 (SCL) low | 将 P1.04（SDA）、P1.05（SCL）拉低 */
-    nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, I2C3_SDA_PIN));
-    nrf_gpio_pin_write(NRF_GPIO_PIN_MAP(1, I2C3_SDA_PIN), 0);
-    nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, I2C3_SCL_PIN));
-    nrf_gpio_pin_write(NRF_GPIO_PIN_MAP(1, I2C3_SCL_PIN), 0);
-    LOG_INF("i2c3 pins (P1.04 SDA, P1.05 SCL) pulled low for sleep");
-}
+/* IMU INT1 GPIO (interrupt input, e.g. P1.15) | IMU中断GPIO（如P1.15） */
+static const struct gpio_dt_spec imu_int1_gpio = GPIO_DT_SPEC_GET(USER_NODE, imu_int1_gpios);
+static bool imu_int1_gpio_initialized = false;
 
 int lsm6dsv16x_init(void)
 {
 #if DT_NODE_EXISTS(LSM6DSV16X_NODE)
     int ret;
     uint8_t device_id = 0;
-    bool gpio_raised = false;  // Track GPIO state | 跟踪GPIO状态
-
-    // Set GPIO to HIGH at the start of initialization | 初始化开始时设置GPIO为高电平
-    ret = imu_init_gpio_set(true);
-    if (ret == 0)
-    {
-        gpio_raised = true;
-    }
-    else
-    {
-        LOG_WRN("⚠️  Failed to set IMU init GPIO HIGH: %d (continuing anyway)", ret);
-    }
 
     LOG_INF("========================================");
     LOG_INF("🔍 LSM6DSV16X Sensor Initialization");
     LOG_INF("========================================");
 
-    // Step 1: Get I2C bus device directly from alias | 直接从别名获取I2C总线设备
-    // Note: alias lsm6dsv16x points directly to i2c2 bus | 注意：别名lsm6dsv16x直接指向i2c2总线
-    i2c_bus = DEVICE_DT_GET(LSM6DSV16X_NODE);
-    if (i2c_bus == NULL || !device_is_ready(i2c_bus))
+    lsm6dsv16x_dev = DEVICE_DT_GET(LSM6DSV16X_NODE);
+    if (lsm6dsv16x_dev == NULL || !device_is_ready(lsm6dsv16x_dev))
     {
-        LOG_ERR("❌ I2C bus device not available or not ready");
-        // Set GPIO to LOW before returning | 返回前设置GPIO为低电平
-        if (gpio_raised)
-        {
-            imu_init_gpio_set(false);
-        }
+        LOG_ERR("❌ LSM6DSV16X device not available or not ready");
         return -ENODEV;
     }
-    LOG_INF("✅ I2C bus device: %s", i2c_bus->name);
+    ret = i2c_configure(lsm6dsv16x_dev, I2C_SPEED_SET(I2C_SPEED_FAST) | I2C_MODE_CONTROLLER);
+    if (ret != 0)
+    {
+        LOG_ERR("❌ Failed to configure I2C bus: %d", ret);
+        return ret;
+    }
 
-    // Step 2: Read device ID to verify hardware connection | 读取器件ID验证硬件连接
-    LOG_INF("🔍 Step 1: Reading device ID to verify hardware connection...");
+    /* Initialize INT1 GPIO | 初始化 INT1 中断引脚 */
+    if (!imu_int1_gpio_initialized)
+    {
+        ret = gpio_pin_configure_dt(&imu_int1_gpio, GPIO_INPUT | GPIO_PULL_DOWN);
+        if (ret != 0)
+        {
+            LOG_WRN("⚠️  Failed to configure IMU INT1 GPIO: %d", ret);
+        }
+        else
+        {
+            imu_int1_gpio_initialized = true;
+            LOG_INF("✅ INT1 GPIO configured");
+        }
+    }
+
     ret = lsm6dsv16x_read_device_id(&device_id);
     if (ret != 0)
     {
         LOG_ERR("❌ Failed to read device ID: %d", ret);
         LOG_ERR("   This indicates a hardware connection problem.");
-        // Set GPIO to LOW before returning | 返回前设置GPIO为低电平
-        if (gpio_raised)
-        {
-            imu_init_gpio_set(false);
-        }
         return ret;
     }
-    
+
     if (device_id == LSM6DSV16X_WHO_AM_I_VAL)
     {
         LOG_INF("✅ Device ID verified: 0x%02x (LSM6DSV16X)", device_id);
     }
     else
     {
-        LOG_WRN("⚠️  Unexpected device ID: 0x%02x (expected 0x%02x)", 
-                device_id, LSM6DSV16X_WHO_AM_I_VAL);
+        LOG_WRN("⚠️  Unexpected device ID: 0x%02x (expected 0x%02x)", device_id, LSM6DSV16X_WHO_AM_I_VAL);
     }
-
-    // Note: Using raw I2C mode, not Zephyr sensor driver framework
-    // 注意：使用原始I2C模式，不使用Zephyr传感器驱动框架
-    LOG_INF("✅ LSM6DSV16X I2C communication initialized (raw I2C mode)");
-
     LOG_INF("========================================");
     LOG_INF("✅ LSM6DSV16X initialization complete");
     LOG_INF("========================================");
 
-    // Set GPIO to LOW at the end of successful initialization | 成功初始化结束时设置GPIO为低电平
-    if (gpio_raised)
-    {
-        imu_init_gpio_set(false);
-    }
-
+    lsm6dsv16x_suspended = false;
     return 0;
 #else
     LOG_ERR("❌ LSM6DSV16X device not found in device tree");
@@ -299,18 +123,13 @@ int lsm6dsv16x_init(void)
 #endif
 }
 
-/**
- * @brief Check if sensor is ready (I2C bus ready) | 检查传感器是否就绪（I2C总线就绪）
- * @note In raw I2C mode, checks if I2C bus is ready | 在原始I2C模式下，检查I2C总线是否就绪
- */
 bool lsm6dsv16x_is_ready(void)
 {
-    // In raw I2C mode, check if I2C bus is ready | 在原始I2C模式下，检查I2C总线是否就绪
-    if (i2c_bus == NULL)
+    if (lsm6dsv16x_dev == NULL)
     {
         return false;
     }
-    return device_is_ready(i2c_bus);
+    return device_is_ready(lsm6dsv16x_dev);
 }
 
 /**
@@ -325,6 +144,12 @@ int lsm6dsv16x_read_accel(float* accel_x, float* accel_y, float* accel_z)
     {
         LOG_ERR("LSM6DSV16X device not initialized");
         return -ENODEV;
+    }
+
+    if (lsm6dsv16x_suspended)
+    {
+        LOG_WRN("LSM6DSV16X is suspended, accel read skipped");
+        return -EAGAIN;
     }
 
     if (accel_x == NULL || accel_y == NULL || accel_z == NULL)
@@ -378,12 +203,18 @@ int lsm6dsv16x_read_accel(float* accel_x, float* accel_y, float* accel_z)
 int lsm6dsv16x_read_gyro(float* gyro_x, float* gyro_y, float* gyro_z)
 {
     struct sensor_value gyro[3];
-    int                 ret;
+    int ret;
 
     if (lsm6dsv16x_dev == NULL || !device_is_ready(lsm6dsv16x_dev))
     {
         LOG_ERR("LSM6DSV16X device not initialized");
         return -ENODEV;
+    }
+
+    if (lsm6dsv16x_suspended)
+    {
+        LOG_WRN("LSM6DSV16X is suspended, gyro read skipped");
+        return -EAGAIN;
     }
 
     if (gyro_x == NULL || gyro_y == NULL || gyro_z == NULL)
@@ -440,12 +271,18 @@ int lsm6dsv16x_read_all(float* accel_x, float* accel_y, float* accel_z, float* g
 {
     struct sensor_value accel[3];
     struct sensor_value gyro[3];
-    int ret;
+    int                 ret;
 
     if (lsm6dsv16x_dev == NULL)
     {
         LOG_ERR("LSM6DSV16X device pointer is NULL");
         return -ENODEV;
+    }
+
+    if (lsm6dsv16x_suspended)
+    {
+        LOG_WRN("LSM6DSV16X is suspended, read_all skipped");
+        return -EAGAIN;
     }
 
     if (!device_is_ready(lsm6dsv16x_dev))
@@ -454,8 +291,7 @@ int lsm6dsv16x_read_all(float* accel_x, float* accel_y, float* accel_z, float* g
         return -ENODEV;
     }
 
-    if (accel_x == NULL || accel_y == NULL || accel_z == NULL ||
-        gyro_x == NULL || gyro_y == NULL || gyro_z == NULL)
+    if (accel_x == NULL || accel_y == NULL || accel_z == NULL || gyro_x == NULL || gyro_y == NULL || gyro_z == NULL)
     {
         return -EINVAL;
     }
@@ -521,9 +357,8 @@ int lsm6dsv16x_read_all(float* accel_x, float* accel_y, float* accel_z, float* g
     *gyro_y = sensor_value_to_double(&gyro[1]);
     *gyro_z = sensor_value_to_double(&gyro[2]);
 
-    LOG_DBG("Accel: X=%.2f, Y=%.2f, Z=%.2f m/s² | Gyro: X=%.2f, Y=%.2f, Z=%.2f dps",
-            (double)*accel_x, (double)*accel_y, (double)*accel_z,
-            (double)*gyro_x, (double)*gyro_y, (double)*gyro_z);
+    LOG_DBG("Accel: X=%.2f, Y=%.2f, Z=%.2f m/s² | Gyro: X=%.2f, Y=%.2f, Z=%.2f dps", (double)*accel_x, (double)*accel_y,
+            (double)*accel_z, (double)*gyro_x, (double)*gyro_y, (double)*gyro_z);
 
     return 0;
 }
@@ -662,12 +497,17 @@ int lsm6dsv16x_read_device_id(uint8_t* device_id)
 
     LOG_INF("🔍 Attempting to read LSM6DSV16X device ID...");
 
-    // Get I2C bus device directly from alias | 直接从别名获取I2C总线设备
-    // Note: alias lsm6dsv16x points directly to i2c2 bus | 注意：别名lsm6dsv16x直接指向i2c2总线
     if (i2c_bus == NULL)
     {
         LOG_INF("Getting I2C bus device from device tree...");
-        i2c_bus = DEVICE_DT_GET(LSM6DSV16X_NODE);
+        if (lsm6dsv16x_dev != NULL)
+        {
+            i2c_bus = lsm6dsv16x_dev;
+        }
+        else
+        {
+            i2c_bus = DEVICE_DT_GET(LSM6DSV16X_NODE);
+        }
         if (i2c_bus == NULL)
         {
             LOG_ERR("❌ Failed to get I2C bus device from device tree");
@@ -700,12 +540,11 @@ int lsm6dsv16x_read_device_id(uint8_t* device_id)
         if (*device_id == LSM6DSV16X_WHO_AM_I_VAL)
         {
             LOG_INF("✅ LSM6DSV16X detected at I2C address 0x%02x", LSM6DSV16X_I2C_ADDR_0);
-            return 0;  // Success, return immediately | 成功，立即返回
+            return 0;
         }
         else
         {
             LOG_WRN("⚠️  Unexpected device ID: 0x%02x (expected 0x%02x)", *device_id, LSM6DSV16X_WHO_AM_I_VAL);
-            // Continue to try second address | 继续尝试第二个地址
         }
     }
     else
@@ -734,10 +573,9 @@ int lsm6dsv16x_read_device_id(uint8_t* device_id)
     {
         LOG_DBG("I2C read failed at 0x%02x: %d", LSM6DSV16X_I2C_ADDR_1, ret);
     }
-    
-    return ret;  // Return last error | 返回最后的错误
-}
 
+    return ret;
+}
 
 /**
  * @brief Get sensor device pointer | 获取传感器设备指针
@@ -745,4 +583,98 @@ int lsm6dsv16x_read_device_id(uint8_t* device_id)
 const struct device* lsm6dsv16x_get_device(void)
 {
     return lsm6dsv16x_dev;
+}
+
+/**
+ * @brief Suspend IMU for low power | 休眠以降低功耗
+ */
+int lsm6dsv16x_sleep(void)
+{
+    int ret;
+
+    if (lsm6dsv16x_dev == NULL || !device_is_ready(lsm6dsv16x_dev))
+    {
+        LOG_ERR("LSM6DSV16X device not initialized");
+        return -ENODEV;
+    }
+
+    if (lsm6dsv16x_suspended)
+    {
+        return 0;
+    }
+
+    if (!IS_ENABLED(CONFIG_PM_DEVICE))
+    {
+        LOG_WRN("CONFIG_PM_DEVICE is disabled, skip IMU suspend");
+        return 0;
+    }
+
+    ret = pm_device_action_run(lsm6dsv16x_dev, PM_DEVICE_ACTION_SUSPEND);
+    if (ret != 0)
+    {
+        LOG_ERR("Failed to suspend LSM6DSV16X: %d", ret);
+        return ret;
+    }
+
+    /* Pull up INT1 pin to prevent leakage current | 拉高 INT1 引脚防止漏电 */
+    ret = gpio_pin_configure_dt(&imu_int1_gpio, GPIO_INPUT | GPIO_PULL_UP);
+    if (ret != 0)
+    {
+        LOG_WRN("Failed to pull up IMU INT1 during sleep: %d", ret);
+    }
+
+    /* Pull up I2C2 pins to prevent leakage current | 拉高 I2C2 引脚防止漏电 */
+    nrf_gpio_cfg_input(I2C2_SCL_PIN, NRF_GPIO_PIN_PULLDOWN);
+    nrf_gpio_cfg_input(I2C2_SDA_PIN, NRF_GPIO_PIN_PULLDOWN);
+
+    lsm6dsv16x_suspended = true;
+    LOG_INF("LSM6DSV16X suspended, INT1 and I2C2 pins pulled up");
+    return 0;
+}
+
+/**
+ * @brief Resume IMU from low power | 从休眠恢复
+ */
+int lsm6dsv16x_wake(void)
+{
+    int ret;
+
+    if (lsm6dsv16x_dev == NULL || !device_is_ready(lsm6dsv16x_dev))
+    {
+        LOG_ERR("LSM6DSV16X device not initialized");
+        return -ENODEV;
+    }
+
+    if (!lsm6dsv16x_suspended)
+    {
+        return 0;
+    }
+
+    if (!IS_ENABLED(CONFIG_PM_DEVICE))
+    {
+        LOG_WRN("CONFIG_PM_DEVICE is disabled, skip IMU resume");
+        return 0;
+    }
+
+    ret = pm_device_action_run(lsm6dsv16x_dev, PM_DEVICE_ACTION_RESUME);
+    if (ret != 0)
+    {
+        LOG_ERR("Failed to resume LSM6DSV16X: %d", ret);
+        return ret;
+    }
+
+    ret = gpio_pin_configure_dt(&imu_int1_gpio, GPIO_INPUT | GPIO_PULL_DOWN);
+    if (ret != 0)
+    {
+        LOG_WRN("Failed to restore IMU INT1 pull-down: %d", ret);
+    }
+    ret = i2c_configure(i2c_bus, I2C_SPEED_SET(I2C_SPEED_FAST) | I2C_MODE_CONTROLLER);
+    if (ret != 0)
+    {
+        LOG_WRN("Failed to restore I2C2 configuration: %d", ret);
+    }
+
+    lsm6dsv16x_suspended = false;
+    LOG_INF("LSM6DSV16X resumed, INT1 and I2C2 pins restored");
+    return 0;
 }

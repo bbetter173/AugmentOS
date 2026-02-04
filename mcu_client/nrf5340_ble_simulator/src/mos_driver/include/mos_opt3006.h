@@ -1,26 +1,26 @@
-/*** 
+/***
  * @Author       : Cole
  * @Date         : 2025-10-15 16:01:10
  * @LastEditTime : 2026-01-29 10:44:40
  * @FilePath     : mos_opt3006.h
- * @Description  : 
+ * @Description  :
  * @
- * @ Copyright (c) MentraOS Contributors 2025 
+ * @ Copyright (c) MentraOS Contributors 2025
  * @ SPDX-License-Identifier: Apache-2.0
  */
-
 
 #ifndef MOS_OPT3006_H_
 #define MOS_OPT3006_H_
 
+#include <stdbool.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/i2c.h>
-#include <stdbool.h>
 
 // I2C Device Address | I2C设备地址
 // Note: This is 7-bit address format (Zephyr standard)
 // 注意: 这是7位地址格式（Zephyr标准）
-#define OPT3006_I2C_ADDR 0x45 // ti最新邮件确认了，opt3006的地址是0x45 | ti latest email confirmed, opt3006 address is 0x45
+#define OPT3006_I2C_ADDR \
+    0x45  // ti最新邮件确认了，opt3006的地址是0x45 | ti latest email confirmed, opt3006 address is 0x45
 
 // Register Addresses | 寄存器地址
 #define OPT3006_REG_RESULT          0x00  // Result register (read-only) | 结果寄存器(只读)
@@ -32,9 +32,10 @@
 
 // Device Identification Values | 设备识别值
 #define OPT3006_MANUFACTURER_ID 0x5449  // "TI" in ASCII | ASCII码"TI"
-#define OPT3006_DEVICE_ID       0x3001  // OPT3006 device identifier | OPT3006设备标识符
-                                        // Note: OPT3006 Device ID is 0x3001 (from datasheet offset 7Fh)
-                                        // 注意: OPT3006设备ID是0x3001（来自数据手册偏移7Fh）
+#define OPT3006_DEVICE_ID \
+    0x3001  // OPT3006 device identifier | OPT3006设备标识符
+            // Note: OPT3006 Device ID is 0x3001 (from datasheet offset 7Fh)
+            // 注意: OPT3006设备ID是0x3001（来自数据手册偏移7Fh）
 
 // Configuration Register Bit Positions | 配置寄存器位位置
 // 根据OPT3006数据手册Configuration Register (offset = 01h)定义:
@@ -50,61 +51,62 @@
 // Bit 2:     ME - Mask Exponent (掩码指数，默认0b)
 // Bit 1-0:   FC[1:0] - Fault Count (故障计数，00=1次, 01=2次, 10=4次, 11=8次，默认00b)
 // 复位默认值: 0xC810 = 1100 1000 0001 0000
-#define OPT3006_CONFIG_RN_SHIFT     12  // Range Number field shift (bits 15:12) | 量程编号字段偏移(位15:12)
-#define OPT3006_CONFIG_CT_BIT       11  // Conversion Time bit position (bit 11) | 转换时间位位置(位11)
-#define OPT3006_CONFIG_M_SHIFT      9   // Mode of Conversion field shift (bits 10:9) | 转换模式字段偏移(位10:9)
-#define OPT3006_CONFIG_OVF_BIT      8   // Overflow flag bit (bit 8, read-only) | 溢出标志位(位8，只读)
-#define OPT3006_CONFIG_CRF_BIT      7   // Conversion Ready Flag bit (bit 7, read-only) | 转换就绪标志位(位7，只读)
-#define OPT3006_CONFIG_FH_BIT       6   // Flag High bit (bit 6, read-only) | 高阈值标志位(位6，只读)
-#define OPT3006_CONFIG_FL_BIT       5   // Flag Low bit (bit 5, read-only) | 低阈值标志位(位5，只读)
-#define OPT3006_CONFIG_L_BIT        4   // Latch bit (bit 4) | 锁存位(位4)
-#define OPT3006_CONFIG_POL_BIT      3   // Polarity bit (bit 3) | 极性位(位3)
-#define OPT3006_CONFIG_ME_BIT       2   // Mask Exponent bit (bit 2) | 掩码指数位(位2)
-#define OPT3006_CONFIG_FC_SHIFT     0   // Fault Count field shift (bits 1:0) | 故障计数字段偏移(位1:0)
+#define OPT3006_CONFIG_RN_SHIFT 12  // Range Number field shift (bits 15:12) | 量程编号字段偏移(位15:12)
+#define OPT3006_CONFIG_CT_BIT   11  // Conversion Time bit position (bit 11) | 转换时间位位置(位11)
+#define OPT3006_CONFIG_M_SHIFT  9   // Mode of Conversion field shift (bits 10:9) | 转换模式字段偏移(位10:9)
+#define OPT3006_CONFIG_OVF_BIT  8   // Overflow flag bit (bit 8, read-only) | 溢出标志位(位8，只读)
+#define OPT3006_CONFIG_CRF_BIT  7   // Conversion Ready Flag bit (bit 7, read-only) | 转换就绪标志位(位7，只读)
+#define OPT3006_CONFIG_FH_BIT   6   // Flag High bit (bit 6, read-only) | 高阈值标志位(位6，只读)
+#define OPT3006_CONFIG_FL_BIT   5   // Flag Low bit (bit 5, read-only) | 低阈值标志位(位5，只读)
+#define OPT3006_CONFIG_L_BIT    4   // Latch bit (bit 4) | 锁存位(位4)
+#define OPT3006_CONFIG_POL_BIT  3   // Polarity bit (bit 3) | 极性位(位3)
+#define OPT3006_CONFIG_ME_BIT   2   // Mask Exponent bit (bit 2) | 掩码指数位(位2)
+#define OPT3006_CONFIG_FC_SHIFT 0   // Fault Count field shift (bits 1:0) | 故障计数字段偏移(位1:0)
 
 // Configuration Register Bit Masks | 配置寄存器位掩码
-#define OPT3006_CONFIG_RN_MASK      0xF000  // Range Number mask (bits 15:12) | 量程编号掩码(位15:12)
-#define OPT3006_CONFIG_CT_MASK      0x0800  // Conversion Time mask (bit 11) | 转换时间掩码(位11)
-#define OPT3006_CONFIG_M_MASK       0x0600  // Mode mask (bits 10:9) | 模式掩码(位10:9)
-#define OPT3006_CONFIG_OVF_MASK     0x0100  // Overflow flag mask (bit 8) | 溢出标志掩码(位8)
-#define OPT3006_CONFIG_CRF_MASK     0x0080  // Conversion Ready mask (bit 7) | 转换就绪掩码(位7)
-#define OPT3006_CONFIG_FH_MASK      0x0040  // Flag High mask (bit 6) | 高阈值标志掩码(位6)
-#define OPT3006_CONFIG_FL_MASK      0x0020  // Flag Low mask (bit 5) | 低阈值标志掩码(位5)
-#define OPT3006_CONFIG_L_MASK       0x0010  // Latch mask (bit 4) | 锁存掩码(位4)
-#define OPT3006_CONFIG_POL_MASK     0x0008  // Polarity mask (bit 3) | 极性掩码(位3)
-#define OPT3006_CONFIG_ME_MASK      0x0004  // Mask Exponent mask (bit 2) | 掩码指数掩码(位2)
-#define OPT3006_CONFIG_FC_MASK      0x0003  // Fault Count mask (bits 1:0) | 故障计数掩码(位1:0)
+#define OPT3006_CONFIG_RN_MASK  0xF000  // Range Number mask (bits 15:12) | 量程编号掩码(位15:12)
+#define OPT3006_CONFIG_CT_MASK  0x0800  // Conversion Time mask (bit 11) | 转换时间掩码(位11)
+#define OPT3006_CONFIG_M_MASK   0x0600  // Mode mask (bits 10:9) | 模式掩码(位10:9)
+#define OPT3006_CONFIG_OVF_MASK 0x0100  // Overflow flag mask (bit 8) | 溢出标志掩码(位8)
+#define OPT3006_CONFIG_CRF_MASK 0x0080  // Conversion Ready mask (bit 7) | 转换就绪掩码(位7)
+#define OPT3006_CONFIG_FH_MASK  0x0040  // Flag High mask (bit 6) | 高阈值标志掩码(位6)
+#define OPT3006_CONFIG_FL_MASK  0x0020  // Flag Low mask (bit 5) | 低阈值标志掩码(位5)
+#define OPT3006_CONFIG_L_MASK   0x0010  // Latch mask (bit 4) | 锁存掩码(位4)
+#define OPT3006_CONFIG_POL_MASK 0x0008  // Polarity mask (bit 3) | 极性掩码(位3)
+#define OPT3006_CONFIG_ME_MASK  0x0004  // Mask Exponent mask (bit 2) | 掩码指数掩码(位2)
+#define OPT3006_CONFIG_FC_MASK  0x0003  // Fault Count mask (bits 1:0) | 故障计数掩码(位1:0)
 
 // Conversion Modes | 转换模式
-#define OPT3006_MODE_SHUTDOWN     0x00  // Shutdown mode (lowest power) | 关断模式(最低功耗)
-#define OPT3006_MODE_SINGLE_SHOT  0x01  // Single-shot conversion mode | 单次转换模式
-#define OPT3006_MODE_CONTINUOUS   0x02  // Continuous conversion mode | 连续转换模式
+#define OPT3006_MODE_SHUTDOWN    0x00  // Shutdown mode (lowest power) | 关断模式(最低功耗)
+#define OPT3006_MODE_SINGLE_SHOT 0x01  // Single-shot conversion mode | 单次转换模式
+#define OPT3006_MODE_CONTINUOUS  0x02  // Continuous conversion mode | 连续转换模式
 
 // Conversion Time Settings | 转换时间设置
 // CT位只有1位(位11): 0=100ms, 1=800ms
-#define OPT3006_CT_100MS          0     // 100ms conversion time (bit 11 = 0) | 100ms转换时间(位11=0)
-#define OPT3006_CT_800MS          1     // 800ms conversion time (bit 11 = 1) | 800ms转换时间(位11=1)
+#define OPT3006_CT_100MS 0  // 100ms conversion time (bit 11 = 0) | 100ms转换时间(位11=0)
+#define OPT3006_CT_800MS 1  // 800ms conversion time (bit 11 = 1) | 800ms转换时间(位11=1)
 
 // Range Number Settings | 量程编号设置
-#define OPT3006_RN_AUTO           0x0C  // Automatic full-scale range | 自动全量程
+#define OPT3006_RN_AUTO 0x0C  // Automatic full-scale range | 自动全量程
 
 // Result Register Parsing | 结果寄存器解析
-#define OPT3006_EXPONENT_SHIFT    12           // Exponent field shift (bits 15:12) | 指数字段偏移(位15:12)
-#define OPT3006_MANTISSA_MASK     0x0FFF       // Mantissa mask (bits 11:0) | 尾数掩码(位11:0)
-#define OPT3006_LUX_SCALE         0.01f        // Lux calculation scale factor | 照度计算比例因子
-                                               // Formula: lux = 0.01 × 2^E × M
-                                               // 公式: 照度 = 0.01 × 2^E × M
-                                               // E = exponent (4 bits) | E = 指数(4位)
-                                               // M = mantissa (12 bits) | M = 尾数(12位)
+#define OPT3006_EXPONENT_SHIFT 12      // Exponent field shift (bits 15:12) | 指数字段偏移(位15:12)
+#define OPT3006_MANTISSA_MASK  0x0FFF  // Mantissa mask (bits 11:0) | 尾数掩码(位11:0)
+#define OPT3006_LUX_SCALE \
+    0.01f  // Lux calculation scale factor | 照度计算比例因子
+           // Formula: lux = 0.01 × 2^E × M
+           // 公式: 照度 = 0.01 × 2^E × M
+           // E = exponent (4 bits) | E = 指数(4位)
+           // M = mantissa (12 bits) | M = 尾数(12位)
 
 // Measurement Range | 测量范围
-#define OPT3006_LUX_MIN           0.01f        // Minimum measurable lux | 最小可测照度
-#define OPT3006_LUX_MAX           83865.6f     // Maximum measurable lux | 最大可测照度
+#define OPT3006_LUX_MIN 0.01f     // Minimum measurable lux | 最小可测照度
+#define OPT3006_LUX_MAX 83865.6f  // Maximum measurable lux | 最大可测照度
 
 // Timing Constants | 时序常数
-#define OPT3006_STARTUP_TIME_MS   100          // Sensor startup time | 传感器启动时间
-#define OPT3006_CONVERSION_100MS  110          // 100ms conversion + margin | 100ms转换+余量
-#define OPT3006_CONVERSION_800MS  850          // 800ms conversion + margin | 800ms转换+余量
+#define OPT3006_STARTUP_TIME_MS  100  // Sensor startup time | 传感器启动时间
+#define OPT3006_CONVERSION_100MS 110  // 100ms conversion + margin | 100ms转换+余量
+#define OPT3006_CONVERSION_800MS 850  // 800ms conversion + margin | 800ms转换+余量
 
 /**
  * @brief Initialize OPT3006 sensor | 初始化OPT3006传感器
@@ -144,6 +146,12 @@ int opt3006_read_lux(float* lux);
  * @note 用途：调试时需要查看原始数据
  */
 int opt3006_read_lux_ex(float* lux, uint16_t* raw_result, uint8_t* exponent, uint16_t* mantissa);
+
+/**
+ * @brief Suspend i2c3 (OPT3006 bus) and pull P1.04/P1.05 low for sleep.
+ * 挂起 i2c3（OPT3006 总线），并将 P1.04/P1.05 拉低用于休眠。
+ */
+void opt3006_prepare_for_sleep(void);
 
 /**
  * @brief Set conversion mode | 设置转换模式
@@ -214,9 +222,8 @@ int opt3006_read_reg(uint8_t reg, uint16_t* value);
  */
 int opt3006_write_reg(uint8_t reg, uint16_t value);
 
-
 /*
  * @brief Initialize OPT3006 | 初始化OPT3006
-*/
+ */
 int opt3006_initialize(void);
-#endif  /* MOS_OPT3006_H_ */
+#endif /* MOS_OPT3006_H_ */

@@ -1,28 +1,67 @@
 /*
  * @Author       : Cole
  * @Date         : 2025-10-15 16:03:00
- * @LastEditTime : 2025-10-16 20:29:00
+ * @LastEditTime : 2026-02-04 19:51:43
  * @FilePath     : mos_opt3006.c
- * @Description  : 
- * 
- *  Copyright (c) MentraOS Contributors 2025 
+ * @Description  :
+ *
+ *  Copyright (c) MentraOS Contributors 2025
  *  SPDX-License-Identifier: Apache-2.0
  */
 
+#include "mos_opt3006.h"
+
+#include <hal/nrf_gpio.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/i2c.h>
-#include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
-
-#include "mos_opt3006.h"
+#include <zephyr/logging/log.h>
+#include <zephyr/pm/device.h>
 
 LOG_MODULE_REGISTER(mos_opt3006, LOG_LEVEL_INF);
 
-
 #define I2C_NODE DT_ALIAS(opt3006)
+
+/* i2c3 pinout (OPT3006 bus): P1.04 = SDA, P1.05 = SCL | i2c3 引脚（OPT3006 总线）：P1.04=SDA, P1.05=SCL */
+#define I2C3_SDA_PIN 4
+#define I2C3_SCL_PIN 5
 
 // Global I2C device pointer | 全局I2C设备指针
 static const struct device* i2c_dev = NULL;
+
+/**
+ * @brief Suspend i2c3 (OPT3006 bus) via PM, then pull P1.04 (SDA) and P1.05 (SCL) low for sleep.
+ * 挂起 i2c3（OPT3006 总线）外设（PM），再将 P1.04（SDA）、P1.05（SCL）拉低，用于休眠。
+ */
+void opt3006_prepare_for_sleep(void)
+{
+    const struct device* i2c3 = DEVICE_DT_GET(DT_NODELABEL(i2c3));
+
+    /* 1. Suspend i2c3 peripheral via PM | 通过 PM 挂起 i2c3 外设 */
+    if (device_is_ready(i2c3))
+    {
+        int ret = pm_device_action_run(i2c3, PM_DEVICE_ACTION_SUSPEND);
+        if (ret == 0)
+        {
+            LOG_INF("i2c3 suspended via PM");
+        }
+        else
+        {
+            LOG_WRN("i2c3 PM suspend failed: %d (continuing to pull GPIOs low)", ret);
+        }
+    }
+    else
+    {
+        LOG_WRN("i2c3 not ready, skipping PM suspend");
+    }
+
+    /* 2. Pull P1.04 (SDA) and P1.05 (SCL) low | 将 P1.04（SDA）、P1.05（SCL）拉低 */
+    nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, I2C3_SDA_PIN));
+    nrf_gpio_pin_write(NRF_GPIO_PIN_MAP(1, I2C3_SDA_PIN), 0);
+    nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, I2C3_SCL_PIN));
+    nrf_gpio_pin_write(NRF_GPIO_PIN_MAP(1, I2C3_SCL_PIN), 0);
+    LOG_INF("i2c3 pins (P1.04 SDA, P1.05 SCL) pulled low for sleep");
+}
 
 // Read 16-bit register from OPT3006 | 从OPT3006读取16位寄存器
 // Parameters | 参数:
@@ -33,7 +72,7 @@ static const struct device* i2c_dev = NULL;
 int opt3006_read_reg(uint8_t reg, uint16_t* value)
 {
     uint8_t data[2];
-    int ret;
+    int     ret;
 
     if (value == NULL)
     {
@@ -139,8 +178,7 @@ static int Opt3006VerifyDevice(void)
 
     if (value != OPT3006_MANUFACTURER_ID)
     {
-        LOG_ERR("Invalid manufacturer ID: 0x%04x (expected 0x%04x)", 
-                value, OPT3006_MANUFACTURER_ID);
+        LOG_ERR("Invalid manufacturer ID: 0x%04x (expected 0x%04x)", value, OPT3006_MANUFACTURER_ID);
         return -ENOTSUP;
     }
 
@@ -156,8 +194,7 @@ static int Opt3006VerifyDevice(void)
 
     if (value != OPT3006_DEVICE_ID)
     {
-        LOG_ERR("Invalid device ID: 0x%04x (expected 0x%04x)", 
-                value, OPT3006_DEVICE_ID);
+        LOG_ERR("Invalid device ID: 0x%04x (expected 0x%04x)", value, OPT3006_DEVICE_ID);
         return -ENOTSUP;
     }
 
@@ -206,15 +243,15 @@ int opt3006_init(void)
     // Configure settings: continuous mode, 800ms conversion time, auto range
     // 配置设置: 连续模式, 800ms转换时间, 自动量程
     uint16_t config = 0;
-    config |= (OPT3006_RN_AUTO << OPT3006_CONFIG_RN_SHIFT);      
-    config |= (OPT3006_CT_800MS << OPT3006_CONFIG_CT_BIT);        
+    config |= (OPT3006_RN_AUTO << OPT3006_CONFIG_RN_SHIFT);
+    config |= (OPT3006_CT_800MS << OPT3006_CONFIG_CT_BIT);
     config |= (OPT3006_MODE_CONTINUOUS << OPT3006_CONFIG_M_SHIFT);
-    config |= (1 << OPT3006_CONFIG_L_BIT);                        
+    config |= (1 << OPT3006_CONFIG_L_BIT);
 
     // Log the calculated configuration value | 记录计算的配置值
     LOG_INF("📝 Calculated config value: 0x%04x", config);
-    LOG_INF("   RN=0x%X(bit15:12), CT=%d(bit11), M=0x%X(bit10:9), L=1(bit4)",
-            OPT3006_RN_AUTO, OPT3006_CT_800MS, OPT3006_MODE_CONTINUOUS);
+    LOG_INF("   RN=0x%X(bit15:12), CT=%d(bit11), M=0x%X(bit10:9), L=1(bit4)", OPT3006_RN_AUTO, OPT3006_CT_800MS,
+            OPT3006_MODE_CONTINUOUS);
 
     ret = opt3006_write_reg(OPT3006_REG_CONFIG, config);
     if (ret != 0)
@@ -229,15 +266,15 @@ int opt3006_init(void)
     if (ret == 0)
     {
         LOG_INF("📖 Config read back: 0x%04x", read_back);
-        
+
         // Parse configuration bits | 解析配置位
-        uint8_t rn = (read_back >> OPT3006_CONFIG_RN_SHIFT) & 0x0F;     // Bits 15:12
-        uint8_t ct = (read_back >> OPT3006_CONFIG_CT_BIT) & 0x01;       // Bit 11
-        uint8_t mode = (read_back >> OPT3006_CONFIG_M_SHIFT) & 0x03;    // Bits 10:9
-        uint8_t ovf = (read_back >> OPT3006_CONFIG_OVF_BIT) & 0x01;     // Bit 8
-        uint8_t crf = (read_back >> OPT3006_CONFIG_CRF_BIT) & 0x01;     // Bit 7
+        uint8_t rn    = (read_back >> OPT3006_CONFIG_RN_SHIFT) & 0x0F;  // Bits 15:12
+        uint8_t ct    = (read_back >> OPT3006_CONFIG_CT_BIT) & 0x01;    // Bit 11
+        uint8_t mode  = (read_back >> OPT3006_CONFIG_M_SHIFT) & 0x03;   // Bits 10:9
+        uint8_t ovf   = (read_back >> OPT3006_CONFIG_OVF_BIT) & 0x01;   // Bit 8
+        uint8_t crf   = (read_back >> OPT3006_CONFIG_CRF_BIT) & 0x01;   // Bit 7
         uint8_t latch = (read_back >> OPT3006_CONFIG_L_BIT) & 0x01;     // Bit 4
-        
+
         LOG_INF("   RN (Range,15:12): 0x%X (%s)", rn, rn == 0x0C ? "AUTO" : "Manual");
         LOG_INF("   CT (ConvTime,11): %d (%s)", ct, ct == 0 ? "100ms" : "800ms");
         LOG_INF("   M (Mode,10:9): %d (%s)", mode,
@@ -245,11 +282,10 @@ int opt3006_init(void)
                 mode == 1 ? "Single-shot" :
                 mode >= 2 ? "Continuous" : "?");
         LOG_INF("   OVF,CRF,L: %d,%d,%d", ovf, crf, latch);
-        
+
         if (read_back != config)
         {
-            LOG_WRN("⚠️ Config mismatch! Written: 0x%04x, Read: 0x%04x", 
-                    config, read_back);
+            LOG_WRN("⚠️ Config mismatch! Written: 0x%04x, Read: 0x%04x", config, read_back);
             LOG_WRN("   Difference: 0x%04x", config ^ read_back);
         }
         else
@@ -262,13 +298,12 @@ int opt3006_init(void)
     return 0;
 }
 
-
 int opt3006_read_lux_ex(float* lux, uint16_t* raw_result, uint8_t* exponent, uint16_t* mantissa)
 {
     uint16_t result;
-    uint8_t exp;
+    uint8_t  exp;
     uint16_t mant;
-    int ret;
+    int      ret;
 
     if (lux == NULL)
     {
@@ -284,7 +319,7 @@ int opt3006_read_lux_ex(float* lux, uint16_t* raw_result, uint8_t* exponent, uin
 
     // Parse result: extract exponent (bits 15:12) and mantissa (bits 11:0)
     // 解析结果: 提取指数(位15:12)和尾数(位11:0)
-    exp = (result >> OPT3006_EXPONENT_SHIFT) & 0x0F;
+    exp  = (result >> OPT3006_EXPONENT_SHIFT) & 0x0F;
     mant = result & OPT3006_MANTISSA_MASK;
 
     // Calculate lux value using formula: lux = 0.01 × 2^E × M
@@ -326,9 +361,7 @@ int opt3006_set_mode(uint8_t mode)
         return -EINVAL;
     }
 
-    return opt3006_update_reg(OPT3006_REG_CONFIG, 
-                              OPT3006_CONFIG_M_MASK,
-                              mode << OPT3006_CONFIG_M_SHIFT);
+    return opt3006_update_reg(OPT3006_REG_CONFIG, OPT3006_CONFIG_M_MASK, mode << OPT3006_CONFIG_M_SHIFT);
 }
 
 // Set conversion time | 设置转换时间
@@ -342,9 +375,7 @@ int opt3006_set_conversion_time(uint8_t ct)
 
     // CT is a single bit (bit 11): 0=100ms, 1=800ms
     // CT是单个位(位11): 0=100ms, 1=800ms
-    return opt3006_update_reg(OPT3006_REG_CONFIG,
-                              OPT3006_CONFIG_CT_MASK,
-                              ct << OPT3006_CONFIG_CT_BIT);
+    return opt3006_update_reg(OPT3006_REG_CONFIG, OPT3006_CONFIG_CT_MASK, ct << OPT3006_CONFIG_CT_BIT);
 }
 
 // Start single-shot conversion | 启动单次转换
@@ -357,7 +388,7 @@ int opt3006_start_conversion(void)
 bool opt3006_is_ready(void)
 {
     uint16_t config;
-    int ret;
+    int      ret;
 
     ret = opt3006_read_reg(OPT3006_REG_CONFIG, &config);
     if (ret != 0)
@@ -389,15 +420,13 @@ int opt3006_set_range(uint8_t rn)
         return -EINVAL;
     }
 
-    return opt3006_update_reg(OPT3006_REG_CONFIG,
-                              OPT3006_CONFIG_RN_MASK,
-                              rn << OPT3006_CONFIG_RN_SHIFT);
+    return opt3006_update_reg(OPT3006_REG_CONFIG, OPT3006_CONFIG_RN_MASK, rn << OPT3006_CONFIG_RN_SHIFT);
 }
 
 int opt3006_initialize(void)
 {
     uint16_t config;
-    int ret;
+    int      ret;
     ret = opt3006_init();
     if (ret != 0)
     {
@@ -416,10 +445,8 @@ int opt3006_initialize(void)
     else
     {
         LOG_INF("✓ Config read: 0x%04x", config);
-        LOG_INF("  Mode: %d, CT: %d, RN: 0x%X",
-                (config >> OPT3006_CONFIG_M_SHIFT) & 0x03,
-                (config >> OPT3006_CONFIG_CT_BIT) & 0x01,
-                (config >> OPT3006_CONFIG_RN_SHIFT) & 0x0F);
+        LOG_INF("  Mode: %d, CT: %d, RN: 0x%X", (config >> OPT3006_CONFIG_M_SHIFT) & 0x03,
+                (config >> OPT3006_CONFIG_CT_BIT) & 0x01, (config >> OPT3006_CONFIG_RN_SHIFT) & 0x0F);
     }
     k_sleep(K_MSEC(100));
     ret = opt3006_set_mode(OPT3006_MODE_CONTINUOUS);

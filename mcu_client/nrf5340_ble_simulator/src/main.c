@@ -24,6 +24,7 @@
 #include "pdm_audio_stream.h"
 #include "protobuf_handler.h"
 // #include "display/lcd/a6n.h"  // Working A6N driver
+#include <hal/nrf_gpio.h>  // For direct GPIO access
 #include <nrfx_clock.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -33,18 +34,17 @@
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/util.h>  // For ARRAY_SIZE macro
-#include <hal/nrf_gpio.h>  // For direct GPIO access
 
-#include "mos_lsm6dsv16x.h"  // LSM6DSV16X 6-axis IMU sensor
-#include "mos_fuel_gauge.h"
-#include "mos_npm1300_led.h"
-#include "mos_opt3006.h"  // OPT3006 ambient light sensor
-#include "mos_button_app.h"  // Button application logic
 #include "interrupt_handler.h"  // Interrupt handler framework
-#include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
-#include "mos_npm1300_ldsw.h"  // NPM1300 LDSW (load switch) control
-#include "mos_usb_detect.h"  // USB cable detection (polling mode)
+#include "mos_button_app.h"     // Button application logic
 #include "mos_dfu_progress.h"
+#include "mos_fuel_gauge.h"
+#include "mos_jlink_usb_switch_app.h"  // J-Link/USB switch application logic
+#include "mos_lsm6dsv16x.h"            // LSM6DSV16X 6-axis IMU sensor
+#include "mos_npm1300_ldsw.h"          // NPM1300 LDSW (load switch) control
+#include "mos_npm1300_led.h"
+#include "mos_opt3006.h"     // OPT3006 ambient light sensor
+#include "mos_usb_detect.h"  // USB cable detection (polling mode)
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -63,8 +63,8 @@ static struct k_work   adv_work;
 static uint16_t payload_mtu   = 20;
 static bool     ble_connected = false;
 
-static char dynamic_device_name[30];
-static struct bt_data ad[]                    = {
+static char           dynamic_device_name[30];
+static struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
     BT_DATA(BT_DATA_NAME_COMPLETE, "MENTRA_DISPLAY_", 16),
 };
@@ -81,8 +81,8 @@ static void setup_dynamic_advertising(void)
     bt_id_get(&addr, &count);
 
     // Create device name with MAC suffix (last 6 hex digits)
-    snprintf(dynamic_device_name, sizeof(dynamic_device_name), "MENTRA_DISPLAY_%02X%02X%02X", addr.a.val[2], addr.a.val[1],
-             addr.a.val[0]);
+    snprintf(dynamic_device_name, sizeof(dynamic_device_name), "MENTRA_DISPLAY_%02X%02X%02X", addr.a.val[2],
+             addr.a.val[1], addr.a.val[0]);
 
     LOG_INF("Device name: %s", dynamic_device_name);
 
@@ -96,7 +96,7 @@ static void setup_dynamic_advertising(void)
     // Update the advertising data with the new name
     ad[1].data     = (const uint8_t*)dynamic_device_name;
     ad[1].data_len = strlen(dynamic_device_name);
-    
+
     // err = bt_le_adv_update_data(ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
     // if (err != 0)
     // {
@@ -157,7 +157,7 @@ static void disconnected(struct bt_conn* conn, uint8_t reason)
 
     LOG_INF("Disconnected: %s, reason 0x%02x %s", addr, reason, bt_hci_err_to_str(reason));
     set_ble_connected_status(false);
-    display_show_welcome_screen();  /* 断开后自动回到欢迎界面 | Return to welcome screen on disconnect */
+    display_show_welcome_screen(); /* 断开后自动回到欢迎界面 | Return to welcome screen on disconnect */
     if (auth_conn)
     {
         bt_conn_unref(auth_conn);
@@ -309,7 +309,7 @@ static void bt_receive_cb(struct bt_conn* conn, const uint8_t* const data, uint1
 }
 
 static struct custom_nus_cb nus_cb = {
-	.received     = bt_receive_cb,
+    .received = bt_receive_cb,
 };
 uint16_t get_ble_payload_mtu(void)
 {
@@ -369,7 +369,7 @@ int ble_send_data(const uint8_t* data, uint16_t len)
 void error(void)
 {
     while (true)
-    { 
+    {
         /* Spin for ever */
         k_sleep(K_MSEC(1000));
     }
@@ -394,34 +394,43 @@ static void num_comp_reply(bool accept)
 }
 #endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
 
-
-
-
-
-
 /**
  * @brief Initialize user GPIOs (ES power and Microphone power)
  * @return 0 on success, negative value on error
  */
 #define USER_NODE DT_PATH(zephyr_user)
-
-#if DT_NODE_EXISTS(USER_NODE)
 static const struct gpio_dt_spec vad_power   = GPIO_DT_SPEC_GET(USER_NODE, vad_power_gpios);
-static const struct gpio_dt_spec user1_p0_28 = GPIO_DT_SPEC_GET(USER_NODE, user1_p0_28_gpios);
 static const struct gpio_dt_spec int4        = GPIO_DT_SPEC_GET(USER_NODE, int4_gpios);
-#if DT_NODE_HAS_PROP(USER_NODE, ear_en_gpios)
 static const struct gpio_dt_spec ear_en      = GPIO_DT_SPEC_GET(USER_NODE, ear_en_gpios);
-#endif
+/**
+ * @brief Control VAD power on/off | 控制VAD电源开关
+ * @param enable true to turn on VAD power (HIGH), false to turn off (LOW) |
+ * true开启VAD电源（高电平），false关闭（低电平）
+ */
+void vad_power_control(bool enable)
+{
+    gpio_pin_set_dt(&vad_power, enable ? 1 : 0);
+    LOG_INF("VAD power %s", enable ? "ON" : "OFF");
+}
+
+/**
+ * @brief Control ear_en on/off | 控制 ear_en 开关
+ * @param enable true to set HIGH, false to set LOW | true拉高，false拉低
+ */
+void ear_en_control(bool enable)
+{
+    gpio_pin_set_dt(&ear_en, enable ? 1 : 0);
+    LOG_INF("ear_en %s", enable ? "HIGH" : "LOW");
+}
 
 int init_user_gpio(void)
 {
     int err;
-    const struct gpio_dt_spec *gpios[] = {
+    const struct gpio_dt_spec* gpios[] = {
         &vad_power,
-        &user1_p0_28,
         &int4,
     };
-    const char *gpio_names[] = {
+    const char* gpio_names[] = {
         "vad_power (P1.00)",
         "user1_p0_28 (P0.28)",
         "int4 (P0.22)",
@@ -455,7 +464,19 @@ int init_user_gpio(void)
         // LOG_DBG("%s configured as output, set to LOW", gpio_names[i]);
     }
 
-#if DT_NODE_HAS_PROP(USER_NODE, ear_en_gpios)
+    /* Force specified IOs to default LOW on power-up | 指定 IO 上电默认拉低 */
+    const uint32_t default_low_pins[] = {
+        NRF_GPIO_PIN_MAP(1, 12), NRF_GPIO_PIN_MAP(0, 27), 
+        NRF_GPIO_PIN_MAP(0, 24), NRF_GPIO_PIN_MAP(0, 26),
+        NRF_GPIO_PIN_MAP(0, 28), NRF_GPIO_PIN_MAP(0, 2),  
+        NRF_GPIO_PIN_MAP(0, 3),  NRF_GPIO_PIN_MAP(0, 4), 
+    };
+
+    for (int i = 0; i < ARRAY_SIZE(default_low_pins); i++)
+    {
+        nrf_gpio_cfg_output(default_low_pins[i]);
+        nrf_gpio_pin_clear(default_low_pins[i]);
+    }
     /* ear_en: configure as output and pull HIGH | ear_en：配置为输出并拉高 */
     if (gpio_is_ready_dt(&ear_en))
     {
@@ -465,66 +486,24 @@ int init_user_gpio(void)
             LOG_ERR("ear_en GPIO config error: %d", err);
             return err;
         }
-        err = gpio_pin_set_dt(&ear_en, 1);
-        if (err != 0)
-        {
-            LOG_ERR("Failed to set ear_en to HIGH: %d", err);
-            return err;
-        }
+        ear_en_control(true);  // Ensure ear_en is HIGH
         LOG_INF("ear_en GPIO configured and set to HIGH");
     }
     else
     {
         LOG_WRN("ear_en GPIO not ready, skipping");
     }
-#endif
-
     LOG_INF("User GPIOs configured successfully");
     return 0;
 }
-#else
-int init_user_gpio(void)
-{
-    LOG_WRN("zephyr,user node not defined, skipping user GPIO initialization");
-    return 0;
-}
-#endif
 
 
-
-#if DT_NODE_EXISTS(USER_NODE)
-/**
- * @brief Control VAD power on/off | 控制VAD电源开关
- * @param enable true to turn on VAD power (HIGH), false to turn off (LOW) | true开启VAD电源（高电平），false关闭（低电平）
- */
-void vad_power_control(bool enable)
-{
-    gpio_pin_set_dt(&vad_power, enable ? 1 : 0);
-    LOG_INF("VAD power %s", enable ? "ON" : "OFF");
-}
-
-/**
- * @brief Turn on VAD power | 打开VAD电源
- */
-void vad_power_on(void)
-{
-    vad_power_control(true);
-}
-
-/**
- * @brief Turn off VAD power | 关闭VAD电源
- */
-void vad_power_off(void)
-{
-    vad_power_control(false);
-}
-#endif
 
 int main(void)
 {
     int err = 0;
     LOG_INF("🚀🚀🚀 MAIN FUNCTION STARTED - v2.2.0-DISPLAY_OPEN_FIX 🚀🚀🚀");
-    
+
     bool woke_from_sleep = mos_button_app_check_wakeup_state();
 
     err = init_user_gpio();
@@ -533,10 +512,7 @@ int main(void)
         LOG_ERR("Failed to initialize user GPIOs: %d", err);
     }
 
-    // Turn on VAD power on startup | 上电时打开VAD电源
-#if DT_NODE_EXISTS(USER_NODE)
-    vad_power_on();
-#endif
+    vad_power_control(true);  // Enable VAD power by default | 默认启用VAD电源
 
     if (IS_ENABLED(CONFIG_BT_NUS_SECURITY_ENABLED))
     {
@@ -577,27 +553,28 @@ int main(void)
         return 0;
     }
 
-    dfu_progress_init(); 
+    dfu_progress_init();
 
     k_work_init(&adv_work, adv_work_handler);
     advertising_start();
     bt_gatt_cb_register(&gatt_callbacks);
-    
+
     /* Initialize interrupt handler framework early | 早期初始化中断处理框架 */
     interrupt_handler_init();
-    
+
     /* Initialize J-Link/USB switch application | 初始化J-Link/USB切换应用 */
     mos_jlink_usb_switch_app_init();
     mos_npm1300_ldsw1_init();
-	mos_npm1300_ldsw1_enable();
-    
-    /* woke_from_sleep is already set by mos_button_app_check_wakeup_state() called at the start of main() | woke_from_sleep已由main()开始时调用的mos_button_app_check_wakeup_state()设置 */
+    mos_npm1300_ldsw1_enable();
+
+    /* woke_from_sleep is already set by mos_button_app_check_wakeup_state() called at the start of main() |
+     * woke_from_sleep已由main()开始时调用的mos_button_app_check_wakeup_state()设置 */
     if (woke_from_sleep)
     {
         LOG_INF("Device woke from System OFF - waiting for power-on long press (2.5s)...");
-        
+
         int ret = mos_button_app_wait_for_power_on(1500);
-        
+
         if (ret != 0)
         {
             LOG_WRN("Power-on long press not detected - entering sleep again");
@@ -605,11 +582,11 @@ int main(void)
             mos_button_app_enter_sleep();
             /* Should not reach here | 不应该到达这里 */
         }
-        
+
         LOG_INF("Power-on long press confirmed - starting device normally");
     }
     mos_button_app_init();
-    
+
     pm1300_init();
     battery_monitor_auto_start();
 
@@ -624,13 +601,12 @@ int main(void)
     lsm6dsv16x_init();
 
     usb_detect_init();
-    
+
     npm1300_led_init();
 
-	
     for (;;)
     {
-		// LOG_INF("MAIN LOOP");
+        // LOG_INF("MAIN LOOP");
         k_sleep(K_MSEC(1000));
     }
 }

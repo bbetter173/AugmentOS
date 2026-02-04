@@ -249,6 +249,12 @@ void display_update_xy_text(uint16_t x, uint16_t y, const char *text_content, ui
     mos_msgq_send(&lvgl_display_msgq, &cmd, MOS_OS_WAIT_FOREVER);
 }
 
+void display_clear_screen(void)
+{
+    display_cmd_t cmd = {.type = LCD_CMD_CLEAR_DISPLAY};
+    mos_msgq_send(&lvgl_display_msgq, &cmd, MOS_OS_WAIT_FOREVER);
+}
+
 void display_send_frame(void *data_ptr)
 {
     // display_cmd_t cmd = {.type = LCD_CMD_DATA, .param = data_ptr};
@@ -1239,6 +1245,12 @@ void lvgl_dispaly_init(void *p1, void *p2, void *p3)
                             lv_obj_clear_flag(dfu_status_label, LV_OBJ_FLAG_HIDDEN);
                         }
                     }
+                    break;
+                case LCD_CMD_CLEAR_DISPLAY:
+                    // NOTE: Not clearing the active screen because that would orphan the protobuf container and label and cause a crash.
+                    // If we need to clear lvgl for some reason in future. We would reinitialize the lvgl display.
+                    
+                    a6n_clear_screen(false);  // Clear to black
                     break;
                 case LCD_CMD_CLOSE:
                     if (get_display_onoff())

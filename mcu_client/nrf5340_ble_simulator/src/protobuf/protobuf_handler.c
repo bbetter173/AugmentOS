@@ -16,7 +16,7 @@
  * Tag 35: DisplayScrollingText     - Display animated scrolling text (No response)
  * Tag 37: BrightnessConfig         - Set display brightness level (Projector, No response)
  * Tag 38: AutoBrightnessConfig     - Configure automatic brightness adjustment (No response)
- * Tag 99: ClearDisplay             - Clear display content (TEMPORARY TAG - update when protobuf definition ready)
+ * Tag 46: ClearDisplay             - Clear display content (No response)
  *
  * === GlassesToPhone (Outgoing) Messages ===
  * Tag 10: BatteryStatus            - Battery level notification (85% default, 0-100% range)
@@ -214,7 +214,7 @@ void protobuf_parse_control_message(const uint8_t* protobuf_data, uint16_t len)
                 message_name        = "AutoBrightnessConfig";
                 message_description = "Configure automatic brightness adjustment";
                 break;
-            case 99:  // TODO: Replace with actual tag when protobuf definition is updated
+            case 46:  
                 message_name        = "ClearDisplay";
                 message_description = "Clear display content (temporary tag)";
                 break;
@@ -302,9 +302,9 @@ void protobuf_parse_control_message(const uint8_t* protobuf_data, uint16_t len)
                 }
                 break;
 
-            case 99:  // clear_display_tag (temporary - TODO: update when protobuf definition is updated)
+            case 46:  // clear_display_tag (temporary - TODO: update when protobuf definition is updated)
                 LOG_INF("Processing Clear Display Command...");
-                LOG_WRN("Using temporary tag 99 for ClearDisplay - update when protobuf definition is ready");
+                LOG_WRN("Using temporary tag 46 for ClearDisplay - update when protobuf definition is ready");
                 protobuf_process_clear_display();
                 break;
 
@@ -319,7 +319,7 @@ void protobuf_parse_control_message(const uint8_t* protobuf_data, uint16_t len)
                 LOG_WRN("  - 35: DisplayScrollingText");
                 LOG_WRN("  - 37: BrightnessConfig");
                 LOG_WRN("  - 38: AutoBrightnessConfig");
-                LOG_WRN("  - 99: ClearDisplay (temporary tag)");
+                LOG_WRN("  - 46: ClearDisplay");
                 break;
         }
     }
@@ -1118,14 +1118,14 @@ void protobuf_parse_text_brightness(const char* text)
 
 void protobuf_process_clear_display(void)
 {
-    LOG_INF("=== CLEAR DISPLAY MESSAGE (Tag 99 - TEMPORARY) ===");
-    LOG_WRN("TEMPORARY IMPLEMENTATION: Using tag 99 for ClearDisplay");
+    LOG_INF("=== CLEAR DISPLAY MESSAGE (Tag 46) ===");
+    LOG_WRN("TEMPORARY IMPLEMENTATION: Using tag 46 for ClearDisplay");
     LOG_WRN("TODO: Update to official tag when protobuf definition is updated");
 
     LOG_INF("Clear Display Command:");
     LOG_INF("  - Message Type: PhoneToGlasses::ClearDisplay");
     LOG_INF("  - Protocol: MentraOS BLE Protobuf v3 (EXTENDED)");
-    LOG_INF("  - Payload Tag: 99 (clear_display - TEMPORARY)");
+    LOG_INF("  - Payload Tag: 46 (clear_display)");
     LOG_INF("  - Direction: Phone → Glasses");
     LOG_INF("  - Action: Clear all display content");
 
@@ -1139,7 +1139,7 @@ void protobuf_process_clear_display(void)
     LOG_INF("Protocol Compliance (TEMPORARY):");
     LOG_INF("  - Message Type: PhoneToGlasses::ClearDisplay");
     LOG_INF("  - Official definition: PENDING");
-    LOG_INF("  - Temporary tag: 99");
+    LOG_INF("  - Temporary tag: 46");
     LOG_INF("  - Implementation: Display hardware clear");
 
     // TODO: Implement actual display clearing logic here
@@ -1151,10 +1151,12 @@ void protobuf_process_clear_display(void)
     LOG_INF("  - Refresh display: TODO");
 
     // Print to UART
-    LOG_INF("\n[Phone->Glasses CLEAR] Clear Display: all content cleared (temporary tag:99)\n");
+    LOG_INF("\n[Phone->Glasses CLEAR] Clear Display: all content cleared (temporary tag:46)\n");
 
     LOG_INF("Clear Display Command Processed");
     LOG_INF("=== END CLEAR DISPLAY MESSAGE ===");
+
+    display_clear_screen();
 }
 
 void protobuf_process_auto_brightness_config(const mentraos_ble_AutoBrightnessConfig* auto_brightness_config)

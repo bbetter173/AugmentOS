@@ -40,6 +40,7 @@ typedef enum
     LCD_CMD_GRAYSCALE_VERTICAL,    // **NEW: Direct A6N vertical grayscale**
     LCD_CMD_CHESS_PATTERN,         // **NEW: Direct A6N chess pattern**
     LCD_CMD_SHOW_PATTERN,          // **NEW: Show specific pattern by ID**
+    LCD_CMD_CLEAR_DISPLAY,         // **NEW: Clear display**
 } display_cmd_type_t;
 
 /* Display on/off control functions | 显示开关控制函数 */
@@ -130,6 +131,9 @@ void display_draw_chess_pattern(void);
 
 // **NEW: Pattern 5 XY Text Positioning function**
 void display_update_xy_text(uint16_t x, uint16_t y, const char *text_content, uint16_t font_size, uint32_t color);
+
+// **NEW: Clear display function**
+void display_clear_screen(void);
 
 // **NEW: Get current pattern ID for conditional logic**
 int display_get_current_pattern(void);

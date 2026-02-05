@@ -42,6 +42,7 @@ message PhoneToGlasses {
     CommitDisplay commit = 43;
     DisplayDistanceConfig display_distance = 44;
     DisplayHeightConfig display_height = 45;
+    ClearDisplay clear_display = 46;
     
     // User Input
     ImuEnabledConfig imu_enabled = 50;
@@ -230,6 +231,8 @@ message DisplayScrollingText {
   bool loop = 12;            // wrap to top when finished
   uint32 pause_ms = 13;      // delay before restart (if looping)
 }
+
+message ClearDisplay {}
 
 message DisplayPowerConfig {
   bool on = 1;  // true = turn on, false = turn off

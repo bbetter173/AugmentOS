@@ -15,6 +15,13 @@ export const SONIOX_API_KEY = process.env.SONIOX_API_KEY || "";
 export const SONIOX_ENDPOINT =
   process.env.SONIOX_ENDPOINT || "wss://stt-rt.soniox.com/transcribe-websocket";
 
+export const ALIBABA_ENDPOINT =
+  process.env.ALIBABA_ENDPOINT ||
+  "wss://dashscope.aliyuncs.com/api-ws/v1/inference";
+export const ALIBABA_WORKSPACE = process.env.ALIBABA_WORKSPACE || "";
+export const ALIBABA_DASHSCOPE_API_KEY =
+  process.env.ALIBABA_DASHSCOPE_API_KEY || "";
+
 // Log warning if environment variables are not set
 if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
   console.warn(
@@ -43,6 +50,7 @@ export enum TranslationStreamState {
 export enum TranslationProviderType {
   AZURE = "azure",
   SONIOX = "soniox",
+  ALIBABA = "alibaba",
 }
 
 //===========================================================
@@ -57,6 +65,7 @@ export interface TranslationConfig {
 
   azure: AzureTranslationConfig;
   soniox: SonioxTranslationConfig;
+  alibaba: AlibabaTranslationConfig;
 
   performance: {
     maxTotalStreams: number;
@@ -84,6 +93,29 @@ export interface SonioxTranslationConfig {
   model?: string;
   maxConnections?: number;
 }
+
+export interface AlibabaTranslationConfig {
+  endpoint: string;
+  workspace: string;
+  dashscopeApiKey: string;
+  model: string;
+}
+
+// export interface AlibabaTranslationConfig {
+//   accessKeyId: string;
+//   accessKeySecret: string;
+//   appKey: string;
+//   endpoint: string;
+//   model?: string;
+//   maxConnections?: number;
+//   sampleRate?: number; // Audio sample rate, e.g., 16000
+//   format?: string; // Audio format, e.g., "pcm"
+//   enableIntermediateResult?: boolean;
+//   enablePunctuationPrediction?: boolean;
+//   enableInverseTextNormalization?: boolean;
+//   maxStartSilence?: number; // Max silence duration in milliseconds before timeout
+//   maxEndSilence?: number; // Max silence duration in milliseconds before end of speech
+// }
 
 //===========================================================
 // Provider Interfaces
@@ -287,8 +319,14 @@ export const DEFAULT_TRANSLATION_CONFIG: TranslationConfig = {
   soniox: {
     apiKey: SONIOX_API_KEY,
     endpoint: SONIOX_ENDPOINT,
-    model: "stt-rt-preview-v2", // Default model, can be overridden
-    // model: "stt-rt-preview",
+    model: "stt-rt-v3-preview", // Default model, can be overridden
+  },
+
+  alibaba: {
+    endpoint: ALIBABA_ENDPOINT,
+    workspace: ALIBABA_WORKSPACE,
+    dashscopeApiKey: ALIBABA_DASHSCOPE_API_KEY,
+    model: "gummy-realtime-v1",
   },
 
   performance: {

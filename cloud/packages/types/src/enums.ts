@@ -31,6 +31,6 @@ export enum DeviceTypes {
   LIVE = "Mentra Live",
   MACH1 = "Mentra Mach1",
   Z100 = "Vuzix Z100",
-  NEX = "Mentra Nex",
+  NEX = "Mentra Display",
   FRAME = "Brilliant Frame",
 }

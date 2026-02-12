@@ -101,6 +101,7 @@ export default function SelectGlassesBluetoothScreen() {
     newName = newName.replace("MENTRA_LIVE_BT_", "")
     newName = newName.replace("Mentra_Live_", "")
     newName = newName.replace("MENTRA_LIVE_", "")
+    newName = newName.replace("MENTRA_DISPLAY_", "")
     return newName
   }
 

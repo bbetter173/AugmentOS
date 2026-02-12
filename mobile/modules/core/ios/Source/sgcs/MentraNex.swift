@@ -1395,7 +1395,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         // Emit response event
         let eventBody: [String: Any] = [
             "head_up_angle_set_result": success,
-            "device_model": "Mentra Nex",
+            "device_model": "Mentra Display",
             "timestamp": Date().timeIntervalSince1970 * 1000,
         ]
 
@@ -1414,7 +1414,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         let eventBody: [String: Any] = [
             "heartbeat_received": [
                 "timestamp": timestamp,
-                "device_model": "Mentra Nex",
+                "device_model": "Mentra Display",
             ],
         ]
 
@@ -1544,7 +1544,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
         let eventBody: [String: Any] = [
             "button_press": [
-                "device_model": "Mentra Nex",
+                "device_model": "Mentra Display",
                 "button_id": buttonId,
                 "press_type": pressType,
                 "timestamp": Date().timeIntervalSince1970 * 1000,
@@ -1566,7 +1566,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         let eventBody: [String: Any] = [
             "heartbeat_received": [
                 "timestamp": timestamp,
-                "device_model": "Mentra Nex",
+                "device_model": "Mentra Display",
             ],
         ]
 
@@ -1625,7 +1625,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         let eventBody: [String: Any] = [
             "heartbeat_sent": [
                 "timestamp": timestamp,
-                "device_model": "Mentra Nex",
+                "device_model": "Mentra Display",
             ],
         ]
 
@@ -1638,7 +1638,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         let eventBody: [String: Any] = [
             "heartbeat_received": [
                 "timestamp": timestamp,
-                "device_model": "Mentra Nex",
+                "device_model": "Mentra Display",
             ],
         ]
 
@@ -1772,7 +1772,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
             "protobuf_schema_version": [
                 "schema_version": 1, // Default version
                 "build_info": "Schema v1 | mentraos_ble.proto",
-                "device_model": "Mentra Nex",
+                "device_model": "Mentra Display",
             ],
         ]
 
@@ -2290,7 +2290,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
     private func emitDeviceReady() {
         let eventBody: [String: Any] = [
             "device_ready": [
-                "device_model": "Mentra Nex",
+                "model_name": "Mentra Display",
                 "mtu_negotiated": currentMTU,
                 "max_chunk_size": maxChunkSize,
                 "connection_state": "ready",

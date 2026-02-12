@@ -130,7 +130,7 @@ export default function DeviceSettings() {
       {/* Battery Status Section */}
       {glassesConnected && <BatteryStatus />}
 
-      {/* Nex Developer Settings - Only show when connected to Mentra Nex */}
+      {/* Nex Developer Settings - Only show when connected to Mentra Display */}
       {defaultWearable && defaultWearable.includes(DeviceTypes.NEX) && (
         <RouteButton
           // icon={}

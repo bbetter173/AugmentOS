@@ -260,7 +260,9 @@ export default function NexDeveloperSettings() {
   const deviceModel = useGlassesStore((state) => state.deviceModel)
   const features: Capabilities = getModelCapabilities(defaultWearable)
 
-  // Mentra Nex BLE test state variables
+  console.log("Yash is the best!!!!!", deviceModel, "hello", defaultWearable)
+
+  // Mentra Display BLE test state variables
   const [text, setText] = useState("Hello World")
   const [positionX, setPositionX] = useState("0")
   const [positionY, setPositionY] = useState("0")
@@ -285,7 +287,7 @@ export default function NexDeveloperSettings() {
   const [showFullSenderCommand, setShowFullSenderCommand] = useState(false)
   const [showFullReceiverCommand, setShowFullReceiverCommand] = useState(false)
 
-  // Mentra Nex BLE test event handlers
+  // Mentra Display BLE test event handlers
   useEffect(() => {
     const handleCommandFromSender = (sender: BleCommand) => {
       console.log("handleCommandFromSender:", sender)
@@ -324,7 +326,7 @@ export default function NexDeveloperSettings() {
     }
   }, [])
 
-  // Mentra Nex BLE test handlers
+  // Mentra Display BLE test handlers
   const onSendTextClick = async () => {
     if (glassesConnected) {
       if (text === "" || positionX === null || positionY === null || size === null) {
@@ -433,12 +435,14 @@ export default function NexDeveloperSettings() {
         )}
 
         {/* Mentra Nex BLE Test Section - Only show when connected to Mentra Nex */}
-        {deviceModel === "Mentra Nex" ? (
+        {defaultWearable === "Mentra Display" ? (
           <>
             {/* Custom Display Text Settings */}
             <View style={themed($settingsGroup)}>
               <Text style={themed($sectionTitle)}>Custom Display Text</Text>
-              <Text style={themed($description)}>Set the display text for the Mentra Nex with text, x, y and size</Text>
+              <Text style={themed($description)}>
+                Set the display text for the Mentra Display with text, x, y and size
+              </Text>
 
               <TextInput
                 style={themed($textInput)}
@@ -674,7 +678,7 @@ export default function NexDeveloperSettings() {
             {/* Ping-Pong Console */}
             <View style={themed($settingsGroup)}>
               <Text style={themed($sectionTitle)}>💓 Ping-Pong Console</Text>
-              <Text style={themed($description)}>Monitor ping-pong communication with Mentra Nex glasses</Text>
+              <Text style={themed($description)}>Monitor ping-pong communication with Mentra Display glasses</Text>
 
               <Text style={themed($label)}>🏓 Last Pong Sent:</Text>
               <Text style={themed($timestampText)}>Time: {formatTimestamp(lastHeartbeatSent)}</Text>
@@ -708,9 +712,9 @@ export default function NexDeveloperSettings() {
           </>
         ) : (
           <View style={themed($settingsGroup)}>
-            <Text style={themed($sectionTitle)}>Mentra Nex Required</Text>
+            <Text style={themed($sectionTitle)}>Mentra Display Required</Text>
             <Text style={themed($description)}>
-              Connect to Mentra Nex glasses to access BLE testing tools and advanced developer features.
+              Connect to Mentra Display glasses to access BLE testing tools and advanced developer features.
             </Text>
           </View>
         )}
@@ -921,30 +925,30 @@ const $versionBadge: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
   overflow: "hidden",
 })
 
-const $protobufVersionBadge: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
-  backgroundColor: colors.palette.neutral100,
-  color: colors.palette.neutral600,
-  fontSize: 12,
-  fontWeight: "600",
-  paddingHorizontal: spacing.s3,
-  paddingVertical: spacing.s2,
-  borderRadius: spacing.s2,
-  borderWidth: 1,
-  borderColor: colors.palette.neutral300,
-  overflow: "hidden",
-  fontFamily: "monospace",
-})
+// const $protobufVersionBadge: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
+//   backgroundColor: colors.palette.neutral100,
+//   color: colors.palette.neutral600,
+//   fontSize: 12,
+//   fontWeight: "600",
+//   paddingHorizontal: spacing.s3,
+//   paddingVertical: spacing.s2,
+//   borderRadius: spacing.s2,
+//   borderWidth: 1,
+//   borderColor: colors.palette.neutral300,
+//   overflow: "hidden",
+//   fontFamily: "monospace",
+// })
 
-const $glassesProtobufVersionBadge: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
-  backgroundColor: colors.palette.accent100,
-  color: colors.palette.accent500,
-  fontSize: 12,
-  fontWeight: "600",
-  paddingHorizontal: spacing.s3,
-  paddingVertical: spacing.s2,
-  borderRadius: spacing.s2,
-  borderWidth: 1,
-  borderColor: colors.palette.accent300,
-  overflow: "hidden",
-  fontFamily: "monospace",
-})
+// const $glassesProtobufVersionBadge: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
+//   backgroundColor: colors.palette.accent100,
+//   color: colors.palette.accent500,
+//   fontSize: 12,
+//   fontWeight: "600",
+//   paddingHorizontal: spacing.s3,
+//   paddingVertical: spacing.s2,
+//   borderRadius: spacing.s2,
+//   borderWidth: 1,
+//   borderColor: colors.palette.accent300,
+//   overflow: "hidden",
+//   fontFamily: "monospace",
+// })

@@ -704,9 +704,8 @@ static void create_scrolling_text_container(lv_obj_t *screen)
     /* 按配置设置容器样式 / Style the container using configuration values */
     lv_obj_set_style_bg_color(container, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(container, 2, 0);
-    lv_obj_set_style_border_color(container, display_get_text_color(), 0);
-    lv_obj_set_style_border_opa(container, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(container, 0, 0); /* 隐藏边框 / Hide border */
+    lv_obj_set_style_border_opa(container, LV_OPA_TRANSP, 0); /* 边框透明 / Make border transparent */
 
     /* 在容器内创建 protobuf 文本标签 / Create label inside container with protobuf text */
     lv_obj_t *label = lv_label_create(container);
@@ -908,6 +907,8 @@ void cycle_test_pattern(void)
 
 static void update_display_height(uint16_t height)
 {
+    if (height > 8) height = 8;
+
     LOG_INF("update_display_height - Thread-safe height update: %u", height);
 
     if (!protobuf_container)
@@ -923,7 +924,7 @@ static void update_display_height(uint16_t height)
     display_config_t tmp = *config;
 
     /* ABSOLUTE mapping: margin_top = 20 * height (no + / -) */
-    uint32_t mt = 20u * (uint32_t)height;
+    uint32_t mt = (config->height - config->layout.usable_height) - (20u * (uint32_t)height);
 
     /* Clamp to uint16_t and screen bounds so it never goes off-screen */
     if (mt > UINT16_MAX) mt = UINT16_MAX;

@@ -1141,9 +1141,6 @@ void protobuf_process_display_height_config(const mentraos_ble_DisplayHeightConf
     
     LOG_INF("Configuration Details:");
     LOG_INF("  - Height: %d pixels", config->height);
-    
-    // TODO: Implement actual display height configuration
-    LOG_WRN("TODO: Implement display height configuration logic");
 
     display_update_height(config->height);
 }

@@ -66,7 +66,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
     func showDashboard() {}
 
-    func setDashboardPosition(_: Int, _: Int) {}
+    func setDashboardPosition(_ height: Int, _: Int) {
+        updateGlassesDisplayHeight(height)
+    }
 
     func setHeadUpAngle(_: Int) {}
 

@@ -912,6 +912,9 @@ class CoreManager {
         Bridge.log("MAN: Re-applying microphone settings after reconnection")
         updateMicState()
 
+        // Re-apply display height after reconnection
+        sgc?.setDashboardPosition(dashboardHeight, dashboardDepth)
+
         // send to the server our battery status:
         Bridge.sendBatteryStatus(sgc?.batteryLevel ?: -1, false)
 

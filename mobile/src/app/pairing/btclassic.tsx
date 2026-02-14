@@ -84,7 +84,7 @@ export default function BtClassicPairingScreen() {
         showSkipButton={false}
       />
 
-      {!otherBtConnected && (
+      {otherBtConnected && (
         <View className="absolute bottom-16 w-full">
           <Button
             text={translate("onboarding:showDevicePicker")}

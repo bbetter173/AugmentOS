@@ -461,7 +461,14 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
 
     // Parse text message
     const messageStr = typeof message === "string" ? message : message.toString();
-    const parsed = JSON.parse(messageStr) as GlassesToCloudMessage;
+    const parsed = JSON.parse(messageStr);
+
+    // Application-level ping/pong for client liveness detection.
+    // Respond immediately — don't log, don't relay, don't touch session state.
+    if (parsed.type === "ping") {
+      ws.send(JSON.stringify({ type: "pong" }));
+      return;
+    }
 
     // Handle connection init specially (re-init after reconnect)
     if (parsed.type === GlassesToCloudMessageType.CONNECTION_INIT) {

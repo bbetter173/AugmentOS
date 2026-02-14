@@ -1,6 +1,6 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "dependencies": {
@@ -127,7 +127,7 @@
     },
     "packages/cli": {
       "name": "@mentra/cli",
-      "version": "1.0.0",
+      "version": "1.0.3",
       "bin": {
         "mentra": "./dist/index.js",
       },
@@ -299,7 +299,7 @@
     },
     "packages/types": {
       "name": "@mentra/types",
-      "version": "1.0.0-beta.1",
+      "version": "1.0.0-beta.2",
       "devDependencies": {
         "typescript": "^5.0.0",
       },

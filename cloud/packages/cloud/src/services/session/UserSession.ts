@@ -132,6 +132,7 @@ export class UserSession {
 
   // Heartbeat for glasses connection
   private glassesHeartbeatInterval?: NodeJS.Timeout;
+  private appLevelPingInterval?: NodeJS.Timeout;
   private pongHandler?: () => void; // Stored for cleanup
   private lastPongTime?: number;
   private pongTimeoutTimer?: NodeJS.Timeout;
@@ -201,11 +202,12 @@ export class UserSession {
    */
   private setupGlassesHeartbeat(): void {
     const HEARTBEAT_INTERVAL = 10000; // 10 seconds
+    const APP_LEVEL_PING_INTERVAL = 2000; // 2 seconds
 
     // Clear any existing heartbeat
     this.clearGlassesHeartbeat();
 
-    // Set up new heartbeat interval
+    // Set up new heartbeat interval (protocol-level pings for server-side detection)
     this.glassesHeartbeatInterval = setInterval(() => {
       if (this.disposed) return; // Guard against stale callback
       if (this.websocket && this.websocket.readyState === WebSocketReadyState.OPEN) {
@@ -221,6 +223,23 @@ export class UserSession {
         this.clearGlassesHeartbeat();
       }
     }, HEARTBEAT_INTERVAL);
+
+    // Application-level pings — visible to the client's onmessage handler.
+    // Protocol-level pings are invisible to React Native's WebSocket API,
+    // so the client can't use them for liveness detection. These app-level
+    // pings give the client guaranteed periodic messages to track against.
+    this.appLevelPingInterval = setInterval(() => {
+      if (this.disposed) return;
+      if (this.websocket && this.websocket.readyState === WebSocketReadyState.OPEN) {
+        try {
+          this.websocket.send(JSON.stringify({ type: "ping" }));
+        } catch (_e) {
+          // Send failure will be caught by the connection close handler
+        }
+      }
+    }, APP_LEVEL_PING_INTERVAL);
+
+    this.resources.trackInterval(this.appLevelPingInterval);
 
     // Track interval for automatic cleanup
     this.resources.trackInterval(this.glassesHeartbeatInterval);
@@ -276,6 +295,12 @@ export class UserSession {
       clearInterval(this.glassesHeartbeatInterval);
       this.glassesHeartbeatInterval = undefined;
       this.logger.debug(`[UserSession:clearGlassesHeartbeat] Heartbeat cleared for glasses connection`);
+    }
+
+    // Clear app-level ping interval
+    if (this.appLevelPingInterval) {
+      clearInterval(this.appLevelPingInterval);
+      this.appLevelPingInterval = undefined;
     }
 
     // Clear pong timeout as well

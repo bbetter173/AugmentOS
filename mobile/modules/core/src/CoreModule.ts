@@ -66,6 +66,11 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   setMicState(sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean): Promise<void>
   restartTranscriber(): Promise<void>
 
+  // Audio Playback Monitoring
+  // Notify native side when our app starts/stops playing audio
+  // Used to suspend LC3 mic during audio playback to avoid MCU overload
+  setOwnAppAudioPlaying(playing: boolean): Promise<void>
+
   // RGB LED Control
   rgbLedControl(
     requestId: string,

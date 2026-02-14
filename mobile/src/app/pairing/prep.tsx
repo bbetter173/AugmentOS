@@ -236,7 +236,7 @@ export default function PairingPrepScreen() {
   }
 
   const MentraLivePairingGuide = () => {
-    // const CDN_BASE = "https://mentra-videos-cdn.mentraglass.com/onboarding/mentra-live/light"
+    const CDN_BASE = "https://mentra-videos-cdn.mentraglass.com/onboarding/mentra-live/light"
     let steps: OnboardingStep[] = [
       {
         name: "power_on_tutorial",

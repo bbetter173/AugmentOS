@@ -287,6 +287,14 @@ public class CoreModule: Module {
             }
         }
 
+        // MARK: - Audio Playback Monitoring
+
+        AsyncFunction("setOwnAppAudioPlaying") { (playing: Bool) in
+            // Notify PhoneAudioMonitor that our app started/stopped playing audio
+            // This is used to suspend LC3 mic during audio playback to avoid MCU overload
+            PhoneAudioMonitor.getInstance().setOwnAppAudioPlaying(playing)
+        }
+
         // MARK: - RGB LED Control
 
         AsyncFunction("rgbLedControl") {

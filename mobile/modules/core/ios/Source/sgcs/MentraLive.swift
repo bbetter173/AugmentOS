@@ -867,6 +867,11 @@ typealias JSONObject = [String: Any]
 
 @MainActor
 class MentraLive: NSObject, SGCManager {
+    // Feature Flags
+    // BLOCK_AUDIO_DUPLEX: When true, suspends LC3 mic while phone is playing audio via A2DP
+    // to avoid overloading the MCU. Set to false to allow simultaneous A2DP + LC3 mic.
+    private let BLOCK_AUDIO_DUPLEX = true
+
     var connectionState: String = ConnTypes.DISCONNECTED
 
     func setDashboardPosition(_: Int, _: Int) {}
@@ -899,8 +904,9 @@ class MentraLive: NSObject, SGCManager {
     var hasMic = true
 
     func setMicEnabled(_ enabled: Bool) {
-        Bridge.log("LIVE: setMicEnabled called: \(enabled)")
+        Bridge.log("LIVE: 🎤 Microphone state change requested: \(enabled)")
         GlassesStore.shared.apply("glasses", "micEnabled", enabled)
+
         // Only enable if device supports LC3 audio
         guard supportsLC3Audio else {
             Bridge.log("LIVE: Device does not support LC3 audio, ignoring mic enable request")
@@ -910,11 +916,26 @@ class MentraLive: NSObject, SGCManager {
         // Update shouldUseGlassesMic based on enabled state
         shouldUseGlassesMic = enabled
 
-        if shouldUseGlassesMic {
-            Bridge.log("LIVE: Microphone enabled, starting audio input handling")
-            startMicBeat()
+        // Update the intent state for the suspend/resume state machine
+        micIntentEnabled = enabled
+
+        if enabled {
+            // User wants mic ON
+            // Check if we should suspend due to phone audio (only if BLOCK_AUDIO_DUPLEX is enabled)
+            if BLOCK_AUDIO_DUPLEX, let monitor = phoneAudioMonitor, monitor.isPlaying() {
+                // Phone is currently playing audio - don't start mic yet, mark as suspended
+                micSuspendedForAudio = true
+                Bridge.log("LIVE: 🎤 Mic requested but phone audio is playing - suspending until audio stops")
+            } else {
+                // Safe to start mic
+                micSuspendedForAudio = false
+                Bridge.log("LIVE: 🎤 Microphone enabled, starting audio input handling")
+                startMicBeat()
+            }
         } else {
-            Bridge.log("LIVE: Microphone disabled, stopping audio input handling")
+            // User wants mic OFF - clear suspended state and stop
+            micSuspendedForAudio = false
+            Bridge.log("LIVE: 🎤 Microphone disabled, stopping audio input handling")
             stopMicBeat()
         }
     }
@@ -953,6 +974,13 @@ class MentraLive: NSObject, SGCManager {
     private var micBeatTimer: Timer?
     private var micBeatCount = 0
     private var shouldUseGlassesMic = false
+
+    // LC3 Mic suspend/resume state machine for A2DP conflict avoidance
+    // When phone plays audio via A2DP while LC3 mic is active, it overloads the MCU
+    // So we temporarily suspend the LC3 mic during phone audio playback
+    private var micIntentEnabled = false       // User/system WANTS mic enabled
+    private var micSuspendedForAudio = false   // Mic temporarily suspended due to phone audio
+    private var phoneAudioMonitor: PhoneAudioMonitor?
 
     // Timing Constants
     private let BASE_RECONNECT_DELAY_MS: UInt64 = 1_000_000_000 // 1 second in nanoseconds
@@ -1019,6 +1047,17 @@ class MentraLive: NSObject, SGCManager {
     override init() {
         super.init()
         setupCommandQueue()
+
+        // Initialize phone audio monitor for LC3 mic suspend/resume (if enabled)
+        // This detects when phone is playing audio and temporarily suspends LC3 mic
+        // to avoid overloading the MCU when both A2DP output and LC3 mic input are active
+        if BLOCK_AUDIO_DUPLEX {
+            phoneAudioMonitor = PhoneAudioMonitor.getInstance()
+            phoneAudioMonitor?.startMonitoring(listener: self)
+            Bridge.log("LIVE: 🎵 Phone audio monitor started for LC3 mic suspend/resume (BLOCK_AUDIO_DUPLEX=true)")
+        } else {
+            Bridge.log("LIVE: 🎵 Phone audio monitor disabled (BLOCK_AUDIO_DUPLEX=false)")
+        }
     }
 
     deinit {
@@ -3357,6 +3396,10 @@ class MentraLive: NSObject, SGCManager {
             stopScan()
         }
 
+        // Stop phone audio monitor
+        phoneAudioMonitor?.stopMonitoring()
+        Bridge.log("LIVE: 🎵 Phone audio monitor stopped")
+
         // Stop all timers
         stopAllTimers()
 
@@ -3976,5 +4019,35 @@ extension MentraLive {
             "request_id": requestId,
         ]
         sendJson(json)
+    }
+}
+
+// MARK: - PhoneAudioMonitorListener
+
+extension MentraLive: PhoneAudioMonitorListener {
+    /// Handle phone audio playback state changes
+    /// Called by PhoneAudioMonitor when phone starts/stops playing audio
+    ///
+    /// State machine logic:
+    /// - When phone starts playing audio: suspend LC3 mic if it was running
+    /// - When phone stops playing audio: resume LC3 mic if it was suspended
+    func onPhoneAudioStateChanged(isPlaying: Bool) {
+        Bridge.log("LIVE: 🎵 Phone audio state changed: \(isPlaying ? "PLAYING" : "STOPPED")")
+
+        if isPlaying {
+            // Phone started playing audio - suspend mic if it was running
+            if micIntentEnabled && !micSuspendedForAudio {
+                Bridge.log("LIVE: 🎤 Phone audio started - suspending LC3 mic to avoid MCU overload")
+                stopMicBeat()
+                micSuspendedForAudio = true
+            }
+        } else {
+            // Phone stopped playing audio - resume mic if it was suspended
+            if micIntentEnabled && micSuspendedForAudio {
+                Bridge.log("LIVE: 🎤 Phone audio stopped - resuming LC3 mic")
+                micSuspendedForAudio = false
+                startMicBeat()
+            }
+        }
     }
 }

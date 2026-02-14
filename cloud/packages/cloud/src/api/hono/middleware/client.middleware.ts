@@ -124,7 +124,13 @@ export const requireUserSession: MiddlewareHandler<AppEnv> = async (c, next) => 
 
     if (!userSession) {
       reqLogger.warn(`requireUserSession: No active session found for user: ${email}`);
-      return c.json({ error: "No active session found" }, 401);
+      return c.json(
+        {
+          error: "no_active_session",
+          message: "No active cloud session. Please ensure your app is connected.",
+        },
+        503,
+      );
     }
 
     c.set("userSession", userSession);

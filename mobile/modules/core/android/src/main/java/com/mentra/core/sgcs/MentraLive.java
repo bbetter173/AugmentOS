@@ -70,6 +70,7 @@ import com.mentra.core.utils.MessageChunker;
 import com.mentra.core.utils.audio.Lc3Player;
 import com.mentra.core.utils.BlePhotoUploadService;
 import com.mentra.core.GlassesStore;
+import com.mentra.core.utils.PhoneAudioMonitor;
 
 // old augmentos imports:
 import com.mentra.lc3Lib.Lc3Cpp;
@@ -119,6 +120,11 @@ import java.util.Locale;
 public class MentraLive extends SGCManager {
     private static final String TAG = "Live";
     public String savedDeviceName = "";
+
+    // Feature Flags
+    // BLOCK_AUDIO_DUPLEX: When true, suspends LC3 mic while phone is playing audio via A2DP
+    // to avoid overloading the MCU. Set to false to allow simultaneous A2DP + LC3 mic.
+    private static final boolean BLOCK_AUDIO_DUPLEX = true;
 
     // LC3 frame size for Mentra Live
     private static final int LC3_FRAME_SIZE = 40;
@@ -215,6 +221,13 @@ public class MentraLive extends SGCManager {
     // Audio microphone state tracking
     private boolean shouldUseGlassesMic = false; // Whether to use glasses microphone for audio input
     private boolean isMicrophoneEnabled = false; // Track current microphone state
+
+    // LC3 Mic suspend/resume state machine for A2DP conflict avoidance
+    // When phone plays audio via A2DP while LC3 mic is active, it overloads the MCU
+    // So we temporarily suspend the LC3 mic during phone audio playback
+    private boolean micIntentEnabled = false;       // User/system WANTS mic enabled
+    private boolean micSuspendedForAudio = false;   // Mic temporarily suspended due to phone audio
+    private PhoneAudioMonitor phoneAudioMonitor;
 
     // Rate limiting - minimum delay between BLE characteristic writes
     private static final long MIN_SEND_DELAY_MS = 160; // 160ms minimum delay (increased from 100ms)
@@ -557,6 +570,22 @@ public class MentraLive extends SGCManager {
         if (lc3DecoderPtr == 0) {
             lc3DecoderPtr = Lc3Cpp.initDecoder();
             Bridge.log("LIVE: Initialized LC3 decoder for PCM conversion: " + lc3DecoderPtr);
+        }
+
+        // Initialize phone audio monitor for LC3 mic suspend/resume (if enabled)
+        // This detects when phone is playing audio and temporarily suspends LC3 mic
+        // to avoid overloading the MCU when both A2DP output and LC3 mic input are active
+        if (BLOCK_AUDIO_DUPLEX) {
+            phoneAudioMonitor = PhoneAudioMonitor.getInstance(context);
+            phoneAudioMonitor.startMonitoring(new PhoneAudioMonitor.Listener() {
+                @Override
+                public void onPhoneAudioStateChanged(boolean isPlaying) {
+                    handlePhoneAudioStateChanged(isPlaying);
+                }
+            });
+            Bridge.log("LIVE: 🎵 Phone audio monitor started for LC3 mic suspend/resume (BLOCK_AUDIO_DUPLEX=true)");
+        } else {
+            Bridge.log("LIVE: 🎵 Phone audio monitor disabled (BLOCK_AUDIO_DUPLEX=false)");
         }
     }
 
@@ -3515,27 +3544,65 @@ public class MentraLive extends SGCManager {
     }
 
     public void setMicEnabled(boolean enable) {
-        Bridge.log("LIVE: 🎤 Microphone state changed: " + enable);
+        Bridge.log("LIVE: 🎤 Microphone state change requested: " + enable);
 
         // Update the microphone state tracker
         isMicrophoneEnabled = enable;
 
         GlassesStore.INSTANCE.apply("glasses", "micEnabled", enable);
 
-        // Post event for frontend notification
-        // EventBus.getDefault().post(new isMicEnabledForFrontendEvent(enable));
-
         // Update the shouldUseGlassesMic flag to reflect the current state
-        var m = CoreManager.getInstance();
         this.shouldUseGlassesMic = enable;
-        Bridge.log("LIVE: 🎤 Updated shouldUseGlassesMic to: " + shouldUseGlassesMic);
 
-        if (this.shouldUseGlassesMic) {
-            Bridge.log("LIVE: 🎤 Microphone enabled, starting audio input handling");
-            startMicBeat();
+        // Update the intent state for the suspend/resume state machine
+        micIntentEnabled = enable;
+
+        if (enable) {
+            // User wants mic ON
+            // Check if we should suspend due to phone audio (only if BLOCK_AUDIO_DUPLEX is enabled)
+            if (BLOCK_AUDIO_DUPLEX && phoneAudioMonitor != null && phoneAudioMonitor.isPlaying()) {
+                // Phone is currently playing audio - don't start mic yet, mark as suspended
+                micSuspendedForAudio = true;
+                Bridge.log("LIVE: 🎤 Mic requested but phone audio is playing - suspending until audio stops");
+            } else {
+                // Safe to start mic
+                micSuspendedForAudio = false;
+                Bridge.log("LIVE: 🎤 Microphone enabled, starting audio input handling");
+                startMicBeat();
+            }
         } else {
+            // User wants mic OFF - clear suspended state and stop
+            micSuspendedForAudio = false;
             Bridge.log("LIVE: 🎤 Microphone disabled, stopping audio input handling");
             stopMicBeat();
+        }
+    }
+
+    /**
+     * Handle phone audio playback state changes
+     * Called by PhoneAudioMonitor when phone starts/stops playing audio
+     *
+     * State machine logic:
+     * - When phone starts playing audio: suspend LC3 mic if it was running
+     * - When phone stops playing audio: resume LC3 mic if it was suspended
+     */
+    private void handlePhoneAudioStateChanged(boolean isPlaying) {
+        Bridge.log("LIVE: 🎵 Phone audio state changed: " + (isPlaying ? "PLAYING" : "STOPPED"));
+
+        if (isPlaying) {
+            // Phone started playing audio - suspend mic if it was running
+            if (micIntentEnabled && !micSuspendedForAudio) {
+                Bridge.log("LIVE: 🎤 Phone audio started - suspending LC3 mic to avoid MCU overload");
+                stopMicBeat();
+                micSuspendedForAudio = true;
+            }
+        } else {
+            // Phone stopped playing audio - resume mic if it was suspended
+            if (micIntentEnabled && micSuspendedForAudio) {
+                Bridge.log("LIVE: 🎤 Phone audio stopped - resuming LC3 mic");
+                micSuspendedForAudio = false;
+                startMicBeat();
+            }
         }
     }
 
@@ -4063,6 +4130,12 @@ public class MentraLive extends SGCManager {
 
         // Stop micbeat mechanism
         stopMicBeat();
+
+        // Stop phone audio monitor
+        if (phoneAudioMonitor != null) {
+            phoneAudioMonitor.stopMonitoring();
+            Bridge.log("LIVE: 🎵 Phone audio monitor stopped");
+        }
 
         // Cancel connection timeout
         if (connectionTimeoutRunnable != null) {

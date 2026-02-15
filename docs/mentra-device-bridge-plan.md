@@ -16,6 +16,8 @@ The Device Bridge is the existing `mobile/modules/core` module, cleaned up and p
 2. Remove MentraOS-specific code (move to `crust` module)
 3. Delete duplicate cloud-formatting functions (handle in TypeScript instead)
 4. Publish to npm, Maven Central, and CocoaPods
+5. Write documentation
+6. Create a React Native example app
 
 ### Supported Devices
 
@@ -638,13 +640,17 @@ console.log('Button pressed:', event.buttonId);
 - [ ] Set up CI/CD for automated publishing
 - [ ] Ensure native library is usable without Expo (pure Android/iOS apps)
 
-### Phase 5: Documentation (Week 4)
+### Phase 5: Documentation & Example (Week 4)
 
 - [ ] Write main README
-- [ ] Create getting started guides
-- [ ] Generate API reference
-- [ ] Create example apps
-- [ ] Write migration guide for existing users
+- [ ] Create getting started guide (React Native focus)
+- [ ] Document API reference
+- [ ] Create React Native example app demonstrating:
+  - Device scanning/discovery
+  - Connection management
+  - Display text/images
+  - Audio streaming
+  - Button/gesture events
 
 ### Phase 6: MentraOS Migration
 

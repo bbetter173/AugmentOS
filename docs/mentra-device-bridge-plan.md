@@ -117,21 +117,33 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 - `imu_data_event`, `imu_gesture_event`
 - `ota_update_available`, `ota_progress`
 
+**Local STT Control:**
+
+The Device Bridge includes optional local speech-to-text (SherpaOnnx). Control it with a single key:
+
+```
+local_stt_active          # true/false - turns local transcriber on/off
+```
+
+This replaces the old `offline_mode` + `offline_captions_running` logic. MentraOS TypeScript decides when to enable local STT (offline mode, no cloud connection, etc.) and simply sets `local_stt_active = true/false`.
+
 ### Crust (MentraOS-Specific)
 
-Everything that's about the MentraOS application layer:
+Everything that's about the MentraOS application layer.
 
-**State Keys to Move:**
+**State Keys to REMOVE from native code entirely:**
+
+These keys exist in native GlassesStore but are never actually used. Remove them from native and keep only in TypeScript if needed:
 
 ```
-# OS FEATURES:
-contextual_dashboard      # OS decides when to show dashboard
-always_on_status_bar      # OS UI preference
-offline_mode              # OS offline caption feature
-offline_captions_running  # OS offline caption state
-metric_system             # OS display preference
-power_saving_mode         # OS battery optimization
+always_on_status_bar      # Dead feature - remove from native AND from developer.tsx in MentraOS
+metric_system             # Not used in native - keep in TypeScript only for display formatting
+power_saving_mode         # Not used in native (only commented-out code) - remove from native AND developer.tsx
+offline_mode              # MentraOS TypeScript setting - controls when to use local STT
+offline_captions_running  # MentraOS TypeScript setting - tracks if offline captions are active
 ```
+
+**Note:** `contextual_dashboard` STAYS in Device Bridge - it's actually used in `sendCurrentState()` and `displayEvent()` to control whether dashboard content shows when user looks up.
 
 **Note:** `auth_email` and `auth_token` stay in Device Bridge because they get sent to MentraLive hardware via `sgc?.sendAuthEmail()`. Even though they're conceptually OS authentication, the hardware needs them.
 
@@ -275,13 +287,28 @@ Remove MentraOS-specific side effects from Device Bridge. The `apply()` function
 "core" to "default_wearable" -> initSGC(...)
 ```
 
-**Move to Crust:**
+**Add to Device Bridge (new simplified key):**
 
 ```kotlin
-"core" to "offline_mode" -> // OS handles this
-"core" to "offline_captions_running" -> // OS handles this
-// Note: auth_email/auth_token STAY because hardware needs them
+"core" to "local_stt_active" -> {
+    (value as? Boolean)?.let { active ->
+        CoreManager.getInstance().setMicState(
+            shouldSendPcmData,
+            active,  // this is shouldSendTranscript
+            bypassVad
+        )
+    }
+}
 ```
+
+**Remove from Device Bridge (delete these handlers):**
+
+```kotlin
+"core" to "offline_mode" -> // DELETE - handled in TypeScript
+"core" to "offline_captions_running" -> // DELETE - handled in TypeScript
+```
+
+MentraOS TypeScript will manage `offline_mode` and `offline_captions_running` as UI state, then simply call `DeviceBridge.setSetting('local_stt_active', true/false)` when appropriate.
 
 ---
 
@@ -613,8 +640,17 @@ console.log('Button pressed:', event.buttonId);
 
 - [ ] Move NotificationListener service to Crust
 - [ ] Move NotificationListener manifest entry to Crust
-- [ ] Move OS-specific state keys to Crust (contextual_dashboard, always_on_status_bar, etc.)
-- [ ] Update GlassesStore.apply() to remove OS-specific side effects
+- [ ] Remove dead/unused state keys from native GlassesStore:
+  - [ ] Remove `always_on_status_bar` (dead feature - also remove from developer.tsx in MentraOS)
+  - [ ] Remove `metric_system` (not used in native - keep in TypeScript only)
+  - [ ] Remove `power_saving_mode` (not used - also remove from developer.tsx in MentraOS)
+  - [ ] Remove `offline_mode` (TypeScript-only setting)
+  - [ ] Remove `offline_captions_running` (TypeScript-only setting)
+  - [ ] Keep `contextual_dashboard` (actually used for display logic)
+- [ ] Refactor local STT control:
+  - [ ] Add `local_stt_active` key to GlassesStore (simple on/off for local transcriber)
+  - [ ] Update MentraOS TypeScript to set `local_stt_active` based on offline_mode logic
+- [ ] Update GlassesStore.apply() to remove handlers for deleted keys
 - [ ] Create Crust TypeScript interface
 - [ ] Wire up Crust to MentraOS app layer
 - [ ] Verify MentraOS still works end-to-end

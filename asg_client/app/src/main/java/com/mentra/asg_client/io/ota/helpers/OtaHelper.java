@@ -843,20 +843,28 @@ public class OtaHelper {
 
                 // Apply updates in correct order
                 if (mtkPatch != null && besUpdateAvailable) {
-                    // Both available - MTK first, then BES after MTK completes
-                    // BES update power-cycles the system, which also applies MTK A/B slot switch
-                    Log.i(TAG, "Both MTK and BES updates available - applying MTK first, BES will follow");
-                    
-                    // Queue BES update to run after MTK completes
-                    setPendingBesUpdate(rootJson.getJSONObject("bes_firmware"));
-                    
-                    // Start MTK update - OtaService will trigger BES after MTK SUCCESS
-                    boolean mtkStarted = checkAndUpdateMtkFirmware(mtkPatch, context, installNow);
-                    if (mtkStarted) {
-                        Log.i(TAG, "MTK firmware update started - BES queued for after completion");
+                    if (installNow) {
+                        // Install mode: MTK first, then BES after MTK completes.
+                        // BES power-cycle also applies the staged MTK A/B slot switch.
+                        Log.i(TAG, "Both MTK and BES updates available - applying MTK first, BES will follow");
+
+                        // Queue BES update to run after MTK completes
+                        setPendingBesUpdate(rootJson.getJSONObject("bes_firmware"));
+
+                        // Start MTK update - OtaService will trigger BES after MTK SUCCESS
+                        boolean mtkStarted = checkAndUpdateMtkFirmware(mtkPatch, context, true);
+                        if (mtkStarted) {
+                            Log.i(TAG, "MTK firmware update started - BES queued for after completion");
+                        } else {
+                            Log.e(TAG, "MTK firmware update failed to start - clearing pending BES");
+                            clearPendingBesUpdate();
+                        }
                     } else {
-                        Log.e(TAG, "MTK firmware update failed to start - clearing pending BES");
-                        clearPendingBesUpdate();
+                        // Prefetch mode: download/cache BOTH artifacts now so prompt can be shown as cache-ready.
+                        Log.i(TAG, "Both MTK and BES updates available - pre-downloading both artifacts");
+                        boolean mtkPrefetched = checkAndUpdateMtkFirmware(mtkPatch, context, false);
+                        boolean besPrefetched = checkAndUpdateBesFirmware(rootJson.getJSONObject("bes_firmware"), context, false);
+                        Log.i(TAG, "Prefetch results -> mtk=" + mtkPrefetched + ", bes=" + besPrefetched);
                     }
                 } else if (mtkPatch != null) {
                     // Only MTK - apply normally (stages, needs manual reboot)

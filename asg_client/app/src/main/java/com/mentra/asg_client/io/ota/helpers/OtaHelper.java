@@ -200,10 +200,9 @@ public class OtaHelper {
                 // Start periodic checks
                 startPeriodicChecks();
 
-                // Register network callback to check for updates when WiFi becomes available
-                // Note: If WiFi is already available, callback may fire immediately, but timestamp
-                // tracking prevents duplicate checks within 2 seconds
-                registerNetworkCallback(this.context);
+                // Intentionally do NOT trigger OTA checks on WiFi connection events.
+                // User flow requires explicit phone approval (ota_start) before OTA execution.
+                Log.i(TAG, "WiFi-triggered OTA checks disabled");
             }, 5000);
 
             Log.i(TAG, "Autonomous OTA mode ENABLED - checks will start in 30 seconds");
@@ -426,8 +425,12 @@ public class OtaHelper {
         // If OTA already in progress, acknowledge but don't restart
         if (versionCheckLock.isLocked()) {
             Log.i(TAG, "📱 OTA already in progress in background - notifying phone to wait");
+            // Phone explicitly requested OTA while autonomous/background OTA is running.
+            // Stop suppressing progress so the phone UI can observe live status updates.
+            suppressPhoneProgress = false;
+            isPhoneInitiatedOta = true;
             sendProgressToPhone("download", 0, 0, 0, "IN_PROGRESS",
-                    "OTA already happening in the background, please wait.");
+                    "OTA already happening in the background, streaming live progress.");
             return;
         }
 
@@ -508,8 +511,7 @@ public class OtaHelper {
                         Log.d(TAG, "WiFi network available, but version check happened " + timeSinceLastCheck + "ms ago - ignoring to prevent duplicate");
                         return;
                     }
-                    Log.d(TAG, "WiFi network became available, triggering version check");
-                    startVersionCheck(context);
+                    Log.d(TAG, "WiFi network became available, OTA check suppressed by policy");
                 }
             }
         };
@@ -643,7 +645,13 @@ public class OtaHelper {
                     processAppsSequentially(json, context, installNow);
                 } else {
                     Log.d(TAG, "Using legacy version.json format");
-                    checkAndUpdateApp("com.mentra.asg_client", json, context, installNow);
+                    boolean apkUpdated = checkAndUpdateApp("com.mentra.asg_client", json, context, installNow);
+                    if (installNow && !apkUpdated) {
+                        Log.e(TAG, "Legacy OTA flow: APK update failed for com.mentra.asg_client");
+                        sendProgressToPhone("download", 0, 0, 0, "FAILED",
+                                "APK update failed after retries. Please check WiFi and try again.");
+                        return;
+                    }
                 }
 
                 if (!isPhoneInitiatedOta) {
@@ -731,6 +739,8 @@ public class OtaHelper {
         };
         
         boolean apkUpdateNeeded = false;
+        boolean apkUpdateFailed = false;
+        String failedApkPackage = null;
         
         // PHASE 1: Update APKs if needed
         for (String packageName : orderedPackages) {
@@ -762,6 +772,8 @@ public class OtaHelper {
                 } else {
                     Log.e(TAG, "Failed to process " + packageName);
                     if (installNow) {
+                        apkUpdateFailed = true;
+                        failedApkPackage = packageName;
                         break; // Stop install sequence if update fails
                     }
                 }
@@ -771,6 +783,14 @@ public class OtaHelper {
         }
         
         Log.d(TAG, "apkUpdateNeeded: " + apkUpdateNeeded);
+
+        if (installNow && apkUpdateFailed) {
+            String failedPkg = failedApkPackage != null ? failedApkPackage : "APK";
+            Log.e(TAG, "Stopping OTA flow because APK update failed for " + failedPkg);
+            sendProgressToPhone("download", 0, 0, 0, "FAILED",
+                    "Failed to update " + failedPkg + " after retries. Please check WiFi and try again.");
+            return;
+        }
         
         // PHASE 2 & 3: Firmware updates (MTK first, then BES) - only if no APK update
         if (!apkUpdateNeeded) {
@@ -2406,7 +2426,8 @@ public class OtaHelper {
         boolean shouldSend = false;
 
         // Always send STARTED, FINISHED, FAILED immediately
-        if ("STARTED".equals(status) || "FINISHED".equals(status) || "FAILED".equals(status)) {
+        if ("STARTED".equals(status) || "FINISHED".equals(status) || "FAILED".equals(status)
+                || "IN_PROGRESS".equals(status)) {
             shouldSend = true;
         }
         // For PROGRESS, throttle: every 2s OR every 5%
@@ -2421,10 +2442,11 @@ public class OtaHelper {
         }
 
         try {
+            String normalizedStatus = "IN_PROGRESS".equals(status) ? "PROGRESS" : status;
             JSONObject progressInfo = new JSONObject();
             progressInfo.put("type", "ota_progress");
             progressInfo.put("stage", stage);
-            progressInfo.put("status", status);
+            progressInfo.put("status", normalizedStatus);
             progressInfo.put("progress", progress);
             progressInfo.put("bytes_downloaded", bytesDownloaded);
             progressInfo.put("total_bytes", totalBytes);
@@ -2438,7 +2460,7 @@ public class OtaHelper {
             lastProgressSentTime = now;
             lastProgressSentPercent = progress;
 
-            Log.d(TAG, "📱 Sent OTA progress: " + stage + " " + status + " " + progress + "%");
+            Log.d(TAG, "📱 Sent OTA progress: " + stage + " " + normalizedStatus + " " + progress + "%");
         } catch (JSONException e) {
             Log.e(TAG, "Failed to send OTA progress", e);
         }

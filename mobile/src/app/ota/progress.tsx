@@ -70,10 +70,15 @@ export default function OtaProgressScreen() {
   // from a previous autonomous OTA cycle (the mount effect clears it, but fires
   // in the same render cycle as the processing effect)
   const skipStaleProgressRef = useRef(true)
+  const latestOtaProgressRef = useRef(otaProgress)
   const retryTimeoutRef = useRef<number | null>(null)
   const stuckTimeoutRef = useRef<number | null>(null)
   const progressTimeoutRef = useRef<number | null>(null)
   const transitionTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    latestOtaProgressRef.current = otaProgress
+  }, [otaProgress])
 
   // Track initial build number to detect successful install
   const initialBuildNumber = useRef<string | null>(null)
@@ -87,6 +92,8 @@ export default function OtaProgressScreen() {
   const [showCoverVideo, setShowCoverVideo] = useState(false)
   const hasShownVideoRef = useRef(false)
   const sawDisconnectDuringRestartRef = useRef(false)
+  const progressStateRef = useRef<ProgressState>(progressState)
+  const lastProcessedProgressSignatureRef = useRef<string | null>(null)
 
   // Progress simulation for MTK install stall (typically stalls around 49-50%)
   // Uses timeout-based stall detection: when no real progress for 20s in the 45-55% zone,
@@ -101,6 +108,7 @@ export default function OtaProgressScreen() {
 
   // Show cover video when update begins (only once per session)
   useEffect(() => {
+    progressStateRef.current = progressState
     if ((progressState === "downloading" || progressState === "installing") && !hasShownVideoRef.current) {
       console.log("OTA: Starting cover video")
       hasShownVideoRef.current = true
@@ -334,7 +342,8 @@ export default function OtaProgressScreen() {
       }, RETRY_INTERVAL_MS)
       // if after 30 seconds we have received progress, but the progress is still 0, (detect if we're stuck at 0%):
       stuckTimeoutRef.current = setTimeout(() => {
-        if (otaProgress?.progress === 0) {
+        const latestProgress = latestOtaProgressRef.current?.progress ?? 0
+        if (latestProgress === 0) {
           // cancel the retry timeout
           if (retryTimeoutRef.current) {
             clearTimeout(retryTimeoutRef.current)
@@ -561,6 +570,21 @@ export default function OtaProgressScreen() {
     }
 
     const {stage, status, currentUpdate} = otaProgress
+    const progressSignature = JSON.stringify({
+      stage,
+      status,
+      currentUpdate,
+      progress: otaProgress.progress ?? null,
+      bytesDownloaded: otaProgress.bytesDownloaded ?? null,
+      totalBytes: otaProgress.totalBytes ?? null,
+      errorMessage: otaProgress.errorMessage ?? null,
+    })
+
+    if (lastProcessedProgressSignatureRef.current === progressSignature) {
+      console.log("🔍 OTA EFFECT: Ignoring duplicate otaProgress event")
+      return
+    }
+    lastProcessedProgressSignatureRef.current = progressSignature
 
     console.log(
       "🔍 OTA EFFECT: Processing - stage:",
@@ -623,6 +647,11 @@ export default function OtaProgressScreen() {
           setProgressState("failed")
         }, MTK_INSTALL_TIMEOUT_MS)
       } else if (stage === "download") {
+        if (!wifiConnected) {
+          console.log("🔍 OTA EFFECT: WiFi is disconnected during download progress - keeping wifi_disconnected state")
+          setProgressState("wifi_disconnected")
+          return
+        }
         console.log("🔍 OTA EFFECT: Setting progressState to 'downloading'")
         setProgressState("downloading")
         progressTimeoutRef.current = setTimeout(() => {
@@ -670,8 +699,8 @@ export default function OtaProgressScreen() {
           }, PROGRESS_TIMEOUT_MS)
         } else if (stage === "install") {
           // Ignore duplicate terminal events so reconnect transition cannot be overwritten.
-          if (progressState === "restarting" || progressState === "completed") {
-            console.log(`OTA: Ignoring duplicate BES install FINISHED while in '${progressState}'`)
+          if (progressStateRef.current === "restarting" || progressStateRef.current === "completed") {
+            console.log(`OTA: Ignoring duplicate BES install FINISHED while in '${progressStateRef.current}'`)
             return
           }
 
@@ -719,7 +748,7 @@ export default function OtaProgressScreen() {
       setErrorMessage(otaProgress.errorMessage || null)
       setProgressState("failed")
     }
-  }, [otaProgress, handleUpdateCompleted, currentUpdateIndex, progressState])
+  }, [otaProgress, handleUpdateCompleted, currentUpdateIndex, progressState, wifiConnected])
 
   // Cleanup timeouts on unmount
   useEffect(() => {

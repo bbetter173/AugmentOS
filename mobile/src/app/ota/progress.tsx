@@ -48,7 +48,7 @@ export default function OtaProgressScreen() {
   const [retryCount, setRetryCount] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [continueButtonDisabled, setContinueButtonDisabled] = useState(false)
-  const [timeEstimation, setTimeEstimation] = useState<string | null>(null)
+  const [_timeEstimation, _setTimeEstimation] = useState<string | null>(null)
   const [elapsedTime, setElapsedTime] = useState<string>("")
 
   // Track the full update sequence and current position
@@ -66,6 +66,10 @@ export default function OtaProgressScreen() {
 
   // Track if we've received any progress from glasses
   const hasReceivedProgress = useRef(false)
+  // Skip the first otaProgress processing on mount to avoid acting on stale state
+  // from a previous autonomous OTA cycle (the mount effect clears it, but fires
+  // in the same render cycle as the processing effect)
+  const skipStaleProgressRef = useRef(true)
   const retryTimeoutRef = useRef<number | null>(null)
   const stuckTimeoutRef = useRef<number | null>(null)
   const progressTimeoutRef = useRef<number | null>(null)
@@ -82,6 +86,7 @@ export default function OtaProgressScreen() {
   // Cover video state - only show once per OTA session
   const [showCoverVideo, setShowCoverVideo] = useState(false)
   const hasShownVideoRef = useRef(false)
+  const sawDisconnectDuringRestartRef = useRef(false)
 
   // Progress simulation for MTK install stall (typically stalls around 49-50%)
   // Uses timeout-based stall detection: when no real progress for 20s in the 45-55% zone,
@@ -293,19 +298,19 @@ export default function OtaProgressScreen() {
   )
 
   useEffect(() => {
-    if (!timeEstimationStartTimeRef.current) return;
-  
+    if (!timeEstimationStartTimeRef.current) return
+
     const interval = setInterval(() => {
-      const diff = Date.now() - timeEstimationStartTimeRef.current;
-      const totalSeconds = Math.floor(diff / 1000);
+      const diff = Date.now() - timeEstimationStartTimeRef.current
+      const totalSeconds = Math.floor(diff / 1000)
       // const h = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-      const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
-      const s = String(totalSeconds % 60).padStart(2, "0");
-      setElapsedTime(`${m}:${s}`);
-    }, 1000);
-  
-    return () => clearInterval(interval);
-  }, [timeEstimationStartTimeRef.current]);
+      const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")
+      const s = String(totalSeconds % 60).padStart(2, "0")
+      setElapsedTime(`${m}:${s}`)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [timeEstimationStartTimeRef.current])
 
   // Send OTA start command with retry logic
   const sendOtaStartCommand = useCallback(async () => {
@@ -543,6 +548,12 @@ export default function OtaProgressScreen() {
 
   // Watch for OTA progress updates from glasses
   useEffect(() => {
+    if (skipStaleProgressRef.current) {
+      skipStaleProgressRef.current = false
+      console.log("🔍 OTA EFFECT: Skipping stale otaProgress on first mount")
+      return
+    }
+
     console.log("🔍 OTA EFFECT: otaProgress effect triggered, otaProgress =", otaProgress)
     if (!otaProgress) {
       console.log("🔍 OTA EFFECT: otaProgress is null, returning early")
@@ -582,9 +593,12 @@ export default function OtaProgressScreen() {
     // Update the current update index based on what we're receiving
     const sequence = updateSequenceRef.current
     const updateIndex = sequence.indexOf(currentUpdate)
-    if (updateIndex !== -1 && updateIndex !== currentUpdateIndex) {
-      console.log(`OTA: Update index changed from ${currentUpdateIndex} to ${updateIndex}`)
-      setCurrentUpdateIndex(updateIndex)
+    if (updateIndex !== -1) {
+      setCurrentUpdateIndex((prev) => {
+        if (prev === updateIndex) return prev
+        console.log(`OTA: Update index changed from ${prev} to ${updateIndex}`)
+        return updateIndex
+      })
     }
 
     // Reset progress timeout on ANY progress update
@@ -655,6 +669,12 @@ export default function OtaProgressScreen() {
             setProgressState("failed")
           }, PROGRESS_TIMEOUT_MS)
         } else if (stage === "install") {
+          // Ignore duplicate terminal events so reconnect transition cannot be overwritten.
+          if (progressState === "restarting" || progressState === "completed") {
+            console.log(`OTA: Ignoring duplicate BES install FINISHED while in '${progressState}'`)
+            return
+          }
+
           // BES install finished - glasses will power off
           if (progressTimeoutRef.current) {
             clearTimeout(progressTimeoutRef.current)
@@ -998,7 +1018,7 @@ export default function OtaProgressScreen() {
       )
     }
 
-    // WiFi disconnected state - navigate to WiFi setup
+    // WiFi disconnected state - send back to OTA start to re-check and retry
     if (progressState === "wifi_disconnected") {
       return (
         <>
@@ -1008,13 +1028,13 @@ export default function OtaProgressScreen() {
             <Text text={`${updatePosition} Interrupted`} className="font-semibold text-xl text-center" />
             <View className="h-2" />
             <Text
-              text="WiFi disconnected during update. Please reconnect to WiFi to continue."
+              text="Mentra Live lost its WiFi connection. Please ensure it's connected to WiFi and try again."
               className="text-sm text-center text-secondary-foreground"
             />
           </View>
 
           <View className="gap-3">
-            <Button preset="primary" tx="common:continue" flexContainer onPress={() => push("/wifi/scan")} />
+            <Button preset="primary" text="Try Again" flexContainer onPress={() => replace("/ota/check-for-updates")} />
           </View>
         </>
       )
@@ -1048,10 +1068,77 @@ export default function OtaProgressScreen() {
     )
   }
 
-  // Determine if we should show firmware-specific reconnection message
+  // Determine if we should show firmware-specific reconnection message.
+  // Only show while glasses are actually disconnected during firmware restart.
   const isFirmwareCompleting =
     wasFirmwareUpdateRef.current &&
-    (progressState === "completed" || progressState === "restarting" || otaProgress?.progress === 100)
+    !glassesConnected &&
+    (progressState === "installing" || progressState === "restarting")
+
+  // Observability: log when firmware reconnect overlay gating changes.
+  const lastFirmwareOverlayStateRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    if (lastFirmwareOverlayStateRef.current !== isFirmwareCompleting) {
+      console.log(
+        "OTA OBS: firmware overlay gate changed ->",
+        JSON.stringify({
+          isFirmwareCompleting,
+          glassesConnected,
+          progressState,
+          currentUpdate: otaProgress?.currentUpdate ?? null,
+          stage: otaProgress?.stage ?? null,
+          status: otaProgress?.status ?? null,
+          progress: otaProgress?.progress ?? null,
+          wasFirmwareUpdate: wasFirmwareUpdateRef.current,
+        }),
+      )
+      lastFirmwareOverlayStateRef.current = isFirmwareCompleting
+    }
+  }, [isFirmwareCompleting, glassesConnected, progressState, otaProgress])
+
+  // Track whether we actually observed the expected disconnect during BES restart.
+  // We only finalize to completed after a disconnect -> reconnect cycle.
+  useEffect(() => {
+    if (progressState !== "restarting") {
+      sawDisconnectDuringRestartRef.current = false
+      return
+    }
+
+    if (!glassesConnected && !sawDisconnectDuringRestartRef.current) {
+      sawDisconnectDuringRestartRef.current = true
+      console.log(
+        "OTA OBS: restart power-cycle detected (disconnect observed)",
+        JSON.stringify({
+          progressState,
+          currentUpdate: otaProgress?.currentUpdate ?? null,
+          stage: otaProgress?.stage ?? null,
+          status: otaProgress?.status ?? null,
+          progress: otaProgress?.progress ?? null,
+        }),
+      )
+    }
+  }, [progressState, glassesConnected, otaProgress])
+
+  // When glasses reconnect after the observed restart disconnect, transition to completed.
+  useEffect(() => {
+    if (progressState === "restarting" && glassesConnected && sawDisconnectDuringRestartRef.current) {
+      console.log(
+        "OTA OBS: reconnect transition -> restarting -> completed",
+        JSON.stringify({
+          glassesConnected,
+          currentUpdate: otaProgress?.currentUpdate ?? null,
+          stage: otaProgress?.stage ?? null,
+          status: otaProgress?.status ?? null,
+          progress: otaProgress?.progress ?? null,
+          completedUpdates,
+          sequence: updateSequenceRef.current,
+          currentUpdateIndex,
+          sawDisconnectDuringRestart: sawDisconnectDuringRestartRef.current,
+        }),
+      )
+      setProgressState("completed")
+    }
+  }, [progressState, glassesConnected, otaProgress, completedUpdates, currentUpdateIndex])
 
   // Update global connection overlay config based on firmware completion state
   const {setConfig, clearConfig} = useConnectionOverlayConfig()
@@ -1082,8 +1169,8 @@ export default function OtaProgressScreen() {
         ? `active (${simulatedProgress}%)`
         : `holding (${simulatedProgress}%)`
       : stallDetectionRef.current
-      ? "detecting stall..."
-      : "none"
+        ? "detecting stall..."
+        : "none"
 
     const info = `progressState: ${progressState}
 currentUpdate: ${currentUpdate || "null"}

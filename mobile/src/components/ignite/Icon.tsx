@@ -17,6 +17,8 @@ import {
   WifiOff,
   Grid3X3,
   Share,
+  Cog,
+  ExternalLink,
 } from "lucide-react-native"
 import {
   Image,
@@ -125,6 +127,8 @@ const lucideIcons = {
   "minus": Minus,
   "grid-3x3": Grid3X3,
   "share": Share,
+  "cog": Cog,
+  "external-link": ExternalLink,
 }
 
 const tablerIcons = {
@@ -162,6 +166,7 @@ const tablerIcons = {
   "chevron-up": 1,
   "alert-triangle": 1,
   "plus": 1,
+  "search": 1,
 }
 
 /**

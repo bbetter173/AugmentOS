@@ -25,6 +25,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   forget(): Promise<void>
   findCompatibleDevices(deviceModel: string): Promise<void>
   showDashboard(): Promise<void>
+  ping(): Promise<void>
 
   // WiFi Commands
   requestWifiScan(): Promise<void>

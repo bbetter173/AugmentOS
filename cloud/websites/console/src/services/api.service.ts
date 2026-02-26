@@ -908,7 +908,75 @@ const api = {
       const response = await axios.post("/api/admin/create-test-submission");
       return response.data;
     },
+
+    // Incident management for bug reports
+    incidents: {
+      // List all incidents
+      list: async (limit = 100, offset = 0): Promise<{
+        data: Incident[];
+        pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+      }> => {
+        const response = await axios.get("/api/console/admin/incidents", {
+          params: { limit, offset },
+        });
+        return response.data;
+      },
+
+      // Get incident metadata
+      get: async (incidentId: string): Promise<Incident> => {
+        const response = await axios.get(`/api/console/admin/incidents/${incidentId}`);
+        return response.data?.data ?? response.data;
+      },
+
+      // Get full incident logs from R2
+      getLogs: async (incidentId: string): Promise<IncidentLogs> => {
+        const response = await axios.get(`/api/console/admin/incidents/${incidentId}/logs`);
+        return response.data?.data ?? response.data;
+      },
+    },
   },
 };
+
+// Incident types
+export interface Incident {
+  incidentId: string;
+  userId: string;
+  status: "processing" | "complete" | "partial" | "failed";
+  summary?: string;
+  linearIssueId?: string;
+  linearIssueUrl?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IncidentLogEntry {
+  timestamp: number | string;
+  level: string;
+  message: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface IncidentAttachment {
+  filename: string;
+  storedAs: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export interface IncidentLogs {
+  incidentId: string;
+  createdAt: string;
+  feedback: Record<string, unknown>;
+  phoneState: Record<string, unknown>;
+  phoneLogs: IncidentLogEntry[];
+  cloudLogs: IncidentLogEntry[];
+  glassesLogs: IncidentLogEntry[];
+  /** App telemetry logs organized by package name */
+  appTelemetryLogs: Record<string, IncidentLogEntry[]>;
+  attachments?: IncidentAttachment[];
+}
 
 export default api;

@@ -55,7 +55,7 @@ Android application that runs on Android-based smart glasses like Mentra Live. C
 2. **Default Production Configuration**:
 
    ```
-   MENTRAOS_HOST=cloud.mentra.glass
+   MENTRAOS_HOST=api.mentra.glass
    MENTRAOS_PORT=443
    MENTRAOS_SECURE=true
    ```

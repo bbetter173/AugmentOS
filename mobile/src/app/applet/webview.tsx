@@ -7,13 +7,12 @@ import Animated, {useSharedValue, useAnimatedStyle, withTiming} from "react-nati
 import {Header, Screen, Text} from "@/components/ignite"
 import InternetConnectionFallbackComponent from "@/components/ui/InternetConnectionFallbackComponent"
 import LoadingOverlay from "@/components/ui/LoadingOverlay"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import restComms from "@/services/RestComms"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
-import {captureRef} from "react-native-view-shot"
 import {useAppletStatusStore} from "@/stores/applets"
-import {DualButton, MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import {Image} from "expo-image"
 import AppIcon from "@/components/home/AppIcon"
 
@@ -202,8 +201,8 @@ export default function AppWebView() {
         {/* show the app icon and app name */}
         <View className="flex-1 flex-row items-center justify-center">
           <View className="flex-col">
-            <AppIcon app={app} className="w-48 h-48" />
-            <Text text={appName} className="text-foreground text-2xl font-medium text-center" numberOfLines={1} />
+            <AppIcon app={app} className="w-32 h-32" />
+            {/* <Text text={appName} className="text-foreground text-2xl font-medium text-center" numberOfLines={1} /> */}
           </View>
         </View>
       </Animated.View>

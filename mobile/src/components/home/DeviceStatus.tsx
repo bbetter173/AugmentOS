@@ -222,7 +222,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
       onPress={() => push("/settings/glasses")}>
       <View className="justify-center items-center flex-row max-h-20">
         <View className="flex-1 self-start">
-          <Image source={getCurrentGlassesImage()} className="w-full h-full max-w-40" style={{resizeMode: "contain"}} />
+          <Image source={getCurrentGlassesImage()} className="w-full h-full max-w-32" style={{resizeMode: "contain"}} />
         </View>
 
         <View className="justify-between items-center flex-col gap-2 py-5">

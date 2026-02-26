@@ -1634,6 +1634,11 @@ public class G1 extends SGCManager {
     }
 
     @Override
+    public void ping() {
+        Bridge.log("G1: ping()");
+    }
+
+    @Override
     public void setDashboardPosition(int height, int depth) {
         Bridge.log("G1: setDashboardPosition() - height: " + height + ", depth: " + depth);
         sendDashboardPositionCommand(height, depth);

@@ -39,7 +39,7 @@ This is the Android code that runs on Android-based smart glasses (ex: Mentra Li
 2. By default, the example contains production settings:
 
    ```
-   MENTRAOS_HOST=cloud.mentra.glass
+   MENTRAOS_HOST=api.mentra.glass
    MENTRAOS_PORT=443
    MENTRAOS_SECURE=true
    ```

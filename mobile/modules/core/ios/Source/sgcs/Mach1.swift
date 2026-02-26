@@ -106,6 +106,8 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func cleanup() {}
 
+    func ping() {}
+
     var type: String = DeviceTypes.MACH1
     var hasMic: Bool = false
 

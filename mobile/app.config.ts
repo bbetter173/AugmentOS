@@ -26,11 +26,11 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
     android: {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: "com.mentra.mentra",
-      versionCode: 88,
+      versionCode: 89,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",
-        backgroundColor: "#fff"
+        backgroundColor: "#fff",
       },
       allowBackup: false,
       permissions: [

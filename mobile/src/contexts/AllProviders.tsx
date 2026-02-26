@@ -22,6 +22,7 @@ import {ModalProvider} from "@/utils/AlertUtils"
 import {KonamiCodeProvider} from "@/utils/debug/konami"
 import ConnectionOverlayProvider from "@/contexts/ConnectionOverlayContext"
 import { SaferAreaProvider, useSaferAreaInsets } from "@/contexts/SaferAreaContext"
+// JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
 // components at the top wrap everything below them in order:

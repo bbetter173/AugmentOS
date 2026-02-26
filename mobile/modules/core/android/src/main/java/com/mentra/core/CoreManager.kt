@@ -1,5 +1,6 @@
 package com.mentra.core
 
+import android.bluetooth.BluetoothAdapter
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -27,7 +28,6 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.jvm.JvmStatic
-import android.bluetooth.BluetoothAdapter
 
 class CoreManager {
     companion object {
@@ -380,35 +380,43 @@ class CoreManager {
     private fun setupBluetoothStateMonitoring() {
         val context = Bridge.getContext()
 
-        bluetoothStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+        bluetoothStateReceiver =
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
 
-                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
-                when (state) {
-                    BluetoothAdapter.STATE_OFF -> {
-                        Bridge.log("MAN: Bluetooth turned OFF (control center or settings)")
-                        disconnect()
-                    }
-                    BluetoothAdapter.STATE_TURNING_OFF -> {
-                        Bridge.log("MAN: Bluetooth turning off...")
-                    }
-                    BluetoothAdapter.STATE_ON -> {
-                        Bridge.log("MAN: Bluetooth turned ON")
-                        // Auto-reconnect to last known device if we have one
-                        if (defaultWearable.isNotEmpty() && deviceName.isNotEmpty()) {
-                            Bridge.log("MAN: Bluetooth restored, attempting reconnect to: $deviceName")
-                            handler.postDelayed({
-                                connectDefault()
-                            }, 2000) // Small delay to let BT stack stabilize
+                        val state =
+                                intent.getIntExtra(
+                                        BluetoothAdapter.EXTRA_STATE,
+                                        BluetoothAdapter.ERROR
+                                )
+                        when (state) {
+                            BluetoothAdapter.STATE_OFF -> {
+                                Bridge.log("MAN: Bluetooth turned OFF (control center or settings)")
+                                disconnect()
+                            }
+                            BluetoothAdapter.STATE_TURNING_OFF -> {
+                                Bridge.log("MAN: Bluetooth turning off...")
+                            }
+                            BluetoothAdapter.STATE_ON -> {
+                                Bridge.log("MAN: Bluetooth turned ON")
+                                // Auto-reconnect to last known device if we have one
+                                if (defaultWearable.isNotEmpty() && deviceName.isNotEmpty()) {
+                                    Bridge.log(
+                                            "MAN: Bluetooth restored, attempting reconnect to: $deviceName"
+                                    )
+                                    handler.postDelayed(
+                                            { connectDefault() },
+                                            2000
+                                    ) // Small delay to let BT stack stabilize
+                                }
+                            }
+                            BluetoothAdapter.STATE_TURNING_ON -> {
+                                Bridge.log("MAN: Bluetooth turning on...")
+                            }
                         }
                     }
-                    BluetoothAdapter.STATE_TURNING_ON -> {
-                        Bridge.log("MAN: Bluetooth turning on...")
-                    }
                 }
-            }
-        }
 
         try {
             val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
@@ -1051,6 +1059,10 @@ class CoreManager {
 
     fun showDashboard() {
         sgc?.showDashboard()
+    }
+
+    fun ping() {
+        sgc?.ping()
     }
 
     fun startRtmpStream(message: MutableMap<String, Any>) {

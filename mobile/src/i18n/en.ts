@@ -404,6 +404,10 @@ const en = {
     storageUsed: "Storage Used",
     glassesAreReconnecting: "Glasses are reconnecting...",
     glassesAreReconnectingMessage: "Make sure your glasses are turned on.",
+    // Gallery sync WiFi explanation
+    connectToGlassesTitle: "Connect to Glasses",
+    wifiJoinExplanationIos: 'When prompted, tap "Join" to connect to "{{ssid}}".',
+    wifiJoinExplanationAndroid: 'When prompted, tap "Join" to connect to "{{ssid}}".',
   },
   store: {
     title: "Store",
@@ -775,6 +779,11 @@ const en = {
       "We're so glad you're enjoying MentraOS! Would you mind rating us on the app store? It really helps us out.",
     notNow: "Not Now",
     rateNow: "Rate Now",
+    screenshots: "Screenshots (optional)",
+    screenshotsHint: "Add up to 5 screenshots to help us understand the issue",
+    addScreenshots: "Tap to add screenshots",
+    addMore: "Add more screenshots",
+    photoPermissionRequired: "Photo library access is required to attach screenshots.",
   },
   offlineMode: {
     enableOfflineMode: "Enable Offline Mode?",
@@ -832,8 +841,11 @@ const en = {
   },
   appInfo: {
     share: "Share",
-    addToHome: "Add to Home",
+    addToHome: "Add to home",
+    open: "Open",
     uninstall: "Uninstall",
+    remove: "Remove",
+    settings: "Settings",
   },
   lmaInstaller: {
     installedVersions: "Installed versions",

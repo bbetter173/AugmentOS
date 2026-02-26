@@ -117,12 +117,13 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
     // let stat = -index * cardWidth // use real index for stat!!
     let stat = 0
 
-    let howFar = SCREEN_WIDTH / 4
+    // let howFar = SCREEN_WIDTH / 4
+    let howFar = SCREEN_WIDTH / 2 - cardWidth / 2
     let lin = translateX.value / cardWidth + animIndex
     if (lin < 0) {
       lin = 0
     }
-    let power = Math.pow(lin, 1.7) * howFar
+    let power = Math.pow(lin, 2) * howFar
     let res = stat + power
 
     let howFarPercent = (1 / (howFar / SCREEN_WIDTH)) * howFar
@@ -285,14 +286,9 @@ export default function AppSwitcher({swipeProgress}: AppSwitcherProps) {
     opacity: swipeProgress.value,
   }))
 
-  const testing = useAnimatedStyle(() => {
-    console.log("translateX.value", translateX.value)
-    return {}
-  })
-
   const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
   const blurAnimatedProps = useAnimatedProps(() => ({
-    intensity: interpolate(swipeProgress.value, [0, 1], [0, 20], Extrapolation.CLAMP),
+    intensity: interpolate(swipeProgress.value, [0, 1], [0, 50], Extrapolation.CLAMP),
   }))
 
   const containerStyle = useAnimatedStyle(() => {

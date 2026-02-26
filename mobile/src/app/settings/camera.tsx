@@ -1,5 +1,5 @@
 import {getModelCapabilities} from "@/../../cloud/packages/types/src"
-import {View, ScrollView, TouchableOpacity, Platform, ViewStyle, TextStyle} from "react-native"
+import {View, ScrollView, TouchableOpacity, ViewStyle, TextStyle} from "react-native"
 
 import {Icon, Text, Screen, Header} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -195,39 +195,37 @@ export default function CameraSettingsScreen() {
           })}
         </View>
 
-        {Platform.OS === "ios" && (
-          <View style={themed($settingsGroup)}>
-            <Text style={themed($settingLabel)}>Maximum Recording Time</Text>
-            <Text style={themed($settingSubtitle)}>Maximum duration for button-triggered video recording</Text>
+        <View style={themed($settingsGroup)}>
+          <Text style={themed($settingLabel)}>Maximum Recording Time</Text>
+          <Text style={themed($settingSubtitle)}>Maximum duration for button-triggered video recording</Text>
 
-            {Object.entries(MAX_RECORDING_TIME_LABELS).map(([value, label], index, arr) => {
-              const isFirst = index === 0
-              const isLast = index === arr.length - 1
-              return (
-                <TouchableOpacity
-                  key={value}
-                  style={[
-                    themed($optionItem),
-                    {
-                      borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                      borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                      borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                      borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                      borderWidth: maxRecordingTime === parseInt(value.replace("m", "")) ? 1 : undefined,
-                      borderColor:
-                        maxRecordingTime === parseInt(value.replace("m", "")) ? theme.colors.primary : undefined,
-                    },
-                  ]}
-                  onPress={() => handleMaxRecordingTimeChange(value as MaxRecordingTime)}>
-                  <Text style={themed($optionText)}>{label}</Text>
-                  {maxRecordingTime === parseInt(value.replace("m", "")) && (
-                    <Icon name="check" size={24} color={theme.colors.primary} />
-                  )}
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-        )}
+          {Object.entries(MAX_RECORDING_TIME_LABELS).map(([value, label], index, arr) => {
+            const isFirst = index === 0
+            const isLast = index === arr.length - 1
+            return (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  themed($optionItem),
+                  {
+                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
+                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
+                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
+                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
+                    borderWidth: maxRecordingTime === parseInt(value.replace("m", "")) ? 1 : undefined,
+                    borderColor:
+                      maxRecordingTime === parseInt(value.replace("m", "")) ? theme.colors.primary : undefined,
+                  },
+                ]}
+                onPress={() => handleMaxRecordingTimeChange(value as MaxRecordingTime)}>
+                <Text style={themed($optionText)}>{label}</Text>
+                {maxRecordingTime === parseInt(value.replace("m", "")) && (
+                  <Icon name="check" size={24} color={theme.colors.primary} />
+                )}
+              </TouchableOpacity>
+            )
+          })}
+        </View>
       </ScrollView>
     </Screen>
   )

@@ -17,6 +17,7 @@ import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
 import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissions"
 
+import {translate} from "@/i18n"
 import {asgCameraApi} from "./asgCameraApi"
 import {gallerySettingsService} from "./gallerySettingsService"
 import {gallerySyncNotifications} from "./gallerySyncNotifications"
@@ -610,6 +611,41 @@ class GallerySyncService {
   }
 
   /**
+   * Show explanation dialog before WiFi connection (first time only)
+   * Returns true if user wants to proceed, false if cancelled
+   */
+  private async showWifiJoinExplanation(ssid: string): Promise<boolean> {
+    const settingsStore = useSettingsStore.getState()
+    const hasSeenExplanation = settingsStore.getSetting(SETTINGS.gallery_sync_explained.key)
+
+    if (hasSeenExplanation) {
+      console.log("[GallerySyncService] User has seen WiFi explanation before - skipping")
+      return true
+    }
+
+    console.log("[GallerySyncService] First sync - showing WiFi join explanation")
+
+    return new Promise((resolve) => {
+      const message =
+        Platform.OS === "ios"
+          ? translate("glasses:wifiJoinExplanationIos", {ssid})
+          : translate("glasses:wifiJoinExplanationAndroid", {ssid})
+
+      showAlert(translate("glasses:connectToGlassesTitle"), message, [
+        {
+          text: translate("common:ok"),
+          onPress: () => {
+            console.log("[GallerySyncService] User acknowledged WiFi explanation")
+            // Mark as explained so we don't show again
+            settingsStore.setSetting(SETTINGS.gallery_sync_explained.key, true, false)
+            resolve(true)
+          },
+        },
+      ])
+    })
+  }
+
+  /**
    * Connect to hotspot WiFi with retry logic (unified for both platforms)
    * Both iOS and Android benefit from retries:
    * - iOS: Library throws "internal error" before user responds to system dialog
@@ -617,6 +653,10 @@ class GallerySyncService {
    */
   private async connectToHotspotWifi(hotspotInfo: HotspotInfo): Promise<void> {
     const store = useGallerySyncStore.getState()
+
+    // Show explanation dialog on first sync (user must acknowledge before proceeding)
+    await this.showWifiJoinExplanation(hotspotInfo.ssid)
+
     let lastError: any = null
     const wifiConnectStartTime = Date.now()
 

@@ -70,6 +70,7 @@ protocol SGCManager {
     func connectById(_ id: String)
     func getConnectedBluetoothName() -> String?
     func cleanup()
+    func ping()
 
     // MARK: - Network Management
 

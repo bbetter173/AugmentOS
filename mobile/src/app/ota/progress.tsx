@@ -103,6 +103,40 @@ export default function OtaProgressScreen() {
   const stallDetectionRef = useRef<number | null>(null)
   const lastRealProgressRef = useRef<number>(0)
   const timeEstimationStartTimeRef = useRef<number>(0)
+  const pingIntervalRef = useRef<number | null>(null)
+
+  // Keep glasses awake during OTA by sending periodic pings
+  // This prevents the glasses from sleeping during long OTA operations
+  useEffect(() => {
+    const isOtaActive =
+      progressState === "starting" ||
+      progressState === "downloading" ||
+      progressState === "installing" ||
+      progressState === "transitioning"
+
+    if (isOtaActive && glassesConnected) {
+      // Send initial ping immediately
+      CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
+
+      // Set up interval to ping every 10 seconds
+      pingIntervalRef.current = setInterval(() => {
+        CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
+      }, 10000) as unknown as number
+
+      return () => {
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current)
+          pingIntervalRef.current = null
+        }
+      }
+    } else {
+      // Clear interval if OTA is not active or glasses disconnected
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current)
+        pingIntervalRef.current = null
+      }
+    }
+  }, [progressState, glassesConnected])
 
   focusEffectPreventBack()
 

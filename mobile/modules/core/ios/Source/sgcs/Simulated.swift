@@ -219,6 +219,10 @@ class Simulated: SGCManager {
         Bridge.log("cleanup")
     }
 
+    func ping() {
+        Bridge.log("ping")
+    }
+
     // MARK: - Network Management
 
     func requestWifiScan() {

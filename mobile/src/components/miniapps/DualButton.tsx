@@ -73,7 +73,7 @@ export function MiniAppDualButtonHeader({
     handleExit()
   }, true)
   return (
-    <View className="z-2 absolute top-7.5 w-full items-center justify-end flex-row">
+    <View className="z-2 absolute top-5 w-full items-center justify-end flex-row">
       <DualButton onMinusPress={handleExit} onEllipsisPress={handleEllipsisPress} />
       <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
     </View>

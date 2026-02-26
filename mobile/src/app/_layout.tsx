@@ -16,6 +16,7 @@ import {loadDateFnsLocale} from "@/utils/formatDate"
 import {AllEffects} from "@/effects/AllEffects"
 import {AllProviders} from "@/contexts/AllProviders"
 import "@/global.css"
+import {configureReanimatedLogger, ReanimatedLogLevel} from "react-native-reanimated"
 
 // prevent the annoying warning box at the bottom of the screen from getting in the way:
 const IGNORED_LOGS = [
@@ -47,6 +48,11 @@ if (__DEV__) {
   console.warn = withoutIgnored(console.warn)
   console.error = withoutIgnored(console.error)
 }
+
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false, // Reanimated runs in strict mode by default
+})
 
 SentrySetup()
 

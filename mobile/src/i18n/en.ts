@@ -404,6 +404,10 @@ const en = {
     storageUsed: "Storage Used",
     glassesAreReconnecting: "Glasses are reconnecting...",
     glassesAreReconnectingMessage: "Make sure your glasses are turned on.",
+    // Gallery sync WiFi explanation
+    connectToGlassesTitle: "Connect to Glasses",
+    wifiJoinExplanationIos: 'When prompted, tap "Join" to connect to "{{ssid}}".',
+    wifiJoinExplanationAndroid: 'When prompted, tap "Join" to connect to "{{ssid}}".',
   },
   store: {
     title: "Store",
@@ -832,8 +836,11 @@ const en = {
   },
   appInfo: {
     share: "Share",
-    addToHome: "Add to Home",
+    addToHome: "Add to home",
+    open: "Open",
     uninstall: "Uninstall",
+    remove: "Remove",
+    settings: "Settings",
   },
   lmaInstaller: {
     installedVersions: "Installed versions",

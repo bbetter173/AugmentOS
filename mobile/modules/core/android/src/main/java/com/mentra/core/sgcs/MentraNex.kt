@@ -499,6 +499,10 @@ class MentraNex : SGCManager() {
         sendDataSequentially(cmdBytes, 10)
     }
 
+    override fun ping() {
+        Bridge.log("Nex: ping()");
+    }
+
     // Audio Control
     // TODO: Validate this logic. looks weird.
     override fun setMicEnabled(enabled: Boolean) {

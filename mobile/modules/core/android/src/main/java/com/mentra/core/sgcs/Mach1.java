@@ -251,6 +251,10 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
+    public void ping() {
+    }
+
+    @Override
     public void setDashboardPosition(int height, int depth) {
 
     }

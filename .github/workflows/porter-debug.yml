@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # Manual trigger fallback
   push:
     branches:
-      - cloud/soniox-sdk
+      - new-context-soniox
     paths:
       - "cloud/**"
       - ".github/workflows/porter-debug.yml"

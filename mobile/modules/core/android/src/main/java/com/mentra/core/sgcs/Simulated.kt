@@ -183,6 +183,10 @@ class Simulated : SGCManager() {
         Bridge.log("cleanup")
     }
 
+    override fun ping() {
+        Bridge.log("ping")
+    }
+
     // Network Management
     override fun requestWifiScan() {
         Bridge.log("requestWifiScan")

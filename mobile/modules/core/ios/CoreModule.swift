@@ -146,6 +146,12 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("ping") {
+            await MainActor.run {
+                CoreManager.shared.ping()
+            }
+        }
+
         // MARK: - WiFi Commands
 
         AsyncFunction("requestWifiScan") {

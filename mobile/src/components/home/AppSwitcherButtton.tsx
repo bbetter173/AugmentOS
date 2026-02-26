@@ -142,8 +142,8 @@ export default function AppSwitcherButton({swipeProgress}: AppSwitcherButtonProp
         style={{position: "absolute", left: 0, right: 0, top: 0, bottom: 0, pointerEvents: "none"}}
         maskElement={
           <LinearGradient
-            colors={[theme.colors.background, bgAlpha]}
-            locations={[Platform.OS === "android" ? 0.65 : 0.4, 1]}
+            colors={["black", "transparent"]}
+            locations={[Platform.OS === "android" ? 0.8 : 0.4, 1]}
             start={{x: 0, y: 1}}
             end={{x: 0, y: 0}}
             style={{
@@ -170,9 +170,11 @@ export default function AppSwitcherButton({swipeProgress}: AppSwitcherButtonProp
     )
   }
 
+  let paddingTop = Platform.OS === "android" ? theme.spacing.s10 : theme.spacing.s16
+
   if (appsCount === 0) {
     return (
-      <View className="w-screen flex-row justify-between items-center gap-4 bottom-0 -ml-6 px-6 absolute pt-20">
+      <View className="w-screen flex-row justify-between items-center gap-4 bottom-0 -ml-6 px-6 absolute" style={{paddingTop: paddingTop}}>
         {renderBackground()}
         <GestureDetector gesture={composedGesture}>
           <View className="flex-1" style={{paddingBottom: bottomPadding}}>
@@ -191,9 +193,8 @@ export default function AppSwitcherButton({swipeProgress}: AppSwitcherButtonProp
   }
 
   // base 15 height
-  let bgAlpha = `${theme.colors.background}00`
   return (
-    <View className="w-screen flex-row justify-between items-center gap-4 bottom-0 -ml-6 px-6 absolute pt-20">
+    <View className="w-screen flex-row justify-between items-center gap-4 bottom-0 -ml-6 px-6 absolute" style={{paddingTop: paddingTop}}>
       {renderBackground()}
       <GestureDetector gesture={composedGesture}>
         <View className="flex-1" style={{paddingBottom: bottomPadding}}>

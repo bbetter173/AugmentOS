@@ -1,10 +1,18 @@
 import AppIcon from "@/components/home/AppIcon"
-import {useCallback, useMemo, useRef} from "react"
-import {TouchableOpacity, View} from "react-native"
+import {useCallback, useMemo, useRef, useState} from "react"
+import {TextInput, TouchableOpacity, View} from "react-native"
 import {Button, Icon, Text} from "@/components/ignite"
 import {ClientAppletInterface, DUMMY_APPLET, useApplets} from "@/stores/applets"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {BottomSheetBackdrop, BottomSheetFlatList, BottomSheetModal} from "@gorhom/bottom-sheet"
+import {
+  BottomSheetBackdrop,
+  BottomSheetFlatList,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet"
+import {AppsGrid} from "@/components/home/AppsGrid"
+import {translate} from "@/i18n"
 
 const GRID_COLUMNS = 4
 
@@ -12,8 +20,9 @@ export default function AllAppsGridButton() {
   const {theme} = useAppTheme()
   const apps = useApplets()
   const bottomSheetRef = useRef<BottomSheetModal>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const snapPoints = useMemo(() => ["50%", "75%"], [])
+  const snapPoints = useMemo(() => ["90%"], [])
 
   const gridData = useMemo(() => {
     const totalItems = apps.length
@@ -50,11 +59,7 @@ export default function AllAppsGridButton() {
         <View className="relative w-16 h-16">
           <AppIcon app={item as any} className="w-16 h-16 rounded-xl" />
         </View>
-        <Text
-          text={item.name}
-          className="text-xs text-foreground text-center mt-1 leading-[14px]"
-          numberOfLines={2}
-        />
+        <Text text={item.name} className="text-xs text-foreground text-center mt-1 leading-[14px]" numberOfLines={2} />
       </TouchableOpacity>
     )
   }, [])
@@ -74,22 +79,57 @@ export default function AllAppsGridButton() {
         backdropComponent={renderBackdrop}
         enablePanDownToClose
         enableDynamicSizing={false}
-        backgroundStyle={{backgroundColor: theme.colors.primary_foreground}}
-        handleIndicatorStyle={{backgroundColor: theme.colors.muted_foreground}}>
-        <View className="px-4">
-          {/* <View className="gap-4 px-4 mb-2">
+        backgroundStyle={{backgroundColor: theme.colors.background}}
+        handleIndicatorStyle={{backgroundColor: theme.colors.primary_foreground, width: 100, height: 5}}>
+        {/* <View className="px-4"> */}
+        {/* <View className="gap-4 px-4 mb-2">
             <Text className="text-lg font-bold text-foreground text-center" tx="home:apps" />
             <Text className="text-sm text-muted-foreground font-medium" tx="home:incompatibleAppsDescription" />
           </View> */}
-          <BottomSheetFlatList
+        {/* <BottomSheetFlatList
             data={gridData}
             renderItem={renderItem}
             keyExtractor={(item: ClientAppletInterface) => item.packageName}
             numColumns={GRID_COLUMNS}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{paddingBottom: 21 * 4 + 6 * 4 * 2}}
-          />
-        </View>
+          /> */}
+        {/* <AppsGrid /> */}
+        {/* </View> */}
+        <BottomSheetScrollView>
+          <View className="px-6">
+            <View className="">
+              <View className="flex-row items-center bg-primary-foreground rounded-xl px-4 py-3 mt-4">
+                <Icon name="search" size={20} color={theme.colors.muted_foreground} />
+                <TextInput
+                  placeholder={translate("home:search")}
+                  placeholderTextColor={theme.colors.muted_foreground}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  className="flex-1 ml-2 text-foreground"
+                  style={{color: theme.colors.foreground}}
+                  hitSlop={16}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Icon name="x" size={20} color={theme.colors.muted_foreground} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View className="h-px bg-border my-4" />
+            </View>
+            <AppsGrid
+              showAllApps={true}
+              searchQuery={searchQuery}
+              onOpenApp={() => {
+                bottomSheetRef.current?.close()
+              }}
+              onAddToHome={() => {
+                bottomSheetRef.current?.close()
+              }}
+            />
+          </View>
+        </BottomSheetScrollView>
       </BottomSheetModal>
     </>
   )

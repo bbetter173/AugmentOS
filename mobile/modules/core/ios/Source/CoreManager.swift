@@ -1024,6 +1024,10 @@ struct ViewState {
         sgc?.showDashboard()
     }
 
+    func ping() {
+        sgc?.ping()
+    }
+
     func startRtmpStream(_ message: [String: Any]) {
         Bridge.log("MAN: startRtmpStream: \(message)")
         sgc?.startRtmpStream(message)

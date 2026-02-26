@@ -117,6 +117,8 @@ class CoreModule : Module() {
 
         AsyncFunction("showDashboard") { coreManager?.showDashboard() }
 
+        AsyncFunction("ping") { coreManager?.ping() }
+
         // MARK: - WiFi Commands
 
         AsyncFunction("requestWifiScan") { coreManager?.requestWifiScan() }

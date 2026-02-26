@@ -78,6 +78,11 @@ jobs:
         working-directory: cloud/packages/types
         run: bun run build
 
+      - name: Build utils package
+        if: steps.filter.outputs.cloud == 'true'
+        working-directory: cloud/packages/utils
+        run: bun run build
+
       - name: Run build
         if: steps.filter.outputs.cloud == 'true'
         working-directory: cloud/packages/cloud

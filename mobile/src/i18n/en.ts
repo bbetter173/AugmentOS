@@ -779,6 +779,11 @@ const en = {
       "We're so glad you're enjoying MentraOS! Would you mind rating us on the app store? It really helps us out.",
     notNow: "Not Now",
     rateNow: "Rate Now",
+    screenshots: "Screenshots (optional)",
+    screenshotsHint: "Add up to 5 screenshots to help us understand the issue",
+    addScreenshots: "Tap to add screenshots",
+    addMore: "Add more screenshots",
+    photoPermissionRequired: "Photo library access is required to attach screenshots.",
   },
   offlineMode: {
     enableOfflineMode: "Enable Offline Mode?",

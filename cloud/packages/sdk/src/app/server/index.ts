@@ -17,6 +17,7 @@ import {
   StopWebhookRequest,
   ToolCall,
   WebhookRequestType,
+  TelemetryLogEntry,
 } from "../../types";
 
 import { Logger } from "pino";
@@ -85,6 +86,19 @@ export interface AppServerConfig {
   cookieSecret?: string;
   /** App instructions string shown to the user */
   appInstructions?: string;
+
+  /**
+   * 📊 Enable telemetry collection for incident debugging.
+   * When enabled, the SDK captures internal logs in a ring buffer.
+   * Cloud can request these logs when processing bug reports.
+   * Default: true (opt-out)
+   */
+  enableTelemetry?: boolean;
+  /**
+   * 📊 Maximum number of log entries to keep per user in the telemetry buffer.
+   * Default: 1000
+   */
+  telemetryBufferSize?: number;
 
   /**
    * SDK console log level. Default: 'warn'.
@@ -158,6 +172,16 @@ export class AppServer {
    * See: cloud/issues/019-sdk-photo-request-architecture
    */
   private pendingPhotoRequests = new Map<string, PendingPhotoRequest>();
+  /**
+   * 📊 Telemetry buffer for incident debugging.
+   * Maps userId to a ring buffer of log entries.
+   * Used to provide recent logs when bug reports are filed.
+   */
+  private telemetryBuffer = new Map<string, TelemetryLogEntry[]>();
+  /** Maximum entries to keep per user in telemetry buffer */
+  private telemetryBufferSize: number = 1000;
+  /** Whether telemetry collection is enabled */
+  private telemetryEnabled: boolean = true;
 
   public readonly logger: Logger;
 
@@ -204,6 +228,10 @@ export class AppServer {
     );
 
     this.appInstructions = (config as any).appInstructions || null;
+
+    // Setup telemetry configuration
+    this.telemetryEnabled = config.enableTelemetry !== false; // Default: true (opt-out)
+    this.telemetryBufferSize = config.telemetryBufferSize || 1000;
 
     // Setup server features
     this.setupWebhook();
@@ -591,6 +619,9 @@ export class AppServer {
 
         // Clean up any pending photo requests for this session
         this.cleanupPhotoRequestsForSession(sessionId);
+
+        // Clean up telemetry buffer to prevent memory leak
+        this.clearTelemetryBuffer(userId);
       } else {
         // Temporary disconnect - session stays in maps for reconnection
         // Photo requests remain pending and can still be fulfilled
@@ -977,6 +1008,79 @@ export class AppServer {
     if (cleanedCount > 0) {
       this.logger.debug({ sessionId, cleanedCount }, "Cleaned up photo requests for ended session");
     }
+  }
+
+  // =====================================
+  // 📊 Telemetry Methods
+  // =====================================
+
+  /**
+   * 📊 Log a telemetry entry for a user.
+   * This method is called internally by the SDK to capture logs.
+   * Apps can also call this to add custom telemetry.
+   *
+   * @param userId - User ID to associate the log with
+   * @param level - Log level
+   * @param message - Log message
+   * @param source - Source of the log (e.g., "session", "camera", "display")
+   * @param data - Optional additional data
+   */
+  public logTelemetry(
+    userId: string,
+    level: TelemetryLogEntry["level"],
+    message: string,
+    source?: string,
+    data?: unknown,
+  ): void {
+    if (!this.telemetryEnabled) return;
+
+    const entry: TelemetryLogEntry = {
+      timestamp: Date.now(),
+      level,
+      message,
+      source,
+      data,
+    };
+
+    let buffer = this.telemetryBuffer.get(userId);
+    if (!buffer) {
+      buffer = [];
+      this.telemetryBuffer.set(userId, buffer);
+    }
+
+    buffer.push(entry);
+
+    // Ring buffer: remove oldest if over limit
+    while (buffer.length > this.telemetryBufferSize) {
+      buffer.shift();
+    }
+  }
+
+  /**
+   * 📊 Get telemetry logs for a user within a time window.
+   *
+   * @param userId - User ID to get logs for
+   * @param windowMs - Time window in milliseconds (logs newer than now - windowMs)
+   * @returns Array of telemetry log entries within the time window
+   */
+  public getTelemetryLogs(userId: string, windowMs: number): TelemetryLogEntry[] {
+    const buffer = this.telemetryBuffer.get(userId);
+    if (!buffer || buffer.length === 0) {
+      return [];
+    }
+
+    const cutoff = Date.now() - windowMs;
+    return buffer.filter((entry) => entry.timestamp >= cutoff);
+  }
+
+  /**
+   * 📊 Clear telemetry buffer for a user.
+   * Called when a session permanently disconnects.
+   *
+   * @param userId - User ID to clear telemetry for
+   */
+  private clearTelemetryBuffer(userId: string): void {
+    this.telemetryBuffer.delete(userId);
   }
 
   /**

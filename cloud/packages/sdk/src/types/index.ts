@@ -37,6 +37,8 @@ export type {
   AppRoomLeave,
   RequestWifiSetup,
   OwnershipReleaseMessage,
+  TelemetryLogEntry,
+  TelemetryResponse,
 } from "./messages/app-to-cloud";
 
 // Runtime type guards — these are functions and need a value export
@@ -55,6 +57,7 @@ export {
   isRtmpStreamRequest,
   isRtmpStreamStopRequest,
   isOwnershipRelease,
+  isTelemetryResponse,
   // Export with alias to avoid conflict
   isPhotoRequest as isPhotoRequestFromApp,
 } from "./messages/app-to-cloud";
@@ -83,6 +86,7 @@ export type {
   AudioChunk,
   PermissionError,
   PermissionErrorDetail,
+  RequestTelemetry,
 } from "./messages/cloud-to-app";
 
 // Runtime type guards from cloud-to-app (excluding isPhotoResponse and isRtmpStreamStatus which conflict)

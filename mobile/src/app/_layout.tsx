@@ -18,6 +18,10 @@ import {AllProviders} from "@/contexts/AllProviders"
 import "@/global.css"
 import {configureReanimatedLogger, ReanimatedLogLevel} from "react-native-reanimated"
 
+// Initialize log ring buffer for capturing logs in bug reports
+// Must be done before app starts logging, after any console modifications
+import {logBuffer} from "@/services/LogRingBuffer"
+
 // prevent the annoying warning box at the bottom of the screen from getting in the way:
 const IGNORED_LOGS = [
   /Failed to open debugger. Please check that the dev server is running and reload the app./,
@@ -55,6 +59,7 @@ configureReanimatedLogger({
 })
 
 SentrySetup()
+logBuffer.startConsoleInterception()
 
 // initialize the settings store
 useSettingsStore.getState().loadAllSettings()

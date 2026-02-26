@@ -1,5 +1,3 @@
- 
-
 /**
  * 🎯 App Session Module
  *
@@ -90,6 +88,7 @@ import {
   isManagedStreamStatus,
   isStreamStatusCheckResponse,
   isDeviceStateUpdate,
+  RequestTelemetry,
 } from "../../types/messages/cloud-to-app";
 import { SimpleStorage } from "./modules/simple-storage";
 import { DeviceState } from "./device-state";
@@ -1552,6 +1551,9 @@ export class AppSession {
         } else if (isRgbLedControlResponse(message)) {
           // LED control responses are no longer handled - fire-and-forget mode
           this.logger.debug({ message }, "Received LED control response (ignored - fire-and-forget mode)");
+        } else if (message.type === CloudToAppMessageType.REQUEST_TELEMETRY) {
+          // Handle telemetry request from cloud (for incident debugging)
+          this.handleTelemetryRequest(message as RequestTelemetry);
         }
         // Handle unrecognized message types gracefully — warn only, not an error
         // Unknown message types are unexpected but not something the dev can act on
@@ -1602,6 +1604,54 @@ export class AppSession {
    * 📦 Handle binary message data (audio or video)
    * @param buffer - Binary data as ArrayBuffer
    */
+  /**
+   * 📊 Handle telemetry request from cloud (for incident debugging).
+   * When a user files a bug report, cloud sends this message to collect SDK logs.
+   * The SDK responds by POSTing its buffered logs to the incident logs endpoint.
+   */
+  private async handleTelemetryRequest(message: RequestTelemetry): Promise<void> {
+    const { incidentId, uploadToken, windowMs } = message;
+
+    // uploadToken is required for secure telemetry uploads
+    if (!uploadToken) {
+      this.logger.warn({ incidentId }, "📊 No uploadToken provided - skipping telemetry upload");
+      return;
+    }
+
+    // Get telemetry logs from AppServer's buffer
+    const logs = this.appServer.getTelemetryLogs(this.userId, windowMs || 10 * 60 * 1000);
+
+    if (logs.length === 0) {
+      this.logger.debug({ incidentId }, "📊 No telemetry logs to send");
+      return;
+    }
+
+    // POST logs to the incident logs endpoint
+    // Derive cloud API URL from the WebSocket URL we connected to
+    try {
+      const cloudHost = this.getHttpsServerUrl() || "https://api.mentra.glass";
+      const response = await axios.post(
+        `${cloudHost}/api/incidents/${incidentId}/logs`,
+        {
+          logs,
+          uploadToken,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-App-Api-Key": this.config.apiKey,
+            "X-App-Package": this.config.packageName,
+          },
+          timeout: 10000,
+        },
+      );
+
+      this.logger.info({ incidentId, count: logs.length, status: response.status }, "📊 Telemetry logs sent to cloud");
+    } catch (err) {
+      this.logger.warn({ incidentId, err }, "📊 Failed to send telemetry logs");
+    }
+  }
+
   private handleBinaryMessage(buffer: ArrayBuffer): void {
     try {
       // Safety check - only process if we have a handler registered (derived from handlers)

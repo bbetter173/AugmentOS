@@ -86,7 +86,9 @@ export default function LocalMiniAppPage() {
           {html && <LocalMiniApp html={html} packageName={packageName} />}
         </Animated.View>
       </View> */}
-      <Text>Local Mini App: {appName} {packageName} {version}</Text>
+      <Text>
+        Local Mini App: {appName} {packageName} {version}
+      </Text>
     </Screen>
   )
 }

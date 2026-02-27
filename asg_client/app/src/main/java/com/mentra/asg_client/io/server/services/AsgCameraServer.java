@@ -36,8 +36,19 @@ public class AsgCameraServer extends AsgServer {
     private static final String TAG = AsgCameraServer.class.getName();
     private static final int DEFAULT_PORT = 8089;
 
+    /**
+     * Provider that returns the file name of an actively recording video, or null if idle.
+     * Used to exclude in-progress recordings from sync and download responses.
+     */
+    public interface ActiveRecordingProvider {
+        String getActiveRecordingFileName();
+    }
+
     // File management system
     private final FileManager fileManager;
+
+    // Optional provider for currently recording file name
+    private ActiveRecordingProvider activeRecordingProvider;
 
     // Cache for latest photo metadata
     private FileMetadata latestPhotoMetadata;
@@ -623,6 +634,12 @@ public class AsgCameraServer extends AsgServer {
             return createErrorResponse(Response.Status.BAD_REQUEST, "File parameter required");
         }
 
+        // Block downloads of files that are actively being recorded
+        if (isActiveRecording(filename)) {
+            logger.warn(TAG, "⬇️ ❌ Blocked download of in-progress recording: " + filename);
+            return createErrorResponse(Response.Status.FORBIDDEN, "File is currently being recorded");
+        }
+
         try {
             // Get file using FileManager (security validation is handled automatically)
             File photoFile = fileManager.getFile(fileManager.getDefaultPackageName(), filename);
@@ -1005,6 +1022,19 @@ public class AsgCameraServer extends AsgServer {
         return fileManager;
     }
 
+    public void setActiveRecordingProvider(ActiveRecordingProvider provider) {
+        this.activeRecordingProvider = provider;
+    }
+
+    /**
+     * @return true if the given file name is the one currently being recorded
+     */
+    private boolean isActiveRecording(String fileName) {
+        if (activeRecordingProvider == null || fileName == null) return false;
+        String active = activeRecordingProvider.getActiveRecordingFileName();
+        return active != null && active.equals(fileName);
+    }
+
     /**
      * Get the camera package name.
      */
@@ -1059,6 +1089,12 @@ public class AsgCameraServer extends AsgServer {
             // In a more sophisticated implementation, you'd track deletions separately
             for (FileMetadata fileMetadata : allFiles) {
                 if (fileMetadata.getLastModified() > lastSyncTime) {
+                    // Skip files that are actively being recorded (incomplete / corrupted)
+                    if (isActiveRecording(fileMetadata.getFileName())) {
+                        logger.debug(TAG, "🔄 Skipping active recording: " + fileMetadata.getFileName());
+                        continue;
+                    }
+
                     // Skip and delete AVIF transfer artifacts - these should not be synced to mobile
                     if (isAvifTransferArtifact(fileMetadata.getFileName())) {
                         logger.debug(TAG, "🔄 Found AVIF transfer artifact, deleting: " + fileMetadata.getFileName());

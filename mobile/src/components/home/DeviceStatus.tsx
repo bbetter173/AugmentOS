@@ -52,6 +52,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   const caseBatteryLevel = useGlassesStore((state) => state.caseBatteryLevel)
   const caseOpen = useGlassesStore((state) => state.caseOpen)
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
+  const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
   const wifiSsid = useGlassesStore((state) => state.wifiSsid)
   const searching = useCoreStore((state) => state.searching)
@@ -229,7 +230,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
           <View className="flex-row items-center gap-3">
             {batteryLevel !== -1 && (
               <View className="flex-row items-center gap-1">
-                <Icon name={getBatteryIcon(batteryLevel) as any} size={18} color={theme.colors.foreground} />
+                <Icon name={charging ? "battery-charging" : getBatteryIcon(batteryLevel) as any} size={18} color={theme.colors.foreground} />
                 <Text className="text-secondary-foreground text-sm" text={`${batteryLevel}%`} />
               </View>
             )}

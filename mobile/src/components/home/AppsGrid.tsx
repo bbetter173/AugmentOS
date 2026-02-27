@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {Dimensions, Platform, Pressable, StyleSheet, TouchableOpacity, View} from "react-native"
+import {Dimensions, FlatList, Platform, Pressable, StyleSheet, TouchableOpacity, View} from "react-native"
 import {DraggableMasonryList} from "react-native-draggable-masonry"
 import {BlurView} from "expo-blur"
 
@@ -178,16 +178,31 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     // add dummy apps so we can place apps anywhere in the grid:
     const totalItems = filteredApps.length
     const remainder = totalItems % GRID_COLUMNS
-    let emptySlots = GRID_COLUMNS + remainder
-    emptySlots = Math.max(emptySlots, 20 - totalItems)
+    const MIN_APPS = 20
+    let emptySlots = GRID_COLUMNS - remainder
+    if (remainder == 0) {
+      emptySlots = 0
+    }
+    if (appSwitcherUi) {
+      // console.log("MIN_APPS", MIN_APPS, "totalItems", totalItems)
+      // console.log("emptySlots", emptySlots)
+      // emptySlots = Math.max(emptySlots, MIN_APPS - totalItems)
+      while (emptySlots + totalItems < MIN_APPS) {
+        emptySlots += GRID_COLUMNS
+      }
+      if (emptySlots < GRID_COLUMNS) {
+        emptySlots += GRID_COLUMNS
+      }
+    }
     if (showAllApps) {
       emptySlots = 0
     }
+    
     for (let i = 0; i < emptySlots; i++) {
       filteredApps.push({...DUMMY_APPLET, packageName: `__empty_${i}`})
     }
 
-    if (orderMap && !showAllApps) {
+    if (orderMap && !showAllApps && appSwitcherUi) {
       filteredApps.sort((a, b) => {
         const aIndex = orderMap[a.packageName]
         const bIndex = orderMap[b.packageName]
@@ -239,17 +254,16 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
             })
           },
         },
-        !showAllApps &&
-          !SYSTEM_APPS.includes(selectedApp?.packageName || "") && {
-            label: translate("appInfo:remove"),
-            icon: "minus",
-            onPress: () => {
-              if (selectedApp) {
-                useAppletStatusStore.getState().setHiddenStatus(selectedApp.packageName, true)
-                // useAppletStatusStore.getState().refreshApplets()
-              }
-            },
+        !showAllApps && {
+          label: translate("appInfo:remove"),
+          icon: "minus",
+          onPress: () => {
+            if (selectedApp) {
+              useAppletStatusStore.getState().setHiddenStatus(selectedApp.packageName, true)
+              // useAppletStatusStore.getState().refreshApplets()
+            }
           },
+        },
         showAllApps &&
           selectedApp?.hidden && {
             label: translate("appInfo:addToHome"),
@@ -378,6 +392,9 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
             handlePress(item)
           }}
           onLongPress={() => {
+            if (!appSwitcherUi) {
+              return
+            }
             if (showAllApps) {
               showPopover(item.packageName)
               return
@@ -406,21 +423,34 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
           <Text tx="home:inactiveApps" className="font-semibold text-xl text-secondary-foreground" />
         </View>
       )}
-      <View ref={containerRef}>
-        <DraggableMasonryList
+      {!appSwitcherUi && (
+        <FlatList
           data={gridData}
           renderItem={renderItem}
-          columns={GRID_COLUMNS}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragChange={handleDragChange}
-          overDrag="none"
-          showDropIndicator={true}
-          sortEnabled={!showAllApps}
-          swapMode={true}
-          dropIndicatorStyle={{backgroundColor: theme.colors.primary_foreground, borderWidth: 0}}
+          keyExtractor={(item) => item.packageName}
+          numColumns={GRID_COLUMNS}
+          scrollEnabled={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="pb-4"
         />
-      </View>
+      )}
+      {appSwitcherUi && (
+        <View ref={containerRef}>
+          <DraggableMasonryList
+            data={gridData}
+            renderItem={renderItem}
+            columns={GRID_COLUMNS}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragChange={handleDragChange}
+            overDrag="none"
+            showDropIndicator={true}
+            sortEnabled={!showAllApps}
+            swapMode={true}
+            dropIndicatorStyle={{backgroundColor: theme.colors.primary_foreground, borderWidth: 0}}
+          />
+        </View>
+      )}
       <AppPopover
         visible={popoverVisible}
         position={popoverPosition}

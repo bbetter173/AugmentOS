@@ -49,6 +49,9 @@ export default function SelectGlassesModelScreen() {
     }
   }
 
+  // Glasses models that should only be visible in dev mode
+  const DEV_MODE_ONLY_MODELS = new Set([DeviceTypes.NEX])
+
   // Platform-specific glasses options
   const glassesOptions =
     Platform.OS === "ios"
@@ -91,7 +94,9 @@ export default function SelectGlassesModelScreen() {
       <Spacer className="h-4" />
       <ScrollView className="-mr-4 pr-4 pt-6">
         <View className="flex-col gap-4 pb-8">
-          {glassesOptions.map((glasses) => (
+          {glassesOptions
+            .filter((glasses) => !DEV_MODE_ONLY_MODELS.has(glasses.deviceModel) || devMode)
+            .map((glasses) => (
             <TouchableOpacity
               key={glasses.key}
               className="flex-col items-center justify-center h-[190px] bg-primary-foreground rounded-2xl overflow-hidden"

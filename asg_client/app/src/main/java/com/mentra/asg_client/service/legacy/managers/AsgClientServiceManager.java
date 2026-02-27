@@ -468,6 +468,12 @@ public class AsgClientServiceManager {
                 });
                 Log.d(TAG, "📡 Picture request listener set");
 
+                // Wire active recording provider so sync/download skip in-progress videos
+                if (mediaCaptureService != null) {
+                    cameraServer.setActiveRecordingProvider(mediaCaptureService::getActiveRecordingFileName);
+                    Log.d(TAG, "📡 Active recording provider set on camera server");
+                }
+
                 serverManager.registerServer("camera", cameraServer);
                 Log.d(TAG, "📝 Camera server registered with server manager");
 

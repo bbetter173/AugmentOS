@@ -959,6 +959,17 @@ public class MediaCaptureService {
     }
 
     /**
+     * Get the file name (not full path) of the actively recording video, or null if idle.
+     */
+    public String getActiveRecordingFileName() {
+        if (!isRecordingVideo || currentVideoPath == null) {
+            return null;
+        }
+        File f = new File(currentVideoPath);
+        return f.getName();
+    }
+
+    /**
      * Get the current recording duration in milliseconds
      * @return Duration in milliseconds, or 0 if not recording
      */

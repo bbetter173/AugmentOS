@@ -74,7 +74,7 @@ export const DUMMY_APPLET: ClientAppletInterface = {
  */
 
 export const cameraPackageName = "com.mentra.camera"
-export const captionsPackageName = "com.mentra.offline_captions"
+export const captionsPackageName = "com.mentra.captions"
 export const galleryPackageName = "com.mentra.gallery"
 export const settingsPackageName = "com.mentra.settings"
 export const storePackageName = "com.mentra.store"
@@ -161,6 +161,9 @@ export const getLastOpenTime = (packageName: string): AsyncResult<number, Error>
 }
 
 const getRawPackageNamePriority = (pkg: string) => {
+  if (pkg.includes("__empty")) {
+    return 1000
+  }
   switch (pkg) {
     case cameraPackageName:
       return 0
@@ -178,6 +181,12 @@ export const getPackageNamePriority = (a: ClientAppletInterface, b: ClientApplet
   // const pa = getRawPackageNamePriority(a.packageName)
   // const pb = getRawPackageNamePriority(b.packageName)
   // if (pa !== pb) return pa - pb
+  const appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
+  if (!appSwitcherUi) {
+    const pa = getRawPackageNamePriority(a.packageName)
+    const pb = getRawPackageNamePriority(b.packageName)
+    if (pa !== pb) return pa - pb
+  }
   return a.name.localeCompare(b.name)
 }
 
@@ -732,7 +741,13 @@ export const useInactiveForegroundApps = () => {
 }
 export const useForegroundApps = () => {
   const apps = useApplets()
-  return useMemo(() => apps.filter((app) => app.type === "standard" || app.type === "background" || !app.type), [apps])
+  const [isOffline] = useSetting(SETTINGS.offline_mode.key)
+  return useMemo(() => {
+    if (isOffline) {
+      return apps.filter((app) => (app.type === "standard" || app.type === "background" || !app.type) && app.offline)
+    }
+    return apps.filter((app) => app.type === "standard" || app.type === "background" || !app.type)
+  }, [apps, isOffline])
 }
 
 export const useActiveApps = () => {

@@ -348,6 +348,9 @@ public class CommandProcessor {
             commandHandlerRegistry.registerHandler(new BleConfigCommandHandler());
             Log.d(TAG, "✅ Registered BleConfigCommandHandler");
 
+            commandHandlerRegistry.registerHandler(new com.mentra.asg_client.service.core.handlers.PowerCommandHandler(context));
+            Log.d(TAG, "✅ Registered PowerCommandHandler");
+
             Log.i(TAG, "✅ Successfully registered " + commandHandlerRegistry.getHandlerCount() + " command handlers");
 
         } catch (Exception e) {
@@ -413,6 +416,20 @@ public class CommandProcessor {
             Log.d(TAG, "✅ Report swipe status sent successfully");
         } catch (Exception e) {
             Log.e(TAG, "💥 Error sending report swipe status", e);
+        }
+    }
+
+    /**
+     * Request BES system version from BES chip.
+     * This should be called when BluetoothManager is ready to query firmware version.
+     */
+    public void requestSystemVersion() {
+        Log.d(TAG, "📤 requestSystemVersion() called");
+
+        if (k900CommandHandler != null) {
+            k900CommandHandler.requestSystemVersion();
+        } else {
+            Log.w(TAG, "⚠️ K900CommandHandler not available - cannot request BES system version");
         }
     }
 

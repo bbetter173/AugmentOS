@@ -26,7 +26,7 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
   const containerRef = useRef<View | null>(null)
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const {currentEvent} = useDisplayStore()
-  const batteryLevel = useGlassesStore(state => state.batteryLevel)
+  const batteryLevel = useGlassesStore((state) => state.batteryLevel)
 
   // Use demo layout if in demo mode, otherwise use real layout
   const layout = demoText !== "" ? {layoutType: "text_wall", text: demoText} : currentEvent.layout
@@ -139,8 +139,8 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
         const {title, text} = layout
         return (
           <>
-            <Text style={[styles.cardTitle, textStyle]}>{title}</Text>
-            <Text style={[styles.cardContent, textStyle]}>{text}</Text>
+            <Text style={[textStyle, styles.cardTitle]}>{title}</Text>
+            <Text style={[textStyle, styles.cardContent]}>{text}</Text>
           </>
         )
       }
@@ -148,8 +148,17 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
       case "text_line": {
         let {text} = layout
         text = parseText(text)
-        text = text.replace(/\n/g, " ")
-        return <Text style={[styles.cardContent, textStyle]}>{text || text === "" ? text : ""}</Text>
+        // Render each line separately to match glasses display exactly
+        const lines = text.split("\n")
+        return (
+          <View style={{gap: 2}}>
+            {lines.map((line: string, index: number) => (
+              <Text key={index} style={[textStyle, styles.cardContent]} numberOfLines={1}>
+                {line || "\u00A0"} {/* Non-breaking space for empty lines */}
+              </Text>
+            ))}
+          </View>
+        )
       }
       case "double_text_wall": {
         let {topText, bottomText} = layout
@@ -157,10 +166,10 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
         bottomText = parseText(bottomText)
         return (
           <View style={{flexDirection: "row", gap: 2}}>
-            <Text style={[styles.cardContent, textStyle, {width: "50%"}]} numberOfLines={4}>
+            <Text style={[textStyle, styles.cardContent, {width: "50%"}]} numberOfLines={4}>
               {topText || topText === "" ? topText : ""}
             </Text>
-            <Text style={[styles.cardContent, textStyle, {width: "50%"}]} numberOfLines={4}>
+            <Text style={[textStyle, styles.cardContent, {width: "50%"}]} numberOfLines={4}>
               {bottomText || bottomText === "" ? bottomText : ""}
             </Text>
           </View>
@@ -169,7 +178,7 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
       case "text_rows": {
         const rows = layout.text || []
         return rows.map((row: string, index: number) => (
-          <Text key={index} style={[styles.cardContent, textStyle]}>
+          <Text key={index} style={[textStyle, styles.cardContent]}>
             {parseText(row)}
           </Text>
         ))
@@ -179,7 +188,7 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
           <View
             ref={containerRef}
             style={{flex: 1, width: "100%", height: "100%", justifyContent: "center"}}
-            onLayout={event => {
+            onLayout={(event) => {
               const {width} = event.nativeEvent.layout
               if (setContainerWidth) {
                 setContainerWidth(width)
@@ -231,7 +240,7 @@ const $glassesScreen: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
   maxHeight: 170,
   backgroundColor: colors.primary_foreground,
   borderRadius: spacing.s4,
-  paddingHorizontal: spacing.s4,
+  paddingHorizontal: spacing.s2,
   paddingVertical: spacing.s3,
 })
 
@@ -272,12 +281,11 @@ const $emptyText: ThemedStyle<TextStyle> = ({colors}) => ({
 const styles = {
   cardContent: {
     fontFamily: "glassesMirror",
-    fontSize: 16,
+    fontSize: 10,
   },
   cardTitle: {
     fontFamily: "glassesMirror",
-    fontSize: 18,
-    // marginBottom: 5,
+    fontSize: 10,
   },
 }
 

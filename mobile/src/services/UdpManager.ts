@@ -4,10 +4,16 @@
  * Replaces native Kotlin/Swift UDP implementations with a pure React Native solution.
  * Uses react-native-udp for cross-platform UDP socket support.
  *
- * Packet format:
+ * Packet format (unencrypted):
  * - Bytes 0-3: userIdHash (FNV-1a hash of userId, big-endian)
  * - Bytes 4-5: sequence number (big-endian, wraps at 65535)
  * - Bytes 6+: PCM audio data (or "PING" for probe packets)
+ *
+ * Packet format (encrypted):
+ * - Bytes 0-3: userIdHash (FNV-1a hash of userId, big-endian)
+ * - Bytes 4-5: sequence number (big-endian, wraps at 65535)
+ * - Bytes 6-29: nonce (24 bytes)
+ * - Bytes 30+: ciphertext (encrypted audio + 16-byte auth tag)
  */
 
 import socketComms from "@/services/SocketComms"
@@ -16,11 +22,14 @@ import {Buffer} from "buffer"
 
 import dgram from "react-native-udp"
 
+import {useSettingsStore, SETTINGS} from "@/stores/settings"
+import {UdpEncryptionConfig, createEncryptionConfig, encrypt, ENCRYPTION_OVERHEAD} from "./UdpCrypto"
+
 const UDP_PORT = 8000
 const HEADER_SIZE = 6 // 4 bytes userIdHash + 2 bytes sequence
 const MAX_PACKET_SIZE = 1024 // Max UDP payload size (server limit is 1040, leave margin)
-// Must be even number for 16-bit PCM (2 bytes per sample) to avoid splitting samples
-const MAX_AUDIO_CHUNK_SIZE = (MAX_PACKET_SIZE - HEADER_SIZE) & ~1 // 1016 bytes (508 samples)
+// Base max chunk size (will be adjusted for LC3 frame alignment)
+const MAX_AUDIO_CHUNK_SIZE_BASE = MAX_PACKET_SIZE - HEADER_SIZE // 1018 bytes
 const PING_MAGIC = "PING"
 const PING_RETRY_COUNT = 3
 const PING_RETRY_INTERVAL_MS = 200
@@ -67,6 +76,9 @@ class UdpManager {
   private isConnecting: boolean = false
   private audioEnabled: boolean = false
 
+  // Encryption state
+  private encryptionConfig: UdpEncryptionConfig | null = null
+
   // Ping state
   private pingResolve: ((available: boolean) => void) | null = null
   private pingTimeout: number | null = null
@@ -90,6 +102,39 @@ class UdpManager {
   public handleAck(): void {
     // start UDP registration:
     this.registerUdpAudio(false)
+  }
+
+  /**
+   * Set encryption configuration from CONNECTION_ACK
+   * @param base64Key Base64-encoded symmetric key from server
+   * @returns true if encryption was successfully configured
+   */
+  public setEncryption(base64Key: string): boolean {
+    const config = createEncryptionConfig(base64Key)
+    if (config) {
+      this.encryptionConfig = config
+      console.log("UDP: Encryption configured successfully")
+      return true
+    } else {
+      console.log("UDP: Failed to configure encryption - invalid key")
+      this.encryptionConfig = null
+      return false
+    }
+  }
+
+  /**
+   * Clear encryption configuration
+   */
+  public clearEncryption(): void {
+    this.encryptionConfig = null
+    console.log("UDP: Encryption cleared")
+  }
+
+  /**
+   * Check if encryption is enabled
+   */
+  public isEncryptionEnabled(): boolean {
+    return this.encryptionConfig?.enabled === true
   }
 
   /**
@@ -128,7 +173,7 @@ class UdpManager {
       // Wait initial delay on first attempt to let server register user
       if (!isRetry) {
         // console.log(`UDP: Waiting ${UDP_INITIAL_DELAY_MS}ms before first probe...`)
-        await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, UDP_INITIAL_DELAY_MS))
+        await new Promise<void>((resolve) => BackgroundTimer.BackgroundTimer.setTimeout(() => resolve(), UDP_INITIAL_DELAY_MS))
 
         // Re-check WebSocket after delay
         if (!socketComms.isWebSocketConnected()) {
@@ -141,11 +186,7 @@ class UdpManager {
       console.log(`UDP: ${isRetry ? "Retry" : "Initial"} probe for ${this.config?.host}:${this.config?.port}`)
 
       // Send registration to server via WebSocket (so server knows our hash for routing)
-      const msg = {
-        type: "udp_register",
-        userIdHash: this.userIdHash,
-      }
-      socketComms.sendText(JSON.stringify(msg))
+      socketComms.sendUdpRegister(this.userIdHash)
       // console.log(`UDP: Sent registration with hash ${userIdHash}`)
 
       // Probe UDP with multiple retries (UDP is lossy, single ping unreliable)
@@ -169,8 +210,8 @@ class UdpManager {
         this.startUdpRetryInterval()
         return false
       }
-    } catch (error) {
-      // console.log(`UDP: Registration error: ${error}`)
+    } catch {
+      // Registration error - will retry
       this.probeInProgress = false
       // Ensure UDP is stopped on any error
       this.stop()
@@ -206,8 +247,8 @@ class UdpManager {
       }
 
       // console.log("UDP: Periodic retry attempt...")
-      this.registerUdpAudio(true).catch((err) => {
-        // console.log("UDP: Periodic retry failed:", err)
+      this.registerUdpAudio(true).catch((_err) => {
+        // console.log("UDP: Periodic retry failed:", _err)
       })
     }, UDP_RETRY_INTERVAL_MS)
   }
@@ -302,17 +343,17 @@ class UdpManager {
 
       // Bind to any available port (we're only sending, not receiving)
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
+        const timeout = BackgroundTimer.setTimeout(() => {
           reject(new Error("Socket bind timeout"))
         }, 5000)
 
         this.socket!.bind(0, () => {
-          clearTimeout(timeout)
+          BackgroundTimer.clearTimeout(timeout)
           resolve()
         })
 
         this.socket!.once("error", (err: Error) => {
-          clearTimeout(timeout)
+          BackgroundTimer.clearTimeout(timeout)
           reject(err)
         })
       })
@@ -321,8 +362,8 @@ class UdpManager {
       this.isConnecting = false
       // console.log("UDP: Socket started and bound")
       return true
-    } catch (error) {
-      // console.log(`UDP: Failed to start socket: ${error}`)
+    } catch {
+      // Failed to start socket
       this.isConnecting = false
       this.socket?.close()
       this.socket = null
@@ -335,7 +376,7 @@ class UdpManager {
    */
   public stop(): void {
     if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout)
+      BackgroundTimer.clearTimeout(this.pingTimeout)
       this.pingTimeout = null
     }
 
@@ -363,6 +404,25 @@ class UdpManager {
    * Send audio data via UDP
    * @param pcmData Base64-encoded PCM audio data
    */
+  /**
+   * Calculate max chunk size aligned to LC3 frame boundaries
+   * This prevents splitting LC3 frames across UDP packets which causes decoder corruption
+   */
+  private getMaxChunkSize(): number {
+    const frameSizeBytes = useSettingsStore.getState().getSetting(SETTINGS.lc3_frame_size.key)
+    const bypassEncoding = useSettingsStore.getState().getSetting(SETTINGS.bypass_audio_encoding_for_debugging.key)
+
+    if (bypassEncoding) {
+      // For raw PCM, align to 2 bytes (sample boundary)
+      return MAX_AUDIO_CHUNK_SIZE_BASE & ~1
+    }
+
+    // For LC3, align to frame size to prevent partial frame corruption
+    // Calculate how many complete frames fit in max packet size
+    const maxFrames = Math.floor(MAX_AUDIO_CHUNK_SIZE_BASE / frameSizeBytes)
+    return maxFrames * frameSizeBytes
+  }
+
   public sendAudio(pcmData: string): void {
     if (!this.isReady || !this.socket || !this.config) {
       return
@@ -372,19 +432,46 @@ class UdpManager {
       // Decode base64 to bytes
       const audioBytes = Buffer.from(pcmData, "base64")
 
+      // Get frame-aligned max chunk size
+      // If encryption enabled, we need to recalculate alignment after accounting for overhead
+      let maxChunkSize: number
+      if (this.encryptionConfig) {
+        const frameSizeBytes = useSettingsStore.getState().getSetting(SETTINGS.lc3_frame_size.key)
+        const availableForAudio = MAX_AUDIO_CHUNK_SIZE_BASE - ENCRYPTION_OVERHEAD // 1018 - 40 = 978
+        const maxFrames = Math.floor(availableForAudio / frameSizeBytes) // 978 / 60 = 16 frames
+        maxChunkSize = maxFrames * frameSizeBytes // 16 * 60 = 960 bytes (properly aligned)
+      } else {
+        maxChunkSize = this.getMaxChunkSize()
+      }
+
       // Debug log every 100 packets to confirm audio is flowing
-      const numChunks = Math.ceil(audioBytes.length / MAX_AUDIO_CHUNK_SIZE)
+      const numChunks = Math.ceil(audioBytes.length / maxChunkSize)
       if (this.sequenceNumber % 100 === 0) {
         console.log(
-          `UDP: Sending audio #${this.sequenceNumber}, total=${audioBytes.length}bytes, chunks=${numChunks}, maxChunk=${MAX_AUDIO_CHUNK_SIZE} to ${this.config.host}:${this.config.port}`,
+          `UDP: Sending audio #${this.sequenceNumber}, total=${
+            audioBytes.length
+          }bytes, chunks=${numChunks}, maxChunk=${maxChunkSize}, encrypted=${!!this.encryptionConfig} to ${
+            this.config.host
+          }:${this.config.port}`,
         )
       }
 
       // Chunk audio data if it exceeds max packet size
+      // Chunks are aligned to LC3 frame boundaries to prevent decoder corruption
       let offset = 0
       while (offset < audioBytes.length) {
-        const chunkSize = Math.min(MAX_AUDIO_CHUNK_SIZE, audioBytes.length - offset)
-        const packet = Buffer.alloc(HEADER_SIZE + chunkSize)
+        const chunkSize = Math.min(maxChunkSize, audioBytes.length - offset)
+        const audioChunk = audioBytes.slice(offset, offset + chunkSize)
+
+        let payload: Buffer | Uint8Array
+        if (this.encryptionConfig) {
+          // Encrypt the audio chunk
+          payload = encrypt(new Uint8Array(audioChunk), this.encryptionConfig.key)
+        } else {
+          payload = audioChunk
+        }
+
+        const packet = Buffer.alloc(HEADER_SIZE + payload.length)
 
         // Write userIdHash (big-endian, 4 bytes)
         packet.writeUInt32BE(this.userIdHash, 0)
@@ -394,8 +481,12 @@ class UdpManager {
         packet.writeUInt16BE(seq, 4)
         this.sequenceNumber++
 
-        // Write audio chunk
-        audioBytes.copy(packet, HEADER_SIZE, offset, offset + chunkSize)
+        // Write payload (encrypted or raw audio)
+        if (Buffer.isBuffer(payload)) {
+          payload.copy(packet, HEADER_SIZE)
+        } else {
+          packet.set(payload, HEADER_SIZE)
+        }
 
         // Send packet
         this.socket.send(packet, 0, packet.length, this.config.port, this.config.host, (err) => {
@@ -423,11 +514,34 @@ class UdpManager {
     }
 
     try {
+      // Get frame-aligned max chunk size
+      // If encryption enabled, we need to recalculate alignment after accounting for overhead
+      let maxChunkSize: number
+      if (this.encryptionConfig) {
+        const frameSizeBytes = useSettingsStore.getState().getSetting(SETTINGS.lc3_frame_size.key)
+        const availableForAudio = MAX_AUDIO_CHUNK_SIZE_BASE - ENCRYPTION_OVERHEAD // 1018 - 40 = 978
+        const maxFrames = Math.floor(availableForAudio / frameSizeBytes)
+        maxChunkSize = maxFrames * frameSizeBytes // Properly aligned to LC3 frames
+      } else {
+        maxChunkSize = this.getMaxChunkSize()
+      }
+
       // Chunk audio data if it exceeds max packet size
+      // Chunks are aligned to LC3 frame boundaries to prevent decoder corruption
       let offset = 0
       while (offset < pcmData.length) {
-        const chunkSize = Math.min(MAX_AUDIO_CHUNK_SIZE, pcmData.length - offset)
-        const packet = Buffer.alloc(HEADER_SIZE + chunkSize)
+        const chunkSize = Math.min(maxChunkSize, pcmData.length - offset)
+        const audioChunk = pcmData.slice(offset, offset + chunkSize)
+
+        let payload: Buffer | Uint8Array
+        if (this.encryptionConfig) {
+          // Encrypt the audio chunk
+          payload = encrypt(new Uint8Array(audioChunk), this.encryptionConfig.key)
+        } else {
+          payload = audioChunk
+        }
+
+        const packet = Buffer.alloc(HEADER_SIZE + payload.length)
 
         // Write userIdHash (big-endian, 4 bytes)
         packet.writeUInt32BE(this.userIdHash, 0)
@@ -437,8 +551,12 @@ class UdpManager {
         packet.writeUInt16BE(seq, 4)
         this.sequenceNumber++
 
-        // Write audio chunk
-        pcmData.copy(packet, HEADER_SIZE, offset, offset + chunkSize)
+        // Write payload (encrypted or raw audio)
+        if (Buffer.isBuffer(payload)) {
+          payload.copy(packet, HEADER_SIZE)
+        } else {
+          packet.set(payload, HEADER_SIZE)
+        }
 
         // Send packet
         this.socket.send(packet, 0, packet.length, this.config.port, this.config.host, (err) => {
@@ -524,7 +642,7 @@ class UdpManager {
       this.pingRetryCount = 0
 
       // Set overall timeout
-      this.pingTimeout = setTimeout(() => {
+      this.pingTimeout = BackgroundTimer.setTimeout(() => {
         console.log("UDP: Probe timed out after all retries")
         this.pingResolve = null
         this.pingTimeout = null
@@ -552,7 +670,7 @@ class UdpManager {
 
         // Schedule next retry if we haven't received ack yet
         if (this.pingResolve && this.pingRetryCount < PING_RETRY_COUNT) {
-          setTimeout(() => {
+          BackgroundTimer.setTimeout(() => {
             if (this.pingResolve) {
               this.sendPingWithRetry()
             }
@@ -569,10 +687,10 @@ class UdpManager {
    * This confirms UDP connectivity is working
    */
   public onPingAckReceived(): void {
-    console.log("UDP: Ping ack received - UDP is working")
+    // console.log("UDP: Ping ack received - UDP is working")
 
     if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout)
+      BackgroundTimer.clearTimeout(this.pingTimeout)
       this.pingTimeout = null
     }
 

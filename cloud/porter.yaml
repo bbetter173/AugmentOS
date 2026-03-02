@@ -53,6 +53,15 @@ services:
     #   enabled: true
     #   path: "/health" # Assuming your Bun service has a health endpoint
     #   port: 80
+    # Extended timeouts for WebSocket connections (/glasses-ws, /app-ws).
+    # Porter sets proxy-send-timeout: 60s by default, which kills idle WS
+    # connections because no client→server traffic flows after audio moved to UDP.
+    # 3600s prevents nginx from killing healthy WS connections.
+    # See: cloud/issues/035-nginx-ws-timeout/spike.md
+    ingressAnnotations:
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     additionalPorts:
       - port: 8000
         protocol: UDP

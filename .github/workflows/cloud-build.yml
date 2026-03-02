@@ -27,7 +27,7 @@ permissions:
 jobs:
   cloud:
     name: Build cloud/packages/cloud
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,6 +76,11 @@ jobs:
       - name: Build types package
         if: steps.filter.outputs.cloud == 'true'
         working-directory: cloud/packages/types
+        run: bun run build
+
+      - name: Build utils package
+        if: steps.filter.outputs.cloud == 'true'
+        working-directory: cloud/packages/utils
         run: bun run build
 
       - name: Run build

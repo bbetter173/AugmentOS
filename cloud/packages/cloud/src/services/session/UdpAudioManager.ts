@@ -1,7 +1,7 @@
 /**
  * @fileoverview UdpAudioManager - Per-session manager for UDP audio handling.
  *
- * Manages UDP audio registration, ping acknowledgments, and cleanup for a user session.
+ * Manages UDP audio registration, ping acknowledgments, encryption, and cleanup for a user session.
  * Works with the global UdpAudioServer singleton for actual UDP packet handling.
  *
  * Pattern follows other session managers (AudioManager, MicrophoneManager, etc.)
@@ -12,6 +12,7 @@ import { Logger } from "pino";
 import { UdpRegister, UdpUnregister } from "@mentra/sdk";
 
 import { udpAudioServer } from "../udp/UdpAudioServer";
+import { UdpEncryptionState, createEncryptionState, encodeKey, decrypt } from "../udp/UdpCrypto";
 import { WebSocketReadyState } from "../websocket/types";
 
 import type { UserSession } from "./UserSession";
@@ -23,6 +24,9 @@ export class UdpAudioManager {
   // UDP state
   private _userIdHash?: number;
   private _enabled = false;
+
+  // Encryption state (only set if client requested encryption)
+  private _encryptionState?: UdpEncryptionState;
 
   constructor(userSession: UserSession) {
     this.userSession = userSession;
@@ -45,6 +49,46 @@ export class UdpAudioManager {
   }
 
   /**
+   * Whether encryption is enabled for this session
+   */
+  get encryptionEnabled(): boolean {
+    return this._encryptionState?.enabled === true;
+  }
+
+  /**
+   * Whether encryption was requested (same as enabled for symmetric key approach)
+   */
+  get encryptionRequested(): boolean {
+    return this._encryptionState?.enabled === true;
+  }
+
+  /**
+   * Initialize encryption for this session.
+   * Called when client connects with ?udpEncryption=true
+   * Generates symmetric key for the session.
+   */
+  initializeEncryption(): void {
+    this._encryptionState = createEncryptionState();
+    this.logger.info(
+      {
+        feature: "udp-audio-encryption",
+      },
+      "UDP encryption initialized - symmetric key generated",
+    );
+  }
+
+  /**
+   * Get the symmetric key for CONNECTION_ACK (base64 encoded)
+   * @returns Base64-encoded key, or undefined if encryption not initialized
+   */
+  getEncryptionKey(): string | undefined {
+    if (!this._encryptionState) {
+      return undefined;
+    }
+    return encodeKey(this._encryptionState.key);
+  }
+
+  /**
    * Handle UDP_REGISTER message from mobile client
    * Registers this session with the global UDP server for packet routing
    */
@@ -62,6 +106,7 @@ export class UdpAudioManager {
         expectedHash,
         expectedHashHex: expectedHash.toString(16).padStart(8, "0"),
         hashMatch: userIdHash === expectedHash,
+        encryptionEnabled: this.encryptionEnabled,
         feature: "udp-audio",
       },
       "UDP register request received from mobile",
@@ -95,6 +140,7 @@ export class UdpAudioManager {
         userIdHashHex: userIdHash.toString(16).padStart(8, "0"),
         userId: this.userSession.userId,
         udpServerStatus: udpAudioServer.getStats(),
+        encryptionEnabled: this.encryptionEnabled,
         feature: "udp-audio",
       },
       "UDP audio registered successfully - ready to receive packets",
@@ -120,6 +166,24 @@ export class UdpAudioManager {
   }
 
   /**
+   * Decrypt an encrypted audio payload.
+   * @param encryptedData Buffer containing [nonce(24)|ciphertext]
+   * @returns Decrypted audio data, or null if decryption fails
+   */
+  decryptAudio(encryptedData: Uint8Array): Uint8Array | null {
+    if (!this._encryptionState?.key) {
+      this.logger.error({ feature: "udp-audio-encryption" }, "Cannot decrypt - no encryption key");
+      return null;
+    }
+
+    const decrypted = decrypt(encryptedData, this._encryptionState.key);
+    if (!decrypted) {
+      this.logger.warn({ feature: "udp-audio-encryption" }, "Decryption failed - invalid data or wrong key");
+    }
+    return decrypted;
+  }
+
+  /**
    * Handle UDP_UNREGISTER message from mobile client
    * Unregisters this session from UDP audio
    */
@@ -132,6 +196,7 @@ export class UdpAudioManager {
         userId: this.userSession.userId,
         wasEnabled: this._enabled,
         previousHash: this._userIdHash,
+        hadEncryption: this.encryptionEnabled,
         feature: "udp-audio",
       },
       "UDP unregister request received",
@@ -143,6 +208,7 @@ export class UdpAudioManager {
     // Clear state
     this._userIdHash = undefined;
     this._enabled = false;
+    this._encryptionState = undefined;
 
     this.logger.info(
       {
@@ -215,6 +281,7 @@ export class UdpAudioManager {
       udpAudioServer.unregisterBySession(this.userSession);
       this._userIdHash = undefined;
       this._enabled = false;
+      this._encryptionState = undefined;
     }
 
     this.logger.debug("UdpAudioManager disposed");

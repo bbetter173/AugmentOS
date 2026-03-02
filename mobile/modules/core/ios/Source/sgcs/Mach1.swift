@@ -14,7 +14,10 @@ import UltraliteSDK
 
 @MainActor
 class Mach1: UltraliteBaseViewController, SGCManager {
-    func requestPhoto(_: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?, compress _: String?, silent _: Bool) {}
+    func requestPhoto(
+        _: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?,
+        compress _: String?, flash _: Bool, sound _: Bool
+    ) {}
 
     func sendGalleryMode() {}
 
@@ -22,43 +25,9 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     var connectionState: String = ConnTypes.DISCONNECTED
 
+    func sendOtaStart() {}
+
     func sendJson(_: [String: Any], wakeUp _: Bool, requireAck _: Bool) {}
-
-    var caseBatteryLevel: Int = -1
-
-    var glassesAppVersion: String = ""
-
-    var glassesBuildNumber: String = ""
-
-    var glassesDeviceModel: String = ""
-
-    var glassesAndroidVersion: String = ""
-
-    var glassesOtaVersionUrl: String = ""
-
-    var glassesFirmwareVersion: String = ""
-
-    var glassesBtMacAddress: String = ""
-
-    var glassesSerialNumber: String = ""
-
-    var glassesStyle: String = ""
-
-    var glassesColor: String = ""
-
-    var wifiSsid: String = ""
-
-    var wifiConnected: Bool = false
-
-    var wifiLocalIp: String = ""
-
-    var isHotspotEnabled: Bool = false
-
-    var hotspotSsid: String = ""
-
-    var hotspotPassword: String = ""
-
-    var hotspotGatewayIp: String = ""
 
     func sendButtonPhotoSettings() {}
 
@@ -72,8 +41,21 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func exit() {}
 
-    func sendRgbLedControl(requestId: String, packageName _: String?, action _: String, color _: String?, ontime _: Int, offtime _: Int, count _: Int) {
-        Bridge.sendRgbLedControlResponse(requestId: requestId, success: false, error: "device_not_supported")
+    func sendShutdown() {
+        Bridge.log("sendShutdown - not supported on Mach1")
+    }
+
+    func sendReboot() {
+        Bridge.log("sendReboot - not supported on Mach1")
+    }
+
+    func sendRgbLedControl(
+        requestId: String, packageName _: String?, action _: String, color _: String?,
+        ontime _: Int, offtime _: Int, count _: Int
+    ) {
+        Bridge.sendRgbLedControlResponse(
+            requestId: requestId, success: false, error: "device_not_supported"
+        )
     }
 
     func requestWifiScan() {}
@@ -87,6 +69,10 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     func sendUserEmailToGlasses(_: String) {}
 
     func queryGalleryStatus() {}
+
+    func requestVersionInfo() {
+        Bridge.log("Mach1: requestVersionInfo - not supported on Mach1")
+    }
 
     func showDashboard() {}
 
@@ -108,7 +94,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func saveBufferVideo(requestId _: String, durationSeconds _: Int) {}
 
-    func startVideoRecording(requestId _: String, save _: Bool, silent _: Bool) {}
+    func startVideoRecording(requestId _: String, save _: Bool, flash _: Bool, sound _: Bool) {}
 
     func stopVideoRecording(requestId _: String) {}
 
@@ -120,12 +106,10 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func cleanup() {}
 
+    func ping() {}
+
     var type: String = DeviceTypes.MACH1
-    let hasMic: Bool = false
-    var micEnabled: Bool = false
-    var caseOpen = false
-    var caseRemoved = true
-    var caseCharging = false
+    var hasMic: Bool = false
 
     func setMicEnabled(_: Bool) {
         // N/A
@@ -139,16 +123,17 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     var onConnectionStateChanged: (() -> Void)?
     @Published var batteryLevel: Int = -1
     @Published var isConnected: Bool = false
-    var _ready = false
     var ready: Bool {
-        get { return _ready }
+        get { GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false }
         set {
-            let oldValue = _ready
-            _ready = newValue
-            if oldValue != newValue {
-                CoreManager.shared.handleConnectionStateChanged()
-            }
+            let oldValue = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+            GlassesStore.shared.apply("glasses", "fullyBooted", newValue)
         }
+    }
+
+    private var connected: Bool {
+        get { GlassesStore.shared.get("glasses", "connected") as? Bool ?? false }
+        set { GlassesStore.shared.apply("glasses", "connected", newValue) }
     }
 
     // Store discovered peripherals by their identifier
@@ -161,7 +146,6 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     private var isConnectedListener: BondListener<Bool>?
     private var batteryLevelListener: BondListener<Int>?
     private var setupDone: Bool = false
-    @Published var isHeadUp = false
 
     func setup() {
         if setupDone { return }
@@ -182,9 +166,11 @@ class Mach1: UltraliteBaseViewController, SGCManager {
                 Bridge.log("MACH1: gotControl: \(gotControl ?? false)")
                 if batteryLevel != -1 {
                     ready = true
+                    connected = true
                 }
             } else {
                 ready = false
+                connected = false
             }
         })
 
@@ -193,6 +179,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             Bridge.log("MACH1: batteryLevelListener: \(value)")
             batteryLevel = value
             ready = true
+            connected = true
         })
 
         NotificationCenter.default.addObserver(
@@ -228,16 +215,16 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         Bridge.log("MACH1: Tap detected! Count: \(tapNumberInt)")
 
         if tapNumberInt >= 2 {
-            isHeadUp = !isHeadUp
-            // Notify CoreManager of head up state change (same as G1 does with IMU)
-            CoreManager.shared.updateHeadUp(isHeadUp)
+            let hUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+            GlassesStore.shared.apply("glasses", "headUp", !hUp)
 
             // start a timer and auto turn off the dashboard after 15 seconds:
-            if isHeadUp {
+            if !hUp {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-                    if self.isHeadUp {
-                        self.isHeadUp = false
-                        CoreManager.shared.updateHeadUp(false)
+                    let currentHeadUp =
+                        GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+                    if currentHeadUp {
+                        GlassesStore.shared.apply("glasses", "headUp", false)
                     }
                 }
             }
@@ -279,6 +266,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             )
             Bridge.log("MACH1: Already connected, gotControl: \(gotControl ?? false)")
             ready = true
+            connected = true
             return
         }
 
@@ -307,12 +295,14 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         guard let device = UltraliteManager.shared.currentDevice else {
             Bridge.log("Mach1Manager: No current device")
             ready = false
+            connected = false
             return
         }
 
         if !device.isConnected.value {
             Bridge.log("Mach1Manager: Device not connected")
             ready = false
+            connected = false
             return
         }
 
@@ -326,6 +316,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     func disconnect() {
         UltraliteManager.shared.stopScan()
         ready = false
+        connected = false
     }
 
     func sendTextWall(_ text: String) {
@@ -333,12 +324,14 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         guard let device = UltraliteManager.shared.currentDevice else {
             Bridge.log("Mach1Manager: No current device")
             ready = false
+            connected = false
             return
         }
 
         if !device.isConnected.value {
             Bridge.log("Mach1Manager: Device not connected")
             ready = false
+            connected = false
             return
         }
 
@@ -348,43 +341,34 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         device.canvas.commit()
     }
 
+    /// Display pre-composed double text wall (two columns) on the glasses.
+    ///
+    /// NOTE: DisplayProcessor now composes double_text_wall into a single text_wall
+    /// with pixel-precise column alignment using ColumnComposer. This method may
+    /// not be called anymore for new flows, but is kept for backwards compatibility.
+    ///
+    /// Column composition is handled by DisplayProcessor in React Native.
+    /// This method is a "dumb pipe" - it just combines and sends the text.
     func sendDoubleTextWall(_ topText: String, _ bottomText: String) {
         guard let device = UltraliteManager.shared.currentDevice else {
             Bridge.log("Mach1Manager: No current device")
             ready = false
+            connected = false
             return
         }
 
         if !device.isConnected.value {
             Bridge.log("Mach1Manager: Device not connected")
             ready = false
+            connected = false
             return
         }
 
-        Bridge.log("MACH1: Sending double text wall - top: \(topText), bottom: \(bottomText)")
+        // Text is already composed by DisplayProcessor's ColumnComposer
+        // Just combine and send - no custom wrapping logic needed
+        let combinedText = "\(topText)\n\n\n\(bottomText)"
 
-        // Clean the text (remove any special characters if needed)
-        let cleanedTopText = topText
-        let cleanedBottomText = bottomText
-
-        // Count newlines in top text
-        let newlineCount = cleanedTopText.filter { $0 == "\n" }.count
-
-        // Calculate rows to add between top and bottom (3 minus existing newlines)
-        let rowsTop = 3 - newlineCount
-
-        // Build combined text
-        var combinedText = cleanedTopText
-
-        // Add empty lines between top and bottom
-        for _ in 0 ..< rowsTop {
-            combinedText += "\n"
-        }
-
-        // Add bottom text
-        combinedText += cleanedBottomText
-
-        // Send the combined text
+        Bridge.log("MACH1: Sending double text wall")
         device.sendText(text: combinedText)
         device.canvas.commit()
     }

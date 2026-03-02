@@ -26,6 +26,7 @@ import com.mentra.core.utils.K900ProtocolUtils;
 import com.mentra.core.utils.MessageChunker;
 import com.mentra.core.utils.audio.Lc3Player;
 import com.mentra.core.utils.BlePhotoUploadService;
+import com.mentra.core.GlassesStore;
 
 // import com.augmentos.augmentos_core.R;
 // import com.augmentos.augmentos_core.smarterglassesmanager.smartglassescommunicators.SmartGlassesCommunicator;
@@ -72,10 +73,6 @@ public class Mach1 extends SGCManager {
     //ultralite pixel buffer on left side of screen
     int ultraliteLeftSidePixelBuffer = 40;
 
-    // Constants for maximum lines and characters per line //depends on size of pixel buffer! //for MEDIUM text!
-    private int maxLines = 12; // Adjusted from 11.5 for practical use
-    private int maxCharsPerLine = 38; // Assuming max 27 characters fit per line on your display
-
     //handler to turn off screen
     Handler goHomeHandler;
     Runnable goHomeRunnable;
@@ -100,20 +97,18 @@ public class Mach1 extends SGCManager {
     private int totalDashboardsIdk = 0;
 
     private void updateConnectionState(String state) {
-        boolean isEqual = state.equals(connectionState);
+        boolean isEqual = state.equals(getConnectionState());
         if (isEqual) {
             return;
         }
 
         // Update the connection state
-        connectionState = state;
+        GlassesStore.INSTANCE.apply("glasses", "connectionState", state);
 
         if (state.equals(ConnTypes.CONNECTED)) {
-            ready = true;
-            CoreManager.getInstance().handleConnectionStateChanged();
+            GlassesStore.INSTANCE.apply("glasses", "fullyBooted", true);
         } else if (state.equals(ConnTypes.DISCONNECTED)) {
-            ready = false;
-            CoreManager.getInstance().handleConnectionStateChanged();
+            GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
         }
     }
 
@@ -127,7 +122,7 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
-    public void requestPhoto(@NonNull String requestId, @NonNull String appId, @NonNull String size, @Nullable String webhookUrl, @Nullable String authToken, @Nullable String compress, boolean silent) {
+    public void requestPhoto(@NonNull String requestId, @NonNull String appId, @NonNull String size, @Nullable String webhookUrl, @Nullable String authToken, @Nullable String compress, boolean flash, boolean sound) {
 
     }
 
@@ -162,7 +157,7 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
-    public void startVideoRecording(@NonNull String requestId, boolean save, boolean silent) {
+    public void startVideoRecording(@NonNull String requestId, boolean save, boolean flash, boolean sound) {
 
     }
 
@@ -256,6 +251,10 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
+    public void ping() {
+    }
+
+    @Override
     public void setDashboardPosition(int height, int depth) {
 
     }
@@ -278,6 +277,16 @@ public class Mach1 extends SGCManager {
     @Override
     public void exit() {
 
+    }
+
+    @Override
+    public void sendShutdown() {
+        Bridge.log("sendShutdown - not supported on Mach1");
+    }
+
+    @Override
+    public void sendReboot() {
+        Bridge.log("sendReboot - not supported on Mach1");
     }
 
     @Override
@@ -371,6 +380,12 @@ public class Mach1 extends SGCManager {
         Bridge.log("Mach1: sendGalleryModeActive - not supported on Mach1");
     }
 
+    @Override
+    public void requestVersionInfo() {
+        // Mach1 doesn't support version info requests
+        Bridge.log("Mach1: requestVersionInfo - not supported on Mach1");
+    }
+
     public class UltraliteListener implements EventListener{
         @Override
         public void onTap(int tapCount) {
@@ -389,7 +404,7 @@ public class Mach1 extends SGCManager {
             if (tapCount >= 2) {
                 isHeadUp = !isHeadUp;
                 // Notify CoreManager of head up state change (same as G1 does with IMU)
-                CoreManager.getInstance().updateHeadUp(isHeadUp);
+                GlassesStore.INSTANCE.apply("glasses", "headUp", isHeadUp);
                 Log.d(TAG, "Mach1: Dashboard toggled via tap, isHeadUp: " + isHeadUp);
 
                 // Auto turn off the dashboard after 15 seconds
@@ -397,7 +412,7 @@ public class Mach1 extends SGCManager {
                     goHomeHandler.postDelayed(() -> {
                         if (isHeadUp) {
                             isHeadUp = false;
-                            CoreManager.getInstance().updateHeadUp(false);
+                            GlassesStore.INSTANCE.apply("glasses", "headUp", false);
                             Log.d(TAG, "Mach1: Auto-disabling dashboard after 15 seconds");
                         }
                     }, 15000);
@@ -501,7 +516,6 @@ public class Mach1 extends SGCManager {
             });
 
             Log.d(TAG, "Mach1 initialized with context and observers");
-            CoreManager.getInstance().getStatus();
         } catch (Exception e) {
             Log.e(TAG, "Mach1 constructor FAILED with exception: " + e.getMessage(), e);
             Bridge.log("Mach1 constructor FAILED: " + e.getMessage());
@@ -558,7 +572,7 @@ public class Mach1 extends SGCManager {
         }
         Log.d(TAG, "Ultralite new battery status: " + batteryStatus.getLevel());
         // Update the class field, not a local variable
-        this.batteryLevel = batteryStatus.getLevel();
+        GlassesStore.INSTANCE.apply("glasses", "batteryLevel", batteryStatus.getLevel());
         updateConnectionState(ConnTypes.CONNECTED);
     }
 
@@ -596,10 +610,13 @@ public class Mach1 extends SGCManager {
         displayReferenceCardSimple("", text);
     }
 
-    private static final int MAX_LINES = 7;
+    /**
+     * Display pre-wrapped text on the glasses.
+     *
+     * Text wrapping and processing is handled by DisplayProcessor in React Native.
+     * This method is a "dumb pipe" - it just sends the text to the Vuzix SDK.
+     */
     public void displayTextWall(String text) {
-        String cleanedText = cleanText(text);
-
         if (screenToggleOff) {
             return;
         }
@@ -607,26 +624,9 @@ public class Mach1 extends SGCManager {
         goHomeHandler.removeCallbacksAndMessages(null);
         goHomeHandler.removeCallbacksAndMessages(goHomeRunnable);
 
-//        Log.d(TAG, "Ultralite is doing text wall");
-
-        // Cut text wall down to the largest number of lines possible to display
-        String[] lines = cleanedText.split("\n");
-        StringBuilder truncatedText = new StringBuilder();
-        for (int i = 0; i < Math.min(lines.length, MAX_LINES); i++) {
-            truncatedText.append(lines[i]).append("\n");
-        }
-
-//        changeUltraliteLayout(Layout.TEXT_BOTTOM_LEFT_ALIGN);
+        // Text is already wrapped by DisplayProcessor - just send it
         changeUltraliteLayout(Layout.TEXT_BOTTOM_LEFT_ALIGN);
-        ultraliteSdk.sendText(truncatedText.toString().trim());
-
-//        changeUltraliteLayout(Layout.CANVAS);
-//        ultraliteCanvas.removeText(0); //remove last text we added
-//        Anchor ultraliteAnchor = Anchor.TOP_LEFT;
-//        TextAlignment ultraliteAlignment = TextAlignment.LEFT;
-//        int textId = ultraliteCanvas.createText(text, ultraliteAlignment, UltraliteColor.WHITE, ultraliteAnchor, ultraliteLeftSidePixelBuffer, 0, 640 - ultraliteLeftSidePixelBuffer, -1, TextWrapMode.WRAP, true);
-////        ultraliteCanvas.createText(title, TextAlignment.AUTO, UltraliteColor.WHITE, Anchor.TOP_LEFT, ultraliteLeftSidePixelBuffer, 120, 640 - ultraliteLeftSidePixelBuffer, -1, TextWrapMode.WRAP, true);
-//        Log.d(TAG, "VUZIX TEXT ID: " + textId);
+        ultraliteSdk.sendText(text);
 
         if (ultraliteCanvas != null) {
             ultraliteCanvas.commit();
@@ -634,86 +634,34 @@ public class Mach1 extends SGCManager {
         screenIsClear = false;
     }
 
-    private String cleanText(String input) {
-        // Replace Chinese punctuation with English equivalents
-        String cleaned = input.replace(" ，", ", ")
-                .replace("，", ", ")
-                .replace(" 。", ".")
-                .replace("。", ".")
-                .replace(" ！", "!")
-                .replace(" ？", "?")
-                .replace("？", "?")
-                .replace("：", ":")
-                .replace("；", ";")
-                .replace("（", "(")
-                .replace("）", ")")
-                .replace("【", "[")
-                .replace("】", "]")
-                .replace("“", "\"")
-                .replace("”", "\"")
-                .replace("、", ",") // No quotes around this one
-                .replace("‘", "'")
-                .replace("’", "'");
-
-        // Fix contractions: handle spaces around apostrophes
-        cleaned = cleaned.replaceAll("\\s+'\\s*", "'");
-
-        // Remove any non-breaking spaces and trim leading/trailing spaces
-//        cleaned = cleaned.replace("\u00A0", " ").trim();
-
-        return cleaned;
-    }
-
-    public static int countNewLines(String str) {
-        int count = 0;
-        for (int i = 0; i < str.length(); i++) {
-            if (str.charAt(i) == '\n') {
-                count++;
-            }
-        }
-        return count;
-    }
-
+    /**
+     * Display pre-composed double text wall (two columns) on the glasses.
+     *
+     * NOTE: DisplayProcessor now composes double_text_wall into a single text_wall
+     * with pixel-precise column alignment using ColumnComposer. This method may
+     * not be called anymore, but is kept for backwards compatibility.
+     *
+     * Column composition is handled by DisplayProcessor in React Native.
+     * This method is a "dumb pipe" - it just sends the text to the Vuzix SDK.
+     */
     public void displayDoubleTextWall(String textTop, String textBottom) {
         if (screenToggleOff) {
             return;
         }
 
-        textTop = cleanText(textTop);
-        textBottom = cleanText(textBottom);
-
-//        if (textBottom.endsWith("\n")) {
-//            textBottom = textBottom.substring(0, textBottom.length() - 1);
-//        }
-
         goHomeHandler.removeCallbacksAndMessages(null);
         goHomeHandler.removeCallbacksAndMessages(goHomeRunnable);
 
-//        int rowsTop = 5;
-        int rowsTop = 3 - countNewLines(textTop);
+        // Text is already composed by DisplayProcessor's ColumnComposer
+        // Just combine and send - no custom logic needed
+        String combinedText = textTop + "\n\n\n" + textBottom;
 
-        StringBuilder combinedText = new StringBuilder();
-        combinedText.append(textTop);
-
-        for (int i = 0; i < rowsTop; i++) {
-            combinedText.append("\n");
-        }
-
-        StringBuilder bottomBuilder = new StringBuilder(textBottom);
-
-        combinedText.append(bottomBuilder);
-
-        // Display the combined text using TEXT_BOTTOM_LEFT_ALIGN layout
         changeUltraliteLayout(Layout.TEXT_BOTTOM_LEFT_ALIGN);
-        // ultraliteSdk.sendText(combinedText.toString().trim());
-        ultraliteSdk.sendText(combinedText.toString());
-        if (ultraliteCanvas != null) {
-            ultraliteCanvas = ultraliteSdk.getCanvas();
-        }
+        ultraliteSdk.sendText(combinedText);
+
         if (ultraliteCanvas != null) {
             ultraliteCanvas.commit();
         }
-
         screenIsClear = false;
     }
 
@@ -859,36 +807,18 @@ public class Mach1 extends SGCManager {
     // }
 
 
-    public String addNewlineEveryNWords(String input, int n) {
-        String[] words = input.split("\\s+");
-        StringBuilder result = new StringBuilder();
-
-        for (int i = 0; i < words.length; i++) {
-            result.append(words[i]);
-            if ((i + 1) % n == 0 && i != words.length - 1) {
-                result.append("\n");
-            } else if (i != words.length - 1) {
-                result.append(" ");
-            }
-        }
-
-        return result.toString();
-    }
-
+    /**
+     * Draw text on Ultralite canvas.
+     * Text is expected to be pre-wrapped by DisplayProcessor.
+     */
     public void drawTextOnUltralite(String text){
-        //edit the text to add new lines to it because ultralite wrapping doesn't work
-        String wrappedText = addNewlineEveryNWords(text, 6);
-
-        //display the title at the top of the screen
         UltraliteColor ultraliteColor = UltraliteColor.WHITE;
         Anchor ultraliteAnchor = Anchor.TOP_LEFT;
         TextAlignment ultraliteAlignment = TextAlignment.LEFT;
         changeUltraliteLayout(Layout.CANVAS);
         ultraliteCanvas.clear();
         ultraliteCanvas.clearBackground(UltraliteColor.DIM);
-//        ultraliteCanvas.createText(text, ultraliteAlignment, ultraliteColor, ultraliteAnchor, true);
-//        ultraliteCanvas.createText(text, ultraliteAlignment, ultraliteColor, Anchor.BOTTOM_LEFT, 0, 0, -1, 80, TextWrapMode.WRAP, true);
-        ultraliteCanvas.createText(wrappedText, ultraliteAlignment, ultraliteColor, ultraliteAnchor, true); //, 0, 0, -1, -1, TextWrapMode.WRAP, true);
+        ultraliteCanvas.createText(text, ultraliteAlignment, ultraliteColor, ultraliteAnchor, true);
         ultraliteCanvas.commit();
         screenIsClear = false;
     }
@@ -958,7 +888,7 @@ public class Mach1 extends SGCManager {
 
         String title = maybeReverseRTLString(titleStr);
         String body = maybeReverseRTLString(bodyStr);
-        if (connectionState != ConnTypes.CONNECTED) {
+        if (!getConnectionState().equals(ConnTypes.CONNECTED)) {
             Log.d(TAG, "Not showing reference card because not connected to Ultralites...");
             return;
         }
@@ -1030,7 +960,7 @@ public class Mach1 extends SGCManager {
         }
 
         String[] rowStrings = maybeReverseRTLStringList(rowStringList);
-        if (connectionState != ConnTypes.CONNECTED) {
+        if (!getConnectionState().equals(ConnTypes.CONNECTED)) {
             Log.d(TAG, "Not showing rows card because not connected to Ultralites...");
             return;
         }
@@ -1091,7 +1021,7 @@ public class Mach1 extends SGCManager {
         }
 
         String[] bullets = maybeReverseRTLStringList(bulletList);
-        if (connectionState != ConnTypes.CONNECTED) {
+        if (!getConnectionState().equals(ConnTypes.CONNECTED)) {
             Log.d(TAG, "Not showing bullet point list because not connected to Ultralites...");
             return;
         }
@@ -1263,7 +1193,7 @@ public class Mach1 extends SGCManager {
     }
 
     public void scrollingTextViewFinalText(String text){
-        if (connectionState != ConnTypes.CONNECTED) {
+        if (!getConnectionState().equals(ConnTypes.CONNECTED)) {
             return;
         }
 
@@ -1359,7 +1289,7 @@ public class Mach1 extends SGCManager {
     }
 
     public void displayPromptView(String prompt, String [] options){
-        if (connectionState != ConnTypes.CONNECTED) {
+        if (!getConnectionState().equals(ConnTypes.CONNECTED)) {
             return;
         }
 

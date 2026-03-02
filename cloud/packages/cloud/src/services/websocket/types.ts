@@ -15,6 +15,7 @@ export interface GlassesWebSocketData {
   type: "glasses";
   userId: string;
   livekitRequested: boolean;
+  udpEncryptionRequested: boolean;
 }
 
 /**

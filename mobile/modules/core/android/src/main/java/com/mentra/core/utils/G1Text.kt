@@ -208,54 +208,25 @@ class G1Text {
         return allChunks
     }
 
+    /**
+     * Creates BLE chunks for pre-composed double text wall.
+     *
+     * NOTE: DisplayProcessor now composes double_text_wall into a single text_wall
+     * with pixel-precise column alignment using ColumnComposer. This method may
+     * not be called anymore for new flows, but is kept for backwards compatibility.
+     *
+     * Column composition is handled by DisplayProcessor in React Native.
+     * This method is a "dumb pipe" - it just combines and chunks the text.
+     *
+     * @param textTop Pre-composed left/top column text
+     * @param textBottom Pre-composed right/bottom column text
+     * @return List of BLE chunks ready for transmission
+     */
     fun createDoubleTextWallChunks(textTop: String, textBottom: String): List<ByteArray> {
-        // Define column widths and positions
-        val LEFT_COLUMN_WIDTH = (DISPLAY_WIDTH * 0.5).toInt() // 50% of display for left column
-        val RIGHT_COLUMN_START = (DISPLAY_WIDTH * 0.55).toInt() // Right column starts at 55%
-
-        // Split texts into lines with specific width constraints
-        var lines1 = splitIntoLines(textTop, LEFT_COLUMN_WIDTH).toMutableList()
-        var lines2 = splitIntoLines(textBottom, DISPLAY_WIDTH - RIGHT_COLUMN_START).toMutableList()
-
-        // Ensure we have exactly LINES_PER_SCREEN lines (typically 5)
-        while (lines1.size < LINES_PER_SCREEN) {
-            lines1.add("")
-        }
-        while (lines2.size < LINES_PER_SCREEN) {
-            lines2.add("")
-        }
-
-        lines1 = lines1.subList(0, LINES_PER_SCREEN)
-        lines2 = lines2.subList(0, LINES_PER_SCREEN)
-
-        // Get precise space width
-        val spaceWidth = calculateTextWidth(" ")
-
-        // Construct the text output by merging the lines with precise positioning
-        val pageText = StringBuilder()
-        for (i in 0 until LINES_PER_SCREEN) {
-            val leftText = lines1[i].replace("\u2002", "") // Drop enspaces
-            val rightText = lines2[i].replace("\u2002", "")
-
-            // Calculate width of left text in pixels
-            val leftTextWidth = calculateTextWidth(leftText)
-
-            // Calculate exactly how many spaces are needed to position the right column correctly
-            val spacesNeeded = calculateSpacesForAlignment(
-                leftTextWidth,
-                RIGHT_COLUMN_START,
-                spaceWidth
-            )
-
-            // Construct the full line with precise alignment
-            pageText.append(leftText)
-            pageText.append(" ".repeat(spacesNeeded))
-            pageText.append(rightText)
-            pageText.append("\n")
-        }
-
-        // Convert to bytes and chunk for transmission
-        return chunkTextForTransmission(pageText.toString())
+        // Text is already composed by DisplayProcessor's ColumnComposer
+        // Just combine and chunk for transmission - no custom wrapping logic needed
+        val combinedText = "$textTop\n$textBottom"
+        return chunkTextForTransmission(combinedText)
     }
 
     private fun chunkTextForTransmission(text: String): List<ByteArray> {

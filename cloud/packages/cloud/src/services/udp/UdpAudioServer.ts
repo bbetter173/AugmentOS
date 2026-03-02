@@ -4,10 +4,16 @@
  * This replaces the Go bridge UDP listener with a Bun-native implementation.
  * Mobile clients send audio over UDP for lowest latency.
  *
- * Packet format:
+ * Unencrypted packet format:
  * - Bytes 0-3: userIdHash (FNV-1a 32-bit, big-endian)
  * - Bytes 4-5: sequence number (big-endian)
  * - Bytes 6+: audio data (PCM or LC3 depending on client config, or "PING" for ping packets)
+ *
+ * Encrypted packet format (when client connects with ?udpEncryption=true):
+ * - Bytes 0-3: userIdHash (FNV-1a 32-bit, big-endian)
+ * - Bytes 4-5: sequence number (big-endian)
+ * - Bytes 6-29: nonce (24 bytes for XSalsa20)
+ * - Bytes 30+: ciphertext (encrypted audio + 16-byte Poly1305 auth tag)
  *
  * Audio format is determined by the client's audio configuration sent via REST endpoint.
  * AudioManager handles decoding LC3 to PCM if needed.
@@ -16,11 +22,13 @@
 import { logger as rootLogger } from "../logging/pino-logger";
 import type { UserSession } from "../session/UserSession";
 
+import { NONCE_SIZE, TAG_SIZE } from "./UdpCrypto";
 import { UdpReorderBuffer } from "./UdpReorderBuffer";
 
 const UDP_PORT = 8000;
 const PING_MAGIC = "PING";
 const MIN_PACKET_SIZE = 6; // 4 bytes hash + 2 bytes sequence
+const MIN_ENCRYPTED_PACKET_SIZE = 6 + NONCE_SIZE + TAG_SIZE; // header + nonce + minimum ciphertext (just tag)
 const LOG_INTERVAL = 100; // Log every N packets for debugging
 
 export class UdpAudioServer {
@@ -33,6 +41,8 @@ export class UdpAudioServer {
   private packetsReceived = 0;
   private packetsDropped = 0;
   private pingsReceived = 0;
+  private packetsDecrypted = 0;
+  private decryptionFailures = 0;
 
   /**
    * Start the UDP server on port 8000
@@ -125,8 +135,63 @@ export class UdpAudioServer {
     }
 
     // Extract audio data (after 6-byte header)
-    // Format is PCM or LC3 depending on client config - AudioManager handles decoding
-    const audioData = buf.slice(6);
+    // May be encrypted if session has encryption enabled
+    let audioData: Buffer | Uint8Array = buf.slice(6);
+
+    // Handle encryption if enabled for this session
+    if (session.udpAudioManager.encryptionEnabled) {
+      // Encrypted packet: [nonce(24)|ciphertext(audio + 16 bytes tag)]
+      if (buf.length < MIN_ENCRYPTED_PACKET_SIZE) {
+        this.packetsDropped++;
+        this.logger.warn(
+          {
+            userIdHash,
+            sequence,
+            bufferLength: buf.length,
+            minRequired: MIN_ENCRYPTED_PACKET_SIZE,
+            feature: "udp-audio-encryption",
+          },
+          "Encrypted UDP packet too small",
+        );
+        return;
+      }
+
+      const decrypted = session.udpAudioManager.decryptAudio(new Uint8Array(audioData));
+      if (!decrypted) {
+        this.decryptionFailures++;
+        this.packetsDropped++;
+        if (this.decryptionFailures <= 5 || this.decryptionFailures % 100 === 0) {
+          this.logger.warn(
+            {
+              userIdHash,
+              sequence,
+              encryptedLength: audioData.length,
+              decryptionFailures: this.decryptionFailures,
+              feature: "udp-audio-encryption",
+            },
+            "UDP packet decryption failed",
+          );
+        }
+        return;
+      }
+
+      audioData = decrypted;
+      this.packetsDecrypted++;
+
+      // Log first decrypted packet
+      if (this.packetsDecrypted === 1) {
+        this.logger.info(
+          {
+            userIdHash,
+            sequence,
+            encryptedLength: buf.length - 6,
+            decryptedLength: audioData.length,
+            feature: "udp-audio-encryption",
+          },
+          "First encrypted UDP packet decrypted successfully",
+        );
+      }
+    }
 
     // Validate audio data exists
     if (audioData.length === 0) {
@@ -165,6 +230,8 @@ export class UdpAudioServer {
           packetsReceived: this.packetsReceived,
           packetsDropped: this.packetsDropped,
           pingsReceived: this.pingsReceived,
+          packetsDecrypted: this.packetsDecrypted,
+          decryptionFailures: this.decryptionFailures,
           activeSessions: this.sessionMap.size,
           lastSequence: sequence,
           lastAudioBytes: audioData.length,
@@ -182,7 +249,9 @@ export class UdpAudioServer {
     }
 
     // Add packet to reorder buffer and process any ready packets
-    const packetsToProcess = reorderBuffer.addPacket(sequence, audioData);
+    // Convert Uint8Array to Buffer if needed (decrypted data is Uint8Array)
+    const audioBuffer = Buffer.isBuffer(audioData) ? audioData : Buffer.from(audioData);
+    const packetsToProcess = reorderBuffer.addPacket(sequence, audioBuffer);
 
     // Forward reordered packets to AudioManager
     // AudioManager handles LC3→PCM decoding if needed based on client's audio config
@@ -404,12 +473,16 @@ export class UdpAudioServer {
     dropped: number;
     pings: number;
     sessions: number;
+    decrypted: number;
+    decryptionFailures: number;
   } {
     return {
       received: this.packetsReceived,
       dropped: this.packetsDropped,
       pings: this.pingsReceived,
       sessions: this.sessionMap.size,
+      decrypted: this.packetsDecrypted,
+      decryptionFailures: this.decryptionFailures,
     };
   }
 

@@ -2,6 +2,7 @@ import CoreModule from "core"
 
 import {push} from "@/contexts/NavigationRef"
 import audioPlaybackService from "@/services/AudioPlaybackService"
+import displayProcessor from "@/services/DisplayProcessor"
 import mantle from "@/services/MantleManager"
 import udp from "@/services/UdpManager"
 import ws from "@/services/WebSocketManager"
@@ -10,20 +11,20 @@ import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
-import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import restComms from "@/services/RestComms"
+import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
+import { throttle } from "@/utils/timers"
 
 class SocketComms {
   private static instance: SocketComms | null = null
   private coreToken: string = ""
   public userid: string = ""
-  
-  private constructor() {
-  }
+
+  private constructor() {}
 
   private setupListeners() {
     ws.removeAllListeners("message")
-    ws.on("message", message => {
+    ws.on("message", (message) => {
       this.handle_message(message)
     })
   }
@@ -89,27 +90,19 @@ class SocketComms {
   }
 
   public sendRtmpStreamStatus(statusMessage: any) {
-    try {
-      // Forward the status message directly since it's already in the correct format
-      ws.sendText(JSON.stringify(statusMessage))
-      console.log("SOCKET: Sent RTMP stream status:", statusMessage)
-    } catch (error) {
-      console.log(`SOCKET: Failed to send RTMP stream status: ${error}`)
-    }
+    // Forward the status message directly since it's already in the correct format
+    ws.sendText(JSON.stringify(statusMessage))
+    console.log("SOCKET: Sent RTMP stream status:", statusMessage)
   }
 
   public sendKeepAliveAck(ackMessage: any) {
-    try {
-      // Forward the ACK message directly since it's already in the correct format
-      ws.sendText(JSON.stringify(ackMessage))
-      console.log("SOCKET: Sent keep-alive ACK:", ackMessage)
-    } catch (error) {
-      console.log(`SOCKET: Failed to send keep-alive ACK: ${error}`)
-    }
+    // Forward the ACK message directly since it's already in the correct format
+    ws.sendText(JSON.stringify(ackMessage))
+    console.log("SOCKET: Sent keep-alive ACK:", ackMessage)
   }
 
   public sendGlassesConnectionState(): void {
-    let modelName = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
+    let deviceModel = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
     const glassesInfo = useGlassesStore.getState()
 
     // Always include WiFi info - null means "unknown", false means "explicitly disconnected"
@@ -123,7 +116,8 @@ class SocketComms {
     ws.sendText(
       JSON.stringify({
         type: "glasses_connection_state",
-        modelName: modelName,
+        modelName: deviceModel, // TODO: remove this
+        deviceModel: deviceModel,
         status: connected ? "CONNECTED" : "DISCONNECTED",
         timestamp: new Date(),
         wifi: wifiInfo,
@@ -144,19 +138,11 @@ class SocketComms {
   }
 
   public sendText(text: string) {
-    try {
-      ws.sendText(text)
-    } catch (error) {
-      console.log(`SOCKET: Failed to send text: ${error}`)
-    }
+    ws.sendText(text)
   }
 
   public sendBinary(data: ArrayBuffer | Uint8Array) {
-    try {
-      ws.sendBinary(data)
-    } catch (error) {
-      console.log(`SOCKET: Failed to send binary: ${error}`)
-    }
+    ws.sendBinary(data)
   }
 
   // SERVER COMMANDS
@@ -174,117 +160,89 @@ class SocketComms {
   }
 
   public sendLocationUpdate(lat: number, lng: number, accuracy?: number, correlationId?: string) {
-    try {
-      const event: any = {
-        type: "location_update",
-        lat: lat,
-        lng: lng,
-        timestamp: Date.now(),
-      }
-
-      if (accuracy !== undefined) {
-        event.accuracy = accuracy
-      }
-
-      if (correlationId) {
-        event.correlationId = correlationId
-      }
-
-      const jsonString = JSON.stringify(event)
-      ws.sendText(jsonString)
-    } catch (error) {
-      console.log(`SOCKET: Error building location_update JSON: ${error}`)
+    const event: any = {
+      type: "location_update",
+      lat: lat,
+      lng: lng,
+      timestamp: Date.now(),
     }
+
+    if (accuracy !== undefined) {
+      event.accuracy = accuracy
+    }
+
+    if (correlationId) {
+      event.correlationId = correlationId
+    }
+
+    const jsonString = JSON.stringify(event)
+    ws.sendText(jsonString)
   }
 
   // Hardware Events
   public sendButtonPress(buttonId: string, pressType: string) {
-    try {
-      const event = {
-        type: "button_press",
-        buttonId: buttonId,
-        pressType: pressType,
-        timestamp: Date.now(),
-      }
-
-      const jsonString = JSON.stringify(event)
-      ws.sendText(jsonString)
-    } catch (error) {
-      console.log(`SOCKET: Error building button_press JSON: ${error}`)
+    const event = {
+      type: "button_press",
+      buttonId: buttonId,
+      pressType: pressType,
+      timestamp: Date.now(),
     }
+
+    const jsonString = JSON.stringify(event)
+    ws.sendText(jsonString)
   }
 
   public sendPhotoResponse(requestId: string, photoUrl: string) {
-    try {
-      const event = {
-        type: "photo_response",
-        requestId: requestId,
-        photoUrl: photoUrl,
-        timestamp: Date.now(),
-      }
-
-      const jsonString = JSON.stringify(event)
-      ws.sendText(jsonString)
-    } catch (error) {
-      console.log(`SOCKET: Error building photo_response JSON: ${error}`)
+    const event = {
+      type: "photo_response",
+      requestId: requestId,
+      photoUrl: photoUrl,
+      timestamp: Date.now(),
     }
+
+    const jsonString = JSON.stringify(event)
+    ws.sendText(jsonString)
   }
 
   public sendVideoStreamResponse(appId: string, streamUrl: string) {
-    try {
-      const event = {
-        type: "video_stream_response",
-        appId: appId,
-        streamUrl: streamUrl,
-        timestamp: Date.now(),
-      }
-
-      const jsonString = JSON.stringify(event)
-      ws.sendText(jsonString)
-    } catch (error) {
-      console.log(`SOCKET: Error building video_stream_response JSON: ${error}`)
+    const event = {
+      type: "video_stream_response",
+      appId: appId,
+      streamUrl: streamUrl,
+      timestamp: Date.now(),
     }
+
+    const jsonString = JSON.stringify(event)
+    ws.sendText(jsonString)
   }
 
   public sendTouchEvent(event: {device_model: string; gesture_name: string; timestamp: number}) {
-    try {
-      const payload = {
-        type: "touch_event",
-        device_model: event.device_model,
-        gesture_name: event.gesture_name,
-        timestamp: event.timestamp,
-      }
-      ws.sendText(JSON.stringify(payload))
-    } catch (error) {
-      console.log(`SOCKET: Error sending touch_event: ${error}`)
+    const payload = {
+      type: "touch_event",
+      device_model: event.device_model,
+      gesture_name: event.gesture_name,
+      timestamp: event.timestamp,
     }
+    ws.sendText(JSON.stringify(payload))
   }
 
   public sendSwipeVolumeStatus(enabled: boolean, timestamp: number) {
-    try {
-      const payload = {
-        type: "swipe_volume_status",
-        enabled,
-        timestamp,
-      }
-      ws.sendText(JSON.stringify(payload))
-    } catch (error) {
-      console.log(`SOCKET: Error sending swipe_volume_status: ${error}`)
+    const payload = {
+      type: "swipe_volume_status",
+      enabled,
+      timestamp,
     }
+    ws.sendText(JSON.stringify(payload))
   }
 
   public sendSwitchStatus(switchType: number, switchValue: number, timestamp: number) {
-    try {
-      const payload = {
-        type: "switch_status",
-        switch_type: switchType,
-        switch_value: switchValue,
-        timestamp,
-      }
-      ws.sendText(JSON.stringify(payload))
-    } catch (error) {
-      console.log(`SOCKET: Error sending switch_status: ${error}`)
+    const payload = {
+      type: "switch_status",
+      switch_type: switchType,
+      switch_value: switchValue,
+      timestamp,
     }
+    ws.sendText(JSON.stringify(payload))
   }
 
   public sendRgbLedControlResponse(requestId: string, success: boolean, errorMessage?: string | null) {
@@ -292,34 +250,26 @@ class SocketComms {
       console.log("SOCKET: Skipping RGB LED control response - missing requestId")
       return
     }
-    try {
-      const payload: any = {
-        type: "rgb_led_control_response",
-        requestId,
-        success,
-      }
-      if (errorMessage) {
-        payload.error = errorMessage
-      }
-      ws.sendText(JSON.stringify(payload))
-    } catch (error) {
-      console.log(`SOCKET: Error sending rgb_led_control_response: ${error}`)
+    const payload: any = {
+      type: "rgb_led_control_response",
+      requestId,
+      success,
     }
+    if (errorMessage) {
+      payload.error = errorMessage
+    }
+    ws.sendText(JSON.stringify(payload))
   }
 
   public sendHeadPosition(isUp: boolean) {
-    try {
-      const event = {
-        type: "head_position",
-        position: isUp ? "up" : "down",
-        timestamp: Date.now(),
-      }
-
-      const jsonString = JSON.stringify(event)
-      ws.sendText(jsonString)
-    } catch (error) {
-      console.log(`SOCKET: Error sending head position: ${error}`)
+    const event = {
+      type: "head_position",
+      position: isUp ? "up" : "down",
+      timestamp: Date.now(),
     }
+
+    const jsonString = JSON.stringify(event)
+    ws.sendText(jsonString)
   }
 
   public sendLocalTranscription(transcription: any) {
@@ -334,26 +284,22 @@ class SocketComms {
       return
     }
 
-    try {
-      const jsonString = JSON.stringify(transcription)
-      ws.sendText(jsonString)
+    const jsonString = JSON.stringify(transcription)
+    ws.sendText(jsonString)
 
-      const isFinal = transcription.isFinal || false
-      console.log(`SOCKET: Sent ${isFinal ? "final" : "partial"} transcription: '${text}'`)
-    } catch (error) {
-      console.log(`Error sending transcription result: ${error}`)
+    const isFinal = transcription.isFinal || false
+    console.log(`SOCKET: Sent ${isFinal ? "final" : "partial"} transcription: '${text}'`)
+  }
+
+  public sendUdpRegister(userIdHash: number) {
+    const msg = {
+      type: "udp_register",
+      userIdHash: userIdHash,
     }
+    ws.sendText(JSON.stringify(msg))
   }
 
   // MARK: - UDP Audio Methods
-
-
-  /**
-   * Check if UDP audio is currently enabled.
-   */
-  public udpEnabledAndReady(): boolean {
-    return udp.enabledAndReady()
-  }
 
   // message handlers, these should only ever be called from handle_message / the server:
   private async handle_connection_ack(msg: any) {
@@ -368,7 +314,7 @@ class SocketComms {
 
     // Configure audio format (LC3) for bandwidth savings
     // This tells the cloud that we're sending LC3-encoded audio
-    this.configureAudioFormat().catch(err => {
+    this.configureAudioFormat().catch((err) => {
       console.log("SOCKET: Audio format configuration failed (cloud will expect PCM):", err)
     })
 
@@ -384,25 +330,34 @@ class SocketComms {
       udp_port: msg.udp_port,
       resolvedHost: udpHost,
       resolvedPort: udpPort,
+      hasEncryption: !!msg.udpEncryption,
       allKeys: Object.keys(msg),
     })
 
     if (udpHost) {
       console.log(`SOCKET: UDP endpoint found, configuring with ${udpHost}:${udpPort}`)
       udp.configure(udpHost, udpPort, this.userid)
+
+      // Configure encryption if server provided a key
+      if (msg.udpEncryption?.key) {
+        const encryptionConfigured = udp.setEncryption(msg.udpEncryption.key)
+        console.log(
+          `SOCKET: UDP encryption ${encryptionConfigured ? "enabled" : "failed"} (algorithm: ${
+            msg.udpEncryption.algorithm
+          })`,
+        )
+      } else {
+        udp.clearEncryption()
+        console.log("SOCKET: UDP encryption not enabled (no key in connection_ack)")
+      }
+
       udp.handleAck()
     } else {
-      console.log("SOCKET: No UDP endpoint in connection_ack, skipping UDP audio. Full message:", JSON.stringify(msg, null, 2))
+      console.log(
+        "SOCKET: No UDP endpoint in connection_ack, skipping UDP audio. Full message:",
+        JSON.stringify(msg, null, 2),
+      )
     }
-
-  }
-
-  /**
-   * Public method to reconfigure audio format.
-   * Called when user changes LC3 bitrate setting to apply immediately.
-   */
-  async reconfigureAudioFormat(): Promise<void> {
-    return this.configureAudioFormat()
   }
 
   /**
@@ -411,59 +366,51 @@ class SocketComms {
    * Uses canonical LC3 config: 16kHz, 10ms frame duration.
    * Frame size is configurable: 20 bytes (16kbps), 40 bytes (32kbps), 60 bytes (48kbps).
    */
-  private async configureAudioFormat(): Promise<void> {
+  public async configureAudioFormat(): Promise<void> {
     const backendUrl = useSettingsStore.getState().getSetting(SETTINGS.backend_url.key)
     const coreToken = useSettingsStore.getState().getSetting(SETTINGS.core_token.key)
-    const frameSizeBytes = useSettingsStore.getState().getSetting(SETTINGS.lc3_frame_size.key) || 20
+    const frameSizeBytes = useSettingsStore.getState().getSetting(SETTINGS.lc3_frame_size.key)
+    const bypassEncoding = useSettingsStore.getState().getSetting(SETTINGS.bypass_audio_encoding_for_debugging.key)
 
     if (!backendUrl || !coreToken) {
       console.log("SOCKET: Cannot configure audio format - missing backend URL or token")
       return
     }
 
-    // Configure the native encoder frame size first
-    try {
-      await CoreModule.setLC3FrameSize(frameSizeBytes)
-      console.log(`SOCKET: Native LC3 encoder configured to ${frameSizeBytes} bytes/frame`)
-    } catch (err) {
-      console.error("SOCKET: Failed to configure native LC3 encoder:", err)
-      // Continue anyway - cloud config is more important
-    }
+    // Determine format based on bypass setting
+    const audioFormat = bypassEncoding ? "pcm" : "lc3"
+    console.log(`SOCKET: Configuring audio format: ${audioFormat} (bypass=${bypassEncoding})`)
 
-    try {
-      const response = await fetch(`${backendUrl}/api/client/audio/configure`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${coreToken}`,
-        },
-        body: JSON.stringify({
-          format: "lc3",
-          lc3Config: {
-            sampleRate: 16000,
-            frameDurationMs: 10,
-            frameSizeBytes: frameSizeBytes,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        const text = await response.text()
-        console.error("SOCKET: Failed to configure audio format:", response.status, text)
-        return
+    let lc3Config: any = null
+    if (!bypassEncoding) {
+      lc3Config = {
+        sampleRate: 16000,
+        frameDurationMs: 10,
+        frameSizeBytes: frameSizeBytes,
       }
-
-      const result = await response.json()
-      console.log(`SOCKET: Audio format configured successfully: ${result.format}, ${frameSizeBytes} bytes/frame`)
-    } catch (error) {
-      console.error("SOCKET: Error configuring audio format:", error)
-      throw error
     }
+
+    let res = await restComms.configureAudioFormat(audioFormat, lc3Config)
+    if (res.is_error()) {
+      console.error("SOCKET: Failed to configure audio format:", res.error)
+      return
+    }
+
+    console.log(
+      `SOCKET: Audio format configured successfully: ${audioFormat}${
+        bypassEncoding ? " (raw PCM)" : `, ${frameSizeBytes} bytes/frame`
+      }`,
+    )
   }
+
+  private refreshAppletsThrottled = throttle(() => {
+    useAppletStatusStore.getState().refreshApplets()
+  }, 500)
 
   private handle_app_state_change(msg: any) {
     console.log("SOCKET: app_state_change", msg)
-    useAppletStatusStore.getState().refreshApplets()
+    // throttle so we don't call more than once in 500ms
+    this.refreshAppletsThrottled()
   }
 
   private handle_connection_error(msg: any) {
@@ -474,7 +421,7 @@ class SocketComms {
     console.error("SOCKET: auth error")
   }
 
-  private handle_microphone_state_change(msg: any) {
+  private async handle_microphone_state_change(msg: any) {
     // const bypassVad = msg.bypassVad ?? true
     const bypassVad = true
     const requiredDataStrings = msg.requiredData || []
@@ -491,6 +438,19 @@ class SocketComms {
       shouldSendPcmData = true
       shouldSendTranscript = true
     }
+
+    // check permission if we're turning the mic ON.
+    // Turning it off is always allowed and should go through regardless.
+    // This prevents setting systemMicUnavailable=true before permissions are granted,
+    // which would cause the mic to never start even after permissions are granted.
+    if (shouldSendPcmData || shouldSendTranscript) {
+      const hasMicPermission = await checkFeaturePermissions(PermissionFeatures.MICROPHONE)
+      if (!hasMicPermission) {
+        console.log("SOCKET: mic_state_change ignored - microphone permission not granted yet")
+        return
+      }
+    }
+
     CoreModule.setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
   }
 
@@ -499,10 +459,18 @@ class SocketComms {
       console.error("SOCKET: display_event missing view")
       return
     }
-    CoreModule.displayEvent(msg)
-    // Update the Zustand store with the display content
-    const displayEvent = JSON.stringify(msg)
-    useDisplayStore.getState().setDisplayEvent(displayEvent)
+
+    let processedEvent
+    try {
+      processedEvent = displayProcessor.processDisplayEvent(msg)
+    } catch (err) {
+      console.error("SOCKET: DisplayProcessor error, using raw event:", err)
+      processedEvent = msg
+    }
+
+    CoreModule.displayEvent(processedEvent)
+    const displayEventStr = JSON.stringify(processedEvent)
+    useDisplayStore.getState().setDisplayEvent(displayEventStr)
   }
 
   private handle_set_location_tier(msg: any) {
@@ -548,16 +516,17 @@ class SocketComms {
     const size = msg.size ?? "medium"
     const authToken = msg.authToken ?? ""
     const compress = msg.compress ?? "none"
-    const silent = msg.silent ?? true
+    const flash = msg.flash ?? true
+    const sound = msg.sound ?? true
     console.log(
-      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} silent: ${silent}`,
+      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} flash: ${flash} sound: ${sound}`,
     )
     if (!requestId || !appId) {
       console.log("Invalid photo request: missing requestId or appId")
       return
     }
-    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, silent
-    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, silent)
+    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, flash, sound
+    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
   }
 
   private handle_start_rtmp_stream(msg: any) {
@@ -599,8 +568,9 @@ class SocketComms {
     console.log(`SOCKET: Received START_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const videoRequestId = msg.requestId || `video_${Date.now()}`
     const save = msg.save !== false
-    const silent = msg.silent ?? false
-    CoreModule.startVideoRecording(videoRequestId, save, silent)
+    const flash = msg.flash ?? true
+    const sound = msg.sound ?? true
+    CoreModule.startVideoRecording(videoRequestId, save, flash, sound)
   }
 
   private handle_stop_video_recording(msg: any) {
@@ -704,6 +674,10 @@ class SocketComms {
     audioPlaybackService.stopForApp(appId)
   }
 
+  private handle_ping(msg: any) {
+    ws.sendText(JSON.stringify({type: "pong"}))
+  }
+
   // Message Handling
   private handle_message(msg: any) {
     const type = msg.type
@@ -801,6 +775,10 @@ class SocketComms {
 
       case "audio_stop_request":
         this.handle_audio_stop_request(msg)
+        break
+
+      case "ping":
+        this.handle_ping(msg)
         break
 
       case "udp_ping_ack":

@@ -26,147 +26,54 @@ class G1Text {
 
     // MARK: - Text Wall Methods
 
-//    func displayTextWall(_ text: String) {
-//        let chunks = createTextWallChunks(text)
-//        sendChunks(chunks)
-//    }
+    //    func displayTextWall(_ text: String) {
+    //        let chunks = createTextWallChunks(text)
+    //        sendChunks(chunks)
+    //    }
 
-//    func displayDoubleTextWall(textTop: String, textBottom: String) {
-//        let chunks = createDoubleTextWallChunks(textTop: textTop, textBottom: textBottom)
-//        sendChunks(chunks)
-//    }
+    //    func displayDoubleTextWall(textTop: String, textBottom: String) {
+    //        let chunks = createDoubleTextWallChunks(textTop: textTop, textBottom: textBottom)
+    //        sendChunks(chunks)
+    //    }
 
+    /// Creates BLE chunks for pre-wrapped text.
+    ///
+    /// IMPORTANT: Text is expected to come pre-wrapped from the DisplayProcessor in React Native.
+    /// This function does NOT perform any text wrapping - it only chunks the text for BLE transmission.
+    /// The DisplayProcessor handles all pixel-accurate wrapping using @mentra/display-utils.
+    ///
+    /// - Parameter text: Pre-wrapped text with newlines already in place
+    /// - Returns: Array of BLE chunks ready for transmission
     func createTextWallChunks(_ text: String) -> [[UInt8]] {
-        let margin = 5
-
-        // Get width of single space character
-        let spaceWidth = calculateTextWidth(" ")
-
-        // Calculate effective display width after accounting for left and right margins in spaces
-        let marginWidth = margin * spaceWidth // Width of left margin in pixels
-        let effectiveWidth = G1Text.DISPLAY_WIDTH - (2 * marginWidth) // Subtract left and right margins
-
-        // Split text into lines based on effective display width
-        let lines = splitIntoLines(text, maxDisplayWidth: effectiveWidth)
-
-        // Calculate total pages (hard set to 1 - 1PAGECHANGE)
-        let totalPages = 1
-
-        var allChunks = [[UInt8]]()
-
-        // Process each page
-        for page in 0 ..< totalPages {
-            // Get lines for current page
-            let startLine = page * G1Text.LINES_PER_SCREEN
-            let endLine = min(startLine + G1Text.LINES_PER_SCREEN, lines.count)
-            let pageLines = Array(lines[startLine ..< endLine])
-
-            // Combine lines for this page with proper indentation
-            var pageText = ""
-
-            for line in pageLines {
-                // Add the exact number of spaces for indentation
-                let indentation = String(repeating: " ", count: margin)
-                pageText.append("\(indentation)\(line)\n")
-            }
-
-            guard let textData = pageText.data(using: .utf8) else { continue }
-            let textBytes = [UInt8](textData)
-            let totalChunks = Int(ceil(Double(textBytes.count) / Double(G1Text.MAX_CHUNK_SIZE)))
-
-            // Create chunks for this page
-            for i in 0 ..< totalChunks {
-                let start = i * G1Text.MAX_CHUNK_SIZE
-                let end = min(start + G1Text.MAX_CHUNK_SIZE, textBytes.count)
-                let payloadChunk = Array(textBytes[start ..< end])
-
-                // Create header with protocol specifications
-                let screenStatus: UInt8 = 0x71 // New content (0x01) + Text Show (0x70)
-                let header: [UInt8] = [
-                    G1Text.TEXT_COMMAND, // Command type
-                    UInt8(textSeqNum), // Sequence number
-                    UInt8(totalChunks), // Total packages
-                    UInt8(i), // Current package number
-                    screenStatus, // Screen status
-                    0x00, // new_char_pos0 (high)
-                    0x00, // new_char_pos1 (low)
-                    UInt8(page), // Current page number
-                    UInt8(totalPages), // Max page number
-                ]
-
-                // Combine header and payload
-                var chunk = header
-                chunk.append(contentsOf: payloadChunk)
-
-                allChunks.append(chunk)
-            }
-
-            // Increment sequence number for next page
-            textSeqNum = (textSeqNum + 1) % 256
-            break // Hard set to 1 - 1PAGECHANGE
-        }
-
-        return allChunks
+        // Text comes pre-wrapped from DisplayProcessor - just chunk it for transmission
+        return chunkTextForTransmission(text)
     }
 
+    /// Creates BLE chunks for pre-composed double text wall.
+    ///
+    /// NOTE: DisplayProcessor now composes double_text_wall into a single text_wall
+    /// with pixel-precise column alignment using ColumnComposer. This method may
+    /// not be called anymore for new flows, but is kept for backwards compatibility.
+    ///
+    /// Column composition is handled by DisplayProcessor in React Native.
+    /// This method is a "dumb pipe" - it just combines and chunks the text.
+    ///
+    /// - Parameters:
+    ///   - textTop: Pre-composed left/top column text
+    ///   - textBottom: Pre-composed right/bottom column text
+    /// - Returns: Array of BLE chunks ready for transmission
     func createDoubleTextWallChunks(textTop: String, textBottom: String) -> [[UInt8]] {
-//        print("Creating double text wall chunks... \(textTop), \(textBottom)")
-        // Define column widths and positions
-        let LEFT_COLUMN_WIDTH = Int(Double(G1Text.DISPLAY_WIDTH) * 0.5) // 50% of display for left column
-        let RIGHT_COLUMN_START = Int(Double(G1Text.DISPLAY_WIDTH) * 0.55) // Right column starts at 60%
-
-        // Split texts into lines with specific width constraints
-        var lines1 = splitIntoLines(textTop, maxDisplayWidth: LEFT_COLUMN_WIDTH)
-        var lines2 = splitIntoLines(textBottom, maxDisplayWidth: G1Text.DISPLAY_WIDTH - RIGHT_COLUMN_START)
-
-        // Ensure we have exactly LINES_PER_SCREEN lines (typically 5)
-        while lines1.count < G1Text.LINES_PER_SCREEN {
-            lines1.append("")
-        }
-        while lines2.count < G1Text.LINES_PER_SCREEN {
-            lines2.append("")
-        }
-
-        lines1 = Array(lines1.prefix(G1Text.LINES_PER_SCREEN))
-        lines2 = Array(lines2.prefix(G1Text.LINES_PER_SCREEN))
-
-        // Get precise space width
-        let spaceWidth = calculateTextWidth(" ")
-
-        // Construct the text output by merging the lines with precise positioning
-        var pageText = ""
-        for i in 0 ..< G1Text.LINES_PER_SCREEN {
-            let leftText = lines1[i].replacingOccurrences(of: "\u{2002}", with: "") // Drop enspaces
-            let rightText = lines2[i].replacingOccurrences(of: "\u{2002}", with: "")
-
-            // Calculate width of left text in pixels
-            let leftTextWidth = calculateTextWidth(leftText)
-
-            // Calculate exactly how many spaces are needed to position the right column correctly
-            let spacesNeeded = calculateSpacesForAlignment(
-                currentWidth: leftTextWidth,
-                targetPosition: RIGHT_COLUMN_START,
-                spaceWidth: spaceWidth
-            )
-
-            // Log detailed alignment info for debugging
-//            print("Line \(i): Left='\(leftText)' (width=\(leftTextWidth)px) | Spaces=\(spacesNeeded) | Right='\(rightText)'")
-
-            // Construct the full line with precise alignment
-            pageText.append(leftText)
-            pageText.append(String(repeating: " ", count: spacesNeeded))
-            pageText.append(rightText)
-            pageText.append("\n")
-        }
-
-//        print("Page Text: \(pageText)")
-
-        // Convert to bytes and chunk for transmission
-        return chunkTextForTransmission(pageText)
+        // Text is already composed by DisplayProcessor's ColumnComposer
+        // Just combine and chunk for transmission - no custom wrapping logic needed
+        let combinedText = "\(textTop)\n\(textBottom)"
+        return chunkTextForTransmission(combinedText)
     }
 
     func chunkTextForTransmission(_ text: String) -> [[UInt8]] {
-        guard let textData = text.data(using: .utf8) else { return [] }
+        // Handle empty or whitespace-only text by sending at least a space
+        // This ensures the display gets updated/cleared properly
+        let textToSend = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? " " : text
+        guard let textData = textToSend.data(using: .utf8) else { return [] }
         let textBytes = [UInt8](textData)
         let totalChunks = Int(ceil(Double(textBytes.count) / Double(G1Text.MAX_CHUNK_SIZE)))
 
@@ -219,7 +126,9 @@ class G1Text {
         return calculateTextWidth(String(substring))
     }
 
-    private func calculateSpacesForAlignment(currentWidth: Int, targetPosition: Int, spaceWidth: Int) -> Int {
+    private func calculateSpacesForAlignment(
+        currentWidth: Int, targetPosition: Int, spaceWidth: Int
+    ) -> Int {
         // Calculate space needed in pixels
         let pixelsNeeded = targetPosition - currentWidth
 
@@ -237,7 +146,9 @@ class G1Text {
 
     private func splitIntoLines(_ text: String, maxDisplayWidth: Int) -> [String] {
         // Replace specific symbols
-        let processedText = text.replacingOccurrences(of: "⬆", with: "^").replacingOccurrences(of: "⟶", with: "-")
+        let processedText = text.replacingOccurrences(of: "⬆", with: "^").replacingOccurrences(
+            of: "⟶", with: "-"
+        )
 
         var lines = [String]()
 
@@ -250,7 +161,7 @@ class G1Text {
         // Split by newlines first
         let rawLines = processedText.components(separatedBy: "\n")
 
-//        print("Splitting text into lines...\(rawLines)")
+        //        print("Splitting text into lines...\(rawLines)")
 
         for rawLine in rawLines {
             // Add empty lines for newlines
@@ -269,8 +180,8 @@ class G1Text {
                 // Calculate width of the entire remaining text
                 let lineWidth = calculateSubstringWidth(rawLine, start: startIndex, end: endIndex)
 
-//                print("Line length: \(rawLine)")
-//                print("Calculating line width: \(lineWidth)")
+                //                print("Line length: \(rawLine)")
+                //                print("Calculating line width: \(lineWidth)")
 
                 // If entire line fits, add it and move to next line
                 if lineWidth <= maxDisplayWidth {
@@ -321,7 +232,9 @@ class G1Text {
                 lines.append(line)
 
                 // Skip any spaces at the beginning of the next line
-                while splitIndex < lineLength, rawLine[rawLine.index(rawLine.startIndex, offsetBy: splitIndex)] == " " {
+                while splitIndex < lineLength,
+                      rawLine[rawLine.index(rawLine.startIndex, offsetBy: splitIndex)] == " "
+                {
                     splitIndex += 1
                 }
 

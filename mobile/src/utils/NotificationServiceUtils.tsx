@@ -2,7 +2,7 @@ import {Linking, Platform} from "react-native"
 
 import showAlert from "@/utils/AlertUtils"
 
-import CoreModule from "modules/core/src/CoreModule"
+import CoreModule from "core"
 
 export async function checkAndRequestNotificationAccessSpecialPermission(): Promise<boolean> {
   if (Platform.OS !== "android") {
@@ -15,7 +15,7 @@ export async function checkAndRequestNotificationAccessSpecialPermission(): Prom
     return true
   }
 
-  return await new Promise<boolean>(resolve => {
+  return await new Promise<boolean>((resolve) => {
     // useFocusEffect(
     //   useCallback(() => {
     //     // let hasAccess = await CoreModule.hasNotificationListenerPermission()

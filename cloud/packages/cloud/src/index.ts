@@ -18,6 +18,7 @@ import honoApp from "./hono-app";
 import * as AppUptimeService from "./services/core/app-uptime.service";
 import { memoryTelemetryService } from "./services/debug/MemoryTelemetryService";
 import { logger as rootLogger } from "./services/logging/pino-logger";
+import { metricsService } from "./services/metrics";
 import { udpAudioServer } from "./services/udp/UdpAudioServer";
 import { handleUpgrade, websocketHandlers } from "./services/websocket/bun-websocket";
 // import generateCoreToken from "./utils/generateCoreToken";
@@ -90,7 +91,6 @@ const LEGACY_EXPRESS_PATHS = [
   "/api/tools",
   "/api/permissions",
   "/api/hardware",
-  "/api/user-data",
   "/api/account",
   "/api/onboarding",
   "/api/app-uptime",
@@ -138,6 +138,9 @@ const _server = Bun.serve({
     return honoApp.fetch(req, { ip: server.requestIP(req) });
   },
 });
+
+// Start metrics service (event loop lag sampling, throughput tracking)
+metricsService.start();
 
 // Start memory telemetry
 memoryTelemetryService.start();

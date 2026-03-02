@@ -67,6 +67,7 @@ import static com.mentra.core.utils.BitmapJavaUtils.convertBitmapTo1BitBmpBytes;
 import com.mentra.core.utils.G1Text;
 import com.mentra.core.utils.SmartGlassesConnectionState;
 import com.mentra.lc3Lib.Lc3Cpp;
+import com.mentra.core.GlassesStore;
 
 public class G1 extends SGCManager {
     private static final String TAG = "WearableAi_EvenRealitiesG1SGC";
@@ -197,9 +198,9 @@ public class G1 extends SGCManager {
     private boolean lastThingDisplayedWasAnImage = false;
 
     // Serial number and style/color information
-    public String glassesSerialNumber = "";
-    public String glassesStyle = "";
-    public String glassesColor = "";
+    public String serialNumber = "";
+    public String style = "";
+    public String color = "";
 
     // lock writing until the last write is successful
     // fonts in G1
@@ -213,13 +214,13 @@ public class G1 extends SGCManager {
         super();
         this.type = DeviceTypes.G1;
         this.hasMic = true;  // G1 has a built-in microphone
-        this.micEnabled = false;
+        GlassesStore.INSTANCE.apply("glasses", "micEnabled", false);
         Bridge.log("G1: G1 constructor");
         this.context = Bridge.getContext();
         loadPairedDeviceNames();
         // goHomeHandler = new Handler();
         // this.smartGlassesDevice = smartGlassesDevice;
-        preferredG1DeviceId = CoreManager.getInstance().getDeviceName();
+        preferredG1DeviceId = (String) GlassesStore.INSTANCE.get("core", "device_name");
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         this.shouldUseGlassesMic = false;
 
@@ -235,7 +236,7 @@ public class G1 extends SGCManager {
 
         // setup fonts
         g1Text = new G1Text();
-        caseRemoved = true;
+        GlassesStore.INSTANCE.apply("glasses", "caseRemoved", true);
     }
 
     private final BluetoothGattCallback leftGattCallback = createGattCallback("Left");
@@ -378,9 +379,9 @@ public class G1 extends SGCManager {
                     forceSideDisconnection();
                     Bridge.log("G1: Called forceSideDisconnection() after connection failure.");
 
-                    // gatt.disconnect();
-                    // gatt.close();
-                    Bridge.log("G1: GATT connection disconnected and closed due to failure.");
+                    // Update connection state and notify frontend of disconnection
+                    updateConnectionState();
+                    Bridge.log("G1: Updated connection state after connection failure.");
 
                     connectHandler.postDelayed(() -> {
                         Bridge.log("G1: Attempting GATT connection for leftDevice immediately.");
@@ -531,7 +532,7 @@ public class G1 extends SGCManager {
                             if (deviceName.contains("R_")) {
                                 // Check for head down movement - initial F5 02 signal
                                 Bridge.log("G1: HEAD UP MOVEMENT DETECTED");
-                                CoreManager.getInstance().updateHeadUp(true);
+                                GlassesStore.INSTANCE.apply("glasses", "headUp", true);
                             }
                         }
                         // HEAD DOWN MOVEMENTS
@@ -539,7 +540,7 @@ public class G1 extends SGCManager {
                             if (deviceName.contains("R_")) {
                             Bridge.log("G1: HEAD DOWN MOVEMENT DETECTED");
                                 // clearBmpDisplay();
-                                CoreManager.getInstance().updateHeadUp(false);
+                                GlassesStore.INSTANCE.apply("glasses", "headUp", false);
                             }
                         }
                         // DOUBLE TAP
@@ -566,46 +567,41 @@ public class G1 extends SGCManager {
                                 int minBatt = Math.min(batteryLeft, batteryRight);
                                 // Bridge.log("G1: Minimum Battery Level: " + minBatt);
                                 // EventBus.getDefault().post(new BatteryLevelEvent(minBatt, false));
-                                batteryLevel = minBatt;
-                                CoreManager.getInstance().getStatus();
+                                GlassesStore.INSTANCE.apply("glasses", "batteryLevel", minBatt);
                             }
                         }
                         // CASE REMOVED
                         else if (data.length > 1 && (data[0] & 0xFF) == 0xF5
                                 && ((data[1] & 0xFF) == 0x07 || (data[1] & 0xFF) == 0x06)) {
-                            caseRemoved = true;
+                            GlassesStore.INSTANCE.apply("glasses", "caseRemoved", true);
                             Bridge.log("G1: CASE REMOVED");
-                            CoreManager.getInstance().getStatus();
                         }
                         // CASE OPEN
                         else if (data.length > 1 && (data[0] & 0xFF) == 0xF5 && (data[1] & 0xFF) == 0x08) {
-                            caseOpen = true;
-                            caseRemoved = false;
+                            GlassesStore.INSTANCE.apply("glasses", "caseOpen", true);
+                            GlassesStore.INSTANCE.apply("glasses", "caseRemoved", false);
                             // EventBus.getDefault()
                                     // .post(new CaseEvent(caseBatteryLevel, caseCharging, caseOpen, caseRemoved));
-                            CoreManager.getInstance().getStatus();
                         }
                         // CASE CLOSED
                         else if (data.length > 1 && (data[0] & 0xFF) == 0xF5 && (data[1] & 0xFF) == 0x0B) {
-                            caseOpen = false;
-                            caseRemoved = false;
+                            GlassesStore.INSTANCE.apply("glasses", "caseOpen", false);
+                            GlassesStore.INSTANCE.apply("glasses", "caseRemoved", false);
                             // EventBus.getDefault()
                                     // .post(new CaseEvent(caseBatteryLevel, caseCharging, caseOpen, caseRemoved));
-                            CoreManager.getInstance().getStatus();
                         }
                         // CASE CHARGING STATUS
                         else if (data.length > 3 && (data[0] & 0xFF) == 0xF5 && (data[1] & 0xFF) == 0x0E) {
-                            caseCharging = (data[2] & 0xFF) == 0x01;// TODO: verify this is correct
+                            GlassesStore.INSTANCE.apply("glasses", "caseCharging", (data[2] & 0xFF) == 0x01);// TODO: verify this is correct
                             // EventBus.getDefault()
                                     // .post(new CaseEvent(caseBatteryLevel, caseCharging, caseOpen, caseRemoved));
-                            CoreManager.getInstance().getStatus();
                         }
                         // CASE CHARGING INFO
                         else if (data.length > 3 && (data[0] & 0xFF) == 0xF5 && (data[1] & 0xFF) == 0x0F) {
-                            caseBatteryLevel = (data[2] & 0xFF);// TODO: verify this is correct
+                            int newCaseBatteryLevel = (data[2] & 0xFF);// TODO: verify this is correct
+                            GlassesStore.INSTANCE.apply("glasses", "caseBatteryLevel", newCaseBatteryLevel);
                             // EventBus.getDefault()
                                     // .post(new CaseEvent(caseBatteryLevel, caseCharging, caseOpen, caseRemoved));
-                            CoreManager.getInstance().getStatus();
                         }
                         // HEARTBEAT RESPONSE
                         else if (data.length > 0 && data[0] == 0x25) {
@@ -704,13 +700,13 @@ public class G1 extends SGCManager {
                 queryBatteryStatusHandler.postDelayed(() -> queryBatteryStatus(), 10);
 
                 // setup brightness
-                int brightnessValue = CoreManager.getInstance().getBrightness();
-                Boolean shouldUseAutoBrightness = CoreManager.getInstance().getAutoBrightness();
+                int brightnessValue = ((Number) GlassesStore.INSTANCE.get("core", "brightness")).intValue();
+                Boolean shouldUseAutoBrightness = (Boolean) GlassesStore.INSTANCE.get("core", "auto_brightness");
                 sendBrightnessCommandHandler
                         .postDelayed(() -> sendBrightnessCommand(brightnessValue, shouldUseAutoBrightness), 10);
 
-                // Maybe start MIC streaming
-                sendSetMicEnabled(false, 10); // Disable the MIC
+                // MIC state is handled by CoreManager.updateMicState() after reconnection
+                // Don't hardcode mic state here - let CoreManager restore the user's preference
 
                 // enable our AugmentOS notification key
                 sendWhiteListCommand(10);
@@ -768,23 +764,23 @@ public class G1 extends SGCManager {
     }
 
     private void updateConnectionState() {
-        Boolean previousReady = ready;
+        SmartGlassesConnectionState previousConnectionState = connectionState;
         if (isLeftConnected && isRightConnected) {
             connectionState = SmartGlassesConnectionState.CONNECTED;
             Bridge.log("G1: Both glasses connected");
             lastConnectionTimestamp = System.currentTimeMillis();
-            ready = true;
+            GlassesStore.INSTANCE.apply("glasses", "fullyBooted", true);
+            GlassesStore.INSTANCE.apply("glasses", "connected", true);
         } else if (isLeftConnected || isRightConnected) {
             connectionState = SmartGlassesConnectionState.CONNECTING;
             Bridge.log("G1: One glass connected");
-            ready = false;
+            GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
+            GlassesStore.INSTANCE.apply("glasses", "connected", false);
         } else {
             connectionState = SmartGlassesConnectionState.DISCONNECTED;
             Bridge.log("G1: No glasses connected");
-            ready = false;
-        }
-        if (previousReady != ready) {
-            CoreManager.getInstance().handleConnectionStateChanged();
+            GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
+            GlassesStore.INSTANCE.apply("glasses", "connected", false);
         }
     }
 
@@ -1130,9 +1126,9 @@ public class G1 extends SGCManager {
 
                         if (preferredG1DeviceId != null && preferredG1DeviceId.equals(parsedDeviceName)) {
                             // Store the information (matching iOS implementation)
-                            glassesSerialNumber = decodedSerial;
-                            glassesStyle = decoded[0];
-                            glassesColor = decoded[1];
+                            GlassesStore.INSTANCE.apply("glasses", "serialNumber", decodedSerial);
+                            GlassesStore.INSTANCE.apply("glasses", "style", decoded[0]);
+                            GlassesStore.INSTANCE.apply("glasses", "color", decoded[1]);
 
                             // Emit the serial number information to React Native
                             emitSerialNumberInfo(decodedSerial, decoded[0], decoded[1]);
@@ -1329,7 +1325,7 @@ public class G1 extends SGCManager {
         context.registerReceiver(bondingReceiver, filter);
         isBondingReceiverRegistered = true;
 
-        preferredG1DeviceId = CoreManager.getInstance().getDeviceName();
+        preferredG1DeviceId = (String) GlassesStore.INSTANCE.get("core", "device_name");
 
         if (!bluetoothAdapter.isEnabled()) {
             return;
@@ -1519,7 +1515,7 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean silent) {
+    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean flash, boolean sound) {
 
     }
 
@@ -1554,7 +1550,7 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void startVideoRecording(String requestId, boolean save, boolean silent) {
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound) {
 
     }
 
@@ -1638,6 +1634,11 @@ public class G1 extends SGCManager {
     }
 
     @Override
+    public void ping() {
+        Bridge.log("G1: ping()");
+    }
+
+    @Override
     public void setDashboardPosition(int height, int depth) {
         Bridge.log("G1: setDashboardPosition() - height: " + height + ", depth: " + depth);
         sendDashboardPositionCommand(height, depth);
@@ -1666,6 +1667,16 @@ public class G1 extends SGCManager {
     }
 
     @Override
+    public void sendShutdown() {
+        Bridge.log("sendShutdown - not supported on G1");
+    }
+
+    @Override
+    public void sendReboot() {
+        Bridge.log("sendReboot - not supported on G1");
+    }
+
+    @Override
     public void sendRgbLedControl(String requestId, String packageName, String action, String color, int ontime, int offtime, int count) {
         Bridge.log("sendRgbLedControl - not supported on G1");
         Bridge.sendRgbLedControlResponse(requestId, false, "device_not_supported");
@@ -1673,17 +1684,14 @@ public class G1 extends SGCManager {
 
     @Override
     public void disconnect() {
-        ready = false;
-        ready = false;
+        GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
         destroy();
-        // CoreManager.getInstance().handleConnectionStateChanged();
     }
 
     @Override
     public void forget() {
-        ready = false;
+        GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
         destroy();
-        CoreManager.getInstance().handleConnectionStateChanged();
     }
 
     @Override
@@ -1737,6 +1745,12 @@ public class G1 extends SGCManager {
     public void sendGalleryMode() {
         // G1 doesn't have a built-in camera/gallery system
         Bridge.log("G1: sendGalleryModeActive - not supported on G1");
+    }
+
+    @Override
+    public void requestVersionInfo() {
+        // G1 doesn't support version info requests
+        Bridge.log("G1: requestVersionInfo - not supported on G1");
     }
 
     // private void sendDataSequentially(byte[] data, boolean onlyLeft) {
@@ -2117,12 +2131,12 @@ public class G1 extends SGCManager {
         Bridge.log("G1: EvenRealitiesG1SGC ONDESTROY");
         showHomeScreen();
         isKilled = true;
-        ready = false;
+        GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
 
         // Reset battery levels
         batteryLeft = -1;
         batteryRight = -1;
-        batteryLevel = -1;
+        GlassesStore.INSTANCE.apply("glasses", "batteryLevel", -1);
 
         // stop BLE scanning
         stopScan();
@@ -2277,19 +2291,21 @@ public class G1 extends SGCManager {
     public void blankScreen() {
     }
 
+    /**
+     * Display pre-composed double text wall (two columns) on the glasses.
+     *
+     * NOTE: DisplayProcessor now composes double_text_wall into a single text_wall
+     * with pixel-precise column alignment using ColumnComposer. This method may
+     * not be called anymore for new flows, but is kept for backwards compatibility.
+     *
+     * Column composition is handled by DisplayProcessor in React Native.
+     * This method is a "dumb pipe" - it just combines and sends the text.
+     */
     public void displayDoubleTextWall(String textTop, String textBottom) {
-        // if (updatingScreen)
-        //     return;
-
-        // if (textTop.trim().isEmpty() && textBottom.trim().isEmpty()) {
-        //     if (CoreManager.getInstance().getPowerSavingMode()) {
-        //         sendExitCommand();
-        //         return;
-        //     }
-        // }
-
-        List<byte[]> chunks = g1Text.createDoubleTextWallChunks(textTop, textBottom);
-        sendChunks(chunks);
+        // Text is already composed by DisplayProcessor's ColumnComposer
+        // Just combine and send as a text wall - no custom wrapping logic needed
+        String combinedText = textTop + "\n" + textBottom;
+        displayTextWall(combinedText);
     }
 
     public void showHomeScreen() {
@@ -2330,19 +2346,7 @@ public class G1 extends SGCManager {
     }
 
     public void displayTextWall(String a) {
-        // if (a.trim().isEmpty()) {
-        //     if (CoreManager.getInstance().getPowerSavingMode()) {
-        //         sendExitCommand();
-        //         return;
-        //     }
-        // }
-
         List<byte[]> chunks = createTextWallChunks(a);
-        // if (a.isEmpty()) {
-        //     clearDisplay();
-        //     return;
-        // }
-        // List<byte[]> chunks = chunkTextForTransmission(a);
         sendChunks(chunks);
     }
 
@@ -2665,7 +2669,7 @@ public class G1 extends SGCManager {
         Bridge.log("G1: sendSetMicEnabled(): " + enable);
 
         isMicrophoneEnabled = enable; // Update the state tracker
-        micEnabled = enable;
+        GlassesStore.INSTANCE.apply("glasses", "micEnabled", enable);
         micEnableHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -2768,99 +2772,33 @@ public class G1 extends SGCManager {
 
     private int textSeqNum = 0; // Sequence number for text packets
 
-    // currently only a single page - 1PAGE CHANGE
+    /**
+     * Creates BLE chunks for pre-wrapped text.
+     *
+     * IMPORTANT: Text is expected to come pre-wrapped from the DisplayProcessor in React Native.
+     * This function does NOT perform any text wrapping - it only chunks the text for BLE transmission.
+     * The DisplayProcessor handles all pixel-accurate wrapping using @mentra/display-utils.
+     *
+     * @param text Pre-wrapped text with newlines already in place
+     * @return List of BLE chunks ready for transmission
+     */
     private List<byte[]> createTextWallChunks(String text) {
-        int margin = 5;
-
-        // Get width of single space character
-        int spaceWidth = g1Text.calculateTextWidth(" ");
-
-        // Calculate effective display width after accounting for left and right margins
-        // in spaces
-        int marginWidth = margin * spaceWidth; // Width of left margin in pixels
-        int effectiveWidth = DISPLAY_WIDTH - (2 * marginWidth); // Subtract left and right margins
-
-        // Split text into lines based on effective display width
-        List<String> lines = g1Text.splitIntoLines(text, effectiveWidth);
-
-        // Calculate total pages
-        int totalPages = 1; // hard set to 1 since we only do 1 page - 1PAGECHANGE
-
-        List<byte[]> allChunks = new ArrayList<>();
-
-        // Process each page
-        for (int page = 0; page < totalPages; page++) {
-            // Get lines for current page
-            int startLine = page * LINES_PER_SCREEN;
-            int endLine = Math.min(startLine + LINES_PER_SCREEN, lines.size());
-            List<String> pageLines = lines.subList(startLine, endLine);
-
-            // Combine lines for this page with proper indentation
-            StringBuilder pageText = new StringBuilder();
-
-            for (String line : pageLines) {
-                // Add the exact number of spaces for indentation
-                String indentation = " ".repeat(margin);
-                pageText.append(indentation).append(line).append("\n");
-            }
-
-            byte[] textBytes = pageText.toString().getBytes(StandardCharsets.UTF_8);
-            int totalChunks = (int) Math.ceil((double) textBytes.length / MAX_CHUNK_SIZE);
-
-            // Create chunks for this page
-            for (int i = 0; i < totalChunks; i++) {
-                int start = i * MAX_CHUNK_SIZE;
-                int end = Math.min(start + MAX_CHUNK_SIZE, textBytes.length);
-                byte[] payloadChunk = Arrays.copyOfRange(textBytes, start, end);
-
-                // Create header with protocol specifications
-                byte screenStatus = 0x71; // New content (0x01) + Text Show (0x70)
-                byte[] header = new byte[] {
-                        (byte) TEXT_COMMAND, // Command type
-                        (byte) textSeqNum, // Sequence number
-                        (byte) totalChunks, // Total packages
-                        (byte) i, // Current package number
-                        screenStatus, // Screen status
-                        (byte) 0x00, // new_char_pos0 (high)
-                        (byte) 0x00, // new_char_pos1 (low)
-                        (byte) page, // Current page number
-                        (byte) totalPages // Max page number
-                };
-
-                // Combine header and payload
-                ByteBuffer chunk = ByteBuffer.allocate(header.length + payloadChunk.length);
-                chunk.put(header);
-                chunk.put(payloadChunk);
-
-                allChunks.add(chunk.array());
-            }
-
-            // Increment sequence number for next page
-            textSeqNum = (textSeqNum + 1) % 256;
-            break; // hard set to 1 - 1PAGECHANGE
-        }
-
-        return allChunks;
+        // Text comes pre-wrapped from DisplayProcessor - just chunk it for transmission
+        return chunkTextForTransmission(text);
     }
 
-    private int calculateSpacesForAlignment(int currentWidth, int targetPosition, int spaceWidth) {
-        // Calculate space needed in pixels
-        int pixelsNeeded = targetPosition - currentWidth;
-
-        // Calculate spaces needed (with minimum of 1 space for separation)
-        if (pixelsNeeded <= 0) {
-            return 1; // Ensure at least one space between columns
-        }
-
-        // Calculate the exact number of spaces needed
-        int spaces = (int) Math.ceil((double) pixelsNeeded / spaceWidth);
-
-        // Cap at a reasonable maximum
-        return Math.min(spaces, 100);
-    }
-
+    /**
+     * Chunks text into BLE packets for transmission to glasses.
+     * This is a low-level function that handles BLE protocol framing.
+     *
+     * @param text Text to chunk (should already be formatted/wrapped)
+     * @return List of BLE chunks with headers
+     */
     private List<byte[]> chunkTextForTransmission(String text) {
-        byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
+        // Handle empty or whitespace-only text by sending at least a space
+        // This ensures the display gets updated/cleared properly
+        String textToSend = (text == null || text.trim().isEmpty()) ? " " : text;
+        byte[] textBytes = textToSend.getBytes(StandardCharsets.UTF_8);
         int totalChunks = (int) Math.ceil((double) textBytes.length / MAX_CHUNK_SIZE);
 
         List<byte[]> allChunks = new ArrayList<>();
@@ -2879,7 +2817,7 @@ public class G1 extends SGCManager {
                     screenStatus, // Screen status
                     (byte) 0x00, // new_char_pos0 (high)
                     (byte) 0x00, // new_char_pos1 (low)
-                    (byte) 0x00, // Current page number (always 0 for now)
+                    (byte) 0x00, // Current page number (always 0)
                     (byte) 0x01 // Max page number (always 1)
             };
 
@@ -2891,10 +2829,26 @@ public class G1 extends SGCManager {
             allChunks.add(chunk.array());
         }
 
-        // Increment sequence number for next page
+        // Increment sequence number for next transmission
         textSeqNum = (textSeqNum + 1) % 256;
 
         return allChunks;
+    }
+
+    private int calculateSpacesForAlignment(int currentWidth, int targetPosition, int spaceWidth) {
+        // Calculate space needed in pixels
+        int pixelsNeeded = targetPosition - currentWidth;
+
+        // Calculate spaces needed (with minimum of 1 space for separation)
+        if (pixelsNeeded <= 0) {
+            return 1; // Ensure at least one space between columns
+        }
+
+        // Calculate the exact number of spaces needed
+        int spaces = (int) Math.ceil((double) pixelsNeeded / spaceWidth);
+
+        // Cap at a reasonable maximum
+        return Math.min(spaces, 100);
     }
 
     private void sendPeriodicTextWall() {
@@ -3867,15 +3821,6 @@ public class G1 extends SGCManager {
     }
 
     /**
-     * Returns whether the microphone is currently enabled
-     *
-     * @return true if microphone is enabled, false otherwise
-     */
-    public boolean isMicrophoneEnabled() {
-        return micEnabled;
-    }
-
-    /**
      * Decodes Even G1 serial number to extract style and color information
      *
      * @param serialNumber The full serial number (e.g., "S110LABD020021")
@@ -3926,17 +3871,16 @@ public class G1 extends SGCManager {
     private void emitSerialNumberInfo(String serialNumber, String style, String color) {
         try {
             JSONObject eventBody = new JSONObject();
-            eventBody.put("type", "glasses_serial_number");
             eventBody.put("serialNumber", serialNumber);
             eventBody.put("style", style);
             eventBody.put("color", color);
 
-            String jsonString = eventBody.toString();
-            Bridge.sendEvent("CoreMessageEvent", jsonString);
+            // Bridge.sendTypedMessage("glasses_serial_number", eventBody);
             Bridge.log("G1: 📱 Emitted serial number info: " + serialNumber + ", Style: " + style + ", Color: " + color);
+            GlassesStore.INSTANCE.apply("glasses", "serialNumber", serialNumber);
+            GlassesStore.INSTANCE.apply("glasses", "style", style);
+            GlassesStore.INSTANCE.apply("glasses", "color", color);
 
-            // Trigger status update to include serial number in status JSON
-            CoreManager.getInstance().getStatus();
         } catch (Exception e) {
             Bridge.log("G1: Error emitting serial number info: " + e.getMessage());
         }

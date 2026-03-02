@@ -12,9 +12,13 @@
     "declaration": true,
     "declarationMap": true,
     "composite": true,
-    "lib": ["ES2020"]
+    "lib": ["ES2020"],
+    "baseUrl": ".",
+    "paths": {
+      "@mentra/display-utils": ["../display-utils/src"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/test/**"],
-  "references": [{"path": "../types"}]
+  "references": [{"path": "../types"}, {"path": "../display-utils"}]
 }

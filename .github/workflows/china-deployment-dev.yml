@@ -131,6 +131,8 @@ jobs:
             value: "cloud"
           - name: RESEND_API_KEY
             value: "${{ secrets.RESEND_API_KEY }}"
+          - name: UDP_HOST
+            value: "dev-udp-api.mentraglass.cn"
           EOL
 
       # Create start.sh file

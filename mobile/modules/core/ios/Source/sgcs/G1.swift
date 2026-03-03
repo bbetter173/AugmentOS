@@ -453,6 +453,7 @@ class G1: NSObject, SGCManager {
     }
 
     private var centralManager: CBCentralManager?
+
     private var leftPeripheral: CBPeripheral?
     private var rightPeripheral: CBPeripheral?
     private var connectedDevices: [String: (CBPeripheral?, CBPeripheral?)] = [:]

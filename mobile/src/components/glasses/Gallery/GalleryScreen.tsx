@@ -42,7 +42,7 @@ import showAlert from "@/utils/AlertUtils"
 // import {shareFile} from "@/utils/FileUtils"
 import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissions"
 import {ENABLE_TEST_GALLERY_DATA, TEST_GALLERY_ITEMS} from "@/utils/testGalleryData"
-import { useSaferAreaInsets } from "@/contexts/SaferAreaContext"
+import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 
 // @ts-ignore
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient)
@@ -809,7 +809,8 @@ export function GalleryScreen() {
     syncState === "requesting_hotspot" ||
     syncState === "connecting_wifi" ||
     syncState === "syncing" ||
-    syncState === "complete"
+    syncState === "complete" ||
+    syncState === "error"
 
   const renderStatusBar = () => {
     if (!shouldShowSyncButton) return null

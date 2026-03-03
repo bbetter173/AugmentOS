@@ -29,6 +29,8 @@ export interface IncidentLogs {
   phoneLogs: LogEntry[];
   cloudLogs: LogEntry[];
   glassesLogs: LogEntry[];
+  /** BES chip logs uploaded with source "glasses_firmware" */
+  glassesFirmwareLogs: LogEntry[];
   /** App telemetry logs organized by package name */
   appTelemetryLogs: Record<string, LogEntry[]>;
   attachments?: AttachmentMetadata[];
@@ -192,6 +194,8 @@ class IncidentStorageService {
 
       const bodyContents = await response.Body.transformToString();
       const logs = JSON.parse(bodyContents) as IncidentLogs;
+      // Backward compatibility: old documents may lack glassesFirmwareLogs
+      logs.glassesFirmwareLogs = logs.glassesFirmwareLogs ?? [];
 
       logger.info({ incidentId }, "Retrieved incident logs from R2");
 
@@ -221,7 +225,7 @@ class IncidentStorageService {
    */
   async appendLogs(
     incidentId: string,
-    category: "phoneLogs" | "cloudLogs" | "glassesLogs",
+    category: "phoneLogs" | "cloudLogs" | "glassesLogs" | "glassesFirmwareLogs",
     logs: LogEntry[],
     source?: string,
   ): Promise<void> {
@@ -239,6 +243,13 @@ class IncidentStorageService {
 
       // Append to the appropriate category
       existing[category] = [...(existing[category] || []), ...taggedLogs];
+
+      if (category === "glassesFirmwareLogs") {
+        logger.info(
+          { incidentId, count: taggedLogs.length },
+          "[incident-storage] Appended glasses_firmware (BES) logs to incident",
+        );
+      }
 
       // Store back to R2
       await this.storeIncidentLogs(incidentId, existing);
@@ -259,11 +270,7 @@ class IncidentStorageService {
    * Logs are organized by package name.
    * Uses per-incident locking to prevent race conditions.
    */
-  async appendAppTelemetry(
-    incidentId: string,
-    packageName: string,
-    logs: LogEntry[],
-  ): Promise<void> {
+  async appendAppTelemetry(incidentId: string, packageName: string, logs: LogEntry[]): Promise<void> {
     return this.withLock(incidentId, async () => {
       // Fetch existing logs
       const existing = await this.getIncidentLogs(incidentId);
@@ -274,10 +281,7 @@ class IncidentStorageService {
       }
 
       // Append to the app's log array
-      existing.appTelemetryLogs[packageName] = [
-        ...(existing.appTelemetryLogs[packageName] || []),
-        ...logs,
-      ];
+      existing.appTelemetryLogs[packageName] = [...(existing.appTelemetryLogs[packageName] || []), ...logs];
 
       // Store back to R2
       await this.storeIncidentLogs(incidentId, existing);
@@ -367,10 +371,7 @@ class IncidentStorageService {
   /**
    * Retrieve an attachment from R2.
    */
-  async getAttachment(
-    incidentId: string,
-    storedFilename: string,
-  ): Promise<{ buffer: Buffer; mimeType: string }> {
+  async getAttachment(incidentId: string, storedFilename: string): Promise<{ buffer: Buffer; mimeType: string }> {
     this.ensureInitialized();
 
     if (!this.s3Client) {

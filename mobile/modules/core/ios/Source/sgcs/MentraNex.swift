@@ -94,7 +94,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
     }
 
     func cleanup() {}
-    
+
     func ping() {}
 
     func requestWifiScan() {}
@@ -122,6 +122,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
     // MARK: - Properties
 
     private var centralManager: CBCentralManager?
+
     private var peripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?
     private var notifyCharacteristic: CBCharacteristic?

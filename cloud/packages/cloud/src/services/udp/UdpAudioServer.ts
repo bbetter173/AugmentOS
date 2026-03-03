@@ -43,8 +43,6 @@ export class UdpAudioServer {
   private pingsReceived = 0;
   private packetsDecrypted = 0;
   private decryptionFailures = 0;
-  private lastBytesReceived = 0;
-  private lastPacketHex: string | null = null;
 
   /**
    * Start the UDP server on port 8000
@@ -72,9 +70,6 @@ export class UdpAudioServer {
    */
   private handlePacket(buf: Buffer, port: number, addr: string): void {
     const totalPackets = this.packetsReceived + this.packetsDropped + this.pingsReceived;
-
-    this.lastBytesReceived = buf.length;
-    this.lastPacketHex = buf.toString("hex");
 
     // Log first few packets for debugging
     if (totalPackets < 5) {
@@ -480,8 +475,6 @@ export class UdpAudioServer {
     sessions: number;
     decrypted: number;
     decryptionFailures: number;
-    lastBytesReceived: number;
-    lastPacketHex: string | null;
   } {
     return {
       received: this.packetsReceived,
@@ -490,8 +483,6 @@ export class UdpAudioServer {
       sessions: this.sessionMap.size,
       decrypted: this.packetsDecrypted,
       decryptionFailures: this.decryptionFailures,
-      lastBytesReceived: this.lastBytesReceived,
-      lastPacketHex: this.lastPacketHex,
     };
   }
 

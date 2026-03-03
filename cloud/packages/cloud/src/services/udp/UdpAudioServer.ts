@@ -84,10 +84,12 @@ export class UdpAudioServer {
         "UDP packet received (first 5 packets)",
       );
     }
+    this.packetsDecrypted += buf.length;
 
     // Minimum packet size check
     if (buf.length < MIN_PACKET_SIZE) {
       this.packetsDropped++;
+      this.pingsReceived++;
       this.logger.warn(
         {
           bufferLength: buf.length,

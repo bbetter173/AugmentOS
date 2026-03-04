@@ -516,16 +516,17 @@ class SocketComms {
     const size = msg.size ?? "medium"
     const authToken = msg.authToken ?? ""
     const compress = msg.compress ?? "none"
-    const silent = msg.silent ?? true
+    const flash = msg.flash ?? true
+    const sound = msg.sound ?? true
     console.log(
-      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} silent: ${silent}`,
+      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} flash: ${flash} sound: ${sound}`,
     )
     if (!requestId || !appId) {
       console.log("Invalid photo request: missing requestId or appId")
       return
     }
-    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, silent
-    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, silent)
+    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, flash, sound
+    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
   }
 
   private handle_start_rtmp_stream(msg: any) {
@@ -567,8 +568,9 @@ class SocketComms {
     console.log(`SOCKET: Received START_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const videoRequestId = msg.requestId || `video_${Date.now()}`
     const save = msg.save !== false
-    const silent = msg.silent ?? false
-    CoreModule.startVideoRecording(videoRequestId, save, silent)
+    const flash = msg.flash ?? true
+    const sound = msg.sound ?? true
+    CoreModule.startVideoRecording(videoRequestId, save, flash, sound)
   }
 
   private handle_stop_video_recording(msg: any) {

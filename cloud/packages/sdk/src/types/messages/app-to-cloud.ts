@@ -44,6 +44,8 @@ export interface PhotoRequest extends BaseMessage {
   size?: "small" | "medium" | "large" | "full"
   /** Image compression level: none, medium, or heavy. Defaults to none. */
   compress?: "none" | "medium" | "heavy"
+  /** Controls shutter sound. Defaults to true if omitted. */
+  sound?: boolean
 }
 
 /**
@@ -72,6 +74,8 @@ export interface RtmpStreamRequest extends BaseMessage {
   video?: VideoConfig
   audio?: AudioConfig
   stream?: StreamConfig
+  /** Controls stream start/stop sounds. Defaults to true if omitted. */
+  sound?: boolean
 }
 
 /**
@@ -116,6 +120,8 @@ export interface ManagedStreamRequest extends BaseMessage {
   stream?: StreamConfig
   /** Optional RTMP destinations to re-stream to (YouTube, Twitch, etc) */
   restreamDestinations?: RestreamDestination[]
+  /** Controls stream start/stop sounds. Defaults to true if omitted. */
+  sound?: boolean
 }
 
 /**

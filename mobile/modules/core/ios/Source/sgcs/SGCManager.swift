@@ -20,7 +20,7 @@ protocol SGCManager {
 
     func requestPhoto(
         _ requestId: String, appId: String, size: String?, webhookUrl: String?, authToken: String?,
-        compress: String?, silent: Bool
+        compress: String?, flash: Bool, sound: Bool
     )
     func startRtmpStream(_ message: [String: Any])
     func stopRtmpStream()
@@ -28,7 +28,7 @@ protocol SGCManager {
     func startBufferRecording()
     func stopBufferRecording()
     func saveBufferVideo(requestId: String, durationSeconds: Int)
-    func startVideoRecording(requestId: String, save: Bool, silent: Bool)
+    func startVideoRecording(requestId: String, save: Bool, flash: Bool, sound: Bool)
     func stopVideoRecording(requestId: String)
 
     // MARK: - Button Settings
@@ -84,6 +84,10 @@ protocol SGCManager {
 
     func sendUserEmailToGlasses(_ email: String)
 
+    // MARK: - Incident Reporting
+
+    func sendIncidentId(_ incidentId: String)
+
     // MARK: - Gallery
 
     func queryGalleryStatus()
@@ -98,6 +102,7 @@ protocol SGCManager {
 // we can make read-only getters for convienence though:
 extension SGCManager {
     // MARK: - Default GlassesStore-backed property implementations
+
     var fullyBooted: Bool { GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false }
     var connected: Bool { GlassesStore.shared.get("glasses", "connected") as? Bool ?? false }
     var appVersion: String { GlassesStore.shared.get("glasses", "appVersion") as? String ?? "" }

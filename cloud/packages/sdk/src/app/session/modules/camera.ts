@@ -42,6 +42,8 @@ export interface PhotoRequestOptions {
   size?: "small" | "medium" | "large" | "full";
   /** Image compression level for upload optimization. Defaults to "none". */
   compress?: "none" | "medium" | "heavy";
+  /** Controls shutter sound. Defaults to true if omitted. */
+  sound?: boolean;
 }
 
 /**
@@ -56,6 +58,8 @@ export interface RtmpStreamOptions {
   audio?: AudioConfig;
   /** Optional stream configuration settings */
   stream?: StreamConfig;
+  /** Controls stream start/stop sounds. Defaults to true if omitted. */
+  sound?: boolean;
 }
 
 /**
@@ -176,6 +180,7 @@ export class CameraModule {
           authToken: options?.authToken,
           size: options?.size || "medium",
           compress: options?.compress || "none",
+          sound: options?.sound,
         };
 
         // Send request to cloud
@@ -316,6 +321,7 @@ export class CameraModule {
       video: options.video,
       audio: options.audio,
       stream: options.stream,
+      sound: options.sound,
       timestamp: new Date(),
     };
 

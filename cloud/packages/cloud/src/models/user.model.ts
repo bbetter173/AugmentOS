@@ -585,9 +585,22 @@ UserSchema.statics.findOrCreateUser = async function (email: string): Promise<Us
       // Check if the user already has organizations
       if (!user.organizations || user.organizations.length === 0) {
         const personalOrgId = await OrganizationService.createPersonalOrg(user);
+
+        // Use atomic $addToSet + $set instead of user.save() to avoid
+        // Mongoose VersionError when concurrent requests (getConsoleAccount,
+        // validateSupabaseToken, frontend ensurePersonalOrg) all try to
+        // modify the same user document simultaneously.
+        await this.updateOne(
+          { _id: user._id },
+          {
+            $addToSet: { organizations: personalOrgId },
+            $set: { defaultOrg: personalOrgId },
+          },
+        );
+
+        // Update the in-memory object so downstream code sees the change
         user.organizations = [personalOrgId];
         user.defaultOrg = personalOrgId;
-        await user.save();
       }
     } catch (error) {
       console.error(error, "Error creating user");
@@ -793,29 +806,37 @@ UserSchema.statics.ensurePersonalOrg = async function (user: UserI): Promise<Typ
   // Check if user has any organizations
   if (user.organizations && user.organizations.length > 0) {
     // User has organizations but no default, set the first one as default
-    user.defaultOrg = user.organizations[0];
-    await user.save();
-    return user.defaultOrg;
+    // Use atomic update to avoid Mongoose VersionError when concurrent
+    // requests (findOrCreateUser, getConsoleAccount, validateSupabaseToken)
+    // modify the same user document simultaneously.
+    const firstOrgId = user.organizations[0];
+    await this.updateOne({ _id: user._id }, { $set: { defaultOrg: firstOrgId } });
+    user.defaultOrg = firstOrgId;
+    return firstOrgId;
   }
 
   // Create a personal organization for this user
   const personalOrgId = await OrganizationService.createPersonalOrg(user);
 
-  // Update user object with the new org
+  // Use atomic $addToSet + $set instead of user.save() to avoid
+  // Mongoose VersionError when concurrent requests modify the same
+  // user document simultaneously.
+  await this.updateOne(
+    { _id: user._id },
+    {
+      $addToSet: { organizations: personalOrgId },
+      $set: { defaultOrg: personalOrgId },
+    },
+  );
+
+  // Update the in-memory object so downstream code sees the change
   if (!user.organizations) {
     user.organizations = [];
   }
-
-  // Add to organizations array if not already present
   if (!user.organizations.some((orgId) => orgId.toString() === personalOrgId.toString())) {
     user.organizations.push(personalOrgId);
   }
-
-  // Set as default org
   user.defaultOrg = personalOrgId;
-
-  // Save the updated user
-  await user.save();
 
   return personalOrgId;
 };

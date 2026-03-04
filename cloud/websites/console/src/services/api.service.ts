@@ -912,7 +912,10 @@ const api = {
     // Incident management for bug reports
     incidents: {
       // List all incidents
-      list: async (limit = 100, offset = 0): Promise<{
+      list: async (
+        limit = 100,
+        offset = 0,
+      ): Promise<{
         data: Incident[];
         pagination: { total: number; limit: number; offset: number; hasMore: boolean };
       }> => {
@@ -974,6 +977,8 @@ export interface IncidentLogs {
   phoneLogs: IncidentLogEntry[];
   cloudLogs: IncidentLogEntry[];
   glassesLogs: IncidentLogEntry[];
+  /** BES chip logs (source glasses_firmware) */
+  glassesFirmwareLogs: IncidentLogEntry[];
   /** App telemetry logs organized by package name */
   appTelemetryLogs: Record<string, IncidentLogEntry[]>;
   attachments?: IncidentAttachment[];

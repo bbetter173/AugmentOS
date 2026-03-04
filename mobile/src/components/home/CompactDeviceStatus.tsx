@@ -52,6 +52,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
   const caseBatteryLevel = useGlassesStore((state) => state.caseBatteryLevel)
   const caseOpen = useGlassesStore((state) => state.caseOpen)
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
+  const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
   const wifiSsid = useGlassesStore((state) => state.wifiSsid)
   const searching = useCoreStore((state) => state.searching)
@@ -231,7 +232,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
         <View style={themed($iconRow)}>
           {!isExpanded && batteryLevel !== -1 && (
             <View style={{flexDirection: "row", alignItems: "center", gap: theme.spacing.s1}}>
-              <Icon name={getBatteryIcon(batteryLevel)} size={18} color={theme.colors.foreground} />
+              <Icon name={charging ? "battery-charging" : getBatteryIcon(batteryLevel)} size={18} color={theme.colors.foreground} />
               <Text style={themed($iconText)}>{batteryLevel}%</Text>
             </View>
           )}

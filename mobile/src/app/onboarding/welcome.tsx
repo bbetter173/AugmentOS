@@ -37,7 +37,8 @@ const CardButton = ({
 
 const $cardButton: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
   backgroundColor: colors.background,
-  height: 190,
+  flex: 1,
+  maxHeight: 190,
   borderRadius: spacing.s6,
   padding: 16,
   shadowColor: "#000",

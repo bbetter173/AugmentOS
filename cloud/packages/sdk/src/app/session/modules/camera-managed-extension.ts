@@ -34,6 +34,8 @@ export interface ManagedStreamOptions {
   stream?: StreamConfig;
   /** Optional RTMP destinations to re-stream to (YouTube, Twitch, etc) */
   restreamDestinations?: RestreamDestination[];
+  /** Controls stream start/stop sounds. Defaults to true if omitted. */
+  sound?: boolean;
 }
 
 /**
@@ -163,6 +165,7 @@ export class CameraManagedExtension {
       audio: options.audio,
       stream: options.stream,
       restreamDestinations: options.restreamDestinations,
+      sound: options.sound,
     };
 
     // Send the request

@@ -243,14 +243,27 @@ const validateSupabaseToken = async (req: Request, res: Response, next: NextFunc
           try {
             const personalOrgId = await OrganizationService.createPersonalOrg(user);
 
-            // Add to user's organizations array
+            // Use atomic $addToSet + $set instead of user.save() to avoid
+            // Mongoose VersionError when concurrent requests (findOrCreateUser,
+            // getConsoleAccount, frontend ensurePersonalOrg) all try to
+            // modify the same user document simultaneously.
+            await User.updateOne(
+              { _id: user._id },
+              {
+                $addToSet: { organizations: personalOrgId },
+                $set: { defaultOrg: personalOrgId },
+              },
+            );
+
+            // Update the in-memory object so downstream code sees the change
             if (!user.organizations) {
               user.organizations = [];
             }
-            user.organizations.push(personalOrgId);
+            if (!user.organizations.some((id: any) => id.toString() === personalOrgId.toString())) {
+              user.organizations.push(personalOrgId);
+            }
             user.defaultOrg = personalOrgId;
 
-            await user.save();
             (req as DevPortalRequest).currentOrgId = personalOrgId;
 
             userLogger.info(

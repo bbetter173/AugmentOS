@@ -152,6 +152,14 @@ public class CoreModule: Module {
             }
         }
 
+        // MARK: - Incident Reporting
+
+        AsyncFunction("sendIncidentId") { (incidentId: String) in
+            await MainActor.run {
+                CoreManager.shared.sendIncidentId(incidentId)
+            }
+        }
+
         // MARK: - WiFi Commands
 
         AsyncFunction("requestWifiScan") {
@@ -189,11 +197,11 @@ public class CoreModule: Module {
         AsyncFunction("photoRequest") {
             (
                 requestId: String, appId: String, size: String, webhookUrl: String?,
-                authToken: String?, compress: String?, silent: Bool
+                authToken: String?, compress: String?, flash: Bool, sound: Bool
             ) in
             await MainActor.run {
                 CoreManager.shared.photoRequest(
-                    requestId, appId, size, webhookUrl, authToken, compress, silent
+                    requestId, appId, size, webhookUrl, authToken, compress, flash, sound
                 )
             }
         }
@@ -248,9 +256,9 @@ public class CoreModule: Module {
             }
         }
 
-        AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, silent: Bool) in
+        AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
             await MainActor.run {
-                CoreManager.shared.startVideoRecording(requestId, save, silent)
+                CoreManager.shared.startVideoRecording(requestId, save, flash, sound)
             }
         }
 

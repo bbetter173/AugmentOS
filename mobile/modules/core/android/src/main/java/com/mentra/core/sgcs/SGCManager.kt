@@ -20,7 +20,8 @@ abstract class SGCManager {
             webhookUrl: String?,
             authToken: String?,
             compress: String?,
-            silent: Boolean
+            flash: Boolean,
+            sound: Boolean
     )
     abstract fun startRtmpStream(message: MutableMap<String, Any>)
     abstract fun stopRtmpStream()
@@ -28,7 +29,7 @@ abstract class SGCManager {
     abstract fun startBufferRecording()
     abstract fun stopBufferRecording()
     abstract fun saveBufferVideo(requestId: String, durationSeconds: Int)
-    abstract fun startVideoRecording(requestId: String, save: Boolean, silent: Boolean)
+    abstract fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean)
     abstract fun stopVideoRecording(requestId: String)
 
     // Button Settings
@@ -81,6 +82,9 @@ abstract class SGCManager {
 
     // User Context (for crash reporting)
     abstract fun sendUserEmailToGlasses(email: String)
+
+    // Incident Reporting
+    abstract fun sendIncidentId(incidentId: String)
 
     // Gallery
     abstract fun queryGalleryStatus()

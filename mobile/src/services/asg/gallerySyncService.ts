@@ -23,6 +23,7 @@ import {gallerySettingsService} from "./gallerySettingsService"
 import {gallerySyncNotifications} from "./gallerySyncNotifications"
 import {localStorageService} from "./localStorageService"
 import {
+  checkConnectivityRequirementsUI,
   checkFeaturePermissions,
   requestFeaturePermissions,
   PermissionFeatures,
@@ -271,6 +272,14 @@ class GallerySyncService {
       this.hotspotRequestTimeout = null
     }
 
+    // Pre-flight: do not start the wait if already disconnected (e.g. BT dropped right after hotspot enabled)
+    if (!useGlassesStore.getState().connected) {
+      console.log("[GallerySyncService] ❌ Glasses disconnected on hotspot_status_change - aborting (no wait)")
+      store.setSyncError("Glasses disconnected")
+      gallerySyncNotifications.showSyncError("Glasses disconnected")
+      return
+    }
+
     const hotspotInfo: HotspotInfo = {
       ssid: eventData.ssid,
       password: eventData.password,
@@ -290,9 +299,18 @@ class GallerySyncService {
     }
 
     this.hotspotConnectionTimeout = setTimeout(() => {
+      this.hotspotConnectionTimeout = null
+      // Pre-flight: abort if Bluetooth disconnected during the wait
+      const stillConnected = useGlassesStore.getState().connected
+      if (!stillConnected) {
+        console.log("[GallerySyncService] ❌ Glasses disconnected during hotspot wait - skipping WiFi connection")
+        const currentStore = useGallerySyncStore.getState()
+        currentStore.setSyncError("Glasses disconnected")
+        gallerySyncNotifications.showSyncError("Glasses disconnected")
+        return
+      }
       console.log("[GallerySyncService] ✅ Hotspot broadcast window complete - attempting connection")
       this.connectToHotspotWifi(hotspotInfo)
-      this.hotspotConnectionTimeout = null
     }, TIMING.HOTSPOT_CONNECT_DELAY_MS)
   }
 
@@ -330,14 +348,23 @@ class GallerySyncService {
       return
     }
 
-    // Check if glasses are connected
-    if (!glassesStore.connected) {
-      console.error("[GallerySyncService] ❌ Sync aborted - Glasses not connected")
-      store.setSyncError("Glasses not connected")
+    // Reuse shared connectivity gate (BT + Android location); shows the right alert if not ready
+    const connectivityOk = await checkConnectivityRequirementsUI()
+    if (!connectivityOk) {
+      console.warn("[GallerySyncService] Sync aborted - connectivity requirements not met")
+      store.setSyncError("Connectivity requirements not met")
       return
     }
 
-    console.log("[GallerySyncService] ✅ Pre-flight check passed - Glasses connected")
+    // Check if glasses are connected (store-based, secondary check)
+    if (!glassesStore.connected) {
+      console.warn("[GallerySyncService] Sync aborted - Glasses not connected")
+      store.setSyncError("Glasses not connected")
+      showAlert("Glasses Disconnected", "Please connect your glasses before syncing the gallery.", [{text: "OK"}])
+      return
+    }
+
+    console.log("[GallerySyncService] ✅ Pre-flight check passed - BT enabled, Glasses connected")
     console.log("[GallerySyncService] 📊 Glasses info:", {
       connected: glassesStore.connected,
       hotspotEnabled: glassesStore.hotspotEnabled,
@@ -653,6 +680,14 @@ class GallerySyncService {
    */
   private async connectToHotspotWifi(hotspotInfo: HotspotInfo): Promise<void> {
     const store = useGallerySyncStore.getState()
+
+    // Pre-flight: do not attempt WiFi connection if Bluetooth already disconnected
+    if (!useGlassesStore.getState().connected) {
+      console.log("[GallerySyncService] ❌ Glasses not connected - aborting WiFi connection")
+      store.setSyncError("Glasses disconnected")
+      gallerySyncNotifications.showSyncError("Glasses disconnected")
+      return
+    }
 
     // Show explanation dialog on first sync (user must acknowledge before proceeding)
     await this.showWifiJoinExplanation(hotspotInfo.ssid)

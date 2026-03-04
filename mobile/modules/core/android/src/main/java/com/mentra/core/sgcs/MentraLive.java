@@ -31,32 +31,6 @@ import android.util.Log;
 import androidx.core.app.ActivityCompat;
 // import androidx.preference.PreferenceManager;
 
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.BatteryLevelEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.ButtonPressEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesGalleryStatusEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesBluetoothSearchDiscoverEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesBluetoothSearchStopEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesWifiScanResultEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesWifiStatusChange;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesHotspotStatusChange;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.KeepAliveAckEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.RtmpStreamStatusEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.supportedglasses.SmartGlassesDevice;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.SmartGlassesConnectionState;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesVersionInfoEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.SmartGlassesManager;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.DownloadProgressEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.InstallationProgressEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.PairFailureEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.ImuDataEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.ImuGestureEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.isMicEnabledForFrontendEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.K900ProtocolUtils;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.MessageChunker;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.BlePhotoUploadService;
-// import com.augmentos.smartglassesmanager.cpp.L3cCpp;
-// import com.augmentos.augmentos_core.audio.Lc3Player;
-
 // Mentra
 import com.mentra.core.sgcs.SGCManager;
 import com.mentra.core.CoreManager;
@@ -215,6 +189,9 @@ public class MentraLive extends SGCManager {
     private Runnable connectionTimeoutRunnable;
     private Handler connectionTimeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable processSendQueueRunnable;
+    private int coreTokenRetryCount = 0;
+    private static final int CORE_TOKEN_MAX_RETRIES = 3;
+    private static final long CORE_TOKEN_RETRY_DELAY_MS = 250;
     // Current MTU size
     private int currentMtu = 23; // Default BLE MTU
 
@@ -3012,28 +2989,34 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Send the coreToken to the ASG client for direct backend authentication
+     * Send the coreToken to the ASG client for direct backend authentication.
+     * Retries a few times with delay if token is empty (bridge may not have applied
+     * CoreModule.update yet when glasses_ready runs).
      */
     private void sendCoreTokenToAsgClient() {
         Bridge.log("LIVE: Preparing to send coreToken to ASG client");
 
-        // Get the coreToken from SharedPreferences
-        SharedPreferences prefs = context.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE);
-        String coreToken = prefs.getString(KEY_CORE_TOKEN, null);
+        String coreToken = getCoreToken();
 
         if (coreToken == null || coreToken.isEmpty()) {
-            Log.e(TAG, "No coreToken available to send to ASG client");
+            if (coreTokenRetryCount < CORE_TOKEN_MAX_RETRIES - 1) {
+                coreTokenRetryCount++;
+                Log.d(TAG, "getCoreToken empty, retrying in " + CORE_TOKEN_RETRY_DELAY_MS + "ms (attempt " + (coreTokenRetryCount + 1) + "/" + CORE_TOKEN_MAX_RETRIES + ")");
+                handler.postDelayed(this::sendCoreTokenToAsgClient, CORE_TOKEN_RETRY_DELAY_MS);
+                return;
+            }
+            Log.e(TAG, "No coreToken available to send to ASG client after " + CORE_TOKEN_MAX_RETRIES + " attempts");
+            coreTokenRetryCount = 0;
             return;
         }
 
+        coreTokenRetryCount = 0;
         try {
-            // Create a JSON object with the token
             JSONObject tokenMsg = new JSONObject();
             tokenMsg.put("type", "auth_token");
             tokenMsg.put("coreToken", coreToken);
             tokenMsg.put("timestamp", System.currentTimeMillis());
 
-            // Send the JSON object
             Bridge.log("LIVE: Sending coreToken to ASG client");
             sendJson(tokenMsg);
 
@@ -3184,6 +3167,19 @@ public class MentraLive extends SGCManager {
             Bridge.log("LIVE: Sending WiFi scan request to glasses");
         } catch (JSONException e) {
             Log.e(TAG, "Error creating WiFi scan request", e);
+        }
+    }
+
+    @Override
+    public void sendIncidentId(String incidentId) {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("type", "upload_incident_logs");
+            json.put("incidentId", incidentId);
+            sendJson(json, true);
+            Bridge.log("LIVE: Sent incidentId to glasses for log upload: " + incidentId);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating upload_incident_logs command", e);
         }
     }
 
@@ -3656,8 +3652,8 @@ public class MentraLive extends SGCManager {
         }
     }
 
-    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean silent) {
-        Bridge.log("LIVE: Requesting photo: " + requestId + " for app: " + appId + " with size: " + size + ", webhookUrl: " + webhookUrl + ", authToken: " + (authToken.isEmpty() ? "none" : "***") + ", compress=" + compress + ", silent=" + silent);
+    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean flash, boolean sound) {
+        Bridge.log("LIVE: Requesting photo: " + requestId + " for app: " + appId + " with size: " + size + ", webhookUrl: " + webhookUrl + ", authToken: " + (authToken.isEmpty() ? "none" : "***") + ", compress=" + compress + ", flash=" + flash + ", sound=" + sound);
 
         try {
             JSONObject json = new JSONObject();
@@ -3678,8 +3674,8 @@ public class MentraLive extends SGCManager {
             } else {
                 json.put("compress", "none");
             }
-            // silent mode: disables shutter sound and privacy LED
-            json.put("silent", silent);
+            json.put("flash", flash);
+            json.put("sound", sound);
 
             // Always generate BLE ID for potential fallback
             String bleImgId = "I" + String.format("%09d", System.currentTimeMillis() % 1000000000);
@@ -5592,11 +5588,21 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Get the core authentication token
+     * Get the core authentication token.
+     * Reads from GlassesStore first (synced from JS via CoreModule.update), then falls back to
+     * SharedPreferences for backward compatibility.
      */
     private String getCoreToken() {
+        Object fromStore = GlassesStore.INSTANCE.get("core", "auth_token");
+        if (fromStore instanceof String) {
+            String token = (String) fromStore;
+            if (token != null && !token.isEmpty()) {
+                return token;
+            }
+        }
         SharedPreferences prefs = context.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(KEY_CORE_TOKEN, "");
+        String fromPrefs = prefs.getString(KEY_CORE_TOKEN, "");
+        return fromPrefs != null ? fromPrefs : "";
     }
 
     /**
@@ -5831,22 +5837,23 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void startVideoRecording(String requestId, boolean save, boolean silent) {
-        startVideoRecording(requestId, save, silent, 0, 0, 0); // Use defaults
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound) {
+        startVideoRecording(requestId, save, flash, sound, 0, 0, 0); // Use defaults
     }
 
     /**
      * Start video recording with optional resolution settings
      * @param requestId Request ID for tracking
      * @param save Whether to save the video
-     * @param silent Whether to disable sound and privacy LED
+     * @param flash Whether to enable privacy flash LED
+     * @param sound Whether to enable start/stop sounds
      * @param width Video width (0 for default)
      * @param height Video height (0 for default)
      * @param fps Video frame rate (0 for default)
      */
-    public void startVideoRecording(String requestId, boolean save, boolean silent, int width, int height, int fps) {
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound, int width, int height, int fps) {
         Bridge.log("LIVE: Starting video recording: requestId=" + requestId + ", save=" + save +
-                   ", silent=" + silent + ", resolution=" + width + "x" + height + "@" + fps + "fps");
+                   ", flash=" + flash + ", sound=" + sound + ", resolution=" + width + "x" + height + "@" + fps + "fps");
 
         if (!isConnected) {
             Log.w(TAG, "Cannot start video recording - not connected");
@@ -5858,7 +5865,8 @@ public class MentraLive extends SGCManager {
             json.put("type", "start_video_recording");
             json.put("requestId", requestId);
             json.put("save", save);
-            json.put("silent", silent);
+            json.put("flash", flash);
+            json.put("sound", sound);
 
             // Add video settings if provided
             if (width > 0 && height > 0) {

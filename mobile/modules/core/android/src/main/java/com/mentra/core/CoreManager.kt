@@ -1151,9 +1151,9 @@ class CoreManager {
         sgc?.saveBufferVideo(requestId, durationSeconds)
     }
 
-    fun startVideoRecording(requestId: String, save: Boolean, silent: Boolean) {
-        Bridge.log("MAN: onStartVideoRecording: requestId=$requestId, save=$save, silent=$silent")
-        sgc?.startVideoRecording(requestId, save, silent)
+    fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {
+        Bridge.log("MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound")
+        sgc?.startVideoRecording(requestId, save, flash, sound)
     }
 
     fun stopVideoRecording(requestId: String) {
@@ -1180,12 +1180,13 @@ class CoreManager {
             webhookUrl: String,
             authToken: String,
             compress: String,
-            silent: Boolean
+            flash: Boolean,
+            sound: Boolean
     ) {
         Bridge.log(
-                "MAN: onPhotoRequest: $requestId, $appId, $size, compress=$compress, silent=$silent"
+                "MAN: onPhotoRequest: $requestId, $appId, $size, compress=$compress, flash=$flash, sound=$sound"
         )
-        sgc?.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, silent)
+        sgc?.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
     }
 
     fun rgbLedControl(

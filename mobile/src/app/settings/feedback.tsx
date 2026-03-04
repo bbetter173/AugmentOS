@@ -352,16 +352,16 @@ export default function FeedbackPage() {
 
   const isFormValid = (): boolean => {
     if (feedbackType === "bug") {
-      return !!(expectedBehavior.trim() && actualBehavior.trim() && severityRating !== null)
+      return !!((expectedBehavior.trim() || actualBehavior.trim()) && severityRating !== null)
     } else {
       return !!(feedbackText.trim() && experienceRating !== null)
     }
   }
 
   return (
-    <Screen preset="fixed" safeAreaEdges={["bottom"]}>
+    <Screen preset="fixed">
       <Header title={translate("feedback:giveFeedback")} leftIcon="chevron-left" onLeftPress={goBack} />
-      <ScrollView className="pt-6 -mx-6 px-6" contentContainerClassName="flex-grow" keyboardShouldPersistTaps="handled">
+      <ScrollView className="pt-6 -mx-6 px-6" contentContainerClassName="flex-grow pb-12" keyboardShouldPersistTaps="handled">
         <View className="gap-6">
           {isApplePrivateRelay && (
             <View>
@@ -371,7 +371,7 @@ export default function FeedbackPage() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder={translate("feedback:email")}
-                placeholderTextColor={theme.colors.textDim}
+                placeholderTextColor={theme.colors.muted_foreground}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -401,7 +401,7 @@ export default function FeedbackPage() {
                   multiline
                   numberOfLines={4}
                   placeholder={translate("feedback:share")}
-                  placeholderTextColor={theme.colors.textDim}
+                  placeholderTextColor={theme.colors.muted_foreground}
                   value={expectedBehavior}
                   onChangeText={setExpectedBehavior}
                   textAlignVertical="top"
@@ -417,7 +417,7 @@ export default function FeedbackPage() {
                   multiline
                   numberOfLines={4}
                   placeholder={translate("feedback:actualShare")}
-                  placeholderTextColor={theme.colors.textDim}
+                  placeholderTextColor={theme.colors.muted_foreground}
                   value={actualBehavior}
                   onChangeText={setActualBehavior}
                   textAlignVertical="top"
@@ -489,7 +489,7 @@ export default function FeedbackPage() {
                   multiline
                   numberOfLines={6}
                   placeholder={translate("feedback:shareThoughts")}
-                  placeholderTextColor={theme.colors.textDim}
+                  placeholderTextColor={theme.colors.muted_foreground}
                   value={feedbackText}
                   onChangeText={setFeedbackText}
                   textAlignVertical="top"

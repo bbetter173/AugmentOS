@@ -89,6 +89,7 @@ app.post("/", async (c) => {
       phoneLogs: [], // Populated via POST /api/incidents/:id/logs
       cloudLogs: [], // Populated by background job
       glassesLogs: [], // Populated async via same endpoint
+      glassesFirmwareLogs: [], // Populated via POST with source "glasses_firmware" (BES)
       appTelemetryLogs: {}, // Populated via same endpoint, keyed by package name
     });
 
@@ -125,14 +126,16 @@ app.post("/", async (c) => {
  *
  * Body:
  * {
- *   "source": "phone" | "glasses" | omit for apps,
+ *   "source": "phone" | "glasses" | "glasses_firmware" (BES) | omit for apps,
  *   "logs": [{ timestamp, level, message, source?, metadata? }]
  * }
  */
 app.post("/:incidentId/logs", async (c) => {
   const incidentId = c.req.param("incidentId");
+  logger.info({ incidentId }, "[incident-logs] POST /:incidentId/logs received");
+
   let source: string;
-  let logCategory: "phoneLogs" | "glassesLogs" | null = null;
+  let logCategory: "phoneLogs" | "glassesLogs" | "glassesFirmwareLogs" | null = null;
   let appPackageName: string | null = null;
   let userEmail: string | null = null;
 
@@ -141,8 +144,31 @@ app.post("/:incidentId/logs", async (c) => {
   try {
     body = await c.req.json();
   } catch {
+    logger.warn({ incidentId }, "[incident-logs] Invalid JSON body");
     return c.json({ success: false, message: "Invalid JSON body" }, 400);
   }
+
+  logger.info(
+    { incidentId, source: body.source, logsCount: body.logs?.length },
+    "[incident-logs] Request body parsed (source + logs count)",
+  );
+
+  // [LOGS] Full request as received — use this to verify glasses vs glasses_firmware vs phone
+  const firstLog = body.logs?.[0];
+  logger.info(
+    {
+      tag: "[LOGS]",
+      method: "POST",
+      path: `/api/incidents/${incidentId}/logs`,
+      bodySource: body.source ?? "(missing)",
+      bodyLogsLength: body.logs?.length ?? 0,
+      firstLogMessage:
+        firstLog && typeof firstLog === "object" && "message" in firstLog
+          ? String((firstLog as LogEntry).message).slice(0, 120)
+          : undefined,
+    },
+    "[LOGS] Received logs request (body.source drives routing: glasses→glassesLogs, glasses_firmware→glassesFirmwareLogs, else→phoneLogs)",
+  );
 
   // Validate logs array
   if (!body.logs || !Array.isArray(body.logs)) {
@@ -162,7 +188,19 @@ app.post("/:incidentId/logs", async (c) => {
       }
       userEmail = decoded.email;
       source = body.source || "phone";
-      logCategory = source === "glasses" ? "glassesLogs" : "phoneLogs";
+      logCategory =
+        source === "glasses" ? "glassesLogs" : source === "glasses_firmware" ? "glassesFirmwareLogs" : "phoneLogs";
+      const knownSources = ["phone", "glasses", "glasses_firmware"];
+      if (!body.source || !knownSources.includes(body.source)) {
+        logger.warn(
+          { incidentId, userEmail, bodySource: body.source, resolvedSource: source, logCategory },
+          "[incident-logs] Source not found or unrecognized — defaulting to phone/phoneLogs",
+        );
+      }
+      logger.info(
+        { incidentId, source, logCategory, userEmail },
+        "[incident-logs] CoreToken auth OK — routing to category",
+      );
     } catch {
       return c.json({ success: false, message: "Invalid token" }, 401);
     }
@@ -202,13 +240,24 @@ app.post("/:incidentId/logs", async (c) => {
   // Check if incident exists and verify ownership
   const incident = await Incident.findOne({ incidentId });
   if (!incident) {
+    logger.warn({ incidentId, source: body.source }, "[incident-logs] Incident not found (404)");
     return c.json({ success: false, message: "Incident not found" }, 404);
   }
 
   // Verify the authenticated user owns this incident
   if (incident.userId !== userEmail) {
+    logger.warn(
+      { incidentId, incidentUserId: incident.userId, tokenUser: userEmail },
+      "[incident-logs] Forbidden: incident owner mismatch (403)",
+    );
     return c.json({ success: false, message: "Forbidden" }, 403);
   }
+
+  // [LOGS] Resolved category — if firmware shows phoneLogs here, body.source was wrong or missing
+  logger.info(
+    { tag: "[LOGS]", incidentId, bodySource: body.source, logCategory, logsCount: body.logs.length },
+    "[LOGS] Resolved log category for append (expected glasses_firmware→glassesFirmwareLogs)",
+  );
 
   // Append logs to R2
   try {
@@ -216,8 +265,14 @@ app.post("/:incidentId/logs", async (c) => {
       // App telemetry - use dedicated method that organizes by package name
       await incidentStorage.appendAppTelemetry(incidentId, appPackageName, body.logs);
     } else if (logCategory) {
-      // Phone or glasses logs
+      // Phone or glasses logs (including glasses_firmware)
+      logger.info(
+        { incidentId, logCategory, count: body.logs.length },
+        "[incident-logs] Calling appendLogs (phone/glasses/glasses_firmware)",
+      );
       await incidentStorage.appendLogs(incidentId, logCategory, body.logs, source);
+    } else {
+      logger.warn({ incidentId, source: body.source }, "[incident-logs] No logCategory — request not appended");
     }
 
     logger.info(
@@ -233,7 +288,7 @@ app.post("/:incidentId/logs", async (c) => {
 
     return c.json({ success: true });
   } catch (err) {
-    logger.error({ incidentId, source, err }, "Failed to append logs to incident");
+    logger.error({ incidentId, source: body.source, logCategory, err }, "[incident-logs] Failed to append logs (500)");
     return c.json({ success: false, message: "Storage error" }, 500);
   }
 });

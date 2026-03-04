@@ -1114,10 +1114,10 @@ struct ViewState {
         sgc?.saveBufferVideo(requestId: requestId, durationSeconds: durationSeconds)
     }
 
-    func startVideoRecording(_ requestId: String, _ save: Bool, _ silent: Bool) {
+    func startVideoRecording(_ requestId: String, _ save: Bool, _ flash: Bool, _ sound: Bool) {
         Bridge.log(
-            "MAN: onStartVideoRecording: requestId=\(requestId), save=\(save), silent=\(silent)")
-        sgc?.startVideoRecording(requestId: requestId, save: save, silent: silent)
+            "MAN: onStartVideoRecording: requestId=\(requestId), save=\(save), flash=\(flash), sound=\(sound)")
+        sgc?.startVideoRecording(requestId: requestId, save: save, flash: flash, sound: sound)
     }
 
     func stopVideoRecording(_ requestId: String) {
@@ -1163,14 +1163,15 @@ struct ViewState {
         _ webhookUrl: String?,
         _ authToken: String?,
         _ compress: String?,
-        _ silent: Bool
+        _ flash: Bool,
+        _ sound: Bool
     ) {
         Bridge.log(
-            "MAN: onPhotoRequest: \(requestId), \(appId), \(webhookUrl), size=\(size), compress=\(compress ?? "none"), silent=\(silent)"
+            "MAN: onPhotoRequest: \(requestId), \(appId), \(webhookUrl), size=\(size), compress=\(compress ?? "none"), flash=\(flash), sound=\(sound)"
         )
         sgc?.requestPhoto(
             requestId, appId: appId, size: size, webhookUrl: webhookUrl, authToken: authToken,
-            compress: compress, silent: silent
+            compress: compress, flash: flash, sound: sound
         )
     }
 

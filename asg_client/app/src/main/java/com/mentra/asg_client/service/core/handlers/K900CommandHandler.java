@@ -732,7 +732,7 @@ public class K900CommandHandler {
                 Log.d(TAG, "📸 Taking photo locally (short press) with LED: " + ledEnabled);
                 // Get saved photo size for button press
                 String photoSize = serviceManager.getAsgSettings().getButtonPhotoSize();
-                captureService.takePhotoLocally(photoSize, ledEnabled);
+                captureService.takePhotoLocally(photoSize, ledEnabled, true);
             }
         }
     }

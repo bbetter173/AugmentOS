@@ -1,7 +1,7 @@
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
 import {useRoute} from "@react-navigation/native"
 import CoreModule from "core"
-import {Linking, PermissionsAndroid, Image, Platform, View} from "react-native"
+import {Linking, PermissionsAndroid, Image, Platform, ScrollView, View} from "react-native"
 
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {Button, Header, Icon, Screen, Text} from "@/components/ignite"
@@ -427,12 +427,9 @@ export default function PairingPrepScreen() {
         RightActionComponent={<MentraLogoStandalone />}
       />
       <Spacer height={theme.spacing.s6} />
-      {/* <ScrollView style={{marginRight: -theme.spacing.s6, paddingRight: theme.spacing.s6}}> */}
-      {/* </ScrollView> */}
-
-      {/* <PairingGuide model={deviceModel} /> */}
-      {/* <PairingOptions model={deviceModel} continueFn={advanceToPairing} /> */}
-      {renderGuide()}
+      <ScrollView className="-mx-6 px-6" contentContainerStyle={{flexGrow: 1}} showsVerticalScrollIndicator={false}>
+        {renderGuide()}
+      </ScrollView>
       {renderButtons()}
     </Screen>
   )

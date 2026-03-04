@@ -42,7 +42,8 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
     webhookUrl: string | null,
     authToken: string | null,
     compress: string,
-    silent: boolean,
+    flash: boolean,
+    sound: boolean,
   ): Promise<void>
 
   // OTA Commands
@@ -55,7 +56,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   startBufferRecording(): Promise<void>
   stopBufferRecording(): Promise<void>
   saveBufferVideo(requestId: string, durationSeconds: number): Promise<void>
-  startVideoRecording(requestId: string, save: boolean, silent: boolean): Promise<void>
+  startVideoRecording(requestId: string, save: boolean, flash: boolean, sound: boolean): Promise<void>
   stopVideoRecording(requestId: string): Promise<void>
 
   // RTMP Stream Commands

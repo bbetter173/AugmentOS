@@ -121,7 +121,7 @@ export default function SelectGlassesBluetoothScreen() {
   return (
     <Screen preset="fixed" safeAreaEdges={["bottom"]}>
       <Header leftIcon="chevron-left" onLeftPress={goBack} RightActionComponent={<MentraLogoStandalone />} />
-      <View className="flex-1 pt-[35%]">
+      <View className="flex-1 justify-center">
         <View className="gap-6 rounded-3xl bg-primary-foreground p-6">
           <Image source={getGlassesOpenImage(deviceModel)} className="h-[90px] w-full" resizeMode="contain" />
           <Text

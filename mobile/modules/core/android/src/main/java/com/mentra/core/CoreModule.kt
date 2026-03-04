@@ -144,7 +144,8 @@ class CoreModule : Module() {
                 webhookUrl: String,
                 authToken: String,
                 compress: String,
-                silent: Boolean ->
+                flash: Boolean,
+                sound: Boolean ->
             coreManager?.photoRequest(
                     requestId,
                     appId,
@@ -152,7 +153,8 @@ class CoreModule : Module() {
                     webhookUrl,
                     authToken,
                     compress,
-                    silent
+                    flash,
+                    sound
             )
         }
 
@@ -180,8 +182,8 @@ class CoreModule : Module() {
             coreManager?.saveBufferVideo(requestId, durationSeconds)
         }
 
-        AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, silent: Boolean ->
-            coreManager?.startVideoRecording(requestId, save, silent)
+        AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
+            coreManager?.startVideoRecording(requestId, save, flash, sound)
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
@@ -324,10 +326,27 @@ class CoreModule : Module() {
                     context.getSystemService(android.content.Context.LOCATION_SERVICE) as
                             android.location.LocationManager
             // Check if either GPS or Network location provider is enabled
-            locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
+            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
                     locationManager.isProviderEnabled(
                             android.location.LocationManager.NETWORK_PROVIDER
                     )
+            if (!providerEnabled) {
+                // Fallback: check the system-level location toggle directly.
+                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
+                // Google Play Services or without a GPS chip, even when location is toggled on.
+                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val systemEnabled = locationManager.isLocationEnabled
+                    if (systemEnabled) {
+                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
+                    }
+                    systemEnabled
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
         }
 
         AsyncFunction("openLocationSettings") {

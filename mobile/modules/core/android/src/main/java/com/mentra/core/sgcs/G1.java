@@ -1515,7 +1515,7 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean silent) {
+    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean flash, boolean sound) {
 
     }
 
@@ -1550,7 +1550,7 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void startVideoRecording(String requestId, boolean save, boolean silent) {
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound) {
 
     }
 

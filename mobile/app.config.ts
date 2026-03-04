@@ -26,7 +26,8 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
     android: {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: "com.mentra.mentra",
-      versionCode: 91,
+      googleServicesFile: "./google-services.json",
+      versionCode: 92,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",
@@ -60,6 +61,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       supportsTablet: false,
       requireFullScreen: true,
       bundleIdentifier: "com.mentra.mentra",
+      googleServicesFile: "./GoogleService-Info.plist",
       associatedDomains: ["applinks:apps.mentra.glass"],
       infoPlist: {
         NSCameraUsageDescription: "This app needs access to your camera to capture images.",
@@ -225,6 +227,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           locationAlwaysAndWhenInUsePermission: "Allow MentraOS to use your location.",
         },
       ],
+      "@react-native-firebase/app",
       "expo-audio",
       [
         "expo-video",

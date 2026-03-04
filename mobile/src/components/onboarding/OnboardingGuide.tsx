@@ -962,7 +962,7 @@ export function OnboardingGuide({
 
   return (
     <>
-      <View id="main" className="flex-1 justify-between">
+      <View id="main" className="flex-1">
         {showHeader && (
           <Header
             leftIcon={showCloseButton && hasStarted ? "x" : undefined}
@@ -1001,7 +1001,7 @@ export function OnboardingGuide({
           {renderNumberedBullets()}
         </View>
 
-        <View id="bottom" className={`flex justify-end flex-shrink min-h-12`}>
+        <View id="bottom" className={`absolute bottom-0 left-0 right-0 flex justify-end min-h-12`}>
           {!hasStarted && (
             <View className="flex-col">
               <View className="absolute w-full bottom-15 z-10">

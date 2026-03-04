@@ -210,6 +210,7 @@ public class MediaCaptureService {
     private String currentVideoPath = null;
     private long recordingStartTime = 0;
     private boolean currentVideoLedEnabled = false; // Track if LED was enabled for current recording
+    private boolean currentVideoSoundEnabled = false; // Track if sound was enabled for current recording
 
     // Max recording time check
     private final Handler recordingTimeHandler = new Handler(Looper.getMainLooper());
@@ -559,10 +560,10 @@ public class MediaCaptureService {
      * @param maxRecordingTimeMinutes Maximum recording time in minutes (0 = no limit)
      * @param initialBatteryLevel Initial battery level (for monitoring during recording, -1 = unknown)
      */
-    public void startVideoRecording(VideoSettings settings, boolean enableLed, int maxRecordingTimeMinutes, int initialBatteryLevel) {
+    public void startVideoRecording(VideoSettings settings, boolean enableFlash, int maxRecordingTimeMinutes, int initialBatteryLevel) {
         // Note: Removed assertMainThread() - this is called from Bluetooth worker thread via command handlers
         // Thread safety is maintained through CameraNeo's internal threading and Handler usage
-        Log.d(TAG, "startVideoRecording called with settings: " + settings + ", enableLed: " + enableLed + ", maxRecordingTimeMinutes: " + maxRecordingTimeMinutes + ", initialBatteryLevel: " + initialBatteryLevel);
+        Log.d(TAG, "startVideoRecording called with settings: " + settings + ", enableFlash: " + enableFlash + ", maxRecordingTimeMinutes: " + maxRecordingTimeMinutes + ", initialBatteryLevel: " + initialBatteryLevel);
 
         // Check if battery is too low to start recording (query current level for accuracy)
         if (mStateManager != null) {
@@ -586,7 +587,7 @@ public class MediaCaptureService {
             int randomSuffix = (int)(Math.random() * 1000);
             String requestId = "local_video_" + timeStamp + "_" + randomSuffix;
             String videoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "VID_" + timeStamp + "_" + randomSuffix + ".mp4";
-            startVideoRecording(videoFilePath, requestId, settings, enableLed, maxRecordingTimeMinutes);
+            startVideoRecording(videoFilePath, requestId, settings, enableFlash, true, maxRecordingTimeMinutes);
         }
     }
 
@@ -596,8 +597,8 @@ public class MediaCaptureService {
      * @param requestId Unique request ID for tracking
      * @param save Whether to keep the video on device after upload
      */
-    public void handleStartVideoCommand(String requestId, boolean save, boolean enableLed) {
-        handleStartVideoCommand(requestId, save, null, enableLed);
+    public void handleStartVideoCommand(String requestId, boolean save, boolean enableFlash, boolean enableSound) {
+        handleStartVideoCommand(requestId, save, null, enableFlash, enableSound);
     }
     
     /**
@@ -606,8 +607,8 @@ public class MediaCaptureService {
      * @param save Whether to keep the video on device after upload
      * @param settings Video settings (resolution, fps) or null for defaults
      */
-    public void handleStartVideoCommand(String requestId, boolean save, VideoSettings settings, boolean enableLed) {
-        Log.d(TAG, "handleStartVideoCommand called with requestId: " + requestId + ", save: " + save + ", settings: " + settings + ", enableLed: " + enableLed);
+    public void handleStartVideoCommand(String requestId, boolean save, VideoSettings settings, boolean enableFlash, boolean enableSound) {
+        Log.d(TAG, "handleStartVideoCommand called with requestId: " + requestId + ", save: " + save + ", settings: " + settings + ", enableFlash: " + enableFlash + ", enableSound: " + enableSound);
         
         // Check if already recording
         if (isRecordingVideo) {
@@ -624,7 +625,7 @@ public class MediaCaptureService {
                             String videoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "VID_" + timeStamp + "_" + randomSuffix + "_" + requestId + ".mp4";
 
         // Start video recording with the provided requestId and settings (or null for defaults)
-        startVideoRecording(videoFilePath, requestId, settings, enableLed);
+        startVideoRecording(videoFilePath, requestId, settings, enableFlash, enableSound);
     }
 
     /**
@@ -670,21 +671,21 @@ public class MediaCaptureService {
     /**
      * Start video recording with specific parameters
      */
-    private void startVideoRecording(String videoFilePath, String requestId, boolean enableLed) {
-        startVideoRecording(videoFilePath, requestId, null, enableLed, 0);
+    private void startVideoRecording(String videoFilePath, String requestId, boolean enableFlash) {
+        startVideoRecording(videoFilePath, requestId, null, enableFlash, true, 0);
     }
 
     /**
      * Start video recording with specific parameters and settings
      */
-    private void startVideoRecording(String videoFilePath, String requestId, VideoSettings settings, boolean enableLed) {
-        startVideoRecording(videoFilePath, requestId, settings, enableLed, 0);
+    private void startVideoRecording(String videoFilePath, String requestId, VideoSettings settings, boolean enableFlash, boolean enableSound) {
+        startVideoRecording(videoFilePath, requestId, settings, enableFlash, enableSound, 0);
     }
 
     /**
      * Start video recording with specific parameters, settings, and max time
      */
-    private void startVideoRecording(String videoFilePath, String requestId, VideoSettings settings, boolean enableLed, int maxRecordingTimeMinutes) {
+    private void startVideoRecording(String videoFilePath, String requestId, VideoSettings settings, boolean enableFlash, boolean enableSound, int maxRecordingTimeMinutes) {
         // Check if RTMP streaming is active - videos cannot interrupt streams
         if (RtmpStreamingService.isStreaming()) {
             Log.e(TAG, "Cannot start video - RTMP streaming active");
@@ -717,12 +718,15 @@ public class MediaCaptureService {
         // Save info for the current recording session
         currentVideoId = requestId;
         currentVideoPath = videoFilePath;
-        currentVideoLedEnabled = enableLed; // Track LED state for this recording
+        currentVideoLedEnabled = enableFlash; // Track LED state for this recording
+        currentVideoSoundEnabled = enableSound; // Track sound state for this recording
 
         try {
-            // Play video start sound
-            playVideoStartSound();
-            if (enableLed) {
+            // Play video start sound if enabled
+            if (enableSound) {
+                playVideoStartSound();
+            }
+            if (enableFlash) {
                 triggerVideoRecordingLed(); // Trigger solid white LED for video recording duration
             }
 
@@ -738,12 +742,12 @@ public class MediaCaptureService {
                     new Handler(Looper.getMainLooper()).post(() -> startBatteryMonitoring());
 
                     // Turn on recording flash LED if enabled with controlled brightness
-                    if (enableLed && hardwareManager.supportsLedBrightness()) {
+                    if (enableFlash && hardwareManager.supportsLedBrightness()) {
                         // TODO: RESTORE LOWER LED BRIGHTNESS LATER
                         //hardwareManager.setRecordingLedBrightness(50); // 50% brightness for video
                         hardwareManager.setRecordingLedOn();
                         Log.d(TAG, "Recording flash LED turned ON at 50% brightness");
-                    } else if (enableLed && hardwareManager.supportsRecordingLed()) {
+                    } else if (enableFlash && hardwareManager.supportsRecordingLed()) {
                         hardwareManager.setRecordingLedOn();
                         Log.d(TAG, "Recording flash LED turned ON (full brightness)");
                     }
@@ -794,7 +798,7 @@ public class MediaCaptureService {
                     // Note: RGB white LED already turned off in stopVideoRecording() synchronized with sound
 
                     // Turn off recording LED if it was enabled
-                    if (enableLed && hardwareManager.supportsRecordingLed()) {
+                    if (enableFlash && hardwareManager.supportsRecordingLed()) {
                         hardwareManager.setRecordingLedOff();
                         Log.d(TAG, "Recording LED turned OFF");
                     }
@@ -824,7 +828,7 @@ public class MediaCaptureService {
                     stopVideoRecordingLed();
                     
                     // Turn off recording LED on error if it was enabled
-                    if (enableLed && hardwareManager.supportsRecordingLed()) {
+                    if (enableFlash && hardwareManager.supportsRecordingLed()) {
                         hardwareManager.setRecordingLedOff();
                         Log.d(TAG, "Recording LED turned OFF (due to error)");
                     }
@@ -900,12 +904,16 @@ public class MediaCaptureService {
 
                 case MAX_DURATION:
                     Log.i(TAG, "⏱️ Video stopped - max duration reached");
-                    playVideoStopSound();
+                    if (currentVideoSoundEnabled) {
+                        playVideoStopSound();
+                    }
                     break;
 
                 case USER_REQUESTED:
                     Log.i(TAG, "👤 Video stopped by user request");
-                    playVideoStopSound();
+                    if (currentVideoSoundEnabled) {
+                        playVideoStopSound();
+                    }
                     break;
 
                 case ERROR:
@@ -1103,15 +1111,16 @@ public class MediaCaptureService {
      * Uses default medium size
      */
     public void takePhotoLocally() {
-        takePhotoLocally("medium", false);
+        takePhotoLocally("medium", false, false);
     }
     
     /**
      * Takes a photo locally with specified size
      * @param size Photo size ("small", "medium", or "large")
-     * @param enableLed Whether to enable camera LED flash
+     * @param enableFlash Whether to enable privacy flash LED
+     * @param enableSound Whether to enable shutter sound
      */
-    public void takePhotoLocally(String size, boolean enableLed) {
+    public void takePhotoLocally(String size, boolean enableFlash, boolean enableSound) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
         if (ENABLE_PHOTO_TIMING_LOGS) {
@@ -1175,32 +1184,34 @@ public class MediaCaptureService {
 
         String photoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "IMG_" + timeStamp + "_" + randomSuffix + ".jpg";
 
-        Log.d(TAG, "Taking photo locally at: " + photoFilePath + " with size: " + size + ", LED: " + enableLed);
-        
+        Log.d(TAG, "Taking photo locally at: " + photoFilePath + " with size: " + size + ", flash: " + enableFlash + ", sound: " + enableSound);
+
         // Log test configuration for debugging
         PhotoCaptureTestFramework.logTestConfig();
-        
+
         // Generate a temporary requestId first
         String requestId = "local_" + timeStamp;
-        
+
         // TESTING: Check for fake camera initialization failure
         if (PhotoCaptureTestFramework.shouldFail("CAMERA_INIT")) {
             Log.e(TAG, "TESTING: Simulating camera initialization failure");
-            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(), 
+            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
                 PhotoCaptureTestFramework.getErrorMessage());
             return;
         }
-        
+
         // TESTING: Add fake delay for camera init
         PhotoCaptureTestFramework.addFakeDelay("CAMERA_INIT");
 
         // RGB LED always flashes for photos (user visibility indicator)
         triggerPhotoFlashLed();
 
-        // enableLed (from silent param) controls sound and privacy LED only
-        if (enableLed) {
+        // flash controls privacy LED, sound controls shutter sound
+        if (enableSound) {
             playShutterSound();
-            flashPrivacyLedForPhoto(); // Flash privacy LED synchronized with shutter sound
+        }
+        if (enableFlash) {
+            flashPrivacyLedForPhoto(); // Flash privacy LED
         }
 
         // TESTING: Check for fake camera capture failure
@@ -1220,7 +1231,7 @@ public class MediaCaptureService {
                 mContext,
                 photoFilePath,
                 size,
-                enableLed,
+                enableFlash,
                 false,  // isFromSdk - button photo, use high quality resolution
                 new CameraNeo.PhotoCaptureCallback() {
                     @Override
@@ -1267,10 +1278,11 @@ public class MediaCaptureService {
      * @param authToken Auth token for webhook authentication
      * @param save Whether to keep the photo on device after upload
      * @param size Photo size
-     * @param enableLed Whether to enable camera LED flash
+     * @param enableFlash Whether to enable privacy flash LED
+     * @param enableSound Whether to enable shutter sound
      * @param compress Compression level (none, medium, heavy)
      */
-    public void takePhotoAndUpload(String photoFilePath, String requestId, String webhookUrl, String authToken, boolean save, String size, boolean enableLed, String compress) {
+    public void takePhotoAndUpload(String photoFilePath, String requestId, String webhookUrl, String authToken, boolean save, String size, boolean enableFlash, boolean enableSound, String compress) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
         if (ENABLE_PHOTO_TIMING_LOGS) {
@@ -1358,10 +1370,12 @@ public class MediaCaptureService {
             // RGB LED always flashes for photos (user visibility indicator)
             triggerPhotoFlashLed();
 
-            // enableLed (from silent param) controls sound and privacy LED only
-            if (enableLed) {
+            // flash controls privacy LED, sound controls shutter sound
+            if (enableSound) {
                 playShutterSound();
-                flashPrivacyLedForPhoto(); // Flash privacy LED synchronized with shutter sound
+            }
+            if (enableFlash) {
+                flashPrivacyLedForPhoto(); // Flash privacy LED
             }
 
             // Use the new enqueuePhotoRequest for thread-safe rapid capture
@@ -1370,7 +1384,7 @@ public class MediaCaptureService {
                     mContext,
                     photoFilePath,
                     size,
-                    enableLed,
+                    enableFlash,
                     true,  // isFromSdk - use optimized resolution for fast transfer
                     new CameraNeo.PhotoCaptureCallback() {
                         @Override
@@ -2097,7 +2111,7 @@ public class MediaCaptureService {
      * @param save Whether to keep the photo on device
      * @param compress Compression level (none, medium, heavy)
      */
-    public void takePhotoAutoTransfer(String photoFilePath, String requestId, String webhookUrl, String authToken, String bleImgId, boolean save, String size, boolean enableLed, String compress) {
+    public void takePhotoAutoTransfer(String photoFilePath, String requestId, String webhookUrl, String authToken, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound, String compress) {
         // Check battery level before proceeding (defense-in-depth)
         if (mStateManager != null) {
             int batteryLevel = mStateManager.getBatteryLevel();
@@ -2119,7 +2133,7 @@ public class MediaCaptureService {
 
         // Attempt direct upload (internet test removed due to unreliability)
         Log.d(TAG, "Attempting direct upload for " + requestId);
-            takePhotoAndUpload(photoFilePath, requestId, webhookUrl, authToken, save, size, enableLed, compress);
+            takePhotoAndUpload(photoFilePath, requestId, webhookUrl, authToken, save, size, enableFlash, enableSound, compress);
         
         // Note: BLE fallback will be handled automatically by upload failure detection
         Log.d(TAG, "BLE fallback will be used if upload fails");
@@ -2132,7 +2146,7 @@ public class MediaCaptureService {
      * @param bleImgId BLE image ID to use as filename
      * @param save Whether to keep the original photo on device
      */
-    public void takePhotoForBleTransfer(String photoFilePath, String requestId, String bleImgId, boolean save, String size, boolean enableLed) {
+    public void takePhotoForBleTransfer(String photoFilePath, String requestId, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
         if (ENABLE_PHOTO_TIMING_LOGS) {
@@ -2194,10 +2208,12 @@ public class MediaCaptureService {
         // RGB LED always flashes for photos (user visibility indicator)
         triggerPhotoFlashLed();
 
-        // enableLed (from silent param) controls sound and privacy LED only
-        if (enableLed) {
+        // flash controls privacy LED, sound controls shutter sound
+        if (enableSound) {
             playShutterSound();
-            flashPrivacyLedForPhoto(); // Flash privacy LED synchronized with shutter sound
+        }
+        if (enableFlash) {
+            flashPrivacyLedForPhoto(); // Flash privacy LED
         }
 
         try {

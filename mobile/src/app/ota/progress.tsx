@@ -48,7 +48,6 @@ export default function OtaProgressScreen() {
   const [retryCount, setRetryCount] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [continueButtonDisabled, setContinueButtonDisabled] = useState(false)
-  const [_timeEstimation, _setTimeEstimation] = useState<string | null>(null)
   const [elapsedTime, setElapsedTime] = useState<string>("")
 
   // Track the full update sequence and current position
@@ -102,7 +101,7 @@ export default function OtaProgressScreen() {
   const simulationTimerRef = useRef<number | null>(null)
   const stallDetectionRef = useRef<number | null>(null)
   const lastRealProgressRef = useRef<number>(0)
-  const timeEstimationStartTimeRef = useRef<number>(0)
+  const [otaStartTime, setOtaStartTime] = useState<number>(0)
   const pingIntervalRef = useRef<number | null>(null)
 
   // Keep glasses awake during OTA by sending periodic pings
@@ -167,6 +166,7 @@ export default function OtaProgressScreen() {
       updateSequenceRef.current = [...otaUpdateAvailable.updates]
       console.log("🔍 OTA MOUNT: Update sequence =", updateSequenceRef.current)
     }
+    console.log("🔍 OTA MOUNT: sequence=", JSON.stringify(updateSequenceRef.current))
 
     // Clear any stale OTA progress from previous attempts
     useGlassesStore.getState().setOtaProgress(null)
@@ -293,6 +293,21 @@ export default function OtaProgressScreen() {
         progressTimeoutRef.current = null
       }
 
+      console.log(
+        "🔍 OTA BUILD#: APK complete via build number",
+        initialVersion,
+        "->",
+        currentVersion,
+        "| seq=",
+        JSON.stringify(updateSequenceRef.current),
+        "idx=",
+        currentUpdateIndex,
+        "state=",
+        progressStateRef.current,
+        "apk12sTimer=",
+        !!completionTimeoutRef.current,
+      )
+
       // Mark APK as completed
       handleUpdateCompleted("apk")
     }
@@ -311,6 +326,19 @@ export default function OtaProgressScreen() {
 
       const sequence = updateSequenceRef.current
       const currentIndex = sequence.indexOf(completedUpdate)
+
+      console.log(
+        "🔍 OTA COMPLETE: handleUpdateCompleted(",
+        completedUpdate,
+        ") | seq=",
+        JSON.stringify(sequence),
+        "foundIdx=",
+        currentIndex,
+        "alreadyDone=",
+        completedUpdates.includes(completedUpdate),
+        "state=",
+        progressStateRef.current,
+      )
 
       // Check if this was the last update
       if (currentIndex === sequence.length - 1 || currentIndex === -1) {
@@ -340,26 +368,25 @@ export default function OtaProgressScreen() {
   )
 
   useEffect(() => {
-    if (!timeEstimationStartTimeRef.current) return
+    if (!otaStartTime) return
 
     const interval = setInterval(() => {
-      const diff = Date.now() - timeEstimationStartTimeRef.current
+      const diff = Date.now() - otaStartTime
       const totalSeconds = Math.floor(diff / 1000)
-      // const h = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
       const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")
       const s = String(totalSeconds % 60).padStart(2, "0")
       setElapsedTime(`${m}:${s}`)
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [timeEstimationStartTimeRef.current])
+  }, [otaStartTime])
 
   // Send OTA start command with retry logic
   const sendOtaStartCommand = useCallback(async () => {
     try {
       console.log(`OTA: Sending start command to glasses (attempt ${retryCount + 1}/${MAX_RETRIES})`)
       await CoreModule.sendOtaStart()
-      timeEstimationStartTimeRef.current = Date.now()
+      setOtaStartTime(Date.now())
 
       // Set up timeout to check if we received progress
       retryTimeoutRef.current = setTimeout(() => {
@@ -593,7 +620,7 @@ export default function OtaProgressScreen() {
   useEffect(() => {
     if (skipStaleProgressRef.current) {
       skipStaleProgressRef.current = false
-      console.log("🔍 OTA EFFECT: Skipping stale otaProgress on first mount")
+      console.log("🔍 OTA EFFECT: Skipping stale otaProgress on first mount, skipped=", JSON.stringify(otaProgress))
       return
     }
 
@@ -630,6 +657,24 @@ export default function OtaProgressScreen() {
       "currentUpdate:",
       currentUpdate,
     )
+    console.log(
+      "🔍 OTA EVENT: stage=",
+      stage,
+      "status=",
+      status,
+      "currentUpdate=",
+      currentUpdate,
+      "progress=",
+      otaProgress.progress,
+      "| seq=",
+      JSON.stringify(updateSequenceRef.current),
+      "idx=",
+      currentUpdateIndex,
+      "state=",
+      progressStateRef.current,
+      "apkTimer=",
+      !!completionTimeoutRef.current,
+    )
 
     // Mark that we've received progress - stop retrying
     if (!hasReceivedProgress.current) {
@@ -654,7 +699,20 @@ export default function OtaProgressScreen() {
     if (updateIndex !== -1) {
       setCurrentUpdateIndex((prev) => {
         if (prev === updateIndex) return prev
-        console.log(`OTA: Update index changed from ${prev} to ${updateIndex}`)
+        console.log(
+          "🔍 OTA IDX: currentUpdateIndex",
+          prev,
+          "->",
+          updateIndex,
+          "| currentUpdate=",
+          currentUpdate,
+          "stage=",
+          stage,
+          "status=",
+          status,
+          "state=",
+          progressStateRef.current,
+        )
         return updateIndex
       })
     }
@@ -748,6 +806,20 @@ export default function OtaProgressScreen() {
           // Check if this is the final update
           const sequence = updateSequenceRef.current
           const besIndex = sequence.indexOf("bes")
+          console.log(
+            "🔍 OTA BES FINISH: besIdx=",
+            besIndex,
+            "seqLen=",
+            sequence.length,
+            "isLast=",
+            besIndex === sequence.length - 1,
+            "| apkTimerActive=",
+            !!completionTimeoutRef.current,
+            "state=",
+            progressStateRef.current,
+            "idx=",
+            currentUpdateIndex,
+          )
           if (besIndex === sequence.length - 1) {
             // BES is the last update - show restarting, then user can continue
             setProgressState("restarting")
@@ -764,13 +836,34 @@ export default function OtaProgressScreen() {
           setProgressState("restarting")
         }
       } else if (currentUpdate === "apk") {
-        // APK update - show transition after a delay to allow installation
+        if (stage !== "install") {
+          // Ignore any non-install FINISHED events for APK (defensive guard)
+          console.log("OTA: APK FINISHED for stage=" + stage + " - ignoring, waiting for install FINISHED")
+          return
+        }
+        // APK install FINISHED - show transition after a delay to allow installation
         if (progressTimeoutRef.current) {
           clearTimeout(progressTimeoutRef.current)
           progressTimeoutRef.current = null
         }
         console.log("OTA: APK install FINISHED - will transition after delay")
+        console.log(
+          "🔍 OTA APK FINISH: setting 12s timer | seq=",
+          JSON.stringify(updateSequenceRef.current),
+          "idx=",
+          currentUpdateIndex,
+          "state=",
+          progressStateRef.current,
+        )
         completionTimeoutRef.current = setTimeout(() => {
+          console.log(
+            "🔍 OTA APK 12s FIRED: seq=",
+            JSON.stringify(updateSequenceRef.current),
+            "state=",
+            progressStateRef.current,
+            "idx=",
+            currentUpdateIndex,
+          )
           handleUpdateCompleted("apk")
         }, 12000)
       }
@@ -801,6 +894,12 @@ export default function OtaProgressScreen() {
       }
       if (stallDetectionRef.current) {
         clearTimeout(stallDetectionRef.current)
+      }
+      if (stuckTimeoutRef.current) {
+        clearTimeout(stuckTimeoutRef.current)
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
       }
     }
   }, [])

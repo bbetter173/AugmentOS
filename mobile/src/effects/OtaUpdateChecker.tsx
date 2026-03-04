@@ -355,6 +355,7 @@ export function OtaUpdateChecker() {
     updates: string[]
   } | null>(null)
   const otaCheckTimeoutRef = useRef<number | null>(null)
+  const cacheReadyFallbackTimeoutRef = useRef<number | null>(null)
 
   // Reset OTA check flag when glasses disconnect (allows fresh check on reconnect)
   useEffect(() => {
@@ -372,6 +373,11 @@ export function OtaUpdateChecker() {
       if (otaCheckTimeoutRef.current) {
         BackgroundTimer.clearTimeout(otaCheckTimeoutRef.current)
         otaCheckTimeoutRef.current = null
+      }
+      // Clear fallback timeout - prefetch is irrelevant after disconnect
+      if (cacheReadyFallbackTimeoutRef.current) {
+        BackgroundTimer.clearTimeout(cacheReadyFallbackTimeoutRef.current)
+        cacheReadyFallbackTimeoutRef.current = null
       }
       // Clear MTK session flag on disconnect (glasses rebooted, new version now active)
       const mtkWasUpdated = useGlassesStore.getState().mtkUpdatedThisSession
@@ -438,6 +444,13 @@ export function OtaUpdateChecker() {
 
     console.log("OTA: Glasses cache-ready update available - showing install prompt")
 
+    // Glasses delivered the cache-ready signal - cancel the phone-side fallback timer
+    if (cacheReadyFallbackTimeoutRef.current) {
+      BackgroundTimer.clearTimeout(cacheReadyFallbackTimeoutRef.current)
+      cacheReadyFallbackTimeoutRef.current = null
+    }
+    pendingUpdate.current = null
+
     // Clear store signal before showing alert to prevent immediate re-triggering
     useGlassesStore.getState().setOtaUpdateAvailable(null)
 
@@ -475,13 +488,6 @@ export function OtaUpdateChecker() {
     const features: Capabilities = getModelCapabilities(defaultWearable)
     if (!features?.hasWifi) {
       // console.log("OTA: check skipped - device doesn't have WiFi capability")
-      return
-    }
-
-    // Mobile should only fetch/check OTA details when glasses are NOT on WiFi.
-    // When glasses are on WiFi, glasses-side background pre-download owns the flow.
-    if (glassesWifiConnected) {
-      console.log("OTA: Glasses on WiFi - skipping phone-side OTA fetch; waiting for cache-ready signal")
       return
     }
 
@@ -556,6 +562,37 @@ export function OtaUpdateChecker() {
           const currentlyConnected = useGlassesStore.getState().connected
           if (!currentlyConnected) {
             console.log("OTA: update found but glasses disconnected - skipping alert")
+            return
+          }
+
+          // When glasses already have WiFi, the glasses-side prefetch owns the install flow.
+          // Cache the result as a fallback in case the prefetch fails silently — if it does,
+          // pendingUpdate is populated and the next home-screen visit will surface the alert.
+          // The install alert itself is driven by the cache-ready signal (existing effect above).
+          if (useGlassesStore.getState().wifiConnected) {
+            pendingUpdate.current = {latestVersionInfo, updates: filteredUpdates}
+            console.log("OTA: Update found, glasses on WiFi - cached as fallback for silent prefetch failure")
+            // Start a 3-minute fallback timer. If the glasses never send the cache-ready signal
+            // (silent prefetch failure), escalate to showing the alert directly.
+            if (cacheReadyFallbackTimeoutRef.current) {
+              BackgroundTimer.clearTimeout(cacheReadyFallbackTimeoutRef.current)
+            }
+            cacheReadyFallbackTimeoutRef.current = BackgroundTimer.setTimeout(() => {
+              cacheReadyFallbackTimeoutRef.current = null
+              const pending = pendingUpdate.current
+              if (!pending) return // prefetch succeeded and was already handled
+              if (pathnameRef.current !== "/home") return // user not on home - leave for later visit
+              if (!useGlassesStore.getState().connected) return // stale, glasses gone
+              console.log("OTA: cache-ready signal not received within timeout - showing fallback alert")
+              const deviceName = defaultWearable || "Glasses"
+              const updateCount = pending.updates.length
+              const updateMessage = updateCount === 1 ? "1 update available" : `${updateCount} updates available`
+              pendingUpdate.current = null
+              showAlert(translate("ota:updateAvailable", {deviceName}), updateMessage, [
+                {text: translate("ota:updateLater"), style: "cancel"},
+                {text: translate("ota:install"), onPress: () => push("/ota/check-for-updates")},
+              ])
+            }, 180_000)
             return
           }
 

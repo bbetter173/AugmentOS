@@ -11,7 +11,7 @@ import {checkForOtaUpdate, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecke
 import {translate} from "@/i18n/translate"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import { BackgroundTimer } from "@/utils/timers"
+import {BackgroundTimer} from "@/utils/timers"
 
 type CheckState = "checking" | "update_available" | "no_update" | "error"
 
@@ -217,8 +217,23 @@ export default function OtaCheckForUpdatesScreen() {
   }
 
   const handleUpdateNow = () => {
-    console.log("OTA: handleUpdateNow()")
-    // Replace with progress screen to avoid stacking OTA screens
+    const store = useGlassesStore.getState()
+    const otaProgressBefore = store.otaProgress
+    console.log(
+      "OTA_TRACK: navigate_to_progress",
+      JSON.stringify({
+        from: "check-for-updates",
+        action: "clear_otaProgress_then_replace",
+        otaProgressBefore: otaProgressBefore
+          ? {
+              currentUpdate: otaProgressBefore.currentUpdate,
+              status: otaProgressBefore.status,
+              stage: otaProgressBefore.stage,
+            }
+          : null,
+      }),
+    )
+    store.setOtaProgress(null)
     replace("/ota/progress")
   }
 

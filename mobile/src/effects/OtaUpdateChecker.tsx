@@ -424,6 +424,39 @@ export function OtaUpdateChecker() {
     if (besFwVersion) last.bes = besFwVersion
   }, [buildNumber, mtkFwVersion, besFwVersion])
 
+  // Show pending update alert when user navigates back to /home.
+  // Covers the case where the 3-min fallback timer fired while user was away,
+  // or glasses never sent the cache-ready signal.
+  const wasAwayFromHomeRef = useRef(false)
+  useEffect(() => {
+    if (pathname !== "/home") {
+      wasAwayFromHomeRef.current = true
+      return
+    }
+    // Only fire when RETURNING to home, not on the initial render
+    if (!wasAwayFromHomeRef.current) return
+    wasAwayFromHomeRef.current = false
+
+    if (!glassesConnected) return
+    const pending = pendingUpdate.current
+    if (!pending) return
+
+    console.log("OTA: User returned to home with pending update - showing alert")
+    const deviceName = defaultWearable || "Glasses"
+    const updateCount = pending.updates.length
+    const updateMessage = superMode
+      ? `Updates available: ${pending.updates.join(", ").toUpperCase()}`
+      : updateCount === 1
+        ? "1 update available"
+        : `${updateCount} updates available`
+    pendingUpdate.current = null
+
+    showAlert(translate("ota:updateAvailable", {deviceName}), updateMessage, [
+      {text: translate("ota:updateLater"), style: "cancel"},
+      {text: translate("ota:install"), onPress: () => push("/ota/check-for-updates")},
+    ])
+  }, [pathname, glassesConnected, defaultWearable, superMode, push])
+
   // Effect to show install prompt ONLY when glasses report cache-ready update on WiFi
   useEffect(() => {
     if (pathname !== "/home") return

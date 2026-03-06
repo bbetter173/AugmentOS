@@ -220,18 +220,13 @@ public class OtaService extends Service {
                 updateNotification("MTK firmware updated successfully");
                 Log.i(TAG, "📱 MTK system SUCCESS received - staged for next reboot");
 
-                // Send FINISHED to phone now that MTK install is complete
+                // Send FINISHED to phone now that MTK install is complete.
+                // The phone UI will show "completed" and let the user tap Continue,
+                // which re-checks for remaining updates (e.g. BES) and starts a new round.
                 if (otaHelper != null) {
                     otaHelper.sendMtkInstallProgressToPhone("FINISHED", 100, null);
-
-                    // Auto-trigger pending BES update if queued
-                    // BES power-cycle will also apply the staged MTK A/B slot switch
-                    if (otaHelper.hasPendingBesUpdate()) {
-                        Log.i(TAG, "📱 Starting pending BES update after MTK complete");
-                        otaHelper.startPendingBesUpdate();
-                    } else {
-                        Log.i(TAG, "📱 No pending BES update - user must reboot to apply MTK");
-                    }
+                    otaHelper.clearPendingBesUpdate();
+                    Log.i(TAG, "📱 MTK complete - phone will re-check for remaining updates");
                 }
 
                 // Send broadcast to notify app that MTK update is complete

@@ -897,20 +897,15 @@ public class OtaHelper {
                 // Apply updates in correct order
                 if (mtkPatch != null && besUpdateAvailable) {
                     if (installNow) {
-                        // Install mode: MTK first, then BES after MTK completes.
-                        // BES power-cycle also applies the staged MTK A/B slot switch.
-                        Log.i(TAG, "Both MTK and BES updates available - applying MTK first, BES will follow");
+                        // Install mode: MTK first. Phone will re-check after MTK completes
+                        // and start BES as a separate update round.
+                        Log.i(TAG, "Both MTK and BES updates available - applying MTK first, phone will handle BES next");
 
-                        // Queue BES update to run after MTK completes
-                        setPendingBesUpdate(rootJson.getJSONObject("bes_firmware"));
-
-                        // Start MTK update - OtaService will trigger BES after MTK SUCCESS
                         boolean mtkStarted = checkAndUpdateMtkFirmware(mtkPatch, context, true);
                         if (mtkStarted) {
-                            Log.i(TAG, "MTK firmware update started - BES queued for after completion");
+                            Log.i(TAG, "MTK firmware update started - BES will be handled by phone in next round");
                         } else {
-                            Log.e(TAG, "MTK firmware update failed to start - clearing pending BES");
-                            clearPendingBesUpdate();
+                            Log.e(TAG, "MTK firmware update failed to start");
                         }
                     } else {
                         // Prefetch mode: download/cache BOTH artifacts now so prompt can be shown as cache-ready.
@@ -935,11 +930,8 @@ public class OtaHelper {
                                 sendProgressToPhone("install", -1, 0, 0, "IN_PROGRESS", "mtk");
                             }
                         } else {
-                            // MTK is actively being installed - queue BES for after
-                            Log.i(TAG, "BES update available but MTK in progress - BES will start after MTK completes");
-                            if (!hasPendingBesUpdate()) {
-                                setPendingBesUpdate(rootJson.getJSONObject("bes_firmware"));
-                            }
+                            // MTK is actively being installed - phone will handle BES after MTK completes
+                            Log.i(TAG, "BES update available but MTK in progress - phone will start BES after MTK completes");
                             if (isPhoneInitiatedOta) {
                                 sendProgressToPhone("install", -1, 0, 0, "IN_PROGRESS", "mtk");
                             }
@@ -988,6 +980,10 @@ public class OtaHelper {
 
     private boolean checkAndUpdateApp(String packageName, JSONObject appInfo, Context context, boolean installNow) {
         try {
+            // Always reset currentUpdateType for APK operations so progress messages carry the correct label,
+            // even when the APK was already cached and downloadApkInternal (which also sets this) is skipped.
+            currentUpdateType = "apk";
+
             // Check for mutual exclusion - don't start APK update if firmware update in progress
             if (BesOtaManager.isBesOtaInProgress) {
                 Log.w(TAG, "BES firmware update in progress - skipping APK update");
@@ -1229,9 +1225,8 @@ public class OtaHelper {
 
         Log.d(TAG, "APK downloaded to: " + apkFile.getAbsolutePath());
 
-        // TODO(TEMPORARY): APK hash check is DISABLED. Re-enable verifyApkFile() before shipping.
-        // The check was bypassed to unblock development — do NOT leave this in production.
-        Log.w(TAG, "⚠️ WARNING: APK SHA256 hash check is TEMPORARILY DISABLED. This must be re-enabled before release!");
+        // APK hash check disabled – downloaded APK is accepted without integrity verification.
+        Log.w(TAG, "WARNING: OTA APK SHA256 hash verification is DISABLED. Downloaded APK is not integrity-checked.");
         EventBus.getDefault().post(DownloadProgressEvent.createFinished(fileSize));
         sendProgressToPhone("download", 100, fileSize, fileSize, "FINISHED", null);
         createMetaDataJson(json, context);

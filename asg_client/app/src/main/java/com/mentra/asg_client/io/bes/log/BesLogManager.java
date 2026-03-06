@@ -194,7 +194,7 @@ public class BesLogManager {
       }
 
       String baseUrl = ServerConfigUtil.getServerBaseUrl(mContext);
-      baseUrl = "https://devapi.mentra.glass:443";
+      // baseUrl = "https://devapi.mentra.glass:443";
       String url = baseUrl + "/api/incidents/" + mIncidentId + "/logs";
 
       // Build log entries: one entry per non-empty line, matching the incident logs schema

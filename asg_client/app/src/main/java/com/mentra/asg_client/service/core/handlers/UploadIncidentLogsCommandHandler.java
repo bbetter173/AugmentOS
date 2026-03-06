@@ -100,7 +100,7 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
             }
 
             String baseUrl = ServerConfigUtil.getServerBaseUrl(mContext);
-            baseUrl = "https://devapi.mentra.glass:443";
+            // baseUrl = "https://devapi.mentra.glass:443";
             String url = baseUrl + "/api/incidents/" + incidentId + "/logs";
             Log.d(TAG, "Glasses backend base URL: " + baseUrl + " | POST URL: " + url);
 

@@ -1089,6 +1089,16 @@ export default function OtaProgressScreen() {
     //   - no updates + onboarding pending → onboarding
     //   - no updates + onboarding done → home
     console.log("OTA: Continue pressed - navigating to check-for-updates for re-verification")
+
+    // After an APK install the glasses process restarts and will send fresh version_info.
+    // Clear the stale buildNumber so check-for-updates waits for the new value instead of
+    // immediately running a check with the old build number (which causes a brief "update
+    // available" flicker before the corrected version arrives).
+    const completedUpdate = updateSequenceRef.current[currentUpdateIndex]
+    if (completedUpdate === "apk") {
+      useGlassesStore.getState().setGlassesInfo({buildNumber: ""})
+    }
+
     replace("/ota/check-for-updates")
   }
 

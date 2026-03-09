@@ -441,6 +441,10 @@ export function OtaUpdateChecker() {
     const pending = pendingUpdate.current
     if (!pending) return
 
+    // Last-moment imperative check: reactive glassesConnected can be stale if
+    // disconnect and navigation happen in the same render cycle.
+    if (!useGlassesStore.getState().connected) return
+
     console.log("OTA: User returned to home with pending update - showing alert")
     const deviceName = defaultWearable || "Glasses"
     const updateCount = pending.updates.length

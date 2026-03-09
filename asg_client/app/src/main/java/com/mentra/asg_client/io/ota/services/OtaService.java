@@ -225,7 +225,6 @@ public class OtaService extends Service {
                 // which re-checks for remaining updates (e.g. BES) and starts a new round.
                 if (otaHelper != null) {
                     otaHelper.sendMtkInstallProgressToPhone("FINISHED", 100, null);
-                    otaHelper.clearPendingBesUpdate();
                     Log.i(TAG, "📱 MTK complete - phone will re-check for remaining updates");
                 }
 

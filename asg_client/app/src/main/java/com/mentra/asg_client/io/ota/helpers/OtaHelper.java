@@ -87,9 +87,6 @@ public class OtaHelper {
     private Runnable periodicCheckRunnable;
     private boolean isPeriodicCheckActive = false;
     
-    // Retry logic constants
-    private static final int MAX_DOWNLOAD_RETRIES = 3;
-    private static final long RETRY_DELAY_MS = 10000; // 10 seconds between attempts
     
     // Update order configuration - can be easily modified to change update sequence
     // Order: APK updates → MTK firmware → BES firmware
@@ -142,11 +139,6 @@ public class OtaHelper {
     // Current update stage for progress reporting
     private String currentUpdateStage = "download"; // "download" or "install"
     private String currentUpdateType = "apk"; // "apk", "mtk", or "bes"
-
-    // Pending BES update - saved when MTK update is in progress
-    // BES will be started after MTK completes (to avoid concurrent firmware updates)
-    // volatile: written from the OTA background thread, read from OtaService EventBus callbacks on main thread
-    private volatile JSONObject pendingBesUpdate = null;
 
     // Track if MTK was updated this session (to prevent re-updating before reboot)
     // MTK A/B updates don't change ro.custom.ota.version until reboot, so without this
@@ -770,6 +762,43 @@ public class OtaHelper {
             "com.mentra.asg_client",     // Update ASG client first
             "com.augmentos.otaupdater"      // Then OTA updater
         };
+
+        // PHASE 0: Pre-download firmware artifacts BEFORE any APK install.
+        // APK install kills the app process, so MTK/BES firmware files must be cached
+        // beforehand. After restart the install phase can serve files from cache.
+        // Suppress phone progress so firmware download events don't confuse the phone UI.
+        {
+            boolean savedSuppress = suppressPhoneProgress;
+            suppressPhoneProgress = true;
+            try {
+                if (!wasMtkUpdatedThisSession() && !isMtkOtaInProgress() && rootJson.has("mtk_patches")) {
+                    String currentMtkVersion = SysProp.getProperty(context, "ro.custom.ota.version");
+                    JSONObject mtkPatch = findMatchingMtkPatch(rootJson.getJSONArray("mtk_patches"), currentMtkVersion);
+                    if (mtkPatch != null) {
+                        Log.i(TAG, "📦 Phase 0: Pre-downloading MTK firmware before APK install");
+                        checkAndUpdateMtkFirmware(mtkPatch, context, false);
+                    }
+                }
+                if (rootJson.has("bes_firmware")) {
+                    String currentBesVersion = "";
+                    try {
+                        AsgSettings asgSettings = new AsgSettings(context);
+                        currentBesVersion = asgSettings.getBesFirmwareVersion();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error getting BES firmware version from AsgSettings", e);
+                    }
+                    boolean besNeeded = checkBesUpdate(rootJson.getJSONObject("bes_firmware"), currentBesVersion);
+                    if (besNeeded) {
+                        Log.i(TAG, "📦 Phase 0: Pre-downloading BES firmware before APK install");
+                        checkAndUpdateBesFirmware(rootJson.getJSONObject("bes_firmware"), context, false);
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Phase 0 firmware prefetch failed (non-fatal) - will retry later", e);
+            } finally {
+                suppressPhoneProgress = savedSuppress;
+            }
+        }
         
         boolean apkUpdateNeeded = false;
         boolean apkUpdateFailed = false;
@@ -957,7 +986,7 @@ public class OtaHelper {
                 }
             }
         } else {
-            Log.i(TAG, "APK update performed - firmware checks will happen after restart");
+            Log.i(TAG, "APK update performed - firmware already pre-downloaded in Phase 0, install will happen after restart");
         }
         
         Log.d(TAG, "Sequential updates completed (APK → MTK → BES)");
@@ -1106,57 +1135,28 @@ public class OtaHelper {
     
     // Modified to accept custom filename for different apps
     public boolean downloadApk(String urlStr, JSONObject json, Context context, String filename) {
-        int retryCount = 0;
-        Exception lastException = null;
-        
-        while (retryCount < MAX_DOWNLOAD_RETRIES) {
-            try {
-                // Attempt download
-                boolean success = downloadApkInternal(urlStr, json, context, filename);
-                if (success) {
-                    return true; // Success!
-                }
-                // If download succeeded but verification failed, don't retry
-                // (downloadApkInternal already logged the error and deleted the file)
-                Log.e(TAG, "Download succeeded but verification failed - not retrying");
-                return false;
-            } catch (Exception e) {
-                lastException = e;
-                Log.e(TAG, "Download attempt " + (retryCount + 1) + " failed", e);
-                
-                // Clean up partial download
-                File partialFile = new File(OtaConstants.BASE_DIR, filename);
-                if (partialFile.exists()) {
-                    partialFile.delete();
-                    Log.d(TAG, "Cleaned up partial download file");
-                }
-                
-                retryCount++;
-                if (retryCount < MAX_DOWNLOAD_RETRIES) {
-                    Log.i(TAG, "Retrying download in " + (RETRY_DELAY_MS / 1000) + " seconds...");
-                    
-                    // Emit retry event
-                    EventBus.getDefault().post(new DownloadProgressEvent(
-                        DownloadProgressEvent.DownloadStatus.FAILED, 
-                        "Retrying in " + (RETRY_DELAY_MS / 1000) + " seconds..."
-                    ));
-                    
-                    try {
-                        Thread.sleep(RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
+        try {
+            boolean success = downloadApkInternal(urlStr, json, context, filename);
+            if (success) {
+                return true;
             }
+            Log.e(TAG, "Download succeeded but verification failed");
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Download failed", e);
+
+            File partialFile = new File(OtaConstants.BASE_DIR, filename);
+            if (partialFile.exists()) {
+                partialFile.delete();
+                Log.d(TAG, "Cleaned up partial download file");
+            }
+
+            EventBus.getDefault().post(new DownloadProgressEvent(
+                DownloadProgressEvent.DownloadStatus.FAILED,
+                "Download failed"
+            ));
+            return false;
         }
-        
-        Log.e(TAG, "Download failed after " + MAX_DOWNLOAD_RETRIES + " attempts", lastException);
-        EventBus.getDefault().post(new DownloadProgressEvent(
-            DownloadProgressEvent.DownloadStatus.FAILED, 
-            "Failed after " + MAX_DOWNLOAD_RETRIES + " attempts"
-        ));
-        return false;
     }
     
     // Internal download method (original logic)
@@ -1770,6 +1770,11 @@ public class OtaHelper {
                 return true;
             }
 
+            if (!isPhoneInitiatedOta) {
+                Log.w(TAG, "BES firmware install blocked - requires explicit ota_start from phone");
+                return false;
+            }
+
             Log.i(TAG, "BES firmware ready - starting install phase");
             BesOtaManager manager = BesOtaManager.getInstance();
             if (manager != null) {
@@ -2022,6 +2027,11 @@ public class OtaHelper {
 
             if (!installNow) {
                 return true;
+            }
+
+            if (!isPhoneInitiatedOta) {
+                Log.w(TAG, "MTK firmware install blocked - requires explicit ota_start from phone");
+                return false;
             }
 
             Log.i(TAG, "✅ MTK firmware ready for install");
@@ -2561,52 +2571,6 @@ public class OtaHelper {
     }
 
     // ========== Pending BES Update Methods ==========
-
-    /**
-     * Check if there's a pending BES update waiting to be installed.
-     * Used after MTK update completes to chain BES update.
-     * @return true if BES update is pending
-     */
-    public boolean hasPendingBesUpdate() {
-        return pendingBesUpdate != null;
-    }
-
-    /**
-     * Start the pending BES update.
-     * Called by OtaService after MTK update completes successfully.
-     * BES update will power-cycle the system, which also applies the MTK A/B slot switch.
-     */
-    public void startPendingBesUpdate() {
-        if (pendingBesUpdate == null) {
-            Log.w(TAG, "📱 startPendingBesUpdate called but no pending BES update");
-            return;
-        }
-
-        Log.i(TAG, "📱 Starting pending BES update after MTK completion");
-        JSONObject besInfo = pendingBesUpdate;
-        pendingBesUpdate = null; // Clear pending to prevent re-trigger
-
-        // Start BES update on background thread
-        new Thread(() -> {
-            checkAndUpdateBesFirmware(besInfo, context);
-        }).start();
-    }
-
-    /**
-     * Set pending BES update to be executed after MTK completes.
-     * @param besFirmwareInfo BES firmware JSON object
-     */
-    private void setPendingBesUpdate(JSONObject besFirmwareInfo) {
-        this.pendingBesUpdate = besFirmwareInfo;
-        Log.i(TAG, "📱 BES update queued - will start after MTK completes");
-    }
-
-    /**
-     * Clear any pending BES update (e.g., on error or cleanup)
-     */
-    public void clearPendingBesUpdate() {
-        this.pendingBesUpdate = null;
-    }
 
     // ========== MTK Session Tracking ==========
 

@@ -93,6 +93,9 @@ export default function OtaProgressScreen() {
   // Track which update type the build number was captured for
   const buildNumberCapturedForUpdate = useRef<string | null>(null)
 
+  // Track which updates have finished downloading (for aggregate download progress)
+  const downloadedUpdatesRef = useRef<Set<string>>(new Set())
+
   // Track if we're doing a firmware update (persists across reconnection for ConnectionOverlay)
   const wasFirmwareUpdateRef = useRef(false)
 
@@ -290,6 +293,7 @@ export default function OtaProgressScreen() {
       }),
     )
     useGlassesStore.getState().setOtaProgress(null)
+    downloadedUpdatesRef.current = new Set()
 
     return () => {
       console.log("OTA_TRACK: screen_unmounted", JSON.stringify({sequence: [...updateSequenceRef.current]}))
@@ -785,10 +789,11 @@ export default function OtaProgressScreen() {
     }
     lastProcessedProgressSignatureRef.current = progressSignature
 
-    // Only process progress for the step we're currently on. Ignore stale/out-of-order messages
-    if (expectedStep && currentUpdate !== expectedStep) {
+    // During install phase, only process events for the step we're currently tracking.
+    // During download phase, accept ALL events (unified download progress).
+    if (stage === "install" && expectedStep && currentUpdate !== expectedStep) {
       console.log(
-        "OTA_TRACK: skip_reason=wrong_step",
+        "OTA_TRACK: skip_reason=wrong_step_install",
         JSON.stringify({
           expectedStep,
           received: currentUpdate,
@@ -811,7 +816,7 @@ export default function OtaProgressScreen() {
       }),
     )
 
-    // Mark that we've received progress - stop retrying
+    // Mark that we've received progress - stop retrying and cancel the stuck-at-0 timer
     if (!hasReceivedProgress.current) {
       hasReceivedProgress.current = true
       console.log(
@@ -820,27 +825,39 @@ export default function OtaProgressScreen() {
       )
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+      if (stuckTimeoutRef.current) {
+        clearTimeout(stuckTimeoutRef.current)
+        stuckTimeoutRef.current = null
       }
     }
 
-    // Update the current update index based on what we're receiving
-    const updateIndex = sequence.indexOf(currentUpdate)
-    if (updateIndex !== -1) {
-      setCurrentUpdateIndex((prev) => {
-        if (prev === updateIndex) return prev
-        console.log(
-          "OTA_TRACK: index_change",
-          JSON.stringify({
-            prev,
-            next: updateIndex,
-            currentUpdate,
-            stage,
-            status,
-            progressState: progressStateRef.current,
-          }),
-        )
-        return updateIndex
-      })
+    // Track completed downloads for aggregate progress
+    if (stage === "install" || (stage === "download" && status === "FINISHED")) {
+      downloadedUpdatesRef.current.add(currentUpdate)
+    }
+
+    // Update the current update index based on what we're receiving (install phase only)
+    if (stage === "install") {
+      const updateIndex = sequence.indexOf(currentUpdate)
+      if (updateIndex !== -1) {
+        setCurrentUpdateIndex((prev) => {
+          if (prev === updateIndex) return prev
+          console.log(
+            "OTA_TRACK: index_change",
+            JSON.stringify({
+              prev,
+              next: updateIndex,
+              currentUpdate,
+              stage,
+              status,
+              progressState: progressStateRef.current,
+            }),
+          )
+          return updateIndex
+        })
+      }
     }
 
     // Reset progress timeout on ANY progress update
@@ -1094,8 +1111,14 @@ export default function OtaProgressScreen() {
     // Clear the stale buildNumber so check-for-updates waits for the new value instead of
     // immediately running a check with the old build number (which causes a brief "update
     // available" flicker before the corrected version arrives).
+    // IMPORTANT: Clear BOTH native and RN stores so the native ObservableStore dedup
+    // doesn't suppress the incoming version_info event (native skips emit when value unchanged).
     const completedUpdate = updateSequenceRef.current[currentUpdateIndex]
     if (completedUpdate === "apk") {
+      // Clear native store so future version_info events aren't deduped by ObservableStore
+      CoreModule.updateGlasses({buildNumber: ""})
+      // Clear RN store synchronously so check-for-updates sees empty buildNumber on mount
+      // (the native bridge call is async and may not complete before navigation)
       useGlassesStore.getState().setGlassesInfo({buildNumber: ""})
     }
 
@@ -1107,27 +1130,14 @@ export default function OtaProgressScreen() {
     navigateAfterContinue()
   }
 
-  const handleRetry = () => {
-    trackButtonPress("retry")
-    console.log("OTA: Retry pressed - resetting state")
-    if (progressTimeoutRef.current) {
-      clearTimeout(progressTimeoutRef.current)
-      progressTimeoutRef.current = null
-    }
-    setProgressState("starting")
-    setRetryCount(0)
-    setErrorMessage(null)
-    hasReceivedProgress.current = false
-  }
-
   const handleRetryFromWifiDisconnected = () => {
     trackButtonPress("try_again")
-    replace("/ota/check-for-updates")
+    replace("/wifi/scan")
   }
 
   const handleRetryFromFailure = () => {
     trackButtonPress("retry")
-    replace("/ota/check-for-updates")
+    replace("/wifi/scan")
   }
 
   const handleChangeWifi = () => {
@@ -1140,17 +1150,28 @@ export default function OtaProgressScreen() {
     navigateAfterContinue()
   }
 
-  // Pin displayed update type and progress to the step the state machine is tracking.
-  // The glasses batch-download all artifacts before installing, so otaProgress.currentUpdate
-  // may report mtk/bes while we're still on the apk step. Showing the raw value would cause
-  // the user to see three download bars cycling 0-100 before any install begins.
+  // Compute displayed update type and progress.
+  // Download phase: accept all events, show percentage only for APK (BES/MTK downloads are trivially short).
+  // Install phase: track the specific update being installed.
   const expectedUpdate = updateSequenceRef.current[currentUpdateIndex] ?? undefined
   const rawCurrentUpdate = otaProgress?.currentUpdate
   const isStarting = progressState === "starting"
-  const isMatchingStep = rawCurrentUpdate === expectedUpdate
-  const currentUpdate = isStarting ? expectedUpdate : isMatchingStep ? rawCurrentUpdate : expectedUpdate
-  const realProgress = (isMatchingStep ? otaProgress?.progress : 0) ?? 0
-  const isSimulating = simulatedProgress !== null && currentUpdate === "mtk" && simulatedProgress > realProgress
+  const currentUpdate = isStarting
+    ? expectedUpdate
+    : progressState === "downloading"
+      ? rawCurrentUpdate
+      : (rawCurrentUpdate ?? expectedUpdate)
+
+  // Download progress: only show percentage for APK downloads
+  const isApkDownloading = otaProgress?.stage === "download" && otaProgress?.currentUpdate === "apk"
+  const downloadProgress = isApkDownloading ? (otaProgress?.progress ?? 0) : 0
+  const showDownloadPercent = progressState === "downloading" && isApkDownloading
+
+  // Install progress: use raw progress from the specific install event
+  const installProgress = otaProgress?.stage === "install" ? (otaProgress?.progress ?? 0) : 0
+
+  const isSimulating = simulatedProgress !== null && currentUpdate === "mtk" && simulatedProgress > installProgress
+  const realProgress = progressState === "downloading" ? downloadProgress : installProgress
   const progress = isStarting ? 0 : isSimulating ? simulatedProgress : realProgress
   const displayProgress = isStarting ? 0 : isSimulating ? progress : Math.round(progress / 5) * 5
 
@@ -1218,7 +1239,11 @@ export default function OtaProgressScreen() {
           <View className="h-6" />
           <Text text="Downloading Update..." className="font-semibold text-xl text-center" />
           <View className="h-4" />
-          <Text text={`${displayProgress}%`} className="text-3xl font-bold" style={{color: theme.colors.primary}} />
+          {showDownloadPercent ? (
+            <Text text={`${displayProgress}%`} className="text-3xl font-bold" style={{color: theme.colors.primary}} />
+          ) : (
+            <ActivityIndicator size="large" color={theme.colors.foreground} />
+          )}
           <View className="h-4" />
           <Text tx="ota:doNotDisconnect" className="text-sm text-center" style={{color: theme.colors.textDim}} />
           {renderTimeEstimation()}
@@ -1321,7 +1346,7 @@ export default function OtaProgressScreen() {
           </View>
 
           <View className="gap-3">
-            <Button preset="primary" text="Retry" flexContainer onPress={handleRetry} />
+            <Button preset="primary" text="Retry" flexContainer onPress={handleRetryFromFailure} />
             {superMode && <Button preset="secondary" text="Skip (super)" onPress={handleSkipSuper} />}
           </View>
         </>

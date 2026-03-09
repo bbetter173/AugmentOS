@@ -67,7 +67,6 @@ export default function OtaCheckForUpdatesScreen() {
       // Only apply early-exit conditions on the FIRST check attempt for this checkKey
       // This prevents auto-navigation when WiFi/connection state changes mid-operation
       if (!hasInitiatedCheckRef.current) {
-        // If glasses disconnected or WiFi not connected on initial check, skip immediately
         if (!glassesConnected) {
           console.log("OTA: Glasses not connected - proceeding to next step")
           if (versionInfoTimeoutRef.current) {
@@ -79,13 +78,13 @@ export default function OtaCheckForUpdatesScreen() {
           return
         }
         if (!wifiConnected) {
-          console.log("OTA: WiFi not connected - proceeding to next step")
+          console.log("OTA: WiFi not connected - showing error state")
           if (versionInfoTimeoutRef.current) {
             BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
             versionInfoTimeoutRef.current = null
           }
           hasInitiatedCheckRef.current = true
-          handleContinue()
+          setCheckState("error")
           return
         }
       }

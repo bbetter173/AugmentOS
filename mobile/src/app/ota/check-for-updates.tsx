@@ -35,6 +35,7 @@ export default function OtaCheckForUpdatesScreen() {
   const versionInfoTimeoutRef = useRef<number | null>(null)
   const waitStartTimeRef = useRef<number | null>(null)
   const hasInitiatedCheckRef = useRef(false) // Track if we've initiated check for this checkKey
+  const checkCompletedRef = useRef(false) // Guards against stale timeout callbacks firing after check progresses
 
   focusEffectPreventBack()
 
@@ -51,6 +52,7 @@ export default function OtaCheckForUpdatesScreen() {
       }
       waitStartTimeRef.current = null
       hasInitiatedCheckRef.current = false // Reset for fresh check
+      checkCompletedRef.current = false
       setCheckKey((k) => k + 1)
     }, []),
   )
@@ -103,6 +105,10 @@ export default function OtaCheckForUpdatesScreen() {
           CoreModule.requestVersionInfo()
 
           versionInfoTimeoutRef.current = BackgroundTimer.setTimeout(() => {
+            if (checkCompletedRef.current) {
+              console.log("OTA: Timeout fired but check already progressed - ignoring stale timeout")
+              return
+            }
             console.log("OTA: Timeout waiting for version_info - proceeding to next step")
             waitStartTimeRef.current = null
             versionInfoTimeoutRef.current = null
@@ -121,7 +127,8 @@ export default function OtaCheckForUpdatesScreen() {
         versionInfoTimeoutRef.current = null
       }
       waitStartTimeRef.current = null
-      hasInitiatedCheckRef.current = true // Mark as initiated before starting check
+      checkCompletedRef.current = true
+      hasInitiatedCheckRef.current = true
 
       const startTime = Date.now()
 

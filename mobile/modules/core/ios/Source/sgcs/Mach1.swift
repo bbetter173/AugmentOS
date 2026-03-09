@@ -14,6 +14,10 @@ import UltraliteSDK
 
 @MainActor
 class Mach1: UltraliteBaseViewController, SGCManager {
+    func sendIncidentId(_ incidentId: String) {
+        
+    }
+    
     func requestPhoto(
         _: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?,
         compress _: String?, flash _: Bool, sound _: Bool

@@ -1177,8 +1177,8 @@ export default function OtaProgressScreen() {
           <Text text={`${elapsedTime ?? "00:00"}`} className="text-sm text-center" />
         </View>
         <View className="flex-row items-center justify-between w-full">
-          <Text text={`Estimated time remaining:`} className="text-sm text-center" />
-          <Text text="~4min" className="text-sm text-center" />
+          <Text text={`Estimated time:`} className="text-sm text-center" />
+          <Text text="~10min" className="text-sm text-center" />
         </View>
       </View>
     )

@@ -186,6 +186,10 @@ public class MentraLive extends SGCManager {
     private boolean isA2dpProxyRegistered = false;
 
     private ConcurrentLinkedQueue<byte[]> sendQueue = new ConcurrentLinkedQueue<>();
+    // Queue for serializing BLE descriptor writes (only one GATT operation at a time)
+    private final ConcurrentLinkedQueue<BluetoothGattDescriptor> pendingDescriptorWrites = new ConcurrentLinkedQueue<>();
+    private boolean isDescriptorWriteInProgress = false;
+    private boolean notificationsEnabled = false; // Track if enableNotifications was already called this connection
     private Runnable connectionTimeoutRunnable;
     private Handler connectionTimeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable processSendQueueRunnable;
@@ -1096,24 +1100,25 @@ public class MentraLive extends SGCManager {
                         // Keep the state as CONNECTING until the glasses SOC responds
                         // connectionEvent(SmartGlassesConnectionState.CONNECTING);
 
-                        // CRITICAL FIX: Request MTU size ONCE - don't schedule delayed retries
-                        // This avoids BLE operations during active data flow
+                        // Request MTU first, then enable notifications from onMtuChanged,
+                        // then start data flow after all descriptors are written.
+                        // This ensures no concurrent GATT operations on older Android BLE stacks.
                         if (checkPermission()) {
                             boolean mtuRequested = gatt.requestMtu(512);
                             Bridge.log("LIVE: 🔄 Requested MTU size 512, success: " + mtuRequested);
+                            if (!mtuRequested) {
+                                // MTU request failed to even start, enable notifications directly
+                                enableNotifications();
+                            }
+                            // Otherwise, enableNotifications() will be called from onMtuChanged
+                        } else {
+                            enableNotifications();
                         }
 
-                        // Enable notifications AFTER BLE connection is established
-                        enableNotifications();
-
-                        // Start queue processing for sending data
-                        handler.post(processSendQueueRunnable);
-
-                        //openhotspot(); //TODO: REMOVE AFTER DONE DEVELOPING
-                        // Start SOC readiness check loop - this will keep trying until
-                        // the glasses SOC boots and responds with a "glasses_ready" message
-                        // All other initialization will happen after receiving glasses_ready
-                        startReadinessCheckLoop();
+                        // NOTE: Send queue and readiness loop are started AFTER descriptor
+                        // writes complete (in writeNextDescriptor when queue is empty) to
+                        // avoid writeCharacteristic conflicting with writeDescriptor on
+                        // older Android BLE stacks that don't support concurrent GATT ops.
                     } else {
                         Log.e(TAG, "Required BLE characteristics not found");
                         if (rxCharacteristic == null) {
@@ -1227,24 +1232,14 @@ public class MentraLive extends SGCManager {
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             long threadId = Thread.currentThread().getId();
 
-            // CRITICAL FIX: Just log the result but take NO ACTION regardless of status
-            // This prevents descriptor write failures from crashing the connection
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.e(TAG, "Thread-" + threadId + ": ✅ Descriptor write successful");
+                Log.e(TAG, "Thread-" + threadId + ": ✅ Descriptor write successful for " + descriptor.getCharacteristic().getUuid());
             } else {
-                // Just log the error without taking ANY action
-                Log.e(TAG, "Thread-" + threadId + ": ℹ️ Descriptor write failed with status: " + status + " - IGNORING");
-                // DO NOT add any other operations or logging as they might cause issues
+                Log.e(TAG, "Thread-" + threadId + ": ℹ️ Descriptor write failed with status: " + status + " for " + descriptor.getCharacteristic().getUuid());
             }
 
-            // DO NOT:
-            // - Schedule any operations
-            // - Try to retry anything
-            // - Create any new BLE operations
-            // - Post any handlers
-            // - Do any validation or checking
-
-            // Any of these could cause thread conflicts that would kill the connection
+            // Process next queued descriptor write (serialized to avoid BLE stack contention)
+            writeNextDescriptor();
         }
 
         @Override
@@ -1257,56 +1252,76 @@ public class MentraLive extends SGCManager {
                 // Store the new MTU value
                 currentMtu = mtu;
 
-                // NOTE: MTU config will be sent to glasses after glasses_ready is received.
-                // BES2700 chip ignores negotiated MTU and uses 256 for BLE notifications,
-                // so we'll tell glasses to use 256 to fit packets in 253 bytes.
-
                 // If the negotiated MTU is sufficient for LC3 audio packets (typically 40-60 bytes)
                 if (mtu >= 64) {
                     Bridge.log("LIVE: ✅ MTU size is sufficient for LC3 audio data packets");
                 } else {
                     Log.w(TAG, "⚠️ MTU size may be too small for LC3 audio data packets");
-
-                    // Log the effective MTU payload directly
                     Bridge.log("LIVE: 📊 Effective MTU payload: " + effectivePayload + " bytes");
-
-                    // Check if it's sufficient for LC3 audio
-                    if (effectivePayload < 60) {
-                        Log.e(TAG, "❌ CRITICAL: Effective MTU too small for LC3 audio!");
-                        Log.e(TAG, "   This will likely cause issues with LC3 audio transmission");
-                    }
-
-                    // If we still have a small MTU, try requesting again
-                    if (mtu < 64 && gatt != null && checkPermission()) {
-                        handler.postDelayed(() -> {
-                            if (isConnected && gatt != null) {
-                                Bridge.log("LIVE: 🔄 Re-attempting MTU increase after initial small MTU");
-                                boolean retryMtuRequest = gatt.requestMtu(512);
-                                Bridge.log("LIVE:    MTU increase retry requested: " + retryMtuRequest);
-                            }
-                        }, 1000); // Wait 1 second before retry
-                    }
                 }
             } else {
                 Log.e(TAG, "❌ MTU change failed with status: " + status);
                 Log.w(TAG, "   Will continue with default MTU (23 bytes, 20 byte payload)");
+            }
 
-                // Try again if the MTU request failed
-                if (gatt != null && checkPermission()) {
-                    handler.postDelayed(() -> {
-                        if (isConnected && gatt != null) {
-                            Bridge.log("LIVE: 🔄 Re-attempting MTU increase after previous failure");
-                            boolean retryMtuRequest = gatt.requestMtu(512);
-                            Bridge.log("LIVE:    MTU increase retry requested: " + retryMtuRequest);
-                        }
-                    }, 1500); // Wait 1.5 seconds before retry
-                }
+            // Now that MTU operation is complete, enable notifications
+            // (descriptor writes are GATT operations and can't overlap with MTU request)
+            if (!notificationsEnabled) {
+                notificationsEnabled = true;
+                enableNotifications();
             }
         }
     };
 
     /**
-     * Enable notifications for all characteristics to ensure we catch data from any endpoint
+     * Write the next queued descriptor, or mark the queue as idle.
+     * Must be called after each onDescriptorWrite callback to serialize BLE GATT operations.
+     * On older Android devices, issuing multiple writeDescriptor() calls without waiting for
+     * onDescriptorWrite() causes the subsequent writes to silently fail.
+     */
+    private void writeNextDescriptor() {
+        BluetoothGattDescriptor next = pendingDescriptorWrites.poll();
+        if (next == null) {
+            isDescriptorWriteInProgress = false;
+            long threadId = Thread.currentThread().getId();
+            Log.e(TAG, "Thread-" + threadId + ": ✅ All descriptor writes completed");
+            Bridge.log("LIVE: All BLE notification descriptors written successfully");
+
+            // Now that all GATT setup operations are complete, start data flow
+            Bridge.log("LIVE: Starting send queue and readiness check loop");
+            handler.post(processSendQueueRunnable);
+            startReadinessCheckLoop();
+            return;
+        }
+
+        if (bluetoothGatt == null) {
+            isDescriptorWriteInProgress = false;
+            return;
+        }
+
+        try {
+            boolean writeSuccess = bluetoothGatt.writeDescriptor(next);
+            long threadId = Thread.currentThread().getId();
+            UUID uuid = next.getCharacteristic().getUuid();
+            Log.e(TAG, "Thread-" + threadId + ": 📱 Write descriptor for " + uuid + ": " + writeSuccess);
+
+            if (!writeSuccess) {
+                // If writeDescriptor returns false, onDescriptorWrite won't be called,
+                // so we need to continue the queue ourselves
+                Log.e(TAG, "Thread-" + threadId + ": ⚠️ writeDescriptor returned false for " + uuid + ", continuing queue");
+                handler.postDelayed(this::writeNextDescriptor, 50);
+            }
+        } catch (Exception e) {
+            long threadId = Thread.currentThread().getId();
+            Log.e(TAG, "Thread-" + threadId + ": ⚠️ Error writing descriptor: " + e.getMessage());
+            handler.postDelayed(this::writeNextDescriptor, 50);
+        }
+    }
+
+    /**
+     * Enable notifications for all characteristics to ensure we catch data from any endpoint.
+     * Descriptor writes are queued and serialized to work reliably on older Android BLE stacks
+     * that don't support concurrent GATT operations.
      */
     private void enableNotifications() {
         long threadId = Thread.currentThread().getId();
@@ -1335,10 +1350,13 @@ public class MentraLive extends SGCManager {
 
         boolean notificationSuccess = false;
 
+        // Clear any stale queued writes
+        pendingDescriptorWrites.clear();
+        isDescriptorWriteInProgress = false;
+
         // Enable notifications for each characteristic
         for (BluetoothGattCharacteristic characteristic : characteristics) {
             UUID uuid = characteristic.getUuid();
-            // Bridge.log("LIVE: Thread-" + threadId + ": Examining characteristic: " + uuid);
 
             // Log if this is one of the file transfer characteristics
             if (uuid.equals(FILE_READ_UUID)) {
@@ -1379,32 +1397,24 @@ public class MentraLive extends SGCManager {
             // Enable notifications for any characteristic that supports it
             if (hasNotify || hasIndicate) {
                 try {
-                    // Enable local notifications
+                    // Enable local notifications (this is synchronous and can be done for all at once)
                     boolean success = bluetoothGatt.setCharacteristicNotification(characteristic, true);
                     Log.e(TAG, "Thread-" + threadId + ": 📱 Set local notification for " + uuid + ": " + success);
                     notificationSuccess = notificationSuccess || success;
 
-                    // Try to enable remote notifications by writing to descriptor
-                    // We'll do this despite previous issues, since it's required for some devices
+                    // Queue the remote descriptor write (must be serialized on older Android BLE stacks)
                     BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
                         CLIENT_CHARACTERISTIC_CONFIG_UUID);
 
                     if (descriptor != null) {
-                        try {
-                            byte[] value;
-                            if (hasNotify) {
-                                value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
-                            } else {
-                                value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
-                            }
-
-                            descriptor.setValue(value);
-                            boolean writeSuccess = bluetoothGatt.writeDescriptor(descriptor);
-                            Log.e(TAG, "Thread-" + threadId + ": 📱 Write descriptor for " + uuid + ": " + writeSuccess);
-                        } catch (Exception e) {
-                            // Just log the error and continue - doesn't stop us from trying other characteristics
-                            Log.e(TAG, "Thread-" + threadId + ": ⚠️ Error writing descriptor for " + uuid + ": " + e.getMessage());
+                        byte[] value;
+                        if (hasNotify) {
+                            value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+                        } else {
+                            value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
                         }
+                        descriptor.setValue(value);
+                        pendingDescriptorWrites.add(descriptor);
                     } else {
                         Log.e(TAG, "Thread-" + threadId + ": ⚠️ No notification descriptor found for " + uuid);
                     }
@@ -1414,12 +1424,25 @@ public class MentraLive extends SGCManager {
             }
         }
 
-        // Log notification status but AVOID any delayed operations!
+        // Log notification status
         if (notificationSuccess) {
             Bridge.log("LIVE: Thread-" + threadId + ": Local notification registration SUCCESS for at least one characteristic");
             Log.e(TAG, "Thread-" + threadId + ": 🔔 Ready to receive data via onCharacteristicChanged()");
         } else {
             Log.e(TAG, "Thread-" + threadId + ": ❌ Failed to enable notifications on any characteristic");
+        }
+
+        // Kick off the serialized descriptor write queue
+        if (!pendingDescriptorWrites.isEmpty()) {
+            isDescriptorWriteInProgress = true;
+            int queueSize = pendingDescriptorWrites.size();
+            Bridge.log("LIVE: Queued " + queueSize + " descriptor writes, starting serialized write sequence");
+            writeNextDescriptor();
+        } else {
+            // No descriptors to write, start data flow immediately
+            Bridge.log("LIVE: No descriptor writes needed, starting send queue and readiness check loop");
+            handler.post(processSendQueueRunnable);
+            startReadinessCheckLoop();
         }
     }
 
@@ -4177,6 +4200,11 @@ public class MentraLive extends SGCManager {
             phoneAudioMonitor.stopMonitoring();
             Bridge.log("LIVE: 🎵 Phone audio monitor stopped");
         }
+
+        // Clear pending descriptor writes
+        pendingDescriptorWrites.clear();
+        isDescriptorWriteInProgress = false;
+        notificationsEnabled = false;
 
         // Cancel connection timeout
         if (connectionTimeoutRunnable != null) {

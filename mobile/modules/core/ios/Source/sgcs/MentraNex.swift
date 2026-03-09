@@ -21,6 +21,8 @@ extension Data {
 @MainActor
 @objc(MentraNexSGC)
 class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SGCManager {
+    func sendIncidentId(_ incidentId: String) {}
+    
     func sendJson(_: [String: Any], wakeUp _: Bool, requireAck _: Bool) {}
 
     func setMicEnabled(_: Bool) {}

@@ -140,7 +140,7 @@ export default function AppSettings() {
         return
       }
 
-      startApp(packageName)
+      startApp(appInfo)
     } catch (error) {
       // Refresh the app status to get the accurate state from the server
       refreshApplets()
@@ -695,8 +695,8 @@ export default function AppSettings() {
                     appInfo?.type === "standard"
                       ? translate("appSettings:foreground")
                       : appInfo?.type === "background"
-                      ? translate("appSettings:background")
-                      : "—",
+                        ? translate("appSettings:background")
+                        : "—",
                 },
                 {
                   label: translate("appSettings:packageName"),

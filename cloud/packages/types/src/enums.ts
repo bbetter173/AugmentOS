@@ -15,6 +15,7 @@ export enum HardwareType {
   BUTTON = "BUTTON",
   LIGHT = "LIGHT",
   WIFI = "WIFI",
+  EXIST = "EXIST",
 }
 
 /**

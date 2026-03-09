@@ -3,7 +3,6 @@ import {createContext, useContext, useEffect, useRef, useCallback, useState} fro
 import {BackHandler, Platform} from "react-native"
 import {CommonActions} from "@react-navigation/native"
 
-import {navigationRef} from "@/contexts/NavigationRef"
 import {StackAnimationTypes} from "react-native-screens"
 
 export type NavigationHistoryPush = (path: string, params?: any) => void
@@ -222,9 +221,10 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
 
     // reset the animation to simple_push after a short delay:
     if (params?.transition) {
+      // TODO: change this back to 100 once we have native animations again:
       setTimeout(() => {
         setAnimation("simple_push")
-      }, 100)
+      }, 800)
     }
   }
 
@@ -517,7 +517,6 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
   const {incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
   const navigation = useNavigation()
 
-
   // hook into the back button on ios:
   if (Platform.OS === "ios") {
     useFocusEffect(
@@ -550,4 +549,28 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
       }
     }, [incPreventBack, decPreventBack, backFn]),
   )
+}
+
+// so we can use this from outside the context:
+import {createRef} from "react"
+export const navigationRef = createRef<NavObject>()
+
+export function push(path: string, params?: any) {
+  navigationRef.current?.push(path, params)
+}
+
+export function replace(path: string, params?: any) {
+  navigationRef.current?.replace(path, params)
+}
+
+export function goBack() {
+  navigationRef.current?.goBack()
+}
+
+export function getCurrentRoute() {
+  return navigationRef.current?.getCurrentRoute()
+}
+
+export function navigate(path: string, params?: any) {
+  navigationRef.current?.navigate(path, params)
 }

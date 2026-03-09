@@ -99,13 +99,13 @@ export default function OnboardingWelcome() {
       </View>
 
       <View style={themed($infoContainer)}>
-        <Text style={themed($title)} tx="onboarding:welcome" weight="semibold" />
-        <Spacer height={theme.spacing.s4} />
+        <Text style={themed($title)} tx="onboarding:welcome" className="font-semibold" />
+        <View className="h-4" />
         <Text style={themed($subtitle)} tx="onboarding:doYouHaveGlasses" />
       </View>
-      <Spacer height={theme.spacing.s12} />
+      <View className="h-12" />
       <CardButton onPress={handleHasGlasses} tx="onboarding:haveGlasses" SvgComponent={HaveGlassesSvg} />
-      <Spacer height={theme.spacing.s8} />
+      <View className="h-8" />
       <CardButton onPress={handleNoGlasses} tx="onboarding:dontHaveGlasses" SvgComponent={DontHaveGlassesSvg} />
     </Screen>
   )

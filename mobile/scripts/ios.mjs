@@ -27,7 +27,10 @@ const device =
 if (!device) {
   // Fallback: find any available paired iPhone
   const available = json.result?.devices?.find(
-    (d) => d.deviceProperties?.marketingName?.includes("iPhone") && d.visibilityClass === "default",
+    (d) =>
+      d.hardwareProperties?.deviceType === "iPhone" &&
+      d.connectionProperties?.pairingState === "paired" &&
+      d.connectionProperties?.tunnelState !== "unavailable",
   )
   if (!available) {
     console.error("No physical iPhone found")

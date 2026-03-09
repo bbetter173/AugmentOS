@@ -46,12 +46,15 @@ export function PhotoImage({photo, style, showPlaceholder = true}: PhotoImagePro
       // No thumbnail available - return null to show video placeholder
       return null
     }
-    // For photos: prefer thumbnail_data (small base64 from sync) over full URL
-    // This avoids loading full-resolution photos as thumbnails during sync
+    // For photos: prefer thumbnail_data (small base64 from sync), then thumbnailPath
+    // (local file saved during sync), then full URL as last resort
     if (photo.thumbnail_data) {
       return photo.thumbnail_data.startsWith("data:")
         ? photo.thumbnail_data
         : `data:image/jpeg;base64,${photo.thumbnail_data}`
+    }
+    if (photo.thumbnailPath) {
+      return photo.thumbnailPath
     }
     return photo.url
   })()
@@ -70,11 +73,19 @@ export function PhotoImage({photo, style, showPlaceholder = true}: PhotoImagePro
       return
     }
 
+    // For base64 data URLs, skip AVIF validation entirely - format is known
+    if (imageUrl.startsWith("data:")) {
+      setIsLoading(false)
+      return
+    }
+
     // For local files (file:// URLs), skip async validation and load immediately
     // Trust our storage system since these are downloaded files we manage
     if (imageUrl.startsWith("file://")) {
-      // Check if it's AVIF by mime type or filename
-      if (photo.mime_type === "image/avif" || !photo.name.includes(".") || photo.name.match(/\.(avif|avifs)$/i)) {
+      // Check if it's AVIF by mime type or file path extension
+      // Use imageUrl (actual file path) for extension check, not photo.name
+      // (which may be a capture ID without extension)
+      if (photo.mime_type === "image/avif" || imageUrl.match(/\.(avif|avifs)$/i)) {
         setIsAvif(true)
       }
       setIsLoading(false)
@@ -90,8 +101,9 @@ export function PhotoImage({photo, style, showPlaceholder = true}: PhotoImagePro
         return
       }
 
-      // Check by filename (files without extensions might be AVIF)
-      if (!photo.name.includes(".") || photo.name.match(/\.(avif|avifs)$/i)) {
+      // Check by file extension - use URL for extension check since photo.name
+      // may be a capture ID without extension (e.g., "IMG_20250302_143022_456_123")
+      if (photo.name.match(/\.(avif|avifs)$/i) || imageUrl.match(/\.(avif|avifs)$/i)) {
         setIsAvif(true)
         setIsLoading(false)
         return
@@ -125,9 +137,12 @@ export function PhotoImage({photo, style, showPlaceholder = true}: PhotoImagePro
     })
     setHasError(true)
     setIsLoading(false)
-    // Might be AVIF if regular loading failed
-    if (!photo.name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) {
-      setIsAvif(true)
+    // Might be AVIF if regular loading failed - but not for data URLs or known formats
+    if (imageUrl && !imageUrl.startsWith("data:")) {
+      const knownFormat = /\.(jpg|jpeg|png|gif|webp|bmp)$/i
+      if (!knownFormat.test(photo.name) && !knownFormat.test(imageUrl)) {
+        setIsAvif(true)
+      }
     }
   }
 

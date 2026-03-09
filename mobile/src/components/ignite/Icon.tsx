@@ -133,6 +133,7 @@ const lucideIcons = {
 
 const tablerIcons = {
   "settings": 1,
+  "bluetooth": 1,
   "bluetooth-connected": 1,
   "bluetooth-off": 1,
   "battery-3": 1,

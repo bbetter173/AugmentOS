@@ -2,11 +2,9 @@ import {AppletInterface} from "@/../../cloud/packages/types/src"
 import axios, {AxiosInstance, AxiosRequestConfig} from "axios"
 import {AsyncResult, Result, result as Res} from "typesafe-ts"
 
-import CoreModule from "core"
-import {GlassesInfo} from "@/stores/glasses"
+import CoreModule, {GlassesStatus, PhotoResponseEvent} from "core"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
-import {PhotoResponseEvent} from "core"
 
 interface RequestConfig {
   method: "GET" | "POST" | "DELETE"
@@ -239,7 +237,7 @@ class RestComms {
     return res.map((response) => response.data)
   }
 
-  public updateGlassesState(state: Partial<GlassesInfo>): AsyncResult<void, Error> {
+  public updateGlassesState(state: Partial<GlassesStatus>): AsyncResult<void, Error> {
     const config: RequestConfig = {
       method: "POST",
       endpoint: "/api/client/device/state",

@@ -91,6 +91,8 @@ export function GalleryScreen() {
   const completedFiles = useGallerySyncStore((state) => state.completedFiles)
   const totalFiles = useGallerySyncStore((state) => state.totalFiles)
   const failedFiles = useGallerySyncStore((state) => state.failedFiles)
+  const processingFiles = useGallerySyncStore((state) => state.processingFiles)
+  const processedFiles = useGallerySyncStore((state) => state.processedFiles)
   const syncQueue = useGallerySyncStore((state) => state.queue)
   const glassesGalleryStatus = useGallerySyncStore(
     useShallow((state) => ({
@@ -113,7 +115,7 @@ export function GalleryScreen() {
     Map<
       string,
       {
-        status: "pending" | "downloading" | "completed" | "failed"
+        status: "pending" | "downloading" | "processing" | "completed" | "failed"
         progress: number
       }
     >
@@ -283,6 +285,7 @@ export function GalleryScreen() {
   useEffect(() => {
     if (syncState !== "syncing") {
       // Clear photo sync states when not syncing (after a delay to show completion)
+      // But only if processing queue is also empty
       if (syncState === "complete" || syncState === "cancelled" || syncState === "error") {
         setTimeout(() => {
           setPhotoSyncStates(new Map())
@@ -291,42 +294,52 @@ export function GalleryScreen() {
       return
     }
 
-    // Update the current file's progress
-    if (currentFile) {
-      setPhotoSyncStates((prev) => {
-        const newStates = new Map(prev)
+    setPhotoSyncStates((prev) => {
+      const newStates = new Map(prev)
 
-        // If current file is at 100%, remove it immediately (no green ring)
+      // Update current downloading file
+      if (currentFile) {
         if (currentFileProgress >= 100) {
+          // Download done — will transition to processing via processingFiles
           newStates.delete(currentFile)
         } else {
-          // Set current file as downloading if not complete
           newStates.set(currentFile, {
             status: "downloading",
             progress: currentFileProgress,
           })
         }
+      }
 
-        // Remove completed files from sync states immediately (no green ring)
-        for (let i = 0; i < completedFiles; i++) {
-          const completedFileName = syncQueue[i]?.name
-          if (completedFileName) {
-            newStates.delete(completedFileName)
-          }
+      // Remove completed files (fully processed)
+      for (let i = 0; i < completedFiles; i++) {
+        const completedFileName = syncQueue[i]?.name
+        if (completedFileName && !processingFiles.has(completedFileName)) {
+          newStates.delete(completedFileName)
         }
+      }
 
-        // Mark failed files
-        for (const failedFileName of failedFiles) {
-          newStates.set(failedFileName, {
-            status: "failed",
+      // Mark files currently being processed
+      for (const processingFileName of processingFiles) {
+        // Don't overwrite download state (it's still downloading)
+        if (processingFileName !== currentFile) {
+          newStates.set(processingFileName, {
+            status: "processing",
             progress: 0,
           })
         }
+      }
 
-        return newStates
-      })
-    }
-  }, [syncState, currentFile, currentFileProgress, completedFiles, failedFiles, syncQueue])
+      // Mark failed files
+      for (const failedFileName of failedFiles) {
+        newStates.set(failedFileName, {
+          status: "failed",
+          progress: 0,
+        })
+      }
+
+      return newStates
+    })
+  }, [syncState, currentFile, currentFileProgress, completedFiles, failedFiles, processingFiles, syncQueue])
 
   // Reload photos when sync completes to populate downloadedPhotos state
   // This ensures all photos (old + new) are visible in the gallery
@@ -871,6 +884,27 @@ export function GalleryScreen() {
               </View>
             )
           }
+          // Show processing status when all downloads are done but processing is still running
+          if (completedFiles >= totalFiles && processingFiles.size > 0) {
+            const totalToProcess = processedFiles + processingFiles.size
+            return (
+              <>
+                <Text style={themed($syncButtonText)}>
+                  Processing {processedFiles + 1} of {totalToProcess} items
+                </Text>
+                <View style={themed($syncButtonProgressBar)}>
+                  <View
+                    style={[
+                      themed($syncButtonProgressFill),
+                      {
+                        width: `${Math.round((processedFiles / totalToProcess) * 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </>
+            )
+          }
           return (
             <>
               <Text style={themed($syncButtonText)}>
@@ -999,11 +1033,30 @@ export function GalleryScreen() {
             ))}
           {(() => {
             const syncStateForItem = photoSyncStates.get(item.photo.name)
+            if (!syncStateForItem) return null
+
+            if (syncStateForItem.status === "processing") {
+              return (
+                <View style={themed($progressRingOverlay)}>
+                  <View
+                    style={{
+                      justifyContent: "center",
+                      alignItems: "center",
+                      width: 50,
+                      height: 50,
+                      backgroundColor: "rgba(0,0,0,0.4)",
+                      borderRadius: 25,
+                    }}>
+                    <Icon name="sparkles" size={24} color={theme.colors.primary} />
+                  </View>
+                </View>
+              )
+            }
+
             if (
-              syncStateForItem &&
-              (syncStateForItem.status === "pending" ||
-                syncStateForItem.status === "downloading" ||
-                syncStateForItem.status === "failed")
+              syncStateForItem.status === "pending" ||
+              syncStateForItem.status === "downloading" ||
+              syncStateForItem.status === "failed"
             ) {
               const isFailed = syncStateForItem.status === "failed"
 
@@ -1053,6 +1106,7 @@ export function GalleryScreen() {
         title={isSelectionMode ? "" : "Glasses Gallery"}
         leftIcon={isSelectionMode ? undefined : "chevron-left"}
         onLeftPress={isSelectionMode ? undefined : () => goBack()}
+        safeAreaEdges={[]}
         LeftActionComponent={
           isSelectionMode ? (
             <TouchableOpacity onPress={() => exitSelectionMode()}>

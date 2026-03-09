@@ -34,9 +34,10 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+import android.net.NetworkCapabilities;
 
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -195,7 +196,7 @@ public class MediaCaptureService {
 
     // Debug flag: Enable detailed end-to-end photo capture timing logs
     // true = log timing from request to capture, false = suppress timing logs
-    private static final boolean ENABLE_PHOTO_TIMING_LOGS = false;
+    private static final boolean ENABLE_PHOTO_TIMING_LOGS = true;
 
     private final Context mContext;
     private final MediaUploadQueueManager mMediaQueueManager;
@@ -286,7 +287,16 @@ public class MediaCaptureService {
     // Upload state tracking - prevent concurrent uploads
     private volatile boolean isUploadingPhoto = false;
     private final Object uploadLock = new Object();
-    
+
+    // Capture state tracking - prevent concurrent camera captures from SDK
+    private final AtomicBoolean isCapturingPhoto = new AtomicBoolean(false);
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static final long CAPTURE_SAFETY_TIMEOUT_MS = 15000; // 15 seconds
+    private Runnable captureSafetyTimeout;
+
+    // Per-request timing instrumentation (gated by ENABLE_PHOTO_TIMING_LOGS)
+    private final Map<String, Map<String, Long>> photoTimings = new HashMap<>();
+
     private final FileManager fileManager;
 
     /**
@@ -586,7 +596,10 @@ public class MediaCaptureService {
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date());
             int randomSuffix = (int)(Math.random() * 1000);
             String requestId = "local_video_" + timeStamp + "_" + randomSuffix;
-            String videoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "VID_" + timeStamp + "_" + randomSuffix + ".mp4";
+            String captureDir = "VID_" + timeStamp + "_" + randomSuffix;
+            File captureDirFile = new File(fileManager.getDefaultMediaDirectory(), captureDir);
+            captureDirFile.mkdirs();
+            String videoFilePath = new File(captureDirFile, "base.mp4").getAbsolutePath();
             startVideoRecording(videoFilePath, requestId, settings, enableFlash, true, maxRecordingTimeMinutes);
         }
     }
@@ -622,7 +635,10 @@ public class MediaCaptureService {
                             // Generate filename with requestId
                             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date());
                             int randomSuffix = (int)(Math.random() * 1000);
-                            String videoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "VID_" + timeStamp + "_" + randomSuffix + "_" + requestId + ".mp4";
+                            String captureDir = "VID_" + timeStamp + "_" + randomSuffix + "_" + requestId;
+                            File captureDirFile = new File(fileManager.getDefaultMediaDirectory(), captureDir);
+                            captureDirFile.mkdirs();
+                            String videoFilePath = new File(captureDirFile, "base.mp4").getAbsolutePath();
 
         // Start video recording with the provided requestId and settings (or null for defaults)
         startVideoRecording(videoFilePath, requestId, settings, enableFlash, enableSound);
@@ -663,7 +679,10 @@ public class MediaCaptureService {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date());
         int randomSuffix = (int)(Math.random() * 1000);
         String requestId = "local_video_" + timeStamp + "_" + randomSuffix;
-        String videoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "VID_" + timeStamp + "_" + randomSuffix + ".mp4";
+        String captureDir = "VID_" + timeStamp + "_" + randomSuffix;
+        File captureDirFile = new File(fileManager.getDefaultMediaDirectory(), captureDir);
+        captureDirFile.mkdirs();
+        String videoFilePath = new File(captureDirFile, "base.mp4").getAbsolutePath();
 
         startVideoRecording(videoFilePath, requestId, false);
     }
@@ -1182,7 +1201,10 @@ public class MediaCaptureService {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date());
         int randomSuffix = (int)(Math.random() * 1000);
 
-        String photoFilePath = fileManager.getDefaultMediaDirectory() + File.separator + "IMG_" + timeStamp + "_" + randomSuffix + ".jpg";
+        String captureDir = "IMG_" + timeStamp + "_" + randomSuffix;
+        File captureDirFile = new File(fileManager.getDefaultMediaDirectory(), captureDir);
+        captureDirFile.mkdirs();
+        String photoFilePath = new File(captureDirFile, "base.jpg").getAbsolutePath();
 
         Log.d(TAG, "Taking photo locally at: " + photoFilePath + " with size: " + size + ", flash: " + enableFlash + ", sound: " + enableSound);
 
@@ -1285,10 +1307,11 @@ public class MediaCaptureService {
     public void takePhotoAndUpload(String photoFilePath, String requestId, String webhookUrl, String authToken, boolean save, String size, boolean enableFlash, boolean enableSound, String compress) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
+        recordTiming(requestId, "request_start");
         if (ENABLE_PHOTO_TIMING_LOGS) {
             Log.i(TAG, "⏱️ [TIMING] Photo request START - ID: " + requestId);
         }
-        
+
         Log.d(TAG, "Taking photo and uploading to " + webhookUrl + " with compression: " + compress);
 
         // Check if RTMP streaming is active - photos cannot interrupt streams
@@ -1335,7 +1358,15 @@ public class MediaCaptureService {
                 return;
             }
         }
-        
+
+        // Check if camera capture is already in progress - reject concurrent SDK requests
+        if (!isCapturingPhoto.compareAndSet(false, true)) {
+            Log.w(TAG, "🚫 Camera busy - photo capture already in progress: " + requestId);
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo capture is in progress");
+            return;
+        }
+        startCaptureSafetyTimeout(requestId);
+
         // Store the save flag for this request
         photoSaveFlags.put(requestId, save);
         // Track requested size for potential fallbacks
@@ -1355,14 +1386,16 @@ public class MediaCaptureService {
 
         // TESTING: Check for fake camera capture failure
         if (PhotoCaptureTestFramework.shouldFail("CAMERA_CAPTURE")) {
+            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
             Log.e(TAG, "TESTING: Simulating camera capture failure");
-            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(), 
+            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
                 PhotoCaptureTestFramework.getErrorMessage());
             return;
         } else {
             Log.d(TAG, "Camera capture failure not simulated");
         }
-        
+
         // TESTING: Add fake delay for camera capture
         PhotoCaptureTestFramework.addFakeDelay("CAMERA_CAPTURE");
 
@@ -1380,6 +1413,7 @@ public class MediaCaptureService {
 
             // Use the new enqueuePhotoRequest for thread-safe rapid capture
             // isFromSdk=true because this is an SDK-requested photo (take_photo command)
+            recordTiming(requestId, "enqueue_camera");
             CameraNeo.enqueuePhotoRequest(
                     mContext,
                     photoFilePath,
@@ -1389,12 +1423,16 @@ public class MediaCaptureService {
                     new CameraNeo.PhotoCaptureCallback() {
                         @Override
                         public void onPhotoCaptured(String filePath) {
+                            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
+                            recordTiming(requestId, "photo_captured");
+
                             // Calculate end-to-end timing from request to capture
                             long totalElapsedMs = System.currentTimeMillis() - requestStartTimeMs;
                             if (ENABLE_PHOTO_TIMING_LOGS) {
                                 Log.i(TAG, "⏱️ [TIMING] Photo CAPTURED in " + totalElapsedMs + "ms - ID: " + requestId);
                             }
-                            
+
                             Log.d(TAG, "Photo captured successfully at: " + filePath);
 
                             // LED is now managed by CameraNeo and will turn off when camera closes
@@ -1408,16 +1446,21 @@ public class MediaCaptureService {
                             // Choose upload destination based on webhookUrl
                             if (webhookUrl != null && !webhookUrl.isEmpty()) {
                                 // Upload directly to app webhook
+                                recordTiming(requestId, "upload_start");
                                 uploadPhotoToWebhook(filePath, requestId, webhookUrl, authToken, compress);
                             }
                         }
 
                         @Override
                         public void onPhotoError(String errorMessage) {
+                            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
+
                             Log.e(TAG, "Failed to capture photo: " + errorMessage);
-                            
+
                             // LED is now managed by CameraNeo and will turn off when camera closes
-                            
+
+                            dumpTimings(requestId);
                             sendMediaErrorResponse(requestId, errorMessage, MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
 
                             if (mMediaCaptureListener != null) {
@@ -1427,6 +1470,8 @@ public class MediaCaptureService {
                     }
             );
         } catch (Exception e) {
+            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
             Log.e(TAG, "Error taking photo", e);
             sendMediaErrorResponse(requestId, "Error taking photo: " + e.getMessage(), MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
 
@@ -1448,6 +1493,79 @@ public class MediaCaptureService {
     }
 
     /**
+     * Check if a photo capture is currently in progress.
+     * Used to reject concurrent SDK photo requests with CAMERA_BUSY.
+     */
+    public boolean isCapturingPhoto() {
+        return isCapturingPhoto.get();
+    }
+
+    /**
+     * Start the capture safety timeout. If the callback never fires
+     * (e.g., CameraNeo crashes, lock timeout, service destroyed),
+     * force-reset isCapturingPhoto after 15 seconds to prevent permanent lockout.
+     */
+    private void startCaptureSafetyTimeout(String requestId) {
+        cancelCaptureSafetyTimeout();
+        captureSafetyTimeout = () -> {
+            if (isCapturingPhoto.compareAndSet(true, false)) {
+                Log.e(TAG, "⚠️ SAFETY TIMEOUT: isCapturingPhoto force-reset after " +
+                    CAPTURE_SAFETY_TIMEOUT_MS + "ms - callback never fired for " + requestId);
+                dumpTimings(requestId);
+                sendPhotoErrorResponse(requestId, "CAPTURE_TIMEOUT",
+                    "Photo capture timed out on glasses - camera callback never fired");
+            }
+        };
+        mainHandler.postDelayed(captureSafetyTimeout, CAPTURE_SAFETY_TIMEOUT_MS);
+    }
+
+    /**
+     * Cancel the capture safety timeout (called when callback fires normally).
+     */
+    private void cancelCaptureSafetyTimeout() {
+        if (captureSafetyTimeout != null) {
+            mainHandler.removeCallbacks(captureSafetyTimeout);
+            captureSafetyTimeout = null;
+        }
+    }
+
+    /**
+     * Record a timing checkpoint for a photo request.
+     * No-op if ENABLE_PHOTO_TIMING_LOGS is false.
+     */
+    private void recordTiming(String requestId, String phase) {
+        if (!ENABLE_PHOTO_TIMING_LOGS) return;
+        photoTimings.computeIfAbsent(requestId, k -> new java.util.LinkedHashMap<>())
+            .put(phase, System.currentTimeMillis());
+    }
+
+    /**
+     * Dump all recorded timings for a photo request and clean up.
+     * Shows cumulative time from start and delta between each phase.
+     * No-op if ENABLE_PHOTO_TIMING_LOGS is false.
+     */
+    private void dumpTimings(String requestId) {
+        if (!ENABLE_PHOTO_TIMING_LOGS) return;
+        Map<String, Long> timings = photoTimings.remove(requestId);
+        if (timings == null || timings.isEmpty()) return;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("⏱️ [TIMING] Request ").append(requestId).append(" phases:\n");
+        long firstTime = 0;
+        long prevTime = 0;
+        for (Map.Entry<String, Long> entry : timings.entrySet()) {
+            long time = entry.getValue();
+            if (firstTime == 0) { firstTime = time; prevTime = time; }
+            sb.append("  ").append(entry.getKey())
+              .append(": +").append(time - firstTime).append("ms")
+              .append(" (delta: ").append(time - prevTime).append("ms)\n");
+            prevTime = time;
+        }
+        sb.append("  TOTAL: ").append(prevTime - firstTime).append("ms");
+        Log.i(TAG, sb.toString());
+    }
+
+    /**
      * Upload photo directly to app webhook
      */
     private void uploadPhotoToWebhook(String photoFilePath, String requestId, String webhookUrl, String authToken, String compress) {
@@ -1463,6 +1581,7 @@ public class MediaCaptureService {
         PhotoCaptureTestFramework.addFakeDelay("UPLOAD");
 
         // Set upload state to busy
+        recordTiming(requestId, "webhook_upload_begin");
         synchronized (uploadLock) {
             isUploadingPhoto = true;
             Log.d(TAG, "📤 Starting upload - system marked as busy: " + requestId);
@@ -1658,6 +1777,7 @@ public class MediaCaptureService {
         
         // Create a new thread for the upload
         new Thread(() -> {
+            recordTiming(requestId, "direct_upload_thread_start");
             try {
                 File photoFile = new File(photoFilePath);
                 if (!photoFile.exists()) {
@@ -1671,12 +1791,12 @@ public class MediaCaptureService {
                 Log.d(TAG, "📊 Photo file size: " + photoFile.length() + " bytes");
                 Log.d(TAG, "🌐 Sending photo request to: " + webhookUrl);
 
-                // Create multipart form request with smarter timeouts:
-                // - 1 second to connect (fails fast if no internet)
+                // Create multipart form request with WiFi-appropriate timeouts:
+                // - 5 seconds to connect (allows time for DNS+TCP+TLS over WiFi)
                 // - 10 seconds to write the photo data
                 // - 5 seconds to read the response
                 OkHttpClient client = new OkHttpClient.Builder()
-                        .connectTimeout(1, java.util.concurrent.TimeUnit.SECONDS)  // Fast fail if no internet
+                        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)  // Allow time for DNS+TCP+TLS on WiFi
                         .writeTimeout(10, java.util.concurrent.TimeUnit.SECONDS)   // Time to upload photo data
                         .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)     // Time to get response
                         .build();
@@ -1709,11 +1829,14 @@ public class MediaCaptureService {
                 long uploadStartTime = System.currentTimeMillis();
                 Response response = client.newCall(request).execute();
                 long uploadTime = System.currentTimeMillis() - uploadStartTime;
-                
+                recordTiming(requestId, "direct_upload_response");
+
                 Log.d(TAG, "⏱️ Upload completed in: " + uploadTime + "ms");
                 Log.d(TAG, "📈 Response code: " + response.code());
 
                 if (response.isSuccessful()) {
+                    recordTiming(requestId, "upload_success");
+                    dumpTimings(requestId);
                     String responseBody = response.body() != null ? response.body().string() : "";
                     Log.d(TAG, "✅ Photo uploaded successfully to webhook");
                     Log.d(TAG, "📄 Response body: " + responseBody);
@@ -1754,6 +1877,7 @@ public class MediaCaptureService {
                     Log.e(TAG, "❌ " + errorMessage + " to webhook: " + webhookUrl);
 
                     // Check if we can fallback to BLE
+                    recordTiming(requestId, "upload_failed_ble_fallback");
                     String bleImgId = photoBleIds.get(requestId);
                     if (bleImgId != null) {
                         Log.d(TAG, "📱 Webhook upload failed, attempting BLE fallback");
@@ -1781,6 +1905,7 @@ public class MediaCaptureService {
                     }
 
                     // No BLE fallback available
+                    dumpTimings(requestId);
                     Log.d(TAG, "❌ No BLE fallback available, handling as normal failure");
                     
                     // Check if we should save the photo
@@ -1824,6 +1949,7 @@ public class MediaCaptureService {
                 Log.e(TAG, "❌ Exception type: " + e.getClass().getSimpleName());
 
                 // Check if we can fallback to BLE on exception
+                recordTiming(requestId, "upload_exception_ble_fallback");
                 String bleImgId = photoBleIds.get(requestId);
                 if (bleImgId != null) {
                     Log.d(TAG, "📱 Webhook upload exception, attempting BLE fallback");
@@ -2087,13 +2213,17 @@ public class MediaCaptureService {
     }
 
     /**
-     * Check if WiFi is connected
+     * Check if WiFi is connected using modern NetworkCapabilities API.
+     * Used to decide whether to attempt direct webhook upload or skip to BLE.
      */
     private boolean isWiFiConnected() {
         try {
             ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-            return wifiInfo != null && wifiInfo.isConnected();
+            if (cm == null) return false;
+            android.net.Network activeNetwork = cm.getActiveNetwork();
+            if (activeNetwork == null) return false;
+            NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
+            return caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
         } catch (Exception e) {
             Log.e(TAG, "Error checking WiFi connectivity", e);
             return false;
@@ -2125,18 +2255,21 @@ public class MediaCaptureService {
             Log.w(TAG, "⚠️ StateManager not initialized - skipping battery check for auto transfer");
         }
 
-        // Store the save flag and BLE ID for this request
-        photoSaveFlags.put(requestId, save);
-        photoBleIds.put(requestId, bleImgId);
-        photoOriginalPaths.put(requestId, photoFilePath);
-        photoRequestedSizes.put(requestId, size);
+        if (isWiFiConnected()) {
+            // WiFi available - try direct webhook upload with BLE fallback on failure
+            // Store tracking data needed by webhook's BLE fallback path
+            photoSaveFlags.put(requestId, save);
+            photoBleIds.put(requestId, bleImgId);
+            photoOriginalPaths.put(requestId, photoFilePath);
+            photoRequestedSizes.put(requestId, size);
 
-        // Attempt direct upload (internet test removed due to unreliability)
-        Log.d(TAG, "Attempting direct upload for " + requestId);
+            Log.d(TAG, "📶 WiFi connected - attempting direct upload for " + requestId);
             takePhotoAndUpload(photoFilePath, requestId, webhookUrl, authToken, save, size, enableFlash, enableSound, compress);
-        
-        // Note: BLE fallback will be handled automatically by upload failure detection
-        Log.d(TAG, "BLE fallback will be used if upload fails");
+        } else {
+            // No WiFi - skip webhook entirely, go straight to BLE (saves 2-5s timeout wait)
+            Log.d(TAG, "📵 No WiFi - skipping webhook, using BLE transfer for " + requestId);
+            takePhotoForBleTransfer(photoFilePath, requestId, bleImgId, save, size, enableFlash, enableSound);
+        }
     }
 
     /**
@@ -2149,6 +2282,7 @@ public class MediaCaptureService {
     public void takePhotoForBleTransfer(String photoFilePath, String requestId, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
+        recordTiming(requestId, "ble_request_start");
         if (ENABLE_PHOTO_TIMING_LOGS) {
             Log.i(TAG, "⏱️ [TIMING] BLE Photo request START - ID: " + requestId);
         }
@@ -2182,6 +2316,14 @@ public class MediaCaptureService {
             return;
         }
 
+        // Check if camera capture is already in progress - reject concurrent SDK requests
+        if (!isCapturingPhoto.compareAndSet(false, true)) {
+            Log.w(TAG, "🚫 Camera busy - photo capture already in progress: " + requestId);
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo capture is in progress");
+            return;
+        }
+        startCaptureSafetyTimeout(requestId);
+
         // Store the save flag for this request
         photoSaveFlags.put(requestId, save);
         // Track requested size for BLE compression
@@ -2195,9 +2337,11 @@ public class MediaCaptureService {
 
         // TESTING: Check for fake camera capture failure
         if (PhotoCaptureTestFramework.shouldFail("CAMERA_CAPTURE")) {
-            Log.e(TAG, "TESTING: Simulating camera capture failure for BLE transfer - " + 
+            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
+            Log.e(TAG, "TESTING: Simulating camera capture failure for BLE transfer - " +
                 PhotoCaptureTestFramework.getErrorCode() + ": " + PhotoCaptureTestFramework.getErrorMessage());
-            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(), 
+            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
                 PhotoCaptureTestFramework.getErrorMessage());
             return;
         }
@@ -2218,18 +2362,23 @@ public class MediaCaptureService {
 
         try {
             // Use CameraNeo for photo capture
+            recordTiming(requestId, "enqueue_camera");
             CameraNeo.takePictureWithCallback(
                     mContext,
                     photoFilePath,
                     new CameraNeo.PhotoCaptureCallback() {
                         @Override
                         public void onPhotoCaptured(String filePath) {
+                            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
+                            recordTiming(requestId, "photo_captured");
+
                             // Calculate end-to-end timing from request to capture
                             long totalElapsedMs = System.currentTimeMillis() - requestStartTimeMs;
                             if (ENABLE_PHOTO_TIMING_LOGS) {
                                 Log.i(TAG, "⏱️ [TIMING] BLE Photo CAPTURED in " + totalElapsedMs + "ms - ID: " + requestId);
                             }
-                            
+
                             Log.d(TAG, "Photo captured successfully for BLE transfer: " + filePath);
 
                             // LED is now managed by CameraNeo and will turn off when camera closes
@@ -2240,15 +2389,20 @@ public class MediaCaptureService {
                             }
 
                             // Compress and send via BLE
+                            recordTiming(requestId, "start_compress_for_ble");
                             compressAndSendViaBle(filePath, requestId, bleImgId);
                         }
 
                         @Override
                         public void onPhotoError(String errorMessage) {
+                            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
+
                             Log.e(TAG, "Failed to capture photo for BLE: " + errorMessage);
-                            
+
                             // LED is now managed by CameraNeo and will turn off when camera closes
-                            
+
+                            dumpTimings(requestId);
                             sendPhotoErrorResponse(requestId, "CAMERA_CAPTURE_FAILED", errorMessage);
 
                             if (mMediaCaptureListener != null) {
@@ -2259,6 +2413,8 @@ public class MediaCaptureService {
                     size
             );
         } catch (Exception e) {
+            cancelCaptureSafetyTimeout();
+            isCapturingPhoto.set(false);
             Log.e(TAG, "Error taking photo for BLE", e);
             sendMediaErrorResponse(requestId, "Error taking photo: " + e.getMessage(), MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
 
@@ -2303,6 +2459,7 @@ public class MediaCaptureService {
     private void compressAndSendViaBle(String originalPath, String requestId, String bleImgId) {
         new Thread(() -> {
             long startTime = System.currentTimeMillis();
+            recordTiming(requestId, "ble_compress_start");
             Log.d(TAG, "🚀 BLE photo transfer started for " + bleImgId);
 
             // TESTING: Check for fake compression failure
@@ -2367,6 +2524,7 @@ public class MediaCaptureService {
                 resized.recycle();
 
                 long compressionTime = System.currentTimeMillis() - startTime;
+                recordTiming(requestId, "ble_compress_done");
                 Log.d(TAG, "✅ Compressed photo for BLE: " + originalPath + " -> " + compressedData.length + " bytes");
                 Log.d(TAG, "⏱️ Compression took: " + compressionTime + "ms");
 
@@ -2378,6 +2536,7 @@ public class MediaCaptureService {
                 }
 
                 // 6. Send via BLE using K900BluetoothManager
+                recordTiming(requestId, "ble_send_start");
                 sendCompressedPhotoViaBle(compressedPath, bleImgId, requestId, startTime);
 
                 // 7. Delete original photo if not saving to gallery
@@ -2401,6 +2560,7 @@ public class MediaCaptureService {
                 photoSaveFlags.remove(requestId);
             } catch (Exception e) {
                 Log.e(TAG, "Error compressing photo for BLE", e);
+                dumpTimings(requestId);
                 sendPhotoErrorResponse(requestId, "BLE_TRANSFER_FAILED", e.getMessage());
 
                 // Clean up flag on error too
@@ -2444,6 +2604,7 @@ public class MediaCaptureService {
                 }
                 
                 // BLE is available - send the ready message first (phone expects this for timing tracking)
+                recordTiming(requestId, "ble_ready_msg");
                 sendBlePhotoReadyMsg(compressedPath, bleImgId, requestId, transferStartTime);
 
                 // Add delay to ensure JSON packet completes transmission through MCU before file packets start
@@ -2456,9 +2617,12 @@ public class MediaCaptureService {
                 }
 
                 // Then try to start the file transfer
+                recordTiming(requestId, "ble_file_transfer_start");
                 transferStarted = mServiceCallback.sendFileViaBluetooth(compressedPath);
-                
+
                 if (transferStarted) {
+                    recordTiming(requestId, "ble_transfer_started");
+                    dumpTimings(requestId);
                     Log.i(TAG, "✅ BLE file transfer started for: " + bleImgId);
                 } else {
                     // This shouldn't happen since we checked above, but handle it anyway
@@ -2608,10 +2772,9 @@ public class MediaCaptureService {
             @Override
             public void run() {
                 if (isRecordingVideo) {
-                    // Null check for StateManager (might not be initialized yet or cleared)
-                    if (mStateManager == null) {
-                        Log.w(TAG, "⚠️ StateManager not available during battery monitoring - skipping check");
-                        // Reschedule to try again later in case StateManager gets initialized
+                    // Use hardwareManager for active BES battery query (not stale StateManager cache)
+                    if (hardwareManager == null) {
+                        Log.w(TAG, "⚠️ HardwareManager not available during battery monitoring - skipping check");
                         if (isRecordingVideo && mBatteryMonitorHandler != null) {
                             mBatteryMonitorHandler.postDelayed(this,
                                 BatteryConstants.BATTERY_CHECK_INTERVAL_MS);
@@ -2619,7 +2782,7 @@ public class MediaCaptureService {
                         return;
                     }
 
-                    int batteryLevel = mStateManager.getBatteryLevel();
+                    int batteryLevel = hardwareManager.getBatteryLevel();
 
                     if (batteryLevel >= 0 && batteryLevel < BatteryConstants.MIN_BATTERY_LEVEL) {
                         Log.w(TAG, "🔋⚠️ Battery dropped to " + batteryLevel +

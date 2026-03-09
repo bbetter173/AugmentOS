@@ -4,6 +4,7 @@ import {Switch, Text} from "@/components/ignite"
 import {ThemedSlider} from "@/components/settings/ThemedSlider"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {ThemedStyle} from "@/theme"
+import GlassView from "@/components/ui/GlassView"
 
 type BrightnessSettingProps = {
   label: string
@@ -49,7 +50,7 @@ const BrightnessSetting: React.FC<BrightnessSettingProps> = ({
   }
 
   return (
-    <View style={[themed($outerContainer), style]}>
+    <GlassView style={[themed($outerContainer), style]}>
       {/* Toggle Section */}
       <View
         style={[
@@ -82,7 +83,7 @@ const BrightnessSetting: React.FC<BrightnessSettingProps> = ({
           />
         </View>
       )}
-    </View>
+    </GlassView>
   )
 }
 

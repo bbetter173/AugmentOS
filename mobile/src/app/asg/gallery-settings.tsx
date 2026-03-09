@@ -135,7 +135,10 @@ export default function GallerySettingsScreen() {
         {/* Camera Settings button for glasses with configurable button */}
         {features?.hasButton && (
           <View style={themed($section)}>
-            <RouteButton label={translate("settings:cameraSettings")} onPress={() => push("/settings/camera")} />
+            <RouteButton
+              label={translate("settings:cameraSettings")}
+              onPress={() => push("/miniapps/settings/camera")}
+            />
           </View>
         )}
 

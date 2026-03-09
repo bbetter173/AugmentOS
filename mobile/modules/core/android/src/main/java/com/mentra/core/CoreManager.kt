@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import com.mentra.core.services.ForegroundService
 import com.mentra.core.services.PhoneMic
 import com.mentra.core.sgcs.G1
+import com.mentra.core.sgcs.G2
 import com.mentra.core.sgcs.Mach1
 import com.mentra.core.sgcs.MentraLive
 import com.mentra.core.sgcs.MentraNex
@@ -120,10 +121,6 @@ class CoreManager {
     private var enforceLocalTranscription: Boolean
         get() = GlassesStore.store.get("core", "enforce_local_transcription") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "enforce_local_transcription", value)
-
-    private var offlineMode: Boolean
-        get() = GlassesStore.store.get("core", "offline_mode") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "offline_mode", value)
 
     private var metricSystem: Boolean
         get() = GlassesStore.store.get("core", "metric_system") as? Boolean ?: false
@@ -927,6 +924,8 @@ class CoreManager {
             sgc = Simulated()
         } else if (wearable.contains(DeviceTypes.G1)) {
             sgc = G1()
+        } else if (wearable.contains(DeviceTypes.G2)) {
+            sgc = G2()
         } else if (wearable.contains(DeviceTypes.LIVE)) {
             sgc = MentraLive()
         } else if (wearable.contains(DeviceTypes.NEX)) {

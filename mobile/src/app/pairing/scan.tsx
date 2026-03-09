@@ -18,6 +18,7 @@ import {PermissionFeatures, requestFeaturePermissions} from "@/utils/Permissions
 import {getGlassesOpenImage} from "@/utils/getGlassesImage"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useCoreStore} from "@/stores/core"
+import GlassView from "@/components/ui/GlassView"
 
 export default function SelectGlassesBluetoothScreen() {
   const {deviceModel}: {deviceModel: string} = useLocalSearchParams()
@@ -122,7 +123,7 @@ export default function SelectGlassesBluetoothScreen() {
     <Screen preset="fixed" safeAreaEdges={["bottom"]}>
       <Header leftIcon="chevron-left" onLeftPress={goBack} RightActionComponent={<MentraLogoStandalone />} />
       <View className="flex-1 justify-center">
-        <View className="gap-6 rounded-3xl bg-primary-foreground p-6">
+        <GlassView className="gap-6 rounded-3xl bg-primary-foreground p-6">
           <Image source={getGlassesOpenImage(deviceModel)} className="h-[90px] w-full" resizeMode="contain" />
           <Text
             className="text-center text-xl font-semibold text-text-dim"
@@ -158,7 +159,7 @@ export default function SelectGlassesBluetoothScreen() {
           <View className="flex-row justify-end">
             <Button preset="secondary" compact tx="common:cancel" onPress={() => goBack()} className="min-w-[100px]" />
           </View>
-        </View>
+        </GlassView>
       </View>
       <Button
         preset="secondary"

@@ -59,7 +59,6 @@ class GlassesStore {
         store.set("core", "pending_wearable", "")
         store.set("core", "device_name", "")
         store.set("core", "device_address", "")
-        store.set("core", "offline_mode", false)
         store.set("core", "screen_disabled", false)
         store.set("core", "preferred_mic", "auto")
         store.set("core", "power_saving_mode", false)
@@ -205,24 +204,13 @@ class GlassesStore {
                 )
             }
 
-        case ("core", "offline_mode"):
-            if let offline = value as? Bool {
-                // set should_send_transcript to true if offline_mode is true && running is true, otherwise false
-                let shouldSendTranscript = offline && (store.get("core", "offline_captions_running") as? Bool) ?? false
-                CoreManager.shared.setMicState(
-                    store.get("core", "should_send_pcm_data") as? Bool ?? false,
-                    store.get("core", "should_send_transcript") as? Bool ?? false,
-                    store.get("core", "bypass_vad") as? Bool ?? true
-                )
-            }
-
         case ("core", "offline_captions_running"):
             if let running = value as? Bool {
                 Bridge.log("GlassesStore: offline_captions_running changed to \(running)")
                 // When offline captions are enabled, start the microphone for local transcription
                 // When disabled, stop the microphone
-                // set should_send_transcript to true if offline_mode is true && running is true, otherwise false
-                let shouldSendTranscript = (store.get("core", "offline_mode") as? Bool) ?? false && running
+                // set should_send_transcript to true if running is true, otherwise false
+                let shouldSendTranscript = running
                 CoreManager.shared.setMicState(
                     store.get("core", "should_send_pcm_data") as? Bool ?? false,
                     shouldSendTranscript,

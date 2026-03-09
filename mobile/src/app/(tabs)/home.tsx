@@ -4,6 +4,7 @@ import {ScrollView, View} from "react-native"
 import {useSharedValue} from "react-native-reanimated"
 
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
+import {CustomBackground} from "@/components/home/CustomBackground"
 import {ActiveForegroundApp} from "@/components/home/ActiveForegroundApp"
 import {BackgroundAppsLink} from "@/components/home/BackgroundAppsLink"
 import {CompactDeviceStatus} from "@/components/home/CompactDeviceStatus"
@@ -24,6 +25,8 @@ import AppSwitcher from "@/components/home/AppSwitcher"
 import {DeviceStatus} from "@/components/home/DeviceStatus"
 import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
+import AllAppsGridSheet from "@/components/home/AllAppsGridSheet"
+import BottomSheet from "@gorhom/bottom-sheet"
 
 export default function Homepage() {
   const refreshApplets = useRefreshApplets()
@@ -36,6 +39,7 @@ export default function Homepage() {
   const [appSwitcherUi] = useSetting(SETTINGS.app_switcher_ui.key)
   const swipeProgress = useSharedValue(0)
   const insets = useSaferAreaInsets()
+  const bottomSheetRef = useRef<BottomSheet>(null)
 
   useFocusEffect(
     useCallback(() => {
@@ -66,6 +70,7 @@ export default function Homepage() {
             <PairGlassesCard />
           </Group>
           <View className="flex-1" />
+          <AppsGrid />
         </>
       )
     }
@@ -85,45 +90,60 @@ export default function Homepage() {
     )
   }
 
-  return (
-    <Screen preset="fixed">
-      {appSwitcherUi && <View style={{paddingTop: insets.top}} />}
-      {!appSwitcherUi && (
-        <Header
-          leftTx="home:title"
-          RightActionComponent={
-            <View className="flex-row items-center flex-1 justify-end">
-              <WebsocketStatus />
-              <NonProdWarning />
-              <View className="w-2" />
-              <MentraLogoStandalone />
-            </View>
-          }
-        />
-      )}
+  const handleGridButtonPress = () => {
+    bottomSheetRef.current?.expand()
+  }
 
-      {/* {appSwitcherUi && (
+  return (
+    <>
+      <Screen preset="fixed" className={`${appSwitcherUi ? "px-0" : ""}`} KeyboardAvoidingViewProps={{enabled: true}}>
+        {appSwitcherUi && <CustomBackground />}
+        {appSwitcherUi && <View style={{paddingTop: insets.top}} />}
+        {!appSwitcherUi && (
+          <Header
+            leftTx="home:title"
+            RightActionComponent={
+              <View className="flex-row items-center flex-1 justify-end">
+                <WebsocketStatus />
+                <NonProdWarning />
+                <View className="w-2" />
+                <MentraLogoStandalone />
+              </View>
+            }
+          />
+        )}
+
+        {/* {appSwitcherUi && (
         <View className="px-6 flex-row">
           <WebsocketStatus />
           <NonProdWarning />
         </View>
       )} */}
 
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        style={{flex: 1}}
-        contentContainerStyle={{flexGrow: 1}}
-        scrollEventThrottle={16}>
-        <View className="h-4" />
-        {renderContent()}
-        <View className="h-4" />
-        {!appSwitcherUi && <IncompatibleApps />}
-        {/* spacer for scrolling to the bottom of the screen */}
-        {/* {appSwitcherUi && <View className="h-25" />} */}
-      </ScrollView>
-      {appSwitcherUi && <AppSwitcherButton swipeProgress={swipeProgress} />}
-      {appSwitcherUi && <AppSwitcher swipeProgress={swipeProgress} />}
-    </Screen>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName={`${appSwitcherUi ? "px-6" : ""}`}
+          contentContainerStyle={{flexGrow: 1}}
+          scrollEventThrottle={16}>
+          <View className="h-4" />
+          {renderContent()}
+          <View className="h-4" />
+          {!appSwitcherUi && <IncompatibleApps />}
+          {/* spacer for scrolling to the bottom of the screen */}
+          {/* {appSwitcherUi && <View className="h-25" />} */}
+        </ScrollView>
+        {/* <View className="h-3 absolute bottom-0 w-screen bg-red-500 z-10" /> */}
+        {appSwitcherUi && (
+          <View className="px-6">
+            <View className="">
+              <AppSwitcherButton swipeProgress={swipeProgress} onGridButtonPress={handleGridButtonPress} />
+            </View>
+          </View>
+        )}
+        {appSwitcherUi && <AppSwitcher swipeProgress={swipeProgress} />}
+      </Screen>
+      {appSwitcherUi && <AllAppsGridSheet bottomSheetRef={bottomSheetRef} />}
+    </>
   )
 }

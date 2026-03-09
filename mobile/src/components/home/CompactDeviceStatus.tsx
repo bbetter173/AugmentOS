@@ -156,7 +156,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
 
         <View style={[themed($sideBySideContainer)]}>
           <Image source={getCurrentGlassesImage()} style={[themed($glassesImage)]} />
-          <Button compactIcon preset="alternate" onPress={() => push("/settings/glasses")}>
+          <Button compactIcon preset="alternate" onPress={() => push("/miniapps/settings/glasses")}>
             <Icon name="settings" size={24} color={theme.colors.foreground} />
           </Button>
         </View>
@@ -216,7 +216,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
             onPress={() => setShowSimulatedGlasses(!showSimulatedGlasses)}>
             <Icon name="arrow-left" size={18} color={theme.colors.foreground} />
           </Button>
-          <Button flexContainer={false} preset="alternate" onPress={() => push("/settings/glasses")}>
+          <Button flexContainer={false} preset="alternate" onPress={() => push("/miniapps/settings/glasses")}>
             <Icon name="settings" size={18} color={theme.colors.foreground} />
           </Button>
         </View>
@@ -232,7 +232,11 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
         <View style={themed($iconRow)}>
           {!isExpanded && batteryLevel !== -1 && (
             <View style={{flexDirection: "row", alignItems: "center", gap: theme.spacing.s1}}>
-              <Icon name={charging ? "battery-charging" : getBatteryIcon(batteryLevel)} size={18} color={theme.colors.foreground} />
+              <Icon
+                name={charging ? "battery-charging" : getBatteryIcon(batteryLevel)}
+                size={18}
+                color={theme.colors.foreground}
+              />
               <Text style={themed($iconText)}>{batteryLevel}%</Text>
             </View>
           )}
@@ -265,7 +269,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
         ]}>
         <Image source={getCurrentGlassesImage()} style={themed(isExpanded ? $glassesImageExpanded : $glassesImage)} />
         {!isExpanded && (
-          <Button preset="alternate" onPress={() => push("/settings/glasses")}>
+          <Button preset="alternate" onPress={() => push("/miniapps/settings/glasses")}>
             <Icon name="settings" size={24} color={theme.colors.foreground} />
           </Button>
         )}
@@ -320,7 +324,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
                 }
               />
             )}
-            <Button compactIcon preset="alternate" onPress={() => push("/settings/glasses")}>
+            <Button compactIcon preset="alternate" onPress={() => push("/miniapps/settings/glasses")}>
               <Icon name="settings" size={24} color={theme.colors.foreground} />
             </Button>
           </View>

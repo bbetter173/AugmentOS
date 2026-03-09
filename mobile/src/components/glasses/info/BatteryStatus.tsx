@@ -34,7 +34,7 @@ export function BatteryStatus({compact}: BatteryStatusProps) {
               backgroundColor: theme.colors.background,
               flex: 1,
               paddingHorizontal: theme.spacing.s4,
-              paddingRight: 20,
+              paddingRight: theme.spacing.s5,
             }}
             label={translate("deviceSettings:glasses")}
             textStyle={themed($compactTextStyle)}

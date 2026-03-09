@@ -108,17 +108,6 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
     }>
   >
 
-  // Media Library Commands
-  saveToGalleryWithDate(
-    filePath: string,
-    captureTimeMillis?: number,
-  ): Promise<{
-    success: boolean
-    uri?: string
-    identifier?: string
-    error?: string
-  }>
-
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
   updateCore(values: Partial<CoreStatus>): Promise<void>

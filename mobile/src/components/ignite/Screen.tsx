@@ -210,6 +210,7 @@ function ScreenWithScrolling(props: ScreenProps) {
   useScrollToTop(ref)
 
   return (
+    // @ts-ignore
     <KeyboardAwareScrollView
       bottomOffset={keyboardBottomOffset}
       {...{keyboardShouldPersistTaps, scrollEnabled, ref}}
@@ -237,7 +238,7 @@ function ScreenWithScrolling(props: ScreenProps) {
  * @param {ScreenProps} props - The props for the `Screen` component.
  * @returns {JSX.Element} The rendered `Screen` component.
  */
-export function Screen(props: ScreenProps & {ref?: any}) {
+export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
   const {
     theme: {colors},
     themeContext,
@@ -250,17 +251,19 @@ export function Screen(props: ScreenProps & {ref?: any}) {
     StatusBarProps,
     statusBarStyle,
     ref,
+    className,
   } = props
 
   let $containerInsets = useSafeAreaInsetsStyle(safeAreaEdges, "padding")
   // const [debugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
+  // console.log("$containerInsets", $containerInsets)
 
   return (
     // separate view for screenshots:
     <View className="flex-1" style={[{...$containerInsets}, {backgroundColor: backgroundColor || colors.background}]}>
       <View
         ref={ref}
-        className="flex-1 px-6"
+        className={`flex-1 px-6 ${className ?? ""}`}
         style={{backgroundColor: backgroundColor || colors.background}}
         collapsable={false}
         collapsableChildren={false}>

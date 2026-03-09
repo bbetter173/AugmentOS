@@ -1316,13 +1316,13 @@ public class RtmpStreamingService extends Service {
                 synchronized (mStateLock) {
                     // Continue monitoring if stream is marked as active (even if temporarily not in STREAMING state)
                     if (mIsStreaming) {
-                        // Null check for StateManager (might not be initialized yet or cleared)
-                        if (mStateManager == null) {
-                            Log.w(TAG, "⚠️ StateManager not available during battery monitoring - will retry");
+                        // Use hardwareManager for active BES battery query (not stale StateManager cache)
+                        if (mHardwareManager == null) {
+                            Log.w(TAG, "⚠️ HardwareManager not available during battery monitoring - will retry");
                             shouldReschedule = true;
                         } else if (mStreamState == StreamState.STREAMING) {
                             // Only check battery when actually streaming
-                            int batteryLevel = mStateManager.getBatteryLevel();
+                            int batteryLevel = mHardwareManager.getBatteryLevel();
 
                             if (batteryLevel >= 0 && batteryLevel < BatteryConstants.MIN_BATTERY_LEVEL) {
                                 Log.w(TAG, "🔋⚠️ Battery dropped to " + batteryLevel +

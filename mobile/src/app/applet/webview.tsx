@@ -1,19 +1,18 @@
 import {useLocalSearchParams} from "expo-router"
 import {useRef, useState, useEffect} from "react"
-import {View} from "react-native"
+import {Platform, View} from "react-native"
 import {WebView} from "react-native-webview"
 import Animated, {useSharedValue, useAnimatedStyle, withTiming} from "react-native-reanimated"
 
 import {Header, Screen, Text} from "@/components/ignite"
-import InternetConnectionFallbackComponent from "@/components/ui/InternetConnectionFallbackComponent"
+import MiniappErrorScreen from "@/components/miniapps/MiniappErrorScreen"
 import LoadingOverlay from "@/components/ui/LoadingOverlay"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import restComms from "@/services/RestComms"
+import miniComms from "@/services/MiniComms"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
-import showAlert from "@/utils/AlertUtils"
 import {useAppletStatusStore} from "@/stores/applets"
 import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
-import {Image} from "expo-image"
 import AppIcon from "@/components/home/AppIcon"
 
 export default function AppWebView() {
@@ -29,8 +28,17 @@ export default function AppWebView() {
   const viewShotRef = useRef(null)
   const [appSwitcherUi] = useSetting(SETTINGS.app_switcher_ui.key)
 
-  // WebView loading state
-  const [isWebViewReady, setIsWebViewReady] = useState(false)
+  // Track if the server-side app start failed
+  const [appStartFailed, setAppStartFailed] = useState(false)
+
+  // Two conditions for showing the webview content:
+  // 1. WebView HTML has loaded (onLoadEnd fired)
+  const [isWebViewLoaded, setIsWebViewLoaded] = useState(false)
+  // 2. Server confirmed the app is running (loading=false, running=true in store)
+  const [isServerConfirmed, setIsServerConfirmed] = useState(false)
+  // Splash screen stays up until BOTH are true
+  const isWebViewReady = isWebViewLoaded && isServerConfirmed
+
   const webViewOpacity = useSharedValue(0)
   const loadingOpacity = useSharedValue(1)
 
@@ -45,6 +53,40 @@ export default function AppWebView() {
   if (typeof webviewURL !== "string" || typeof appName !== "string" || typeof packageName !== "string") {
     return <Text>Missing required parameters</Text>
   }
+
+  // Watch the applet's store state for server confirmation.
+  // startApplet() sets loading=true, then refreshApplets() (at ~2s) fetches
+  // the real state from the server which sets loading=false.
+  // If running=false after server confirms, the app failed to start.
+  useEffect(() => {
+    // Check the current state immediately (covers re-opening an already-running app)
+    const checkApplet = (state: {apps: Array<{packageName: string; loading: boolean; running: boolean}>}) => {
+      const applet = state.apps.find((a) => a.packageName === packageName)
+      if (!applet) return
+
+      if (!applet.loading) {
+        if (applet.running) {
+          setIsServerConfirmed(true)
+        } else {
+          setAppStartFailed(true)
+        }
+      }
+    }
+
+    checkApplet(useAppletStatusStore.getState())
+
+    // Also subscribe to future changes
+    const unsub = useAppletStatusStore.subscribe(checkApplet)
+    return unsub
+  }, [packageName])
+
+  // Fade in webview once both conditions are met
+  useEffect(() => {
+    if (isWebViewReady) {
+      webViewOpacity.value = withTiming(1, {duration: 200})
+      loadingOpacity.value = withTiming(0, {duration: 400})
+    }
+  }, [isWebViewReady])
 
   useEffect(() => {
     const generateTokenAndSetUrl = async () => {
@@ -66,10 +108,7 @@ export default function AppWebView() {
       let res = await restComms.generateWebviewToken(packageName)
       if (res.is_error()) {
         console.error("Error generating webview token:", res.error)
-        setTokenError(`Failed to prepare secure access: ${res.error.message}`)
-        showAlert("Authentication Error", `Could not securely connect to ${appName}. Please try again later.`, [
-          {text: "OK", onPress: () => goBack()},
-        ])
+        setTokenError(`Couldn't securely connect to ${appName}. Please try again.`)
         setIsLoadingToken(false)
         return
       }
@@ -110,6 +149,26 @@ export default function AppWebView() {
     generateTokenAndSetUrl()
   }, [packageName, webviewURL, appName, retryTrigger])
 
+  // Register with MiniComms for bridge messaging
+  useEffect(() => {
+    const sendToWebView = (message: string) => {
+      if (webViewRef.current) {
+        webViewRef.current.injectJavaScript(`
+          window.receiveNativeMessage(${message});
+        `)
+      }
+    }
+    miniComms.setWebViewMessageHandler(packageName, sendToWebView)
+    return () => {
+      miniComms.setWebViewMessageHandler(packageName, undefined)
+    }
+  }, [packageName])
+
+  const handleWebViewMessage = (event: any) => {
+    const data = event.nativeEvent.data
+    miniComms.handleRawMessageFromMiniApp(packageName, data)
+  }
+
   const handleLoadStart = () => {
     // android tries to load the webview twice for some reason, and this does nothning so it's safe to disable:
     console.log("WEBVIEW: handleLoadStart()")
@@ -122,12 +181,8 @@ export default function AppWebView() {
   const handleLoadEnd = () => {
     console.log("WEBVIEW: handleLoadEnd()")
     setHasError(false)
-    setIsWebViewReady(true)
+    setIsWebViewLoaded(true)
     setIsLoadingToken(false)
-
-    // Fade in WebView, fade out loading
-    webViewOpacity.value = withTiming(1, {duration: 200})
-    loadingOpacity.value = withTiming(0, {duration: 800})
   }
 
   const handleError = (syntheticEvent: any) => {
@@ -170,17 +225,18 @@ export default function AppWebView() {
   const renderLoadingOverlay = () => {
     const app = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
 
-    const screenshot = screenshotComponent()
-    if (screenshot) {
-      return (
-        <Animated.View
-          className="absolute top-0 left-0 right-0 bottom-0 z-10"
-          style={[loadingAnimatedStyle]}
-          pointerEvents={isWebViewReady ? "none" : "auto"}>
-          {screenshot}
-        </Animated.View>
-      )
-    }
+    // disabled for now:
+    // const screenshot = screenshotComponent()
+    // if (screenshot) {
+    //   return (
+    //     <Animated.View
+    //       className="absolute top-0 left-0 right-0 bottom-0 z-10"
+    //       style={[loadingAnimatedStyle]}
+    //       pointerEvents={isWebViewReady ? "none" : "auto"}>
+    //       {screenshot}
+    //     </Animated.View>
+    //   )
+    // }
 
     if (!app) {
       return (
@@ -193,6 +249,9 @@ export default function AppWebView() {
       )
     }
 
+    // force loading to false for the app icon:
+    let appCopy = {...app, loading: false}
+
     return (
       <Animated.View
         className="absolute top-0 left-0 right-0 bottom-0 z-10"
@@ -201,7 +260,7 @@ export default function AppWebView() {
         {/* show the app icon and app name */}
         <View className="flex-1 flex-row items-center justify-center">
           <View className="flex-col">
-            <AppIcon app={app} className="w-32 h-32" />
+            <AppIcon app={appCopy} className="w-32 h-32" />
             {/* <Text text={appName} className="text-foreground text-2xl font-medium text-center" numberOfLines={1} /> */}
           </View>
         </View>
@@ -209,34 +268,45 @@ export default function AppWebView() {
     )
   }
 
-  if (tokenError && !isLoadingToken) {
-    return (
-      <View className="flex-1 bg-background">
-        <InternetConnectionFallbackComponent
-          retry={() => {
-            setTokenError(null)
-            setRetryTrigger((prev) => prev + 1)
-          }}
-          message={tokenError}
-        />
-      </View>
-    )
-  }
+  // Show error screen if: server-side start failed, token generation failed, or webview failed to load
+  const showError = appStartFailed || (tokenError && !isLoadingToken) || hasError
+  const errorMessage = appStartFailed
+    ? `${appName} couldn't be started. The miniapp may be temporarily unavailable.`
+    : tokenError || `Unable to load ${appName}. Please check your connection and try again.`
 
-  if (hasError) {
+  if (showError) {
     return (
-      <View className="flex-1 bg-background">
-        <InternetConnectionFallbackComponent
-          retry={() => {
+      <Screen
+        preset="fixed"
+        safeAreaEdges={[appSwitcherUi && "top"]}
+        className="px-0">
+        {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
+        {!appSwitcherUi && (
+          <View className="px-6">
+            <Header
+              leftIcon="chevron-left"
+              onLeftPress={() => goBack()}
+              title={appName}
+            />
+          </View>
+        )}
+        <MiniappErrorScreen
+          packageName={packageName}
+          appName={appName}
+          message={errorMessage}
+          onRetry={() => {
+            setAppStartFailed(false)
             setHasError(false)
             setTokenError(null)
-            if (webViewRef.current) {
-              webViewRef.current.reload()
-            }
+            setFinalUrl(null)
+            setIsWebViewLoaded(false)
+            setIsServerConfirmed(false)
+            webViewOpacity.value = 0
+            loadingOpacity.value = 1
+            setRetryTrigger((prev) => prev + 1)
           }}
-          message={tokenError || `Unable to load ${appName}. Please check your connection and try again.`}
         />
-      </View>
+      </Screen>
     )
   }
 
@@ -245,24 +315,27 @@ export default function AppWebView() {
       preset="fixed"
       safeAreaEdges={[appSwitcherUi && "top"]}
       KeyboardAvoidingViewProps={{enabled: true}}
+      className="px-0"
       ref={viewShotRef}>
       {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
       {!appSwitcherUi && (
-        <Header
-          leftIcon="chevron-left"
-          onLeftPress={() => goBack()}
-          title={appName}
-          rightIcon="settings"
-          onRightPress={() => {
-            push("/applet/settings", {
-              packageName: packageName as string,
-              appName: appName as string,
-              fromWebView: "true",
-            })
-          }}
-        />
+        <View className="px-6">
+          <Header
+            leftIcon="chevron-left"
+            onLeftPress={() => goBack()}
+            title={appName}
+            rightIcon="settings"
+            onRightPress={() => {
+              push("/applet/settings", {
+                packageName: packageName as string,
+                appName: appName as string,
+                fromWebView: "true",
+              })
+            }}
+          />
+        </View>
       )}
-      <View className="flex-1 -mx-6">
+      <View className="flex-1">
         {renderLoadingOverlay()}
         {finalUrl && (
           <Animated.View className="flex-1" style={[webViewAnimatedStyle]}>
@@ -273,6 +346,7 @@ export default function AppWebView() {
               onLoadStart={handleLoadStart}
               onLoadEnd={handleLoadEnd}
               onError={handleError}
+              onMessage={handleWebViewMessage}
               javaScriptEnabled={true}
               domStorageEnabled={true}
               startInLoadingState={false}
@@ -283,6 +357,14 @@ export default function AppWebView() {
               bounces={false}
               automaticallyAdjustContentInsets={false}
               contentInsetAdjustmentBehavior="never"
+              injectedJavaScriptBeforeContentLoaded={`
+                  window.MentraOS = {
+                    platform: '${Platform.OS}',
+                    capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
+                  };
+                  window.receiveNativeMessage = window.receiveNativeMessage || function() {};
+                  true;
+                `}
               injectedJavaScript={`
                   const meta = document.createElement('meta');
                   meta.setAttribute('name', 'viewport');

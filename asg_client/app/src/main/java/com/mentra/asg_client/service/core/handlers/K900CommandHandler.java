@@ -345,7 +345,10 @@ public class K900CommandHandler {
         // Step 1: Send acknowledgment back to BES
         sendShutdownAcknowledgment();
 
-        // Step 2: Perform graceful shutdown after a small delay to ensure ACK is sent
+        // Step 2: Stop active video recording to finalize moov atom and prevent corruption
+        stopActiveRecordingBeforeShutdown();
+
+        // Step 3: Perform graceful shutdown after delay to ensure ACK is sent and recording finalized
         mainHandler.postDelayed(() -> {
             Log.i(TAG, "🔌 Initiating MTK shutdown...");
             Context context = serviceManager != null ? serviceManager.getContext() : null;
@@ -354,7 +357,30 @@ public class K900CommandHandler {
             } else {
                 Log.e(TAG, "🔌 Cannot shutdown - context not available");
             }
-        }, 100); // 100ms delay to ensure sr_shut is sent first
+        }, 500); // 500ms delay to allow MediaRecorder.stop() to finalize
+    }
+
+    /**
+     * Stop any active video recording before shutdown to prevent file corruption.
+     * MPEG4 writes its moov atom during MediaRecorder.stop() — if the device powers off
+     * before that, the recorded file is unplayable.
+     */
+    private void stopActiveRecordingBeforeShutdown() {
+        try {
+            if (serviceManager == null) {
+                Log.w(TAG, "⚠️ ServiceManager not available - cannot check for active recordings");
+                return;
+            }
+
+            MediaCaptureService mediaCaptureService = serviceManager.getMediaCaptureService();
+            if (mediaCaptureService != null && mediaCaptureService.isRecordingVideo()) {
+                Log.i(TAG, "🎥 Active video recording detected - stopping before shutdown to prevent corruption");
+                mediaCaptureService.stopVideoRecording();
+                Log.i(TAG, "🎥 Video recording stopped successfully before shutdown");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error stopping recording before shutdown", e);
+        }
     }
 
     /**

@@ -20,14 +20,13 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
     updates: {
       fallbackToCacheTimeout: 0,
     },
-    newArchEnabled: true,
     jsEngine: "hermes",
     assetBundlePatterns: ["**/*"],
     android: {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: "com.mentra.mentra",
       googleServicesFile: "./google-services.json",
-      versionCode: 92,
+      versionCode: 99,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",
@@ -60,6 +59,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       icon: "./assets/app-icons/ic_launcher.png",
       supportsTablet: false,
       requireFullScreen: true,
+      buildNumber: "99",
       bundleIdentifier: "com.mentra.mentra",
       googleServicesFile: "./GoogleService-Info.plist",
       associatedDomains: ["applinks:apps.mentra.glass"],
@@ -146,9 +146,9 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           imageWidth: 100,
           backgroundColor: "#fff",
           dark: {
-            backgroundColor: "#fff",
-            // backgroundColor: "#171717",
-            // image: "./assets/logo/logo_dark.png",
+            // backgroundColor: "#fff",
+            backgroundColor: "#171717",
+            image: "./assets/logo/logo_dark.png",
           },
         },
       ],
@@ -199,6 +199,8 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
               },
             ],
           },
+          // buildReactNativeFromSource: true,
+          // useHermesV1: true
         },
       ],
       [
@@ -236,6 +238,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           supportsPictureInPicture: true,
         },
       ],
+      "expo-web-browser",
     ],
     experiments: {
       tsconfigPaths: true,

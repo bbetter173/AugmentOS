@@ -1,7 +1,9 @@
 import {GalleryScreen} from "@/components/glasses/Gallery/GalleryScreen"
 import {Screen} from "@/components/ignite"
+import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useRef} from "react"
+import {View} from "react-native"
 import {captureRef} from "react-native-view-shot"
 
 export default function AsgGallery() {
@@ -22,7 +24,9 @@ export default function AsgGallery() {
   }
 
   return (
-    <Screen preset="fixed" ref={viewShotRef}>
+    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}>
+      {/* <MiniAppDualButtonHeader packageName="com.mentra.camera" viewShotRef={viewShotRef} /> */}
+      {/* <View className="h-24" /> */}
       <GalleryScreen />
     </Screen>
   )

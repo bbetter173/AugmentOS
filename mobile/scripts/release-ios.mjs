@@ -56,21 +56,56 @@ const tag = ghTag(version);
 const prefix = ipaPrefix(version);
 console.log(`Version: ${version} → tag: ${tag}, prefix: ${prefix}`);
 
-// ── Step 2: Prebuild iOS ──────────────────────────────────────────────────────
+// ── Step 2: Bump buildNumber and versionCode in app.config.ts ────────────────
 
-console.log('\n━━━ Step 2: Prebuild iOS ━━━');
+console.log('\n━━━ Step 2: Bumping buildNumber/versionCode in app.config.ts ━━━');
+const configPath = path.resolve('app.config.ts');
+let configContent = await readFile(configPath, 'utf-8');
+
+const versionCodeMatch = configContent.match(/versionCode:\s*(\d+)/);
+const buildNumberMatch = configContent.match(/buildNumber:\s*"(\d+)"/);
+if (!versionCodeMatch || !buildNumberMatch) {
+  console.error('Could not find versionCode or buildNumber in app.config.ts');
+  process.exit(1);
+}
+
+const oldVersionCode = parseInt(versionCodeMatch[1], 10);
+const oldBuildNumber = parseInt(buildNumberMatch[1], 10);
+const newBuildNumber = Math.max(oldVersionCode, oldBuildNumber) + 1;
+
+configContent = configContent.replace(
+  /versionCode:\s*\d+/,
+  `versionCode: ${newBuildNumber}`
+);
+configContent = configContent.replace(
+  /buildNumber:\s*"\d+"/,
+  `buildNumber: "${newBuildNumber}"`
+);
+await writeFile(configPath, configContent);
+console.log(`versionCode: ${oldVersionCode} → ${newBuildNumber}`);
+console.log(`buildNumber: ${oldBuildNumber} → ${newBuildNumber}`);
+
+// ── Step 3: Prebuild iOS ──────────────────────────────────────────────────────
+
+console.log('\n━━━ Step 3: Prebuild iOS ━━━');
 await $({ stdio: 'inherit' })`bun expo prebuild --platform ios`;
 
 // Copy .env to ios/.xcode.env.local so build env vars are available
 await $({ stdio: 'inherit' })`cp .env ios/.xcode.env.local`;
 
-// ── Step 3: Archive ───────────────────────────────────────────────────────────
+// ── Step 4: Archive ───────────────────────────────────────────────────────────
 
-console.log('\n━━━ Step 3: Archiving ━━━');
+console.log('\n━━━ Step 4: Archiving ━━━');
+
+const teamId = process.env.APPLE_TEAM_ID;
+if (!teamId) {
+  console.error('APPLE_TEAM_ID not found in .env — add it to your .env file');
+  process.exit(1);
+}
 
 const archivePath = path.resolve('build/MentraOS.xcarchive');
 
-await $({ stdio: 'inherit' })`xcodebuild archive -workspace ios/MentraOS.xcworkspace -scheme MentraOS -configuration Release -destination generic/platform=iOS -archivePath ${archivePath}`;
+await $({ stdio: 'inherit' })`xcodebuild archive -workspace ios/MentraOS.xcworkspace -scheme MentraOS -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
 
 if (!existsSync(archivePath)) {
   console.error('Archive not found at:', archivePath);
@@ -78,12 +113,14 @@ if (!existsSync(archivePath)) {
 }
 console.log('Archive created successfully');
 
-// ── Step 4: Export IPA ────────────────────────────────────────────────────────
+// ── Step 5: Export IPA ────────────────────────────────────────────────────────
 
-console.log('\n━━━ Step 4: Exporting IPA ━━━');
+console.log('\n━━━ Step 5: Exporting IPA ━━━');
 
 const exportPath = path.resolve('build/ios-export');
-const exportOptionsPlist = path.resolve('ios-export/ExportOptions.plist');
+// Clean previous export to avoid picking up stale IPAs
+await $`rm -rf ${exportPath}`;
+const exportOptionsPlist = path.resolve('ci/ios-export/ExportOptions.plist');
 
 await $({ stdio: 'inherit' })`xcodebuild -exportArchive -archivePath ${archivePath} -exportOptionsPlist ${exportOptionsPlist} -exportPath ${exportPath} -allowProvisioningUpdates`;
 
@@ -96,9 +133,9 @@ if (ipaFiles.length === 0) {
 const ipaPath = ipaFiles[0];
 console.log('IPA exported:', ipaPath);
 
-// ── Step 5: Upload to App Store Connect (TestFlight) ──────────────────────────
+// ── Step 6: Upload to App Store Connect (TestFlight) ──────────────────────────
 
-console.log('\n━━━ Step 5: Uploading to App Store Connect ━━━');
+console.log('\n━━━ Step 6: Uploading to App Store Connect ━━━');
 
 const ascConfig = loadASCConfig();
 
@@ -113,9 +150,9 @@ if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !
   console.log('IPA uploaded to App Store Connect (TestFlight)');
 }
 
-// ── Step 6: Upload IPA to GitHub release ──────────────────────────────────────
+// ── Step 7: Upload IPA to GitHub release ──────────────────────────────────────
 
-console.log('\n━━━ Step 6: Uploading IPA to GitHub release ━━━');
+console.log('\n━━━ Step 7: Uploading IPA to GitHub release ━━━');
 
 // Check gh CLI is available and authenticated
 try {

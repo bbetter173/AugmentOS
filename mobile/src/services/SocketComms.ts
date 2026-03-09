@@ -1,6 +1,6 @@
 import CoreModule from "core"
 
-import {push} from "@/contexts/NavigationRef"
+import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import displayProcessor from "@/services/DisplayProcessor"
 import mantle from "@/services/MantleManager"
@@ -13,7 +13,7 @@ import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
 import restComms from "@/services/RestComms"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
-import { throttle } from "@/utils/timers"
+import {throttle} from "@/utils/timers"
 
 class SocketComms {
   private static instance: SocketComms | null = null
@@ -323,19 +323,19 @@ class SocketComms {
     const udpHost = msg.udpHost || msg.udp_host
     const udpPort = msg.udpPort || msg.udp_port || 8000
 
-    console.log("SOCKET: connection_ack UDP fields:", {
-      udpHost: msg.udpHost,
-      udp_host: msg.udp_host,
-      udpPort: msg.udpPort,
-      udp_port: msg.udp_port,
-      resolvedHost: udpHost,
-      resolvedPort: udpPort,
-      hasEncryption: !!msg.udpEncryption,
-      allKeys: Object.keys(msg),
-    })
+    // console.log("SOCKET: connection_ack UDP fields:", {
+    //   udpHost: msg.udpHost,
+    //   udp_host: msg.udp_host,
+    //   udpPort: msg.udpPort,
+    //   udp_port: msg.udp_port,
+    //   resolvedHost: udpHost,
+    //   resolvedPort: udpPort,
+    //   hasEncryption: !!msg.udpEncryption,
+    //   allKeys: Object.keys(msg),
+    // })
 
     if (udpHost) {
-      console.log(`SOCKET: UDP endpoint found, configuring with ${udpHost}:${udpPort}`)
+      // console.log(`SOCKET: UDP endpoint found, configuring with ${udpHost}:${udpPort}`)
       udp.configure(udpHost, udpPort, this.userid)
 
       // Configure encryption if server provided a key
@@ -396,11 +396,11 @@ class SocketComms {
       return
     }
 
-    console.log(
-      `SOCKET: Audio format configured successfully: ${audioFormat}${
-        bypassEncoding ? " (raw PCM)" : `, ${frameSizeBytes} bytes/frame`
-      }`,
-    )
+    // console.log(
+    //   `SOCKET: Audio format configured successfully: ${audioFormat}${
+    //     bypassEncoding ? " (raw PCM)" : `, ${frameSizeBytes} bytes/frame`
+    //   }`,
+    // )
   }
 
   private refreshAppletsThrottled = throttle(() => {

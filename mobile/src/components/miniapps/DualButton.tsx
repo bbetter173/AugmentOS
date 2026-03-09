@@ -1,17 +1,16 @@
-import {Button, Icon} from "@/components/ignite"
+import {Button, Icon, Text} from "@/components/ignite"
 import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {ClientAppletInterface, useAppletStatusStore} from "@/stores/applets"
+import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
-import {View} from "react-native"
+import {Share, View} from "react-native"
 import {Pressable} from "react-native-gesture-handler"
 import {captureRef} from "react-native-view-shot"
-import {Text} from "@/components/ignite"
-import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react"
-import {useMemo} from "react"
+import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo} from "react"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AppIcon from "@/components/home/AppIcon"
+import GlassView from "@/components/ui/GlassView"
 
 interface DualButtonProps {
   onMinusPress?: () => void
@@ -23,7 +22,7 @@ export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
   const {theme} = useAppTheme()
 
   return (
-    <View className="flex-row gap-2 rounded-full bg-primary-foreground px-2 py-1 items-center">
+    <GlassView className="flex-row gap-2 rounded-full bg-primary-foreground px-2 py-1 items-center">
       <Pressable hitSlop={10} onPress={onEllipsisPress}>
         <Icon name="ellipsis" color={theme.colors.foreground} />
       </Pressable>
@@ -31,7 +30,7 @@ export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
       <Pressable hitSlop={10} onPress={onMinusPress}>
         <Icon name={isChina ? "x" : "minus"} color={theme.colors.foreground} />
       </Pressable>
-    </View>
+    </GlassView>
   )
 }
 
@@ -39,10 +38,12 @@ export function MiniAppDualButtonHeader({
   packageName,
   viewShotRef,
   onEllipsisPress,
+  onMinusPress,
 }: {
   packageName: string
   viewShotRef: React.RefObject<View | null>
   onEllipsisPress?: () => void
+  onMinusPress?: () => void
 }) {
   const {goBack} = useNavigationHistory()
   const bottomSheetRef = useRef<BottomSheetModal>(null)
@@ -54,6 +55,14 @@ export function MiniAppDualButtonHeader({
       bottomSheetRef.current?.present()
     }
   }, [onEllipsisPress])
+
+  const handleMinusPress = useCallback(() => {
+    if (onMinusPress) {
+      onMinusPress()
+    } else {
+      handleExit()
+    }
+  }, [onMinusPress])
 
   const handleExit = async () => {
     // take a screenshot of the webview and save it to the applet zustand store:
@@ -73,8 +82,8 @@ export function MiniAppDualButtonHeader({
     handleExit()
   }, true)
   return (
-    <View className="z-2 absolute top-3 w-full items-center justify-end flex-row">
-      <DualButton onMinusPress={handleExit} onEllipsisPress={handleEllipsisPress} />
+    <View className="z-2 absolute top-3 right-6 items-center justify-end flex-row">
+      <DualButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
       <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
     </View>
   )
@@ -108,6 +117,30 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
       [],
     )
 
+    const handleUninstall = useCallback(() => {
+      // Composer.getInstance().uninstallMiniApp(packageName)
+      const app = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
+      if (app) {
+        uninstallAppUI(app)
+      }
+    }, [packageName])
+
+    const handleAddToHome = useCallback(() => {
+      useAppletStatusStore.getState().setHiddenStatus(packageName, false)
+    }, [packageName])
+
+    const handleShare = useCallback(() => {
+      // open system share sheet:
+      Share.share({
+        message: `Share ${app?.name}`,
+        url: `https://apps.mentraglass.com/package/${packageName}`,
+      })
+    }, [packageName])
+
+    const isSystemApp = SYSTEM_APPS.includes(packageName)
+    const isUninstallable = isSystemApp ? false : true
+    const size = 28
+
     return (
       <BottomSheetModal
         ref={internalRef}
@@ -133,31 +166,36 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
             </View>
           </View>
 
-          <View className="flex-1 flex-row justify-between">
-            <View className="flex-col gap-2 items-center">
-              <Button compactIcon onPress={() => {}} preset="alternate" className="rounded-2xl">
-                <Icon name="share" color={theme.colors.foreground} size={60} />
+          <View className="flex-1 flex-row justify-between px-6">
+            {/* <View className="flex-col gap-2 items-center w-16">
+              <Button compactIcon onPress={() => {}} preset="alternate" className="rounded-2xl w-16 h-16">
+                <Icon name="share" color={theme.colors.foreground} size={size} />
               </Button>
-              <Text className="text-sm text-muted-foreground" text="[settings]" />
-            </View>
-            <View className="flex-col gap-2 items-center">
-              <Button compactIcon onPress={() => {}} preset="alternate" className="rounded-2xl">
-                <Icon name="share" color={theme.colors.foreground} size={60} />
+              <Text className="text-sm text-muted-foreground w-full text-center" text="[settings]" />
+            </View> */}
+            <View className="flex-col gap-2 items-center w-16">
+              <Button compactIcon onPress={handleShare} preset="alternate" className="rounded-2xl w-16 h-16">
+                <Icon name="share" color={theme.colors.foreground} size={size} />
               </Button>
-              <Text className="text-sm text-muted-foreground" tx="appInfo:share" />
+              <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:share" />
             </View>
-            <View className="flex-col gap-2 items-center">
-              <Button compactIcon onPress={() => {}} preset="alternate" className="rounded-2xl">
-                <Icon name="plus" color={theme.colors.foreground} size={60} />
-              </Button>
-              <Text className="text-sm text-muted-foreground" tx="appInfo:addToHome" />
-            </View>
-            <View className="flex-col gap-2 items-center">
-              <Button compactIcon onPress={() => {}} preset="alternate" className="rounded-2xl">
-                <Icon name="trash" color={theme.colors.destructive} size={60} />
-              </Button>
-              <Text className="text-sm text-muted-foreground" tx="appInfo:uninstall" />
-            </View>
+            {app && app.hidden && (
+              <View className="flex-col gap-2 items-center w-16">
+                <Button compactIcon onPress={handleAddToHome} preset="alternate" className="rounded-2xl w-16 h-16">
+                  <Icon name="plus" color={theme.colors.foreground} size={size} />
+                </Button>
+                <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:addToHome" />
+              </View>
+            )}
+
+            {isUninstallable && (
+              <View className="flex-col gap-2 items-center w-16">
+                <Button compactIcon onPress={handleUninstall} preset="alternate" className="rounded-2xl w-16 h-16">
+                  <Icon name="trash" color={theme.colors.destructive} size={size} />
+                </Button>
+                <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:uninstall" />
+              </View>
+            )}
           </View>
 
           <View className="flex-1" />

@@ -16,12 +16,14 @@ import {AppStoreProvider} from "@/contexts/AppStoreContext"
 import {AuthProvider} from "@/contexts/AuthContext"
 import {DeeplinkProvider} from "@/contexts/DeeplinkContext"
 import {NavigationHistoryProvider, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import {useThemeProvider} from "@/contexts/ThemeContext"
+import {ThemeProvider} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
-import {ModalProvider} from "@/utils/AlertUtils"
-import {KonamiCodeProvider} from "@/utils/debug/konami"
+import {ModalProvider as LegacyModalProvider} from "@/utils/AlertUtils"
+import {ModalProvider} from "@/contexts/ModalContext"
+import {KonamiCodeProvider} from "@/utils/dev/konami"
 import ConnectionOverlayProvider from "@/contexts/ConnectionOverlayContext"
-import { SaferAreaProvider, useSaferAreaInsets } from "@/contexts/SaferAreaContext"
+import {SaferAreaProvider, useSaferAreaInsets} from "@/contexts/SaferAreaContext"
+import {getAnimation, JsStack, NativeJsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
@@ -63,10 +65,7 @@ export const AllProviders = withWrappers(
   //     </Sentry.ErrorBoundary>
   //   )
   // },
-  (props) => {
-    const {themeScheme, setThemeContextOverride, ThemeProvider} = useThemeProvider()
-    return <ThemeProvider value={{themeScheme, setThemeContextOverride}}>{props.children}</ThemeProvider>
-  },
+  ThemeProvider,
   Suspense,
   SafeAreaProvider,
   SaferAreaProvider,
@@ -79,6 +78,7 @@ export const AllProviders = withWrappers(
     return <GestureHandlerRootView style={{flex: 1}}>{props.children}</GestureHandlerRootView>
   },
   ModalProvider,
+  LegacyModalProvider,
   BottomSheetModalProvider,
   (props) => {
     const posthogApiKey = process.env.EXPO_PUBLIC_POSTHOG_API_KEY
@@ -144,23 +144,25 @@ export const AllProviders = withWrappers(
   },
   ConnectionOverlayProvider,
   (props) => {
-    const {preventBack, animation} = useNavigationHistory()
+    // const {preventBack, animation} = useNavigationHistory()
+    const preventBack = false
+    const animation = "simple_push"
+    console.log("NAV: animation", animation)
 
-    // if (Platform.OS === "ios") {
     return (
       <>
         {props.children}
-        <Stack
+        <JsStack
           screenOptions={{
             headerShown: false,
             gestureEnabled: !preventBack,
             gestureDirection: "horizontal",
-            animation: animation,
+            // animation: get,
+            // cardStyleInterpolator: getAnimation(animation),
           }}
         />
       </>
     )
-    // }
 
     // return (
     //   <>

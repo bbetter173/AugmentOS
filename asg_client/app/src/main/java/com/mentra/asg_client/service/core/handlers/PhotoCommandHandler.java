@@ -77,9 +77,8 @@ public class PhotoCommandHandler extends BaseMediaCommandHandler {
             boolean flash = data.optBoolean("flash", true);
             boolean sound = data.optBoolean("sound", true);
 
-            // Generate file path using base class functionality
-            String fileName = generateUniqueFilename("IMG_", ".jpg");
-            String photoFilePath = generateFilePath(packageName, fileName);
+            // Generate file path with capture directory using base class functionality
+            String photoFilePath = generateCaptureFilePath(packageName, "IMG_", ".jpg");
             if (photoFilePath == null) {
                 logCommandResult("take_photo", false, "Failed to generate file path");
                 return false;
@@ -127,6 +126,14 @@ public class PhotoCommandHandler extends BaseMediaCommandHandler {
                 logCommandResult("take_photo", false, "BLE transfer in progress - request rejected");
                 // Send immediate error response to phone
                 captureService.sendPhotoErrorResponse(requestId, "BLE_TRANSFER_BUSY", "BLE transfer in progress - request rejected");
+                return false;
+            }
+
+            // CAPTURE CHECK: Reject if another photo capture is already in progress
+            if (captureService.isCapturingPhoto()) {
+                Log.w(TAG, "🚫 Photo request rejected - capture already in progress");
+                logCommandResult("take_photo", false, "Photo capture in progress - request rejected");
+                captureService.sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo capture is in progress");
                 return false;
             }
 

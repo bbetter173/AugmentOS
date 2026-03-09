@@ -48,11 +48,10 @@ export const IncompatibleApps: React.FC = () => {
 
       showAlert(
         translate("home:hardwareIncompatible"),
-        app.compatibility?.message ||
-          translate("home:hardwareIncompatibleMessage", {
-            app: app.name,
-            missing: missingHardware,
-          }),
+        translate("home:hardwareIncompatibleMessage", {
+          app: app.name,
+          missing: missingHardware,
+        }),
         [{text: translate("common:ok")}],
       )
     },

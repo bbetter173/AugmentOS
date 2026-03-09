@@ -19,6 +19,7 @@ export interface DownloadedFile {
   downloaded_at: number
   glassesModel?: string // Model of glasses that captured this media
   duration?: number // Video duration in milliseconds
+  capture_id?: string // Capture folder name (when synced via capture-aware pipeline)
 }
 
 interface SyncState {

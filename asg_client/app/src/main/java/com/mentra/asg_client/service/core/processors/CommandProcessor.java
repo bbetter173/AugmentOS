@@ -353,7 +353,7 @@ public class CommandProcessor {
             commandHandlerRegistry.registerHandler(new BleConfigCommandHandler());
             Log.d(TAG, "✅ Registered BleConfigCommandHandler");
 
-            commandHandlerRegistry.registerHandler(new com.mentra.asg_client.service.core.handlers.PowerCommandHandler(context));
+            commandHandlerRegistry.registerHandler(new com.mentra.asg_client.service.core.handlers.PowerCommandHandler(context, serviceManager));
             Log.d(TAG, "✅ Registered PowerCommandHandler");
 
             commandHandlerRegistry.registerHandler(new UploadIncidentLogsCommandHandler(context, configurationManager, k900CommandHandler));

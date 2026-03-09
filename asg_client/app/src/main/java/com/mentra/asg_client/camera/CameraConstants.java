@@ -40,7 +40,7 @@ public final class CameraConstants {
     public static final int BUTTON_HEIGHT_LARGE = 2448;
 
     /** JPEG quality for all button photos (high quality for personal photos) */
-    public static final int BUTTON_JPEG_QUALITY = 90;
+    public static final int BUTTON_JPEG_QUALITY = 95;
 
     // =========================================================================
     // SDK PHOTO RESOLUTIONS

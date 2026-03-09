@@ -1,15 +1,14 @@
 import {useRef, useState} from "react"
 import {Pressable, ScrollView, TextInput, TouchableOpacity, View} from "react-native"
 
-import {Button, Icon, Screen} from "@/components/ignite"
+import {Button, Icon, Screen, Text} from "@/components/ignite"
 import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
-import {Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import composer from "@/services/Composer"
 import Toast from "react-native-toast-message"
 import {useLocalMiniApps} from "@/stores/applets"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import BasicDialog from "@/components/ui/BasicDialog"
+import LocalMiniApp from "@/components/home/LocalMiniApp"
 
 export default function MiniAppInstaller() {
   const viewShotRef = useRef<View>(null)
@@ -20,6 +19,22 @@ export default function MiniAppInstaller() {
   const [versions, setVersions] = useState<string[]>([])
   const [packageName, setPackageName] = useState("")
   const [activeVersion, setActiveVersion] = useState("")
+
+  const handleLoadMiniApp = async () => {
+    console.log(`LMA_LOADER: Loading MiniApp: ${url}`)
+    setUrl(url)
+  }
+
+  const renderLoadedLocalMiniApp = () => {
+    if (!url) {
+      return null
+    }
+    return (
+      <View className="flex-1 -mx-6 absolute inset-0">
+        <LocalMiniApp url={url} packageName="com.mentra.dev.mini_app_loader" />
+      </View>
+    )
+  }
 
   const handleUninstall = async (packageName: string, version: string) => {
     let result = await composer.uninstallMiniApp(packageName, version)
@@ -62,7 +77,7 @@ export default function MiniAppInstaller() {
     }
     return (
       <View className="gap-4 rounded-2xl bg-primary-foreground p-4">
-        <Text className="text-xl font-semibold" text="Local Mini Apps" />
+        <Text className="text-xl font-semibold" text="Installed Local Mini Apps" />
         {lmas.map((item, index) => (
           <TouchableOpacity
             onPress={() => showVersions(item.packageName)}
@@ -86,36 +101,60 @@ export default function MiniAppInstaller() {
     )
   }
 
-  return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}>
-      <MiniAppDualButtonHeader packageName="com.mentra.lma_installer" viewShotRef={viewShotRef} />
-      {/* <View className="h-24" /> */}
-
-      <ScrollView className="pt-20" contentContainerClassName="flex-grow">
-        <View className="gap-12 p-6 rounded-2xl bg-primary-foreground">
-          <Text tx="lmaInstaller:miniAppInstaller" className="text-xl font-semibold" />
-          {/* url text input */}
-          <View className="w-full bg-background h-10 items-center justify-center rounded-xl px-3">
-            <TextInput
-              hitSlop={{top: 16, bottom: 16}}
-              className="text-base text-foreground text-md"
-              placeholder="Enter URL"
-              value={url}
-              onChangeText={setUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus={false}
-              keyboardType="url"
-            />
-          </View>
-          <Button preset="primary" onPress={handleInstallMiniApp} text="Install Mini App" />
+  const renderLoaderInput = () => {
+    if (url) {
+      return null
+    }
+    return (
+      <View className="gap-12 p-6 rounded-2xl bg-primary-foreground">
+        <Text tx="lmaLoader:miniAppLoader" className="text-xl font-semibold" />
+        {/* url text input */}
+        <View className="w-full bg-background h-10 items-center justify-center rounded-xl px-3">
+          <TextInput
+            hitSlop={{top: 16, bottom: 16}}
+            className="text-base text-foreground text-md"
+            placeholder="Enter URL"
+            value={url}
+            onChangeText={setUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus={false}
+            keyboardType="url"
+          />
         </View>
+        <Button preset="primary" onPress={handleLoadMiniApp} text="Load Mini App" />
+      </View>
+    )
+  }
 
-        <View className="h-10" />
+  const renderInstallerInput = () => {
+    if (url) {
+      return null
+    }
+    return (
+      <View className="gap-12 p-6 rounded-2xl bg-primary-foreground">
+        <Text tx="lmaInstaller:miniAppInstaller" className="text-xl font-semibold" />
+        {/* url text input */}
+        <View className="w-full bg-background h-10 items-center justify-center rounded-xl px-3">
+          <TextInput
+            hitSlop={{top: 16, bottom: 16}}
+            className="text-base text-foreground text-md"
+            placeholder="Enter URL"
+            value={url}
+            onChangeText={setUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus={false}
+            keyboardType="url"
+          />
+        </View>
+        <Button preset="primary" onPress={handleInstallMiniApp} text="Install Mini App" />
+      </View>
+    )
+  }
 
-        {/* local mini apps list */}
-        {renderLmaList()}
-      </ScrollView>
+  const renderVersionsDialog = () => {
+    return (
       <View
         className={`absolute inset-0 justify-center items-center z-10 ${
           versionsDialogOpen ? "opacity-100" : "opacity-0"
@@ -143,6 +182,40 @@ export default function MiniAppInstaller() {
           </View>
         </View>
       </View>
+    )
+  }
+
+  if (url) {
+    return (
+      <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+        <MiniAppDualButtonHeader
+          packageName="com.mentra.lma_installer"
+          viewShotRef={viewShotRef}
+          onMinusPress={() => setUrl("")}
+          onEllipsisPress={() => setUrl("")}
+        />
+        {renderLoadedLocalMiniApp()}
+      </Screen>
+    )
+  }
+
+  return (
+    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+      <MiniAppDualButtonHeader packageName="com.mentra.lma_installer" viewShotRef={viewShotRef} />
+      {/* <View className="h-24" /> */}
+
+      <ScrollView className="px-6" contentContainerClassName="flex-grow">
+        <View className="flex-1 gap-12 pt-13 pb-13">
+          {/* install a mini app from an .mmk file */}
+          {renderInstallerInput()}
+          {/* load a mini app temporarily from a url */}
+          {renderLoaderInput()}
+          {/* local mini apps list */}
+          {renderLmaList()}
+        </View>
+      </ScrollView>
+
+      {renderVersionsDialog()}
     </Screen>
   )
 }

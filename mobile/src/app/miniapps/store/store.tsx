@@ -27,7 +27,6 @@ export default function AppStoreWeb() {
   const {theme, themed} = useAppTheme()
   const viewShotRef = useRef<View>(null)
 
-
   // Construct the final URL with packageName if provided
   const finalUrl = useMemo(() => {
     if (!appStoreUrl) return null
@@ -172,9 +171,9 @@ export default function AppStoreWeb() {
 
   // If the prefetched WebView is ready, show it in the correct style
   return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}> 
+    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
       <MiniAppDualButtonHeader packageName="com.mentra.store" viewShotRef={viewShotRef} />
-      <View style={[themed($webViewContainer), {marginHorizontal: -theme.spacing.s6}]}>
+      <View className="bg-background flex-1">
         {/* Show the prefetched WebView, but now visible and full size */}
         <WebView
           ref={prefetchedWebviewRef}
@@ -251,11 +250,6 @@ const $loadingText: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
 })
 
 const $webView: ThemedStyle<ViewStyle> = ({colors}) => ({
-  flex: 1,
-  backgroundColor: colors.background,
-})
-
-const $webViewContainer: ThemedStyle<ViewStyle> = ({colors}) => ({
   flex: 1,
   backgroundColor: colors.background,
 })

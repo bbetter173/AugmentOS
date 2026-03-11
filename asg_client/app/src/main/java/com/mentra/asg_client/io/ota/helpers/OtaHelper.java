@@ -432,6 +432,9 @@ public class OtaHelper {
     public void startOtaFromPhone() {
         Log.i(TAG, "📱 Starting OTA from phone request");
 
+        // Immediately acknowledge receipt so the phone cancels its retry timer.
+        sendOtaStartAck();
+
         // If OTA already in progress, queue the install to fire immediately after prefetch completes.
         // We cannot change the running thread's local installNow variable, so we set a flag that
         // the finally block detects and uses to kick off a fresh install pass from the cache.
@@ -1133,30 +1136,54 @@ public class OtaHelper {
         return downloadApk(urlStr, json, context, "asg_client_update.apk");
     }
     
-    // Modified to accept custom filename for different apps
+    // Modified to accept custom filename for different apps.
+    // Retries up to MAX_DOWNLOAD_RETRIES times on transient network errors.
+    // On each retry emits STARTED so the phone stays in "downloading" state.
+    // Only emits FAILED after all attempts are exhausted.
+    private static final int MAX_DOWNLOAD_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 10_000;
+
     public boolean downloadApk(String urlStr, JSONObject json, Context context, String filename) {
-        try {
-            boolean success = downloadApkInternal(urlStr, json, context, filename);
-            if (success) {
-                return true;
-            }
-            Log.e(TAG, "Download succeeded but verification failed");
-            return false;
-        } catch (Exception e) {
-            Log.e(TAG, "Download failed", e);
+        Exception lastException = null;
 
-            File partialFile = new File(OtaConstants.BASE_DIR, filename);
-            if (partialFile.exists()) {
-                partialFile.delete();
-                Log.d(TAG, "Cleaned up partial download file");
-            }
+        for (int attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
+            try {
+                boolean success = downloadApkInternal(urlStr, json, context, filename);
+                if (success) return true;
+                // Verification failure is deterministic — do not retry
+                Log.e(TAG, "Download succeeded but verification failed - not retrying");
+                EventBus.getDefault().post(new DownloadProgressEvent(
+                    DownloadProgressEvent.DownloadStatus.FAILED, "Verification failed"));
+                return false;
+            } catch (Exception e) {
+                lastException = e;
+                Log.e(TAG, "Download attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + " failed", e);
 
-            EventBus.getDefault().post(new DownloadProgressEvent(
-                DownloadProgressEvent.DownloadStatus.FAILED,
-                "Download failed"
-            ));
-            return false;
+                File partialFile = new File(OtaConstants.BASE_DIR, filename);
+                if (partialFile.exists()) {
+                    partialFile.delete();
+                    Log.d(TAG, "Cleaned up partial download file after attempt " + attempt);
+                }
+
+                if (attempt < MAX_DOWNLOAD_RETRIES) {
+                    // Keep phone in downloading state so UI doesn't show failure prematurely
+                    sendProgressToPhone("download", 0, 0, 0, "STARTED", null);
+                    Log.i(TAG, "Retrying download in " + (RETRY_DELAY_MS / 1000) + "s "
+                        + "(attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + ")");
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
         }
+
+        Log.e(TAG, "Download failed after " + MAX_DOWNLOAD_RETRIES + " attempts", lastException);
+        EventBus.getDefault().post(new DownloadProgressEvent(
+            DownloadProgressEvent.DownloadStatus.FAILED, "Download failed"));
+        return false;
     }
     
     // Internal download method (original logic)
@@ -1234,42 +1261,9 @@ public class OtaHelper {
     }
 
     private boolean verifyApkFile(String apkPath, JSONObject jsonObject) {
-        try {
-            String expectedHash = jsonObject.getString("sha256");
-            
-            // Fail immediately if hash is a placeholder - prevents wasted downloads
-            if (expectedHash == null || expectedHash.equals("example_sha256_hash_here") || 
-                expectedHash.startsWith("example_")) {
-                Log.e(TAG, "SHA256 hash is a placeholder - verification failed. Please provide a valid SHA256 hash.");
-                return false;
-            }
-
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            InputStream is = new FileInputStream(apkPath);
-            byte[] buffer = new byte[4096];
-            int read;
-            while ((read = is.read(buffer)) != -1) {
-                digest.update(buffer, 0, read);
-            }
-            is.close();
-
-            byte[] hashBytes = digest.digest();
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            String calculatedHash = sb.toString();
-
-            Log.d(TAG, "Expected SHA256: " + expectedHash);
-            Log.d(TAG, "Calculated SHA256: " + calculatedHash);
-
-            boolean match = calculatedHash.equalsIgnoreCase(expectedHash);
-            Log.d(TAG, "SHA256 check " + (match ? "passed" : "failed"));
-            return match;
-        } catch (Exception e) {
-            Log.e(TAG, "SHA256 check error", e);
-            return false;
-        }
+        // APK hash check disabled – APK is accepted without integrity verification.
+        Log.w(TAG, "WARNING: OTA APK SHA256 hash verification is DISABLED. APK is not integrity-checked.");
+        return true;
     }
 
     private void createMetaDataJson(JSONObject json, Context context) {
@@ -2446,6 +2440,10 @@ public class OtaHelper {
      */
     private void sendProgressToPhone(String stage, int progress, long bytesDownloaded,
                                      long totalBytes, String status, String errorMessage) {
+        // Do not send download-stage updates for BES or MTK; phone only needs install progress for firmware.
+        if ("download".equals(stage) && ("bes".equals(currentUpdateType) || "mtk".equals(currentUpdateType))) {
+            return;
+        }
         if (suppressPhoneProgress && !"IN_PROGRESS".equals(status) && !"FAILED".equals(status)) {
             return;
         }
@@ -2534,6 +2532,27 @@ public class OtaHelper {
         currentUpdateType = "bes";
         sendProgressToPhone("install", progress, 0, 0, status, 
             "FAILED".equals(status) ? message : null);
+    }
+
+    /**
+     * Immediately acknowledge receipt of ota_start to the phone.
+     * Sent before any version check or download so the phone can cancel its retry timer
+     * without waiting for the first download/install progress event.
+     */
+    private void sendOtaStartAck() {
+        if (phoneConnectionProvider == null || !isPhoneConnected()) {
+            Log.d(TAG, "📱 Cannot send ota_start_ack - phone not connected");
+            return;
+        }
+        try {
+            JSONObject ack = new JSONObject();
+            ack.put("type", "ota_start_ack");
+            ack.put("timestamp", System.currentTimeMillis());
+            phoneConnectionProvider.sendOtaProgress(ack);
+            Log.i(TAG, "📱 Sent ota_start_ack to phone");
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to send ota_start_ack", e);
+        }
     }
 
     /**

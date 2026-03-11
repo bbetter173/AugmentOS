@@ -36,6 +36,11 @@ const RETRY_INTERVAL_MS = 5000 // 5 seconds between retries
 const PROGRESS_TIMEOUT_MS = 120000 // 120 seconds - for APK/BES updates with regular progress
 const DOWNLOAD_STUCK_TIMEOUT_MS = 70000
 const MTK_INSTALL_TIMEOUT_MS = 300000 // 5 minutes - MTK system install takes much longer with no progress updates
+// Whole-session cap: if no terminal state (completed/failed/etc.) within this time, fail the OTA.
+const GLOBAL_OTA_TIMEOUT_MS = 20 * 60 * 1000 // 20 minutes
+// Delay between APK install completion (glasses reconnected) and sending the next ota_start.
+// The new APK's OTA service needs a moment to fully initialize after the app restarts.
+const POST_APK_OTA_START_DELAY_MS = 6000
 const OTA_COVER_VIDEO_URL = "https://mentra-videos-cdn.mentraglass.com/onboarding/ota/ota_video_2.mp4"
 
 export default function OtaProgressScreen() {
@@ -57,9 +62,10 @@ export default function OtaProgressScreen() {
   const [elapsedTime, setElapsedTime] = useState<string>("")
 
   // Track the full update sequence and current position.
-  // Sync from otaUpdateAvailable on every render so first paint has correct sequence (avoids showing "Update" / step 0 of 0 when APK+BES).
+  // Set sequence once from otaUpdateAvailable so we show "Update X of 3" for the whole session.
+  // Do not overwrite when glasses later send ota_update_available with fewer items (e.g. [mtk, bes] after APK).
   const updateSequenceRef = useRef<string[]>([])
-  if (otaUpdateAvailable?.updates?.length) {
+  if (otaUpdateAvailable?.updates?.length && updateSequenceRef.current.length === 0) {
     updateSequenceRef.current = [...otaUpdateAvailable.updates]
   }
   const [currentUpdateIndex, setCurrentUpdateIndex] = useState(0)
@@ -75,6 +81,8 @@ export default function OtaProgressScreen() {
 
   // Track if we've received any progress from glasses
   const hasReceivedProgress = useRef(false)
+  // Track if the glasses acknowledged receipt of ota_start (fires before any progress event)
+  const hasReceivedAck = useRef(false)
   // Skip the first otaProgress processing on mount to avoid acting on stale state
   // from a previous autonomous OTA cycle (the mount effect clears it, but fires
   // in the same render cycle as the processing effect)
@@ -83,10 +91,27 @@ export default function OtaProgressScreen() {
   const retryTimeoutRef = useRef<number | null>(null)
   const stuckTimeoutRef = useRef<number | null>(null)
   const progressTimeoutRef = useRef<number | null>(null)
+  // Global OTA session timeout: fail if we don't reach a terminal state within GLOBAL_OTA_TIMEOUT_MS
+  const globalTimeoutRef = useRef<number | null>(null)
+  // Post-APK settle delay: cleared if we unmount or disconnect before it fires
+  const postReconnectDelayRef = useRef<number | null>(null)
+  // Gates sendOtaStartCommand between steps — set true when waiting for glasses to reconnect
+  const waitingForReconnectRef = useRef(false)
+  // When user remounts mid-sequence (e.g. after MTK, before BES), we need to send ota_start.
+  const hasSentOtaStartMidSequenceRef = useRef(false)
 
   useEffect(() => {
     latestOtaProgressRef.current = otaProgress
   }, [otaProgress])
+
+  // Reset ack/progress refs on mount so each new OTA session (e.g. user tapped Update again
+  // after a completed run) can receive ota_start_ack and cancel the retry timer. Without this,
+  // a second run would keep hasReceivedAck.current === true from the previous run and ignore
+  // the new ack, leading to "max_retries_no_ack" and "Unable to start update".
+  useEffect(() => {
+    hasReceivedAck.current = false
+    hasReceivedProgress.current = false
+  }, [])
 
   // Track initial build number to detect successful install
   const initialBuildNumber = useRef<string | null>(null)
@@ -142,14 +167,20 @@ export default function OtaProgressScreen() {
       return [{id: "continue", enabled: true}]
     }
     if (progressState === "disconnected") {
-      const states: OtaButtonState[] = [{id: "retry", enabled: true}]
+      const states: OtaButtonState[] = [
+        {id: "retry", enabled: true},
+        {id: "change_wifi", enabled: true},
+      ]
       if (superMode) {
         states.push({id: "skip_super", enabled: true})
       }
       return states
     }
     if (progressState === "wifi_disconnected") {
-      return [{id: "try_again", enabled: true}]
+      return [
+        {id: "try_again", enabled: true},
+        {id: "change_wifi", enabled: true},
+      ]
     }
     if (progressState === "failed") {
       return [
@@ -443,46 +474,86 @@ export default function OtaProgressScreen() {
     handleUpdateCompleted("apk")
   }, [buildNumber, progressState, otaProgress?.currentUpdate])
 
-  // Handle when an update completes - always show completed.
-  // If more updates remain, check-for-updates will pick them up when user taps Continue.
-  const handleUpdateCompleted = useCallback(
+  // Advance to the next step in the sequence without navigating away.
+  // Resets all per-step state and waits for glasses to be ready before sending ota_start.
+  const advanceToNextStep = useCallback(
     (completedUpdate: string) => {
+      const nextIndex = currentUpdateIndex + 1
       console.log(
-        "OTA_TRACK: handleUpdateCompleted",
+        "OTA_TRACK: advance_to_next_step",
         JSON.stringify({
           completedUpdate,
+          nextIndex,
           sequence: [...updateSequenceRef.current],
-          progressStateBefore: progressStateRef.current,
         }),
       )
 
-      setCompletedUpdates((prev) => {
-        if (prev.includes(completedUpdate)) return prev
-        return [...prev, completedUpdate]
-      })
+      // Clear all active timers
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current)
+        progressTimeoutRef.current = null
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+      if (stuckTimeoutRef.current) {
+        clearTimeout(stuckTimeoutRef.current)
+        stuckTimeoutRef.current = null
+      }
+      if (postReconnectDelayRef.current) {
+        clearTimeout(postReconnectDelayRef.current)
+        postReconnectDelayRef.current = null
+      }
+      // completionTimeoutRef: 12s timer after apk install FINISHED that calls handleUpdateCompleted("apk").
+      // Clear to prevent double-fire if buildNumber-change detection already called us first.
+      if (completionTimeoutRef.current) {
+        clearTimeout(completionTimeoutRef.current)
+        completionTimeoutRef.current = null
+      }
+      // Clear MTK simulation timers
+      if (simulationTimerRef.current) {
+        clearInterval(simulationTimerRef.current)
+        simulationTimerRef.current = null
+      }
+      if (stallDetectionRef.current) {
+        clearTimeout(stallDetectionRef.current)
+        stallDetectionRef.current = null
+      }
 
-      console.log(
-        "OTA_TRACK: state_transition",
-        JSON.stringify({from: progressStateRef.current, to: "completed", reason: "update_completed"}),
-      )
-      setProgressState("completed")
+      // Reset per-step tracking state
+      hasReceivedProgress.current = false
+      hasReceivedAck.current = false
+      skipStaleProgressRef.current = false
+      lastProcessedProgressSignatureRef.current = null
+      setSimulatedProgress(null)
+      setRetryCount(0)
+      setErrorMessage(null)
+      useGlassesStore.getState().setOtaProgress(null)
+
+      // After APK: do NOT clear buildNumber here. Completion is often detected via the same
+      // version_info that set buildNumber (e.g. 32→34). Clearing it would make the reconnect
+      // effect's readyCondition (glassesConnected && buildNumber) false, so we'd never send
+      // ota_start for MTK. We still clear buildNumber in navigateAfterContinue when leaving
+      // so check-for-updates can get a fresh version_info.
+
+      // Gate ota_start until glasses are ready (reconnect-watch useEffect clears this)
+      waitingForReconnectRef.current = true
+      hasSentOtaStartMidSequenceRef.current = false
+      setCurrentUpdateIndex(nextIndex)
+      setProgressState("starting")
     },
-    [completedUpdates],
+    [currentUpdateIndex],
   )
 
-  useEffect(() => {
-    if (!otaStartTime) return
-
-    const interval = setInterval(() => {
-      const diff = Date.now() - otaStartTime
-      const totalSeconds = Math.floor(diff / 1000)
-      const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")
-      const s = String(totalSeconds % 60).padStart(2, "0")
-      setElapsedTime(`${m}:${s}`)
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [otaStartTime])
+  // Clear global OTA session timeout (call on terminal state or unmount)
+  const clearGlobalTimeout = useCallback(() => {
+    if (globalTimeoutRef.current !== null) {
+      clearTimeout(globalTimeoutRef.current)
+      globalTimeoutRef.current = null
+      console.log("OTA_TRACK: global_timeout_cleared")
+    }
+  }, [])
 
   // Send OTA start command with retry logic
   const sendOtaStartCommand = useCallback(async () => {
@@ -494,25 +565,65 @@ export default function OtaProgressScreen() {
       await CoreModule.sendOtaStart()
       setOtaStartTime(Date.now())
 
-      // Set up timeout to check if we received progress
+      // Start global session timeout once (covers whole multi-step OTA)
+      if (globalTimeoutRef.current === null) {
+        globalTimeoutRef.current = setTimeout(() => {
+          globalTimeoutRef.current = null
+          console.log(
+            "OTA_TRACK: state_transition",
+            JSON.stringify({from: progressStateRef.current, to: "failed", reason: "global_ota_timeout"}),
+          )
+          if (progressTimeoutRef.current) {
+            clearTimeout(progressTimeoutRef.current)
+            progressTimeoutRef.current = null
+          }
+          if (retryTimeoutRef.current) {
+            clearTimeout(retryTimeoutRef.current)
+            retryTimeoutRef.current = null
+          }
+          if (stuckTimeoutRef.current) {
+            clearTimeout(stuckTimeoutRef.current)
+            stuckTimeoutRef.current = null
+          }
+          if (postReconnectDelayRef.current) {
+            clearTimeout(postReconnectDelayRef.current)
+            postReconnectDelayRef.current = null
+          }
+          if (completionTimeoutRef.current) {
+            clearTimeout(completionTimeoutRef.current)
+            completionTimeoutRef.current = null
+          }
+          if (simulationTimerRef.current) {
+            clearInterval(simulationTimerRef.current)
+            simulationTimerRef.current = null
+          }
+          if (stallDetectionRef.current) {
+            clearTimeout(stallDetectionRef.current)
+            stallDetectionRef.current = null
+          }
+          setErrorMessage("Update took too long. Please try again.")
+          setProgressState("failed")
+        }, GLOBAL_OTA_TIMEOUT_MS) as unknown as number
+        console.log("OTA_TRACK: global_timeout_started", JSON.stringify({ms: GLOBAL_OTA_TIMEOUT_MS}))
+      }
+
+      // Set up timeout: retry if glasses don't ack within RETRY_INTERVAL_MS.
+      // Ack arrives in milliseconds; progress can take 10–30 s.
       retryTimeoutRef.current = setTimeout(() => {
-        if (!hasReceivedProgress.current && progressState === "starting") {
+        if (!hasReceivedAck.current && progressState === "starting") {
           if (retryCount < MAX_RETRIES - 1) {
-            console.log(
-              "OTA_TRACK: retry",
-              JSON.stringify({reason: "no_progress_received", nextAttempt: retryCount + 2}),
-            )
+            console.log("OTA_TRACK: retry", JSON.stringify({reason: "no_ack_received", nextAttempt: retryCount + 2}))
             setRetryCount((prev) => prev + 1)
           } else {
             console.log(
               "OTA_TRACK: state_transition",
-              JSON.stringify({from: "starting", to: "failed", reason: "max_retries_no_progress"}),
+              JSON.stringify({from: "starting", to: "failed", reason: "max_retries_no_ack"}),
             )
             setErrorMessage("Unable to start update. Glasses did not respond.")
             setProgressState("failed")
           }
         }
-      }, RETRY_INTERVAL_MS)
+      }, RETRY_INTERVAL_MS) as unknown as number
       // if after 30 seconds we have received progress, but the progress is still 0, (detect if we're stuck at 0%):
       stuckTimeoutRef.current = setTimeout(() => {
         const latestProgress = latestOtaProgressRef.current?.progress ?? 0
@@ -529,7 +640,7 @@ export default function OtaProgressScreen() {
           setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
           setProgressState("failed")
         }
-      }, DOWNLOAD_STUCK_TIMEOUT_MS)
+      }, DOWNLOAD_STUCK_TIMEOUT_MS) as unknown as number
     } catch (error) {
       console.log("OTA_TRACK: send_ota_start_error", JSON.stringify({error: String(error), retryCount}))
       if (retryCount < MAX_RETRIES - 1) {
@@ -545,10 +656,143 @@ export default function OtaProgressScreen() {
     }
   }, [retryCount, progressState])
 
+  // When waitingForReconnectRef is true, watch for glasses to be ready then trigger ota_start.
+  // After APK: requires BLE reconnect AND fresh buildNumber (version_info arrived), then waits
+  //            POST_APK_OTA_START_DELAY_MS for the new OTA service to fully initialize.
+  // After MTK/BES reboot: requires BLE reconnect only (no delay needed).
+  // We call sendOtaStartCommand() directly (not setRetryCount(0)) because retryCount was already
+  // reset to 0 in advanceToNextStep, so the effect that sends on retryCount would not re-run.
+  useEffect(() => {
+    if (!waitingForReconnectRef.current) return
+    if (progressState !== "starting") return
+    if (currentUpdateIndex === 0) return // initial mount — existing logic handles this
+
+    const prevUpdate = updateSequenceRef.current[currentUpdateIndex - 1]
+    const readyCondition = prevUpdate === "apk" ? glassesConnected && !!buildNumber : glassesConnected
+
+    if (!readyCondition) return
+
+    // Cancel any pre-existing delay (e.g. buildNumber changed twice quickly)
+    if (postReconnectDelayRef.current) {
+      clearTimeout(postReconnectDelayRef.current)
+      postReconnectDelayRef.current = null
+    }
+
+    const fire = () => {
+      postReconnectDelayRef.current = null
+      waitingForReconnectRef.current = false
+      hasSentOtaStartMidSequenceRef.current = true
+      if (prevUpdate === "apk") {
+        console.log("OTA: Sending ota_start after APK update successful (post-delay complete)")
+      }
+      console.log(
+        "OTA_TRACK: reconnect_ready",
+        JSON.stringify({prevUpdate, currentUpdateIndex, glassesConnected, hasBuildNumber: !!buildNumber}),
+      )
+      sendOtaStartCommand()
+    }
+
+    if (prevUpdate === "apk") {
+      console.log(
+        "OTA_TRACK: post_apk_delay",
+        JSON.stringify({delayMs: POST_APK_OTA_START_DELAY_MS, currentUpdateIndex}),
+      )
+      postReconnectDelayRef.current = setTimeout(fire, POST_APK_OTA_START_DELAY_MS) as unknown as number
+    } else {
+      fire()
+    }
+
+    return () => {
+      if (postReconnectDelayRef.current) {
+        clearTimeout(postReconnectDelayRef.current)
+        postReconnectDelayRef.current = null
+      }
+    }
+  }, [glassesConnected, buildNumber, progressState, currentUpdateIndex, sendOtaStartCommand])
+
+  // When remounting mid-sequence (e.g. user left after MTK, came back to progress screen),
+  // send ota_start so the next step (e.g. BES) starts. Reconnect effect only runs when
+  // waitingForReconnectRef is true, which is lost on unmount. Skip when reconnect path will send.
+  useEffect(() => {
+    if (waitingForReconnectRef.current) return
+    if (currentUpdateIndex === 0) return
+    if (progressState !== "starting" && progressState !== "installing") return
+    if (!glassesConnected) return
+    if (hasSentOtaStartMidSequenceRef.current) return
+    if (currentUpdateIndex >= updateSequenceRef.current.length) return
+
+    hasSentOtaStartMidSequenceRef.current = true
+    console.log(
+      "OTA_TRACK: remount_mid_sequence_send_ota_start",
+      JSON.stringify({currentUpdateIndex, progressState, nextUpdate: updateSequenceRef.current[currentUpdateIndex]}),
+    )
+    sendOtaStartCommand()
+  }, [currentUpdateIndex, progressState, glassesConnected, sendOtaStartCommand])
+
+  // Handle when an update completes.
+  // If more steps remain in the sequence, advance internally (no navigation).
+  // If this is the last step, transition to "completed" for the user to tap Continue.
+  const handleUpdateCompleted = useCallback(
+    (completedUpdate: string) => {
+      console.log(
+        "OTA_TRACK: handleUpdateCompleted",
+        JSON.stringify({
+          completedUpdate,
+          sequence: [...updateSequenceRef.current],
+          progressStateBefore: progressStateRef.current,
+        }),
+      )
+
+      setCompletedUpdates((prev) => {
+        if (prev.includes(completedUpdate)) return prev
+        return [...prev, completedUpdate]
+      })
+
+      const nextIndex = currentUpdateIndex + 1
+      const hasMoreSteps = nextIndex < updateSequenceRef.current.length
+
+      if (hasMoreSteps) {
+        console.log(
+          "OTA_TRACK: state_transition",
+          JSON.stringify({
+            from: progressStateRef.current,
+            reason: "advance_to_next_step",
+            completedUpdate,
+            nextIndex,
+          }),
+        )
+        advanceToNextStep(completedUpdate)
+      } else {
+        console.log(
+          "OTA_TRACK: state_transition",
+          JSON.stringify({from: progressStateRef.current, to: "completed", reason: "last_step_completed"}),
+        )
+        setProgressState("completed")
+      }
+    },
+    [currentUpdateIndex, advanceToNextStep],
+  )
+
+  useEffect(() => {
+    if (!otaStartTime) return
+
+    const interval = setInterval(() => {
+      const diff = Date.now() - otaStartTime
+      const totalSeconds = Math.floor(diff / 1000)
+      const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")
+      const s = String(totalSeconds % 60).padStart(2, "0")
+      setElapsedTime(`${m}:${s}`)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [otaStartTime])
+
   // Initial send and retry on count change
   useEffect(() => {
     // Don't retry if we've already received progress or completed/failed
     if (hasReceivedProgress.current || progressState !== "starting") return
+    // Don't send while waiting for glasses to reconnect after a step transition
+    if (waitingForReconnectRef.current) return
 
     sendOtaStartCommand()
 
@@ -574,6 +818,11 @@ export default function OtaProgressScreen() {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
       }
+      if (postReconnectDelayRef.current) {
+        clearTimeout(postReconnectDelayRef.current)
+        postReconnectDelayRef.current = null
+      }
+      waitingForReconnectRef.current = false
       setErrorMessage("Glasses disconnected during update.")
       setProgressState("disconnected")
     }
@@ -595,6 +844,11 @@ export default function OtaProgressScreen() {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
       }
+      if (postReconnectDelayRef.current) {
+        clearTimeout(postReconnectDelayRef.current)
+        postReconnectDelayRef.current = null
+      }
+      waitingForReconnectRef.current = false
       setProgressState("wifi_disconnected")
     }
   }, [wifiConnected, progressState])
@@ -604,6 +858,25 @@ export default function OtaProgressScreen() {
 
   // Track if we're waiting for MTK system install to complete
   const waitingForMtkComplete = useRef(false)
+
+  // Listen for ota_start_ack from glasses — cancels retry timer on confirmed receipt
+  useEffect(() => {
+    const handleOtaStartAck = (_data: {timestamp: number}) => {
+      if (hasReceivedAck.current) return
+      hasReceivedAck.current = true
+      console.log("OTA: ota_start_ack received — cancelling retry timer")
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+    }
+
+    GlobalEventEmitter.on("ota_start_ack", handleOtaStartAck)
+
+    return () => {
+      GlobalEventEmitter.off("ota_start_ack", handleOtaStartAck)
+    }
+  }, [])
 
   // Listen for mtk_update_complete event from glasses (sent after system install finishes)
   useEffect(() => {
@@ -791,7 +1064,8 @@ export default function OtaProgressScreen() {
 
     // During install phase, only process events for the step we're currently tracking.
     // During download phase, accept ALL events (unified download progress).
-    if (stage === "install" && expectedStep && currentUpdate !== expectedStep) {
+    // Always allow FINISHED through so we don't drop completion when index/expectedStep race.
+    if (stage === "install" && expectedStep && currentUpdate !== expectedStep && status !== "FINISHED") {
       console.log(
         "OTA_TRACK: skip_reason=wrong_step_install",
         JSON.stringify({
@@ -1054,14 +1328,24 @@ export default function OtaProgressScreen() {
           errorMessage: otaProgress.errorMessage,
         }),
       )
+      waitingForReconnectRef.current = false
       setErrorMessage(otaProgress.errorMessage || null)
       setProgressState("failed")
     }
   }, [otaProgress, handleUpdateCompleted, currentUpdateIndex, progressState, wifiConnected])
 
+  // Clear global timeout when reaching any terminal state
+  useEffect(() => {
+    const terminal: ProgressState[] = ["completed", "failed", "disconnected", "restarting", "wifi_disconnected"]
+    if (terminal.includes(progressState)) {
+      clearGlobalTimeout()
+    }
+  }, [progressState, clearGlobalTimeout])
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
+      clearGlobalTimeout()
       if (completionTimeoutRef.current) {
         clearTimeout(completionTimeoutRef.current)
       }
@@ -1080,8 +1364,11 @@ export default function OtaProgressScreen() {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
       }
+      if (postReconnectDelayRef.current) {
+        clearTimeout(postReconnectDelayRef.current)
+      }
     }
-  }, [])
+  }, [clearGlobalTimeout])
 
   // Disable Continue button for 15s when entering "restarting" state for BES
   useEffect(() => {
@@ -1130,14 +1417,19 @@ export default function OtaProgressScreen() {
     navigateAfterContinue()
   }
 
+  /** Retry OTA: go back to check-for-updates so the user can start the update again. */
+  const handleRetryOta = () => {
+    trackButtonPress("retry")
+    replace("/ota/check-for-updates")
+  }
+
   const handleRetryFromWifiDisconnected = () => {
     trackButtonPress("try_again")
-    replace("/wifi/scan")
+    handleRetryOta()
   }
 
   const handleRetryFromFailure = () => {
-    trackButtonPress("retry")
-    replace("/wifi/scan")
+    handleRetryOta()
   }
 
   const handleChangeWifi = () => {
@@ -1175,7 +1467,26 @@ export default function OtaProgressScreen() {
   const progress = isStarting ? 0 : isSimulating ? simulatedProgress : realProgress
   const displayProgress = isStarting ? 0 : isSimulating ? progress : Math.round(progress / 5) * 5
 
-  // Get update position string like "Update 1 of 3"
+  // Get update position string like "Update 1 of 3".
+  // Use the step from actual progress when available so we don't show "3 of 3" while
+  // glasses are still reporting MTK (e.g. late download STARTED after we advanced to BES).
+  const seq = updateSequenceRef.current
+  const displayStepIndex =
+    otaProgress?.currentUpdate != null && seq.includes(otaProgress.currentUpdate)
+      ? seq.indexOf(otaProgress.currentUpdate)
+      : currentUpdateIndex
+
+  const renderStepIndicator = () => {
+    const total = updateSequenceRef.current.length
+    if (total <= 1) return null
+    return (
+      <Text
+        text={`Update ${displayStepIndex + 1} of ${total}`}
+        className="text-sm text-center"
+        style={{color: theme.colors.textDim}}
+      />
+    )
+  }
 
   // DEBUG: Log render values
   console.log(
@@ -1238,6 +1549,8 @@ export default function OtaProgressScreen() {
           <Icon name="world-download" size={64} color={theme.colors.primary} />
           <View className="h-6" />
           <Text text="Downloading Update..." className="font-semibold text-xl text-center" />
+          <View className="h-2" />
+          {renderStepIndicator()}
           <View className="h-4" />
           {showDownloadPercent ? (
             <Text text={`${displayProgress}%`} className="text-3xl font-bold" style={{color: theme.colors.primary}} />
@@ -1261,6 +1574,8 @@ export default function OtaProgressScreen() {
           <Icon name="settings" size={64} color={theme.colors.primary} />
           <View className="h-6" />
           <Text text="Installing Update..." className="font-semibold text-xl text-center" />
+          <View className="h-2" />
+          {renderStepIndicator()}
           <View className="h-4" />
           {showProgress && (
             <>
@@ -1309,12 +1624,16 @@ export default function OtaProgressScreen() {
 
     // Completed state - only shown for final update
     if (progressState === "completed") {
+      const isMultiStep = updateSequenceRef.current.length > 1
       return (
         <>
           <View className="flex-1 items-center justify-center px-6">
             <Icon name="check" size={64} color={theme.colors.primary} />
             <View className="h-6" />
-            <Text text="Update Complete" className="font-semibold text-xl text-center" />
+            <Text
+              text={isMultiStep ? "All Updates Installed" : "Update Complete"}
+              className="font-semibold text-xl text-center"
+            />
             <View className="h-2" />
             <Text
               text="The update has been installed successfully."
@@ -1330,7 +1649,7 @@ export default function OtaProgressScreen() {
       )
     }
 
-    // Disconnected state (BLE) - retry only
+    // Disconnected state (BLE) - retry OTA or go to WiFi setup
     if (progressState === "disconnected") {
       return (
         <>
@@ -1347,13 +1666,14 @@ export default function OtaProgressScreen() {
 
           <View className="gap-3">
             <Button preset="primary" text="Retry" flexContainer onPress={handleRetryFromFailure} />
+            <Button preset="secondary" text="WiFi setup" flexContainer onPress={handleChangeWifi} />
             {superMode && <Button preset="secondary" text="Skip (super)" onPress={handleSkipSuper} />}
           </View>
         </>
       )
     }
 
-    // WiFi disconnected state - send back to OTA start to re-check and retry
+    // WiFi disconnected state - retry OTA or go to WiFi setup
     if (progressState === "wifi_disconnected") {
       return (
         <>
@@ -1370,6 +1690,7 @@ export default function OtaProgressScreen() {
 
           <View className="gap-3">
             <Button preset="primary" text="Try Again" flexContainer onPress={handleRetryFromWifiDisconnected} />
+            <Button preset="secondary" text="Change WiFi" flexContainer onPress={handleChangeWifi} />
           </View>
         </>
       )

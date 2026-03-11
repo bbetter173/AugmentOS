@@ -171,7 +171,7 @@ export default function AppStoreWeb() {
 
   // If the prefetched WebView is ready, show it in the correct style
   return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0" KeyboardAvoidingViewProps={{enabled: false}}>
       <MiniAppDualButtonHeader packageName="com.mentra.store" viewShotRef={viewShotRef} />
       <View className="bg-background flex-1">
         {/* Show the prefetched WebView, but now visible and full size */}

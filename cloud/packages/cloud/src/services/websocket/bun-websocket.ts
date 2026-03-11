@@ -38,6 +38,8 @@ import type {
   CloudServerWebSocket,
 } from "./types";
 
+import { parseBinaryFrame } from "../session/AppAudioStreamManager";
+
 const logger = rootLogger.child({ service: "bun-websocket" });
 
 const AUGMENTOS_AUTH_JWT_SECRET = process.env.AUGMENTOS_AUTH_JWT_SECRET || "";
@@ -276,8 +278,13 @@ async function handleGlassesOpen(ws: GlassesServerWebSocket): Promise<void> {
     // Create or reconnect user session
     const { userSession, reconnection } = await UserSession.createOrReconnect(ws as any, userId);
 
-    // Initialize UDP encryption if requested
-    if (udpEncryptionRequested) {
+    // Initialize UDP encryption if requested.
+    // On reconnect, skip key generation if encryption is already set up — reuse
+    // the existing key. The mobile gets the same key back in CONNECTION_ACK and
+    // calls setEncryption() idempotently. This eliminates the silence gap caused
+    // by in-flight UDP packets encrypted with the old key failing decryption
+    // during a key transition window. (Fix 044-2)
+    if (udpEncryptionRequested && !userSession.udpAudioManager.encryptionEnabled) {
       userSession.udpAudioManager.initializeEncryption();
     }
 
@@ -466,6 +473,17 @@ function handleGlassesClose(ws: GlassesServerWebSocket, code: number, reason: st
     return;
   }
 
+  // Guard: if the session already has a NEWER WebSocket (from a reconnect that
+  // raced ahead of this close), this close event is for the OLD connection.
+  // Don't mark the session as disconnected — it's actively connected on the new WS.
+  if (userSession.websocket && userSession.websocket !== (ws as any)) {
+    userSession.logger.info(
+      { code, reason },
+      "Glasses connection closed (stale — newer WebSocket already active, ignoring)",
+    );
+    return;
+  }
+
   userSession.logger.warn({ code, reason }, "Glasses connection closed");
 
   // Mark session as disconnected
@@ -558,6 +576,20 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
   const { userId, packageName } = ws.data;
 
   try {
+    // Binary frames are audio stream data — route through the UserSession's manager
+    if (typeof message !== "string" && !isJsonBuffer(message)) {
+      const frame = parseBinaryFrame(message instanceof Buffer ? message : Buffer.from(message));
+      if (frame) {
+        const userSession = UserSession.getById(userId || ws.data.userId);
+        if (userSession) {
+          await userSession.appAudioStreamManager.writeToStream(frame.streamId, frame.audioData);
+        }
+      } else {
+        logger.debug({ userId, packageName, bytes: message.length }, "Unrecognized binary frame from app");
+      }
+      return;
+    }
+
     const parsed = JSON.parse(message.toString()) as AppToCloudMessage;
 
     // Handle CONNECTION_INIT for legacy apps
@@ -631,6 +663,14 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
  * ws.on("close", ...). But Bun's ServerWebSocket doesn't support EventEmitter,
  * so we must explicitly call handleDisconnect here.
  */
+/**
+ * Quick check: does this Buffer look like a JSON text message?
+ * JSON messages always start with '{'. Binary audio frames start with a UUID hex char.
+ */
+function isJsonBuffer(buf: Buffer | Uint8Array): boolean {
+  return buf.length > 0 && buf[0] === 0x7b; // '{' character
+}
+
 function handleAppClose(ws: AppServerWebSocket, code: number, reason: string): void {
   const { userId, packageName } = ws.data;
 

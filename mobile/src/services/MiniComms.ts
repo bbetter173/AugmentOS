@@ -1,13 +1,12 @@
-import {Linking, Platform} from "react-native"
+import {Linking} from "react-native"
 import Share from "react-native-share"
 import * as Clipboard from "expo-clipboard"
 import {File, Paths} from "expo-file-system"
-import mantle from "./MantleManager"
 import CoreModule from "core"
 
 type MiniAppMessageType =
   | "core_fn"
-  | "request_mic"
+  | "request_mic_audio"
   | "request_transcription"
   | "display_event"
   | "button_click"
@@ -225,7 +224,7 @@ class MiniComms {
       case "core_fn":
         this.handleCoreFn(message)
         break
-      case "request_mic":
+      case "request_mic_audio":
         // this.handleRequestAudio(message)
         break
       case "request_transcription":

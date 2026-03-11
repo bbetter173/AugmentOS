@@ -15,7 +15,6 @@ export default function SuperSettingsScreen() {
   )
   const [debugCoreStatusBarEnabled, setDebugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
   const [appSwitcherUi, setAppSwitcherUi] = useSetting(SETTINGS.app_switcher_ui.key)
-  const [androidBlur, setAndroidBlur] = useSetting(SETTINGS.android_blur.key)
   const {push} = useNavigationHistory()
 
   return (
@@ -49,7 +48,6 @@ export default function SuperSettingsScreen() {
               value={appSwitcherUi}
               onValueChange={(value) => setAppSwitcherUi(value)}
             />
-            <ToggleSetting label="Android Blur" value={androidBlur} onValueChange={(value) => setAndroidBlur(value)} />
           </Group>
 
           <Group title="Mini Apps">

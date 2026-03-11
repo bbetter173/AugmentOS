@@ -144,25 +144,44 @@ export const AllProviders = withWrappers(
   },
   ConnectionOverlayProvider,
   (props) => {
-    // const {preventBack, animation} = useNavigationHistory()
-    const preventBack = false
-    const animation = "simple_push"
-    console.log("NAV: animation", animation)
+    const {preventBack, animation} = useNavigationHistory()
+
+    const convertToNativeAnimation = (animation: string) => {
+      if (animation === "zoom") {
+        return "fade"
+      }
+      return animation
+    }
 
     return (
       <>
         {props.children}
-        <JsStack
+        <Stack
           screenOptions={{
             headerShown: false,
             gestureEnabled: !preventBack,
             gestureDirection: "horizontal",
-            // animation: get,
+            animation: convertToNativeAnimation(animation) as any,
+            // animation: "default",
             // cardStyleInterpolator: getAnimation(animation),
           }}
         />
       </>
     )
+
+    // return (
+    //   <>
+    //     {props.children}
+    //     <JsStack
+    //       screenOptions={{
+    //         headerShown: false,
+    //         gestureEnabled: !preventBack,
+    //         gestureDirection: "horizontal",
+    //         cardStyleInterpolator: getAnimation(animation),
+    //       }}
+    //     />
+    //   </>
+    // )
 
     // return (
     //   <>

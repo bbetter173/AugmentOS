@@ -4,6 +4,7 @@ on:
   workflow_dispatch: # Manual trigger fallback
   push:
     branches:
+      - cloud/issues-044
       - new-context-soniox
       - cloud/044-ci-build-audit
     paths:

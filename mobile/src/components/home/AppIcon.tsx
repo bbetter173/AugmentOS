@@ -22,9 +22,10 @@ interface AppIconProps {
   app: ClientAppletInterface
   onClick?: () => void
   style?: StyleProp<ViewStyle>
+  disableLoader?: boolean
 }
 
-const AppIcon = ({app, onClick, style}: AppIconProps) => {
+const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
   const {theme} = useAppTheme()
   const WrapperComponent = onClick ? TouchableOpacity : View
   const flatStyle = extractStyleProps(style)
@@ -53,7 +54,7 @@ const AppIcon = ({app, onClick, style}: AppIconProps) => {
             justifyContent: "center",
             ...iconSize,
           }}>
-          {app.loading && (
+          {app.loading && !disableLoader && (
             <View className="absolute inset-0 justify-center items-center z-10 bg-black/40">
               <ActivityIndicator size="large" color={theme.colors.palette.white} />
             </View>

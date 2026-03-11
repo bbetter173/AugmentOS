@@ -151,7 +151,7 @@ export class CameraModule {
   async requestPhoto(options?: PhotoRequestOptions): Promise<PhotoData> {
     return new Promise((resolve, reject) => {
       const baseUrl = this.session?.getHttpsServerUrl?.() || "";
-      cameraWarnLog(baseUrl, this.packageName, "requestPhoto", this.logger);
+      cameraWarnLog(baseUrl, this.packageName, "requestPhoto");
       try {
         // Generate unique request ID
         const requestId = `photo_req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -186,21 +186,21 @@ export class CameraModule {
         // Send request to cloud
         this.session.sendMessage(message);
 
-        this.logger.debug(
+        this.logger.info(
           {
             requestId,
             saveToGallery: options?.saveToGallery,
             hasCustomWebhook: !!options?.customWebhookUrl,
             hasAuthToken: !!options?.authToken,
           },
-          `Photo request sent`,
+          `📸 Photo request sent`,
         );
 
         // If using custom webhook URL, resolve immediately since photo will be uploaded directly to custom endpoint
         if (options?.customWebhookUrl) {
-          this.logger.debug(
+          this.logger.info(
             { requestId, customWebhookUrl: options.customWebhookUrl },
-            `Using custom webhook URL - resolving immediately (photo uploaded directly to custom endpoint)`,
+            `📸 Using custom webhook URL - resolving promise immediately since photo will be uploaded directly to custom endpoint`,
           );
 
           // Complete the request at AppServer level and resolve with mock data
@@ -248,13 +248,13 @@ export class CameraModule {
    * @deprecated Photo requests are now managed at AppServer level. This method delegates to AppServer.
    *
    * @param requestId - The request ID to cancel
-   * @returns true if the request was cancelled, false if it wasn't found
+   * @returns true if the request was found and cancelled
    */
   cancelPhotoRequest(requestId: string): boolean {
     const pending = this.session.appServer.completePhotoRequest(requestId);
     if (pending) {
       pending.reject(new Error("Photo request cancelled"));
-      this.logger.debug({ requestId }, `Photo request cancelled`);
+      this.logger.debug({ requestId }, "Photo request cancelled");
       return true;
     }
     return false;
@@ -269,7 +269,7 @@ export class CameraModule {
   cancelAllPhotoRequests(): number {
     // Photo request cleanup is now handled by AppServer.cleanupPhotoRequestsForSession()
     // which is called when the session permanently disconnects
-    this.logger.debug(`cancelAllPhotoRequests called - cleanup now happens at AppServer level`);
+    this.logger.debug("cancelAllPhotoRequests called — cleanup now happens at AppServer level");
     return 0;
   }
 
@@ -293,9 +293,9 @@ export class CameraModule {
    * ```
    */
   async startStream(options: RtmpStreamOptions): Promise<void> {
-    this.logger.info({ rtmpUrl: options.rtmpUrl }, `RTMP stream request starting`);
+    this.logger.info({ rtmpUrl: options.rtmpUrl }, `📹 RTMP stream request starting`);
 
-    cameraWarnLog(this.session.getHttpsServerUrl?.(), this.packageName, "startStream", this.logger);
+    cameraWarnLog(this.session.getHttpsServerUrl?.(), this.packageName, "startStream");
 
     if (!options.rtmpUrl) {
       throw new Error("rtmpUrl is required");
@@ -307,7 +307,7 @@ export class CameraModule {
           currentStreamUrl: this.currentStreamUrl,
           requestedUrl: options.rtmpUrl,
         },
-        `Already streaming error`,
+        `📹 Already streaming error`,
       );
       throw new Error("Already streaming. Stop the current stream before starting a new one.");
     }
@@ -333,10 +333,10 @@ export class CameraModule {
       this.session.sendMessage(message);
       this.isStreaming = true;
 
-      this.logger.debug({ rtmpUrl: options.rtmpUrl }, `RTMP stream request sent successfully`);
+      this.logger.info({ rtmpUrl: options.rtmpUrl }, `📹 RTMP stream request sent successfully`);
       return Promise.resolve();
     } catch (error) {
-      this.logger.error({ error, rtmpUrl: options.rtmpUrl }, `Failed to send RTMP stream request`);
+      this.logger.error({ error, rtmpUrl: options.rtmpUrl }, `📹 Failed to send RTMP stream request`);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return Promise.reject(`Failed to request RTMP stream: ${errorMessage}`);
     }
@@ -353,16 +353,16 @@ export class CameraModule {
    * ```
    */
   async stopStream(): Promise<void> {
-    this.logger.debug(
+    this.logger.info(
       {
         isCurrentlyStreaming: this.isStreaming,
         currentStreamUrl: this.currentStreamUrl,
       },
-      `RTMP stream stop request`,
+      `📹 RTMP stream stop request`,
     );
 
     if (!this.isStreaming) {
-      this.logger.debug(`Not streaming - no-op`);
+      this.logger.info(`📹 Not streaming - no-op`);
       // Not an error - just a no-op if not streaming
       return Promise.resolve();
     }
@@ -475,12 +475,12 @@ export class CameraModule {
         messageStatus: message?.status,
         currentIsStreaming: this.isStreaming,
       },
-      `Stream state update`,
+      `📹 Stream state update`,
     );
 
     // Verify this is a valid stream response
     if (!isRtmpStreamStatus(message)) {
-      this.logger.warn({ message }, `Received invalid stream status message`);
+      this.logger.warn({ message }, `📹 Received invalid stream status message`);
       return;
     }
 
@@ -495,24 +495,24 @@ export class CameraModule {
       timestamp: message.timestamp || new Date(),
     };
 
-    this.logger.debug(
+    this.logger.info(
       {
         streamId: status.streamId,
         oldStatus: this.currentStreamState?.status,
         newStatus: status.status,
         wasStreaming: this.isStreaming,
       },
-      `Stream status processed`,
+      `📹 Stream status processed`,
     );
 
     // Update local state based on status
     if (status.status === "stopped" || status.status === "error" || status.status === "timeout") {
-      this.logger.debug(
+      this.logger.info(
         {
           status: status.status,
           wasStreaming: this.isStreaming,
         },
-        `Stream stopped - updating local state`,
+        `📹 Stream stopped - updating local state`,
       );
       this.isStreaming = false;
       this.currentStreamUrl = undefined;
@@ -684,4 +684,4 @@ export class CameraModule {
 }
 
 // Re-export types for convenience
-export { VideoConfig, AudioConfig, StreamConfig, StreamStatusHandler };
+export type { VideoConfig, AudioConfig, StreamConfig, StreamStatusHandler };

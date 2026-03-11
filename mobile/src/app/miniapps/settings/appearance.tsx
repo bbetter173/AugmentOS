@@ -17,8 +17,10 @@ export default function AppearanceSettingsPage() {
   const [themePreference, setThemePreference] = useSetting(SETTINGS.theme_preference.key)
   const [iosGlassEffect, setIosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
   const [appSwitcherUi] = useSetting(SETTINGS.app_switcher_ui.key)
+  const [androidBlur, setAndroidBlur] = useSetting(SETTINGS.android_blur.key)
 
   const showGlassToggle = appSwitcherUi && Platform.OS === "ios" && isLiquidGlassAvailable()
+  const showAndroidBlurToggle = appSwitcherUi && Platform.OS === "android"
 
   const handleThemeChange = async (newTheme: ThemeType) => {
     await setThemePreference(newTheme)
@@ -47,6 +49,16 @@ export default function AppearanceSettingsPage() {
               label={translate("appearanceSettings:liquidGlassEffect")}
               onValueChange={(value) => setIosGlassEffect(value)}
               value={iosGlassEffect}
+            />
+          </Group>
+        )}
+
+        {showAndroidBlurToggle && (
+          <Group>
+            <ToggleSetting
+              label={translate("appearanceSettings:androidBlur")}
+              onValueChange={(value) => setAndroidBlur(value)}
+              value={androidBlur}
             />
           </Group>
         )}

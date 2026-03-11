@@ -49,7 +49,7 @@ const init = async () => {
   // no version is set, so we need to set it
   let res = await storage.save(migration_version_key, 0)
   if (res.is_error()) {
-    console.error("Failed to set migration version", res.error)
+    console.error("MIGRATE: Failed to set migration version", res.error)
     return
   }
 }
@@ -75,13 +75,13 @@ export const migrate = async () => {
     // we are behind, we need to migrate
     let res = await runMigrations(storedVersion)
     if (res.is_error()) {
-      console.error("Failed to migrate", res.error)
+      console.error("MIGRATE: Failed to migrate", res.error)
       return
     }
     // we successfully migrated, so we need to set the new version
     res = await storage.save(migration_version_key, current_version)
     if (res.is_error()) {
-      console.error("Failed to set migration version", res.error)
+      console.error("MIGRATE: Failed to set migration version", res.error)
       return
     }
     return

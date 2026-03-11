@@ -9,6 +9,9 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {
   ClientAppletInterface,
   DUMMY_APPLET,
+  getAppsOrder,
+  OrderMap,
+  saveAppsOrder,
   sortAppsByPackageNamePriority,
   SYSTEM_APPS,
   uninstallAppUI,
@@ -24,12 +27,10 @@ import {translate} from "@/i18n"
 import GlassView from "@/components/ui/GlassView"
 
 const GRID_COLUMNS = 4
-const APP_ORDER_KEY = "foreground_apps_order"
 const POPOVER_WIDTH = 180
 const SCREEN_PADDING = 4 * 12
 
 type MasonryAppItem = ClientAppletInterface & {id: string; height: number}
-type OrderMap = Record<string, number>
 
 interface PopoverAction {
   label: string
@@ -137,16 +138,8 @@ const AppPopover: React.FC<{
           <GlassView className="rounded-2xl overflow-hidden bg-primary-foreground/95">{popoverContent}</GlassView>
         </View>
         <GlassView
-          className="absolute"
-          style={{
-            left: arrowLeft,
-            top: arrowTop,
-            width: 32,
-            height: 32,
-            backgroundColor: "transparent",
-            transform: [{rotate: "45deg"}],
-            zIndex: -1,
-          }}
+          className="absolute bg-primary-foreground/95 w-8 h-8 transform rotate-45 -z-1"
+          style={{left: arrowLeft, top: arrowTop}}
         />
       </Pressable>
     </View>
@@ -178,8 +171,11 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
   const draggingIndexRef = useRef(0)
 
   useEffect(() => {
-    const result = storage.load<OrderMap>(APP_ORDER_KEY)
+    const result = getAppsOrder()
     if (result.is_ok()) {
+      // for (const [packageName, index] of Object.entries(result.value)) {
+      //   console.log("index", index, "packageName", packageName)
+      // }
       setOrderMap(result.value)
     }
   }, [])
@@ -477,7 +473,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
       newOrderMap[item.packageName] = index
     })
     setOrderMap(newOrderMap)
-    storage.save(APP_ORDER_KEY, newOrderMap)
+    saveAppsOrder(newOrderMap)
   }
 
   const itemRefs = useRef<Record<string, View | null>>({})
@@ -545,13 +541,15 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
           <DraggableMasonryList
             data={gridData}
             renderItem={renderItem}
+            rowGap={0}
+            columnGap={0}
             columns={GRID_COLUMNS}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragChange={handleDragChange}
             overDrag="none"
             showDropIndicator={true}
-            sortEnabled={true}
+            sortEnabled={!showAllApps}
             swapMode={true}
             dropIndicatorStyle={{backgroundColor: theme.colors.primary_foreground, borderWidth: 0}}
           />

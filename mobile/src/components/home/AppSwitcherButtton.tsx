@@ -7,7 +7,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ClientAppletInterface, useActiveApps, useActiveBackgroundApps, useActiveForegroundApp} from "@/stores/applets"
-import {useEffect, useRef, useState} from "react"
+import {RefObject, useEffect, useRef, useState} from "react"
 import {scheduleOnRN} from "react-native-worklets"
 import {BlurView} from "expo-blur"
 import {LinearGradient} from "expo-linear-gradient"
@@ -16,10 +16,12 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import GlassView from "@/components/ui/GlassView"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {hapticBuzz} from "@/utils/utils"
+import showAlert from "@/contexts/ModalContext"
 
 interface AppSwitcherButtonProps {
   swipeProgress: SharedValue<number>
   onGridButtonPress: () => void
+  blurTargetRef: RefObject<View | null>
 }
 
 const SWIPE_DISTANCE_THRESHOLD = 300 // Distance needed to trigger open
@@ -27,7 +29,7 @@ const SWIPE_DISTANCE_MULTIPLIER = 1
 const SWIPE_PERCENT_THRESHOLD = 0.2
 // const SWIPE_VELOCITY_THRESHOLD = 800 // Velocity threshold for quick swipes
 
-export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: AppSwitcherButtonProps) {
+export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blurTargetRef}: AppSwitcherButtonProps) {
   const {theme} = useAppTheme()
   const backgroundApps = useActiveBackgroundApps()
   const foregroundApp = useActiveForegroundApp()
@@ -37,6 +39,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: Ap
   const [appsList, setAppsList] = useState<ClientAppletInterface[]>([])
   const insets = useSaferAreaInsets()
   const translateY = useSharedValue(0)
+  const [androidBlur] = useSetting(SETTINGS.android_blur.key)
 
   useEffect(() => {
     let list = [...backgroundApps]
@@ -105,13 +108,19 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: Ap
     swipeProgress.value = withSpring(1, {damping: 20, stiffness: 1000, overshootClamping: true})
   })
 
-  const composedGesture = Gesture.Exclusive(panGesture, tapGesture)
+  let composedGesture
+  if (Platform.OS === "android") {
+    composedGesture = Gesture.Exclusive(tapGesture)
+  } else {
+    composedGesture = Gesture.Exclusive(panGesture, tapGesture)
+  }
+
   // const bottomPadding = insets.bottom + theme.spacing.s4
   const bottomPadding = insets.bottom
 
   const renderBackground = () => {
     // return (
-    //   <BlurView intensity={100} className="absolute inset-0" />
+    //   <BlurView intensity={50} className="absolute inset-0" blurTarget={blurTargetRef} blurMethod="dimezisBlurViewSdk31Plus" />
     // )
 
     return (
@@ -135,7 +144,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: Ap
         maskElement={
           <LinearGradient
             colors={["black", "transparent"]}
-            locations={[Platform.OS === "android" ? 0.8 : 0.4, 1]}
+            locations={[0.4, 1]}
             start={{x: 0, y: 1}}
             end={{x: 0, y: 0}}
             style={{
@@ -147,11 +156,21 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: Ap
             }}
             pointerEvents="none"
           />
-          // <View className="flex-1 h-full bg-[#324376]" />
         }>
-        {Platform.OS === "android" && <View className="flex-1 h-full bg-background" />}
-        {Platform.OS === "ios" && <BlurView intensity={70} className="absolute inset-0" blurMethod="dimezisBlurView" />}
-        {/* <BlurView intensity={30} className="absolute inset-0" blurMethod="dimezisBlurView" /> */}
+        {Platform.OS === "android" && androidBlur && (
+          <BlurView
+            intensity={20}
+            className="absolute inset-0"
+            blurTarget={blurTargetRef}
+            blurMethod="dimezisBlurViewSdk31Plus"
+          />
+        )}
+
+        {Platform.OS === "android" && !androidBlur && <View className="flex-1 h-full bg-background" />}
+
+        {Platform.OS === "ios" && (
+          <BlurView intensity={70} className="absolute inset-0" blurMethod="dimezisBlurViewSdk31Plus" />
+        )}
         {/* <View className="flex-1 h-full bg-[#324376]" />
         <View className="flex-1 h-full bg-[#F5DD90]" />
         <View className="flex-1 h-full bg-[#F76C5E]" />
@@ -160,7 +179,18 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: Ap
     )
   }
 
-  let paddingTop = Platform.OS === "android" ? theme.spacing.s10 : theme.spacing.s16
+  const handleNoAppsPress = () => {
+    showAlert({
+      title: translate("appSwitcher:noAppsOpen"),
+      message: translate("appSwitcher:yourRecentlyUsedAppsWillAppearHere"),
+      buttons: [{text: translate("common:ok")}],
+    })
+  }
+
+  let paddingTop: number = Platform.OS === "android" ? theme.spacing.s14 : theme.spacing.s16
+  if (Platform.OS === "android" && !androidBlur) {
+    paddingTop = theme.spacing.s10
+  }
 
   const renderGridButton = () => {
     return (
@@ -169,6 +199,27 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress}: Ap
           <Icon name="grid-3x3" color={theme.colors.foreground} size={32} />
         </TouchableOpacity>
       </GlassView>
+    )
+  }
+
+  if (Platform.OS === "android" && appsCount === 0) {
+    return (
+      <View
+        className="w-screen flex-row justify-between items-center gap-4 bottom-0 -ml-6 px-6 absolute"
+        style={{paddingTop: paddingTop}}>
+        {renderBackground()}
+        <TouchableOpacity onPress={handleNoAppsPress} className="flex-1">
+          <View className="flex-1" style={{paddingBottom: bottomPadding}}>
+            <GlassView
+              className={`bg-primary-foreground flex-1 py-1.5 pl-3 min-h-15 rounded-2xl flex-row justify-between items-center`}>
+              <View className="flex-row items-center justify-center flex-1">
+                <Text className="text-muted-foreground text-md" tx="home:appletPlaceholder2" />
+              </View>
+            </GlassView>
+          </View>
+        </TouchableOpacity>
+        {renderGridButton()}
+      </View>
     )
   }
 

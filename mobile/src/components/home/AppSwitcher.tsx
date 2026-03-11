@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from "react"
+import React, {RefObject, useCallback, useEffect, useRef, useState} from "react"
 import {View, Dimensions, Pressable, Image, Platform} from "react-native"
 import {Text} from "@/components/ignite/"
 import Animated, {
@@ -18,7 +18,7 @@ import {runOnJS, scheduleOnRN} from "react-native-worklets"
 import {
   ClientAppletInterface,
   getLastOpenTime,
-  setLastOpenTime,
+  saveLastOpenTime,
   useActiveApps,
   useAppletStatusStore,
 } from "@/stores/applets"
@@ -221,6 +221,7 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
 
 interface AppSwitcherProps {
   swipeProgress: SharedValue<number>
+  blurTargetRef: RefObject<View | null>
 }
 
 // for testing:
@@ -246,7 +247,7 @@ interface AppSwitcherProps {
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView)
 
-export default function AppSwitcher({swipeProgress}: AppSwitcherProps) {
+export default function AppSwitcher({swipeProgress, blurTargetRef}: AppSwitcherProps) {
   const translateX = useSharedValue(0)
   const offsetX = useSharedValue(0)
   const targetIndex = useSharedValue(0)
@@ -593,10 +594,10 @@ export default function AppSwitcher({swipeProgress}: AppSwitcherProps) {
 
     // Handle offline apps - navigate directly to React Native route
     if (applet.offline && applet.offlineRoute) {
-      setLastOpenTime(applet.packageName)
+      saveLastOpenTime(applet.packageName)
       push(applet.offlineRoute, {transition: "fade"})
     } else if (applet.webviewUrl && applet.healthy) {
-      setLastOpenTime(applet.packageName)
+      saveLastOpenTime(applet.packageName)
       push("/applet/webview", {
         webviewURL: applet.webviewUrl,
         appName: applet.name,
@@ -604,14 +605,14 @@ export default function AppSwitcher({swipeProgress}: AppSwitcherProps) {
         transition: "fade",
       })
     } else if (applet.local) {
-      setLastOpenTime(applet.packageName)
+      saveLastOpenTime(applet.packageName)
       push("/applet/local", {
         packageName: applet.packageName,
         appName: applet.name,
         transition: "fade",
       })
     } else {
-      setLastOpenTime(applet.packageName)
+      saveLastOpenTime(applet.packageName)
       push("/applet/settings", {
         packageName: applet.packageName,
         appName: applet.name,
@@ -664,9 +665,10 @@ export default function AppSwitcher({swipeProgress}: AppSwitcherProps) {
   )
 
   const renderBackground = () => {
-    if (Platform.OS === "android" && !androidBlur) {
+    // doesn't work yet on android for some reason :(
+    if (Platform.OS === "android" /*&& !androidBlur*/) {
       return (
-        <Animated.View className="absolute inset-0 bg-black/30" style={backdropStyle}>
+        <Animated.View className="absolute inset-0 bg-black/75" style={backdropStyle}>
           <Pressable className="flex-1" onPress={handleClose} />
         </Animated.View>
       )
@@ -678,7 +680,10 @@ export default function AppSwitcher({swipeProgress}: AppSwitcherProps) {
         pointerEvents={blurPointerEvents}
         className="absolute inset-0"
         style={blurStyle}
-        blurMethod="dimezisBlurView">
+        blurMethod="dimezisBlurViewSdk31Plus"
+        blurReductionFactor={7}
+        // blurTarget={blurTargetRef}// doesn't work yet on android for some reason :(
+      >
         <Pressable className="flex-1" onPress={handleClose} />
       </AnimatedBlurView>
     )

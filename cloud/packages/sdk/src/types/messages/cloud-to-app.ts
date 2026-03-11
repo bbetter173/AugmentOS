@@ -335,6 +335,32 @@ export interface AudioPlayResponse extends BaseMessage {
 }
 
 /**
+ * Audio stream ready response from cloud.
+ * Sent after the cloud creates an HTTP streaming relay in response to
+ * AUDIO_STREAM_START. Contains the relay URL that the phone should play.
+ */
+export interface AudioStreamReady extends BaseMessage {
+  type: CloudToAppMessageType.AUDIO_STREAM_READY;
+  streamId: string;
+  /** HTTP URL the phone can play to receive the chunked MP3 stream */
+  streamUrl: string;
+}
+
+/**
+ * Request from cloud to App server to send back recent telemetry logs.
+ * Sent by the incident pipeline when a user files a bug report.
+ */
+export interface RequestTelemetry extends BaseMessage {
+  type: CloudToAppMessageType.REQUEST_TELEMETRY;
+  /** Incident ID to correlate the telemetry upload */
+  incidentId: string;
+  /** JWT upload token — passed back in the TelemetryResponse so cloud can verify */
+  uploadToken: string;
+  /** How many milliseconds of recent logs to include (e.g. 300_000 = last 5 min) */
+  windowMs: number;
+}
+
+/**
  * Union type for all messages from cloud to Apps
  */
 export type CloudToAppMessage =
@@ -369,6 +395,7 @@ export type CloudToAppMessage =
   | RgbLedControlResponse
   | PermissionError
   | AudioPlayResponse
+  | AudioStreamReady
   | RequestTelemetry;
 
 //===========================================================
@@ -437,6 +464,10 @@ export function isStreamStatusCheckResponse(message: CloudToAppMessage): message
 
 export function isAudioPlayResponse(message: CloudToAppMessage): message is AudioPlayResponse {
   return message.type === CloudToAppMessageType.AUDIO_PLAY_RESPONSE;
+}
+
+export function isRequestTelemetry(message: CloudToAppMessage): message is RequestTelemetry {
+  return message.type === CloudToAppMessageType.REQUEST_TELEMETRY;
 }
 
 // New type guards for App-to-App communication
@@ -536,21 +567,4 @@ export interface Permission {
 export interface PackagePermissions {
   packageName: string;
   permissions: Permission[];
-}
-
-//===========================================================
-// Telemetry messages (for incident debugging)
-//===========================================================
-
-/**
- * Request telemetry logs from an App server for incident debugging.
- * The cloud sends this to App servers when processing bug reports.
- */
-export interface RequestTelemetry extends BaseMessage {
-  type: CloudToAppMessageType.REQUEST_TELEMETRY;
-  incidentId: string;
-  /** Signed JWT token that must be included when uploading logs */
-  uploadToken: string;
-  /** Time window in milliseconds to retrieve logs (e.g., 10 minutes = 600000) */
-  windowMs: number;
 }

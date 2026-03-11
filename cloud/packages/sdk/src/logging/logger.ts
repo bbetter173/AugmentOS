@@ -259,7 +259,7 @@ export function createLogger(config?: LoggerConfig): Logger {
 // consumers receive the logger via DI, this can be removed.
 
 export const logger = createLogger({
-  logLevel: process.env.NODE_ENV === "production" ? "info" : ("debug" as MentraLogLevel),
+  logLevel: (process.env.NODE_ENV === "production" ? "info" : "debug") as MentraLogLevel,
   verbose: true,
 });
 

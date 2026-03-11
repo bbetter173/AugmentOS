@@ -9,7 +9,7 @@ build:
 services:
   - name: cloud
     type: web
-    run: cd packages/cloud && PORT=80 bun run start
+    run: ./start.sh
     port: 80
     cpuCores: 5
     ramMegabytes: 4096

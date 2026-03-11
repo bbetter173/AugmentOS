@@ -48,7 +48,8 @@ const en = {
     bluetooth: "Bluetooth",
     preferredMic: "Preferred microphone",
     microphonePermissionRequired: "Microphone permission required",
-    microphonePermissionRequiredMessage: "Microphone permission is required to use the phone microphone feature. Please grant the microphone permission in settings.",
+    microphonePermissionRequiredMessage:
+      "Microphone permission is required to use the phone microphone feature. Please grant the microphone permission in settings.",
   },
   positionSettings: {
     title: "Display position",
@@ -504,6 +505,7 @@ const en = {
     homeBackground: "Home Background",
     noBackground: "None",
     chooseFromLibrary: "Choose from Library",
+    androidBlur: "Android blur",
   },
   devSettings: {
     debugConsole: "Debug Console",
@@ -772,9 +774,9 @@ const en = {
     account: "Account",
   },
   appSwitcher: {
-    swipeUpToClose: "Swipe up to close apps",
-    noAppsOpen: "No Apps Open",
-    yourRecentlyUsedAppsWillAppearHere: "Your recently used apps will appear here",
+    swipeUpToClose: "Swipe up to close miniapps",
+    noAppsOpen: "No miniapps open",
+    yourRecentlyUsedAppsWillAppearHere: "Your recently used miniapps will appear here",
   },
   feedback: {
     thankYou: "Thank You!",
@@ -868,23 +870,26 @@ const en = {
   appInfo: {
     share: "Share",
     addToHome: "Add to home",
+    removeFromHome: "Remove from home",
     open: "Open",
     uninstall: "Uninstall",
     remove: "Remove",
     settings: "Settings",
+    feedback: "Feedback",
+    shareMessage: "Share {{appName}}",
   },
   lmaInstaller: {
     installedVersions: "Installed versions",
-    miniAppInstaller: "Mini App Installer",
-    installMiniApp: "Install Mini App",
-    uninstallMiniApp: "Uninstall Mini App",
+    miniAppInstaller: "Miniapp installer",
+    installMiniApp: "Install miniapp",
+    uninstallMiniApp: "Uninstall miniapp",
     uninstallMiniAppConfirm: "Are you sure you want to uninstall {{appName}}?",
-    uninstallMiniAppError: "Error uninstalling mini app: {{error}}",
+    uninstallMiniAppError: "Error uninstalling miniapp: {{error}}",
     uninstallMiniAppSuccess: "{{appName}} has been uninstalled successfully",
   },
   lmaLoader: {
-    miniAppLoader: "Mini App Loader",
-    loadMiniApp: "Load Mini App",
+    miniAppLoader: "Miniapp Loader",
+    loadMiniApp: "Load miniapp",
   },
   dev: {
     developerMode: "Developer mode",

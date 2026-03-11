@@ -18,3 +18,4 @@ old/
 .logs
 # Local override file
 docker-compose.override.yml
+docker-compose.override.ignore.yml

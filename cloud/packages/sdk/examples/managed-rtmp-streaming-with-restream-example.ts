@@ -8,7 +8,7 @@
  * to the specified destinations.
  */
 
-import { AppServer, TpaSession, ManagedStreamStatus } from "../";
+import { AppServer, TpaSession, ManagedStreamStatus, CloudToAppMessageType } from "../";
 
 class MultiPlatformStreamingApp extends AppServer {
   constructor() {

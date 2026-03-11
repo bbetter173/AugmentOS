@@ -1,5 +1,5 @@
 // components/ui/OptionList.tsx
-import {TouchableOpacity, ViewStyle} from "react-native"
+import {Platform, TouchableOpacity, ViewStyle} from "react-native"
 import {View} from "react-native"
 
 import {Icon, Text} from "@/components/ignite"
@@ -36,6 +36,9 @@ const OptionItem = <T extends string>({
 }) => {
   const {theme} = useAppTheme()
 
+  // because android treats transparency as black for some reason:
+  let bgColor = Platform.OS === "android" ? theme.colors.primary_foreground : theme.colors.palette.transparent
+
   return (
     <TouchableOpacity onPress={() => onSelect(option.key)}>
       <GlassView className="flex-row justify-between items-center py-5 px-6 bg-primary-foreground" style={style}>
@@ -49,7 +52,8 @@ const OptionItem = <T extends string>({
         <Icon
           name="check"
           size={24}
-          color={selected === option.key ? theme.colors.primary : theme.colors.palette.transparent}
+          // color={selected === option.key ? theme.colors.primary : theme.colors.palette.transparent}
+          color={selected === option.key ? theme.colors.primary : bgColor}
         />
       </GlassView>
     </TouchableOpacity>

@@ -21,7 +21,6 @@ import {SETTINGS, useSetting} from "@/stores/settings"
 import {useGlassesStore} from "@/stores/glasses"
 import {useCoreStore} from "@/stores/core"
 import WebsocketStatus from "@/components/error/WebsocketStatus"
-import CoreStatusBar from "@/components/dev/CoreStatusBar"
 import AppSwitcherButton from "@/components/home/AppSwitcherButtton"
 import AppSwitcher from "@/components/home/AppSwitcher"
 import {DeviceStatus} from "@/components/home/DeviceStatus"
@@ -101,39 +100,55 @@ export default function Homepage() {
     if (Platform.OS === "android" && !androidBlur) {
       return null
     }
+
+    let height = insets.top * 1.5
+    let start = 0.6
     if (Platform.OS === "android") {
-      return (
-        <MaskedView
-          style={{position: "absolute", left: 0, right: 0, top: 0, height: insets.top * 2, zIndex: 10, pointerEvents: "none"}}
-          maskElement={
-            <LinearGradient
-              colors={["black", "transparent"]}
-              locations={[0.4, 1]}
-              start={{x: 0, y: 0}}
-              end={{x: 0, y: 1}}
-              style={{position: "absolute", left: 0, right: 0, top: 0, bottom: 0}}
-              pointerEvents="none"
-            />
-          }>
-          <BlurView
-            intensity={20}
-            className="absolute inset-0"
-            blurTarget={blurTargetRef}
-            blurMethod="dimezisBlurViewSdk31Plus"
-          />
-        </MaskedView>
-      )
+      height = insets.top * 2
+      start = 0.4
     }
+
     return (
-      <BlurView
-        className="absolute inset-0 z-10 w-full"
-        style={{height: insets.top}}
-        intensity={20}
-        blurReductionFactor={7}
-        blurTarget={blurTargetRef}
-        blurMethod="dimezisBlurViewSdk31Plus"
-      />
+      <MaskedView
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          height: height,
+          zIndex: 10,
+          pointerEvents: "none",
+        }}
+        maskElement={
+          <LinearGradient
+            colors={["black", "transparent"]}
+            locations={[start, 1]}
+            start={{x: 0, y: 0}}
+            end={{x: 0, y: 1}}
+            style={{position: "absolute", left: 0, right: 0, top: 0, bottom: 0}}
+            pointerEvents="none"
+          />
+        }>
+        <BlurView
+          intensity={30}
+          blurReductionFactor={7}
+          className="absolute inset-0"
+          blurTarget={blurTargetRef}
+          blurMethod="dimezisBlurViewSdk31Plus"
+        />
+      </MaskedView>
     )
+    // solid bar:
+    // return (
+    //   <BlurView
+    //     className="absolute inset-0 z-10 w-full"
+    //     style={{height: insets.top}}
+    //     intensity={20}
+    //     blurReductionFactor={7}
+    //     blurTarget={blurTargetRef}
+    //     blurMethod="dimezisBlurViewSdk31Plus"
+    //   />
+    // )
   }
 
   return (
@@ -171,8 +186,7 @@ export default function Homepage() {
             contentContainerClassName={`${appSwitcherUi ? "px-6" : ""}`}
             contentContainerStyle={{flexGrow: 1}}
             scrollEventThrottle={16}>
-            {appSwitcherUi && Platform.OS === "android" && androidBlur && <View style={{paddingTop: insets.top}} />}
-            {appSwitcherUi && Platform.OS === "android" && !androidBlur && <View style={{paddingTop: insets.top}} />}
+            {appSwitcherUi && Platform.OS === "android" && <View style={{paddingTop: insets.top}} />}
             <View className="h-4" />
             {renderContent()}
             <View className="h-4" />

@@ -30,7 +30,7 @@ public class AsgSettings {
     /** Supported FOV values for K900 camera (matches K900Server_mentra) */
     private static final int[] SUPPORTED_FOV = {82, 92, 102};
     private static final int DEFAULT_CAMERA_FOV = 102;
-    private static final int DEFAULT_CAMERA_ROI_POSITION = 1; // ROI_POSITION_BOTTIM
+    private static final int DEFAULT_CAMERA_ROI_POSITION = 0; // ROI_POSITION_BOTTIM
 
     private final SharedPreferences prefs;
     private final Context context;

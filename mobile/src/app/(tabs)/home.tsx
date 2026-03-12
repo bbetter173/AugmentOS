@@ -68,7 +68,6 @@ export default function Homepage() {
     if (!defaultWearable) {
       return (
         <>
-          {debugCoreStatusBarEnabled && <CoreStatusBar />}
           <Group>
             <PairGlassesCard />
           </Group>
@@ -80,7 +79,6 @@ export default function Homepage() {
 
     return (
       <>
-        {debugCoreStatusBarEnabled && <CoreStatusBar />}
         <Group>
           {!appSwitcherUi && <CompactDeviceStatus />}
           {appSwitcherUi && <DeviceStatus />}

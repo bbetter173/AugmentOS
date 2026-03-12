@@ -1,7 +1,9 @@
+import {Platform} from "react-native"
 import {getTimeZone} from "react-native-localize"
 import {AsyncResult, result as Res, Result} from "typesafe-ts"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
+import * as Device from "expo-device"
 
 import restComms from "@/services/RestComms"
 import {storage} from "@/utils/storage"
@@ -40,7 +42,11 @@ export const SETTINGS: Record<string, Setting> = {
   },
   android_blur: {
     key: "android_blur",
-    defaultValue: () => true,
+    defaultValue: () => {
+      if (Platform.OS !== "android") return true
+      const ram = Device.totalMemory
+      return ram ? ram >= 4 * 1024 * 1024 * 1024 : true
+    },
     writable: true,
     saveOnServer: true,
     persist: true,

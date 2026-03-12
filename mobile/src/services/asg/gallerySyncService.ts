@@ -1376,6 +1376,7 @@ class GallerySyncService {
                   glassesModel: defaultWearable,
                   shouldProcess: !!shouldProcessImages,
                   shouldAutoSave: !!shouldAutoSave,
+                  thumbnailPath: downloadedFile.thumbnailPath,
                   deleteFromGlasses: [downloadedFile.name],
                 })
               }

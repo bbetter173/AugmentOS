@@ -2,6 +2,8 @@ import {useFocusEffect} from "@react-navigation/native"
 import {useCallback, useEffect, useRef} from "react"
 import {Platform, ScrollView, View} from "react-native"
 import {useSharedValue} from "react-native-reanimated"
+import {LinearGradient} from "expo-linear-gradient"
+import MaskedView from "@react-native-masked-view/masked-view"
 
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {CustomBackground} from "@/components/home/CustomBackground"
@@ -97,7 +99,30 @@ export default function Homepage() {
 
   const renderTopPadding = () => {
     if (Platform.OS === "android" && !androidBlur) {
-      return <View style={{paddingTop: insets.top}} />
+      return null
+    }
+    if (Platform.OS === "android") {
+      return (
+        <MaskedView
+          style={{position: "absolute", left: 0, right: 0, top: 0, height: insets.top * 2, zIndex: 10, pointerEvents: "none"}}
+          maskElement={
+            <LinearGradient
+              colors={["black", "transparent"]}
+              locations={[0.4, 1]}
+              start={{x: 0, y: 0}}
+              end={{x: 0, y: 1}}
+              style={{position: "absolute", left: 0, right: 0, top: 0, bottom: 0}}
+              pointerEvents="none"
+            />
+          }>
+          <BlurView
+            intensity={20}
+            className="absolute inset-0"
+            blurTarget={blurTargetRef}
+            blurMethod="dimezisBlurViewSdk31Plus"
+          />
+        </MaskedView>
+      )
     }
     return (
       <BlurView
@@ -113,7 +138,7 @@ export default function Homepage() {
 
   return (
     <>
-      <Screen preset="fixed" className={`${appSwitcherUi ? "px-0" : ""}`} KeyboardAvoidingViewProps={{enabled: true}}>
+      <Screen preset="fixed" className={`${appSwitcherUi ? "px-0" : ""}`} KeyboardAvoidingViewProps={{enabled: false}}>
         {appSwitcherUi && renderTopPadding()}
         <BlurTargetView ref={blurTargetRef} style={{flex: 1}}>
           {appSwitcherUi && <CustomBackground />}
@@ -147,6 +172,7 @@ export default function Homepage() {
             contentContainerStyle={{flexGrow: 1}}
             scrollEventThrottle={16}>
             {appSwitcherUi && Platform.OS === "android" && androidBlur && <View style={{paddingTop: insets.top}} />}
+            {appSwitcherUi && Platform.OS === "android" && !androidBlur && <View style={{paddingTop: insets.top}} />}
             <View className="h-4" />
             {renderContent()}
             <View className="h-4" />

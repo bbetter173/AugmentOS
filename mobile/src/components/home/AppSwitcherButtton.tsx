@@ -168,7 +168,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
           />
         )}
 
-        {Platform.OS === "android" && !androidBlur && <View className="flex-1 h-full bg-background" />}
+        {Platform.OS === "android" && !androidBlur && <View className="flex-1 h-full" />}
 
         {Platform.OS === "ios" && (
           <BlurView intensity={70} className="absolute inset-0" blurMethod="dimezisBlurViewSdk31Plus" />

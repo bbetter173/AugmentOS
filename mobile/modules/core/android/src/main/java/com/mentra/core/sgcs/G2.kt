@@ -94,6 +94,10 @@ class G2 : SGCManager() {
         Bridge.log("G2: sendButtonCameraLedSetting")
     }
 
+    override fun sendCameraFovSetting() {
+        Bridge.log("G2: sendCameraFovSetting")
+    }
+
     // Display Control
     override fun setBrightness(level: Int, autoMode: Boolean) {
         Bridge.log("G2: setBrightness level=$level auto=$autoMode")

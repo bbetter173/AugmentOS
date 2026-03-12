@@ -5788,6 +5788,9 @@ public class MentraLive extends SGCManager {
         // Send button camera LED setting
         sendButtonCameraLedSetting();
 
+        // Send camera FOV setting (K900 / Mentra Live)
+        sendCameraFovSetting();
+
         // Send gallery mode state (camera app running status)
         sendGalleryMode();
     }
@@ -5836,6 +5839,47 @@ public class MentraLive extends SGCManager {
             sendJson(json, true);
         } catch (JSONException e) {
             Log.e(TAG, "Error creating button camera LED setting message", e);
+        }
+    }
+
+    /**
+     * Send camera FOV setting to glasses (K900 / Mentra Live). Reads fov and roi_position from store.
+     */
+    @Override
+    public void sendCameraFovSetting() {
+        int fov = 102;
+        int roiPosition = 1;
+        try {
+            Object raw = GlassesStore.INSTANCE.get("core", "camera_fov");
+            if (raw instanceof java.util.Map) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> map = (java.util.Map<String, Object>) raw;
+                Object f = map.get("fov");
+                Object r = map.get("roi_position");
+                if (f instanceof Number) fov = ((Number) f).intValue();
+                if (r instanceof Number) roiPosition = ((Number) r).intValue();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not read camera_fov from store, using defaults", e);
+        }
+
+        Bridge.log("LIVE: Sending camera FOV setting: fov=" + fov + ", roi_position=" + roiPosition);
+
+        if (!isConnected) {
+            Log.w(TAG, "Cannot send camera FOV setting - not connected");
+            return;
+        }
+
+        try {
+            JSONObject json = new JSONObject();
+            json.put("type", "camera_fov_setting");
+            JSONObject params = new JSONObject();
+            params.put("fov", fov);
+            params.put("roi_position", roiPosition);
+            json.put("params", params);
+            sendJson(json, true);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating camera FOV setting message", e);
         }
     }
 

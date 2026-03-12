@@ -453,6 +453,21 @@ public class SysControl {
         sendBroadcast(context, nn);
         Log.d(TAG, "✅ EIS property broadcast sent");
     }
+
+    /**
+     * Restart the camera HAL so it picks up a new FOV/ROI value written via DevApi.setCameraFov.
+     * Sends the same K900 SystemUI broadcast as K900Server_mentra (ctl.restart / camerahalserver).
+     * @param context Application context
+     */
+    public static void restartCameraHal(Context context) {
+        Log.d(TAG, "Restarting camera HAL (ctl.restart / camerahalserver)");
+        Intent nn = new Intent();
+        nn.putExtra("cmd", "setProperty");
+        nn.putExtra("name", "ctl.restart");
+        nn.putExtra("value", "camerahalserver");
+        sendBroadcast(context, nn);
+        Log.d(TAG, "Camera HAL restart broadcast sent");
+    }
     
     /**
      * Get system OTA version (MTK firmware version)

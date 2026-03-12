@@ -783,9 +783,8 @@ actor G2ReconnectionManager {
 
 @MainActor
 class G2: NSObject, SGCManager {
-    func sendIncidentId(_ incidentId: String) {}
-    
-    
+    func sendIncidentId(_: String) {}
+
     var type = DeviceTypes.G2
     let hasMic = true
 
@@ -1574,8 +1573,8 @@ class G2: NSObject, SGCManager {
 
     // MARK: - SGCManager: Camera & Media (not supported on G2)
 
-    func requestPhoto(_ requestId: String, appId: String, size: String?, webhookUrl: String?, authToken: String?, compress: String?, flash: Bool, sound: Bool) {}
-    func startVideoRecording(requestId: String, save: Bool, flash: Bool, sound: Bool) {}
+    func requestPhoto(_: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?, compress _: String?, flash _: Bool, sound _: Bool) {}
+    func startVideoRecording(requestId _: String, save _: Bool, flash _: Bool, sound _: Bool) {}
     func startRtmpStream(_: [String: Any]) {}
     func stopRtmpStream() {}
     func sendRtmpKeepAlive(_: [String: Any]) {}
@@ -1588,6 +1587,8 @@ class G2: NSObject, SGCManager {
     func sendButtonVideoRecordingSettings() {}
     func sendButtonMaxRecordingTime() {}
     func sendButtonCameraLedSetting() {}
+
+    func sendCameraFovSetting() {}
 
     // MARK: - SGCManager: Network (G2 has no WiFi)
 

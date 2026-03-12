@@ -271,8 +271,8 @@ actor ReconnectionManager {
 
 @MainActor
 class G1: NSObject, SGCManager {
-    func sendIncidentId(_ incidentId: String) {}
-    
+    func sendIncidentId(_: String) {}
+
     func sendGalleryMode() {}
 
     func sendButtonMaxRecordingTime(_: Int) {}
@@ -307,6 +307,8 @@ class G1: NSObject, SGCManager {
     func sendButtonMaxRecordingTime() {}
 
     func sendButtonCameraLedSetting() {}
+
+    func sendCameraFovSetting() {}
 
     func showDashboard() {}
 

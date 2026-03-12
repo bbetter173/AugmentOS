@@ -3908,6 +3908,9 @@ extension MentraLive {
         // Send button camera LED setting
         sendButtonCameraLedSetting()
 
+        // Send camera FOV setting (K900 / Mentra Live)
+        sendCameraFovSetting()
+
         // Send gallery mode state (camera app running status)
         sendGalleryMode()
     }
@@ -3993,6 +3996,28 @@ extension MentraLive {
         let json: [String: Any] = [
             "type": "button_camera_led",
             "enabled": enabled,
+        ]
+        sendJson(json, wakeUp: true)
+    }
+
+    func sendCameraFovSetting() {
+        let settings = GlassesStore.shared.get("core", "camera_fov") as? [String: Any] ?? ["fov": 102, "roi_position": 1]
+        let fov = settings["fov"] as? Int ?? 102
+        let roiPosition = settings["roi_position"] as? Int ?? 1
+
+        Bridge.log("Sending camera FOV setting: fov=\(fov), roi_position=\(roiPosition)")
+
+        guard connectionState == ConnTypes.CONNECTED else {
+            Bridge.log("Cannot send camera FOV setting - not connected")
+            return
+        }
+
+        let json: [String: Any] = [
+            "type": "camera_fov_setting",
+            "params": [
+                "fov": fov,
+                "roi_position": roiPosition,
+            ],
         ]
         sendJson(json, wakeUp: true)
     }

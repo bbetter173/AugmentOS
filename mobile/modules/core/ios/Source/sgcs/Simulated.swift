@@ -7,7 +7,6 @@
 
 @MainActor
 class Simulated: SGCManager {
-    
     init() {
         GlassesStore.shared.apply("glasses", "fullyBooted", true)
         GlassesStore.shared.apply("glasses", "connected", true)
@@ -128,6 +127,10 @@ class Simulated: SGCManager {
 
     func sendButtonCameraLedSetting() {
         Bridge.log("sendButtonCameraLedSetting")
+    }
+
+    func sendCameraFovSetting() {
+        Bridge.log("sendCameraFovSetting")
     }
 
     func sendButtonMaxRecordingTime() {}
@@ -265,8 +268,6 @@ class Simulated: SGCManager {
     func requestVersionInfo() {
         Bridge.log("requestVersionInfo - not supported on Simulated")
     }
-    
-    func sendIncidentId(_ incidentId: String) {
-        
-    }
+
+    func sendIncidentId(_: String) {}
 }

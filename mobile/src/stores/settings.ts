@@ -384,6 +384,13 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  camera_fov: {
+    key: "camera_fov",
+    defaultValue: () => ({fov: 102, roi_position: 1}),
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   media_post_processing: {
     key: "media_post_processing",
     defaultValue: () => false,
@@ -508,6 +515,7 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.button_video_settings.key,
   SETTINGS.button_camera_led.key,
   SETTINGS.button_max_recording_time.key,
+  SETTINGS.camera_fov.key,
   // device / pairing:
   SETTINGS.pending_wearable.key,
   SETTINGS.pending_device_name.key,

@@ -14,6 +14,8 @@ import CoreModule from "core"
 type PhotoSize = "small" | "medium" | "large"
 type VideoResolution = "720p" | "1080p" // | "1440p" | "4K"
 type MaxRecordingTime = "3m" | "5m" | "10m" | "15m" | "20m"
+type CameraFov = 82 | 92 | 102
+type CameraRoiPosition = 0 | 1 | 2 // 0=Center, 1=Bottom, 2=Top
 
 const PHOTO_SIZE_LABELS: Record<PhotoSize, string> = {
   small: "Low (960×720)",
@@ -36,6 +38,18 @@ const MAX_RECORDING_TIME_LABELS: Record<MaxRecordingTime, string> = {
   "20m": "20 minutes",
 }
 
+const CAMERA_FOV_LABELS: Record<CameraFov, string> = {
+  82: "82°",
+  92: "92°",
+  102: "102°",
+}
+
+const CAMERA_ROI_LABELS: Record<CameraRoiPosition, string> = {
+  0: "Center",
+  1: "Bottom",
+  2: "Top",
+}
+
 export default function CameraSettingsScreen() {
   const {theme, themed} = useAppTheme()
   const {goBack} = useNavigationHistory()
@@ -44,9 +58,19 @@ export default function CameraSettingsScreen() {
   const [_ledEnabled, setLedEnabled] = useSetting(SETTINGS.button_camera_led.key)
   const [videoSettings, setVideoSettings] = useSetting(SETTINGS.button_video_settings.key)
   const [maxRecordingTime, setMaxRecordingTime] = useSetting(SETTINGS.button_max_recording_time.key)
+  const [cameraFovSetting, setCameraFovSetting] = useSetting(SETTINGS.camera_fov.key)
   const [postProcessing, setPostProcessing] = useSetting(SETTINGS.media_post_processing.key)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
+
+  const currentFov: CameraFov =
+    cameraFovSetting?.fov === 82 || cameraFovSetting?.fov === 92 || cameraFovSetting?.fov === 102
+      ? (cameraFovSetting.fov as CameraFov)
+      : 102
+  const currentRoi: CameraRoiPosition =
+    typeof cameraFovSetting?.roi_position === "number" && cameraFovSetting.roi_position >= 0 && cameraFovSetting.roi_position <= 2
+      ? (cameraFovSetting.roi_position as CameraRoiPosition)
+      : 1
 
   // Derive video resolution from settings
   const videoResolution: VideoResolution = (() => {
@@ -113,6 +137,18 @@ export default function CameraSettingsScreen() {
       setMaxRecordingTime(minutes)
     } catch (error) {
       console.error("Failed to update max recording time:", error)
+    }
+  }
+
+  const handleCameraFovChange = (fov: CameraFov, roi_position: CameraRoiPosition) => {
+    if (!glassesConnected) {
+      console.log("Cannot change camera FOV - glasses not connected")
+      return
+    }
+    try {
+      setCameraFovSetting({fov, roi_position})
+    } catch (error) {
+      console.error("Failed to update camera FOV:", error)
     }
   }
 
@@ -224,6 +260,61 @@ export default function CameraSettingsScreen() {
                 {maxRecordingTime === parseInt(value.replace("m", "")) && (
                   <Icon name="check" size={24} color={theme.colors.primary} />
                 )}
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+
+        <View style={themed($settingsGroup)}>
+          <Text style={themed($settingLabel)}>Camera field of view</Text>
+          <Text style={themed($settingSubtitle)}>FOV and ROI for the camera (K900 / Mentra Live).</Text>
+
+          <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s2}]}>FOV</Text>
+          {([82, 92, 102] as const).map((fov, index, arr) => {
+            const isFirst = index === 0
+            const isLast = index === arr.length - 1
+            return (
+              <TouchableOpacity
+                key={fov}
+                style={[
+                  themed($optionItem),
+                  {
+                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
+                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
+                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
+                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
+                    borderWidth: currentFov === fov ? 1 : undefined,
+                    borderColor: currentFov === fov ? theme.colors.primary : undefined,
+                  },
+                ]}
+                onPress={() => handleCameraFovChange(fov, currentRoi)}>
+                <Text style={themed($optionText)}>{CAMERA_FOV_LABELS[fov]}</Text>
+                {currentFov === fov && <Icon name="check" size={24} color={theme.colors.primary} />}
+              </TouchableOpacity>
+            )
+          })}
+
+          <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s4}]}>ROI position</Text>
+          {([0, 1, 2] as const).map((roi, index, arr) => {
+            const isFirst = index === 0
+            const isLast = index === arr.length - 1
+            return (
+              <TouchableOpacity
+                key={roi}
+                style={[
+                  themed($optionItem),
+                  {
+                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
+                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
+                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
+                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
+                    borderWidth: currentRoi === roi ? 1 : undefined,
+                    borderColor: currentRoi === roi ? theme.colors.primary : undefined,
+                  },
+                ]}
+                onPress={() => handleCameraFovChange(currentFov, roi)}>
+                <Text style={themed($optionText)}>{CAMERA_ROI_LABELS[roi]}</Text>
+                {currentRoi === roi && <Icon name="check" size={24} color={theme.colors.primary} />}
               </TouchableOpacity>
             )
           })}

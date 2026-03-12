@@ -530,6 +530,7 @@ class SocketComms {
   }
 
   private handle_start_rtmp_stream(msg: any) {
+    // TODO: Use srtUrl instead of rtmpUrl.
     const rtmpUrl = msg.rtmpUrl || ""
     if (rtmpUrl) {
       CoreModule.startRtmpStream(msg)
@@ -674,7 +675,7 @@ class SocketComms {
     audioPlaybackService.stopForApp(appId)
   }
 
-  private handle_ping(msg: any) {
+  private handle_ping(_msg: any) {
     ws.sendText(JSON.stringify({type: "pong"}))
   }
 

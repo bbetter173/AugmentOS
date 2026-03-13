@@ -289,6 +289,7 @@ export interface GlassesStatus {
   micEnabled: boolean
   connectionState: string
   btcConnected: boolean
+  signalStrength: number
   // device info
   deviceModel: string
   androidVersion: string
@@ -326,6 +327,7 @@ export interface GlassesStatus {
   // ring info
   ringConnected: boolean
   ringBatteryLevel: number
+  ringSignalStrength: number
 }
 
 export type MicRanking = "auto" | "phone" | "glasses" | "bluetooth"

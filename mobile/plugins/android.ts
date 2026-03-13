@@ -58,6 +58,12 @@ function withAppBuildGradleModifications(config: any) {
   return withAppBuildGradle(config, (config) => {
     let buildGradle = config.modResults.contents
 
+    // 0. Remove any unconditional sentry.gradle apply added by @sentry/react-native expo plugin
+    // We use our own conditional apply gated on sentryUploadEnabled property
+    // ^apply matches only unindented (top-level) applies; the conditional one inside
+    // the if block is indented and won't match
+    buildGradle = buildGradle.replace(/^apply from:.*sentry\.gradle.*\n*/gm, "")
+
     // 1. Add release credentials and conditional Sentry script (after jscFlavor)
     if (!buildGradle.includes("releaseStorePassword =")) {
       const credentialsAndSentry = `

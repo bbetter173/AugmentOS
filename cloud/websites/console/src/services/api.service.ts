@@ -36,6 +36,14 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, initialDel
 }
 
 // Extended App interface for API responses
+// Locally defined until PreviewImage is published to @mentra/sdk@latest
+interface PreviewImageLocal {
+  url: string;
+  imageId: string;
+  orientation: "landscape" | "portrait";
+  order: number;
+}
+
 export interface AppResponse extends AppI {
   id: string; // Add id property to match App interface
   createdAt: string;
@@ -47,6 +55,7 @@ export interface AppResponse extends AppI {
   reviewedAt?: string;
   sharedWithEmails?: string[];
   onboardingInstructions?: string;
+  previewImages?: PreviewImageLocal[];
 }
 
 // API key response

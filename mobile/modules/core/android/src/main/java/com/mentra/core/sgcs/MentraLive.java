@@ -5848,7 +5848,7 @@ public class MentraLive extends SGCManager {
     @Override
     public void sendCameraFovSetting() {
         int fov = 102;
-        int roiPosition = 1;
+        int roiPosition = 0;
         try {
             Object raw = GlassesStore.INSTANCE.get("core", "camera_fov");
             if (raw instanceof java.util.Map) {

@@ -70,7 +70,7 @@ export default function CameraSettingsScreen() {
   const currentRoi: CameraRoiPosition =
     typeof cameraFovSetting?.roi_position === "number" && cameraFovSetting.roi_position >= 0 && cameraFovSetting.roi_position <= 2
       ? (cameraFovSetting.roi_position as CameraRoiPosition)
-      : 1
+      : 0
 
   // Derive video resolution from settings
   const videoResolution: VideoResolution = (() => {

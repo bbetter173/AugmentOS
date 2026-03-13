@@ -204,7 +204,7 @@ public class SettingsCommandHandler implements ICommandHandler {
                 Log.e(TAG, "Missing params in camera_fov_setting");
                 return false;
             }
-            int fov = params.optInt("fov", 92);
+            int fov = params.optInt("fov", 102);
             int roiPosition = params.optInt("roi_position", 0);
 
             AsgSettings asgSettings = serviceManager.getAsgSettings();

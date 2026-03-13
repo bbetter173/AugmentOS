@@ -6,6 +6,7 @@ import ToggleSetting from "@/components/settings/ToggleSetting"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
+import Toast from "react-native-toast-message"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {spacing, ThemedStyle} from "@/theme"
@@ -147,6 +148,7 @@ export default function CameraSettingsScreen() {
     }
     try {
       setCameraFovSetting({fov, roi_position})
+      Toast.show({type: "info", text1: translate("settings:cameraRestartBanner")})
     } catch (error) {
       console.error("Failed to update camera FOV:", error)
     }

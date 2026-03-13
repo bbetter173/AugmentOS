@@ -452,6 +452,7 @@ const en = {
     dashboardDescription: "Configure the contextual dashboard and HeadUp settings",
     cameraSettings: "Camera Settings",
     cameraSettingsDescription: "Configure photo and video resolution for button capture",
+    cameraRestartBanner: "Camera will take a few seconds to restart.",
     postProcessing: "Post Processing",
     postProcessingSubtitle: "Improves photo and video quality. Sync may take longer.",
     positionSettings: "Display position",

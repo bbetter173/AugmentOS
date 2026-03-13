@@ -418,7 +418,7 @@ const en = {
     // Gallery sync WiFi explanation
     connectToGlassesTitle: "Connect to Glasses",
     wifiJoinExplanationIos: 'When prompted, tap "Join" to connect to "{{ssid}}".',
-    wifiJoinExplanationAndroid: 'When prompted, tap "Join" to connect to "{{ssid}}".',
+    wifiJoinExplanationAndroid: 'When prompted, tap "Connect" to connect to "{{ssid}}".',
   },
   store: {
     title: "Store",
@@ -505,7 +505,7 @@ const en = {
     homeBackground: "Home Background",
     noBackground: "None",
     chooseFromLibrary: "Choose from Library",
-    androidBlur: "Android blur",
+    androidBlur: "Blur effects",
   },
   devSettings: {
     debugConsole: "Debug Console",

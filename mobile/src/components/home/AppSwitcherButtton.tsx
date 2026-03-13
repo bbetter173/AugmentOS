@@ -108,12 +108,14 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
     swipeProgress.value = withSpring(1, {damping: 20, stiffness: 1000, overshootClamping: true})
   })
 
-  let composedGesture
-  if (Platform.OS === "android") {
-    composedGesture = Gesture.Exclusive(tapGesture)
-  } else {
-    composedGesture = Gesture.Exclusive(panGesture, tapGesture)
-  }
+  // let composedGesture
+  // if (Platform.OS === "android") {
+  //   composedGesture = Gesture.Exclusive(tapGesture)
+  // } else {
+  //   composedGesture = Gesture.Exclusive(panGesture, tapGesture)
+  // }
+  
+  let composedGesture = Gesture.Exclusive(panGesture, tapGesture)
 
   // const bottomPadding = insets.bottom + theme.spacing.s4
   const bottomPadding = insets.bottom
@@ -166,7 +168,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
           />
         )}
 
-        {Platform.OS === "android" && !androidBlur && <View className="flex-1 h-full bg-background" />}
+        {Platform.OS === "android" && !androidBlur && <View className="flex-1 h-full" />}
 
         {Platform.OS === "ios" && (
           <BlurView intensity={70} className="absolute inset-0" blurMethod="dimezisBlurViewSdk31Plus" />

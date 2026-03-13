@@ -331,6 +331,11 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     setSelectedApp(null)
   }, [])
 
+  const liveSelectedApp = useMemo(
+    () => apps.find((a) => a.packageName === selectedApp?.packageName) ?? selectedApp,
+    [apps, selectedApp],
+  )
+
   const popoverActions: PopoverAction[] = useMemo(
     () =>
       [
@@ -338,21 +343,21 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
           label: translate("appInfo:open"),
           icon: "external-link",
           onPress: () => {
-            if (selectedApp) {
-              startApplet(selectedApp)
+            if (liveSelectedApp) {
+              startApplet(liveSelectedApp)
               if (onOpenApp) {
-                onOpenApp?.(selectedApp)
+                onOpenApp?.(liveSelectedApp)
               }
             }
           },
         },
-        !SYSTEM_APPS.includes(selectedApp?.packageName || "") && {
+        !SYSTEM_APPS.includes(liveSelectedApp?.packageName || "") && {
           label: translate("appInfo:settings"),
           icon: "cog",
           onPress: () => {
             push("/applet/settings", {
-              packageName: selectedApp?.packageName,
-              appName: selectedApp?.name,
+              packageName: liveSelectedApp?.packageName,
+              appName: liveSelectedApp?.name,
             })
           },
         },
@@ -360,35 +365,35 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
           label: translate("appInfo:remove"),
           icon: "minus",
           onPress: () => {
-            if (selectedApp) {
-              useAppletStatusStore.getState().setHiddenStatus(selectedApp.packageName, true)
+            if (liveSelectedApp) {
+              useAppletStatusStore.getState().setHiddenStatus(liveSelectedApp.packageName, true)
               // useAppletStatusStore.getState().refreshApplets()
             }
           },
         },
         showAllApps &&
-          selectedApp?.hidden && {
+          liveSelectedApp?.hidden && {
             label: translate("appInfo:addToHome"),
             icon: "home",
             onPress: () => {
-              useAppletStatusStore.getState().setHiddenStatus(selectedApp.packageName, false)
+              useAppletStatusStore.getState().setHiddenStatus(liveSelectedApp?.packageName, false)
               if (onAddToHome) {
-                onAddToHome(selectedApp)
+                onAddToHome(liveSelectedApp)
               }
             },
           },
-        !SYSTEM_APPS.includes(selectedApp?.packageName || "") && {
+        !SYSTEM_APPS.includes(liveSelectedApp?.packageName || "") && {
           label: translate("appInfo:uninstall"),
           icon: "trash",
           destructive: true,
           onPress: () => {
-            if (selectedApp) {
-              uninstallAppUI(selectedApp)
+            if (liveSelectedApp) {
+              uninstallAppUI(liveSelectedApp)
             }
           },
         },
       ].filter(Boolean) as PopoverAction[],
-    [selectedApp, startApplet, showAllApps],
+    [liveSelectedApp, startApplet, showAllApps],
   )
 
   const handlePress = async (app: ClientAppletInterface) => {
@@ -506,7 +511,12 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
           <AppIcon app={item} className="w-16 h-16" />
           <View className="w-full h-9 my-1 items-center justify-start">
             <Text
-              className="text-secondary-foreground text-center mt-1 text-[12px] shrink"
+              className="text-foreground text-center mt-1 text-[12px] shrink"
+              style={{
+                textShadowColor: "rgba(0,0,0,0.3)",
+                textShadowOffset: {width: 0, height: 1},
+                textShadowRadius: 2,
+              }}
               numberOfLines={2}
               ellipsizeMode="tail"
               text={item.name}
@@ -548,7 +558,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
             onDragEnd={handleDragEnd}
             onDragChange={handleDragChange}
             overDrag="none"
-            showDropIndicator={true}
+            showDropIndicator={false}
             sortEnabled={!showAllApps}
             swapMode={true}
             dropIndicatorStyle={{backgroundColor: theme.colors.primary_foreground, borderWidth: 0}}

@@ -48,6 +48,7 @@ export default function BackgroundPicker() {
   }
 
   const selectPreset = async (uri: string) => {
+    if (background === uri) return
     await setBackground(uri)
   }
 
@@ -77,8 +78,8 @@ export default function BackgroundPicker() {
         {PRESET_BACKGROUNDS.map((uri) => (
           <TouchableOpacity key={uri} onPress={() => selectPreset(uri)} className="items-center w-[72px]">
             <View
-              className={`w-[72px] h-[72px] rounded-lg overflow-hidden ${isSelected(uri) ? "border-[3px]" : ""}`}
-              style={isSelected(uri) ? {borderColor: theme.colors.tint} : undefined}>
+              className="w-[72px] h-[72px] rounded-lg overflow-hidden border-[3px]"
+              style={{borderColor: isSelected(uri) ? theme.colors.tint : "transparent"}}>
               <Image source={{uri}} style={{width: "100%", height: "100%"}} contentFit="cover" />
             </View>
           </TouchableOpacity>

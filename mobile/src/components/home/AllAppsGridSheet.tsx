@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 import {TextInput, TouchableOpacity, View} from "react-native"
 import {Icon} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
@@ -21,6 +21,15 @@ export default function AllAppsGridSheet({bottomSheetRef}: {bottomSheetRef: Reac
     [],
   )
 
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      // fix for some samsung devices:
+      setTimeout(() => {
+        bottomSheetRef.current?.close()
+      }, 100)
+    })
+  }, [])
+
   return (
     <>
       <BottomSheet
@@ -30,6 +39,7 @@ export default function AllAppsGridSheet({bottomSheetRef}: {bottomSheetRef: Reac
         index={-1}
         ref={bottomSheetRef}
         snapPoints={snapPoints}
+        animateOnMount={false}
         backdropComponent={renderBackdrop}
         backgroundComponent={(props: any) => <GlassView className="rounded-2xl -mx-px" {...props} />}
         enablePanDownToClose

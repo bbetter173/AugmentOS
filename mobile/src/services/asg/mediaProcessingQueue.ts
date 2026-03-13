@@ -40,6 +40,8 @@ export interface ProcessingItem {
   shouldProcess: boolean
   /** Whether to auto-save to camera roll */
   shouldAutoSave: boolean
+  /** Pre-downloaded thumbnail path (v1 legacy sync) */
+  thumbnailPath?: string
   /** File names to delete from glasses after processing completes */
   deleteFromGlasses?: string[]
 }
@@ -174,8 +176,8 @@ class MediaProcessingQueue {
       }
     }
 
-    // 4. Save thumbnail to disk
-    let localThumbnailPath: string | undefined
+    // 4. Save thumbnail to disk (or use pre-downloaded thumbnail from v1 sync)
+    let localThumbnailPath: string | undefined = item.thumbnailPath
     if (item.thumbnailData && item.captureDir) {
       try {
         const RNFS = require("@dr.pogodin/react-native-fs")

@@ -580,7 +580,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     set({apps: applets})
   },
 
-  startApplet: async (applet: ClientAppletInterface) => {
+  startApplet: async (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => {
     const packageName = applet.packageName
 
     if (!applet) {
@@ -653,7 +653,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
 
     // open the app webview if it has one:
     let appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
-    if (appSwitcherUi) {
+    if (appSwitcherUi && !options?.skipNavigation) {
       // only open if the current route is home:
       const currentRoute = getCurrentRoute()
       if (currentRoute === "/home") {

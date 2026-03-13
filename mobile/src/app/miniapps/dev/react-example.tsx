@@ -4,8 +4,8 @@ import {View} from "react-native"
 import {Screen} from "@/components/ignite"
 import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import LocalMiniApp from "@/components/home/LocalMiniApp"
-// import {Asset} from "expo-asset"
-// import {File} from "expo-file-system"
+import {Asset} from "expo-asset"
+import {File} from "expo-file-system"
 
 export default function LocalCaptionsExampleDev() {
   const viewShotRef = useRef<View>(null)
@@ -16,10 +16,10 @@ export default function LocalCaptionsExampleDev() {
       // To use a local HTML file, build the react-app example first:
       //   cd webview/examples/react-app && npm run build
       // Then uncomment the lines below:
-      // const asset = Asset.fromModule(require("../../../../webview/examples/react-app/dist/index.html"))
-      // await asset.downloadAsync()
-      // const res = await new File(asset.localUri!).text()
-      // setHtml(res)
+      const asset = Asset.fromModule(require("../../../../webview/examples/react-app/dist/index.html"))
+      await asset.downloadAsync()
+      const res = await new File(asset.localUri!).text()
+      setHtml(res)
     }
     loadHtml()
   }, [])

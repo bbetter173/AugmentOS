@@ -247,6 +247,11 @@ export class AppSession {
 
   /** Per-session ring buffer of recent log entries for incident telemetry uploads */
   private telemetryBuffer: TelemetryLogEntry[] = [];
+  /** Interval that sends app-level pings to keep the app-ws connection alive.
+   * Bidirectional traffic (ping → cloud, pong ← cloud) prevents load balancer
+   * idle timeouts from killing the WebSocket. See: cloud/issues/046-sdk-app-ws-liveness */
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private static readonly PING_INTERVAL_MS = 15_000;
 
   constructor(private config: AppSessionConfig) {
     // Set defaults and merge with provided config
@@ -666,6 +671,12 @@ export class AppSession {
 
     return new Promise((resolve, reject) => {
       try {
+        // Stop ping interval before replacing the WebSocket.
+        // This prevents a stale interval from a previous connection running
+        // during the reconnect window. startPingInterval() also calls this,
+        // but clearing here means no pings fire on a dead socket at all.
+        this.stopPingInterval();
+
         // Clear previous resources if reconnecting
         if (this.ws) {
           // Don't call full dispose() as that would clear subscriptions
@@ -821,6 +832,11 @@ export class AppSession {
           const isUserSessionEnded = reason && reason.includes("User session ended");
 
           this.logger.debug(`WebSocket closed (code: ${code}${reasonStr})`);
+
+          // Stop ping interval immediately — the socket is closed so pings are pointless.
+          // connect() will restart it on reconnect; disconnect() would also clear it,
+          // but stopping here prevents an orphaned interval if neither is called.
+          this.stopPingInterval();
 
           // If user session ended, mark as terminated to prevent any future reconnection
           if (isUserSessionEnded) {
@@ -985,6 +1001,9 @@ export class AppSession {
     if (this.audio) {
       this.audio.cancelAllRequests();
     }
+
+    // Stop ping interval before disposing resources
+    this.stopPingInterval();
 
     // Use the resource tracker to clean up everything
     this.resources.dispose();
@@ -1311,6 +1330,14 @@ export class AppSession {
           // Emit connected event with settings
           this.events.emit("connected", this.settingsData);
 
+          // Start app-level ping interval to keep the app-ws connection alive.
+          // The SDK sends {type:"ping"} every 15s; the cloud responds {type:"pong"}.
+          // Both directions produce traffic, satisfying infra bidirectional-traffic
+          // requirements that prevent load balancer idle timeouts.
+          // Only new-SDK apps send pings — old 2.x apps are unaffected.
+          // See: cloud/issues/046-sdk-app-ws-liveness
+          this.startPingInterval();
+
           // Log once to confirm Bug 007 fix is active (subscriptions derived from handlers)
           const handlerCount = this.events.getRegisteredStreams().length;
           this.logger.info(
@@ -1626,6 +1653,10 @@ export class AppSession {
           this.handleTelemetryRequest(message as RequestTelemetry).catch((err) => {
             this.logger.warn(err, "handleTelemetryRequest failed");
           });
+        } else if ((message as any).type === "pong") {
+          // Cloud responded to our app-level ping — bidirectional traffic maintained.
+          // No action needed: the response itself satisfies the egress requirement.
+          // See: cloud/issues/046-sdk-app-ws-liveness
         }
         // Handle unrecognized message types gracefully
         else {
@@ -1646,6 +1677,33 @@ export class AppSession {
       this.logger.error(error, "Unexpected error in message handler");
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.events.emit("error", new Error(`Unexpected error in message handler: ${errorMessage}`));
+    }
+  }
+
+  /**
+   * 🏓 Start the app-level ping interval.
+   * Clears any existing interval first so reconnects don't double-up.
+   */
+  private startPingInterval(): void {
+    this.stopPingInterval();
+    this.pingInterval = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== 1) return;
+      try {
+        this.ws.send(JSON.stringify({ type: "ping" }));
+      } catch {
+        // If send fails the WebSocket is already dead; the close handler
+        // will fire and trigger reconnection — nothing to do here.
+      }
+    }, AppSession.PING_INTERVAL_MS);
+  }
+
+  /**
+   * 🏓 Stop the app-level ping interval.
+   */
+  private stopPingInterval(): void {
+    if (this.pingInterval !== null) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
     }
   }
 

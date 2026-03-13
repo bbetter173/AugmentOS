@@ -4,7 +4,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
-import {Share, View} from "react-native"
+import {Dimensions, Platform, Share, View} from "react-native"
 import {Pressable} from "react-native-gesture-handler"
 import {captureRef} from "react-native-view-shot"
 import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo} from "react"
@@ -96,7 +96,8 @@ interface MiniAppMoreActionsSheetProps {
 export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreActionsSheetProps>(
   ({packageName}, ref) => {
     const {theme} = useAppTheme()
-    const snapPoints = useMemo(() => ["50%"], [])
+    const screenHeight = Dimensions.get("window").height
+    const snapPoints = useMemo(() => [screenHeight < 700 ? "70%" : "50%"], [screenHeight])
     const internalRef = useRef<BottomSheetModal>(null)
     const insets = useSaferAreaInsets()
     const [app, setApp] = useState<ClientAppletInterface | null>(null)
@@ -140,12 +141,14 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     }, [packageName])
 
     const handleShare = useCallback(() => {
-      // open system share sheet:
-      Share.share({
-        message: translate("appInfo:shareMessage", {appName: app?.name}),
-        url: `https://apps.mentraglass.com/package/${packageName}`,
-      })
-    }, [packageName])
+      const storeUrl = `https://apps.mentraglass.com/package/${packageName}`
+      // on Android, Share.share ignores `url` and only uses `message`
+      Share.share(
+        Platform.OS === "android"
+          ? {message: `${app?.name ?? packageName}\n${storeUrl}`}
+          : {message: app?.name ?? packageName, url: storeUrl},
+      )
+    }, [packageName, app?.name])
 
     const handleFeedback = useCallback(() => {
       internalRef.current?.dismiss()

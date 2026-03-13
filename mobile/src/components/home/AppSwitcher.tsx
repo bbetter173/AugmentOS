@@ -191,7 +191,11 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
             </Text>
           </Animated.View>
         </View>
-        <View className="flex-1 rounded-3xl overflow-hidden w-full shadow-2xl bg-primary-foreground">
+        <View
+          className="flex-1 rounded-3xl overflow-hidden w-full shadow-2xl bg-primary-foreground"
+          style={{
+            boxShadow: "0px 8px 32px 0px rgba(0, 0, 0, 0.2)",
+          }}>
           {!app.screenshot && (
             <View className="flex-1 items-center justify-center">
               <AppIcon app={app} className="w-12 h-12" />

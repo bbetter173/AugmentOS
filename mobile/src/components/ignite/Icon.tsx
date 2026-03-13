@@ -19,6 +19,8 @@ import {
   Share,
   Cog,
   ExternalLink,
+  PlayIcon,
+  PauseIcon,
 } from "lucide-react-native"
 import {
   Image,
@@ -130,6 +132,8 @@ const lucideIcons = {
   "share": Share,
   "cog": Cog,
   "external-link": ExternalLink,
+  "play": PlayIcon,
+  "pause": PauseIcon,
 }
 
 const tablerIcons = {

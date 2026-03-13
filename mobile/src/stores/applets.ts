@@ -40,7 +40,7 @@ export interface ClientAppletInterface extends AppletInterface {
 interface AppStatusState {
   apps: ClientAppletInterface[]
   refreshApplets: () => Promise<void>
-  startApplet: (applet: ClientAppletInterface) => Promise<void>
+  startApplet: (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => Promise<void>
   stopApplet: (packageName: string) => Promise<void>
   stopAllApplets: () => AsyncResult<void, Error>
   saveScreenshot: (packageName: string, screenshot: string) => Promise<void>

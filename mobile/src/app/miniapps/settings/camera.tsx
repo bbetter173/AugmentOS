@@ -15,7 +15,7 @@ import CoreModule from "core"
 type PhotoSize = "small" | "medium" | "large"
 type VideoResolution = "720p" | "1080p" // | "1440p" | "4K"
 type MaxRecordingTime = "3m" | "5m" | "10m" | "15m" | "20m"
-type CameraFov = 82 | 92 | 102
+type CameraFov = 82 | 92 | 102 | 118
 type CameraRoiPosition = 0 | 1 | 2 // 0=Center, 1=Bottom, 2=Top
 
 const PHOTO_SIZE_LABELS: Record<PhotoSize, string> = {
@@ -43,6 +43,7 @@ const CAMERA_FOV_LABELS: Record<CameraFov, string> = {
   82: "82°",
   92: "92°",
   102: "102°",
+  118: "No ROI",
 }
 
 const CAMERA_ROI_LABELS: Record<CameraRoiPosition, string> = {
@@ -65,11 +66,16 @@ export default function CameraSettingsScreen() {
   const glassesConnected = useGlassesStore((state) => state.connected)
 
   const currentFov: CameraFov =
-    cameraFovSetting?.fov === 82 || cameraFovSetting?.fov === 92 || cameraFovSetting?.fov === 102
+    cameraFovSetting?.fov === 82 ||
+    cameraFovSetting?.fov === 92 ||
+    cameraFovSetting?.fov === 102 ||
+    cameraFovSetting?.fov === 118
       ? (cameraFovSetting.fov as CameraFov)
-      : 102
+      : 118
   const currentRoi: CameraRoiPosition =
-    typeof cameraFovSetting?.roi_position === "number" && cameraFovSetting.roi_position >= 0 && cameraFovSetting.roi_position <= 2
+    typeof cameraFovSetting?.roi_position === "number" &&
+    cameraFovSetting.roi_position >= 0 &&
+    cameraFovSetting.roi_position <= 2
       ? (cameraFovSetting.roi_position as CameraRoiPosition)
       : 0
 
@@ -268,11 +274,11 @@ export default function CameraSettingsScreen() {
         </View>
 
         <View style={themed($settingsGroup)}>
-          <Text style={themed($settingLabel)}>Camera field of view</Text>
-          <Text style={themed($settingSubtitle)}>FOV and ROI for the camera (K900 / Mentra Live).</Text>
+          <Text style={themed($settingLabel)}>{translate("settings:cameraFovRoiTitle")}</Text>
+          <Text style={themed($settingSubtitle)}>{translate("settings:cameraFovRoiExplanation")}</Text>
 
-          <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s2}]}>FOV</Text>
-          {([82, 92, 102] as const).map((fov, index, arr) => {
+          <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s4}]}>FOV</Text>
+          {([82, 92, 102, 118] as const).map((fov, index, arr) => {
             const isFirst = index === 0
             const isLast = index === arr.length - 1
             return (
@@ -289,7 +295,7 @@ export default function CameraSettingsScreen() {
                     borderColor: currentFov === fov ? theme.colors.primary : undefined,
                   },
                 ]}
-                onPress={() => handleCameraFovChange(fov, currentRoi)}>
+                onPress={() => handleCameraFovChange(fov, fov === 118 ? 0 : currentRoi)}>
                 <Text style={themed($optionText)}>{CAMERA_FOV_LABELS[fov]}</Text>
                 {currentFov === fov && <Icon name="check" size={24} color={theme.colors.primary} />}
               </TouchableOpacity>
@@ -300,9 +306,11 @@ export default function CameraSettingsScreen() {
           {([0, 1, 2] as const).map((roi, index, arr) => {
             const isFirst = index === 0
             const isLast = index === arr.length - 1
+            const roiDisabled = currentFov === 118
             return (
               <TouchableOpacity
                 key={roi}
+                disabled={roiDisabled}
                 style={[
                   themed($optionItem),
                   {
@@ -312,6 +320,7 @@ export default function CameraSettingsScreen() {
                     borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
                     borderWidth: currentRoi === roi ? 1 : undefined,
                     borderColor: currentRoi === roi ? theme.colors.primary : undefined,
+                    opacity: roiDisabled ? 0.5 : 1,
                   },
                 ]}
                 onPress={() => handleCameraFovChange(currentFov, roi)}>
@@ -321,16 +330,16 @@ export default function CameraSettingsScreen() {
             )
           })}
         </View>
-        {_devMode &&
-        <View style={themed($settingsGroup)}>
-          <ToggleSetting
-            label={translate("settings:postProcessing")}
-            subtitle={translate("settings:postProcessingSubtitle")}
-            value={postProcessing}
-            onValueChange={(v) => setPostProcessing(v)}
-          />
-        </View>
-        }
+        {_devMode && (
+          <View style={themed($settingsGroup)}>
+            <ToggleSetting
+              label={translate("settings:postProcessing")}
+              subtitle={translate("settings:postProcessingSubtitle")}
+              value={postProcessing}
+              onValueChange={(v) => setPostProcessing(v)}
+            />
+          </View>
+        )}
       </ScrollView>
     </Screen>
   )

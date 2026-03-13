@@ -453,6 +453,9 @@ const en = {
     cameraSettings: "Camera Settings",
     cameraSettingsDescription: "Configure photo and video resolution for button capture",
     cameraRestartBanner: "Camera will take a few seconds to restart.",
+    cameraFovRoiTitle: "Camera field of view",
+    cameraFovRoiExplanation:
+      "FOV sets how wide the camera sees. 82°, 92°, and 102° use ROI crop: the image is cropped to that angle, and ROI position (Center, Bottom, Top) chooses where the crop is taken from in the frame. No ROI uses the full sensor with no crop.",
     postProcessing: "Post Processing",
     postProcessingSubtitle: "Improves photo and video quality. Sync may take longer.",
     positionSettings: "Display position",

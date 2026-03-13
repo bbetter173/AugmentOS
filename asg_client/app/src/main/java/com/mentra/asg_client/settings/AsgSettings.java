@@ -27,9 +27,9 @@ public class AsgSettings {
     private static final String KEY_CAMERA_FOV = "camera_fov";
     private static final String KEY_CAMERA_ROI_POSITION = "camera_roi_position";
 
-    /** Supported FOV values for K900 camera (matches K900Server_mentra) */
-    private static final int[] SUPPORTED_FOV = {82, 92, 102};
-    private static final int DEFAULT_CAMERA_FOV = 102;
+    /** Supported FOV values for K900 camera (82, 92, 102, and 118 = No ROI) */
+    private static final int[] SUPPORTED_FOV = {82, 92, 102, 118};
+    private static final int DEFAULT_CAMERA_FOV = 118; // No ROI
     private static final int DEFAULT_CAMERA_ROI_POSITION = 0; // ROI_POSITION_CENTER
 
     private final SharedPreferences prefs;
@@ -158,8 +158,8 @@ public class AsgSettings {
     }
 
     /**
-     * Get the camera FOV setting (K900). Supported values: 82, 92, 102.
-     * @return FOV in degrees (default 92)
+     * Get the camera FOV setting (K900). Supported values: 82, 92, 102, 118 (No ROI).
+     * @return FOV in degrees (default 118 = No ROI)
      */
     public int getCameraFov() {
         int fov = prefs.getInt(KEY_CAMERA_FOV, DEFAULT_CAMERA_FOV);
@@ -179,8 +179,8 @@ public class AsgSettings {
 
     /**
      * Set the camera FOV and ROI position (K900). Caller should apply to hardware and restart camera HAL.
-     * @param fov FOV value (82, 92, or 102 only; otherwise default 92 is used)
-     * @param roiPosition 0=center, 1=bottom, 2=top (clamped to [0,2])
+     * @param fov FOV value (82, 92, 102, or 118 for No ROI; otherwise default 118 is used)
+     * @param roiPosition 0=center, 1=bottom, 2=top (clamped to [0,2]; ignored by HAL when fov is 118)
      */
     public void setCameraFov(int fov, int roiPosition) {
         boolean fovValid = false;

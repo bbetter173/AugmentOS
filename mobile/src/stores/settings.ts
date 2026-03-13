@@ -386,7 +386,7 @@ export const SETTINGS: Record<string, Setting> = {
   },
   camera_fov: {
     key: "camera_fov",
-    defaultValue: () => ({fov: 102, roi_position: 0}),
+    defaultValue: () => ({fov: 118, roi_position: 0}),
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -739,7 +739,7 @@ export const useSettingsStore = create<SettingsState>()(
       return coreSettings
     },
     resetAllSettingsLocally: () => {
-      set((state) => ({
+      set((_state) => ({
         settings: getDefaultSettings(),
         isInitialized: true,
       }))

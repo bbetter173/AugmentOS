@@ -77,7 +77,7 @@ object GlassesStore {
         store.set("core", "button_photo_size", "medium")
         store.set("core", "button_camera_led", true)
         store.set("core", "button_max_recording_time", 10)
-        store.set("core", "camera_fov", mapOf("fov" to 102, "roi_position" to 0))
+        store.set("core", "camera_fov", mapOf("fov" to 118, "roi_position" to 0))
         store.set("core", "button_video_width", 1280)
         store.set("core", "button_video_height", 720)
         store.set("core", "button_video_fps", 30)

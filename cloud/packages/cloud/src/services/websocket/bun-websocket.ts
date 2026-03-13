@@ -592,6 +592,20 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
 
     const parsed = JSON.parse(message.toString()) as AppToCloudMessage;
 
+    // App-level ping from SDK — respond immediately, don't touch session state.
+    // Only new SDK versions (3.x hono+) send these. Old 2.x apps never send pings
+    // so this branch is never hit for legacy apps — fully backwards compatible.
+    // See: cloud/issues/046-sdk-app-ws-liveness
+    if ((parsed as any).type === "ping") {
+      ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+      return;
+    }
+
+    // App-level pong (future: SDK responding to cloud-initiated ping) — consume silently.
+    if ((parsed as any).type === "pong") {
+      return;
+    }
+
     // Handle CONNECTION_INIT for legacy apps
     if (parsed.type === AppToCloudMessageType.CONNECTION_INIT) {
       const initMessage = parsed as AppConnectionInit;

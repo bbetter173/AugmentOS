@@ -14,21 +14,19 @@ import {Spacer} from "@/components/ui/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {ThemedStyle} from "@/theme"
 import {getGlassesImage} from "@/utils/getGlassesImage"
 import GlassView from "@/components/ui/GlassView"
 
 // import {useLocalSearchParams} from "expo-router"
 
 export default function SelectControllerScreen() {
-  const {theme, themed} = useAppTheme()
+  const {theme} = useAppTheme()
   const {push, goBack} = useNavigationHistory()
-  const [devMode] = useSetting(SETTINGS.dev_mode.key)
 
   // when this screen is focused, forget any glasses that may be paired:
   useFocusEffect(
     useCallback(() => {
-      CoreModule.forget()
+      // CoreModule.forget()
       return () => {}
     }, []),
   )
@@ -50,20 +48,11 @@ export default function SelectControllerScreen() {
     }
   }
 
-  // Glasses models that should only be visible in dev mode
-  const DEV_MODE_ONLY_MODELS = new Set([DeviceTypes.NEX, DeviceTypes.G2])
-
   // Platform-specific glasses options
-  const glassesOptions =
+  const controllerOptions =
     Platform.OS === "ios"
       ? [
           // {deviceModel: DeviceTypes.SIMULATED, key: DeviceTypes.SIMULATED},
-          {deviceModel: DeviceTypes.G1, key: "evenrealities_g1"},
-          {deviceModel: DeviceTypes.G2, key: "evenrealities_g2"},
-          {deviceModel: DeviceTypes.LIVE, key: "mentra_live"},
-          {deviceModel: DeviceTypes.MACH1, key: "mentra_mach1"},
-          {deviceModel: DeviceTypes.Z100, key: "vuzix-z100"},
-          {deviceModel: DeviceTypes.NEX, key: "mentra_nex"},
           //{deviceModel: "Brilliant Labs Frame", key: "frame"},
           {deviceModel: ControllerTypes.R1, key: "evenrealities_r1"},
         ]
@@ -73,7 +62,7 @@ export default function SelectControllerScreen() {
         ]
 
   const triggerGlassesPairingGuide = async (deviceModel: string) => {
-    push("/pairing/prep", {deviceModel: deviceModel})
+    push("/pairing/prep-controller", {deviceModel: deviceModel})
   }
 
   return (
@@ -89,20 +78,19 @@ export default function SelectControllerScreen() {
       <Spacer className="h-4" />
       <ScrollView className="-mr-4 pr-4 pt-6">
         <View className="flex-col gap-4 pb-8">
-          {glassesOptions
-            .filter((glasses) => !DEV_MODE_ONLY_MODELS.has(glasses.deviceModel) || devMode)
-            .map((glasses) => (
-              <TouchableOpacity key={glasses.key} onPress={() => triggerGlassesPairingGuide(glasses.deviceModel)}>
+          {controllerOptions
+            .map((controller) => (
+              <TouchableOpacity key={controller.key} onPress={() => triggerGlassesPairingGuide(controller.deviceModel)}>
                 <GlassView className="bg-primary-foreground flex-col items-center justify-center h-[190px] rounded-2xl overflow-hidden">
                   <View className="flex-col items-center justify-center gap-3 w-full">
                     <View className="items-center justify-center min-h-6">
-                      {getManufacturerLogo(glasses.deviceModel)}
+                      {getManufacturerLogo(controller.deviceModel)}
                     </View>
                     <Image
-                      source={getGlassesImage(glasses.deviceModel)}
+                      source={getGlassesImage(controller.deviceModel)}
                       className="w-[180px] max-h-[80px] object-contain"
                     />
-                    <Text className="text-[16px] text-foreground" text={glasses.deviceModel} />
+                    <Text className="text-[16px] text-foreground" text={controller.deviceModel} />
                   </View>
                 </GlassView>
               </TouchableOpacity>

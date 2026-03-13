@@ -782,11 +782,11 @@ actor G2ReconnectionManager {
 }
 
 @MainActor
-class R1: NSObject, SGCManager {
+class R1: NSObject, ControllerManager {
     func sendIncidentId(_ incidentId: String) {}
     
     
-    var type = DeviceTypes.G2
+    var type = ControllerTypes.R1
     let hasMic = true
 
     // Connection state

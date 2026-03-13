@@ -168,9 +168,30 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  default_controller: {
+    key: "default_controller",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   device_name: {key: "device_name", defaultValue: () => "", writable: true, saveOnServer: true, persist: true},
   device_address: {
     key: "device_address",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  controller_device_name: {
+    key: "controller_device_name",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  controller_address: {
+    key: "controller_address",
     defaultValue: () => "",
     writable: true,
     saveOnServer: true,
@@ -514,6 +535,9 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.default_wearable.key,
   SETTINGS.device_name.key,
   SETTINGS.device_address.key,
+  SETTINGS.default_controller.key,
+  SETTINGS.controller_device_name.key,
+  SETTINGS.controller_address.key,
   // offline applets:
   SETTINGS.offline_mode.key,
   SETTINGS.offline_captions_running.key,
@@ -544,13 +568,10 @@ interface SettingsState {
 }
 
 const getDefaultSettings = () =>
-  Object.keys(SETTINGS).reduce(
-    (acc, key) => {
-      acc[key] = SETTINGS[key].defaultValue()
-      return acc
-    },
-    {} as Record<string, any>,
-  )
+  Object.keys(SETTINGS).reduce((acc, key) => {
+    acc[key] = SETTINGS[key].defaultValue()
+    return acc
+  }, {} as Record<string, any>)
 
 export const useSettingsStore = create<SettingsState>()(
   subscribeWithSelector((set, get) => ({

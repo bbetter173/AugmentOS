@@ -674,6 +674,24 @@ struct ViewState {
         }
     }
 
+    func initController(_ controllerModel: String) {
+        Bridge.log("MAN: Initializing controller: \(controllerModel)")
+        if controller != nil && controller?.type != controllerModel {
+            Bridge.log("MAN: Controller already initialized, cleaning up previous controller")
+            controller?.cleanup()
+            controller = nil
+        }
+
+        if controller != nil {
+            Bridge.log("MAN: Controller already initialized")
+            return
+        }
+
+        if controllerModel == ControllerTypes.R1 {
+            controller = R1()
+        }
+    }
+
     func sendCurrentState() {
         if screenDisabled {
             return
@@ -1271,10 +1289,9 @@ struct ViewState {
             pendingWearable = deviceModel
         }
 
-        if ControllerTypes.ALL.contains(deviceModel) {
-            // initController(deviceModel)
-            // only single controller supported right now
-            controller = R1()
+        // if ControllerTypes.ALL.contains(deviceModel) {
+        if deviceModel == ControllerTypes.R1 {
+            initController(deviceModel)
             controller?.findCompatibleDevices()
             return
         }

@@ -188,6 +188,14 @@ function DeviceSettings() {
             onPress={confirmForgetGlasses}
           />
         )}
+
+        {superMode && (
+          <RouteButton
+            icon={<Icon name="bluetooth" size={24} color={theme.colors.secondary_foreground} />}
+            label={translate("deviceSettings:pairController")}
+            onPress={() => push("/pairing/select-controller")}
+          />
+        )}
       </Group>
 
       {/* Advanced Settings Dropdown - Only show if there's content */}

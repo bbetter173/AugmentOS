@@ -23,6 +23,7 @@ const en = {
     general: "General",
     charging: "Charging",
     selectDefaultApp: "Select default app",
+    pairController: "Pair ring",
   },
   deviceInfo: {
     title: "Device Info",

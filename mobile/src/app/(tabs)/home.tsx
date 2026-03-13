@@ -110,13 +110,9 @@ export default function Homepage() {
 
     return (
       <MaskedView
+        className="absolute inset-0 z-10"
         style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: 0,
           height: height,
-          zIndex: 10,
           pointerEvents: "none",
         }}
         maskElement={

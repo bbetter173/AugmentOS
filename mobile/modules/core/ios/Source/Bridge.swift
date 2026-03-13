@@ -91,7 +91,7 @@ class Bridge {
         }
     }
 
-    static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String) {
+    static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String, _ signalStrength: Int = -1) {
         Task {
             await MainActor.run {
                 let searchResults =
@@ -99,6 +99,7 @@ class Bridge {
                 let newResult: [String: Any] = [
                     "deviceModel": deviceModel,
                     "deviceName": deviceName,
+                    "signalStrength": signalStrength,
                 ]
                 let allResults = searchResults + [newResult]
                 var seen = Set<String>()

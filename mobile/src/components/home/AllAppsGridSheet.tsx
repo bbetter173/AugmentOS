@@ -63,7 +63,7 @@ export default function AllAppsGridSheet({bottomSheetRef}: {bottomSheetRef: Reac
         <BottomSheetScrollView>
           <View className="px-6">
             <View className="">
-              <View className="flex-row items-center bg-primary-foreground rounded-xl px-4 py-3 mt-4">
+              <GlassView className="flex-row items-center rounded-xl px-4 py-3 mt-4">
                 <Icon name="search" size={20} color={theme.colors.muted_foreground} />
                 <TextInput
                   placeholder={translate("home:search")}
@@ -79,7 +79,7 @@ export default function AllAppsGridSheet({bottomSheetRef}: {bottomSheetRef: Reac
                     <Icon name="x" size={20} color={theme.colors.muted_foreground} />
                   </TouchableOpacity>
                 )}
-              </View>
+              </GlassView>
               <View className="h-px bg-border my-4" />
             </View>
             <AppsGrid

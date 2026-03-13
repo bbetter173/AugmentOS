@@ -198,7 +198,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
     return (
       <GlassView className={`bg-primary-foreground h-15 rounded-2xl`} style={{marginBottom: bottomPadding}}>
         <TouchableOpacity onPress={onGridButtonPress} className="items-center justify-center w-15 h-15">
-          <Icon name="grid-3x3" color={theme.colors.foreground} size={32} />
+          <Icon name="grid" color={theme.colors.foreground} size={26} />
         </TouchableOpacity>
       </GlassView>
     )

@@ -44,8 +44,9 @@ export const ThemeProvider: FC<{children: React.ReactNode}> = ({children}) => {
       let theme = themeNameToTheme(lightOrDark)
       SystemUI.setBackgroundColorAsync(theme.colors.background)
       if (Platform.OS === "android") {
-        NavigationBar.setButtonStyleAsync(lightOrDark === "dark" ? "light" : "dark")
-        NavigationBar.setStyle(lightOrDark == "dark" ? "light" : "dark")
+        // NavigationBar.setButtonStyleAsync(lightOrDark === "dark" ? "light" : "dark")
+        // NavigationBar.setStyle(lightOrDark == "dark" ? "light" : "dark")
+        NavigationBar.setStyle(lightOrDark)
       }
     }, 1000)
     setTheme(lightOrDark)

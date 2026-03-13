@@ -7,31 +7,37 @@ interface NewGlassViewProps extends ViewProps {
   transparent?: boolean
 }
 
+const GlassWithStyle = withUniwind(GlassViewComponent)
+
 const GlassView = ({children, style, transparent = true, ...props}: GlassViewProps & NewGlassViewProps) => {
   const [iosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
+  let boxShadowStyle = "0px 8px 32px 0px rgba(0, 0, 0, 0.08)"
   if (iosGlassEffect && isLiquidGlassAvailable()) {
     if (transparent) {
       return (
-        <GlassViewComponent style={[style, {backgroundColor: "transparent"}]} {...props}>
+        <GlassWithStyle
+          style={[style, {backgroundColor: "transparent", boxShadow: boxShadowStyle}]}
+          {...props}
+          className="shadow-2xl">
           {children}
-        </GlassViewComponent>
+        </GlassWithStyle>
       )
     }
     return (
-      <GlassViewComponent style={style} {...props}>
+      <GlassWithStyle style={[style, {boxShadow: boxShadowStyle}]} {...props}>
         {children}
-      </GlassViewComponent>
+      </GlassWithStyle>
     )
   }
   if (Platform.OS === "android") {
     return (
-      <GlassViewComponent style={style} {...props}>
+      <GlassWithStyle style={[style, {boxShadow: boxShadowStyle}]} {...props}>
         {children}
-      </GlassViewComponent>
+      </GlassWithStyle>
     )
   }
   return (
-    <View style={style} {...props}>
+    <View style={[style, {boxShadow: boxShadowStyle}]} {...props}>
       {children}
     </View>
   )

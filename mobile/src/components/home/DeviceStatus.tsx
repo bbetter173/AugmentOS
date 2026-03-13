@@ -1,7 +1,7 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
 import CoreModule, {GlassesNotReadyEvent} from "core"
 import {useState, useEffect} from "react"
-import {ActivityIndicator, Image, ImageStyle, Linking, TouchableOpacity, View, ViewStyle} from "react-native"
+import {ActivityIndicator, Image, Linking, TouchableOpacity, View, ViewStyle} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
 import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
@@ -10,7 +10,6 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
 import {checkConnectivityRequirementsUI} from "@/utils/PermissionsUtils"
 import {
@@ -144,9 +143,8 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   if (!glassesConnected || !glassesFullyBooted || isSearching) {
     return (
-      <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")}>
-        <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row min-h-20 h-20">
-          <View className="flex-1 flex-row">
+      <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-20">
+        <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row">
             <View className="flex-1 self-start justify-center h-full">
               <Image
                 source={getCurrentGlassesImage()}
@@ -183,7 +181,6 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
                   </View>
                 </Button>
               )}
-            </View>
           </View>
         </GlassView>
       </TouchableOpacity>
@@ -191,8 +188,8 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   return (
-    <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")}>
-      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row h-20">
+    <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-20">
+      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row">
         <View className="flex-1 self-start justify-center h-full">
           <Image
             source={getCurrentGlassesImage()}

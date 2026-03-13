@@ -141,7 +141,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   const features = getModelCapabilities(defaultWearable)
 
-  if (!glassesConnected || !glassesFullyBooted || isSearching) {
+  if (!glassesConnected || !glassesFullyBooted || isSearching || !true) {
     return (
       <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
         <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2">
@@ -153,7 +153,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
             />
           </View>
 
-          <View className="max-w-1/2">
+          <View className="w-1/2">
             <View className="items-end flex-col gap-3 justify-center flex-1">
               <View className="flex-row items-center gap-3">
                 <Icon name="bluetooth-off" size={18} color={theme.colors.foreground} />
@@ -191,7 +191,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   return (
     <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
-      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row">
+      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row gap-2">
         <View className="flex-1 self-start justify-center h-full">
           <Image
             source={getCurrentGlassesImage()}
@@ -200,7 +200,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
           />
         </View>
 
-        <View className="">
+        <View className="w-1/2">
           <View className="items-end flex-col gap-3 justify-center flex-1">
             <Text className="font-semibold text-secondary-foreground text-base" text={defaultWearable} />
             <View className="flex-row items-center gap-3">

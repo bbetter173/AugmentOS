@@ -19,6 +19,7 @@ import com.mentra.asg_client.hardware.K900RgbLedController;
 import com.mentra.asg_client.io.streaming.services.RtmpStreamingService;
 import com.mentra.asg_client.audio.AudioAssets;
 import com.mentra.asg_client.service.system.interfaces.IStateManager;
+import com.mentra.asg_client.service.core.CameraRestartCooldown;
 import com.mentra.asg_client.service.core.constants.BatteryConstants;
 import com.mentra.asg_client.io.storage.StorageManager;
 
@@ -457,6 +458,10 @@ public class MediaCaptureService {
     public void setStateManager(IStateManager stateManager) {
         this.mStateManager = stateManager;
         Log.d(TAG, "✅ StateManager updated for battery monitoring");
+    }
+
+    private boolean shouldSuppressPhotoFeedback() {
+        return CameraRestartCooldown.isActive();
     }
 
     private void playShutterSound() {
@@ -1225,15 +1230,16 @@ public class MediaCaptureService {
         // TESTING: Add fake delay for camera init
         PhotoCaptureTestFramework.addFakeDelay("CAMERA_INIT");
 
-        // RGB LED always flashes for photos (user visibility indicator)
-        triggerPhotoFlashLed();
-
-        // flash controls privacy LED, sound controls shutter sound
-        if (enableSound) {
-            playShutterSound();
-        }
-        if (enableFlash) {
-            flashPrivacyLedForPhoto(); // Flash privacy LED
+        // Skip sound and flash during camera HAL restart cooldown (e.g. after FOV change)
+        if (!shouldSuppressPhotoFeedback()) {
+            // RGB LED always flashes for photos (user visibility indicator)
+            triggerPhotoFlashLed();
+            if (enableSound) {
+                playShutterSound();
+            }
+            if (enableFlash) {
+                flashPrivacyLedForPhoto(); // Flash privacy LED
+            }
         }
 
         // TESTING: Check for fake camera capture failure
@@ -1400,15 +1406,15 @@ public class MediaCaptureService {
         PhotoCaptureTestFramework.addFakeDelay("CAMERA_CAPTURE");
 
         try {
-            // RGB LED always flashes for photos (user visibility indicator)
-            triggerPhotoFlashLed();
-
-            // flash controls privacy LED, sound controls shutter sound
-            if (enableSound) {
-                playShutterSound();
-            }
-            if (enableFlash) {
-                flashPrivacyLedForPhoto(); // Flash privacy LED
+            // Skip sound and flash during camera HAL restart cooldown (e.g. after FOV change)
+            if (!shouldSuppressPhotoFeedback()) {
+                triggerPhotoFlashLed();
+                if (enableSound) {
+                    playShutterSound();
+                }
+                if (enableFlash) {
+                    flashPrivacyLedForPhoto();
+                }
             }
 
             // Use the new enqueuePhotoRequest for thread-safe rapid capture
@@ -2349,15 +2355,15 @@ public class MediaCaptureService {
         // TESTING: Add fake delay for camera capture
         PhotoCaptureTestFramework.addFakeDelay("CAMERA_CAPTURE");
 
-        // RGB LED always flashes for photos (user visibility indicator)
-        triggerPhotoFlashLed();
-
-        // flash controls privacy LED, sound controls shutter sound
-        if (enableSound) {
-            playShutterSound();
-        }
-        if (enableFlash) {
-            flashPrivacyLedForPhoto(); // Flash privacy LED
+        // Skip sound and flash during camera HAL restart cooldown (e.g. after FOV change)
+        if (!shouldSuppressPhotoFeedback()) {
+            triggerPhotoFlashLed();
+            if (enableSound) {
+                playShutterSound();
+            }
+            if (enableFlash) {
+                flashPrivacyLedForPhoto();
+            }
         }
 
         try {

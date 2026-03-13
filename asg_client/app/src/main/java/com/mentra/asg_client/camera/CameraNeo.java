@@ -2923,6 +2923,11 @@ public class CameraNeo extends LifecycleService {
      * Simplified photo capture - relies on AE convergence and automatic CONTINUOUS_PICTURE autofocus
      */
     private void capturePhoto() {
+        if (shotState == ShotState.SHOOTING) {
+            Log.d(TAG, "capturePhoto() skipped — another capture already in-flight");
+            return;
+        }
+
         // Check if HDR burst is enabled and we're capturing a button photo (not SDK)
         boolean hdrEnabled = mCameraSettings != null
                 && mCameraSettings.mAsgSettings.isHdrBurstEnabled()

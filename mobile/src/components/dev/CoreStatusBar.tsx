@@ -32,33 +32,60 @@ export default function CoreStatusBar() {
   const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
   const insets = useSaferAreaInsets()
 
-
   return (
-    <View
-      style={{top: insets.top - 24}}
-      className="absolute z-11 bg-primary-transparent rounded-lg items-center self-center w-full px-1.5">
-      <View className="flex-row justify-between">
-        <View className="flex-row flex-wrap items-center justify-center w-1/2 justify-start">
-          <Tag icon="bluetooth" label={searching ? "Searching" : "Not searching"} bg="bg-chart-4" />
-          <Tag icon="microphone" label={currentMic || "None"} bg="bg-chart-3" />
-          <Tag icon="microphone" label={micRanking.join(", ")} bg="bg-primary" />
-          {systemMicUnavailable && <Tag icon="unplug" label="SMIC unavailable!" bg="bg-destructive" />}
+    <>
+      {/* <View
+        style={{top: insets.top - 24}}
+        className="absolute z-11 bg-primary-transparent rounded-lg items-center self-center w-full px-1.5">
+        <View className="flex-row justify-between">
+          <View className="flex-row flex-wrap items-center justify-center w-1/2 justify-start">
+            <Tag icon="bluetooth" label={searching ? "Searching" : "Not searching"} bg="bg-chart-4" />
+            <Tag icon="microphone" label={currentMic || "None"} bg="bg-chart-3" />
+            <Tag icon="microphone" label={micRanking.join(", ")} bg="bg-primary" />
+            {systemMicUnavailable && <Tag icon="unplug" label="SMIC unavailable!" bg="bg-destructive" />}
+          </View>
+          <View className="flex-row flex-wrap items-center justify-center w-1/2 justify-end">
+            <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
+            <Tag
+              icon="bluetooth"
+              label={btcConnected ? "BTC" : "BTC Off"}
+              bg={btcConnected ? "bg-primary" : "bg-destructive"}
+            />
+            <Tag icon="bluetooth" label={glassesConnected ? "Connected" : "Disconnected"} bg="bg-primary" />
+            <Tag
+              icon={micDataRecvd ? "microphone" : "unplug"}
+              label={micDataRecvd ? "PCM" : "No PCM"}
+              bg={micDataRecvd ? "bg-primary" : "bg-destructive"}
+            />
+          </View>
         </View>
-        <View className="flex-row flex-wrap items-center justify-center w-1/2 justify-end">
-          <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
-          <Tag
-            icon="bluetooth"
-            label={btcConnected ? "BTC" : "BTC Off"}
-            bg={btcConnected ? "bg-primary" : "bg-destructive"}
-          />
-          <Tag icon="bluetooth" label={glassesConnected ? "Connected" : "Disconnected"} bg="bg-primary" />
-          <Tag
-            icon={micDataRecvd ? "microphone" : "unplug"}
-            label={micDataRecvd ? "PCM" : "No PCM"}
-            bg={micDataRecvd ? "bg-primary" : "bg-destructive"}
-          />
+      </View> */}
+      <View
+        style={{top: 0, height: insets.top}}
+        className="absolute z-11 bg-transparent rounded-lg items-center self-center w-full px-1.5">
+        <View className="flex-col justify-between gap-10">
+          <View className="flex-row flex-wrap items-center justify-center justify-start">
+            <Tag icon="bluetooth" label={searching ? "Searching" : "Not searching"} bg="bg-chart-4" />
+            <Tag icon="microphone" label={currentMic || "None"} bg="bg-chart-3" />
+            <Tag icon="microphone" label={micRanking.join(", ")} bg="bg-primary" />
+            {systemMicUnavailable && <Tag icon="unplug" label="SMIC unavailable!" bg="bg-destructive" />}
+          </View>
+          <View className="flex-row flex-wrap items-center justify-center justify-end">
+            <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
+            <Tag
+              icon="bluetooth"
+              label={btcConnected ? "BTC" : "BTC Off"}
+              bg={btcConnected ? "bg-primary" : "bg-destructive"}
+            />
+            <Tag icon="bluetooth" label={glassesConnected ? "Connected" : "Disconnected"} bg="bg-primary" />
+            <Tag
+              icon={micDataRecvd ? "microphone" : "unplug"}
+              label={micDataRecvd ? "PCM" : "No PCM"}
+              bg={micDataRecvd ? "bg-primary" : "bg-destructive"}
+            />
+          </View>
         </View>
       </View>
-    </View>
+    </>
   )
 }

@@ -1884,8 +1884,8 @@ class G2: NSObject, SGCManager {
         switch eventType {
         case .click: return "single_tap"
         case .doubleClick: return "double_tap"
-        case .scrollTop: return "swipe_up"
-        case .scrollBottom: return "swipe_down"
+        case .scrollTop: return "swipe_down"
+        case .scrollBottom: return "swipe_up"
         case .foregroundEnter: return "foreground_enter"
         case .foregroundExit: return "foreground_exit"
         case .systemExit: return "system_exit"

@@ -1,5 +1,5 @@
 import {ScrollView, View} from "react-native"
-import {useRef, useEffect} from "react"
+import {useRef, useEffect, useState} from "react"
 
 import {Icon, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
@@ -8,6 +8,8 @@ import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import GlassView from "@/components/ui/GlassView"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
+import CoreModule, {TouchEvent} from "core"
+import {BackgroundTimer} from "@/utils/timers"
 
 function Tag({icon, label, bg}: {icon: string; label: string; bg: string}) {
   const {theme} = useAppTheme()
@@ -31,6 +33,23 @@ export default function CoreStatusBar() {
   const glassesConnected = useGlassesStore((state) => state.connected)
   const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
   const insets = useSaferAreaInsets()
+  const [touchEvent, setTouchEvent] = useState<TouchEvent | null>(null)
+
+  const touchEventTimer = useRef<number | null>(null)
+  useEffect(() => {
+    let sub = CoreModule.addListener("touch_event", (event: TouchEvent) => {
+      setTouchEvent(event)
+      BackgroundTimer.clearTimeout(touchEventTimer.current ?? 0)
+      touchEventTimer.current = BackgroundTimer.setTimeout(() => {
+        setTouchEvent(null)
+      }, 1000)
+      console.log("touch_event", event)
+    })
+    console.log("insets", insets)
+    return () => {
+      sub.remove()
+    }
+  }, [])
 
   return (
     <>
@@ -71,6 +90,7 @@ export default function CoreStatusBar() {
             {systemMicUnavailable && <Tag icon="unplug" label="SMIC unavailable!" bg="bg-destructive" />}
           </View>
           <View className="flex-row flex-wrap items-center justify-center justify-end">
+            <Tag icon="pointer" label={touchEvent ? touchEvent.gesture_name ?? "None" : "None"} bg="bg-primary" />
             <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
             <Tag
               icon="bluetooth"

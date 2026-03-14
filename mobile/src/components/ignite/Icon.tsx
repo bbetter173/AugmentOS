@@ -21,6 +21,7 @@ import {
   ExternalLink,
   PlayIcon,
   PauseIcon,
+  PointerIcon,
 } from "lucide-react-native"
 import {
   Image,
@@ -134,6 +135,7 @@ const lucideIcons = {
   "external-link": ExternalLink,
   "play": PlayIcon,
   "pause": PauseIcon,
+  "pointer": PointerIcon,
 }
 
 const tablerIcons = {

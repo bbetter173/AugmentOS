@@ -72,7 +72,7 @@ private enum R1Gesture: String {
 @MainActor
 class R1: NSObject, ControllerManager {
     var type = ControllerTypes.R1
-    let hasMic = false // R1 ring has no microphone
+    let hasMic = false  // R1 ring has no microphone
 
     // Connection state
     private var centralManager: CBCentralManager?
@@ -103,8 +103,11 @@ class R1: NSObject, ControllerManager {
     private var ringUUID: UUID? {
         get { UserDefaults.standard.string(forKey: "r1_ringUUID").flatMap { UUID(uuidString: $0) } }
         set {
-            if let v = newValue { UserDefaults.standard.set(v.uuidString, forKey: "r1_ringUUID") }
-            else { UserDefaults.standard.removeObject(forKey: "r1_ringUUID") }
+            if let v = newValue {
+                UserDefaults.standard.set(v.uuidString, forKey: "r1_ringUUID")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "r1_ringUUID")
+            }
         }
     }
 
@@ -161,9 +164,11 @@ class R1: NSObject, ControllerManager {
             return true
         }
 
-        centralManager!.scanForPeripherals(withServices: nil, options: [
-            CBCentralManagerScanOptionAllowDuplicatesKey: false,
-        ])
+        centralManager!.scanForPeripherals(
+            withServices: nil,
+            options: [
+                CBCentralManagerScanOptionAllowDuplicatesKey: false
+            ])
         return true
     }
 
@@ -172,8 +177,14 @@ class R1: NSObject, ControllerManager {
     }
 
     private func connectByUUID() -> Bool {
+        // don't do this if we don't have a search id set:
+        if DEVICE_SEARCH_ID == "NOT_SET" || DEVICE_SEARCH_ID.isEmpty {
+            Bridge.log("R1: 🔵 No DEVICE_SEARCH_ID set, skipping connect by UUID")
+            return false
+        }
         guard let uuid = ringUUID else { return false }
-        guard let peripheral = centralManager?.retrievePeripherals(withIdentifiers: [uuid]).first else { return false }
+        guard let peripheral = centralManager?.retrievePeripherals(withIdentifiers: [uuid]).first
+        else { return false }
 
         ringPeripheral = peripheral
         peripheral.delegate = self
@@ -247,7 +258,8 @@ class R1: NSObject, ControllerManager {
     private func startHeartbeat() {
         heartbeatTimer?.invalidate()
         // Simple keepalive: re-read battery every 30 seconds
-        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) {
+            [weak self] _ in
             DispatchQueue.main.async {
                 guard let self = self, self.ready else { return }
                 // Read battery if we have the standard battery char
@@ -281,7 +293,9 @@ class R1: NSObject, ControllerManager {
                     timestamp: timestamp
                 )
             } else {
-                Bridge.log("R1: Unknown gesture type=0x\(String(format: "%02X", data[1])) param=0x\(String(format: "%02X", data[2]))")
+                Bridge.log(
+                    "R1: Unknown gesture type=0x\(String(format: "%02X", data[1])) param=0x\(String(format: "%02X", data[2]))"
+                )
             }
             return
         }
@@ -302,9 +316,9 @@ class R1: NSObject, ControllerManager {
 
         // Longer data: check for embedded gesture marker
         if data.count > 3, let ffIndex = data.firstIndex(of: R1BLE.GESTURE_MARKER),
-           ffIndex + 2 < data.count
+            ffIndex + 2 < data.count
         {
-            let gestureData = Data(data[ffIndex ... ffIndex + 2])
+            let gestureData = Data(data[ffIndex...ffIndex + 2])
             if let gesture = R1Gesture.parse(from: gestureData) {
                 Bridge.log("R1: Embedded gesture: \(gesture.rawValue)")
                 Bridge.sendTouchEvent(
@@ -340,11 +354,11 @@ class R1: NSObject, ControllerManager {
             await reconnectionManager.start { [weak self] in
                 guard let self else { return false }
                 if await MainActor.run(body: { self.ready }) {
-                    return true // already connected
+                    return true  // already connected
                 }
                 Bridge.log("R1: Attempting reconnection...")
                 await MainActor.run { self.startScan() }
-                return false // keep trying
+                return false  // keep trying
             }
         }
     }
@@ -408,7 +422,10 @@ class R1: NSObject, ControllerManager {
     func setMicEnabled(_ enabled: Bool) {}
     func sortMicRanking(list: [String]) -> [String] { return list }
     func sendJson(_ jsonOriginal: [String: Any], wakeUp: Bool, requireAck: Bool) {}
-    func requestPhoto(_ requestId: String, appId: String, size: String?, webhookUrl: String?, authToken: String?, compress: String?, flash: Bool, sound: Bool) {}
+    func requestPhoto(
+        _ requestId: String, appId: String, size: String?, webhookUrl: String?, authToken: String?,
+        compress: String?, flash: Bool, sound: Bool
+    ) {}
     func startVideoRecording(requestId: String, save: Bool, flash: Bool, sound: Bool) {}
     func stopVideoRecording(requestId: String) {}
     func startRtmpStream(_ message: [String: Any]) {}
@@ -434,7 +451,10 @@ class R1: NSObject, ControllerManager {
     func exit() {}
     func sendShutdown() { disconnect() }
     func sendReboot() {}
-    func sendRgbLedControl(requestId: String, packageName: String?, action: String, color: String?, ontime: Int, offtime: Int, count: Int) {}
+    func sendRgbLedControl(
+        requestId: String, packageName: String?, action: String, color: String?, ontime: Int,
+        offtime: Int, count: Int
+    ) {}
     func requestWifiScan() {}
     func sendWifiCredentials(_ ssid: String, _ password: String) {}
     func forgetWifiNetwork(_ ssid: String) {}
@@ -484,7 +504,8 @@ extension R1: CBCentralManagerDelegate {
 
             // If search ID is specific, check it matches the ring name/id
             if let name = name, let id = self.extractRingId(name),
-               self.DEVICE_SEARCH_ID != id && !name.contains(self.DEVICE_SEARCH_ID) {
+                self.DEVICE_SEARCH_ID != id && !name.contains(self.DEVICE_SEARCH_ID)
+            {
                 return
             }
 
@@ -498,7 +519,9 @@ extension R1: CBCentralManagerDelegate {
         }
     }
 
-    nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    nonisolated func centralManager(
+        _ central: CBCentralManager, didConnect peripheral: CBPeripheral
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             Bridge.log("R1: Connected to \(peripheral.name ?? "ring")")
@@ -510,7 +533,9 @@ extension R1: CBCentralManagerDelegate {
         }
     }
 
-    nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+    nonisolated func centralManager(
+        _ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             Bridge.log("R1: Failed to connect: \(error?.localizedDescription ?? "unknown")")
@@ -518,7 +543,9 @@ extension R1: CBCentralManagerDelegate {
         }
     }
 
-    nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+    nonisolated func centralManager(
+        _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             Bridge.log("R1: Disconnected: \(error?.localizedDescription ?? "clean")")
@@ -544,7 +571,9 @@ extension R1: CBPeripheralDelegate {
         }
     }
 
-    nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+    nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?
+    ) {
         guard let characteristics = service.characteristics else { return }
 
         DispatchQueue.main.async { [weak self] in
@@ -589,12 +618,16 @@ extension R1: CBPeripheralDelegate {
         }
     }
 
-    nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+    nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
 
             if let error = error {
-                Bridge.log("R1: Notify error on \(characteristic.uuid): \(error.localizedDescription)")
+                Bridge.log(
+                    "R1: Notify error on \(characteristic.uuid): \(error.localizedDescription)")
                 return
             }
             Bridge.log("R1: Notify enabled on \(characteristic.uuid)")
@@ -610,7 +643,10 @@ extension R1: CBPeripheralDelegate {
         }
     }
 
-    nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+    nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
         guard let data = characteristic.value, !data.isEmpty, error == nil else { return }
 
         DispatchQueue.main.async { [weak self] in
@@ -627,10 +663,13 @@ extension R1: CBPeripheralDelegate {
         }
     }
 
-    nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+    nonisolated func peripheral(
+        _ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?
+    ) {
         if let error = error {
             DispatchQueue.main.async {
-                Bridge.log("R1: Write error on \(characteristic.uuid): \(error.localizedDescription)")
+                Bridge.log(
+                    "R1: Write error on \(characteristic.uuid): \(error.localizedDescription)")
             }
         }
     }

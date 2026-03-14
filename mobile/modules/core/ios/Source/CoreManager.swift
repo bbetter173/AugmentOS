@@ -1232,6 +1232,13 @@ struct ViewState {
             Bridge.log("MAN: No pending wearable, using default wearable: \(defaultWearable)")
             pendingWearable = defaultWearable
         }
+        
+        // if the pending wearable is a controller, don't disconnect, use the controller manager to connect
+        if ControllerTypes.ALL.contains(pendingWearable) {
+            controller?.disconnect()
+            controller?.connectById(name)
+            return
+        }
 
         Task {
             disconnect()
@@ -1289,8 +1296,11 @@ struct ViewState {
             pendingWearable = deviceModel
         }
 
-        // if ControllerTypes.ALL.contains(deviceModel) {
-        if deviceModel == ControllerTypes.R1 {
+        if ControllerTypes.ALL.contains(deviceModel) {
+            pendingWearable = deviceModel
+        }
+
+        if ControllerTypes.ALL.contains(deviceModel) {
             initController(deviceModel)
             controller?.findCompatibleDevices()
             return

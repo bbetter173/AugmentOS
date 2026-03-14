@@ -32,7 +32,6 @@ export default function CoreStatusBar() {
   const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
   const insets = useSaferAreaInsets()
 
-  return null
 
   return (
     <View

@@ -37,6 +37,8 @@ export interface ClientAppletInterface extends AppletInterface {
   runtimePermissions?: string[]
   declaredPermissions?: string[]
   version?: string
+  needsPcm?: boolean
+  needsTranscript?: boolean
 }
 
 interface AppStatusState {

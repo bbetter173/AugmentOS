@@ -7,6 +7,27 @@ import {usePathname} from "expo-router"
 import {Screen} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {SpeechToTextModule, useSpeechToText, WHISPER_TINY_EN} from "react-native-executorch"
+import CoreModule from "core"
+
+const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
+  const binaryString = atob(base64)
+  const byteLength = binaryString.length
+  const sampleCount = Math.floor(byteLength / 2)
+  const samples = new Float32Array(sampleCount)
+
+  for (let i = 0; i < sampleCount; i++) {
+    const low = binaryString.charCodeAt(i * 2)
+    const high = binaryString.charCodeAt(i * 2 + 1)
+    let sample = (high << 8) | low
+    if (sample >= 0x8000) {
+      sample -= 0x10000
+    }
+    samples[i] = sample / 0x8000
+  }
+
+  return samples
+}
 
 const LmaContainer = memo(
   function LmaContainer({
@@ -96,6 +117,37 @@ function Compositor() {
   // return null
 
   // console.log("COMPOSITOR: Resolved Lmas", resolvedLmas.map((lma) => lma.packageName + " " + lma.running))
+
+  // const model = useSpeechToText({
+  //   model: WHISPER_TINY_EN,
+  // })
+
+  const sttModule = new SpeechToTextModule();
+
+  useEffect(() => {
+    const initSTT = async () => {
+      await sttModule.load(WHISPER_TINY_EN, (progress) => {
+        console.log("COMPOSITOR: Loading model...", progress);
+      });
+
+      // setInterval(async () => {
+      //   // console.log("COMPOSITOR: Streaming transcription...")
+      //   console.log("COMPOSITOR: Transcription result:", model.downloadProgress)
+      // }, 1000)
+
+      const pcmSub = CoreModule.addListener("mic_data", (event) => {
+        console.log("COMPOSITOR: Received mic data:", event.base64)
+        // Fallback to WebSocket
+        const samples = decodePcm16Base64ToFloat32(event.base64)
+        sttModule.streamInsert(samples)
+      })
+
+      return () => {
+        pcmSub.remove()
+      }
+    }
+    initSTT()
+  }, [])
 
   return (
     <View className={`absolute inset-0 ${isActive ? "z-11" : "z-0"}`} pointerEvents="box-none">

@@ -67,7 +67,6 @@ function DeviceSettings() {
   }
 
   const confirmDisconnectGlasses = async () => {
-
     let result = await showAlert({
       title: translate("settings:disconnectGlassesTitle"),
       message: translate("settings:disconnectGlassesConfirm"),
@@ -216,6 +215,11 @@ function DeviceSettings() {
             onPress={() => push("/miniapps/settings/device-info")}
           />
         )}
+        <RouteButton
+          icon={<Icon name="microphone" size={24} color={theme.colors.secondary_foreground} />}
+          label={translate("deviceSettings:microphone")}
+          onPress={() => push("/miniapps/settings/microphone")}
+        />
       </Group>
 
       {/* this just gives the user a bit more space to scroll */}

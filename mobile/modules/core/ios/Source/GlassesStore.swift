@@ -65,7 +65,6 @@ class GlassesStore {
         store.set("core", "preferred_mic", "auto")
         store.set("core", "power_saving_mode", false)
         store.set("core", "always_on_status_bar", false)
-        store.set("core", "enforce_local_transcription", false)
         store.set("core", "sensing_enabled", true)
         store.set("core", "metric_system", false)
         store.set("core", "brightness", 50)
@@ -199,32 +198,12 @@ class GlassesStore {
         case ("core", "preferred_mic"):
             if let mic = value as? String {
                 apply("core", "micRanking", MicMap.map[mic] ?? MicMap.map["auto"]!)
-                CoreManager.shared.setMicState(
-                    store.get("core", "shouldSendPcmData") as? Bool ?? false,
-                    store.get("core", "shouldSendTranscript") as? Bool ?? false,
-                    store.get("core", "bypass_vad") as? Bool ?? true
-                )
+                CoreManager.shared.setMicState()
             }
 
         case ("core", "offline_captions_running"):
             if let running = value as? Bool {
-                Bridge.log("GlassesStore: offline_captions_running changed to \(running)")
-                // When offline captions are enabled, start the microphone for local transcription
-                // When disabled, stop the microphone
-                CoreManager.shared.setMicState(
-                    store.get("core", "shouldSendPcmData") as? Bool ?? false,
-                    running,
-                    store.get("core", "bypass_vad") as? Bool ?? true
-                )
-            }
-
-        case ("core", "enforce_local_transcription"):
-            if let enabled = value as? Bool {
-                CoreManager.shared.setMicState(
-                    store.get("core", "shouldSendPcmData") as? Bool ?? false,
-                    store.get("core", "shouldSendTranscript") as? Bool ?? false,
-                    store.get("core", "bypass_vad") as? Bool ?? true
-                )
+                CoreManager.shared.setMicState()
             }
 
         case ("core", "default_wearable"):

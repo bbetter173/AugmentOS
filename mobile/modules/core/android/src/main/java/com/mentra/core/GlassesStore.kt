@@ -62,7 +62,6 @@ object GlassesStore {
         store.set("core", "preferred_mic", "auto")
         store.set("core", "power_saving_mode", false)
         store.set("core", "always_on_status_bar", false)
-        store.set("core", "enforce_local_transcription", false)
         store.set("core", "sensing_enabled", true)
         store.set("core", "metric_system", false)
         store.set("core", "brightness", 50)
@@ -208,40 +207,13 @@ object GlassesStore {
             "core" to "preferred_mic" -> {
                 (value as? String)?.let { mic ->
                     apply("core", "micRanking", MicMap.map[mic] ?: MicMap.map["auto"]!!)
-                    CoreManager.getInstance()
-                            .setMicState(
-                                    (store.get("core", "should_send_pcm_data") as? Boolean)
-                                            ?: false,
-                                    (store.get("core", "should_send_transcript") as? Boolean)
-                                            ?: false,
-                                    (store.get("core", "bypass_vad") as? Boolean) ?: true
-                            )
+                    CoreManager.getInstance().setMicState()
                 }
             }
             "core" to "offline_captions_running" -> {
                 (value as? Boolean)?.let { running ->
                     Bridge.log("GlassesStore: offline_captions_running changed to $running")
-                    // When offline captions are enabled, start the microphone for local transcription
-                    // When disabled, stop the microphone
-                    // set should_send_transcript to true if running is true, otherwise false
-                    val shouldSendTranscript = running
-                    CoreManager.getInstance().setMicState(
-                        (store.get("core", "should_send_pcm_data") as? Boolean) ?: false,
-                        shouldSendTranscript,
-                        (store.get("core", "bypass_vad") as? Boolean) ?: true
-                    )
-                }
-            }
-            "core" to "enforce_local_transcription" -> {
-                (value as? Boolean)?.let { enabled ->
-                    CoreManager.getInstance()
-                            .setMicState(
-                                    (store.get("core", "should_send_pcm_data") as? Boolean)
-                                            ?: false,
-                                    (store.get("core", "should_send_transcript") as? Boolean)
-                                            ?: false,
-                                    (store.get("core", "bypass_vad") as? Boolean) ?: true
-                            )
+                    CoreManager.getInstance().setMicState()
                 }
             }
             "core" to "default_wearable" -> {

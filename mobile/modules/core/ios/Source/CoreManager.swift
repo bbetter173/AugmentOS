@@ -168,11 +168,19 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "bypass_vad", newValue) }
     }
 
-    private var enforceLocalTranscription: Bool {
-        get {
-            GlassesStore.shared.get("core", "enforce_local_transcription") as? Bool ?? false
-        }
-        set { GlassesStore.shared.apply("core", "enforce_local_transcription", newValue) }
+    private var offlineCaptionsRunning: Bool {
+        get { GlassesStore.shared.get("core", "offline_captions_running") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "offline_captions_running", newValue) }
+    }
+
+    private var shouldSendPcm: Bool {
+        get { GlassesStore.shared.get("core", "should_send_pcm") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "should_send_pcm", newValue) }
+    }
+
+    private var shouldSendTranscript: Bool {
+        get { GlassesStore.shared.get("core", "should_send_transcript") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "should_send_transcript", newValue) }
     }
 
     private var metricSystem: Bool {
@@ -186,15 +194,6 @@ struct ViewState {
     }
 
     /// state:
-    private var shouldSendPcmData: Bool {
-        get { GlassesStore.shared.get("core", "shouldSendPcmData") as? Bool ?? false }
-        set { GlassesStore.shared.apply("core", "shouldSendPcmData", newValue) }
-    }
-
-    private var shouldSendTranscript: Bool {
-        get { GlassesStore.shared.get("core", "shouldSendTranscript") as? Bool ?? false }
-        set { GlassesStore.shared.apply("core", "shouldSendTranscript", newValue) }
-    }
 
     private var searching: Bool {
         get { GlassesStore.shared.get("core", "searching") as? Bool ?? false }
@@ -421,7 +420,7 @@ struct ViewState {
 
         if bypassVad {
             // Send audio to cloud (encoding handled by sendMicData)
-            if shouldSendPcmData {
+            if shouldSendPcm {
                 sendMicData(pcmData)
             }
 
@@ -454,7 +453,7 @@ struct ViewState {
             emptyVadBuffer()
 
             // Send audio to cloud (encoding handled by sendMicData)
-            if shouldSendPcmData {
+            if shouldSendPcm {
                 sendMicData(pcmData)
             }
 
@@ -950,7 +949,7 @@ struct ViewState {
 
     func handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
-        // setMicState(shouldSendPcmData, shouldSendTranscript, false)
+        // setMicState(shouldSendPcData, shouldSendTranscript, false)
         // shouldSendBootingMessage = true  // Reset for next first connect
     }
 
@@ -1153,19 +1152,10 @@ struct ViewState {
         sgc?.stopVideoRecording(requestId: requestId)
     }
 
-    func setMicState(_ sendPcm: Bool, _ sendTranscript: Bool, _ bypassVadForPCM: Bool) {
-        // If offline captions are running locally, always keep transcript on
-        let offlineCaptionsRunning = GlassesStore.shared.get("core", "offline_captions_running") as? Bool ?? false
-        let effectiveSendTranscript = sendTranscript || offlineCaptionsRunning
-
-        let suffix = (offlineCaptionsRunning && !sendTranscript) ? " (offline captions forced transcript on)" : ""
-        Bridge.log("MAN: setMicState(\(sendPcm),\(effectiveSendTranscript),\(bypassVadForPCM))\(suffix)")
-
-        shouldSendPcmData = sendPcm
-        shouldSendTranscript = effectiveSendTranscript
-        bypassVad = bypassVadForPCM
-
-        micEnabled = shouldSendPcmData || shouldSendTranscript
+    func setMicState() {
+        let willSendPcm = shouldSendPcm
+        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        micEnabled = willSendPcm || willSendTranscript
         updateMicState()
     }
 
@@ -1271,9 +1261,8 @@ struct ViewState {
         sgc?.disconnect()
         sgc = nil  // Clear the SGC reference after disconnect
         searching = false
-        shouldSendPcmData = false
-        shouldSendTranscript = false
-        setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+        micEnabled = false
+        updateMicState()
         shouldSendBootingMessage = true  // Reset for next first connect
         GlassesStore.shared.apply("glasses", "fullyBooted", false)
         GlassesStore.shared.apply("glasses", "connected", false)

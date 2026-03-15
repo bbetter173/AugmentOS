@@ -118,9 +118,17 @@ class CoreManager {
         get() = GlassesStore.store.get("core", "bypass_vad") as? Boolean ?: true
         set(value) = GlassesStore.apply("core", "bypass_vad", value)
 
-    private var enforceLocalTranscription: Boolean
-        get() = GlassesStore.store.get("core", "enforce_local_transcription") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "enforce_local_transcription", value)
+    private var offlineCaptionsRunning: Boolean
+        get() = GlassesStore.store.get("core", "offline_captions_running") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "offline_captions_running", value)
+
+    private var shouldSendPcm: Boolean
+        get() = GlassesStore.store.get("core", "should_send_pcm") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "should_send_pcm", value)
+
+    private var shouldSendTranscript: Boolean
+        get() = GlassesStore.store.get("core", "should_send_transcript") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "should_send_transcript", value)
 
     private var metricSystem: Boolean
         get() = GlassesStore.store.get("core", "metric_system") as? Boolean ?: false
@@ -143,14 +151,6 @@ class CoreManager {
         set(value) = GlassesStore.apply("core", "gallery_mode", value)
 
     // state:
-    private var shouldSendPcmData: Boolean
-        get() = GlassesStore.store.get("core", "shouldSendPcmData") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "shouldSendPcmData", value)
-
-    private var shouldSendTranscript: Boolean
-        get() = GlassesStore.store.get("core", "shouldSendTranscript") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "shouldSendTranscript", value)
-
     private var searching: Boolean
         get() = GlassesStore.store.get("core", "searching") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "searching", value)
@@ -613,7 +613,7 @@ class CoreManager {
 
     fun handlePcm(pcmData: ByteArray) {
         // Send audio to cloud if needed (encoding handled by sendMicData)
-        if (shouldSendPcmData) {
+        if (shouldSendPcm) {
             sendMicData(pcmData)
         }
 
@@ -901,7 +901,7 @@ class CoreManager {
     fun onInterruption(began: Boolean) {
         Bridge.log("MAN: Interruption: $began")
         systemMicUnavailable = began
-        setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+        updateMicState()
     }
 
     // MARK: - Auxiliary Commands
@@ -1156,7 +1156,9 @@ class CoreManager {
     }
 
     fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {
-        Bridge.log("MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound")
+        Bridge.log(
+                "MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound"
+        )
         sgc?.startVideoRecording(requestId, save, flash, sound)
     }
 
@@ -1165,20 +1167,11 @@ class CoreManager {
         sgc?.stopVideoRecording(requestId)
     }
 
-    fun setMicState(sendPcm: Boolean, sendTranscript: Boolean, bypassVadForPCM: Boolean) {
-        // If offline captions are running locally, always keep transcript on
-        val offlineCaptionsRunning = GlassesStore.store.get("core", "offline_captions_running") as? Boolean ?: false
-        val effectiveSendTranscript = sendTranscript || offlineCaptionsRunning
-
-        Bridge.log("MAN: MIC: setMicState($sendPcm, $effectiveSendTranscript, $bypassVadForPCM)" +
-            if (offlineCaptionsRunning && !sendTranscript) " (offline captions forced transcript on)" else "")
-
-        shouldSendPcmData = sendPcm
-        shouldSendTranscript = effectiveSendTranscript
-        bypassVad = bypassVadForPCM
-
+    fun setMicState() {
+        val willSendPcm = shouldSendPcm
+        val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        micEnabled = willSendPcm || willSendTranscript
         vadBuffer.clear()
-        micEnabled = shouldSendPcmData || shouldSendTranscript
         updateMicState()
     }
 
@@ -1266,9 +1259,8 @@ class CoreManager {
         sgc?.disconnect()
         sgc = null // Clear the SGC reference after disconnect
         searching = false
-        shouldSendPcmData = false
-        shouldSendTranscript = false
-        setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+        micEnabled = false
+        updateMicState()
         shouldSendBootingMessage = true // Reset for next first connect
         GlassesStore.apply("glasses", "fullyBooted", false)
         GlassesStore.apply("glasses", "connected", false)

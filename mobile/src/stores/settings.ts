@@ -459,6 +459,28 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: false,
     persist: true,
   },
+  // offline translation
+  offline_translation_running: {
+    key: "offline_translation_running",
+    defaultValue: () => false,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  offline_translation_source: {
+    key: "offline_translation_source",
+    defaultValue: () => "en",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  offline_translation_target: {
+    key: "offline_translation_target",
+    defaultValue: () => "es",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   // button action settings
   default_button_action_enabled: {
     key: "default_button_action_enabled",
@@ -541,6 +563,9 @@ const CORE_SETTINGS_KEYS: string[] = [
   // offline applets:
   SETTINGS.offline_mode.key,
   SETTINGS.offline_captions_running.key,
+  SETTINGS.offline_translation_running.key,
+  SETTINGS.offline_translation_source.key,
+  SETTINGS.offline_translation_target.key,
   SETTINGS.gallery_mode.key,
   // notifications:
   SETTINGS.notifications_enabled.key,

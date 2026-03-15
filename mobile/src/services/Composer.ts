@@ -5,6 +5,8 @@ import {Directory, Paths, File} from "expo-file-system"
 import {unzip} from "react-native-zip-archive"
 import {AsyncResult, Result, result as Res} from "typesafe-ts"
 import semver from "semver"
+import {SETTINGS, useSettingsStore} from "@/stores/settings"
+import {useSpeechToText, WHISPER_TINY_EN} from "react-native-executorch"
 export interface LmaPermission {
   type: string
   description: string
@@ -179,10 +181,15 @@ class Composer {
 
   // read local storage to find which mini apps are installed and running
   // if any mini app needs online or offlline transcriptions, we need to feed them the necessary data
-  private initialize() {
+  private async initialize() {
     // update the applets store with the installed mini apps:
     // useAppletStatusStore.getState().setInstalledLmas(this.installedLmas)
     // useAppletStatusStore.getState().refreshApplets()
+    // update offline transcription state:
+    const offlineCaptionsRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
+    const offlineTranslationRunning = await useSettingsStore
+      .getState()
+      .getSetting(SETTINGS.offline_translation_running.key)
   }
 
   // download the mini app from the url and unzip it to the app's cache directory/lma/<packageName>
@@ -347,9 +354,13 @@ class Composer {
   //   return Res.try_async(async () => {})
   // }
 
-
   // manage global state for apps and mic data / transcriptions:
-  
+  public async updateOfflineSTT() {
+    const offlineCaptionsRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
+    const offlineTranslationRunning = await useSettingsStore
+      .getState()
+      .getSetting(SETTINGS.offline_translation_running.key)
+  }
 }
 
 const composer = Composer.getInstance()

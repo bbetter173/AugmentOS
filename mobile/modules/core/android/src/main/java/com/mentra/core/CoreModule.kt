@@ -232,7 +232,7 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            coreManager?.setMicState(sendPcmData, sendTranscript, bypassVad)
+            coreManager?.setMicState()
         }
 
         AsyncFunction("restartTranscriber") { coreManager?.restartTranscriber() }

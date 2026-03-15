@@ -291,7 +291,7 @@ public class CoreModule: Module {
 
         AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
             await MainActor.run {
-                CoreManager.shared.setMicState(sendPcmData, sendTranscript, bypassVad)
+                CoreManager.shared.setMicState()
             }
         }
 

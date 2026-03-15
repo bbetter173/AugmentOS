@@ -122,13 +122,17 @@ function Compositor() {
   //   model: WHISPER_TINY_EN,
   // })
 
-  const sttModule = new SpeechToTextModule();
+  const sttModule = new SpeechToTextModule()
 
   useEffect(() => {
     const initSTT = async () => {
+      await CoreModule.update("core", {
+        should_send_pcm: true,
+      })
+
       await sttModule.load(WHISPER_TINY_EN, (progress) => {
-        console.log("COMPOSITOR: Loading model...", progress);
-      });
+        console.log("COMPOSITOR: Loading model...", progress)
+      })
 
       // setInterval(async () => {
       //   // console.log("COMPOSITOR: Streaming transcription...")
@@ -136,11 +140,23 @@ function Compositor() {
       // }, 1000)
 
       const pcmSub = CoreModule.addListener("mic_data", (event) => {
-        console.log("COMPOSITOR: Received mic data:", event.base64)
+        // console.log("COMPOSITOR: Received mic data:", event.base64)
         // Fallback to WebSocket
         const samples = decodePcm16Base64ToFloat32(event.base64)
         sttModule.streamInsert(samples)
       })
+
+      // Start streaming transcription
+      try {
+        let transcription = ""
+        for await (const {committed, nonCommitted} of sttModule.stream()) {
+          console.log("Streaming transcription:", {committed, nonCommitted})
+          transcription += committed
+        }
+        console.log("Final transcription:", transcription)
+      } catch (error) {
+        console.error("Error during streaming transcription:", error)
+      }
 
       return () => {
         pcmSub.remove()

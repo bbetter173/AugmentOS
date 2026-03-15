@@ -22,7 +22,6 @@ Pod::Spec.new do |s|
 
   # iOS frameworks required for media processing
   s.frameworks = 'AVFoundation', 'Photos', 'CoreImage', 'CoreGraphics', 'UIKit'
-  s.weak_frameworks = 'Translation'
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {

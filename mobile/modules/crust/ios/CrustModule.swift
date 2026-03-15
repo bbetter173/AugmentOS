@@ -178,56 +178,6 @@ public class CrustModule: Module {
       NSLog("CrustModule: Successfully saved to gallery with proper creation date")
       return ["success": true, "identifier": assetIdentifier ?? ""]
     }
-
-    // MARK: - Translation Commands
-
-    AsyncFunction("getTranslationLanguages") { () -> [[String: String]] in
-      if #available(iOS 17.4, *) {
-        return await Translator.getAvailableLanguages()
-      } else {
-        return []
-      }
-    }
-
-    AsyncFunction("checkTranslationAvailability") { (source: String, target: String) -> [String: Any] in
-      if #available(iOS 17.4, *) {
-        return await Translator.checkLanguageAvailability(source: source, target: target)
-      } else {
-        return ["available": false, "error": "iOS 17.4+ required"]
-      }
-    }
-
-    AsyncFunction("prepareTranslationLanguage") { (source: String, target: String) -> [String: Any] in
-      if #available(iOS 17.4, *) {
-        return await Translator.prepareLanguage(source: source, target: target)
-      } else {
-        return ["success": false, "error": "iOS 17.4+ required"]
-      }
-    }
-
-    AsyncFunction("startTranslation") { (source: String, target: String) -> [String: Any] in
-      if #available(iOS 17.4, *) {
-        return await Translator.startSession(source: source, target: target)
-      } else {
-        return ["success": false, "error": "iOS 17.4+ required"]
-      }
-    }
-
-    AsyncFunction("translateText") { (text: String) -> [String: Any] in
-      if #available(iOS 17.4, *) {
-        return await Translator.translateText(text)
-      } else {
-        return ["success": false, "error": "iOS 17.4+ required"]
-      }
-    }
-
-    AsyncFunction("stopTranslation") { () -> [String: Any] in
-      if #available(iOS 17.4, *) {
-        return Translator.stopSession()
-      } else {
-        return ["success": false, "error": "iOS 17.4+ required"]
-      }
-    }
   }
 }
 

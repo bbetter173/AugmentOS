@@ -13,6 +13,7 @@ import LocalMiniApp from "@/components/home/LocalMiniApp"
 export default function MiniAppInstaller() {
   const viewShotRef = useRef<View>(null)
   const [url, setUrl] = useState("")
+  const [finalUrl, setFinalUrl] = useState("")
   const lmas = useLocalMiniApps()
   const {theme} = useAppTheme()
   const [versionsDialogOpen, setVersionsDialogOpen] = useState(false)
@@ -22,7 +23,7 @@ export default function MiniAppInstaller() {
 
   const handleLoadMiniApp = async () => {
     console.log(`LMA_LOADER: Loading MiniApp: ${url}`)
-    setUrl(url)
+    setFinalUrl(url)
   }
 
   const renderLoadedLocalMiniApp = () => {
@@ -185,14 +186,14 @@ export default function MiniAppInstaller() {
     )
   }
 
-  if (url) {
+  if (finalUrl) {
     return (
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         <MiniAppDualButtonHeader
           packageName="com.mentra.lma_installer"
           viewShotRef={viewShotRef}
-          onMinusPress={() => setUrl("")}
-          onEllipsisPress={() => setUrl("")}
+          onMinusPress={() => setFinalUrl("")}
+          onEllipsisPress={() => setFinalUrl("")}
         />
         {renderLoadedLocalMiniApp()}
       </Screen>

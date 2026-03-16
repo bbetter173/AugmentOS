@@ -232,6 +232,7 @@
         "@aws-sdk/client-s3": "^3.965.0",
         "@linear/sdk": "^75.0.0",
         "@logtail/pino": "^0.5.4",
+        "@mentra/display-utils": "workspace:*",
         "@mentra/sdk": "workspace:*",
         "@mentra/types": "workspace:*",
         "@mentra/utils": "workspace:*",

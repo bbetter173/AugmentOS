@@ -48,6 +48,9 @@ async function updateCalendar(c: AppContext) {
 
     await userSession.calendarManager.updateEventsFromAPI(events as any[]);
 
+    // Notify dashboard of calendar update
+    userSession.dashboardManager.onCalendarUpdate(events as any[]);
+
     return c.json({
       success: true,
       timestamp: new Date(),

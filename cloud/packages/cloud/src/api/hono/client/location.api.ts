@@ -71,6 +71,9 @@ async function updateLocation(c: AppContext) {
 
     await userSession.locationManager.updateFromAPI({ location });
 
+    // Notify dashboard of location update (fire-and-forget — fetches weather async)
+    void userSession.dashboardManager.onLocationUpdate(location.coords.latitude, location.coords.longitude);
+
     return c.json({
       success: true,
       timestamp: new Date().toISOString(),

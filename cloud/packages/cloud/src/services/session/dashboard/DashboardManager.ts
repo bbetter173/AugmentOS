@@ -29,8 +29,7 @@ import {
   AppToCloudMessage,
   ViewType,
 } from "@mentra/sdk";
-import { ColumnComposer } from "@mentra/display-utils";
-import { G1_PROFILE } from "@mentra/display-utils/src/profiles/g1";
+import { ColumnComposer, G1_PROFILE } from "@mentra/display-utils";
 
 // Internal package name for OS-generated display requests.
 // Matches OS_PACKAGE_NAME in DisplayManager6.1.ts — both must stay in sync.

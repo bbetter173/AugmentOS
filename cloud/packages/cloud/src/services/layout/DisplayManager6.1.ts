@@ -2,7 +2,6 @@ import { Logger } from "pino";
 
 import { AppToCloudMessageType, DisplayRequest, LayoutType, ViewType } from "@mentra/sdk";
 
-
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import UserSession from "../session/UserSession";
 import { ConnectionValidator } from "../validators/ConnectionValidator";
@@ -474,6 +473,19 @@ class DisplayManager {
     // Always show dashboard immediately
     if (displayRequest.packageName === SYSTEM_DASHBOARD_PACKAGE_NAME) {
       return this.sendDisplay(displayRequest);
+    }
+
+    // Third-party MiniApps can only write to the MAIN view.
+    // Clamp any attempt to write to DASHBOARD here so a rogue or
+    // misbehaving MiniApp cannot overwrite the dashboard buffer.
+    // (Only cloud-internal code — DashboardManager.render() — sends
+    //  requests with SYSTEM_DASHBOARD_PACKAGE_NAME, which bypasses this.)
+    if (displayRequest.view === ViewType.DASHBOARD) {
+      this.logger.warn(
+        { packageName: displayRequest.packageName },
+        `[${this.getUserId()}] ⚠️ MiniApp attempted to write to DASHBOARD view — clamping to MAIN`,
+      );
+      displayRequest = { ...displayRequest, view: ViewType.MAIN };
     }
 
     // During boot, queue display requests instead of blocking

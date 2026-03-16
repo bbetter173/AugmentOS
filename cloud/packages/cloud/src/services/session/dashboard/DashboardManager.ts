@@ -199,11 +199,8 @@ export class DashboardManager {
       const summary = await weatherService.getWeather(this.userSession.userId, lat, lng);
 
       if (summary) {
-        // Respect user's measurement preference when available.
-        // UserSession doesn't expose an isMetric flag yet, so we default
-        // to Fahrenheit (the more common preference among current users).
-        // TODO: plumb userSession.isMetric once that field exists.
-        const temp = `${summary.tempF}°F`;
+        const isMetric = this.userSession.userSettingsManager.getSnapshot()?.metric_system === true;
+        const temp = isMetric ? `${summary.tempC}°C` : `${summary.tempF}°F`;
         this.weatherText = `${summary.condition}, ${temp}`;
         this.logger.debug({ weatherText: this.weatherText }, "Weather updated");
       } else {

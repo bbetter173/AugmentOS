@@ -32,7 +32,9 @@ import {
 import { ColumnComposer } from "@mentra/display-utils";
 import { G1_PROFILE } from "@mentra/display-utils/src/profiles/g1";
 
-import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../../core/app.service";
+// Internal package name for OS-generated display requests.
+// Matches OS_PACKAGE_NAME in DisplayManager6.1.ts — both must stay in sync.
+const OS_PACKAGE_NAME = "com.mentra.os" as const;
 import { weatherService } from "../../core/WeatherService";
 import UserSession from "../UserSession";
 import { NotificationService, PhoneNotification } from "./NotificationService";
@@ -430,7 +432,7 @@ export class DashboardManager {
 
       const displayRequest: DisplayRequest = {
         type: AppToCloudMessageType.DISPLAY_REQUEST,
-        packageName: SYSTEM_DASHBOARD_PACKAGE_NAME,
+        packageName: OS_PACKAGE_NAME,
         view: ViewType.DASHBOARD,
         layout,
         timestamp: new Date(),

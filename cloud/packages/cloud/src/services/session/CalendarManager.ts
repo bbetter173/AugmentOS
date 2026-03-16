@@ -53,6 +53,9 @@ export class CalendarManager {
         this.addEvent(normalized);
         this.broadcast(normalized);
       });
+
+      // Notify dashboard with the full updated event list
+      this.userSession.dashboardManager?.onCalendarUpdate(this.getCachedEvents());
     } catch (error) {
       this.logger.child({ expoEvents }).error(error, "Error updating calendar from client");
     }

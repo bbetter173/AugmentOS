@@ -177,6 +177,7 @@ export class DashboardManager {
    * Called when the phone delivers a new notification.
    */
   onNotification(notification: PhoneNotification): void {
+    this.logger.info({ uuid: notification.uuid, title: notification.title }, "onNotification called");
     this.notificationService.add(notification);
     this.scheduleUpdate();
   }
@@ -193,6 +194,7 @@ export class DashboardManager {
    * Called when a fresh GPS fix arrives. Fetches weather, then re-renders.
    */
   async onLocationUpdate(lat: number, lng: number): Promise<void> {
+    this.logger.info({ lat, lng }, "onLocationUpdate called");
     try {
       const summary = await weatherService.getWeather(this.userSession.userId, lat, lng);
 
@@ -219,6 +221,7 @@ export class DashboardManager {
    * 7 days and formats it for the header right slot.
    */
   onCalendarUpdate(events: CalendarEvent[]): void {
+    this.logger.info({ eventCount: events.length }, "onCalendarUpdate called");
     const now = Date.now();
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const oneHourMs = 60 * 60 * 1000;
@@ -508,7 +511,7 @@ export class DashboardManager {
    * (Renamed from formatSystemLeftSection.)
    */
   private formatHeaderLeft(): string {
-    return "◌ $DATE$, $GBATT$";
+    return "◌ $DATE$, $TIME12$, $GBATT$";
   }
 
   /**

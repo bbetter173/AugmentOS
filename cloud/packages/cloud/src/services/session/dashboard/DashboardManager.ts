@@ -228,18 +228,79 @@ export class DashboardManager {
     // Find the first relevant event in the user's timezone:
     //   • starts in the future, OR started < 1 hour ago and hasn't ended yet
     //   • within the next 7 days
-    const upcoming = events.find((event) => {
+    // Helper: detect all-day events. Expo sets allDay on the raw event; after
+    // normalization we also detect it by checking UTC midnight boundaries
+    // (dtStart at 00:00Z and dtEnd exactly 24h/48h/… multiples later).
+    const isEventAllDay = (event: CalendarEvent): boolean => {
+      if ((event as any).allDay === true) return true;
+      const s = DateTime.fromISO(event.dtStart, { zone: "UTC" });
+      const e = event.dtEnd ? DateTime.fromISO(event.dtEnd, { zone: "UTC" }) : null;
+      if (!s.isValid || !e || !e.isValid) return false;
+      const bothMidnight =
+        s.hour === 0 && s.minute === 0 && s.second === 0 && e.hour === 0 && e.minute === 0 && e.second === 0;
+      const spansDays = e.diff(s, "days").days >= 1;
+      return bothMidnight && spansDays;
+    };
+
+    // Helper: for all-day events, the "calendar date" is the UTC date of dtStart
+    // (not shifted to user TZ, since 2026-03-18T00:00Z means "March 18" regardless
+    // of the user being in Pacific where that's 5pm on the 17th).
+    // For timed events, the calendar date is in the user's timezone.
+    const eventCalendarDate = (event: CalendarEvent, allDay: boolean): DateTime => {
+      if (allDay) {
+        // Interpret dtStart in UTC to get the intended calendar date,
+        // then strip the time so hasSame("day") works against user's "today".
+        const utcDt = DateTime.fromISO(event.dtStart, { zone: "UTC" });
+        // Re-create as a date-only in the user's timezone so hasSame comparisons work.
+        return DateTime.fromObject({ year: utcDt.year, month: utcDt.month, day: utcDt.day }, { zone: tz });
+      }
+      return DateTime.fromISO(event.dtStart, { zone: tz });
+    };
+
+    // Relevance check: event starts in the future or started recently and hasn't ended.
+    const isRelevant = (event: CalendarEvent): boolean => {
+      const allDay = isEventAllDay(event);
+      const calDt = eventCalendarDate(event, allDay);
+      if (!calDt.isValid) return false;
+
+      if (allDay) {
+        // All-day events are relevant if their calendar date is today or in the future,
+        // up to 7 days out.
+        return calDt >= nowDt.startOf("day") && calDt <= nowDt.plus({ days: 7 }).endOf("day");
+      }
+
       const startDt = DateTime.fromISO(event.dtStart, { zone: tz });
       const endDt = event.dtEnd ? DateTime.fromISO(event.dtEnd, { zone: tz }) : startDt.plus({ hours: 1 });
-
-      if (!startDt.isValid) return false;
-
       const startsInFuture = startDt > nowDt;
       const startedRecently = startDt <= nowDt && nowDt.diff(startDt, "hours").hours < 1 && endDt > nowDt;
       const withinWindow = startDt <= nowDt.plus({ days: 7 });
-
       return (startsInFuture || startedRecently) && withinWindow;
-    });
+    };
+
+    // Prefer timed events today over all-day events. Strategy:
+    //   1. Find the first relevant timed event.
+    //   2. Find the first relevant all-day event.
+    //   3. If we have a timed event that is today, prefer it. Otherwise fall back
+    //      to whichever is soonest.
+    const firstTimedEvent = events.find((e) => !isEventAllDay(e) && isRelevant(e));
+    const firstAllDayEvent = events.find((e) => isEventAllDay(e) && isRelevant(e));
+
+    let upcoming: CalendarEvent | undefined;
+    if (firstTimedEvent) {
+      const timedDt = DateTime.fromISO(firstTimedEvent.dtStart, { zone: tz });
+      if (timedDt.hasSame(nowDt, "day")) {
+        // A timed event today always wins over an all-day event.
+        upcoming = firstTimedEvent;
+      } else if (firstAllDayEvent) {
+        // Both are future — pick whichever calendar date comes first.
+        const allDayCalDt = eventCalendarDate(firstAllDayEvent, true);
+        upcoming = timedDt <= allDayCalDt ? firstTimedEvent : firstAllDayEvent;
+      } else {
+        upcoming = firstTimedEvent;
+      }
+    } else {
+      upcoming = firstAllDayEvent;
+    }
 
     if (!upcoming) {
       this.calendarText = null;
@@ -247,42 +308,37 @@ export class DashboardManager {
       return;
     }
 
-    const startDt = DateTime.fromISO(upcoming.dtStart, { zone: tz });
     const title = upcoming.title || "Event";
-
-    // Detect all-day events: Expo sets allDay on the raw event; after normalization
-    // we detect it by checking whether the time component is midnight exactly.
-    // All-day events from most calendar providers start at 00:00 local or UTC.
-    const isAllDay =
-      (upcoming as any).allDay === true || (startDt.hour === 0 && startDt.minute === 0 && startDt.second === 0);
+    const allDay = isEventAllDay(upcoming);
+    const calDt = eventCalendarDate(upcoming, allDay);
 
     // DST-safe day comparisons using Luxon — server timezone is irrelevant.
-    const isToday = startDt.hasSame(nowDt, "day");
-    const isTomorrow = startDt.hasSame(nowDt.plus({ days: 1 }), "day");
+    const isToday = calDt.hasSame(nowDt, "day");
+    const isTomorrow = calDt.hasSame(nowDt.plus({ days: 1 }), "day");
 
-    if (isAllDay) {
+    if (allDay) {
       // All-day: no time — just context label
       if (isToday) {
         this.calendarText = `${title} Today`;
       } else if (isTomorrow) {
         this.calendarText = `${title} tmr`;
       } else {
-        this.calendarText = `${title} ${startDt.toFormat("M/d")}`;
+        this.calendarText = `${title} ${calDt.toFormat("M/d")}`;
       }
     } else {
       // Timed event: format as "4pm" or "4:30pm"
-      const timeStr = startDt.toFormat(startDt.minute === 0 ? "ha" : "h:mma").toLowerCase();
+      const timeStr = calDt.toFormat(calDt.minute === 0 ? "ha" : "h:mma").toLowerCase();
 
       if (isToday) {
         this.calendarText = `${title} @ ${timeStr}`;
       } else if (isTomorrow) {
         this.calendarText = `tmr: ${title} @ ${timeStr}`;
       } else {
-        this.calendarText = `${startDt.toFormat("M/d")}: ${title} @ ${timeStr}`;
+        this.calendarText = `${calDt.toFormat("M/d")}: ${title} @ ${timeStr}`;
       }
     }
 
-    this.logger.debug({ calendarText: this.calendarText, isAllDay, isToday, isTomorrow }, "Calendar updated");
+    this.logger.debug({ calendarText: this.calendarText, allDay, isToday, isTomorrow }, "Calendar updated");
     this.scheduleUpdate();
   }
 

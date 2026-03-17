@@ -141,7 +141,7 @@ export class CalendarManager {
     const dtEnd = this.toIsoString(end ?? start);
     const timeStamp = new Date().toISOString();
 
-    const event: CalendarEvent = {
+    const event: CalendarEvent & { allDay?: boolean } = {
       type: StreamType.CALENDAR_EVENT,
       eventId: id,
       title,
@@ -150,6 +150,12 @@ export class CalendarManager {
       timezone: tz,
       timeStamp,
     };
+
+    // Preserve Expo's allDay flag so DashboardManager can detect all-day events
+    // without relying on fragile midnight-check heuristics.
+    if (input.allDay === true) {
+      event.allDay = true;
+    }
 
     return event;
   }

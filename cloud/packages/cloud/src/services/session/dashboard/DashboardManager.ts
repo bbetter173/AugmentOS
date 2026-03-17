@@ -514,29 +514,32 @@ export class DashboardManager {
    * Build the full dashboard Layout.
    *
    * Structure:
-   *   Row 1: column-split header  →  "◌ $DATE$, $GBATT$" | weather/calendar
-   *   Rows 2-4: full-width body   →  notifications (may be multi-line) + widget
+   *   Row 1: column-split header  →  "◌ $DATE$, $GBATT$" | weather
+   *   Row 2: calendar event (full width — not truncated by column split)
+   *   Rows 3-4: full-width body   →  notifications (may be multi-line) + widget
    *
    * (Renamed from generateMainLayout.)
    */
   private generateLayout(): Layout {
     const headerLeft = this.formatHeaderLeft();
-    const headerRight = this.formatHeaderRight();
+    const weatherRight = this.weatherText ?? "";
 
     // Row 1: pixel-accurate column-split header via ColumnComposer (1 line only).
-    // Left: time + battery token. Right: calendar or weather. Short predictable
-    // content on both sides means near-zero overflow risk (see spec §4b for the
-    // overflow fix that was also applied to ColumnComposer.calculateSpacesForAlignment).
+    // Left: time + battery token. Right: weather (always visible when available).
     const composer = new ColumnComposer(G1_PROFILE, "character-no-hyphen");
-    const composedHeader = headerRight
-      ? composer.composeDoubleTextWall(headerLeft, headerRight, { columnConfig: { maxLines: 1 } }).composedText
+    const composedHeader = weatherRight
+      ? composer.composeDoubleTextWall(headerLeft, weatherRight, { columnConfig: { maxLines: 1 } }).composedText
       : headerLeft;
 
-    // Rows 2-4: full-width body.
+    // Row 2: calendar event (full width — long titles like
+    // "Mentra Financials + Equity - Overview + Discuss @ 5pm" need the space).
+    const calendarLine = this.calendarText ?? "";
+
+    // Rows 3-4: notifications + widgets.
     const notificationLines = this.notificationService.getDisplayText(); // may be empty
     const widgetLine = this.getNextWidget(); // may be empty
 
-    const bodyParts = [notificationLines, widgetLine].filter((s) => s.trim().length > 0);
+    const bodyParts = [calendarLine, notificationLines, widgetLine].filter((s) => s.trim().length > 0);
     const body = bodyParts.join("\n");
 
     const text = body ? `${composedHeader}\n${body}` : composedHeader;
@@ -560,19 +563,6 @@ export class DashboardManager {
    */
   private formatHeaderLeft(): string {
     return "◌ $DATE$, $TIME12$, $GBATT$";
-  }
-
-  /**
-   * Right side of the header row.
-   * Shows the most time-sensitive data available:
-   *   1. Upcoming calendar event (if any)
-   *   2. Weather (if available)
-   *   3. Empty string
-   *
-   * (Renamed from formatSystemRightSection.)
-   */
-  private formatHeaderRight(): string {
-    return this.calendarText ?? this.weatherText ?? "";
   }
 
   // ---------------------------------------------------------------------------

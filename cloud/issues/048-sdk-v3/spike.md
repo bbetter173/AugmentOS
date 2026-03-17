@@ -244,7 +244,7 @@ The captions app — the most complex real-world SDK user — would work with **
 // This STILL WORKS in v3.0 (with deprecation warnings)
 export class LiveCaptionsApp extends AppServer {
   constructor(config) {
-    super({ packageName: config.packageName, apiKey: config.apiKey, port: config.port });
+    super({packageName: config.packageName, apiKey: config.apiKey, port: config.port})
   }
 
   protected async onSession(session: MentraSession, sessionId: string, userId: string) {
@@ -258,15 +258,15 @@ Then in v3.1, they migrate to:
 
 ```typescript
 // v3 way — clean, cloud app
-const app = new MentraApp({ packageName: "...", apiKey: "...", port: 3000 });
+const app = new MentraApp({packageName: "...", apiKey: "...", port: 3000})
 
 app.onSession((session) => {
   session.transcription.on((data) => {
-    session.display.showText(data.text);
-  });
-});
+    session.display.showText(data.text)
+  })
+})
 
-await app.start();
+await app.start()
 ```
 
 And the exact same session code works as a local app on the phone:
@@ -276,8 +276,8 @@ And the exact same session code works as a local app on the phone:
 // The phone OS runtime creates the session and calls this:
 export default function onSession(session: MentraSession) {
   session.transcription.on((data) => {
-    session.display.showText(data.text);
-  });
+    session.display.showText(data.text)
+  })
 }
 ```
 
@@ -310,45 +310,45 @@ Actually — correction. The shim should be on `MentraSession` itself so that ev
 ```typescript
 class MentraSession {
   // ─── v3 managers (the real API) ───────────────
-  readonly transcription: TranscriptionManager;
-  readonly translation: TranslationManager;
-  readonly display: DisplayManager;
-  readonly camera: CameraModule;
-  readonly speaker: SpeakerManager;
-  readonly mic: MicManager;
-  readonly device: DeviceManager;
-  readonly phone: PhoneManager;
-  readonly location: LocationManager;
-  readonly led: LedModule;
-  readonly storage: StorageManager;
-  readonly permissions: PermissionsManager;
-  readonly dashboard: DashboardManager;
-  readonly time: TimeUtils;
+  readonly transcription: TranscriptionManager
+  readonly translation: TranslationManager
+  readonly display: DisplayManager
+  readonly camera: CameraModule
+  readonly speaker: SpeakerManager
+  readonly mic: MicManager
+  readonly device: DeviceManager
+  readonly phone: PhoneManager
+  readonly location: LocationManager
+  readonly led: LedModule
+  readonly storage: StorageManager
+  readonly permissions: PermissionsManager
+  readonly dashboard: DashboardManager
+  readonly time: TimeUtils
 
   // ─── v2 compat (deprecated getters, removed in v3.1) ───
   /** @deprecated Use session.display */
   get layouts() {
-    return this.display;
+    return this.display
   }
 
   /** @deprecated Use session.speaker */
   get audio() {
-    return this.speaker;
+    return this.speaker
   }
 
   /** @deprecated Use session.storage */
   get simpleStorage() {
-    return this.storage;
+    return this.storage
   }
 
   /** @deprecated Use session.storage */
   get settings() {
-    return this._legacySettings;
+    return this._legacySettings
   }
 
   /** @deprecated Use managers directly */
   get events() {
-    return this._legacyEvents;
+    return this._legacyEvents
   }
 
   // etc.
@@ -375,45 +375,45 @@ interface TranscriptionConfig {
   /** Language hints — advisory input for accuracy, NOT filters.
    *  Uses ISO 639-1 codes: 'en', 'ja', 'es', etc.
    *  Default: auto-detect (no hints). */
-  languageHints?: string[];
+  languageHints?: string[]
 
   /** Custom vocabulary for better recognition of domain-specific terms.
    *  e.g., ['MentraOS', 'HIPAA', 'kubectl'] */
-  vocabulary?: string[];
+  vocabulary?: string[]
 
   /** Enable/disable speaker diarization.
    *  Default: true (Soniox gives it for free). */
-  diarization?: boolean;
+  diarization?: boolean
 }
 
 interface TranscriptionEvent {
-  text: string;
-  isFinal: boolean;
-  language: string; // ISO 639-1 detected language
-  speakerId?: string;
-  utteranceId?: string;
-  confidence?: number;
-  startTime: number;
-  endTime: number;
-  duration?: number;
-  metadata?: TranscriptionMetadata;
+  text: string
+  isFinal: boolean
+  language: string // ISO 639-1 detected language
+  speakerId?: string
+  utteranceId?: string
+  confidence?: number
+  startTime: number
+  endTime: number
+  duration?: number
+  metadata?: TranscriptionMetadata
 }
 
 class TranscriptionManager {
   /** Subscribe to ALL transcription events (auto-detect, all languages). */
-  on(handler: (data: TranscriptionEvent) => void): () => void;
+  on(handler: (data: TranscriptionEvent) => void): () => void
 
   /** Subscribe to transcription for specific language(s).
    *  Each call is independent — multiple can be active simultaneously.
    *  Accepts a single language or array. Returns cleanup function. */
-  forLanguage(lang: string | string[], handler: (data: TranscriptionEvent) => void): () => void;
+  forLanguage(lang: string | string[], handler: (data: TranscriptionEvent) => void): () => void
 
   /** Configure hints, vocabulary, diarization. Applies to all active subscriptions.
    *  Can be called mid-session. */
-  configure(config: TranscriptionConfig): void;
+  configure(config: TranscriptionConfig): void
 
   /** Stop all transcriptions and unsubscribe all handlers. */
-  stop(): void;
+  stop(): void
 }
 ```
 
@@ -422,33 +422,33 @@ class TranscriptionManager {
 ```typescript
 // Simplest — zero config, auto-detect, diarization included
 session.transcription.on((data) => {
-  console.log(`[${data.language}] ${data.speakerId}: ${data.text}`);
-});
+  console.log(`[${data.language}] ${data.speakerId}: ${data.text}`)
+})
 
 // Language-specific — each call is independent, both active simultaneously
 const stopEnglish = session.transcription.forLanguage("en", (data) => {
-  showOnLeftPanel(data.text);
-});
+  showOnLeftPanel(data.text)
+})
 const stopJapanese = session.transcription.forLanguage("ja", (data) => {
-  showOnRightPanel(data.text);
-});
+  showOnRightPanel(data.text)
+})
 
 // Stop just one — Japanese keeps running
-stopEnglish();
+stopEnglish()
 
 // Multiple languages, one handler
 session.transcription.forLanguage(["en", "ja", "es"], (data) => {
-  console.log(`[${data.language}] ${data.text}`);
-});
+  console.log(`[${data.language}] ${data.text}`)
+})
 
 // Configure hints (applies to all active subscriptions)
 session.transcription.configure({
   languageHints: ["en", "ja"],
   vocabulary: ["MentraOS", "Soniox"],
-});
+})
 
 // Stop everything
-session.transcription.stop();
+session.transcription.stop()
 ```
 
 ### Wire protocol mapping
@@ -469,14 +469,14 @@ session.transcription.forLanguage(["en", "ja"], handler)
 
 ```typescript
 // v2 code:
-session.events.onTranscription(handler);
+session.events.onTranscription(handler)
 // LegacyEventShim maps to:
-session.transcription.on(handler);
+session.transcription.on(handler)
 
 // v2 code:
-session.events.onTranscriptionForLanguage("en-US", handler, opts);
+session.events.onTranscriptionForLanguage("en-US", handler, opts)
 // LegacyEventShim maps to:
-session.transcription.forLanguage("en", handler);
+session.transcription.forLanguage("en", handler)
 // (strips region suffix from BCP-47 → ISO 639-1)
 ```
 
@@ -491,45 +491,45 @@ The 039 spec deferred translation to v3.1. We're pulling it into v3.0 because it
 ```typescript
 interface TranslationEvent {
   /** Translated text. */
-  text: string;
+  text: string
 
   /** Whether this is a final translation (vs interim). */
-  isFinal: boolean;
+  isFinal: boolean
 
   /** Detected source language (ISO 639-1). */
-  sourceLanguage: string;
+  sourceLanguage: string
 
   /** Target language (ISO 639-1). */
-  targetLanguage: string;
+  targetLanguage: string
 
   /** Original (untranslated) text. */
-  originalText?: string;
+  originalText?: string
 
   /** Utterance grouping ID. */
-  utteranceId?: string;
+  utteranceId?: string
 
   /** Confidence score (0-1). */
-  confidence?: number;
+  confidence?: number
 
-  startTime: number;
-  endTime: number;
+  startTime: number
+  endTime: number
 }
 
 class TranslationManager {
   /** Subscribe to ALL active translation events. */
-  on(handler: (data: TranslationEvent) => void): () => void;
+  on(handler: (data: TranslationEvent) => void): () => void
 
   /** Auto-detect source, translate to one or more targets.
    *  Each call is independent — multiple can be active simultaneously.
    *  Accepts a single language or array. Returns cleanup function. */
-  to(target: string | string[], handler: (data: TranslationEvent) => void): () => void;
+  to(target: string | string[], handler: (data: TranslationEvent) => void): () => void
 
   /** Explicit source, translate to one or more targets.
    *  Same independence and cleanup semantics as to(). */
-  fromTo(source: string, target: string | string[], handler: (data: TranslationEvent) => void): () => void;
+  fromTo(source: string, target: string | string[], handler: (data: TranslationEvent) => void): () => void
 
   /** Stop all translations and unsubscribe all handlers. */
-  stop(): void;
+  stop(): void
 }
 ```
 
@@ -538,38 +538,38 @@ class TranslationManager {
 ```typescript
 // Simplest — auto-detect source, translate to Spanish
 session.translation.to("es", (data) => {
-  session.display.showText(data.text);
-});
+  session.display.showText(data.text)
+})
 
 // Multiple targets simultaneously — both active, independent
 const stopSpanish = session.translation.to("es", (data) => {
-  showOnLeftPanel(data.text);
-});
+  showOnLeftPanel(data.text)
+})
 const stopJapanese = session.translation.to("ja", (data) => {
-  showOnRightPanel(data.text);
-});
+  showOnRightPanel(data.text)
+})
 
 // Stop just Spanish — Japanese keeps running
-stopSpanish();
+stopSpanish()
 
 // Multiple targets in one call — handler gets called for each
 session.translation.to(["es", "ja", "fr"], (data) => {
   // data.targetLanguage tells you which one
-  console.log(`[${data.targetLanguage}] ${data.text}`);
-});
+  console.log(`[${data.targetLanguage}] ${data.text}`)
+})
 
 // Explicit source and target
 session.translation.fromTo("en", "ja", (data) => {
-  session.display.showText(data.text);
-});
+  session.display.showText(data.text)
+})
 
 // Explicit source, multiple targets
 session.translation.fromTo("en", ["es", "ja"], (data) => {
-  console.log(`[${data.targetLanguage}] ${data.text}`);
-});
+  console.log(`[${data.targetLanguage}] ${data.text}`)
+})
 
 // Stop everything
-session.translation.stop();
+session.translation.stop()
 ```
 
 ### Wire protocol mapping
@@ -592,10 +592,10 @@ The cloud doesn't need to change. Same subscription strings, same DataStream mes
 
 ```typescript
 // v2 code:
-session.events.onTranslationForLanguage("en-US", "es-ES", handler);
+session.events.onTranslationForLanguage("en-US", "es-ES", handler)
 
 // LegacyEventShim maps to:
-session.translation.fromTo("en", "es", handler);
+session.translation.fromTo("en", "es", handler)
 // (strips region suffix from BCP-47 → ISO 639-1)
 ```
 
@@ -607,11 +607,11 @@ session.translation.fromTo("en", "es", handler);
 
 ```typescript
 interface Transport {
-  send(data: string): void;
-  onMessage(handler: (data: string) => void): void;
-  onClose(handler: (code: number, reason: string) => void): void;
-  close(): void;
-  readonly readyState: number;
+  send(data: string): void
+  onMessage(handler: (data: string) => void): void
+  onClose(handler: (code: number, reason: string) => void): void
+  close(): void
+  readonly readyState: number
 }
 ```
 
@@ -658,31 +658,31 @@ For `DATA_STREAM` messages (which carry transcription, translation, notification
 ```typescript
 // DataStreamRouter handles the DATA_STREAM message type
 class DataStreamRouter {
-  private handlers = new Map<string, (data: any) => void>();
+  private handlers = new Map<string, (data: any) => void>()
 
   register(streamPrefix: string, handler: (data: any) => void) {
-    this.handlers.set(streamPrefix, handler);
+    this.handlers.set(streamPrefix, handler)
   }
 
   handle(msg: DataStreamMessage) {
     // msg.streamType might be "transcription:en", "translation:en-ja", etc.
     for (const [prefix, handler] of this.handlers) {
       if (msg.streamType.startsWith(prefix)) {
-        handler(msg.data);
-        return;
+        handler(msg.data)
+        return
       }
     }
   }
 }
 
 // TranscriptionManager registers:
-dataStreamRouter.register("transcription", (data) => this.emit(data));
+dataStreamRouter.register("transcription", (data) => this.emit(data))
 
 // TranslationManager registers:
-dataStreamRouter.register("translation", (data) => this.emit(data));
+dataStreamRouter.register("translation", (data) => this.emit(data))
 
 // PhoneManager registers:
-dataStreamRouter.register("phone_notification", (data) => this.notifications.emit(data));
+dataStreamRouter.register("phone_notification", (data) => this.notifications.emit(data))
 ```
 
 ---
@@ -695,13 +695,13 @@ Per 039 §24, SDK endpoints move behind `/api/_mentraos/`. But the cloud current
 
 ```typescript
 // Primary (v3)
-app.post("/api/_mentraos/webhook", webhookHandler);
-app.post("/api/_mentraos/tool", toolHandler);
+app.post("/api/_mentraos/webhook", webhookHandler)
+app.post("/api/_mentraos/tool", toolHandler)
 // ... etc.
 
 // Legacy aliases (for current cloud)
-app.post("/webhook", webhookHandler); // same handler, no deprecation warning (cloud sends these)
-app.post("/tool", toolHandler);
+app.post("/webhook", webhookHandler) // same handler, no deprecation warning (cloud sends these)
+app.post("/tool", toolHandler)
 // ... etc.
 ```
 
@@ -726,8 +726,8 @@ The developer's code is identical:
 ```typescript
 // This same code works as a cloud app AND a local app
 session.transcription.on((data) => {
-  session.display.showText(data.text);
-});
+  session.display.showText(data.text)
+})
 ```
 
 The only difference is WHERE it runs and HOW the session is established:
@@ -852,7 +852,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 
 ## Implementation Phases
 
-### Phase 1: Foundation (~3 days)
+### Phase 1: Foundation
 
 **Goal:** `MentraSession` exists with transport abstraction. `MentraApp` works. `AppServer` shim wraps it. Existing apps still run.
 
@@ -866,23 +866,23 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 8. Add `toErrorMessage()` utility, route namespacing with legacy aliases
 9. Set up `@mentra/sdk/session` entrypoint (no Hono, no server deps)
 
-### Phase 2: Manager extraction (~5 days)
+### Phase 2: Manager extraction
 
 **Goal:** `AppSession` shrinks to ~500 lines. All managers exist and work.
 
-2. **`TranscriptionManager`** — new, replaces `events.onTranscription*`, supports `forLanguage(string | string[])`, multiple simultaneous (~1.5 days)
-3. **`TranslationManager`** — new, replaces `events.onTranslation*`, supports `to(string | string[])` / `fromTo()`, multiple simultaneous (~1.5 days)
-4. **`DisplayManager`** — rename from `LayoutManager`, add `showText(string|string[])`, `wrap()`, device info (~0.5 day)
-5. **`SpeakerManager`** — rename from `AudioManager`, output only (play, TTS) (~0.25 day)
-6. **`MicManager`** — new, takes audio input from `EventManager` (~0.5 day)
-7. **`DeviceManager`** — new, absorbs hardware events + WiFi + capabilities from session (~0.5 day)
-8. **`PhoneManager`** — new, absorbs phone events with sub-scoped notifications/calendar (~0.5 day)
-9. **`PermissionsManager`** — new, centralized permission checks (~0.25 day)
-10. **`DashboardManager`** — redesigned, `.showText()` + `.clear()` only (~0.25 day)
-11. **`TimeUtils`** — new, timezone + formatting (~0.25 day)
-12. **`StorageManager`** — rename from `SimpleStorage` (~0.1 day)
+1. **`TranscriptionManager`** — new, replaces `events.onTranscription*`, supports `forLanguage(string | string[])`, multiple simultaneous
+2. **`TranslationManager`** — new, replaces `events.onTranslation*`, supports `to(string | string[])` / `fromTo()`, multiple simultaneous
+3. **`DisplayManager`** — rename from `LayoutManager`, add `showText(string|string[])`, `wrap()`, device info
+4. **`SpeakerManager`** — rename from `AudioManager`, output only (play, TTS)
+5. **`MicManager`** — new, takes audio input from `EventManager`
+6. **`DeviceManager`** — new, absorbs hardware events + WiFi + capabilities from session
+7. **`PhoneManager`** — new, absorbs phone events with sub-scoped notifications/calendar
+8. **`PermissionsManager`** — new, centralized permission checks
+9. **`DashboardManager`** — redesigned, `.showText()` + `.clear()` only
+10. **`TimeUtils`** — new, timezone + formatting
+11. **`StorageManager`** — rename from `SimpleStorage`
 
-### Phase 3: Message dispatch refactor (~1.5 days)
+### Phase 3: Message dispatch refactor
 
 **Goal:** `handleMessage` goes from 412-line if/else to ~30-line dispatch map.
 
@@ -891,7 +891,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 3. Wire up in `MentraSession` constructor
 4. Delete old `handleMessage`
 
-### Phase 4: Compat shim layer (~1.5 days)
+### Phase 4: Compat shim layer
 
 **Goal:** `session.events.*`, `session.layouts.*`, `session.on*()` all still work with warnings.
 
@@ -902,7 +902,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 5. Each deprecated path logs once-per-session warning with migration hint
 6. BCP-47 → ISO 639-1 auto-mapping in shim (strip `-US`, `-JP` suffixes)
 
-### Phase 5: Dead code removal + bug fixes (~1 day)
+### Phase 5: Dead code removal + bug fixes
 
 **Goal:** Everything from the "What Gets Deleted" and "Bug Fixes" tables above.
 
@@ -913,7 +913,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 5. Fix all bugs from the table
 6. Replace all `console.*` with `this.logger`
 
-### Phase 6: Polish + publish (~2 days)
+### Phase 6: Polish + publish
 
 **Goal:** v3.0 ships.
 
@@ -924,7 +924,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 5. Publish `3.0.0` to npm (drop `-hono` prerelease tag)
 6. Update public example repos
 
-### Phase 7: v3.1 cleanup (separate PR, ~1 day)
+### Phase 7: v3.1 cleanup (separate PR)
 
 **Goal:** Remove all compat shims.
 
@@ -934,21 +934,6 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 4. Delete `AppSession` / `TpaSession` type aliases
 5. Delete legacy route aliases
 6. Publish `3.1.0`
-
----
-
-## Total Effort
-
-| Phase                       | Days         |
-| --------------------------- | ------------ |
-| Phase 1: Foundation         | ~3           |
-| Phase 2: Manager extraction | ~5           |
-| Phase 3: Message dispatch   | ~1.5         |
-| Phase 4: Compat shim        | ~1.5         |
-| Phase 5: Dead code + bugs   | ~1           |
-| Phase 6: Polish + publish   | ~2           |
-| **Total for v3.0**          | **~14 days** |
-| Phase 7: v3.1 cleanup       | ~1           |
 
 ---
 

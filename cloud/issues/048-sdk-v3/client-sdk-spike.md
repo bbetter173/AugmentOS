@@ -121,11 +121,11 @@ In the spike, we defined a `Transport` interface:
 
 ```typescript
 interface Transport {
-  send(data: string): void
-  onMessage(handler: (data: string) => void): void
-  onClose(handler: (code: number, reason: string) => void): void
-  close(): void
-  readonly readyState: number
+  send(data: string): void;
+  onMessage(handler: (data: string) => void): void;
+  onClose(handler: (code: number, reason: string) => void): void;
+  close(): void;
+  readonly readyState: number;
 }
 ```
 
@@ -153,7 +153,7 @@ class NativeBridgeTransport implements Transport {
   }
 
   get readyState(): number {
-    return 1 // Always "open" while glasses are connected
+    return 1; // Always "open" while glasses are connected
   }
 }
 ```
@@ -240,18 +240,18 @@ Bundles run in a sandboxed Hermes context — no access to the filesystem, netwo
 
 ```typescript
 // index.ts — compiled to index.hbc
-import {MentraSession} from "@mentra/sdk/session"
+import { MentraSession } from "@mentra/sdk/session";
 
 // The runtime calls this when the session is ready
 export default function onSession(session: MentraSession) {
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
+    session.display.showText(data.text);
+  });
 }
 
 // Optional: called when the session ends (glasses disconnect, app stopped)
 export function onStop(session: MentraSession) {
-  console.log("bye")
+  console.log("bye");
 }
 ```
 
@@ -259,13 +259,13 @@ This is the same pattern as cloud apps:
 
 ```typescript
 // Cloud app (for comparison)
-const app = new MentraApp({packageName: "...", apiKey: "..."})
+const app = new MentraApp({ packageName: "...", apiKey: "..." });
 
 app.onSession((session) => {
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
-})
+    session.display.showText(data.text);
+  });
+});
 ```
 
 The only difference: cloud apps use `MentraApp` (Hono server that creates sessions from webhooks). Local apps export `onSession` and the phone runtime calls it directly.
@@ -339,22 +339,22 @@ Every field on `TranscriptionEvent` stays optional. The developer queries capabi
 ```typescript
 interface TranscriptionCapabilities {
   /** Can detect the spoken language automatically. */
-  languageDetection: boolean
+  languageDetection: boolean;
 
   /** Can identify different speakers. */
-  diarization: boolean
+  diarization: boolean;
 
   /** Provides word-level start/end timestamps. */
-  wordTimestamps: boolean
+  wordTimestamps: boolean;
 
   /** Provides per-segment confidence scores. */
-  confidence: boolean
+  confidence: boolean;
 
   /** Which languages the current engine supports. */
-  supportedLanguages: string[]
+  supportedLanguages: string[];
 
   /** Whether the engine is running locally or in the cloud. */
-  local: boolean
+  local: boolean;
 }
 ```
 
@@ -364,27 +364,27 @@ Usage:
 export default function onSession(session: MentraSession) {
   // Always works — text and isFinal are always present
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
+    session.display.showText(data.text);
+  });
 
   // Check capabilities before relying on optional fields
-  const caps = session.transcription.capabilities
+  const caps = session.transcription.capabilities;
 
   if (caps.diarization) {
     session.transcription.on((data) => {
       if (data.speakerId) {
-        showSpeakerLabel(data.speakerId, data.text)
+        showSpeakerLabel(data.speakerId, data.text);
       }
-    })
+    });
   }
 
   // React to capability changes (e.g., network drops, switch to local)
   session.transcription.onCapabilitiesChange((newCaps) => {
     if (!newCaps.diarization) {
       // Switched to local model — hide speaker labels
-      hideSpeakerLabels()
+      hideSpeakerLabels();
     }
-  })
+  });
 }
 ```
 
@@ -405,10 +405,10 @@ Translation has the same problem — cloud translation (Soniox) gives you source
 
 ```typescript
 interface TranslationCapabilities {
-  sourceDetection: boolean // can auto-detect source language?
-  supportedPairs: string[][] // [["en", "es"], ["en", "ja"], ...]
-  simultaneousTargets: number // how many targets at once? Soniox: many, local: 1
-  local: boolean
+  sourceDetection: boolean; // can auto-detect source language?
+  supportedPairs: string[][]; // [["en", "es"], ["en", "ja"], ...]
+  simultaneousTargets: number; // how many targets at once? Soniox: many, local: 1
+  local: boolean;
 }
 ```
 
@@ -452,24 +452,24 @@ Example: an AI assistant app that shows live captions locally (Whisper) but send
 export default function onSession(session: MentraSession) {
   // Local: real-time captions via on-device Sherpa-ONNX
   session.transcription.on((data) => {
-    session.display.showText(data.text)
+    session.display.showText(data.text);
 
     if (data.isFinal) {
       // Cloud: send to LLM for a response
       askCloudLLM(data.text).then((response) => {
-        session.speaker.speak(response)
-      })
+        session.speaker.speak(response);
+      });
     }
-  })
+  });
 }
 
 async function askCloudLLM(text: string): Promise<string> {
   const res = await fetch("https://api.example.com/chat", {
     method: "POST",
-    body: JSON.stringify({message: text}),
-  })
-  const data = await res.json()
-  return data.reply
+    body: JSON.stringify({ message: text }),
+  });
+  const data = await res.json();
+  return data.reply;
 }
 ```
 
@@ -498,21 +498,7 @@ This is a rough breakdown of the native work needed to support local apps:
 | **NativeStorage**         | Per-app sandboxed key-value storage via JSI                 | Low        | SQLite or MMKV via JSI (synchronous reads).                                      |
 | **BundleLoader**          | Download, cache, verify, and load .hbc bundles              | Medium     | HTTP client + file cache + signature verification.                               |
 
-### Estimated effort
-
-| Phase                                                       | Work                        | Days         |
-| ----------------------------------------------------------- | --------------------------- | ------------ |
-| MentraRuntime + NativeBridgeTransport + BundleLoader        | Core infrastructure         | ~10          |
-| NativeDisplay + NativeMic + NativeSpeaker                   | Basic I/O                   | ~5           |
-| NativeCamera                                                | Photo capture               | ~3           |
-| NativeTranscription (Sherpa-ONNX JSI bridge + capabilities) | Transcription normalization | ~3           |
-| NativeLocation + NativeNotifications + NativeCalendar       | Phone data                  | ~3           |
-| NativeStorage                                               | Persistence                 | ~1           |
-| Testing + integration with SDK v3 `MentraSession`           | End-to-end                  | ~5           |
-| App store / bundle management UI in MentraOS app            | User-facing                 | ~3           |
-| **Total**                                                   |                             | **~35 days** |
-
-This is parallel to the SDK v3 work. The SDK v3 refactor (~14 days) produces the `MentraSession` + `Transport` interface that the mobile runtime consumes. The mobile work builds the native side that implements that interface.
+This work is parallel to the SDK v3 refactor. The SDK v3 refactor produces the `MentraSession` + `Transport` interface that the mobile runtime consumes. The mobile work builds the native side that implements that interface.
 
 ---
 

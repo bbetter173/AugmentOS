@@ -17,6 +17,7 @@
  */
 
 import { Logger } from "pino";
+import { DateTime } from "luxon";
 
 import {
   AppToCloudMessageType,
@@ -219,22 +220,23 @@ export class DashboardManager {
    */
   onCalendarUpdate(events: CalendarEvent[]): void {
     this.logger.info({ eventCount: events.length }, "onCalendarUpdate called");
-    const now = Date.now();
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    const oneHourMs = 60 * 60 * 1000;
 
-    // Find the first relevant event:
+    // User's IANA timezone — all comparisons are made from the user's perspective.
+    const tz = this.userSession.userTimezone || "UTC";
+    const nowDt = DateTime.now().setZone(tz);
+
+    // Find the first relevant event in the user's timezone:
     //   • starts in the future, OR started < 1 hour ago and hasn't ended yet
-    //   • within the next 7 days from now
+    //   • within the next 7 days
     const upcoming = events.find((event) => {
-      const startMs = Date.parse(event.dtStart);
-      const endMs = event.dtEnd ? Date.parse(event.dtEnd) : startMs + oneHourMs;
+      const startDt = DateTime.fromISO(event.dtStart, { zone: tz });
+      const endDt = event.dtEnd ? DateTime.fromISO(event.dtEnd, { zone: tz }) : startDt.plus({ hours: 1 });
 
-      if (isNaN(startMs)) return false;
+      if (!startDt.isValid) return false;
 
-      const startsInFuture = startMs > now;
-      const startedRecently = startMs <= now && now - startMs < oneHourMs && endMs > now;
-      const withinWindow = startMs <= now + sevenDaysMs;
+      const startsInFuture = startDt > nowDt;
+      const startedRecently = startDt <= nowDt && nowDt.diff(startDt, "hours").hours < 1 && endDt > nowDt;
+      const withinWindow = startDt <= nowDt.plus({ days: 7 });
 
       return (startsInFuture || startedRecently) && withinWindow;
     });
@@ -245,49 +247,42 @@ export class DashboardManager {
       return;
     }
 
-    const startMs = Date.parse(upcoming.dtStart);
-    const startDate = new Date(startMs);
-
-    // Determine user's timezone for display; fall back to UTC.
-    const tz = this.userSession.userTimezone || "UTC";
-
-    // Figure out whether the event is today or tomorrow in the user's timezone.
-    const nowInTz = new Date(new Date().toLocaleString("en-US", { timeZone: tz }));
-    const startInTz = new Date(startDate.toLocaleString("en-US", { timeZone: tz }));
-
-    const todayMidnight = new Date(nowInTz);
-    todayMidnight.setHours(0, 0, 0, 0);
-
-    const tomorrowMidnight = new Date(todayMidnight);
-    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
-
-    const dayAfterTomorrowMidnight = new Date(tomorrowMidnight);
-    dayAfterTomorrowMidnight.setDate(dayAfterTomorrowMidnight.getDate() + 1);
-
-    const isToday = startInTz >= todayMidnight && startInTz < tomorrowMidnight;
-    const isTomorrow = startInTz >= tomorrowMidnight && startInTz < dayAfterTomorrowMidnight;
-
-    // Format time as "4pm" or "4:30pm".
-    const hours24 = startInTz.getHours();
-    const minutes = startInTz.getMinutes();
-    const hours12 = hours24 % 12 || 12;
-    const ampm = hours24 < 12 ? "am" : "pm";
-    const timeStr = minutes === 0 ? `${hours12}${ampm}` : `${hours12}:${minutes.toString().padStart(2, "0")}${ampm}`;
-
+    const startDt = DateTime.fromISO(upcoming.dtStart, { zone: tz });
     const title = upcoming.title || "Event";
 
-    if (isToday) {
-      this.calendarText = `${title} @ ${timeStr}`;
-    } else if (isTomorrow) {
-      this.calendarText = `tmr: ${title} @ ${timeStr}`;
+    // Detect all-day events: Expo sets allDay on the raw event; after normalization
+    // we detect it by checking whether the time component is midnight exactly.
+    // All-day events from most calendar providers start at 00:00 local or UTC.
+    const isAllDay =
+      (upcoming as any).allDay === true || (startDt.hour === 0 && startDt.minute === 0 && startDt.second === 0);
+
+    // DST-safe day comparisons using Luxon — server timezone is irrelevant.
+    const isToday = startDt.hasSame(nowDt, "day");
+    const isTomorrow = startDt.hasSame(nowDt.plus({ days: 1 }), "day");
+
+    if (isAllDay) {
+      // All-day: no time — just context label
+      if (isToday) {
+        this.calendarText = `${title} Today`;
+      } else if (isTomorrow) {
+        this.calendarText = `${title} tmr`;
+      } else {
+        this.calendarText = `${title} ${startDt.toFormat("M/d")}`;
+      }
     } else {
-      // Within 7 days but not today/tomorrow — show abbreviated date.
-      const month = startInTz.getMonth() + 1;
-      const day = startInTz.getDate();
-      this.calendarText = `${month}/${day}: ${title} @ ${timeStr}`;
+      // Timed event: format as "4pm" or "4:30pm"
+      const timeStr = startDt.toFormat(startDt.minute === 0 ? "ha" : "h:mma").toLowerCase();
+
+      if (isToday) {
+        this.calendarText = `${title} @ ${timeStr}`;
+      } else if (isTomorrow) {
+        this.calendarText = `tmr: ${title} @ ${timeStr}`;
+      } else {
+        this.calendarText = `${startDt.toFormat("M/d")}: ${title} @ ${timeStr}`;
+      }
     }
 
-    this.logger.debug({ calendarText: this.calendarText }, "Calendar updated");
+    this.logger.debug({ calendarText: this.calendarText, isAllDay, isToday, isTomorrow }, "Calendar updated");
     this.scheduleUpdate();
   }
 

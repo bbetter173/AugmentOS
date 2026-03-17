@@ -99,21 +99,21 @@ JSI (JavaScript Interface) is React Native's low-level C++ bridge. It allows JS 
 
 ### How `MentraSession` managers map to native bindings
 
-| Manager                                   | JSI Binding                           | Native Implementation                                  |
-| ----------------------------------------- | ------------------------------------- | ------------------------------------------------------ |
-| `session.display.showText(text)`          | `nativeDisplay.showText(text)`        | BLE write to glasses display characteristic            |
-| `session.display.showCard({title, body})` | `nativeDisplay.showCard(title, body)` | BLE write (formatted as DisplayRequest)                |
-| `session.display.clear()`                 | `nativeDisplay.clear()`               | BLE write (clear command)                              |
-| `session.speaker.play(url)`               | `nativeSpeaker.play(url)`             | Download audio, stream via BLE audio channel           |
-| `session.speaker.speak(text)`             | `nativeSpeaker.speak(text)`           | On-device TTS → BLE audio                              |
-| `session.mic.onChunk(handler)`            | `nativeMic.onChunk(callback)`         | BLE audio input → PCM chunks → JS callback             |
-| `session.transcription.on(handler)`       | `nativeTranscription.on(callback)`    | On-device Whisper → transcription events → JS callback |
-| `session.camera.takePhoto()`              | `nativeCamera.takePhoto()`            | BLE camera command → wait for BLE photo data           |
-| `session.location.onUpdate(handler)`      | `nativeLocation.onUpdate(callback)`   | CoreLocation / FusedLocation → JS callback             |
-| `session.phone.notifications.on(handler)` | `nativeNotifications.on(callback)`    | NotificationListenerService / UNNotificationCenter     |
-| `session.phone.calendar.on(handler)`      | `nativeCalendar.on(callback)`         | EventKit / CalendarProvider                            |
-| `session.storage.get(key)`                | `nativeStorage.get(key)`              | SQLite / AsyncStorage (synchronous via JSI)            |
-| `session.device.batteryLevel`             | `nativeDevice.getBatteryLevel()`      | BLE read from glasses battery characteristic           |
+| Manager                                   | JSI Binding                           | Native Implementation                                             |
+| ----------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| `session.display.showText(text)`          | `nativeDisplay.showText(text)`        | BLE write to glasses display characteristic                       |
+| `session.display.showCard({title, body})` | `nativeDisplay.showCard(title, body)` | BLE write (formatted as DisplayRequest)                           |
+| `session.display.clear()`                 | `nativeDisplay.clear()`               | BLE write (clear command)                                         |
+| `session.speaker.play(url)`               | `nativeSpeaker.play(url)`             | Download audio, stream via BLE audio channel                      |
+| `session.speaker.speak(text)`             | `nativeSpeaker.speak(text)`           | On-device TTS → BLE audio                                         |
+| `session.mic.onChunk(handler)`            | `nativeMic.onChunk(callback)`         | BLE audio input → PCM chunks → JS callback                        |
+| `session.transcription.on(handler)`       | `nativeTranscription.on(callback)`    | Sherpa-ONNX / Soniox (cloud) → transcription events → JS callback |
+| `session.camera.takePhoto()`              | `nativeCamera.takePhoto()`            | BLE camera command → wait for BLE photo data                      |
+| `session.location.onUpdate(handler)`      | `nativeLocation.onUpdate(callback)`   | CoreLocation / FusedLocation → JS callback                        |
+| `session.phone.notifications.on(handler)` | `nativeNotifications.on(callback)`    | NotificationListenerService / UNNotificationCenter                |
+| `session.phone.calendar.on(handler)`      | `nativeCalendar.on(callback)`         | EventKit / CalendarProvider                                       |
+| `session.storage.get(key)`                | `nativeStorage.get(key)`              | SQLite / AsyncStorage (synchronous via JSI)                       |
+| `session.device.batteryLevel`             | `nativeDevice.getBatteryLevel()`      | BLE read from glasses battery characteristic                      |
 
 ### The Transport adapter
 
@@ -274,35 +274,168 @@ The only difference: cloud apps use `MentraApp` (Hono server that creates sessio
 
 ## On-Device Transcription
 
-The biggest feature unlock for local apps is on-device transcription. Today, audio goes: glasses mic → phone → cloud (Soniox) → cloud → phone → glasses display. That's 4 network hops for every utterance.
+### Current state
 
-With local transcription: glasses mic → phone (Whisper) → glasses display. Zero network hops.
+MentraOS **already has local transcription** via **Sherpa-ONNX**. It works — English edge quality is "pretty good" per Cayden (audio lead). The main problem isn't the model, it's the **spaghetti code**: local captions is the only offline mini app that uses the mic, and it's deeply intertwined with the rest of the mobile app. Every client change risks breaking it.
 
-### Options
+Captions 3.0 is being planned (Isaiah + Matt + Israelov meeting Wednesday) to add online/offline switching and clean up the spaghetti. The local runtime architecture in this spike is the long-term fix — if local captions ran as a proper mini app with `MentraSession`, it wouldn't be entangled with the rest of the mobile app.
 
-| Model                         | Size           | Speed                   | Quality             | Notes                                                          |
-| ----------------------------- | -------------- | ----------------------- | ------------------- | -------------------------------------------------------------- |
-| **Whisper.cpp (tiny)**        | ~75MB          | Real-time on iPhone 12+ | Good for English    | C++ library, runs on CPU. `whisper.rn` package exists for RN.  |
-| **Whisper.cpp (base)**        | ~150MB         | Near-real-time          | Better multilingual | May need Neural Engine / GPU on older phones.                  |
-| **Whisper.cpp (small)**       | ~500MB         | Slower                  | Best quality        | Too large for always-on. Use for offline when quality matters. |
-| **Apple Speech Framework**    | 0 (system)     | Real-time               | Good                | iOS only. Free, low power. Limited language support.           |
-| **Google Speech (on-device)** | ~50MB per lang | Real-time               | Good                | Android only. Downloaded per language.                         |
-| **Soniox (cloud)**            | 0              | Real-time               | Best                | Requires internet. Current production system.                  |
+### Engine options
 
-### Recommendation: hybrid
+| Engine                      | Status                | Streaming? | Quality (WER)    | Notes                                                                                                    |
+| --------------------------- | --------------------- | ---------- | ---------------- | -------------------------------------------------------------------------------------------------------- |
+| **Sherpa-ONNX**             | ✅ Already integrated | ✅ Yes     | Good for English | Current production local engine. ONNX runtime, multiple model support.                                   |
+| **Soniox (cloud)**          | ✅ Already integrated | ✅ Yes     | Best (~0.05 WER) | Rich data: diarization, language detection, word timestamps, confidence.                                 |
+| **Cactus Compute**          | ❓ Evaluating         | ❓ Unknown | Varies by model  | Third-party edge SDK. Supports Whisper, Moonshine, Parakeet. NPU support. Founders actively pitching us. |
+| **Apple Speech Framework**  | Not integrated        | ✅ Yes     | Good             | iOS only. Free, zero download. Limited languages.                                                        |
+| **Google on-device Speech** | Not integrated        | ✅ Yes     | Good             | Android only. ~50MB per language.                                                                        |
 
-- **Default (online):** Soniox via cloud — best quality, all languages
-- **Fallback (offline):** Whisper.cpp tiny via `whisper.rn` — good enough for English captions
-- **iOS bonus:** Apple Speech Framework as a zero-download option
-- **Android bonus:** Google on-device speech for supported languages
+**Cactus Compute** is interesting — their benchmark shows NVIDIA Parakeet-CTC-0.6b at 0.093 WER with NPU acceleration and 5M+ decode tokens/sec. But Cayden's concern: "not sure if any of these are streaming." Batch benchmarks don't guarantee real-time streaming works. Needs hands-on testing before any decision.
 
-The `session.transcription` API is identical regardless of which backend is used. The phone OS runtime decides which one based on:
+**Current recommendation:** Keep Sherpa-ONNX as the edge engine. Evaluate Cactus as a potential upgrade path. The architecture below supports swapping engines transparently — the mini app developer never knows which engine is running.
 
-1. Network connectivity (offline → local model)
-2. Language (supported by local model? → use it)
-3. User preference (settings: "prefer local" / "prefer cloud" / "auto")
+### The data shape problem
 
-The mini app developer never knows or cares which transcription engine is running.
+This is the critical design challenge. Soniox gives us rich transcription data:
+
+```typescript
+// What Soniox provides (cloud):
+{
+  text: "Hello everyone",
+  isFinal: true,
+  language: "en",              // ✅ auto-detected
+  speakerId: "1",              // ✅ diarization
+  utteranceId: "utt_42",       // ✅ utterance grouping
+  confidence: 0.97,            // ✅ per-segment
+  startTime: 1200,             // ✅ word-level timestamps
+  endTime: 1850,               // ✅
+  metadata: { /* token-level */ }
+}
+```
+
+Sherpa-ONNX running locally provides much less:
+
+```typescript
+// What Sherpa-ONNX provides (local):
+{
+  text: "Hello everyone",
+  isFinal: true,
+  language: undefined,          // ❌ no auto-detect (single-language model)
+  speakerId: undefined,         // ❌ no diarization
+  utteranceId: "utt_7",        // ✅ from VAD segmentation layer
+  confidence: undefined,        // ❌ not surfaced by most models
+  startTime: undefined,         // ⚠️ depends on model
+  endTime: undefined,           // ⚠️ depends on model
+  metadata: undefined
+}
+```
+
+**If a developer writes code that relies on `speakerId` for a multi-person view, and the user goes offline, `speakerId` silently becomes `undefined`. Their app doesn't crash — it just shows wrong UI.**
+
+### Solution: TranscriptionCapabilities
+
+Every field on `TranscriptionEvent` stays optional. The developer queries capabilities to know what's available from the current backend:
+
+```typescript
+interface TranscriptionCapabilities {
+  /** Can detect the spoken language automatically. */
+  languageDetection: boolean
+
+  /** Can identify different speakers. */
+  diarization: boolean
+
+  /** Provides word-level start/end timestamps. */
+  wordTimestamps: boolean
+
+  /** Provides per-segment confidence scores. */
+  confidence: boolean
+
+  /** Which languages the current engine supports. */
+  supportedLanguages: string[]
+
+  /** Whether the engine is running locally or in the cloud. */
+  local: boolean
+}
+```
+
+Usage:
+
+```typescript
+export default function onSession(session: MentraSession) {
+  // Always works — text and isFinal are always present
+  session.transcription.on((data) => {
+    session.display.showText(data.text)
+  })
+
+  // Check capabilities before relying on optional fields
+  const caps = session.transcription.capabilities
+
+  if (caps.diarization) {
+    session.transcription.on((data) => {
+      if (data.speakerId) {
+        showSpeakerLabel(data.speakerId, data.text)
+      }
+    })
+  }
+
+  // React to capability changes (e.g., network drops, switch to local)
+  session.transcription.onCapabilitiesChange((newCaps) => {
+    if (!newCaps.diarization) {
+      // Switched to local model — hide speaker labels
+      hideSpeakerLabels()
+    }
+  })
+}
+```
+
+### Capabilities by engine
+
+| Capability           | Soniox (cloud) | Sherpa-ONNX (local) | Cactus (TBD) | Apple Speech | Google on-device |
+| -------------------- | -------------- | ------------------- | ------------ | ------------ | ---------------- |
+| `languageDetection`  | ✅             | ❌                  | ❓           | ❌           | ❌               |
+| `diarization`        | ✅             | ❌                  | ❓           | ❌           | ❌               |
+| `wordTimestamps`     | ✅             | ⚠️ model-dependent  | ❓           | ✅           | ✅               |
+| `confidence`         | ✅             | ⚠️ model-dependent  | ❓           | ✅           | ✅               |
+| `supportedLanguages` | 50+            | 1–3 per model       | varies       | ~20          | ~50              |
+| `local`              | ❌             | ✅                  | ✅           | ✅           | ✅               |
+
+### Same pattern for TranslationCapabilities
+
+Translation has the same problem — cloud translation (Soniox) gives you source language detection and multiple simultaneous targets. Local translation (if we ever add it) would be more limited. The `TranslationCapabilities` pattern is identical:
+
+```typescript
+interface TranslationCapabilities {
+  sourceDetection: boolean // can auto-detect source language?
+  supportedPairs: string[][] // [["en", "es"], ["en", "ja"], ...]
+  simultaneousTargets: number // how many targets at once? Soniox: many, local: 1
+  local: boolean
+}
+```
+
+### The contract
+
+**Guaranteed fields (always present):**
+
+- `text: string` — the transcribed/translated text
+- `isFinal: boolean` — interim vs final
+
+**Optional fields (depend on capabilities):**
+
+- `language`, `speakerId`, `utteranceId`, `confidence`, `startTime`, `endTime`, `metadata`
+
+**The developer's rule:** If you use an optional field, check capabilities first (or handle `undefined`). The SDK could even log a warning in dev mode: "You're accessing `data.speakerId` but `capabilities.diarization` is false — this will always be undefined with the current engine."
+
+### Hybrid switching
+
+The phone OS runtime can switch engines mid-session:
+
+1. User is online → Soniox (cloud). Full capabilities.
+2. Network drops → auto-switch to Sherpa-ONNX (local). Capabilities shrink.
+3. `onCapabilitiesChange` fires. Developer adapts UI.
+4. Network returns → auto-switch back to Soniox. Capabilities restore.
+5. `onCapabilitiesChange` fires again.
+
+The `TranscriptionEvent` shape never changes — only which fields are populated. The developer's `on()` handler keeps running through the switch. No re-subscription needed.
 
 ---
 
@@ -317,7 +450,7 @@ Example: an AI assistant app that shows live captions locally (Whisper) but send
 
 ```typescript
 export default function onSession(session: MentraSession) {
-  // Local: real-time captions via on-device Whisper
+  // Local: real-time captions via on-device Sherpa-ONNX
   session.transcription.on((data) => {
     session.display.showText(data.text)
 
@@ -350,34 +483,34 @@ This is a rough breakdown of the native work needed to support local apps:
 
 ### Native modules to build
 
-| Module                    | Purpose                                                    | Complexity | Notes                                                                            |
-| ------------------------- | ---------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------- |
-| **MentraRuntime**         | Hermes instance management, bundle loading, lifecycle      | High       | Core of the system. Manages app contexts.                                        |
-| **NativeBridgeTransport** | JSI bridge implementing the Transport interface            | High       | Routes all message types between JS and native.                                  |
-| **NativeDisplay**         | Formats DisplayRequest messages, sends via BLE             | Medium     | BLE write to glasses display characteristic. Already partially exists in mobile. |
-| **NativeMic**             | Receives BLE audio from glasses, delivers PCM chunks to JS | Medium     | Already exists in mobile for cloud audio path.                                   |
-| **NativeSpeaker**         | Plays audio on glasses via BLE audio channel               | Medium     | TTS integration + audio streaming.                                               |
-| **NativeCamera**          | BLE camera commands + receives photo data                  | Medium     | Already exists in mobile for cloud photo path.                                   |
-| **NativeTranscription**   | On-device Whisper / Apple Speech / Google Speech           | High       | `whisper.rn` exists but needs integration.                                       |
-| **NativeLocation**        | CoreLocation / FusedLocation → JS callbacks                | Low        | Standard RN pattern, mostly boilerplate.                                         |
-| **NativeNotifications**   | Phone notification access → JS callbacks                   | Medium     | Platform-specific APIs. Already piped to cloud today.                            |
-| **NativeCalendar**        | Calendar events → JS callbacks                             | Low        | Already piped to cloud today via CalendarManager.                                |
-| **NativeStorage**         | Per-app sandboxed key-value storage via JSI                | Low        | SQLite or MMKV via JSI (synchronous reads).                                      |
-| **BundleLoader**          | Download, cache, verify, and load .hbc bundles             | Medium     | HTTP client + file cache + signature verification.                               |
+| Module                    | Purpose                                                     | Complexity | Notes                                                                            |
+| ------------------------- | ----------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------- |
+| **MentraRuntime**         | Hermes instance management, bundle loading, lifecycle       | High       | Core of the system. Manages app contexts.                                        |
+| **NativeBridgeTransport** | JSI bridge implementing the Transport interface             | High       | Routes all message types between JS and native.                                  |
+| **NativeDisplay**         | Formats DisplayRequest messages, sends via BLE              | Medium     | BLE write to glasses display characteristic. Already partially exists in mobile. |
+| **NativeMic**             | Receives BLE audio from glasses, delivers PCM chunks to JS  | Medium     | Already exists in mobile for cloud audio path.                                   |
+| **NativeSpeaker**         | Plays audio on glasses via BLE audio channel                | Medium     | TTS integration + audio streaming.                                               |
+| **NativeCamera**          | BLE camera commands + receives photo data                   | Medium     | Already exists in mobile for cloud photo path.                                   |
+| **NativeTranscription**   | Sherpa-ONNX (already integrated) + capability normalization | Medium     | Already exists in mobile. Needs JSI bridge + TranscriptionCapabilities layer.    |
+| **NativeLocation**        | CoreLocation / FusedLocation → JS callbacks                 | Low        | Standard RN pattern, mostly boilerplate.                                         |
+| **NativeNotifications**   | Phone notification access → JS callbacks                    | Medium     | Platform-specific APIs. Already piped to cloud today.                            |
+| **NativeCalendar**        | Calendar events → JS callbacks                              | Low        | Already piped to cloud today via CalendarManager.                                |
+| **NativeStorage**         | Per-app sandboxed key-value storage via JSI                 | Low        | SQLite or MMKV via JSI (synchronous reads).                                      |
+| **BundleLoader**          | Download, cache, verify, and load .hbc bundles              | Medium     | HTTP client + file cache + signature verification.                               |
 
 ### Estimated effort
 
-| Phase                                                 | Work                    | Days         |
-| ----------------------------------------------------- | ----------------------- | ------------ |
-| MentraRuntime + NativeBridgeTransport + BundleLoader  | Core infrastructure     | ~10          |
-| NativeDisplay + NativeMic + NativeSpeaker             | Basic I/O               | ~5           |
-| NativeCamera                                          | Photo capture           | ~3           |
-| NativeTranscription (Whisper integration)             | On-device transcription | ~5           |
-| NativeLocation + NativeNotifications + NativeCalendar | Phone data              | ~3           |
-| NativeStorage                                         | Persistence             | ~1           |
-| Testing + integration with SDK v3 `MentraSession`     | End-to-end              | ~5           |
-| App store / bundle management UI in MentraOS app      | User-facing             | ~3           |
-| **Total**                                             |                         | **~35 days** |
+| Phase                                                       | Work                        | Days         |
+| ----------------------------------------------------------- | --------------------------- | ------------ |
+| MentraRuntime + NativeBridgeTransport + BundleLoader        | Core infrastructure         | ~10          |
+| NativeDisplay + NativeMic + NativeSpeaker                   | Basic I/O                   | ~5           |
+| NativeCamera                                                | Photo capture               | ~3           |
+| NativeTranscription (Sherpa-ONNX JSI bridge + capabilities) | Transcription normalization | ~3           |
+| NativeLocation + NativeNotifications + NativeCalendar       | Phone data                  | ~3           |
+| NativeStorage                                               | Persistence                 | ~1           |
+| Testing + integration with SDK v3 `MentraSession`           | End-to-end                  | ~5           |
+| App store / bundle management UI in MentraOS app            | User-facing                 | ~3           |
+| **Total**                                                   |                             | **~35 days** |
 
 This is parallel to the SDK v3 work. The SDK v3 refactor (~14 days) produces the `MentraSession` + `Transport` interface that the mobile runtime consumes. The mobile work builds the native side that implements that interface.
 

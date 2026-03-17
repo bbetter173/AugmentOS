@@ -86,7 +86,7 @@ If a developer was using `getExpressApp()` to add custom Express routes, the shi
 │  ├── session.translation    — TranslationManager     │
 │  ├── session.display        — DisplayManager         │
 │  ├── session.camera         — CameraModule           │
-│  ├── session.audio          — AudioManager (output)  │
+│  ├── session.speaker        — SpeakerManager (output)│
 │  ├── session.mic            — MicManager (input)     │
 │  ├── session.device         — DeviceManager          │
 │  ├── session.phone          — PhoneManager           │
@@ -226,18 +226,21 @@ await app.start()
 
 The `AppSession` in v3 exposes new managers. But old code uses `session.events.*`, `session.layouts.*`, etc. The shim strategy:
 
-| Old accessor                                   | Shim approach                                                              |
-| ---------------------------------------------- | -------------------------------------------------------------------------- |
-| `session.events.onTranscription(handler)`      | `LegacyEventShim` — delegates to `session.transcription.on(handler)`       |
-| `session.events.onButtonPress(handler)`        | `LegacyEventShim` — delegates to `session.device.onButtonPress(handler)`   |
-| `session.events.onPhoneNotifications(handler)` | `LegacyEventShim` — delegates to `session.phone.notifications.on(handler)` |
-| `session.layouts.showTextWall(text)`           | `session.layouts` is a getter that returns `session.display` (alias)       |
-| `session.simpleStorage`                        | Getter that returns `session.storage`                                      |
-| `session.capabilities`                         | Getter that returns `session.device.capabilities`                          |
-| `session.onTranscription(handler)`             | Direct deprecated methods on session — delegate to managers                |
-| `session.subscribe(stream)`                    | `LegacyEventShim` — logs warning, internally handled by managers           |
-| `session.getSettings()` / `.getSetting(key)`   | Delegate to `session.storage.getAll()` / `.get(key)`                       |
-| `session.getWifiStatus()`                      | Delegate to `session.device.wifiConnected.value`                           |
+| Old accessor                                                 | Shim approach                                                                                                   |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `session.events.onTranscription(handler)`                    | `LegacyEventShim` — delegates to `session.transcription.on(handler)`                                            |
+| `session.events.onTranscriptionForLanguage(lang, handler)`   | `LegacyEventShim` — delegates to `session.transcription.forLanguage(lang, handler)` (strips BCP-47 → ISO 639-1) |
+| `session.events.onTranslationForLanguage(src, tgt, handler)` | `LegacyEventShim` — delegates to `session.translation.fromTo(src, tgt, handler)` (strips BCP-47)                |
+| `session.events.onButtonPress(handler)`                      | `LegacyEventShim` — delegates to `session.device.onButtonPress(handler)`                                        |
+| `session.events.onPhoneNotifications(handler)`               | `LegacyEventShim` — delegates to `session.phone.notifications.on(handler)`                                      |
+| `session.events.onAudioChunk(handler)`                       | `LegacyEventShim` — delegates to `session.mic.onChunk(handler)`                                                 |
+| `session.layouts.showTextWall(text)`                         | `session.layouts` is a getter that returns `session.display` (alias)                                            |
+| `session.simpleStorage`                                      | Getter that returns `session.storage`                                                                           |
+| `session.capabilities`                                       | Getter that returns `session.device.capabilities`                                                               |
+| `session.onTranscription(handler)`                           | Direct deprecated methods on session — delegate to managers                                                     |
+| `session.subscribe(stream)`                                  | `LegacyEventShim` — logs warning, internally handled by managers                                                |
+| `session.getSettings()` / `.getSetting(key)`                 | Delegate to `session.storage.getAll()` / `.get(key)`                                                            |
+| `session.getWifiStatus()`                                    | Delegate to `session.device.wifiConnected.value`                                                                |
 
 The `LegacyEventShim` is a single object exposed as `session.events` that maps every old `session.events.*` method to the corresponding v3 manager call. It's one file, ~200 lines of pure delegation, logs a deprecation warning on first access. Removed entirely in v3.1.
 
@@ -252,7 +255,7 @@ class AppSession {
   readonly translation: TranslationManager
   readonly display: DisplayManager
   readonly camera: CameraModule
-  readonly audio: AudioManager
+  readonly speaker: SpeakerManager
   readonly mic: MicManager
   readonly device: DeviceManager
   readonly phone: PhoneManager
@@ -267,6 +270,11 @@ class AppSession {
   /** @deprecated Use session.display */
   get layouts() {
     return this.display
+  }
+
+  /** @deprecated Use session.speaker */
+  get audio() {
+    return this.speaker
   }
 
   /** @deprecated Use session.storage */
@@ -297,21 +305,131 @@ This way:
 
 ---
 
-## Translation Manager (New for v3.0)
+## Transcription Manager (New for v3.0)
 
-The 039 spec deferred translation to v3.1. We're pulling it into v3.0 because it follows the same pattern as transcription and developers expect parity.
+Replaces `session.events.onTranscription*` with a focused manager. Supports multiple simultaneous language-specific handlers — each `forLanguage()` call is independent, returns its own cleanup function.
 
 ### API
 
 ```typescript
-interface TranslationConfig {
-  /** Source language (ISO 639-1). Default: auto-detect. */
-  from?: string
+interface TranscriptionConfig {
+  /** Language hints — advisory input for accuracy, NOT filters.
+   *  Uses ISO 639-1 codes: 'en', 'ja', 'es', etc.
+   *  Default: auto-detect (no hints). */
+  languageHints?: string[]
 
-  /** Target language (ISO 639-1). Required. */
-  to: string
+  /** Custom vocabulary for better recognition of domain-specific terms.
+   *  e.g., ['MentraOS', 'HIPAA', 'kubectl'] */
+  vocabulary?: string[]
+
+  /** Enable/disable speaker diarization.
+   *  Default: true (Soniox gives it for free). */
+  diarization?: boolean
 }
 
+interface TranscriptionEvent {
+  text: string
+  isFinal: boolean
+  language: string // ISO 639-1 detected language
+  speakerId?: string
+  utteranceId?: string
+  confidence?: number
+  startTime: number
+  endTime: number
+  duration?: number
+  metadata?: TranscriptionMetadata
+}
+
+class TranscriptionManager {
+  /** Subscribe to ALL transcription events (auto-detect, all languages). */
+  on(handler: (data: TranscriptionEvent) => void): () => void
+
+  /** Subscribe to transcription for specific language(s).
+   *  Each call is independent — multiple can be active simultaneously.
+   *  Accepts a single language or array. Returns cleanup function. */
+  forLanguage(lang: string | string[], handler: (data: TranscriptionEvent) => void): () => void
+
+  /** Configure hints, vocabulary, diarization. Applies to all active subscriptions.
+   *  Can be called mid-session. */
+  configure(config: TranscriptionConfig): void
+
+  /** Stop all transcriptions and unsubscribe all handlers. */
+  stop(): void
+}
+```
+
+### Usage
+
+```typescript
+// Simplest — zero config, auto-detect, diarization included
+session.transcription.on((data) => {
+  console.log(`[${data.language}] ${data.speakerId}: ${data.text}`)
+})
+
+// Language-specific — each call is independent, both active simultaneously
+const stopEnglish = session.transcription.forLanguage("en", (data) => {
+  showOnLeftPanel(data.text)
+})
+const stopJapanese = session.transcription.forLanguage("ja", (data) => {
+  showOnRightPanel(data.text)
+})
+
+// Stop just one — Japanese keeps running
+stopEnglish()
+
+// Multiple languages, one handler
+session.transcription.forLanguage(["en", "ja", "es"], (data) => {
+  console.log(`[${data.language}] ${data.text}`)
+})
+
+// Configure hints (applies to all active subscriptions)
+session.transcription.configure({
+  languageHints: ["en", "ja"],
+  vocabulary: ["MentraOS", "Soniox"],
+})
+
+// Stop everything
+session.transcription.stop()
+```
+
+### Wire protocol mapping
+
+```
+session.transcription.on(handler)
+  → subscribe("transcription:auto")
+
+session.transcription.forLanguage("en", handler)
+  → subscribe("transcription:en")
+
+session.transcription.forLanguage(["en", "ja"], handler)
+  → subscribe("transcription:en") + subscribe("transcription:ja")
+  → handler called for both, data.language tells you which
+```
+
+### Legacy shim
+
+```typescript
+// v2 code:
+session.events.onTranscription(handler)
+// LegacyEventShim maps to:
+session.transcription.on(handler)
+
+// v2 code:
+session.events.onTranscriptionForLanguage("en-US", handler, opts)
+// LegacyEventShim maps to:
+session.transcription.forLanguage("en", handler)
+// (strips region suffix from BCP-47 → ISO 639-1)
+```
+
+---
+
+## Translation Manager (New for v3.0)
+
+The 039 spec deferred translation to v3.1. We're pulling it into v3.0 because it follows the same pattern as transcription and developers expect parity. Supports multiple simultaneous target languages — each `to()` call is independent.
+
+### API
+
+```typescript
 interface TranslationEvent {
   /** Translated text. */
   text: string
@@ -339,31 +457,19 @@ interface TranslationEvent {
 }
 
 class TranslationManager {
-  /**
-   * Subscribe to translation events.
-   * Must call configure() first or pass config inline.
-   */
+  /** Subscribe to ALL active translation events. */
   on(handler: (data: TranslationEvent) => void): () => void
 
-  /**
-   * Configure translation languages. Can be called mid-session.
-   * Internally manages the subscription string (e.g., "translation:en→es").
-   */
-  configure(config: TranslationConfig): void
+  /** Auto-detect source, translate to one or more targets.
+   *  Each call is independent — multiple can be active simultaneously.
+   *  Accepts a single language or array. Returns cleanup function. */
+  to(target: string | string[], handler: (data: TranslationEvent) => void): () => void
 
-  /**
-   * Convenience: configure + subscribe in one call.
-   */
-  to(targetLang: string, handler: (data: TranslationEvent) => void): () => void
+  /** Explicit source, translate to one or more targets.
+   *  Same independence and cleanup semantics as to(). */
+  fromTo(source: string, target: string | string[], handler: (data: TranslationEvent) => void): () => void
 
-  /**
-   * Convenience with explicit source.
-   */
-  fromTo(sourceLang: string, targetLang: string, handler: (data: TranslationEvent) => void): () => void
-
-  /**
-   * Stop translation and unsubscribe all handlers.
-   */
+  /** Stop all translations and unsubscribe all handlers. */
   stop(): void
 }
 ```
@@ -376,36 +482,49 @@ session.translation.to("es", (data) => {
   session.display.showText(data.text)
 })
 
+// Multiple targets simultaneously — both active, independent
+const stopSpanish = session.translation.to("es", (data) => {
+  showOnLeftPanel(data.text)
+})
+const stopJapanese = session.translation.to("ja", (data) => {
+  showOnRightPanel(data.text)
+})
+
+// Stop just Spanish — Japanese keeps running
+stopSpanish()
+
+// Multiple targets in one call — handler gets called for each
+session.translation.to(["es", "ja", "fr"], (data) => {
+  // data.targetLanguage tells you which one
+  console.log(`[${data.targetLanguage}] ${data.text}`)
+})
+
 // Explicit source and target
 session.translation.fromTo("en", "ja", (data) => {
   session.display.showText(data.text)
 })
 
-// Configure separately, subscribe separately
-session.translation.configure({from: "en", to: "es"})
-session.translation.on((data) => {
-  console.log(data.text)
+// Explicit source, multiple targets
+session.translation.fromTo("en", ["es", "ja"], (data) => {
+  console.log(`[${data.targetLanguage}] ${data.text}`)
 })
 
-// Change target mid-session (handlers stay subscribed)
-session.translation.configure({to: "fr"})
-
-// Stop
+// Stop everything
 session.translation.stop()
 ```
 
 ### Wire protocol mapping
 
-Internally, `TranslationManager` maps to the existing subscription string format:
-
 ```
 session.translation.to("es", handler)
   → subscribe("translation:auto-es")
-  → addHandler for translation data stream
+
+session.translation.to(["es", "ja"], handler)
+  → subscribe("translation:auto-es") + subscribe("translation:auto-ja")
+  → handler called for both, data.targetLanguage tells you which
 
 session.translation.fromTo("en", "ja", handler)
   → subscribe("translation:en-ja")
-  → addHandler for translation data stream
 ```
 
 The cloud doesn't need to change. Same subscription strings, same DataStream messages.
@@ -453,7 +572,7 @@ private handleMessage(raw: string) {
 }
 ```
 
-For `DATA_STREAM` messages (which carry transcription, translation, notifications, etc. all under the same message type), the handler dispatches further based on the stream type inside the data payload. This sub-dispatch lives in a `DataStreamRouter` that the relevant managers register with:
+For `DATA_STREAM` messages (which carry transcription, translation, notifications, etc. all under the same message type), the handler dispatches further based on the stream type inside the data payload. Multiple managers can register for the same prefix — `DataStreamRouter` calls all matching handlers (e.g., two `forLanguage("en")` calls both get the English transcription data). This sub-dispatch lives in a `DataStreamRouter`:
 
 ```typescript
 // DataStreamRouter handles the DATA_STREAM message type
@@ -587,16 +706,17 @@ The cloud can migrate to the new paths at its own pace. Once all cloud deploymen
 
 **Goal:** `AppSession` shrinks to ~500 lines. All managers exist and work.
 
-1. **`TranscriptionManager`** — new, replaces `events.onTranscription*` (~1.5 days)
-2. **`TranslationManager`** — new, replaces `events.onTranslation*` (~1 day)
-3. **`DisplayManager`** — rename from `LayoutManager`, add `showText(string|string[])`, `wrap()`, device info (~0.5 day)
-4. **`MicManager`** — new, takes audio input from `EventManager` + `AudioManager` (~0.5 day)
-5. **`DeviceManager`** — new, absorbs hardware events + WiFi + capabilities from session (~0.5 day)
-6. **`PhoneManager`** — new, absorbs phone events with sub-scoped notifications/calendar (~0.5 day)
-7. **`PermissionsManager`** — new, centralized permission checks (~0.25 day)
-8. **`DashboardManager`** — redesigned, `.showText()` + `.clear()` only (~0.25 day)
-9. **`TimeUtils`** — new, timezone + formatting (~0.25 day)
-10. **`StorageManager`** — rename from `SimpleStorage` (~0.1 day)
+2. **`TranscriptionManager`** — new, replaces `events.onTranscription*`, supports `forLanguage(string | string[])`, multiple simultaneous (~1.5 days)
+3. **`TranslationManager`** — new, replaces `events.onTranslation*`, supports `to(string | string[])` / `fromTo()`, multiple simultaneous (~1.5 days)
+4. **`DisplayManager`** — rename from `LayoutManager`, add `showText(string|string[])`, `wrap()`, device info (~0.5 day)
+5. **`SpeakerManager`** — rename from `AudioManager`, output only (play, TTS) (~0.25 day)
+6. **`MicManager`** — new, takes audio input from `EventManager` (~0.5 day)
+7. **`DeviceManager`** — new, absorbs hardware events + WiFi + capabilities from session (~0.5 day)
+8. **`PhoneManager`** — new, absorbs phone events with sub-scoped notifications/calendar (~0.5 day)
+9. **`PermissionsManager`** — new, centralized permission checks (~0.25 day)
+10. **`DashboardManager`** — redesigned, `.showText()` + `.clear()` only (~0.25 day)
+11. **`TimeUtils`** — new, timezone + formatting (~0.25 day)
+12. **`StorageManager`** — rename from `SimpleStorage` (~0.1 day)
 
 ### Phase 3: Message dispatch refactor (~1.5 days)
 
@@ -698,7 +818,7 @@ packages/sdk/src/
 │       ├── TranslationManager.ts     # NEW
 │       ├── DisplayManager.ts         # Renamed from LayoutManager + wrap() integration
 │       ├── CameraModule.ts           # Existing, minor cleanup
-│       ├── AudioManager.ts           # Existing, output only
+│       ├── SpeakerManager.ts         # Renamed from AudioManager, output only
 │       ├── MicManager.ts             # NEW — audio input
 │       ├── DeviceManager.ts          # NEW — hardware events, WiFi, capabilities
 │       ├── PhoneManager.ts           # NEW — notifications, calendar, battery

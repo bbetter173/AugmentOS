@@ -5,6 +5,9 @@
  * Maintains a cache of phone notifications, ranks them via OpenAI, and exposes
  * a `getDisplayText()` method that returns the top-2 ranked items for HUD display.
  *
+ * Display format: "[AppName] summary" — e.g. "[Gmail] OpenAI: Excel plugin down"
+ * Each notification gets a full line (~40 chars on G1 display).
+ *
  * No LangChain — uses the `openai` npm package directly.
  */
 
@@ -28,7 +31,8 @@ export interface PhoneNotification {
 
 export interface RankedNotification {
   uuid: string;
-  summary: string; // ≤ 30 chars
+  summary: string;
+  appName: string;
   rank: number;
 }
 
@@ -45,24 +49,42 @@ const MAX_VIEW_COUNT = 10;
 /** Number of ranked notifications surfaced in `getDisplayText()`. */
 const DISPLAY_TOP_N = 2;
 
+/**
+ * Max characters for the summary portion (after "[AppName] ").
+ * G1 display is ~40 chars wide; "[Gmail] " is 8 chars → 32 left for summary.
+ * We allow up to 35 for the summary since some app names are shorter.
+ */
+const MAX_SUMMARY_CHARS = 35;
+
 // ---------------------------------------------------------------------------
-// LLM prompt (preserved from NotificationSummaryAgent)
+// LLM prompt
 // ---------------------------------------------------------------------------
 
-const RANKING_SYSTEM_PROMPT = `You are an assistant on smart glasses that filters the notifications the user receives on their phone by importance and provides a concise summary for the HUD display.
+const RANKING_SYSTEM_PROMPT = `You are a smart glasses notification filter. The user wears glasses with a small HUD that shows 2 lines of text. Each line is formatted as "[AppName] summary" where AppName is already handled — you only write the summary part.
 
-Your output MUST be a valid JSON object with one key:
-"notification_ranking" — an array of notifications, ordered from most important (rank=1) to least important.
+Your job:
+1. Rank notifications by importance (rank 1 = most important).
+2. Write a SHORT summary (max ${MAX_SUMMARY_CHARS} chars) that captures the key info.
 
-For each notification:
-1. Include the notification "uuid"
-2. Include a short "summary" under 30 characters capturing the most important points
-3. If the title contains a name, include only their first name in the summary
-4. Include a "rank" integer (1 = highest importance)
+Rules for summaries:
+- Lead with the most important detail: WHO or WHAT, not the app name (app name is shown separately).
+- Use first names only for people: "Alex: let's sync" not "Alexander Smith sent: let's sync".
+- Strip filler words. Be terse. "Meeting in 10min" not "You have a meeting starting in 10 minutes".
+- For messages: "<name>: <gist>" — e.g. "Carl: new design ready"
+- For alerts/system: describe the event — e.g. "Deploy failed: timeout" or "PR #421 merged"
+- For emails: "<sender>: <subject gist>" — e.g. "Sarah: Q1 budget review"
+- Never repeat the app name in the summary (it's already shown as a prefix).
+- Never start with "You have" or "New notification".
 
-Criteria: urgent tasks/deadlines ranked higher, personal messages from known contacts over system notifications, more recent over older, fewer views over frequently viewed.
+Ranking criteria (most to least important):
+1. Direct messages from people (Slack DM, iMessage, WhatsApp)
+2. Urgent/time-sensitive (calendar reminders, alerts, incidents)
+3. Actionable items (PR reviews, approvals, tasks assigned to you)
+4. Group messages / channels
+5. Informational (news, promotions, system updates)
+6. Automated / marketing / spam
 
-Output format:
+Output MUST be a valid JSON object:
 {"notification_ranking": [{"uuid": "...", "summary": "...", "rank": 1}, ...]}`;
 
 // ---------------------------------------------------------------------------
@@ -123,12 +145,14 @@ export class NotificationService {
   }
 
   /**
-   * Returns the top-2 ranked notifications as a display string.
+   * Returns the top-2 ranked notifications as display lines.
+   *
+   * Format: "[Gmail] OpenAI: Excel plugin down"
+   *         "[Slack] Carl: new design ready"
    *
    * - If the cache is empty, returns "".
    * - If an LLM ranking is available, uses it; otherwise falls back to
    *   `fallbackRanking()` (sort by timestamp desc).
-   * - Format: one notification per line, e.g. "Alex: let's sync tmr\nMeeting reminder"
    */
   getDisplayText(): string {
     if (this.cache.length === 0) {
@@ -145,10 +169,13 @@ export class NotificationService {
     for (const ranked of source) {
       if (lines.length >= DISPLAY_TOP_N) break;
 
+      const notification = byUuid.get(ranked.uuid);
       // Skip ranked entries whose notification has since been dismissed.
-      if (!byUuid.has(ranked.uuid)) continue;
+      if (!notification) continue;
 
-      lines.push(ranked.summary);
+      const appTag = this.formatAppTag(ranked.appName || notification.appName);
+      const summary = ranked.summary;
+      lines.push(`${appTag}${summary}`);
     }
 
     return lines.join("\n");
@@ -168,6 +195,34 @@ export class NotificationService {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Format the app name tag: "[Gmail] ", "[Slack] ", etc.
+   * Falls back to empty string if app name is unknown.
+   */
+  private formatAppTag(appName?: string): string {
+    if (!appName) return "";
+
+    // Shorten well-known verbose app names.
+    const shortNames: Record<string, string> = {
+      "Google Messages": "Msg",
+      "Messages": "Msg",
+      "Google Chat": "Chat",
+      "Google Calendar": "Cal",
+      "Google Maps": "Maps",
+      "Google Drive": "Drive",
+      "Google Meet": "Meet",
+      "Microsoft Teams": "Teams",
+      "Microsoft Outlook": "Outlook",
+      "WhatsApp": "WA",
+      "Facebook Messenger": "Msgr",
+      "Instagram": "IG",
+      "LinkedIn": "In",
+    };
+
+    const short = shortNames[appName] ?? appName;
+    return `[${short}] `;
+  }
 
   /**
    * Fires an async OpenAI ranking request.
@@ -209,8 +264,8 @@ export class NotificationService {
           const preview = `${n.title}: ${n.content}`.slice(0, 200);
           return JSON.stringify({
             uuid: n.uuid,
+            appName: n.appName ?? "Unknown",
             preview,
-            appName: n.appName ?? "",
             timestamp: n.timestamp,
             viewCount: n.viewCount,
           });
@@ -258,6 +313,9 @@ export class NotificationService {
 
       const rawRanking = (parsed as Record<string, unknown>)["notification_ranking"] as unknown[];
 
+      // Build a uuid→appName lookup from the snapshot so we can tag each ranking entry.
+      const appNameByUuid = new Map<string, string>(snapshot.map((n) => [n.uuid, n.appName ?? ""]));
+
       const newRanking: RankedNotification[] = [];
 
       for (const item of rawRanking) {
@@ -272,8 +330,8 @@ export class NotificationService {
 
         newRanking.push({
           uuid,
-          // Enforce the ≤30 char contract even if the LLM drifts.
-          summary: summary.slice(0, 30),
+          summary: summary.slice(0, MAX_SUMMARY_CHARS),
+          appName: appNameByUuid.get(uuid) ?? "",
           rank,
         });
       }
@@ -293,14 +351,15 @@ export class NotificationService {
 
   /**
    * Deterministic fallback ranking when no LLM result is available yet.
-   * Sorts by timestamp descending and truncates "title: content" to 30 chars.
+   * Sorts by timestamp descending and truncates "title: content" to fit.
    */
   private fallbackRanking(): RankedNotification[] {
     return [...this.cache]
       .sort((a, b) => b.timestamp - a.timestamp)
       .map((n, idx) => ({
         uuid: n.uuid,
-        summary: `${n.title}: ${n.content}`.slice(0, 30),
+        summary: `${n.title}: ${n.content}`.slice(0, MAX_SUMMARY_CHARS),
+        appName: n.appName ?? "",
         rank: idx + 1,
       }));
   }

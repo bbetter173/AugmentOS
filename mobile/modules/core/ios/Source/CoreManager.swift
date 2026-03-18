@@ -178,6 +178,11 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "should_send_pcm", newValue) }
     }
 
+    private var shouldSendLc3: Bool {
+        get { GlassesStore.shared.get("core", "should_send_lc3") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "should_send_lc3", newValue) }
+    }
+
     private var shouldSendTranscript: Bool {
         get { GlassesStore.shared.get("core", "should_send_transcript") as? Bool ?? false }
         set { GlassesStore.shared.apply("core", "should_send_transcript", newValue) }
@@ -342,27 +347,26 @@ struct ViewState {
         }
     }
 
-    /**
-     * Send audio data to cloud via Bridge.
-     * Encodes to LC3 if audioOutputFormat is .lc3, otherwise sends raw PCM.
-     * All audio destined for cloud should go through this function.
-     */
-    private func sendMicData(_ pcmData: Data) {
-        switch audioOutputFormat {
-        case .lc3:
-            guard let lc3Converter = lc3Converter else {
-                Bridge.log("MAN: ERROR - LC3 converter not initialized but format is LC3")
-                return
-            }
-            let frameSize = GlassesStore.shared.get("core", "lc3_frame_size") as! Int
-            let lc3Data = lc3Converter.encode(pcmData, frameSize: frameSize) as Data
-            guard lc3Data.count > 0 else {
-                Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
-                return
-            }
-            Bridge.sendMicData(lc3Data)
-        case .pcm:
-            Bridge.sendMicData(pcmData)
+    private func convertAndsendMicLc3(_ pcmData: Data) {
+        guard let lc3Converter = lc3Converter else {
+            Bridge.log("MAN: ERROR - LC3 converter not initialized but format is LC3")
+            return
+        }
+        let frameSize = GlassesStore.shared.get("core", "lc3_frame_size") as! Int
+        let lc3Data = lc3Converter.encode(pcmData, frameSize: frameSize) as Data
+        guard lc3Data.count > 0 else {
+            Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
+            return
+        }
+        Bridge.sendMicLc3(lc3Data)
+    }
+
+    private func handleSendingPcm(_ pcmData: Data) {
+        if shouldSendPcm {
+            Bridge.sendMicPcm(pcmData)
+        }
+        if shouldSendLc3 {
+            convertAndsendMicLc3(pcmData)
         }
     }
 
@@ -370,7 +374,7 @@ struct ViewState {
         // go through the buffer, popping from the first element in the array (FIFO):
         while !vadBuffer.isEmpty {
             let chunk = vadBuffer.removeFirst()
-            sendMicData(chunk)  // Uses our encoder, not Bridge directly
+            handleSendingPcm(chunk)
         }
     }
 
@@ -419,10 +423,7 @@ struct ViewState {
         }
 
         if bypassVad {
-            // Send audio to cloud (encoding handled by sendMicData)
-            if shouldSendPcm {
-                sendMicData(pcmData)
-            }
+            handleSendingPcm(pcmData)
 
             // Send PCM to local transcriber (always needs raw PCM)
             if shouldSendTranscript {
@@ -452,10 +453,7 @@ struct ViewState {
             // first send out whatever's in the vadBuffer (if there is anything):
             emptyVadBuffer()
 
-            // Send audio to cloud (encoding handled by sendMicData)
-            if shouldSendPcm {
-                sendMicData(pcmData)
-            }
+            handleSendingPcm(pcmData)
 
             // Send PCM to local transcriber (always needs raw PCM)
             if shouldSendTranscript {
@@ -1230,7 +1228,7 @@ struct ViewState {
             Bridge.log("MAN: No pending wearable, using default wearable: \(defaultWearable)")
             pendingWearable = defaultWearable
         }
-        
+
         // if the pending wearable is a controller, don't disconnect, use the controller manager to connect
         if ControllerTypes.ALL.contains(pendingWearable) {
             controller?.disconnect()

@@ -126,6 +126,10 @@ class CoreManager {
         get() = GlassesStore.store.get("core", "should_send_pcm") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "should_send_pcm", value)
 
+    private var shouldSendLc3: Boolean
+        get() = GlassesStore.store.get("core", "should_send_lc3") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "should_send_lc3", value)
+
     private var shouldSendTranscript: Boolean
         get() = GlassesStore.store.get("core", "should_send_transcript") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "should_send_transcript", value)
@@ -545,36 +549,34 @@ class CoreManager {
         }
     }
 
-    /**
-     * Send audio data to cloud via Bridge. Encodes to LC3 if audioOutputFormat is LC3, otherwise
-     * sends raw PCM. All audio destined for cloud should go through this function.
-     */
-    private fun sendMicData(pcmData: ByteArray) {
-        when (audioOutputFormat) {
-            AudioOutputFormat.LC3 -> {
-                if (lc3EncoderPtr == 0L) {
-                    Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
-                    return
-                }
-                val lc3FrameSize =
-                        (GlassesStore.store.get("core", "lc3_frame_size") as Number).toInt()
-                val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
-                if (lc3Data == null || lc3Data.isEmpty()) {
-                    Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
-                    return
-                }
-                Bridge.sendMicData(lc3Data)
-            }
-            AudioOutputFormat.PCM -> {
-                Bridge.sendMicData(pcmData)
-            }
+    private fun convertAndSendMicLc3(pcmData: ByteArray) {
+        if (lc3EncoderPtr == 0L) {
+            Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
+            return
+        }
+        val lc3FrameSize =
+                (GlassesStore.store.get("core", "lc3_frame_size") as Number).toInt()
+        val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
+        if (lc3Data == null || lc3Data.isEmpty()) {
+            Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
+            return
+        }
+        Bridge.sendMicLc3(lc3Data)
+    } 
+
+    private fun handleSendingPcm(pcmData: ByteArray) {
+        if (shouldSendPcm) {
+            Bridge.sendMicPcm(pcmData)
+        }
+        if (shouldSendLc3) {
+            convertAndSendMicLc3(pcmData)
         }
     }
 
     private fun emptyVadBuffer() {
         while (vadBuffer.isNotEmpty()) {
             val chunk = vadBuffer.removeAt(0)
-            sendMicData(chunk) // Uses our encoder, not Bridge directly
+            handleSendingPcm(chunk) // Uses our encoder, not Bridge directly
         }
     }
 
@@ -612,10 +614,7 @@ class CoreManager {
     }
 
     fun handlePcm(pcmData: ByteArray) {
-        // Send audio to cloud if needed (encoding handled by sendMicData)
-        if (shouldSendPcm) {
-            sendMicData(pcmData)
-        }
+        handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
         if (shouldSendTranscript) {

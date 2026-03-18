@@ -37,6 +37,8 @@ public class CoreModule: Module {
             "ws_text",
             "ws_bin",
             "mic_data",
+            "mic_pcm",
+            "mic_lc3",
             "rtmp_stream_status",
             "keep_alive_ack",
             "mtk_update_complete",

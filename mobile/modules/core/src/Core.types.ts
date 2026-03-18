@@ -176,6 +176,16 @@ export type MicDataEvent = {
   base64: string
 }
 
+export type MicPcmEvent = {
+  type: "mic_pcm"
+  base64: string
+}
+
+export type MicLc3Event = {
+  type: "mic_lc3"
+  base64: string
+}
+
 export type RtmpStreamStatusEvent = {
   type: "rtmp_stream_status"
   [key: string]: any
@@ -250,6 +260,8 @@ export type CoreModuleEvents = {
   ws_text: (event: WsTextEvent) => void
   ws_bin: (event: WsBinEvent) => void
   mic_data: (event: MicDataEvent) => void
+  mic_pcm: (event: MicPcmEvent) => void
+  mic_lc3: (event: MicLc3Event) => void
   rtmp_stream_status: (event: RtmpStreamStatusEvent) => void
   keep_alive_ack: (event: KeepAliveAckEvent) => void
   mtk_update_complete: (event: MtkUpdateCompleteEvent) => void

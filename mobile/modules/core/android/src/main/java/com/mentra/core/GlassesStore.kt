@@ -216,6 +216,21 @@ object GlassesStore {
                     CoreManager.getInstance().setMicState()
                 }
             }
+            "core" to "should_send_pcm" -> {
+                (value as? Boolean)?.let { pcm ->
+                    CoreManager.getInstance().setMicState()
+                }
+            }
+            "core" to "should_send_lc3" -> {
+                (value as? Boolean)?.let { lc3 ->
+                    CoreManager.getInstance().setMicState()
+                }
+            }
+            "core" to "should_send_transcript" -> {
+                (value as? Boolean)?.let { transcript ->
+                    CoreManager.getInstance().setMicState()
+                }
+            }
             "core" to "default_wearable" -> {
                 (value as? String)?.let { wearable ->
                     Bridge.saveSetting("default_wearable", wearable)

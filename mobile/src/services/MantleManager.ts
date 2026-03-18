@@ -447,8 +447,66 @@ class MantleManager {
         }),
       )
 
+      // this.subs.push(
+      //   CoreModule.addListener("mic_data", (event) => {
+      //     if (this.micDataTimeout) {
+      //       BackgroundTimer.clearTimeout(this.micDataTimeout)
+      //     }
+      //     this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+      //       useDebugStore.getState().setDebugInfo({micDataRecvd: false})
+      //     }, this.MIC_TIMEOUT_MS)
+      //     useDebugStore.getState().setDebugInfo({micDataRecvd: true})
+
+      //     // Route audio to: UDP (if enabled) -> WebSocket (fallback)
+      //     if (udp.enabledAndReady()) {
+      //       // UDP audio is enabled and ready - send directly via UDP
+      //       udp.sendAudio(event.base64)
+      //     } else {
+      //       // Fallback to WebSocket
+      //       const binaryString = atob(event.base64)
+      //       const bytes = new Uint8Array(binaryString.length)
+      //       for (let i = 0; i < binaryString.length; i++) {
+      //         bytes[i] = binaryString.charCodeAt(i)
+      //       }
+      //       if (__DEV__ && Math.random() < 0.03) {
+      //         console.log("MANTLE: Received mic data:", bytes.length, "bytes")
+      //       }
+      //       socketComms.sendBinary(bytes)
+      //     }
+      //   }),
+      // )
+
       this.subs.push(
-        CoreModule.addListener("mic_data", (event) => {
+        CoreModule.addListener("mic_lc3", (event) => {
+          if (this.micDataTimeout) {
+            BackgroundTimer.clearTimeout(this.micDataTimeout)
+          }
+          this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+            useDebugStore.getState().setDebugInfo({micDataRecvd: false})
+          }, this.MIC_TIMEOUT_MS)
+          useDebugStore.getState().setDebugInfo({micDataRecvd: true})
+
+          // Route audio to: UDP (if enabled) -> WebSocket (fallback)
+          if (udp.enabledAndReady()) {
+            // UDP audio is enabled and ready - send directly via UDP
+            udp.sendAudio(event.base64)
+          } else {
+            // Fallback to WebSocket
+            const binaryString = atob(event.base64)
+            const bytes = new Uint8Array(binaryString.length)
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i)
+            }
+            if (__DEV__ && Math.random() < 0.03) {
+              console.log("MANTLE: Received mic data:", bytes.length, "bytes")
+            }
+            socketComms.sendBinary(bytes)
+          }
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("mic_pcm", (event) => {
           if (this.micDataTimeout) {
             BackgroundTimer.clearTimeout(this.micDataTimeout)
           }

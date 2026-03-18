@@ -122,6 +122,22 @@ public class Bridge private constructor() {
             sendTypedMessage("mic_data", body as Map<String, Any>)
         }
 
+        @JvmStatic
+        fun sendMicPcm(data: ByteArray) {
+            val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            val body = HashMap<String, Any>()
+            body["base64"] = base64String
+            sendTypedMessage("mic_pcm", body as Map<String, Any>)
+        }
+        
+        @JvmStatic
+        fun sendMicLc3(data: ByteArray) {
+            val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            val body = HashMap<String, Any>()
+            body["base64"] = base64String
+            sendTypedMessage("mic_lc3", body as Map<String, Any>)
+        }
+
         /** Save a setting */
         @JvmStatic
         fun saveSetting(key: String, value: Any) {

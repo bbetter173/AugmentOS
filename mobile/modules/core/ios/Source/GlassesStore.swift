@@ -138,7 +138,7 @@ class GlassesStore {
             Task {
                 CoreManager.shared.sgc?.setBrightness(b, autoMode: auto)
                 CoreManager.shared.sgc?.sendTextWall("Set brightness to \(b)%")
-                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
+                try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds
                 CoreManager.shared.sgc?.clearDisplay()
             }
 
@@ -152,7 +152,7 @@ class GlassesStore {
                     CoreManager.shared.sgc?.sendTextWall(
                         auto ? "Enabled auto brightness" : "Disabled auto brightness"
                     )
-                    try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
+                    try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds
                     CoreManager.shared.sgc?.clearDisplay()
                 }
             }
@@ -192,7 +192,7 @@ class GlassesStore {
             CoreManager.shared.sgc?.sendButtonMaxRecordingTime()
 
         case ("core", "button_video_width"), ("core", "button_video_height"),
-             ("core", "button_video_fps"):
+            ("core", "button_video_fps"):
             CoreManager.shared.sgc?.sendButtonVideoRecordingSettings()
 
         case ("core", "preferred_mic"):
@@ -203,6 +203,21 @@ class GlassesStore {
 
         case ("core", "offline_captions_running"):
             if let running = value as? Bool {
+                CoreManager.shared.setMicState()
+            }
+
+        case ("core", "should_send_pcm"):
+            if let pcm = value as? Bool {
+                CoreManager.shared.setMicState()
+            }
+
+        case ("core", "should_send_lc3"):
+            if let lc3 = value as? Bool {
+                CoreManager.shared.setMicState()
+            }
+
+        case ("core", "should_send_transcript"):
+            if let transcript = value as? Bool {
                 CoreManager.shared.setMicState()
             }
 

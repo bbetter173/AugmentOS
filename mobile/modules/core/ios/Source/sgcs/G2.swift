@@ -1716,6 +1716,8 @@ class G2: NSObject, SGCManager {
 
         guard let left = knownLeft?.first, let right = knownRight?.first else { return false }
 
+        Bridge.log("G2: connectByUUID - left: \(left.name ?? ""), right: \(right.name ?? "")")
+
         leftPeripheral = left
         rightPeripheral = right
         left.delegate = self
@@ -1790,9 +1792,9 @@ class G2: NSObject, SGCManager {
             handleTouchEvent(devEventData)
         } else {
             // Log unhandled EvenHub commands (helps debug stock dashboard interactions)
-            Bridge.log(
-                "G2: EvenHub response cmd=\(cmdValue), \(payload.count) bytes, fields=\(Array(fields.keys).sorted())"
-            )
+            // Bridge.log(
+            //     "G2: EvenHub response cmd=\(cmdValue), \(payload.count) bytes, fields=\(Array(fields.keys).sorted())"
+            // )
 
             // Parse error codes from responses
             // field 4 = StartupResCmd, field 6 = ImgResCmd, field 8 = RebuildResCmd, field 10 = TextResCmd

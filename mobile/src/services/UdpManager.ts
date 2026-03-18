@@ -448,15 +448,15 @@ class UdpManager {
 
       // Debug log every 100 packets to confirm audio is flowing
       const numChunks = Math.ceil(audioBytes.length / maxChunkSize)
-      if (this.sequenceNumber % 100 === 0) {
-        console.log(
-          `UDP: Sending audio #${this.sequenceNumber}, total=${
-            audioBytes.length
-          }bytes, chunks=${numChunks}, maxChunk=${maxChunkSize}, encrypted=${!!this.encryptionConfig} to ${
-            this.config.host
-          }:${this.config.port}`,
-        )
-      }
+      // if (this.sequenceNumber % 100 === 0) {
+      //   console.log(
+      //     `UDP: Sending audio #${this.sequenceNumber}, total=${
+      //       audioBytes.length
+      //     }bytes, chunks=${numChunks}, maxChunk=${maxChunkSize}, encrypted=${!!this.encryptionConfig} to ${
+      //       this.config.host
+      //     }:${this.config.port}`,
+      //   )
+      // }
 
       // Chunk audio data if it exceeds max packet size
       // Chunks are aligned to LC3 frame boundaries to prevent decoder corruption

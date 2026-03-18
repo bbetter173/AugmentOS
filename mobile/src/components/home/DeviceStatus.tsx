@@ -176,7 +176,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
                 <Button
                   flex
                   compact
-                  // className="w-[80%]"
+                  className="max-h-10"
                   tx="home:connectGlasses"
                   preset="primary"
                   onPress={connectGlasses}
@@ -186,7 +186,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
                 <Button
                   flex
                   compact
-                  className="w-[80%] items-center justify-center"
+                  className="w-[80%] max-h-10 items-center justify-center"
                   preset="alternate"
                   onPress={handleConnectOrDisconnect}>
                   <View className="flex-row items-center gap-2 flex-1">

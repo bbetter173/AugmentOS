@@ -9,6 +9,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import {SpeechToTextModule, useSpeechToText, WHISPER_TINY_EN} from "react-native-executorch"
 import CoreModule from "core"
+import {AudioManager, AudioRecorder} from "react-native-audio-api"
 
 const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
   const binaryString = atob(base64)
@@ -139,12 +140,37 @@ function Compositor() {
       //   console.log("COMPOSITOR: Transcription result:", model.downloadProgress)
       // }, 1000)
 
-      const pcmSub = CoreModule.addListener("mic_data", (event) => {
-        // console.log("COMPOSITOR: Received mic data:", event.base64)
-        // Fallback to WebSocket
+      const pcmSub = CoreModule.addListener("mic_pcm", (event) => {
+        // console.log("COMPOSITOR: Received mic pcm:", event.base64)
         const samples = decodePcm16Base64ToFloat32(event.base64)
         sttModule.streamInsert(samples)
       })
+
+      // Configure audio session
+      // AudioManager.setAudioSessionOptions({
+      //   iosCategory: "playAndRecord",
+      //   iosMode: "spokenAudio",
+      //   iosOptions: ["defaultToSpeaker"],
+      // })
+      // AudioManager.requestRecordingPermissions()
+
+      // // Initialize audio recorder
+      // const recorder = new AudioRecorder()
+      // recorder.onAudioReady(
+      //   {
+      //     sampleRate: 16000,
+      //     // bufferLengthInSamples: 1600,
+      //     bufferLength: 1600,
+      //     channelCount: 1,
+      //   },
+      //   ({buffer}) => {
+      //     console.log("COMPOSITOR: Received audio buffer:", buffer)
+      //     // Insert the audio into the streaming transcription
+      //     sttModule.streamInsert(buffer.getChannelData(0))
+      //   },
+      // )
+      // recorder.start()
+      // console.log("COMPOSITOR: Started audio recorder")
 
       // Start streaming transcription
       try {
@@ -159,7 +185,7 @@ function Compositor() {
       }
 
       return () => {
-        pcmSub.remove()
+        // pcmSub.remove()
       }
     }
     initSTT()

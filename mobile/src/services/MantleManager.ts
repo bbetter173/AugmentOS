@@ -526,9 +526,9 @@ class MantleManager {
             for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i)
             }
-            if (__DEV__ && Math.random() < 0.03) {
-              console.log("MANTLE: Received mic data:", bytes.length, "bytes")
-            }
+            // if (__DEV__ && Math.random() < 0.03) {
+            //   console.log("MANTLE: Received mic data:", bytes.length, "bytes")
+            // }
             socketComms.sendBinary(bytes)
           }
         }),

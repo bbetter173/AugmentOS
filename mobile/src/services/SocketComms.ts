@@ -452,7 +452,8 @@ class SocketComms {
     }
 
     CoreModule.update("core", {
-      should_send_pcm: shouldSendPcmData,
+      // should_send_pcm: shouldSendPcmData,
+      should_send_lc3: shouldSendPcmData,// online apps always want lc3
       should_send_transcript: shouldSendTranscript,
       bypass_vad: bypassVad,
     })

@@ -1167,7 +1167,7 @@ class CoreManager {
     }
 
     fun setMicState() {
-        val willSendPcm = shouldSendPcm
+        val willSendPcm = shouldSendPcm || shouldSendLc3
         val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
         micEnabled = willSendPcm || willSendTranscript
         vadBuffer.clear()

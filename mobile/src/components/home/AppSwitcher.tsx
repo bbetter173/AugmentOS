@@ -167,6 +167,7 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
 
   // debug sort order:
   // console.log("packageName", app.packageName, "index", index)
+  const insets = useSaferAreaInsets()
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -175,7 +176,8 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
         style={[
           {
             width: CARD_WIDTH,
-            height: CARD_HEIGHT, // - 16,
+            // height: CARD_HEIGHT + (12 * 4) - (insets.top * 1/0.67), // - 16,
+            height: CARD_HEIGHT,
             // zIndex: -index,// to reverse stack order
             position: "absolute",
             left: 0,

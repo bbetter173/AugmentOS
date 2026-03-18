@@ -14,6 +14,7 @@ import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {useAppletStatusStore} from "@/stores/applets"
 import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import AppIcon from "@/components/home/AppIcon"
+import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName} = useLocalSearchParams()
@@ -276,18 +277,11 @@ export default function AppWebView() {
 
   if (showError) {
     return (
-      <Screen
-        preset="fixed"
-        safeAreaEdges={[appSwitcherUi && "top"]}
-        className="px-0">
+      <Screen preset="fixed" safeAreaEdges={[appSwitcherUi && "top"]} className="px-0">
         {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
         {!appSwitcherUi && (
           <View className="px-6">
-            <Header
-              leftIcon="chevron-left"
-              onLeftPress={() => goBack()}
-              title={appName}
-            />
+            <Header leftIcon="chevron-left" onLeftPress={() => goBack()} title={appName} />
           </View>
         )}
         <MiniappErrorScreen
@@ -310,13 +304,17 @@ export default function AppWebView() {
     )
   }
 
+  const insets = useSaferAreaInsets()
+
   return (
     <Screen
       preset="fixed"
-      safeAreaEdges={[appSwitcherUi && "top"]}
+      // safeAreaEdges={[appSwitcherUi && "top"]}
+      style={{paddingTop: appSwitcherUi ? insets.top : 0}}
       KeyboardAvoidingViewProps={{enabled: true}}
       className="px-0"
       ref={viewShotRef}>
+      {/* {appSwitcherUi && <View style={{height: insets.top}} />} */}
       {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
       {!appSwitcherUi && (
         <View className="px-6">

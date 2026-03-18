@@ -1151,7 +1151,7 @@ struct ViewState {
     }
 
     func setMicState() {
-        let willSendPcm = shouldSendPcm
+        let willSendPcm = shouldSendPcm || shouldSendLc3
         let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
         micEnabled = willSendPcm || willSendTranscript
         updateMicState()

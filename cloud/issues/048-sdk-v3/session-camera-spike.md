@@ -93,8 +93,9 @@ session.camera.takePhoto(opts?: PhotoOptions)          // → Promise<PhotoData>
 session.camera.onPhotoTaken(handler: PhotoHandler)     // passive — hardware button, etc.
 
 // ─── Video recording (future — needs ASG client work) ───
-session.camera.startRecording(opts?: RecordingOptions) // → Promise<void>
-session.camera.stopRecording()                         // → Promise<RecordingResult>
+session.camera.startRecording(opts?: RecordingOptions)         // → Promise<void>
+session.camera.stopRecording()                                 // → Promise<RecordingStopResult>
+session.camera.onRecordingStatus(handler: RecordingStatusHandler) // recording lifecycle events
 
 // ─── Streaming (unified) ────────────────────────
 session.camera.startStream(opts?: StreamOptions)       // → Promise<StreamInfo>
@@ -130,12 +131,49 @@ interface RecordingOptions {
   quality?: "low" | "medium" | "high"
 }
 
-interface RecordingResult {
-  url: string // temporary URL (R2 presigned)
-  duration: number // ms
-  size: number // bytes
-  expiresAt: number // unix timestamp
+/**
+ * Returned immediately when stopRecording() is called.
+ * The video may NOT be available yet — it could be queued for upload
+ * if the glasses aren't on WiFi. Use onRecordingStatus() to track
+ * when the video URL becomes available.
+ */
+interface RecordingStopResult {
+  recordingId: string // unique ID for this recording
+  duration: number // ms — how long the recording was
+  uploadStatus: RecordingUploadStatus // current upload state
+  url?: string // presigned URL — only present if already uploaded
+  expiresAt?: number // unix timestamp — only present if url is present
 }
+
+type RecordingUploadStatus =
+  | "uploading" // glasses are on WiFi, upload in progress right now
+  | "queued" // glasses are NOT on WiFi, will upload when WiFi available
+  | "available" // upload complete, url is populated
+  | "failed" // upload failed (storage full, network error, etc.)
+
+/**
+ * Fired throughout the recording lifecycle — during recording (duration updates),
+ * on stop, and crucially when the upload completes (which may be much later
+ * if the glasses weren't on WiFi when recording stopped).
+ */
+interface RecordingStatusEvent {
+  recordingId: string
+  status: RecordingStatus
+  duration?: number // ms — updated during recording and on stop
+  uploadStatus?: RecordingUploadStatus // present once recording stops
+  url?: string // presigned URL — only present when uploadStatus is "available"
+  size?: number // bytes — only present when uploadStatus is "available"
+  expiresAt?: number // unix timestamp — only present when url is present
+  error?: string // present when status is "error" or uploadStatus is "failed"
+}
+
+type RecordingStatus =
+  | "recording" // actively recording
+  | "stopping" // stop requested, glasses finishing up
+  | "stopped" // recording stopped, upload lifecycle begins
+  | "error" // recording failed (camera busy, storage full, etc.)
+
+type RecordingStatusHandler = (event: RecordingStatusEvent) => void
 
 interface StreamOptions {
   url?: string // RTMP or SRT URL — omit for managed
@@ -170,6 +208,8 @@ type CameraErrorCode =
   | "PERMISSION_DENIED"
   | "STREAM_FAILED"
   | "RECORDING_FAILED"
+  | "RECORDING_STORAGE_FULL"
+  | "RECORDING_UPLOAD_FAILED"
 ```
 
 ### The Managed vs Unmanaged Decision
@@ -276,6 +316,8 @@ Every camera command from the SDK includes a `requestId` (UUID). The cloud passe
 ## Design: Video Recording (Future)
 
 > **⚠️ Requires ASG client changes.** The glasses firmware does not currently support record-to-file + upload. This design assumes that capability will be added.
+>
+> **Implementation note:** In the SDK v3 release, the recording API types and method signatures will be defined but the implementations will be commented out or throw "not yet supported" errors. This prevents developers from seeing API surface for features that don't work yet, while keeping the design ready for when ASG support lands.
 
 ### Flow
 
@@ -283,12 +325,86 @@ Every camera command from the SDK includes a `requestId` (UUID). The cloud passe
 SDK calls startRecording(opts)
     → Cloud relays to glasses
     → Glasses start recording locally to internal storage
-    → SDK calls stopRecording()
+    → onRecordingStatus fires: { status: "recording", duration: 0 }
+    → onRecordingStatus fires periodically: { status: "recording", duration: 5000 }
+    → ...
+
+SDK calls stopRecording()
     → Cloud relays stop to glasses
-    → Glasses finish recording, upload file to cloud storage (R2)
+    → Glasses finish recording
+
+    ─── CASE A: Glasses are on WiFi ───
+    → Glasses start uploading immediately
+    → stopRecording() resolves: { recordingId, duration, uploadStatus: "uploading" }
+    → onRecordingStatus fires: { status: "stopped", uploadStatus: "uploading" }
+    → Glasses upload file to cloud storage (R2) via HTTP PUT
     → Cloud generates presigned URL with TTL
-    → Cloud sends RecordingResult to SDK
-    → Promise resolves with { url, duration, size, expiresAt }
+    → onRecordingStatus fires: { status: "stopped", uploadStatus: "available", url: "https://...", size, expiresAt }
+
+    ─── CASE B: Glasses are NOT on WiFi ───
+    → Glasses queue the recording for later upload
+    → stopRecording() resolves: { recordingId, duration, uploadStatus: "queued" }
+    → onRecordingStatus fires: { status: "stopped", uploadStatus: "queued" }
+    → ... time passes, glasses connect to WiFi ...
+    → Glasses start uploading
+    → onRecordingStatus fires: { status: "stopped", uploadStatus: "uploading" }
+    → Upload completes
+    → onRecordingStatus fires: { status: "stopped", uploadStatus: "available", url: "https://...", size, expiresAt }
+```
+
+**Key insight:** `stopRecording()` resolves immediately with what's known at stop time — the duration and whether the upload is happening now or queued. The video URL arrives later via `onRecordingStatus()`. Developers must listen for the `"available"` upload status to get the URL.
+
+### Recording Status Lifecycle
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ startRecording()                                                  │
+│     ↓                                                             │
+│  "recording" ──→ "recording" ──→ "recording"    (periodic updates)│
+│     ↓                                                             │
+│ stopRecording()                                                   │
+│     ↓                                                             │
+│  "stopped" + uploadStatus: "uploading"  ──→  "available" (+ url)  │
+│        or                                                         │
+│  "stopped" + uploadStatus: "queued" ──→ "uploading" ──→ "available│
+│        or                                                         │
+│  "stopped" + uploadStatus: "failed" (+ error)                     │
+│                                                                   │
+│ At any point:                                                     │
+│  "error" (camera busy, storage full, etc.)                        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Usage Example
+
+```typescript
+// Listen for recording status BEFORE starting
+session.camera.onRecordingStatus((event) => {
+  switch (event.uploadStatus) {
+    case "queued":
+      session.display.showText("Video saved. Will upload on WiFi.")
+      break
+    case "uploading":
+      session.display.showText("Uploading video...")
+      break
+    case "available":
+      console.log("Video ready:", event.url)
+      // Download, process, store permanently on your server, etc.
+      break
+    case "failed":
+      console.error("Upload failed:", event.error)
+      break
+  }
+})
+
+// Start recording
+await session.camera.startRecording({maxDuration: 30000})
+
+// ... user does stuff ...
+
+// Stop — resolves immediately, URL comes later via onRecordingStatus
+const result = await session.camera.stopRecording()
+console.log(`Recorded ${result.duration}ms, upload: ${result.uploadStatus}`)
 ```
 
 ### Cloud Storage
@@ -302,7 +418,7 @@ SDK calls startRecording(opts)
 
 - `maxDuration` defaults to 5 minutes. Hardcap TBD (depends on glasses storage + battery).
 - Quality settings map to glasses-side encoding presets. The SDK sends `low` / `medium` / `high`, the glasses decide resolution and bitrate.
-- Need to define what happens if glasses storage fills up mid-recording. Probably: glasses send an error, cloud relays `RECORDING_FAILED`, SDK promise rejects.
+- If glasses storage fills up mid-recording: glasses send an error → cloud relays → `onRecordingStatus` fires with `status: "error"`, `error: "RECORDING_STORAGE_FULL"`.
 
 ### Upload Path
 
@@ -310,11 +426,20 @@ Same pattern as photos: the glasses upload the file via HTTP, not through the We
 
 ```
 Cloud sends to glasses: { recordingId, uploadUrl, maxDuration }
-Glasses finish recording → HTTP PUT to uploadUrl
-Cloud detects upload complete → resolves SDK promise
+Glasses record locally
+Glasses finish recording
+If WiFi available → HTTP PUT to uploadUrl immediately
+If no WiFi → queue, upload when WiFi connects
+Cloud detects upload complete → sends RECORDING_STATUS to SDK via WebSocket
 ```
 
 This avoids pushing large video files through the WebSocket and matches the existing photo upload pattern.
+
+### Deferred Upload Behavior
+
+The "queued for upload" state is important for real-world usage. Users may record a video while out walking (no WiFi), and the upload happens hours later when they return to WiFi. The `onRecordingStatus` handler fires whenever the upload status changes — even if the recording happened a long time ago. The `recordingId` correlates which recording the status belongs to.
+
+If the app server restarts between recording and upload completion, the status event will arrive via the next `onSession`. The developer should persist the `recordingId` in `session.storage` if they need to track it across restarts.
 
 ---
 

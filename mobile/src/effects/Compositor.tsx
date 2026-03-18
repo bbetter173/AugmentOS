@@ -146,32 +146,6 @@ function Compositor() {
         sttModule.streamInsert(samples)
       })
 
-      // Configure audio session
-      // AudioManager.setAudioSessionOptions({
-      //   iosCategory: "playAndRecord",
-      //   iosMode: "spokenAudio",
-      //   iosOptions: ["defaultToSpeaker"],
-      // })
-      // AudioManager.requestRecordingPermissions()
-
-      // // Initialize audio recorder
-      // const recorder = new AudioRecorder()
-      // recorder.onAudioReady(
-      //   {
-      //     sampleRate: 16000,
-      //     // bufferLengthInSamples: 1600,
-      //     bufferLength: 1600,
-      //     channelCount: 1,
-      //   },
-      //   ({buffer}) => {
-      //     console.log("COMPOSITOR: Received audio buffer:", buffer)
-      //     // Insert the audio into the streaming transcription
-      //     sttModule.streamInsert(buffer.getChannelData(0))
-      //   },
-      // )
-      // recorder.start()
-      // console.log("COMPOSITOR: Started audio recorder")
-
       // Start streaming transcription
       try {
         let transcription = ""

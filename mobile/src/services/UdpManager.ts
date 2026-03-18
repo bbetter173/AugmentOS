@@ -425,14 +425,14 @@ class UdpManager {
     return maxFrames * frameSizeBytes
   }
 
-  public sendAudio(pcmData: string): void {
+  public sendAudio(lc3OrPcm: ArrayBuffer): void {
     if (!this.isReady || !this.socket || !this.config) {
       return
     }
 
     try {
       // Decode base64 to bytes
-      const audioBytes = Buffer.from(pcmData, "base64")
+      const audioBytes = Buffer.from(lc3OrPcm, 0, lc3OrPcm.byteLength)
 
       // Get frame-aligned max chunk size
       // If encryption enabled, we need to recalculate alignment after accounting for overhead
@@ -447,7 +447,7 @@ class UdpManager {
       }
 
       // Debug log every 100 packets to confirm audio is flowing
-      const numChunks = Math.ceil(audioBytes.length / maxChunkSize)
+      // const numChunks = Math.ceil(audioBytes.length / maxChunkSize)
       // if (this.sequenceNumber % 100 === 0) {
       //   console.log(
       //     `UDP: Sending audio #${this.sequenceNumber}, total=${

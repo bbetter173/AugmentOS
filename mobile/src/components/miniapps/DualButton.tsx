@@ -23,7 +23,7 @@ export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
   const {theme} = useAppTheme()
 
   return (
-    <GlassView transparent={false} className="flex-row gap-2 rounded-full bg-primary-foreground px-2 py-1 items-center">
+    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 py-0.5 items-center">
       <Pressable hitSlop={10} onPress={onEllipsisPress}>
         <Icon name="ellipsis" color={theme.colors.foreground} />
       </Pressable>
@@ -83,7 +83,7 @@ export function MiniAppDualButtonHeader({
     handleExit()
   }, true)
   return (
-    <View className="z-2 absolute top-3 right-6 items-center justify-end flex-row">
+    <View className="z-2 absolute top-2 right-4 items-center justify-end flex-row">
       <DualButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
       <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
     </View>

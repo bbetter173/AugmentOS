@@ -310,6 +310,7 @@ dependencies {
     // StreamPackLite dependencies
     implementation project(':core')
     implementation project(':extension-rtmp')
+    implementation project(':extension-srt')
 
     // OkHttp for network requests
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'

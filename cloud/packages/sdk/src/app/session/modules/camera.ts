@@ -47,10 +47,13 @@ export interface PhotoRequestOptions {
 }
 
 /**
- * Configuration options for an RTMP stream
+ * Configuration options for an RTMP or SRT stream
  */
 export interface RtmpStreamOptions {
-  /** The RTMP URL to stream to (e.g., rtmp://server.example.com/live/stream-key) */
+  /** The stream URL to stream to. Supports rtmp://, rtmps://, and srt:// protocols.
+   * @example "rtmp://server.example.com/live/stream-key"
+   * @example "srt://server.example.com:4201?streamid=your-stream-id"
+   */
   rtmpUrl: string;
   /** Optional video configuration settings */
   video?: VideoConfig;
@@ -299,6 +302,11 @@ export class CameraModule {
 
     if (!options.rtmpUrl) {
       throw new Error("rtmpUrl is required");
+    }
+
+    const url = options.rtmpUrl;
+    if (!url.startsWith("rtmp://") && !url.startsWith("rtmps://") && !url.startsWith("srt://")) {
+      throw new Error("Invalid stream URL: must start with rtmp://, rtmps://, or srt://");
     }
 
     if (this.isStreaming) {

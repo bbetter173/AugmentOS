@@ -122,8 +122,8 @@ export class UnmanagedStreamingExtension {
       (error as any).code = wifiValidation.errorCode;
       throw error;
     }
-    if (!rtmpUrl || (!rtmpUrl.startsWith("rtmp://") && !rtmpUrl.startsWith("rtmps://"))) {
-      throw new Error("Invalid RTMP URL");
+    if (!rtmpUrl || (!rtmpUrl.startsWith("rtmp://") && !rtmpUrl.startsWith("rtmps://") && !rtmpUrl.startsWith("srt://"))) {
+      throw new Error("Invalid stream URL: must start with rtmp://, rtmps://, or srt://");
     }
     if (!this.userSession.websocket || this.userSession.websocket.readyState !== WebSocketReadyState.OPEN) {
       throw new Error("Glasses WebSocket not connected");

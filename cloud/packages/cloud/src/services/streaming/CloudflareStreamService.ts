@@ -380,10 +380,31 @@ export class CloudflareStreamService {
         "🎥 Constructed playback URLs for live stream",
       );
 
+      const srtBaseUrl = liveInput.srt?.url;
+
+      const srtUrl = srtBaseUrl
+      ? `${srtBaseUrl}?streamid=${encodeURIComponent(
+          liveInput.srt?.streamId || ""
+        )}&passphrase=${encodeURIComponent(
+          liveInput.srt?.passphrase || ""
+        )}`
+      : undefined;
+
+      const rtmpUrl = `${liveInput.rtmps.url}${liveInput.rtmps.streamKey}`;
+
+      this.logger.info(
+        {
+          srtUrl,
+          rtmpUrl,
+          hasSrt: !!liveInput.srt,
+        },
+        "Stream ingest URLs constructed",
+      );
+
       const result: LiveInputResult = {
         liveInputId: liveInput.uid,
-        rtmpUrl: `${liveInput.rtmps.url}${liveInput.rtmps.streamKey}`,
-        srtUrl: ``,
+        rtmpUrl: srtUrl!,
+        srtUrl,
         hlsUrl: hlsUrl,
         dashUrl: dashUrl,
         webrtcUrl: liveInput.webRTC?.url,

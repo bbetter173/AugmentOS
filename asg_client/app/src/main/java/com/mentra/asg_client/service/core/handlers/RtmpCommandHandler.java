@@ -65,9 +65,13 @@ public class RtmpCommandHandler implements ICommandHandler {
      */
     private boolean handleStartRtmpStream(JSONObject data) {
         try {
+            // Accept rtmpUrl (legacy) or srtUrl for SRT streams
             String rtmpUrl = data.optString("rtmpUrl", "");
             if (rtmpUrl.isEmpty()) {
-                Log.e(TAG, "Cannot start RTMP stream - missing rtmpUrl");
+                rtmpUrl = data.optString("srtUrl", "");
+            }
+            if (rtmpUrl.isEmpty()) {
+                Log.e(TAG, "Cannot start stream - missing rtmpUrl or srtUrl");
                 streamingManager.sendRtmpStatusResponse(false, ServiceConstants.STATUS_ERROR, ServiceConstants.ERROR_MISSING_RTMP_URL);
                 return false;
             }

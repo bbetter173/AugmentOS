@@ -530,12 +530,11 @@ class SocketComms {
   }
 
   private handle_start_rtmp_stream(msg: any) {
-    // TODO: Use srtUrl instead of rtmpUrl.
-    const rtmpUrl = msg.rtmpUrl || ""
-    if (rtmpUrl) {
+    const streamUrl = msg.rtmpUrl || msg.srtUrl || ""
+    if (streamUrl) {
       CoreModule.startRtmpStream(msg)
     } else {
-      console.log("Invalid RTMP stream request: missing rtmpUrl")
+      console.log("Invalid stream request: missing rtmpUrl or srtUrl")
     }
   }
 

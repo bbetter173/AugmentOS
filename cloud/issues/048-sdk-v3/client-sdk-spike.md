@@ -93,72 +93,103 @@ The Runtime Thread is a native thread (not the RN JS thread) that hosts its own 
 
 ---
 
-## Native Bindings via JSI
+## SDK is TypeScript — Only the Transport is Native
 
-JSI (JavaScript Interface) is React Native's low-level C++ bridge. It allows JS to call native functions synchronously — no async serialization, no JSON.stringify/parse, no bridge queue.
+A key architectural clarification: **the SDK (`@mentra/sdk/session`) is written entirely in TypeScript.** `MentraSession`, `TranscriptionManager`, `DisplayManager`, all the managers — all TypeScript. It gets bundled into the mini app's JS bundle by Bun and runs inside the Hermes context just like any other JS code.
 
-### How `MentraSession` managers map to native bindings
+The only native part is the **transport** — a thin pipe that sends and receives message strings. Everything else (parsing messages, routing to managers, maintaining state, capability checks, subscription logic) lives in the TypeScript SDK.
 
-| Manager                                   | JSI Binding                           | Native Implementation                                             |
-| ----------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
-| `session.display.showText(text)`          | `nativeDisplay.showText(text)`        | BLE write to glasses display characteristic                       |
-| `session.display.showCard({title, body})` | `nativeDisplay.showCard(title, body)` | BLE write (formatted as DisplayRequest)                           |
-| `session.display.clear()`                 | `nativeDisplay.clear()`               | BLE write (clear command)                                         |
-| `session.speaker.play(url)`               | `nativeSpeaker.play(url)`             | Download audio, stream via BLE audio channel                      |
-| `session.speaker.speak(text)`             | `nativeSpeaker.speak(text)`           | On-device TTS → BLE audio                                         |
-| `session.mic.onChunk(handler)`            | `nativeMic.onChunk(callback)`         | BLE audio input → PCM chunks → JS callback                        |
-| `session.transcription.on(handler)`       | `nativeTranscription.on(callback)`    | Sherpa-ONNX / Soniox (cloud) → transcription events → JS callback |
-| `session.camera.takePhoto()`              | `nativeCamera.takePhoto()`            | BLE camera command → wait for BLE photo data                      |
-| `session.location.onUpdate(handler)`      | `nativeLocation.onUpdate(callback)`   | CoreLocation / FusedLocation → JS callback                        |
-| `session.phone.notifications.on(handler)` | `nativeNotifications.on(callback)`    | NotificationListenerService / UNNotificationCenter                |
-| `session.phone.calendar.on(handler)`      | `nativeCalendar.on(callback)`         | EventKit / CalendarProvider                                       |
-| `session.storage.get(key)`                | `nativeStorage.get(key)`              | SQLite / AsyncStorage (synchronous via JSI)                       |
-| `session.device.batteryLevel`             | `nativeDevice.getBatteryLevel()`      | BLE read from glasses battery characteristic                      |
+```
+What's TypeScript (bundled with the app):
+  MentraSession           — thin orchestrator
+  TranscriptionManager    — handles transcription events, capabilities
+  TranslationManager      — handles translation events
+  DisplayManager          — display commands, text wrapping
+  SpeakerManager          — audio output
+  MicManager              — audio input
+  DeviceManager           — hardware events, WiFi, capabilities
+  PhoneManager            — notifications, calendar, battery
+  LocationManager         — GPS
+  ... all other managers, all event handling, all state
 
-### The Transport adapter
-
-In the spike, we defined a `Transport` interface:
-
-```typescript
-interface Transport {
-  send(data: string): void;
-  onMessage(handler: (data: string) => void): void;
-  onClose(handler: (code: number, reason: string) => void): void;
-  close(): void;
-  readonly readyState: number;
-}
+What's native (provided by phone runtime, injected as a global):
+  globalThis.__mentraTransport — just send(string) and onMessage(callback)
+  That's it. One object. Two functions.
 ```
 
-For cloud apps, this is a `WebSocketTransport`. For local apps, the native runtime creates a `NativeBridgeTransport` that routes messages through JSI bindings:
+### How the transport bridge works
+
+The phone runtime, before loading any mini app bundle, injects a native transport object as a global:
 
 ```typescript
-// Implemented in native (C++ via JSI), exposed to JS
-class NativeBridgeTransport implements Transport {
+// Phone runtime (native, C++ via JSI) does this before loading the bundle:
+globalThis.__mentraTransport = {
   send(data: string): void {
-    // Parse the message, route to the appropriate native handler
-    // e.g., DisplayRequest → BLE write, SubscriptionUpdate → start/stop native streams
-  }
-
+    /* routes to BLE, Sherpa, GPS, etc. */
+  },
   onMessage(handler: (data: string) => void): void {
-    // Register callback for native → JS messages
-    // e.g., transcription results, button presses, battery updates
-  }
-
+    /* native → JS events */
+  },
   onClose(handler: (code: number, reason: string) => void): void {
-    // Called when glasses disconnect
-  }
-
+    /* glasses disconnect */
+  },
   close(): void {
-    // Cleanup
-  }
+    /* cleanup */
+  },
+  readyState: 1, // "open" while glasses connected
+}
+```
 
-  get readyState(): number {
-    return 1; // Always "open" while glasses are connected
+The SDK picks this up on initialization:
+
+```typescript
+// Inside @mentra/sdk/session — TypeScript, bundled with the app
+class NativeBridgeTransport implements Transport {
+  private bridge = globalThis.__mentraTransport
+
+  send(data: string) {
+    this.bridge.send(data)
+  }
+  onMessage(handler: (data: string) => void) {
+    this.bridge.onMessage(handler)
+  }
+  onClose(handler: (code: number, reason: string) => void) {
+    this.bridge.onClose(handler)
+  }
+  close() {
+    this.bridge.close()
+  }
+  get readyState() {
+    return this.bridge.readyState
   }
 }
 ```
 
-**The `MentraSession` doesn't know whether it's talking to a cloud WebSocket or a local JSI bridge.** Same message types, same protocol. The session code is literally identical.
+**The developer never sees any of this.** They import `@mentra/sdk/session`, it bundles normally via Bun, and the SDK internally detects whether it's running on a server (WebSocket available) or on a phone (native transport global available).
+
+### What the native transport routes to
+
+The native side receives message strings (same protocol as the cloud WebSocket) and routes them:
+
+| Message type                         | Native action                                |
+| ------------------------------------ | -------------------------------------------- |
+| `DisplayRequest`                     | BLE write to glasses display characteristic  |
+| `SubscriptionUpdate` (transcription) | Start/stop Sherpa-ONNX or cloud Soniox       |
+| `SubscriptionUpdate` (location)      | Start/stop CoreLocation / FusedLocation      |
+| `AudioPlayRequest`                   | Download audio, stream via BLE audio channel |
+| `PhotoRequest`                       | BLE camera command to glasses                |
+
+And in the other direction, native sends messages TO the SDK:
+
+| Native event                       | Message sent to SDK                  |
+| ---------------------------------- | ------------------------------------ |
+| Transcription result (Sherpa-ONNX) | `DataStream` with transcription data |
+| Button press (BLE)                 | `DataStream` with button event       |
+| Location update (GPS)              | `DataStream` with location data      |
+| Phone notification                 | `DataStream` with notification data  |
+| Battery update (BLE)               | `DataStream` with battery level      |
+
+Same message types as the cloud WebSocket. The SDK TypeScript code processes them identically.
 
 ---
 
@@ -168,38 +199,40 @@ class NativeBridgeTransport implements Transport {
 
 **Store path (recommended):**
 
-1. Developer submits JS bundle to MentraOS dev console
+1. Developer submits bundle to MentraOS dev console
 2. We compile to Hermes bytecode (`.hbc`) on our build servers
 3. Host on CDN (fast, globally cached)
-4. Phone downloads `.hbc` on app install
+4. Phone downloads on app install
 5. Cached in app sandbox — works offline after first download
 6. Version check on app launch (or periodic background check)
 
 **Self-host / sideload path (development):**
 
-1. Developer runs local dev server (like `bun run dev`)
+1. Developer runs `mentra dev` — starts local dev server
 2. Phone fetches raw JS from developer's URL (ngrok / local network)
-3. Hermes compiles to bytecode on-device (slightly slower first run)
-4. Cached locally until developer pushes a new version
+3. Hermes executes raw JS directly (no `.hbc` needed in dev — slower first parse but works)
+4. Hot reload on save
 
 ### Update model
 
 Like a PWA with service workers:
 
 1. On app launch, check the bundle URL for a new version (ETag / Last-Modified / version.json)
-2. If unchanged → use cached `.hbc` immediately (instant startup)
+2. If unchanged → use cached bundle immediately (instant startup)
 3. If changed → download new bundle in background
 4. Swap on next app launch (not mid-session — avoid runtime inconsistency)
-5. Rollback: keep the previous `.hbc` in case the new one crashes on startup
+5. Rollback: keep the previous bundle in case the new one crashes on startup
 
-### Bundle format
+### Bundle format (output of `mentra build`)
 
 ```
-my-app-bundle/
-├── manifest.json          # Package name, version, permissions, entry point
-├── index.hbc              # Hermes bytecode (compiled from index.js)
-├── index.js               # Source JS (fallback if .hbc is missing or invalid)
-└── assets/                # Optional: images, sounds, etc.
+dist/
+├── manifest.json           # Package name, version, permissions, entry points
+├── session.hbc             # Hermes bytecode — the always-on glasses logic
+├── session.js              # Source JS fallback (if .hbc version mismatch)
+└── webview/                # Optional — phone companion UI (only if webview/ source exists)
+    ├── index.html
+    └── bundle.js
 ```
 
 ```json
@@ -207,7 +240,8 @@ my-app-bundle/
 {
   "packageName": "com.example.captions",
   "version": "1.2.0",
-  "entry": "index.hbc",
+  "session": "session.hbc",
+  "webview": "webview/index.html",
   "permissions": ["microphone", "display"],
   "minOsVersion": "2.0.0"
 }
@@ -217,7 +251,7 @@ my-app-bundle/
 
 Bundles from the store are signed with our key. The phone verifies the signature before loading. Self-hosted bundles in dev mode skip verification (but show a "dev mode" indicator in the UI).
 
-Bundles run in a sandboxed Hermes context — no access to the filesystem, network, or native APIs beyond what the JSI bindings expose. The permission system (from `manifest.json`) controls which bindings are available.
+Bundles run in a sandboxed Hermes context — no access to the filesystem, network, or native APIs beyond what the native transport exposes. The permission system (from `manifest.json`) controls which native capabilities are available to the transport.
 
 ---
 
@@ -229,29 +263,30 @@ Bundles run in a sandboxed Hermes context — no access to the filesystem, netwo
 1. User opens MentraOS app (or glasses connect automatically)
 2. MentraOS reads installed apps from local DB
 3. For each app marked "auto-start":
-   a. Load cached .hbc bundle into Hermes runtime
-   b. Create NativeBridgeTransport
-   c. Create MentraSession with transport
-   d. Call the app's entry point: onSession(session)
+   a. Inject globalThis.__mentraTransport (native bridge)
+   b. Load cached bundle into Hermes runtime
+   c. Bundle includes @mentra/sdk/session (TypeScript, bundled by Bun)
+   d. SDK detects native transport, creates MentraSession internally
+   e. Runtime calls the app's exported onSession(session)
 4. App is now running — receiving events, sending display commands
 ```
 
 ### How a local app's entry point looks
 
 ```typescript
-// index.ts — compiled to index.hbc
-import { MentraSession } from "@mentra/sdk/session";
+// session/index.ts — compiled to session.hbc
+import {MentraSession} from "@mentra/sdk/session"
 
 // The runtime calls this when the session is ready
 export default function onSession(session: MentraSession) {
   session.transcription.on((data) => {
-    session.display.showText(data.text);
-  });
+    session.display.showText(data.text)
+  })
 }
 
 // Optional: called when the session ends (glasses disconnect, app stopped)
 export function onStop(session: MentraSession) {
-  console.log("bye");
+  console.log("bye")
 }
 ```
 
@@ -259,16 +294,16 @@ This is the same pattern as cloud apps:
 
 ```typescript
 // Cloud app (for comparison)
-const app = new MentraApp({ packageName: "...", apiKey: "..." });
+const app = new MentraApp({packageName: "...", apiKey: "..."})
 
 app.onSession((session) => {
   session.transcription.on((data) => {
-    session.display.showText(data.text);
-  });
-});
+    session.display.showText(data.text)
+  })
+})
 ```
 
-The only difference: cloud apps use `MentraApp` (Hono server that creates sessions from webhooks). Local apps export `onSession` and the phone runtime calls it directly.
+The only difference: cloud apps use `MentraApp` (Hono server that creates sessions from webhooks). Local apps export `onSession` and the phone runtime calls it directly. The `MentraSession` class and all managers are the same TypeScript code in both cases — only the transport differs.
 
 ---
 
@@ -339,22 +374,22 @@ Every field on `TranscriptionEvent` stays optional. The developer queries capabi
 ```typescript
 interface TranscriptionCapabilities {
   /** Can detect the spoken language automatically. */
-  languageDetection: boolean;
+  languageDetection: boolean
 
   /** Can identify different speakers. */
-  diarization: boolean;
+  diarization: boolean
 
   /** Provides word-level start/end timestamps. */
-  wordTimestamps: boolean;
+  wordTimestamps: boolean
 
   /** Provides per-segment confidence scores. */
-  confidence: boolean;
+  confidence: boolean
 
   /** Which languages the current engine supports. */
-  supportedLanguages: string[];
+  supportedLanguages: string[]
 
   /** Whether the engine is running locally or in the cloud. */
-  local: boolean;
+  local: boolean
 }
 ```
 
@@ -364,27 +399,27 @@ Usage:
 export default function onSession(session: MentraSession) {
   // Always works — text and isFinal are always present
   session.transcription.on((data) => {
-    session.display.showText(data.text);
-  });
+    session.display.showText(data.text)
+  })
 
   // Check capabilities before relying on optional fields
-  const caps = session.transcription.capabilities;
+  const caps = session.transcription.capabilities
 
   if (caps.diarization) {
     session.transcription.on((data) => {
       if (data.speakerId) {
-        showSpeakerLabel(data.speakerId, data.text);
+        showSpeakerLabel(data.speakerId, data.text)
       }
-    });
+    })
   }
 
   // React to capability changes (e.g., network drops, switch to local)
   session.transcription.onCapabilitiesChange((newCaps) => {
     if (!newCaps.diarization) {
       // Switched to local model — hide speaker labels
-      hideSpeakerLabels();
+      hideSpeakerLabels()
     }
-  });
+  })
 }
 ```
 
@@ -405,10 +440,10 @@ Translation has the same problem — cloud translation (Soniox) gives you source
 
 ```typescript
 interface TranslationCapabilities {
-  sourceDetection: boolean; // can auto-detect source language?
-  supportedPairs: string[][]; // [["en", "es"], ["en", "ja"], ...]
-  simultaneousTargets: number; // how many targets at once? Soniox: many, local: 1
-  local: boolean;
+  sourceDetection: boolean // can auto-detect source language?
+  supportedPairs: string[][] // [["en", "es"], ["en", "ja"], ...]
+  simultaneousTargets: number // how many targets at once? Soniox: many, local: 1
+  local: boolean
 }
 ```
 
@@ -452,28 +487,197 @@ Example: an AI assistant app that shows live captions locally (Whisper) but send
 export default function onSession(session: MentraSession) {
   // Local: real-time captions via on-device Sherpa-ONNX
   session.transcription.on((data) => {
-    session.display.showText(data.text);
+    session.display.showText(data.text)
 
     if (data.isFinal) {
       // Cloud: send to LLM for a response
       askCloudLLM(data.text).then((response) => {
-        session.speaker.speak(response);
-      });
+        session.speaker.speak(response)
+      })
     }
-  });
+  })
 }
 
 async function askCloudLLM(text: string): Promise<string> {
   const res = await fetch("https://api.example.com/chat", {
     method: "POST",
-    body: JSON.stringify({ message: text }),
-  });
-  const data = await res.json();
-  return data.reply;
+    body: JSON.stringify({message: text}),
+  })
+  const data = await res.json()
+  return data.reply
 }
 ```
 
 **`fetch` is available in Hermes** — mini apps can make HTTP requests to their own servers. The SDK doesn't need to mediate this. The phone's network stack handles it normally.
+
+---
+
+## MentraJS Framework & Build Pipeline
+
+### The vision
+
+MentraJS is a framework for building glasses apps — like Next.js but for smart glasses. "Full-stack" means glasses logic + phone companion UI + background processing, all in one project, one language, one dev experience.
+
+```
+Next.js:
+  Server code (API routes, SSR)  → runs on Node
+  Client code (React components) → runs in browser
+  One project, framework handles the boundary
+
+MentraJS:
+  Session code (glasses logic)   → runs in Hermes (background, always on)
+  Webview code (phone UI)        → runs in webview (foreground, when visible)
+  One project, framework handles the boundary
+```
+
+### Project structure
+
+The framework uses a convention-based folder structure:
+
+```
+my-app/
+├── mentra.config.ts           # package name, permissions, etc.
+├── session/
+│   └── index.ts               # entry point — runs in Hermes, always on
+├── webview/                    # optional — not all apps need a phone UI
+│   ├── index.html
+│   └── App.tsx
+├── shared/                    # optional — shared types/utils
+│   └── types.ts
+└── package.json
+```
+
+The simplest possible app — just live captions, no phone UI:
+
+```
+captions-app/
+├── mentra.config.ts
+├── session/
+│   └── index.ts
+└── package.json
+```
+
+Three files. That's it.
+
+### Build pipeline
+
+`mentra build` takes the source project and produces what the phone needs:
+
+```
+Source:                          Build:                         Output:
+session/index.ts  ──→  bun build  ──→  session.js  ──→  hermesc  ──→  session.hbc
+webview/App.tsx   ──→  bun build  ──→  webview/index.html + bundle.js
+mentra.config.ts  ──→  generate   ──→  manifest.json
+```
+
+Steps:
+
+1. **`bun build session/index.ts --outfile dist/session.js`** — bundles session code + `@mentra/sdk/session` into a single JS file. Pure JS, no Node/Bun APIs. The SDK is TypeScript — it bundles in normally.
+2. **`bun build webview/`** (if exists) — bundles the web app into static HTML/CSS/JS assets.
+3. **`hermesc dist/session.js -emit-binary -out dist/session.hbc`** — compile to Hermes bytecode for instant startup. (Skipped in dev mode.)
+4. **Generate `dist/manifest.json`** from `mentra.config.ts`.
+
+Output:
+
+```
+dist/
+├── manifest.json
+├── session.hbc          # Hermes bytecode (production)
+├── session.js           # JS source (dev fallback)
+└── webview/             # static web assets (if webview/ source exists)
+    ├── index.html
+    └── bundle.js
+```
+
+**Important:** `@mentra/sdk/session` is NOT externalized — it's bundled into `session.js` as normal TypeScript. The only thing the phone runtime provides is `globalThis.__mentraTransport`. The SDK detects it at initialization and uses it as the transport.
+
+### CLI
+
+```bash
+mentra dev              # Start dev server, hot reload, phone loads raw JS
+mentra build            # Production build → dist/
+mentra publish          # Build + upload to MentraOS app store
+```
+
+**`mentra dev`:**
+
+- Starts a local dev server (Bun)
+- Watches `session/` and `webview/` for changes
+- Phone connects, loads raw JS (no `.hbc` — Hermes can execute raw JS, just slower first parse)
+- Hot reload on file save
+- Both session logic and webview UI reload
+
+**`mentra build`:**
+
+- Bundles via Bun
+- Compiles to `.hbc` via `hermesc` (the Hermes compiler, ~5MB binary — bundled with MentraJS CLI, or skip and let the app store compile)
+- Generates manifest
+- Output in `dist/`
+
+**`mentra publish`:**
+
+- Runs `mentra build`
+- Uploads `dist/` to MentraOS app store
+- Store can re-compile `.hbc` for different Hermes versions if needed
+- Review process, signing, CDN distribution
+
+### Session + Webview communication
+
+For apps that have both `session/` and `webview/`, the framework provides a shared state bridge:
+
+```typescript
+// session/index.ts — runs in Hermes, always on
+import {state} from "@mentra/sdk/session"
+
+export default function onSession(session: MentraSession) {
+  session.transcription.on((data) => {
+    // Update shared state — webview sees this when active
+    state.set("lastTranscript", data.text)
+    state.set("language", data.language)
+
+    session.display.showText(data.text)
+  })
+
+  // React to webview actions
+  state.on("settingsChanged", (newSettings) => {
+    session.transcription.configure({
+      languageHints: [newSettings.preferredLanguage],
+    })
+  })
+}
+```
+
+```tsx
+// webview/App.tsx — runs in webview, only when phone screen is on
+import {useMentraState} from "@mentra/sdk/webview"
+
+function App() {
+  const lastTranscript = useMentraState("lastTranscript")
+  const language = useMentraState("language")
+
+  return (
+    <div>
+      <h1>Live Captions</h1>
+      <p>{lastTranscript}</p>
+      <p>Detected: {language}</p>
+      <SettingsPanel />
+    </div>
+  )
+}
+```
+
+The framework handles the bridge between the Hermes runtime and the webview (native module syncs state when webview is active). The developer just reads and writes shared state — no manual `postMessage` wiring.
+
+### Same code, two deployment targets
+
+The same `session/index.ts` code works as both a local app and a cloud app:
+
+```bash
+mentra build            # produces dist/ for phone (local app)
+mentra build --cloud    # produces a MentraApp server deployment
+```
+
+For `--cloud`, the build wraps the session code in a `MentraApp` (Hono server) that creates `MentraSession` instances from webhooks with `WebSocketTransport`. The session code is unchanged — only the host environment differs.
 
 ---
 
@@ -483,20 +687,19 @@ This is a rough breakdown of the native work needed to support local apps:
 
 ### Native modules to build
 
-| Module                    | Purpose                                                     | Complexity | Notes                                                                            |
-| ------------------------- | ----------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------- |
-| **MentraRuntime**         | Hermes instance management, bundle loading, lifecycle       | High       | Core of the system. Manages app contexts.                                        |
-| **NativeBridgeTransport** | JSI bridge implementing the Transport interface             | High       | Routes all message types between JS and native.                                  |
-| **NativeDisplay**         | Formats DisplayRequest messages, sends via BLE              | Medium     | BLE write to glasses display characteristic. Already partially exists in mobile. |
-| **NativeMic**             | Receives BLE audio from glasses, delivers PCM chunks to JS  | Medium     | Already exists in mobile for cloud audio path.                                   |
-| **NativeSpeaker**         | Plays audio on glasses via BLE audio channel                | Medium     | TTS integration + audio streaming.                                               |
-| **NativeCamera**          | BLE camera commands + receives photo data                   | Medium     | Already exists in mobile for cloud photo path.                                   |
-| **NativeTranscription**   | Sherpa-ONNX (already integrated) + capability normalization | Medium     | Already exists in mobile. Needs JSI bridge + TranscriptionCapabilities layer.    |
-| **NativeLocation**        | CoreLocation / FusedLocation → JS callbacks                 | Low        | Standard RN pattern, mostly boilerplate.                                         |
-| **NativeNotifications**   | Phone notification access → JS callbacks                    | Medium     | Platform-specific APIs. Already piped to cloud today.                            |
-| **NativeCalendar**        | Calendar events → JS callbacks                              | Low        | Already piped to cloud today via CalendarManager.                                |
-| **NativeStorage**         | Per-app sandboxed key-value storage via JSI                 | Low        | SQLite or MMKV via JSI (synchronous reads).                                      |
-| **BundleLoader**          | Download, cache, verify, and load .hbc bundles              | Medium     | HTTP client + file cache + signature verification.                               |
+The native side is thin — it implements the transport bridge and routes messages to platform APIs:
+
+| Module                  | Purpose                                                                  | Complexity | Notes                                                                    |
+| ----------------------- | ------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------ |
+| **MentraRuntime**       | Hermes instance management, `__mentraTransport` injection, lifecycle     | High       | Core of the system. Manages app contexts, loads bundles.                 |
+| **NativeTransport**     | The `globalThis.__mentraTransport` implementation — `send` + `onMessage` | High       | Routes message strings to/from native. Single object, two key functions. |
+| **DisplayRouter**       | Receives DisplayRequest messages from transport, sends via BLE           | Medium     | Already partially exists in mobile.                                      |
+| **AudioRouter**         | Mic input (BLE → transport) and speaker output (transport → BLE)         | Medium     | Already exists in mobile for cloud audio path.                           |
+| **CameraRouter**        | BLE camera commands + receives photo data                                | Medium     | Already exists in mobile for cloud photo path.                           |
+| **TranscriptionRouter** | Sherpa-ONNX / Soniox → DataStream messages into transport                | Medium     | Already exists in mobile. Needs capability normalization layer.          |
+| **SensorRouter**        | Location, notifications, calendar → DataStream messages                  | Low        | Already piped to cloud today. Reformat as transport messages.            |
+| **StorageRouter**       | Per-app sandboxed key-value storage                                      | Low        | SQLite or MMKV.                                                          |
+| **BundleLoader**        | Download, cache, verify, and load bundles                                | Medium     | HTTP client + file cache + signature verification.                       |
 
 This work is parallel to the SDK v3 refactor. The SDK v3 refactor produces the `MentraSession` + `Transport` interface that the mobile runtime consumes. The mobile work builds the native side that implements that interface.
 

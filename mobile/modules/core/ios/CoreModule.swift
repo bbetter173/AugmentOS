@@ -296,12 +296,6 @@ public class CoreModule: Module {
             }
         }
 
-        AsyncFunction("restartTranscriber") {
-            await MainActor.run {
-                CoreManager.shared.restartTranscriber()
-            }
-        }
-
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { (playing: Bool) in
@@ -328,28 +322,6 @@ public class CoreModule: Module {
                     count: count
                 )
             }
-        }
-
-        // MARK: - STT Commands
-
-        AsyncFunction("setSttModelDetails") { (path: String, languageCode: String) in
-            STTTools.setSttModelDetails(path, languageCode)
-        }
-
-        AsyncFunction("getSttModelPath") { () -> String in
-            return STTTools.getSttModelPath()
-        }
-
-        AsyncFunction("checkSttModelAvailable") { () -> Bool in
-            return STTTools.checkSTTModelAvailable()
-        }
-
-        AsyncFunction("validateSttModel") { (path: String) -> Bool in
-            return STTTools.validateSTTModel(path)
-        }
-
-        AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
-            return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
         }
 
         // MARK: - Android Stubs

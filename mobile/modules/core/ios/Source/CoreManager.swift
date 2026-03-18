@@ -277,9 +277,6 @@ struct ViewState {
     private var vadBuffer = [Data]()
     private var isSpeaking = false
 
-    /// STT:
-    private var transcriber: SherpaOnnxTranscriber?
-
     var viewStates: [ViewState] = [
         ViewState(
             topText: " ", bottomText: " ", title: " ", layoutType: "text_wall", text: ""
@@ -306,22 +303,6 @@ struct ViewState {
 
         // Start memory monitoring (logs every 30s to help detect leaks)
         // MemoryMonitor.start()
-
-        // Initialize SherpaOnnx Transcriber
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-            let window = windowScene.windows.first,
-            let rootViewController = window.rootViewController
-        {
-            transcriber = SherpaOnnxTranscriber(context: rootViewController)
-        } else {
-            Bridge.log("Failed to create SherpaOnnxTranscriber - no root view controller found")
-        }
-
-        // Initialize the transcriber
-        if let transcriber = transcriber {
-            transcriber.initialize()
-            Bridge.log("SherpaOnnxTranscriber fully initialized")
-        }
 
         Task {
             self.vad?.setup(
@@ -424,11 +405,6 @@ struct ViewState {
 
         if bypassVad {
             handleSendingPcm(pcmData)
-
-            // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript {
-                transcriber?.acceptAudio(pcm16le: pcmData)
-            }
             return
         }
 
@@ -454,11 +430,6 @@ struct ViewState {
             emptyVadBuffer()
 
             handleSendingPcm(pcmData)
-
-            // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript {
-                transcriber?.acceptAudio(pcm16le: pcmData)
-            }
         } else {
             checkSetVadStatus(speaking: false)
             // add to the vadBuffer (stores PCM for potential later sending):
@@ -873,11 +844,6 @@ struct ViewState {
         Bridge.log("MAN: Interruption: \(began)")
         systemMicUnavailable = began
         updateMicState()
-    }
-
-    func restartTranscriber() {
-        Bridge.log("MAN: Restarting SherpaOnnxTranscriber via command")
-        transcriber?.restart()
     }
 
     // MARK: - connection state management
@@ -1306,9 +1272,6 @@ struct ViewState {
     }
 
     func cleanup() {
-        // Clean up transcriber resources
-        transcriber?.shutdown()
-        transcriber = nil
 
         // Clean up LC3 converter
         lc3Converter = nil

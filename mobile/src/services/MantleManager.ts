@@ -457,6 +457,8 @@ class MantleManager {
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
 
+          // console.log("MANTLE: Received mic_lc3 event from Core", event.lc3.length)
+
           // Route audio to: UDP (if enabled) -> WebSocket (fallback)
           if (udp.enabledAndReady()) {
             // UDP audio is enabled and ready - send directly via UDP

@@ -1520,6 +1520,7 @@ class G2: NSObject, SGCManager {
 
     func connectById(_ id: String) {
         Bridge.log("G2: connectById(\(id))")
+        forget()
         DEVICE_SEARCH_ID = "_" + id + "_"
         startScan()
     }

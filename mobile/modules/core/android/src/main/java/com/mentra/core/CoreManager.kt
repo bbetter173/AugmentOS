@@ -171,6 +171,10 @@ class CoreManager {
         get() = GlassesStore.store.get("core", "shouldSendBootingMessage") as? Boolean ?: true
         set(value) = GlassesStore.apply("core", "shouldSendBootingMessage", value)
 
+    // Guard against duplicate ready callbacks firing back-to-back.
+    private var lastReadyHandledAtMs: Long = 0L
+    private var lastReadyHandledKey: String = ""
+
     private var systemMicUnavailable: Boolean
         get() = GlassesStore.store.get("core", "systemMicUnavailable") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "systemMicUnavailable", value)
@@ -953,10 +957,22 @@ class CoreManager {
             return
         }
 
+        val readyKey = "${sgc?.type}:${deviceName}"
+        val now = System.currentTimeMillis()
+        if (readyKey == lastReadyHandledKey && now - lastReadyHandledAtMs < 2000) {
+            Bridge.log("MAN: handleDeviceReady() duplicate suppressed for $readyKey")
+            return
+        }
+        lastReadyHandledKey = readyKey
+        lastReadyHandledAtMs = now
+
         Bridge.log("MAN: handleDeviceReady() ${sgc?.type}")
         pendingWearable = ""
         defaultWearable = sgc?.type ?: ""
         searching = false
+
+        // Apply dashboard position before any boot text so content doesn't jump.
+        sgc?.setDashboardPosition(dashboardHeight, dashboardDepth)
 
         // Show welcome message on first connect for all display glasses
         if (shouldSendBootingMessage) {
@@ -981,9 +997,6 @@ class CoreManager {
         // Cache was cleared on disconnect, so this will definitely send commands
         Bridge.log("MAN: Re-applying microphone settings after reconnection")
         updateMicState()
-
-        // Re-apply display height after reconnection
-        sgc?.setDashboardPosition(dashboardHeight, dashboardDepth)
 
         // send to the server our battery status:
         Bridge.sendBatteryStatus(sgc?.batteryLevel ?: -1, false)

@@ -171,19 +171,16 @@ export type WsBinEvent = {
   base64: string
 }
 
-export type MicDataEvent = {
-  type: "mic_data"
-  base64: string
-}
-
 export type MicPcmEvent = {
   type: "mic_pcm"
-  base64: string
+  // base64: string
+  pcm: ArrayBuffer
 }
 
 export type MicLc3Event = {
   type: "mic_lc3"
-  base64: string
+  // base64: string
+  lc3: ArrayBuffer
 }
 
 export type RtmpStreamStatusEvent = {
@@ -259,7 +256,6 @@ export type CoreModuleEvents = {
   phone_notification_dismissed: (event: PhoneNotificationDismissedEvent) => void
   ws_text: (event: WsTextEvent) => void
   ws_bin: (event: WsBinEvent) => void
-  mic_data: (event: MicDataEvent) => void
   mic_pcm: (event: MicPcmEvent) => void
   mic_lc3: (event: MicLc3Event) => void
   rtmp_stream_status: (event: RtmpStreamStatusEvent) => void

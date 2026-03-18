@@ -70,14 +70,6 @@ public class Bridge private constructor() {
             sendTypedMessage("log", data as Map<String, Any>)
         }
 
-        /** Send an event to JavaScript */
-        @JvmStatic
-        fun sendEvent(eventName: String, body: String) {
-            val data = HashMap<String, Any>()
-            data["body"] = body
-            eventCallback?.invoke(eventName, data as Map<String, Any>)
-        }
-
         /** Send head position event */
         @JvmStatic
         fun sendHeadUp(isUp: Boolean) {
@@ -109,32 +101,25 @@ public class Bridge private constructor() {
             sendTypedMessage("audio_disconnected", data as Map<String, Any>)
         }
 
-        /**
-         * Send microphone data to React Native. React Native handles the decision of whether to
-         * send via UDP or WebSocket. This keeps the native layer simple and UDP logic centralized
-         * in React Native.
-         */
-        @JvmStatic
-        fun sendMicData(data: ByteArray) {
-            val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
-            val body = HashMap<String, Any>()
-            body["base64"] = base64String
-            sendTypedMessage("mic_data", body as Map<String, Any>)
-        }
-
         @JvmStatic
         fun sendMicPcm(data: ByteArray) {
-            val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            // val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            // val body = HashMap<String, Any>()
+            // body["base64"] = base64String
+            // sendTypedMessage("mic_pcm", body as Map<String, Any>)
             val body = HashMap<String, Any>()
-            body["base64"] = base64String
+            body["pcm"] = data
             sendTypedMessage("mic_pcm", body as Map<String, Any>)
         }
         
         @JvmStatic
         fun sendMicLc3(data: ByteArray) {
-            val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            // val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            // val body = HashMap<String, Any>()
+            // body["base64"] = base64String
+            // sendTypedMessage("mic_lc3", body as Map<String, Any>)
             val body = HashMap<String, Any>()
-            body["base64"] = base64String
+            body["lc3"] = data
             sendTypedMessage("mic_lc3", body as Map<String, Any>)
         }
 

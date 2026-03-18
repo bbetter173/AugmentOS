@@ -45,7 +45,6 @@ class CoreModule : Module() {
             "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
-            "mic_data",
             "mic_pcm",
             "mic_lc3",
             "rtmp_stream_status",

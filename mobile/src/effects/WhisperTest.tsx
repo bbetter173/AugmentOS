@@ -1,53 +1,51 @@
-import React, { useEffect, useState } from 'react';
-import { Text, Button, View } from 'react-native';
-import { useSpeechToText, WHISPER_TINY_EN } from 'react-native-executorch';
-import { AudioManager, AudioRecorder } from 'react-native-audio-api';
-import CoreModule from 'core';
+import React, {useEffect, useState} from "react"
+import {Text, Button, View} from "react-native"
+import {useSpeechToText, WHISPER_TINY, WHISPER_TINY_EN} from "react-native-executorch"
+import CoreModule from "core"
 
-const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
-  const binaryString = atob(base64)
-  const byteLength = binaryString.length
-  const sampleCount = Math.floor(byteLength / 2)
-  const samples = new Float32Array(sampleCount)
+// const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
+//   const binaryString = atob(base64)
+//   const byteLength = binaryString.length
+//   const sampleCount = Math.floor(byteLength / 2)
+//   const samples = new Float32Array(sampleCount)
 
-  for (let i = 0; i < sampleCount; i++) {
-    const low = binaryString.charCodeAt(i * 2)
-    const high = binaryString.charCodeAt(i * 2 + 1)
-    let sample = (high << 8) | low
-    if (sample >= 0x8000) {
-      sample -= 0x10000
+//   for (let i = 0; i < sampleCount; i++) {
+//     const low = binaryString.charCodeAt(i * 2)
+//     const high = binaryString.charCodeAt(i * 2 + 1)
+//     let sample = (high << 8) | low
+//     if (sample >= 0x8000) {
+//       sample -= 0x10000
+//     }
+//     samples[i] = sample / 0x8000
+//   }
+
+//   return samples
+// }
+
+const decodePcm16ToFloat32 = (input: ArrayBuffer | ArrayBufferLike): Float32Array => {
+    const buffer = input instanceof ArrayBuffer ? input : new Uint8Array(input as any).buffer;
+    const view = new DataView(buffer);
+    const sampleCount = Math.floor(buffer.byteLength / 2);
+    const samples = new Float32Array(sampleCount);
+  
+    for (let i = 0; i < sampleCount; i++) {
+      const sample = view.getInt16(i * 2, true);
+      samples[i] = sample / 0x8000;
     }
-    samples[i] = sample / 0x8000
-  }
-
-  return samples
-}
+  
+    return samples;
+  };
 
 export default function WhisperTest() {
   const model = useSpeechToText({
-    model: WHISPER_TINY_EN,
+    model: WHISPER_TINY,
     preventLoad: false,
-  });
-
-  const [recorder] = useState(
-    () =>
-      new AudioRecorder()
-  );
-
-  useEffect(() => {
-    AudioManager.setAudioSessionOptions({
-      iosCategory: 'playAndRecord',
-      iosMode: 'spokenAudio',
-      iosOptions: ['defaultToSpeaker'],
-    });
-    AudioManager.requestRecordingPermissions();
-  }, []);
+  })
 
   const handleStartStreamingTranscribe = async () => {
-    console.log("COMPOSITOR: Starting audio recorder");
-    console.log("COMPOSITOR: Download progress:", model.downloadProgress);
+    console.log("COMPOSITOR: Starting audio recorder")
+    console.log("COMPOSITOR: Download progress:", model.downloadProgress)
 
-    
     // recorder.onAudioReady({
     //   sampleRate: 16000,
     //   bufferLength: 1600,
@@ -76,23 +74,26 @@ export default function WhisperTest() {
 
     const pcmSub = CoreModule.addListener("mic_pcm", (event) => {
       // console.log("COMPOSITOR: Received mic pcm:", event.base64)
-      const samples = decodePcm16Base64ToFloat32(event.base64)
-      // sttModule.streamInsert(samples)
-      model.streamInsert(samples)
+      //   const samples = decodePcm16Base64ToFloat32(event.base64)
+      //   let samples = new Float32Array(event.pcm)
+      //   model.streamInsert(samples)
+      model.streamInsert(decodePcm16ToFloat32(event.pcm))
+
+      //   model.streamInsert(samples)
     })
 
-
     try {
-      await model.stream();
+      await model.stream({
+        language: "zh",
+      })
     } catch (error) {
-      console.error('Error during streaming transcription:', error);
+      console.error("Error during streaming transcription:", error)
     }
-  };
+  }
 
   const handleStopStreamingTranscribe = () => {
-    recorder.stop();
-    model.streamStop();
-  };
+    model.streamStop()
+  }
 
   return (
     <View className="flex-1 items-center justify-center z-100 absolute inset-0 bg-background">
@@ -100,11 +101,8 @@ export default function WhisperTest() {
         {model.committedTranscription}
         {model.nonCommittedTranscription}
       </Text>
-      <Button
-        onPress={handleStartStreamingTranscribe}
-        title="Start Streaming"
-      />
+      <Button onPress={handleStartStreamingTranscribe} title="Start Streaming" />
       <Button onPress={handleStopStreamingTranscribe} title="Stop Streaming" />
     </View>
-  );
+  )
 }

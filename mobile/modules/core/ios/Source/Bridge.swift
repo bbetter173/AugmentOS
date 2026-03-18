@@ -35,11 +35,6 @@ class Bridge {
         Bridge.sendTypedMessage("log", body: data)
     }
 
-    static func sendEvent(withName: String, body: String) {
-        let data: [String: Any] = ["body": body]
-        dispatchEvent(withName, data)
-    }
-
     static func sendHeadUp(_ isUp: Bool) {
         let data = ["up": isUp]
         Bridge.sendTypedMessage("head_up", body: data)
@@ -50,24 +45,17 @@ class Bridge {
         Bridge.sendTypedMessage("pair_failure", body: data)
     }
 
-    /// Send microphone data to React Native.
-    /// React Native handles the decision of whether to send via UDP or WebSocket.
-    /// This keeps the native layer simple and UDP logic centralized in React Native.
-    static func sendMicData(_ data: Data) {
-        let base64String = data.base64EncodedString()
-        let body = ["base64": base64String]
-        Bridge.sendTypedMessage("mic_data", body: body)
-    }
-
     static func sendMicPcm(_ data: Data) {
-        let base64String = data.base64EncodedString()
-        let body = ["base64": base64String]
+        // let base64String = data.base64EncodedString()
+        // let body = ["base64": base64String]
+        let body = ["pcm": data]
         Bridge.sendTypedMessage("mic_pcm", body: body)
     }
 
     static func sendMicLc3(_ data: Data) {
-        let base64String = data.base64EncodedString()
-        let body = ["base64": base64String]
+        // let base64String = data.base64EncodedString()
+        // let body = ["base64": base64String]
+        let body = ["lc3": data]
         Bridge.sendTypedMessage("mic_lc3", body: body)
     }
 

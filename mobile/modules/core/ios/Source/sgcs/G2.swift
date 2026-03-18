@@ -1694,10 +1694,24 @@ class G2: NSObject, SGCManager {
                     leftPeripheral = device
                     device.delegate = self
                     device.discoverServices([G2BLE.SERVICE_UUID])
+                    centralManager!.connect(
+                        leftPeripheral!,
+                        options: [
+                            CBConnectPeripheralOptionNotifyOnConnectionKey: true,
+                            CBConnectPeripheralOptionNotifyOnDisconnectionKey: true,
+                        ]
+                    )
                 } else if name.contains("_R_") && name.contains(DEVICE_SEARCH_ID) {
                     rightPeripheral = device
                     device.delegate = self
                     device.discoverServices([G2BLE.SERVICE_UUID])
+                    centralManager!.connect(
+                        rightPeripheral!,
+                        options: [
+                            CBConnectPeripheralOptionNotifyOnConnectionKey: true,
+                            CBConnectPeripheralOptionNotifyOnDisconnectionKey: true,
+                        ]
+                    )
                 }
                 emitDiscoveredDevice(name)
             }

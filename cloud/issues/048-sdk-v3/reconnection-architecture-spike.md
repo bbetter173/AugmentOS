@@ -241,11 +241,10 @@ SDK                                    Cloud
 SDK                                    Cloud
  │                                       │
  │  (WebSocket drops)                    │  AppSession → TRANSPORT_DOWN
- │                                       │  (NOT grace period, NOT resurrection)
+ │                                       │  Start 5s hold timer (same as today)
  │                                       │  Hold session alive, keep subscriptions
- │                                       │  Buffer events (optional, bounded)
  │                                       │
- │──── RECONNECT ──────────────────────→ │  ← NEW message type
+ │──── RECONNECT ──────────────────────→ │  ← NEW message type (within ms)
  │     { sessionToken: "unique-abc" }    │
  │                                       │  Validates token
  │                                       │  Matches to existing AppSession
@@ -261,17 +260,23 @@ SDK                                    Cloud
  │←─── DataStream, events resume ──────→ │
 ```
 
-**Key differences from v2:**
+**Key differences from v2 (the happy path — SDK reconnects within 5s):**
 
-1. **New message: `RECONNECT`** — not `CONNECTION_INIT`. Tells the cloud "I'm the same app, resuming my session." Contains the `sessionToken` from the original `CONNECTION_ACK`.
+1. **New message: `RECONNECT`** — not `CONNECTION_INIT`. Tells the cloud "I'm the same app, resuming my session." Contains the `sessionToken` from the original `CONNECTION_ACK`. This is the critical change — today, even a successful reconnect sends `CONNECTION_INIT` which looks like a fresh start and causes the empty subscription race.
 
-2. **No resurrection.** The cloud holds the AppSession alive with all subscriptions intact. No stop+start webhook. No `onSession` called again. No state lost.
+2. **Session stays alive during the hold.** Subscriptions, state, everything is intact. When `RECONNECT` arrives (typically within milliseconds), the session just resumes. No teardown, no re-registration.
 
 3. **`RECONNECT_ACK` includes current state.** The SDK can verify that its local subscriptions match what the cloud has. If they drifted (shouldn't happen but defensive), the SDK sends an update.
 
-4. **No subscription gap.** Subscriptions are never cleared. The cloud kept them during the disconnect. Data resumes immediately.
+4. **No subscription gap.** Subscriptions are never cleared during the hold. Data resumes immediately on reconnect.
 
-5. **Immediate reconnection.** No exponential backoff. The SDK reconnects as fast as possible — try every 1-2 seconds. The cloud is holding the session alive and waiting.
+5. **Immediate reconnection.** No exponential backoff. The SDK reconnects as fast as possible. Most reconnections complete in milliseconds. The cloud holds for 5 seconds — plenty of time.
+
+**If the SDK does NOT reconnect within 5s — resurrection (same as today):**
+
+6. **Resurrection is the safety net.** If 5 seconds pass with no `RECONNECT`, the app is probably dead (crashed, OOM, etc.). The cloud resurrects: stop webhook + start webhook, just like v2. This is critical for reliability — deaf/HoH users relying on live captions can't wait for a dead app to come back on its own.
+
+7. **Resurrection signals the app.** In v3, the `CONNECTION_ACK` for a resurrection includes a `resurrected: true` flag so the developer can distinguish "fresh start" from "you were resurrected after a crash." This lets developers restore state from storage if needed, rather than silently losing everything.
 
 #### Clean disconnect
 
@@ -290,28 +295,30 @@ No change from v2 here. `OWNERSHIP_RELEASE` is already the "I'm intentionally di
 ### New State Machine (v3 apps)
 
 ```
-CONNECTING ──→ RUNNING ──→ TRANSPORT_DOWN ──→ RUNNING (reconnected)
+CONNECTING ──→ RUNNING ──→ TRANSPORT_DOWN ──→ RUNNING (reconnected via RECONNECT)
                   │              │
-                  │              └──→ SESSION_EXPIRED (hold timeout exceeded)
-                  │                         │
-                  │                         └──→ STOPPED
+                  │              ├──→ RESURRECTING (5s, no RECONNECT received)
+                  │              │         │
+                  │              │         ├──→ RUNNING (resurrection succeeded)
+                  │              │         └──→ STOPPED (resurrection failed)
+                  │              │
+                  │              └──→ DORMANT (user not connected to this cloud)
                   │
                   └──→ STOPPING ──→ STOPPED
 ```
 
 **State changes from v2:**
 
-| v2 State       | v3 State          | Change                                                                      |
-| -------------- | ----------------- | --------------------------------------------------------------------------- |
-| `GRACE_PERIOD` | `TRANSPORT_DOWN`  | Renamed. No 5s timer. Session held alive indefinitely (up to hold timeout). |
-| `RESURRECTING` | (removed)         | No resurrection for v3 apps.                                                |
-| `DORMANT`      | (removed for v3)  | Replaced by `SESSION_EXPIRED`.                                              |
-| (new)          | `TRANSPORT_DOWN`  | WebSocket dropped, session alive, waiting for `RECONNECT`.                  |
-| (new)          | `SESSION_EXPIRED` | Hold timeout exceeded. Session cleaned up. App must fresh-start.            |
+| v2 State       | v3 State         | Change                                                                                                                                                                                                   |
+| -------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GRACE_PERIOD` | `TRANSPORT_DOWN` | Renamed for clarity. Same 5s timeout. But during this window, subscriptions and session state are preserved (not cleared).                                                                               |
+| `RESURRECTING` | `RESURRECTING`   | Same — fires after 5s if no reconnection. But only fires if `RECONNECT` was NOT received.                                                                                                                |
+| `DORMANT`      | `DORMANT`        | Same — user not connected, can't resurrect, wait for user to return.                                                                                                                                     |
+| (new)          | `TRANSPORT_DOWN` | The key new state. WebSocket dropped, session alive with all subscriptions, waiting for `RECONNECT`. If `RECONNECT` arrives → back to `RUNNING` instantly. If 5s passes → `RESURRECTING` (resurrection). |
 
-**Hold timeout:** How long the cloud holds a session alive after transport disconnect. This should be long — 60 seconds? 120 seconds? The app server process is still running; it just lost the WebSocket. Most network blips resolve in <10s. Even a cloud restart + DNS propagation is usually <30s.
+**The 5s timeout stays at 5 seconds.** Most transport reconnections complete in milliseconds. If the SDK hasn't reconnected in 5 seconds, the app is dead and needs resurrection. Deaf and hard-of-hearing users rely on live captions — a 60-second wait is unacceptable.
 
-The hold timeout is configurable per-deployment. For cloud-debug (dev), maybe 30s. For production, 120s.
+**The change is what happens IN those 5 seconds.** Today, even a successful reconnect within 5s causes problems (CONNECTION_INIT looks like fresh start, subscriptions race). In v3, a successful reconnect within 5s is clean — `RECONNECT` message, session resumes, no state lost.
 
 ### Backward Compatibility (v2 SDKs)
 
@@ -330,7 +337,7 @@ if (!sdkVersion || semver.lt(sdkVersion, "3.0.0")) {
 }
 ```
 
-When a legacy-mode AppSession disconnects, the current behavior runs unchanged: 5s grace period → resurrection. When a hold-mode AppSession disconnects, the new behavior runs: `TRANSPORT_DOWN` → hold → wait for `RECONNECT`.
+When a legacy-mode AppSession disconnects, the current behavior runs unchanged: 5s grace period → CONNECTION_INIT on reconnect → subscription re-registration. When a v3-mode AppSession disconnects, the new behavior runs: `TRANSPORT_DOWN` → wait for `RECONNECT` → clean resume. If no `RECONNECT` in 5s → resurrection (same as legacy).
 
 Both modes coexist on the same cloud. A user can have one v2 app and one v3 app running simultaneously with different reconnection behaviors.
 
@@ -349,6 +356,38 @@ The `sessionToken` helps with multi-cloud:
 The `sessionToken` is per-cloud-instance, per-session. It's NOT stored in the shared DB. It only exists in memory on the cloud that issued it. So Cloud B can't accidentally match Cloud A's token.
 
 For the SDK: when it receives a new `CONNECTION_ACK` (from Cloud B), it replaces its stored `sessionToken`. It will only send `RECONNECT` with the most recent token. Old tokens are forgotten.
+
+### Resurrection in v3 — Same Safety Net, Better Signal
+
+When resurrection fires (5s, no `RECONNECT`), the behavior is almost the same as v2: stop webhook → start webhook → new session. The one improvement: the `CONNECTION_ACK` for a resurrected session includes a flag:
+
+```typescript
+{
+  type: "connection_ack",
+  sessionToken: "new-token-xyz",   // new token (old one is dead)
+  resurrected: true,                // NEW — tells the SDK this was a resurrection
+  // ... other fields
+}
+```
+
+The developer can use this:
+
+```typescript
+app.onSession((session) => {
+  if (session.wasResurrected) {
+    // Restore state from storage if needed
+    const savedState = await session.storage.get("lastState")
+    // ...
+  }
+
+  // Normal setup
+  session.transcription.on((data) => {
+    session.display.showText(data.text)
+  })
+})
+```
+
+This solves the "can't distinguish fresh start from resurrection" bug. In v2, `onSession` always looks the same. In v3, the developer knows.
 
 ### Session Identity — Kill sessionId, Use sessionToken
 
@@ -403,23 +442,22 @@ session.email // string | undefined (optional — WeChat users may not have one)
 - Add `sdkVersion` field (from `CONNECTION_INIT`)
 - Add `reconnectionMode: "legacy" | "hold"` (derived from `sdkVersion`)
 - Add `sessionToken` field (UUID, generated on creation)
-- Add `TRANSPORT_DOWN` state (replaces `GRACE_PERIOD` for hold-mode sessions)
-- Add `SESSION_EXPIRED` state (replaces `DORMANT` for hold-mode sessions)
-- Add configurable hold timeout (replaces hardcoded 5s `GRACE_PERIOD_MS`)
-- `handleDisconnect()`: check `reconnectionMode` to decide grace-period vs hold behavior
+- Add `TRANSPORT_DOWN` state (replaces `GRACE_PERIOD` for v3 sessions — same 5s timer, but subscriptions preserved)
+- `handleDisconnect()`: check `reconnectionMode` to decide behavior during the 5s window
+- For v3 sessions: if `RECONNECT` arrives within 5s → resume (no teardown). If 5s passes → resurrect (same as v2).
+- For legacy sessions: unchanged (current behavior)
 - Keep all current states and timers for legacy-mode sessions (backward compat)
 
 ### Cloud: AppManager
 
-- Add `handleReconnect(ws, reconnectMessage)` — matches `sessionToken` to existing AppSession, resumes connection
-- Modify `handleAppInit()` — read `sdkVersion`, set `reconnectionMode`, generate `sessionToken`, include in `CONNECTION_ACK`
-- `handleAppSessionGracePeriodExpired()` — only runs for legacy-mode sessions (no change)
-- Add hold timeout handler for hold-mode sessions — fires `SESSION_EXPIRED` after configurable duration
+- Add `handleReconnect(ws, reconnectMessage)` — matches `sessionToken` to existing AppSession, resumes connection, cancels 5s timer
+- Modify `handleAppInit()` — read `sdkVersion`, set `reconnectionMode`, generate `sessionToken`, include in `CONNECTION_ACK`, include `resurrected: true` flag if this was a resurrection
+- `handleAppSessionGracePeriodExpired()` — runs for BOTH legacy and v3 sessions after 5s. The difference is only in the reconnect path (CONNECTION_INIT vs RECONNECT), not the resurrection path.
 
 ### Cloud: SubscriptionManager
 
-- No changes needed for reconnection (subscriptions stay in AppSession during `TRANSPORT_DOWN`)
-- Remove `SUBSCRIPTION_GRACE_MS` hack for v3 sessions (subscriptions never cleared on reconnect)
+- No changes needed for reconnection (subscriptions stay in AppSession during `TRANSPORT_DOWN` — they're never cleared for v3 sessions)
+- Remove `SUBSCRIPTION_GRACE_MS` hack for v3 sessions (the `RECONNECT` path doesn't re-send subscriptions unless there's a mismatch, so empty subscription updates don't happen)
 - Keep `SUBSCRIPTION_GRACE_MS` for v2 sessions (backward compat)
 
 ### Cloud: UserSession
@@ -442,7 +480,7 @@ session.email // string | undefined (optional — WeChat users may not have one)
 
 - `onSession` is only called on fresh starts (not reconnects)
 - New event: `onReconnect(session)` — optional, called when a transport reconnect succeeds (developer can use this to verify state)
-- New event: `onSessionExpired(session)` — called when the cloud's hold timeout expired and the session was cleaned up. The next connection will be a fresh `onSession`.
+- `onSession` receives `session.wasResurrected: boolean` — true if this was a resurrection after a crash, false if fresh start. Developers can restore state from storage on resurrection.
 
 ---
 
@@ -515,15 +553,15 @@ When the SDK receives `RECONNECT_REJECTED`, it falls back to `CONNECTION_INIT` (
 
 ## Open Questions
 
-| #   | Question                                   | Notes                                                                                                                                                                                                                                                                                                                                        |
-| --- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Hold timeout duration**                  | How long should the cloud hold a session alive after transport disconnect? 30s? 60s? 120s? Too short = unnecessary session expirations. Too long = stale sessions consume memory. Should it be configurable per app (manifest setting)?                                                                                                      |
-| 2   | **Event buffering during TRANSPORT_DOWN**  | Should the cloud buffer events (transcription, notifications, etc.) while the transport is down and replay them on reconnect? Or just drop them? Buffering adds memory pressure and complexity. Dropping is simpler but the app misses events during the blip.                                                                               |
-| 3   | **Cloud restart scenario**                 | If the cloud process itself restarts (deploy, crash), all in-memory sessions are gone. The SDK's `RECONNECT` will get `SESSION_NOT_FOUND`. It falls back to `CONNECTION_INIT` (fresh start). This is equivalent to the current resurrection — is that acceptable for v3? Or should sessions be persisted (Redis?) to survive cloud restarts? |
-| 4   | **Multiple RECONNECT attempts**            | If the first `RECONNECT` fails (network still down), how many times should the SDK retry before giving up and falling back to `CONNECTION_INIT`? Or should it always try `RECONNECT` first and only fall back if it gets `RECONNECT_REJECTED`?                                                                                               |
-| 5   | **sessionToken storage**                   | The SDK stores `sessionToken` in memory. If the app server process restarts, the token is lost. The SDK will send `CONNECTION_INIT` instead of `RECONNECT`. Is this fine? (Probably yes — if the process restarted, all state is gone anyway, fresh start is correct.)                                                                       |
-| 6   | **userId transition**                      | How do we migrate from email-based userId to MongoDB `_id`? Big bang? Gradual? Do we support both simultaneously during a transition period? What about external systems that use the email as the user identifier?                                                                                                                          |
-| 7   | **Kill sessionId entirely?**               | Is there value in keeping `sessionId` (`email-packageName`) for anything? If `sessionToken` handles identity and `userId` + `packageName` handle addressing, maybe `sessionId` is just a debug label.                                                                                                                                        |
-| 8   | **Subscription verification on reconnect** | When the SDK reconnects and receives `RECONNECT_ACK` with the cloud's subscription list, should the SDK always send a fresh `SUBSCRIPTION_UPDATE` to confirm? Or only if there's a mismatch? Always-send is safer but adds a message. Mismatch-only is cleaner but requires reliable comparison.                                             |
-| 9   | **onReconnect vs silent reconnect**        | Should the developer even know a reconnect happened? For most apps, the answer is no — the session just keeps working. But some apps might want to know (refresh UI, re-fetch data). Is `onReconnect` opt-in?                                                                                                                                |
-| 10  | **v2 resurrection improvements**           | Even though we're keeping legacy behavior for v2 SDKs, should we improve the resurrection model at all? Or just leave it as-is since v2 is being deprecated?                                                                                                                                                                                 |
+| #   | Question                                   | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Event buffering during TRANSPORT_DOWN**  | Should the cloud buffer events (transcription, notifications, etc.) during the 5s hold window and replay them on reconnect? Or just drop them? Most reconnects happen in milliseconds so the gap is tiny. Buffering adds memory pressure. Dropping is simpler. Probably drop — the app misses a few ms of data, not meaningful.                                                                                                                                                |
+| 2   | **Cloud restart scenario**                 | If the cloud process itself restarts (deploy, crash), all in-memory sessions are gone. The SDK's `RECONNECT` will get `RECONNECT_REJECTED` (session not found). It falls back to `CONNECTION_INIT` (fresh start with `resurrected: false`). But the cloud will also re-trigger start webhooks for `runningApps` from the DB. So the app gets a fresh `onSession`. Is this the right behavior? Or should we persist `sessionToken` in Redis so sessions survive cloud restarts? |
+| 3   | **RECONNECT retry strategy**               | If the WebSocket itself can't be established (network fully down), the SDK can't send `RECONNECT`. Should it keep trying the WebSocket connection every 1s for the full 5s window? Or back off slightly (1s, 1s, 2s)? The key constraint: must succeed within 5s or the cloud resurrects.                                                                                                                                                                                      |
+| 4   | **sessionToken storage**                   | The SDK stores `sessionToken` in memory. If the app server process restarts, the token is lost. The SDK will send `CONNECTION_INIT` instead of `RECONNECT`. This is correct — if the process restarted, all state is gone anyway, fresh start is appropriate. But should we document this explicitly?                                                                                                                                                                          |
+| 5   | **userId transition**                      | How do we migrate from email-based userId to MongoDB `_id`? Big bang? Gradual? Do we support both simultaneously during a transition period? What about external systems (dev console, logging, BetterStack queries) that use email as the user identifier?                                                                                                                                                                                                                    |
+| 6   | **Kill sessionId entirely?**               | Is there value in keeping `sessionId` (`email-packageName`) for anything? If `sessionToken` handles identity and `userId` + `packageName` handle addressing, maybe `sessionId` is just a debug/logging label, not a functional identifier.                                                                                                                                                                                                                                     |
+| 7   | **Subscription verification on reconnect** | When the SDK reconnects and receives `RECONNECT_ACK` with the cloud's subscription list, should the SDK always send a fresh `SUBSCRIPTION_UPDATE` to confirm? Or only if there's a mismatch? Always-send is safer but adds a message round-trip. Mismatch-only is cleaner but requires reliable local vs remote comparison.                                                                                                                                                    |
+| 8   | **onReconnect vs silent reconnect**        | Should the developer even know a reconnect happened? For most apps, the answer is no — the session just keeps working. But some apps might want to know (refresh UI, re-fetch data that might have changed). Is `onReconnect` opt-in or always emitted?                                                                                                                                                                                                                        |
+| 9   | **v2 resurrection improvements**           | We're keeping legacy behavior for v2 SDKs. But should we backport the `resurrected: true` flag to v2 `CONNECTION_ACK` as well? It's a non-breaking addition (v2 SDKs would just ignore the field). But it helps v2 app developers who check the raw ACK message.                                                                                                                                                                                                               |
+| 10  | **RECONNECT_REJECTED fallback**            | When the SDK gets `RECONNECT_REJECTED` (token expired because 5s passed and resurrection happened), should it immediately send `CONNECTION_INIT` on the same WebSocket? Or close and let the resurrection webhook trigger a fresh connection? The latter is simpler (resurrection already sends a new webhook), but the former is faster (no webhook round-trip).                                                                                                              |

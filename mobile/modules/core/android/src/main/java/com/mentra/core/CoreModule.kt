@@ -33,6 +33,8 @@ class CoreModule : Module() {
             "compatible_glasses_search_stop",
             "heartbeat_sent",
             "heartbeat_received",
+            "send_command_to_ble",
+            "receive_command_from_ble",
             "swipe_volume_status",
             "switch_status",
             "rgb_led_control_response",

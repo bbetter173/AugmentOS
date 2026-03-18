@@ -131,11 +131,11 @@ class CoreManager {
         set(value) = GlassesStore.apply("core", "contextual_dashboard", value)
 
     private var dashboardHeight: Int
-        get() = GlassesStore.store.get("core", "dashboard_height") as? Int ?: 4
+        get() = (GlassesStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
         set(value) = GlassesStore.apply("core", "dashboard_height", value)
 
     private var dashboardDepth: Int
-        get() = GlassesStore.store.get("core", "dashboard_depth") as? Int ?: 5
+        get() = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 5
         set(value) = GlassesStore.apply("core", "dashboard_depth", value)
 
     private var galleryMode: Boolean

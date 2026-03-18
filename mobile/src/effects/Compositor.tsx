@@ -12,12 +12,15 @@ import {
   useSpeechToText,
   WHISPER_SMALL,
   WHISPER_TINY,
+  WHISPER_BASE,
   WHISPER_TINY_EN,
   WHISPER_TINY_EN_QUANTIZED,
 } from "react-native-executorch"
 import CoreModule, {MicPcmEvent} from "core"
 import {useCactusSTT} from "cactus-react-native"
 import {SETTINGS, useSetting} from "@/stores/settings"
+import * as SpeechTranscriber from "expo-speech-transcriber"
+import {Text} from "@/components/ignite"
 
 const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
   const binaryString = atob(base64)
@@ -94,6 +97,22 @@ const LmaContainer = memo(
   },
 )
 
+function TextViewer() {
+  const {text, isFinal, error} = SpeechTranscriber.useRealTimeTranscription()
+
+  useEffect(() => {
+    if (text) {
+      console.log("COMPOSITOR: EXP:", text)
+    }
+  }, [text, isFinal, error])
+
+  return (
+    <View>
+      <Text>{text}</Text>
+    </View>
+  )
+}
+
 function Compositor() {
   const lmas = useLocalMiniApps()
   const pathname = usePathname()
@@ -147,114 +166,126 @@ function Compositor() {
   //   model: WHISPER_TINY_EN,
   // })
 
-  // const cactusSTT = useCactusSTT({
-  //   model: "whisper-tiny",
-  //   options: {
-  //     pro: true,
-  //     // quantization: "int4",
-  //   },
-  // })
+  const cactusSTT = useCactusSTT({
+    model: "whisper-tiny",
+    options: {
+      pro: true,
+      // quantization: "int4",
+    },
+  })
 
-  // const transcription = useRef<string>("")
-  // const sttModule = new SpeechToTextModule()
-  // let useExecutorch = true
+  const transcription = useRef<string>("")
+  const sttModule = new SpeechToTextModule()
+  let useExecutorch = false
+  let useCactus = false
+  let useExpoSpeech = true
 
-  // const handlePcm = async (pcm: ArrayBuffer) => {
-  //   if (useExecutorch) {
-  //     // const audioChunk = new Float32Array(pcm)
-  //     const audioChunk = decodePcm16ToFloat32(pcm)
-  //     sttModule.streamInsert(audioChunk)
-  //     return
-  //   }
+  const handlePcm = async (pcm: ArrayBuffer) => {
+    if (useExpoSpeech) {
+      const audioChunk = decodePcm16ToFloat32(pcm)
+      SpeechTranscriber.realtimeBufferTranscribe(
+        audioChunk, // Float32Array or number[]
+        16000, // sample rate
+      )
+      return
+    }
 
-  //   const audioChunk = Array.from(new Int16Array(pcm))
-  //   // const audioChunk = Array.from(new Float32Array(pcm))
-  //   const result = await cactusSTT.streamTranscribeProcess({audio: audioChunk})
-  //   if (result.confirmed) {
-  //     // console.log("COMPOSITOR: c:", result.confirmed)
-  //     transcription.current += result.confirmed
-  //     if (result.confirmed.length > 100) {
-  //       transcription.current = transcription.current.slice(-100)
-  //     }
-  //   }
-  //   if (result.pending) {
-  //     console.log("COMPOSITOR: p:", result.pending)
-  //   }
-  //   console.log("COMPOSITOR: Transcription:", transcription.current)
-  // }
+    if (useExecutorch) {
+      // const audioChunk = new Float32Array(pcm)
+      const audioChunk = decodePcm16ToFloat32(pcm)
+      sttModule.streamInsert(audioChunk)
+      return
+    }
 
-  // useEffect(() => {
-  //   const initSTT = async () => {
-  //     await CoreModule.update("core", {
-  //       should_send_pcm: true,
-  //     })
+    if (useCactus) {
+      const audioChunk = Array.from(new Int16Array(pcm))
+      // const audioChunk = Array.from(new Float32Array(pcm))
+      const result = await cactusSTT.streamTranscribeProcess({audio: audioChunk})
+      if (result.confirmed) {
+        // console.log("COMPOSITOR: c:", result.confirmed)
+        transcription.current += result.confirmed
+        if (result.confirmed.length > 100) {
+          transcription.current = transcription.current.slice(-100)
+        }
+      }
+      if (result.pending) {
+        console.log("COMPOSITOR: p:", result.pending)
+      }
+      console.log("COMPOSITOR: Transcription:", transcription.current)
+    }
+  }
 
-  //     // setInterval(async () => {
-  //     //   // console.log("COMPOSITOR: Streaming transcription...")
-  //     //   console.log("COMPOSITOR: Transcription result:", model.downloadProgress)
-  //     // }, 1000)
+  useEffect(() => {
+    const initSTT = async () => {
+      await CoreModule.update("core", {
+        should_send_pcm: true,
+      })
 
-  //     if (!useExecutorch) {
-  //       await cactusSTT.download({
-  //         onProgress: (progress: number) => {
-  //           console.log("COMPOSITOR: Downloading cactus model...", progress)
-  //         },
-  //       })
+      if (useExpoSpeech) {
+        const speechPermission = await SpeechTranscriber.requestPermissions()
+      }
 
-  //       await cactusSTT.streamTranscribeStart({
-  //         confirmationThreshold: 0.99,
-  //         minChunkSize: 32000,
-  //       })
-  //     }
+      if (useCactus) {
+        await cactusSTT.download({
+          onProgress: (progress: number) => {
+            console.log("COMPOSITOR: Downloading cactus model...", progress)
+          },
+        })
 
-  //     const pcmSub = CoreModule.addListener("mic_pcm", (event: MicPcmEvent) => {
-  //       // console.log("COMPOSITOR: Received mic pcm:", event.base64)
-  //       // const samples = decodePcm16Base64ToFloat32(event.base64)
-  //       // sttModule.streamInsert(samples)
-  //       handlePcm(event.pcm)
-  //     })
+        await cactusSTT.streamTranscribeStart({
+          confirmationThreshold: 0.99,
+          minChunkSize: 32000,
+        })
+      }
 
-  //     if (useExecutorch) {
-  //       await sttModule.load(WHISPER_SMALL, (progress) => {
-  //         console.log("COMPOSITOR: Loading model...", progress)
-  //       })
+      const pcmSub = CoreModule.addListener("mic_pcm", (event: MicPcmEvent) => {
+        // console.log("COMPOSITOR: Received mic pcm:", event.base64)
+        // const samples = decodePcm16Base64ToFloat32(event.base64)
+        // sttModule.streamInsert(samples)
+        handlePcm(event.pcm)
+      })
 
-  //       setTimeout(async () => {
-  //         console.log("COMPOSITOR: Starting streaming transcription...")
-  //         // Start streaming transcription
-  //         try {
-  //           for await (const res of sttModule.stream({
-  //             language: "zh",
-  //             task: "translate",
-  //           })) {
-  //             // console.log("Streaming transcription:", {committed, nonCommitted})
-  //             transcription.current += res.committed
-  //             if (res.committed) {
-  //               transcription.current += res.committed
-  //             }
-  //             console.log("COMPOSITOR: T:", transcription.current + res.nonCommitted)
-  //             // transcription.current += result.confirmed
-  //           }
-  //           console.log("Final transcription:", transcription)
-  //         } catch (error) {
-  //           console.error("Error during streaming transcription:", error)
-  //         }
-  //       }, 2000)
-  //     }
+      if (useExecutorch) {
+        await sttModule.load(WHISPER_SMALL, (progress) => {
+          console.log("COMPOSITOR: Loading model...", progress)
+        })
 
-  //     return () => {
-  //       pcmSub?.remove()
-  //     }
-  //   }
-  //   initSTT()
-  // }, [])
+        setTimeout(async () => {
+          console.log("COMPOSITOR: Starting streaming transcription...")
+          // Start streaming transcription
+          try {
+            for await (const res of sttModule.stream({
+              language: "zh",
+              task: "translate",
+            })) {
+              // console.log("Streaming transcription:", {committed, nonCommitted})
+              transcription.current += res.committed
+              if (res.committed) {
+                transcription.current += res.committed
+              }
+              console.log("COMPOSITOR: T:", transcription.current + res.nonCommitted)
+              // transcription.current += result.confirmed
+            }
+            console.log("Final transcription:", transcription)
+          } catch (error) {
+            console.error("Error during streaming transcription:", error)
+          }
+        }, 2000)
+      }
 
-  // useEffect(() => {
-  //   // cactusSTT.start()
-  //   return () => {
-  //     // cactusSTT.stop()
-  //   }
-  // }, [offlineCaptionsRunning, offlineTranslationRunning])
+      return () => {
+        pcmSub?.remove()
+      }
+    }
+    initSTT()
+  }, [])
+
+  useEffect(() => {
+    // cactusSTT.start()
+    return () => {
+      // cactusSTT.stop()
+    }
+  }, [offlineCaptionsRunning, offlineTranslationRunning])
 
   return (
     <View className={`absolute inset-0 ${isActive ? "z-11" : "z-0"}`} pointerEvents="box-none">
@@ -283,6 +314,7 @@ function Compositor() {
             />
           ))}
         </View>
+        <TextViewer />
       </Screen>
     </View>
   )

@@ -10,6 +10,7 @@ import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import {
   SpeechToTextModule,
   useSpeechToText,
+  WHISPER_SMALL,
   WHISPER_TINY,
   WHISPER_TINY_EN,
   WHISPER_TINY_EN_QUANTIZED,
@@ -214,7 +215,7 @@ function Compositor() {
       })
 
       if (useExecutorch) {
-        await sttModule.load(WHISPER_TINY, (progress) => {
+        await sttModule.load(WHISPER_SMALL, (progress) => {
           console.log("COMPOSITOR: Loading model...", progress)
         })
 
@@ -224,6 +225,7 @@ function Compositor() {
           try {
             for await (const res of sttModule.stream({
               language: "en",
+              task: "translate",
             })) {
               // console.log("Streaming transcription:", {committed, nonCommitted})
               transcription.current += res.committed

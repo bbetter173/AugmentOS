@@ -19,7 +19,7 @@ interface DualButtonProps {
 }
 
 export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
-  const [isChina] = useSetting(SETTINGS.china_deployment.key)
+  // const [isChina] = useSetting(SETTINGS.china_deployment.key)
   const {theme} = useAppTheme()
 
   return (
@@ -29,7 +29,7 @@ export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
       </Pressable>
       <View className="h-4 w-px bg-gray-300" />
       <Pressable hitSlop={10} onPress={onMinusPress}>
-        <Icon name={isChina ? "x" : "minus"} color={theme.colors.foreground} />
+        <Icon name={"x"} color={theme.colors.foreground} />
       </Pressable>
     </GlassView>
   )

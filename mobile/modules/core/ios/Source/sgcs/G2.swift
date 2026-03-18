@@ -1685,6 +1685,24 @@ class G2: NSObject, SGCManager {
             return false
         }
 
+        let devices = getConnectedDevices()
+        Bridge.log("G2: connnectedDevices.count: (\(devices.count))")
+        for device in devices {
+            if let name = device.name {
+                Bridge.log("G2: Connected to device: \(name)")
+                if name.contains("_L_") && name.contains(DEVICE_SEARCH_ID) {
+                    leftPeripheral = device
+                    device.delegate = self
+                    device.discoverServices([G2BLE.SERVICE_UUID])
+                } else if name.contains("_R_") && name.contains(DEVICE_SEARCH_ID) {
+                    rightPeripheral = device
+                    device.delegate = self
+                    device.discoverServices([G2BLE.SERVICE_UUID])
+                }
+                emitDiscoveredDevice(name)
+            }
+        }
+
         // Try UUID-based reconnection first
         if connectByUUID() {
             return true

@@ -19,6 +19,8 @@ import {
   PhotoRequest,
   AudioPlayRequest,
   AudioStopRequest,
+  AudioStreamStart,
+  AudioStreamEnd,
   RtmpStreamRequest,
   RtmpStreamStopRequest,
   ManagedStreamRequest,
@@ -33,6 +35,7 @@ import {
 
 import App from "../../../models/app.model";
 import { SimplePermissionChecker } from "../../permissions/simple-permission-checker";
+import { metricsService } from "../../metrics/MetricsService";
 import { IWebSocket, WebSocketReadyState } from "../../websocket/types";
 import type UserSession from "../UserSession";
 
@@ -123,6 +126,15 @@ export async function handleAppMessage(
 
       case AppToCloudMessageType.AUDIO_STOP_REQUEST:
         await handleAudioStopRequest(appWebsocket, userSession, message as AudioStopRequest, logger);
+        break;
+
+      // Audio output streaming
+      case AppToCloudMessageType.AUDIO_STREAM_START:
+        handleAudioStreamStart(appWebsocket, userSession, message as AudioStreamStart, logger);
+        break;
+
+      case AppToCloudMessageType.AUDIO_STREAM_END:
+        await handleAudioStreamEnd(userSession, message as AudioStreamEnd, logger);
         break;
 
       // Managed streaming
@@ -241,6 +253,7 @@ async function handleSubscriptionUpdate(
   };
 
   userSession.websocket.send(JSON.stringify(clientResponse));
+  metricsService.incrementClientMessagesOut();
 }
 
 /**
@@ -273,6 +286,7 @@ async function handleRgbLedControl(
 
     if (userSession.websocket && userSession.websocket.readyState === WebSocketReadyState.OPEN) {
       userSession.websocket.send(JSON.stringify(glassesLedRequest));
+      metricsService.incrementClientMessagesOut();
       logger.info({ requestId: message.requestId, action: message.action }, "💡 RGB LED control request forwarded");
     } else {
       sendError(appWebsocket, AppErrorCode.INTERNAL_ERROR, "Glasses not connected", logger);
@@ -426,9 +440,8 @@ async function handleAudioPlayRequest(
 
     if (userSession.websocket && userSession.websocket.readyState === WebSocketReadyState.OPEN) {
       userSession.websocket.send(JSON.stringify(glassesAudioRequest));
+      metricsService.incrementClientMessagesOut();
       logger.debug(`🔊 Forwarded audio request ${message.requestId} to glasses`);
-      // Disabled: Server-side playback via Go bridge/LiveKit - now handled client-side via expo-av
-      // void userSession.speakerManager.start(message);
     } else {
       userSession.audioPlayRequestMapping.delete(message.requestId);
       sendError(appWebsocket, AppErrorCode.INTERNAL_ERROR, "Glasses not connected", logger);
@@ -465,9 +478,8 @@ async function handleAudioStopRequest(
 
     if (userSession.websocket && userSession.websocket.readyState === WebSocketReadyState.OPEN) {
       userSession.websocket.send(JSON.stringify(glassesAudioStopRequest));
+      metricsService.incrementClientMessagesOut();
       logger.debug(`🔇 Forwarded audio stop request from ${message.packageName} to glasses`);
-      // Disabled: Server-side stop via Go bridge/LiveKit - now handled client-side via expo-av
-      // void userSession.speakerManager.stop(message);
     } else {
       sendError(appWebsocket, AppErrorCode.INTERNAL_ERROR, "Glasses not connected", logger);
     }
@@ -595,6 +607,7 @@ async function handleStreamStatusCheck(
     }
 
     appWebsocket.send(JSON.stringify(response));
+    metricsService.incrementMiniappMessagesOut();
 
     logger.info(
       {
@@ -629,6 +642,7 @@ async function handleWifiSetupRequest(userSession: UserSession, message: any, lo
 
     if (userSession.websocket && userSession.websocket.readyState === WebSocketReadyState.OPEN) {
       userSession.websocket.send(JSON.stringify(showWifiSetup));
+      metricsService.incrementClientMessagesOut();
       logger.info({ packageName: message.packageName, reason: message.reason }, "WiFi setup request forwarded");
     } else {
       logger.error({ packageName: message.packageName }, "Cannot send WiFi setup request - mobile not connected");
@@ -689,6 +703,74 @@ function sendError(ws: IWebSocket, code: AppErrorCode, message: string, logger: 
       logger.error(closeError, "Failed to close WebSocket connection");
     }
   }
+}
+
+// ─── Audio Output Streaming ──────────────────────────────────────────────────
+
+/**
+ * Handle AUDIO_STREAM_START from an SDK app.
+ *
+ * Creates an HTTP streaming relay and responds with the relay URL so the SDK
+ * can tell the phone to play it. The cloud does zero transcoding — just pipes
+ * MP3 bytes from the app's WS binary frames to the phone's HTTP response.
+ *
+ * See: cloud/issues/041-sdk-audio-output-streaming/
+ */
+function handleAudioStreamStart(
+  appWebsocket: IWebSocket,
+  userSession: UserSession,
+  message: AudioStreamStart,
+  logger: Logger,
+): void {
+  const { streamId, packageName, contentType } = message;
+
+  const ok = userSession.appAudioStreamManager.createStream(streamId, packageName, contentType || "audio/mpeg");
+
+  if (!ok) {
+    logger.error({ streamId, packageName }, "Failed to create audio stream relay");
+    appWebsocket.send(
+      JSON.stringify({
+        type: CloudToAppMessageType.CONNECTION_ERROR,
+        code: "STREAM_CREATE_FAILED",
+        message: "Failed to create audio stream relay",
+        timestamp: new Date(),
+      }),
+    );
+    return;
+  }
+
+  // Build the relay URL that the phone will GET to receive the audio stream.
+  // Use the cloud's public hostname so the phone can reach it.
+  const cloudHost = process.env.CLOUD_PUBLIC_HOST_NAME || process.env.HOST_NAME || "localhost:8002";
+  const protocol = cloudHost.includes("localhost") ? "http" : "https";
+  const streamUrl = `${protocol}://${cloudHost}/api/audio/stream/${encodeURIComponent(userSession.userId)}/${streamId}`;
+
+  // Store the URL on the stream so the cloud can re-send AUDIO_PLAY_REQUEST
+  // to the phone if ExoPlayer disconnects during a conversational gap.
+  userSession.appAudioStreamManager.setStreamUrl(streamId, streamUrl);
+
+  // Send the relay URL back to the SDK
+  const ready = {
+    type: CloudToAppMessageType.AUDIO_STREAM_READY,
+    streamId,
+    streamUrl,
+    timestamp: new Date(),
+  };
+  appWebsocket.send(JSON.stringify(ready));
+
+  logger.debug({ streamId, packageName, streamUrl }, "Audio stream relay ready");
+}
+
+/**
+ * Handle AUDIO_STREAM_END from an SDK app.
+ *
+ * Gracefully closes the relay — the HTTP response to the phone ends,
+ * ExoPlayer finishes playing any buffered audio, and cleanup runs.
+ */
+async function handleAudioStreamEnd(userSession: UserSession, message: AudioStreamEnd, logger: Logger): Promise<void> {
+  const { streamId, packageName } = message;
+  logger.debug({ streamId, packageName }, "Audio stream end requested");
+  await userSession.appAudioStreamManager.endStream(streamId);
 }
 
 export default handleAppMessage;

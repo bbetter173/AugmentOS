@@ -2,6 +2,7 @@ import {getModelCapabilities} from "@/../../cloud/packages/types/src"
 import {View, ScrollView, TouchableOpacity, ViewStyle, TextStyle} from "react-native"
 
 import {Icon, Text, Screen, Header} from "@/components/ignite"
+import {ThemedSlider} from "@/components/settings/ThemedSlider"
 import ToggleSetting from "@/components/settings/ToggleSetting"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
@@ -15,8 +16,10 @@ import CoreModule from "core"
 type PhotoSize = "small" | "medium" | "large"
 type VideoResolution = "720p" | "1080p" // | "1440p" | "4K"
 type MaxRecordingTime = "3m" | "5m" | "10m" | "15m" | "20m"
-type CameraFov = 82 | 92 | 102 | 118
 type CameraRoiPosition = 0 | 1 | 2 // 0=Center, 1=Bottom, 2=Top
+
+const CAMERA_FOV_MIN = 82
+const CAMERA_FOV_MAX = 118
 
 const PHOTO_SIZE_LABELS: Record<PhotoSize, string> = {
   small: "Low (960×720)",
@@ -39,13 +42,6 @@ const MAX_RECORDING_TIME_LABELS: Record<MaxRecordingTime, string> = {
   "20m": "20 minutes",
 }
 
-const CAMERA_FOV_LABELS: Record<CameraFov, string> = {
-  82: "82°",
-  92: "92°",
-  102: "102°",
-  118: "No ROI",
-}
-
 const CAMERA_ROI_LABELS: Record<CameraRoiPosition, string> = {
   0: "Center",
   1: "Bottom",
@@ -65,13 +61,12 @@ export default function CameraSettingsScreen() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
 
-  const currentFov: CameraFov =
-    cameraFovSetting?.fov === 82 ||
-    cameraFovSetting?.fov === 92 ||
-    cameraFovSetting?.fov === 102 ||
-    cameraFovSetting?.fov === 118
-      ? (cameraFovSetting.fov as CameraFov)
-      : 118
+  const currentFov: number =
+    typeof cameraFovSetting?.fov === "number" &&
+    cameraFovSetting.fov >= CAMERA_FOV_MIN &&
+    cameraFovSetting.fov <= CAMERA_FOV_MAX
+      ? Math.round(cameraFovSetting.fov)
+      : CAMERA_FOV_MAX
   const currentRoi: CameraRoiPosition =
     typeof cameraFovSetting?.roi_position === "number" &&
     cameraFovSetting.roi_position >= 0 &&
@@ -147,17 +142,23 @@ export default function CameraSettingsScreen() {
     }
   }
 
-  const handleCameraFovChange = (fov: CameraFov, roi_position: CameraRoiPosition) => {
+  const handleCameraFovChange = (fov: number, roi_position: CameraRoiPosition) => {
     if (!glassesConnected) {
       console.log("Cannot change camera FOV - glasses not connected")
       return
     }
     try {
-      setCameraFovSetting({fov, roi_position})
-      Toast.show({type: "info", text1: translate("settings:cameraRestartBanner")})
+      const clampedFov = Math.round(Math.max(CAMERA_FOV_MIN, Math.min(CAMERA_FOV_MAX, fov)))
+      const effectiveRoi = clampedFov === CAMERA_FOV_MAX ? 0 : roi_position
+      setCameraFovSetting({fov: clampedFov, roi_position: effectiveRoi})
     } catch (error) {
       console.error("Failed to update camera FOV:", error)
     }
+  }
+
+  const handleCameraFovSet = (fov: number, roi_position: CameraRoiPosition) => {
+    handleCameraFovChange(fov, roi_position)
+    Toast.show({type: "info", text1: translate("settings:cameraRestartBanner")})
   }
 
   // Check if glasses support camera button feature using capabilities
@@ -277,36 +278,22 @@ export default function CameraSettingsScreen() {
           <Text style={themed($settingLabel)}>{translate("settings:cameraFovRoiTitle")}</Text>
           <Text style={themed($settingSubtitle)}>{translate("settings:cameraFovRoiExplanation")}</Text>
 
-          <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s4}]}>FOV</Text>
-          {([82, 92, 102, 118] as const).map((fov, index, arr) => {
-            const isFirst = index === 0
-            const isLast = index === arr.length - 1
-            return (
-              <TouchableOpacity
-                key={fov}
-                style={[
-                  themed($optionItem),
-                  {
-                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: currentFov === fov ? 1 : undefined,
-                    borderColor: currentFov === fov ? theme.colors.primary : undefined,
-                  },
-                ]}
-                onPress={() => handleCameraFovChange(fov, fov === 118 ? 0 : currentRoi)}>
-                <Text style={themed($optionText)}>{CAMERA_FOV_LABELS[fov]}</Text>
-                {currentFov === fov && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </TouchableOpacity>
-            )
-          })}
+          <ThemedSlider
+            value={currentFov}
+            min={CAMERA_FOV_MIN}
+            max={CAMERA_FOV_MAX}
+            onValueChange={() => {}}
+            onSlidingComplete={(val) => {
+              const rounded = Math.round(val)
+              handleCameraFovSet(rounded, rounded === CAMERA_FOV_MAX ? 0 : currentRoi)
+            }}
+          />
 
           <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s4}]}>ROI position</Text>
           {([0, 1, 2] as const).map((roi, index, arr) => {
             const isFirst = index === 0
             const isLast = index === arr.length - 1
-            const roiDisabled = currentFov === 118
+            const roiDisabled = currentFov === CAMERA_FOV_MAX
             return (
               <TouchableOpacity
                 key={roi}

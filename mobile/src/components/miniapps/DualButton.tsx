@@ -65,11 +65,11 @@ export function MiniAppDualButtonHeader({
     if (onMinusPress) {
       onMinusPress()
     } else {
-      handleExit()
+      handleExit(true)
     }
   }, [onMinusPress])
 
-  const handleExit = async () => {
+  const handleExit = async (fromButtonPress?: boolean) => {
     try {
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
@@ -92,7 +92,10 @@ export function MiniAppDualButtonHeader({
     } catch (e) {
       console.warn("screenshot failed:", e)
     }
-    goBack()
+
+    if (fromButtonPress) {
+      goBack()
+    }
   }
 
   focusEffectPreventBack(() => {

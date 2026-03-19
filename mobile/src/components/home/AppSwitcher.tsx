@@ -177,8 +177,8 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
           {
             width: CARD_WIDTH,
             // height: CARD_HEIGHT + (12 * 4) - (insets.top * 1/0.67), // - 16,
-            height: CARD_HEIGHT,
-            // height: CARD_HEIGHT + 12 * 4, // - 16,
+            // height: CARD_HEIGHT,
+            height: CARD_HEIGHT, // - 16,
             // height: CARD_HEIGHT + (12 * 4) - 20,
             // zIndex: -index,// to reverse stack order
             position: "absolute",

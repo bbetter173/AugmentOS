@@ -4,7 +4,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
-import {Dimensions, Platform, Share, View} from "react-native"
+import {Dimensions, Image as RNImage, Platform, Share, View, PixelRatio} from "react-native"
 import {Pressable} from "react-native-gesture-handler"
 import {captureRef} from "react-native-view-shot"
 import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo} from "react"
@@ -12,7 +12,7 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AppIcon from "@/components/home/AppIcon"
 import GlassView from "@/components/ui/GlassView"
 import {translate} from "@/i18n"
-// import * as ImageManipulator from "expo-image-manipulator"
+import * as ImageManipulator from "expo-image-manipulator"
 
 interface DualButtonProps {
   onMinusPress?: () => void
@@ -70,31 +70,31 @@ export function MiniAppDualButtonHeader({
   }, [onMinusPress])
 
   const handleExit = async () => {
-    // take a screenshot of the webview and save it to the applet zustand store:
     try {
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
         quality: 0.1,
       })
+      const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
+        RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
+      })
+      let amountToChop = insets.top * PixelRatio.get()
 
-      // Get image dimensions first
-      // const {width, height} = await new Promise((resolve, reject) => {
-      //   Image.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
-      // })
+      const context = ImageManipulator.ImageManipulator.manipulate(uri)
+      context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
+      const imageRef = await context.renderAsync()
+      const cropped = await imageRef.saveAsync({
+        format: ImageManipulator.SaveFormat.JPEG,
+        compress: 0.1,
+      })
 
-      // // Crop off the top 20 pixels
-      // const cropped = await ImageManipulator.manipulateAsync(
-      //   uri,
-      //   [{crop: {originX: 0, originY: 20, width, height: height - 20}}],
-      //   {format: ImageManipulator.SaveFormat.JPEG, compress: 0.1},
-      // )
-      // save uri to zustand store
-      await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
+      await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
     } catch (e) {
       console.warn("screenshot failed:", e)
     }
     goBack()
   }
+
   focusEffectPreventBack(() => {
     handleExit()
   }, true)

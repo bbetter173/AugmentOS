@@ -1844,6 +1844,13 @@ class G2: NSObject, SGCManager {
                     if let errorCode = resFields[1] as? Int32 {
                         // 0=page_success, 4=img_success, 5=img_failed, 6=rebuild_success, 7=rebuild_failed, 8=text_success, 9=text_failed
                         Bridge.log("G2: EvenHub response field\(resField) errorCode=\(errorCode)")
+                        if errorCode == 9 {
+                            Bridge.log("G2: Glasses shutdown our EvenHub page — resetting page state")
+                            startupPageCreated = false
+                            pageCreated = false
+                            pageHasTextContainer = false
+                            currentTextContent = ""
+                        }
                     }
                     if let errorCode = resFields[8] as? Int32 {
                         // ImgResCmd has ErrorCode in field 8

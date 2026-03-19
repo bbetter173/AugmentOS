@@ -143,11 +143,11 @@ class CoreManager {
         set(value) = GlassesStore.apply("core", "contextual_dashboard", value)
 
     private var dashboardHeight: Int
-        get() = GlassesStore.store.get("core", "dashboard_height") as? Int ?: 4
+        get() = (GlassesStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
         set(value) = GlassesStore.apply("core", "dashboard_height", value)
 
     private var dashboardDepth: Int
-        get() = GlassesStore.store.get("core", "dashboard_depth") as? Int ?: 5
+        get() = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 5
         set(value) = GlassesStore.apply("core", "dashboard_depth", value)
 
     private var galleryMode: Boolean
@@ -174,6 +174,10 @@ class CoreManager {
     private var shouldSendBootingMessage: Boolean
         get() = GlassesStore.store.get("core", "shouldSendBootingMessage") as? Boolean ?: true
         set(value) = GlassesStore.apply("core", "shouldSendBootingMessage", value)
+
+    // Guard against duplicate ready callbacks firing back-to-back.
+    private var lastReadyHandledAtMs: Long = 0L
+    private var lastReadyHandledKey: String = ""
 
     private var systemMicUnavailable: Boolean
         get() = GlassesStore.store.get("core", "systemMicUnavailable") as? Boolean ?: false
@@ -952,10 +956,22 @@ class CoreManager {
             return
         }
 
+        val readyKey = "${sgc?.type}:${deviceName}"
+        val now = System.currentTimeMillis()
+        if (readyKey == lastReadyHandledKey && now - lastReadyHandledAtMs < 2000) {
+            Bridge.log("MAN: handleDeviceReady() duplicate suppressed for $readyKey")
+            return
+        }
+        lastReadyHandledKey = readyKey
+        lastReadyHandledAtMs = now
+
         Bridge.log("MAN: handleDeviceReady() ${sgc?.type}")
         pendingWearable = ""
         defaultWearable = sgc?.type ?: ""
         searching = false
+
+        // Apply dashboard position before any boot text so content doesn't jump.
+        sgc?.setDashboardPosition(dashboardHeight, dashboardDepth)
 
         // Show welcome message on first connect for all display glasses
         if (shouldSendBootingMessage) {

@@ -2066,6 +2066,10 @@ extension G2: CBCentralManagerDelegate {
             guard name.contains(self.DEVICE_SEARCH_ID) else { return }
 
             if name.contains("_L_") {
+                // hard coded conflict resolution for my g2 (for now):
+                if !name.contains("_4935") {
+                    return
+                }
                 if self.leftPeripheral == nil {
                     self.leftPeripheral = peripheral
                     peripheral.delegate = self
@@ -2073,6 +2077,10 @@ extension G2: CBCentralManagerDelegate {
                     Bridge.log("G2: Connecting to LEFT: \(name)")
                 }
             } else if name.contains("_R_") {
+                // hard coded conflict resolution for my g2 (for now):
+                if !name.contains("_BCEF") {
+                    return
+                }
                 if self.rightPeripheral == nil {
                     self.rightPeripheral = peripheral
                     peripheral.delegate = self

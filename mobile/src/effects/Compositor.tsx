@@ -168,7 +168,6 @@ function Compositor() {
     //   sttModule.streamInsert(audioChunk)
     //   return
     // }
-
     // const audioChunk = Array.from(new Int16Array(pcm))
     // // const audioChunk = decodePcm16ToFloat32(pcm)
     // // const audioChunk = Array.from(new Float32Array(pcm))
@@ -226,19 +225,19 @@ function Compositor() {
 
   return (
     <View className={`absolute inset-0 ${isActive ? "z-11" : "z-0"}`} pointerEvents="box-none">
+      <View className="z-12">
+        <MiniAppDualButtonHeader
+          viewShotRef={viewShotRef}
+          onEllipsisPress={() => {
+            // push("/applet/settings", {
+            //   packageName: packageName as string,
+            //   fromWebView: "true",
+            // })
+          }}
+          packageName={packageName as string}
+        />
+      </View>
       <Screen preset="fixed" safeAreaEdges={["top"]} KeyboardAvoidingViewProps={{enabled: true}} ref={viewShotRef}>
-        <View className="z-12">
-          <MiniAppDualButtonHeader
-            viewShotRef={viewShotRef}
-            onEllipsisPress={() => {
-              // push("/applet/settings", {
-              //   packageName: packageName as string,
-              //   fromWebView: "true",
-              // })
-            }}
-            packageName={packageName as string}
-          />
-        </View>
         <View className="flex-1 -mx-6">
           {resolvedLmas.map((lma, index) => (
             <LmaContainer

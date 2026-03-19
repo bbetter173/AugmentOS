@@ -12,6 +12,7 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AppIcon from "@/components/home/AppIcon"
 import GlassView from "@/components/ui/GlassView"
 import {translate} from "@/i18n"
+// import * as ImageManipulator from "expo-image-manipulator"
 
 interface DualButtonProps {
   onMinusPress?: () => void
@@ -47,7 +48,10 @@ export function MiniAppDualButtonHeader({
   onMinusPress?: () => void
 }) {
   const {goBack} = useNavigationHistory()
+  const insets = useSaferAreaInsets()
+  const {theme} = useAppTheme()
   const bottomSheetRef = useRef<BottomSheetModal>(null)
+  const top = insets.top + theme.spacing.s2
 
   const handleEllipsisPress = useCallback(() => {
     if (onEllipsisPress) {
@@ -72,6 +76,18 @@ export function MiniAppDualButtonHeader({
         format: "jpg",
         quality: 0.1,
       })
+
+      // Get image dimensions first
+      // const {width, height} = await new Promise((resolve, reject) => {
+      //   Image.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
+      // })
+
+      // // Crop off the top 20 pixels
+      // const cropped = await ImageManipulator.manipulateAsync(
+      //   uri,
+      //   [{crop: {originX: 0, originY: 20, width, height: height - 20}}],
+      //   {format: ImageManipulator.SaveFormat.JPEG, compress: 0.1},
+      // )
       // save uri to zustand store
       await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
     } catch (e) {
@@ -82,8 +98,9 @@ export function MiniAppDualButtonHeader({
   focusEffectPreventBack(() => {
     handleExit()
   }, true)
+
   return (
-    <View className="z-2 absolute top-0 -right-4 items-center justify-end flex-row">
+    <View className="z-2 absolute right-2 items-center justify-end flex-row" style={{top: top}}>
       <DualButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
       <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
     </View>

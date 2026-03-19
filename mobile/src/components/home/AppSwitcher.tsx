@@ -178,6 +178,8 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
             width: CARD_WIDTH,
             // height: CARD_HEIGHT + (12 * 4) - (insets.top * 1/0.67), // - 16,
             height: CARD_HEIGHT,
+            // height: CARD_HEIGHT + 12 * 4, // - 16,
+            // height: CARD_HEIGHT + (12 * 4) - 20,
             // zIndex: -index,// to reverse stack order
             position: "absolute",
             left: 0,
@@ -205,12 +207,11 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
           )}
 
           {app.screenshot && (
-            <View className="flex-1 items-center justify-center">
+            <View className="flex-1 items-center justify-end" style={{overflow: "hidden"}}>
               <Image
                 source={{uri: app.screenshot}}
                 className="w-full h-full"
-                style={{resizeMode: "cover"}}
-                // blurRadius={3}
+                style={{resizeMode: "cover", height: "100%"}}
               />
             </View>
           )}

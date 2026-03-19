@@ -29,12 +29,13 @@ export default function LocalCaptionsExampleDev() {
     loadHtml()
   }, [])
   return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+    <>
       <MiniAppDualButtonHeader packageName="com.mentra.local_captions" viewShotRef={viewShotRef} />
-
-      <View className="flex-1">
-        <LocalMiniApp html={html} packageName="com.mentra.local_captions" />
-      </View>
-    </Screen>
+      <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+        <View className="flex-1">
+          <LocalMiniApp html={html} packageName="com.mentra.local_captions" />
+        </View>
+      </Screen>
+    </>
   )
 }

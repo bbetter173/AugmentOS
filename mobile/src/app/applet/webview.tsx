@@ -277,85 +277,88 @@ export default function AppWebView() {
 
   if (showError) {
     return (
-      <Screen preset="fixed" safeAreaEdges={[appSwitcherUi && "top"]} className="px-0">
+      <>
         {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
-        {!appSwitcherUi && (
-          <View className="px-6">
-            <Header leftIcon="chevron-left" onLeftPress={() => goBack()} title={appName} />
-          </View>
-        )}
-        <MiniappErrorScreen
-          packageName={packageName}
-          appName={appName}
-          message={errorMessage}
-          onRetry={() => {
-            setAppStartFailed(false)
-            setHasError(false)
-            setTokenError(null)
-            setFinalUrl(null)
-            setIsWebViewLoaded(false)
-            setIsServerConfirmed(false)
-            webViewOpacity.value = 0
-            loadingOpacity.value = 1
-            setRetryTrigger((prev) => prev + 1)
-          }}
-        />
-      </Screen>
+        <Screen preset="fixed" safeAreaEdges={[appSwitcherUi && "top"]} className="px-0">
+          {!appSwitcherUi && (
+            <View className="px-6">
+              <Header leftIcon="chevron-left" onLeftPress={() => goBack()} title={appName} />
+            </View>
+          )}
+          <MiniappErrorScreen
+            packageName={packageName}
+            appName={appName}
+            message={errorMessage}
+            onRetry={() => {
+              setAppStartFailed(false)
+              setHasError(false)
+              setTokenError(null)
+              setFinalUrl(null)
+              setIsWebViewLoaded(false)
+              setIsServerConfirmed(false)
+              webViewOpacity.value = 0
+              loadingOpacity.value = 1
+              setRetryTrigger((prev) => prev + 1)
+            }}
+          />
+        </Screen>
+      </>
     )
   }
 
   const insets = useSaferAreaInsets()
 
   return (
-    <Screen
-      preset="fixed"
-      // safeAreaEdges={[appSwitcherUi && "top"]}
-      style={{paddingTop: appSwitcherUi ? insets.top : 0}}
-      KeyboardAvoidingViewProps={{enabled: true}}
-      className="px-0"
-      ref={viewShotRef}>
-      {/* {appSwitcherUi && <View style={{height: insets.top}} />} */}
+    <>
       {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
-      {!appSwitcherUi && (
-        <View className="px-6">
-          <Header
-            leftIcon="chevron-left"
-            onLeftPress={() => goBack()}
-            title={appName}
-            rightIcon="settings"
-            onRightPress={() => {
-              push("/applet/settings", {
-                packageName: packageName as string,
-                appName: appName as string,
-                fromWebView: "true",
-              })
-            }}
-          />
-        </View>
-      )}
-      <View className="flex-1">
-        {renderLoadingOverlay()}
-        {finalUrl && (
-          <Animated.View className="flex-1" style={[webViewAnimatedStyle]}>
-            <WebView
-              ref={webViewRef}
-              source={{uri: finalUrl}}
-              style={{flex: 1}}
-              onLoadStart={handleLoadStart}
-              onLoadEnd={handleLoadEnd}
-              onError={handleError}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={false}
-              allowsInlineMediaPlayback={true}
-              mediaPlaybackRequiresUserAction={false}
-              scalesPageToFit={false}
-              scrollEnabled={true}
-              bounces={false}
-              automaticallyAdjustContentInsets={false}
-              contentInsetAdjustmentBehavior="never"
-              injectedJavaScriptBeforeContentLoaded={`
+      <Screen
+        preset="fixed"
+        // safeAreaEdges={[appSwitcherUi && "top"]}
+        style={{paddingTop: appSwitcherUi ? insets.top : 0}}
+        KeyboardAvoidingViewProps={{enabled: true}}
+        className="px-0"
+        ref={viewShotRef}>
+        {/* {appSwitcherUi && <View style={{height: insets.top}} />} */}
+        {!appSwitcherUi && (
+          <View className="px-6">
+            <Header
+              leftIcon="chevron-left"
+              onLeftPress={() => goBack()}
+              title={appName}
+              rightIcon="settings"
+              onRightPress={() => {
+                push("/applet/settings", {
+                  packageName: packageName as string,
+                  appName: appName as string,
+                  fromWebView: "true",
+                })
+              }}
+            />
+          </View>
+        )}
+        <View className="flex-1">
+          {renderLoadingOverlay()}
+          {finalUrl && (
+            <Animated.View className="flex-1" style={[webViewAnimatedStyle]}>
+              <WebView
+                ref={webViewRef}
+                source={{uri: finalUrl}}
+                style={{flex: 1}}
+                onLoadStart={handleLoadStart}
+                onLoadEnd={handleLoadEnd}
+                onError={handleError}
+                onMessage={handleWebViewMessage}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                startInLoadingState={false}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
+                scalesPageToFit={false}
+                scrollEnabled={true}
+                bounces={false}
+                automaticallyAdjustContentInsets={false}
+                contentInsetAdjustmentBehavior="never"
+                injectedJavaScriptBeforeContentLoaded={`
                   window.MentraOS = {
                     platform: '${Platform.OS}',
                     capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
@@ -363,17 +366,18 @@ export default function AppWebView() {
                   window.receiveNativeMessage = window.receiveNativeMessage || function() {};
                   true;
                 `}
-              injectedJavaScript={`
+                injectedJavaScript={`
                   const meta = document.createElement('meta');
                   meta.setAttribute('name', 'viewport');
                   meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
                   document.getElementsByTagName('head')[0].appendChild(meta);
                   true;
                 `}
-            />
-          </Animated.View>
-        )}
-      </View>
-    </Screen>
+              />
+            </Animated.View>
+          )}
+        </View>
+      </Screen>
+    </>
   )
 }

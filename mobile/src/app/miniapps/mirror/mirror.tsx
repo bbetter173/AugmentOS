@@ -9,13 +9,15 @@ import {Group} from "@/components/ui"
 export default function GallerySettingsScreen() {
   const viewShotRef = useRef<View>(null)
   return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}>
+    <>
       <MiniAppDualButtonHeader packageName="com.mentra.mirror" viewShotRef={viewShotRef} />
-      <View className="h-24" />
+      <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}>
+        <View className="h-24" />
 
-      <Group>
-        <ConnectedSimulatedGlassesInfo showHeader={false} />
-      </Group>
-    </Screen>
+        <Group>
+          <ConnectedSimulatedGlassesInfo showHeader={false} />
+        </Group>
+      </Screen>
+    </>
   )
 }

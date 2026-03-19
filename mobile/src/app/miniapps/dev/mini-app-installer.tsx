@@ -188,35 +188,39 @@ export default function MiniAppInstaller() {
 
   if (finalUrl) {
     return (
-      <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+      <>
         <MiniAppDualButtonHeader
           packageName="com.mentra.lma_installer"
           viewShotRef={viewShotRef}
           onMinusPress={() => setFinalUrl("")}
           onEllipsisPress={() => setFinalUrl("")}
         />
-        {renderLoadedLocalMiniApp()}
-      </Screen>
+        <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+          {renderLoadedLocalMiniApp()}
+        </Screen>
+      </>
     )
   }
 
   return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+    <>
       <MiniAppDualButtonHeader packageName="com.mentra.lma_installer" viewShotRef={viewShotRef} />
-      {/* <View className="h-24" /> */}
+      <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
+        {/* <View className="h-24" /> */}
 
-      <ScrollView className="px-6" contentContainerClassName="flex-grow">
-        <View className="flex-1 gap-12 pt-13 pb-13">
-          {/* install a mini app from an .mmk file */}
-          {renderInstallerInput()}
-          {/* load a mini app temporarily from a url */}
-          {renderLoaderInput()}
-          {/* local mini apps list */}
-          {renderLmaList()}
-        </View>
-      </ScrollView>
+        <ScrollView className="px-6" contentContainerClassName="flex-grow">
+          <View className="flex-1 gap-12 pt-13 pb-13">
+            {/* install a mini app from an .mmk file */}
+            {renderInstallerInput()}
+            {/* load a mini app temporarily from a url */}
+            {renderLoaderInput()}
+            {/* local mini apps list */}
+            {renderLmaList()}
+          </View>
+        </ScrollView>
 
-      {renderVersionsDialog()}
-    </Screen>
+        {renderVersionsDialog()}
+      </Screen>
+    </>
   )
 }

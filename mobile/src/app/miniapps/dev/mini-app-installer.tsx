@@ -1,4 +1,4 @@
-import {useRef, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 import {Pressable, ScrollView, TextInput, TouchableOpacity, View} from "react-native"
 
 import {Button, Icon, Screen, Text} from "@/components/ignite"
@@ -103,7 +103,7 @@ export default function MiniAppInstaller() {
   }
 
   const renderLoaderInput = () => {
-    if (url) {
+    if (finalUrl) {
       return null
     }
     return (
@@ -113,7 +113,7 @@ export default function MiniAppInstaller() {
         <View className="w-full bg-background h-10 items-center justify-center rounded-xl px-3">
           <TextInput
             hitSlop={{top: 16, bottom: 16}}
-            className="text-base text-foreground text-md"
+            className="text-base text-foreground text-md w-full h-full"
             placeholder="Enter URL"
             value={url}
             onChangeText={setUrl}
@@ -129,7 +129,7 @@ export default function MiniAppInstaller() {
   }
 
   const renderInstallerInput = () => {
-    if (url) {
+    if (finalUrl) {
       return null
     }
     return (
@@ -139,7 +139,7 @@ export default function MiniAppInstaller() {
         <View className="w-full bg-background h-10 items-center justify-center rounded-xl px-3">
           <TextInput
             hitSlop={{top: 16, bottom: 16}}
-            className="text-base text-foreground text-md"
+            className="text-base text-foreground text-md w-full h-full"
             placeholder="Enter URL"
             value={url}
             onChangeText={setUrl}

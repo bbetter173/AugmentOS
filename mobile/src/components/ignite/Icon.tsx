@@ -22,6 +22,7 @@ import {
   PlayIcon,
   PauseIcon,
   PointerIcon,
+  CircleX,
 } from "lucide-react-native"
 import {
   Image,
@@ -136,6 +137,7 @@ const lucideIcons = {
   "play": PlayIcon,
   "pause": PauseIcon,
   "pointer": PointerIcon,
+  "circle-x": CircleX,
 }
 
 const tablerIcons = {

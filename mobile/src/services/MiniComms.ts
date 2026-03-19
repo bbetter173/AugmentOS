@@ -16,6 +16,8 @@ type MiniAppMessageType =
   | "open_url"
   | "copy_clipboard"
   | "download"
+  | "queue_display_event"
+
 export interface MiniAppMessage {
   type: MiniAppMessageType
   payload?: any
@@ -80,7 +82,8 @@ class MiniComms {
   private handleCoreFn(message: MiniAppMessage) {
     const {fn, args} = message.payload
     console.log(`SUPERCOMMS: Core function:`, fn, args)
-    CoreModule[fn](...args)
+    // @ts-ignore
+    CoreModule[fn]({...args})
   }
 
   private handleButtonClick(message: MiniAppMessage) {
@@ -229,6 +232,8 @@ class MiniComms {
     switch (message.type) {
       case "core_fn":
         this.handleCoreFn(message)
+        break
+      case "queue_display_event":
         break
       case "request_mic_audio":
         // this.handleRequestAudio(message)

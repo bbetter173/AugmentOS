@@ -891,7 +891,7 @@ const en = {
     uninstallMiniAppSuccess: "{{appName}} has been uninstalled successfully",
   },
   lmaLoader: {
-    miniAppLoader: "Miniapp Loader",
+    miniAppLoader: "Miniapp loader",
     loadMiniApp: "Load miniapp",
   },
   dev: {

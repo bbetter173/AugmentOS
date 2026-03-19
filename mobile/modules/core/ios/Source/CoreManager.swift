@@ -391,15 +391,14 @@ struct ViewState {
 
     func handlePcm(_ pcmData: Data) {
         // handle incoming PCM data from the microphone manager and feed to the VAD:
+        if bypassVad {
+            handleSendingPcm(pcmData)
+            return
+        }
 
         // feed PCM to the VAD:
         guard let vad = vad else {
             Bridge.log("VAD not initialized")
-            return
-        }
-
-        if bypassVad {
-            handleSendingPcm(pcmData)
             return
         }
 

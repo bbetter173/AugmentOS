@@ -188,9 +188,9 @@ function Compositor() {
 
   useEffect(() => {
     const initSTT = async () => {
-      await CoreModule.update("core", {
-        should_send_pcm: true,
-      })
+      // await CoreModule.update("core", {
+      //   should_send_pcm: true,
+      // })
 
       // await cactusSTT.download({
       //   onProgress: (progress: number) => {

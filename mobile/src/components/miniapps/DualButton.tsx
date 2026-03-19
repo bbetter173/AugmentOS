@@ -23,13 +23,13 @@ export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
   const {theme} = useAppTheme()
 
   return (
-    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 py-0.5 items-center">
-      <Pressable hitSlop={10} onPress={onEllipsisPress}>
-        <Icon name="ellipsis" color={theme.colors.foreground} />
+    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-6.5 items-center">
+      <Pressable hitSlop={10} onPress={onEllipsisPress} style={{width: 24, alignItems: "center"}}>
+        <Icon name="ellipsis" size={18} color={theme.colors.foreground} />
       </Pressable>
-      <View className="h-4 w-px bg-gray-300" />
-      <Pressable hitSlop={10} onPress={onMinusPress}>
-        <Icon name={"x"} color={theme.colors.foreground} />
+      <View className="h-4 w-px bg-background/30" />
+      <Pressable hitSlop={10} onPress={onMinusPress} style={{width: 24, alignItems: "center"}}>
+        <Icon name={"circle-x"} size={18} color={theme.colors.foreground} />
       </Pressable>
     </GlassView>
   )

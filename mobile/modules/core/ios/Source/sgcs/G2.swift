@@ -1845,7 +1845,8 @@ class G2: NSObject, SGCManager {
                         // 0=page_success, 4=img_success, 5=img_failed, 6=rebuild_success, 7=rebuild_failed, 8=text_success, 9=text_failed
                         Bridge.log("G2: EvenHub response field\(resField) errorCode=\(errorCode)")
                         if errorCode == 9 {
-                            Bridge.log("G2: Glasses shutdown our EvenHub page — resetting page state")
+                            Bridge.log(
+                                "G2: Glasses shutdown our EvenHub page — resetting page state")
                             startupPageCreated = false
                             pageCreated = false
                             pageHasTextContainer = false
@@ -1889,6 +1890,13 @@ class G2: NSObject, SGCManager {
                     Bridge.sendTouchEvent(
                         deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp)
                     Bridge.log("G2: SysEvent → \(gestureName)")
+
+                    if gestureName == "double_tap" {
+                        // trigger dashboard:
+                        let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+                        // toggle head up:
+                        GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
+                    }
                 }
                 return
             }

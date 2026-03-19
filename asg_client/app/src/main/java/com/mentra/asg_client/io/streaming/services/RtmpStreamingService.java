@@ -606,10 +606,16 @@ public class RtmpStreamingService extends Service {
 
             // Create the appropriate streamer based on the stream URL protocol
             if (mIsSrtMode) {
+                TsServiceInfo tsServiceInfo = new TsServiceInfo(
+                        TsServiceInfo.ServiceType.DIGITAL_TV,
+                        (short) 0x4698,
+                        "AugmentOS",
+                        "Mentra"
+                );
                 mSrtStreamer = new CameraSrtLiveStreamer(
                         this,
                         true,
-                        null,
+                        tsServiceInfo,
                         null,
                         null,
                         sharedErrorListener,
@@ -643,8 +649,8 @@ public class RtmpStreamingService extends Service {
                     audioBitrate,
                     audioSampleRate,
                     AudioFormat.CHANNEL_IN_MONO, // Switch to mono for better compatibility
+                    AudioFormat.ENCODING_PCM_16BIT, // Default byte format
                     audioProfile, // Default profile
-                    0, // Default byte format
                     echoCancellation,
                     noiseSuppression
             );

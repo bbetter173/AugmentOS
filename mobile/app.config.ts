@@ -238,14 +238,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           supportsPictureInPicture: true,
         },
       ],
-      "expo-web-browser",
-      [
-        "expo-speech-transcriber",
-        {
-          speechRecognitionPermission: "We need speech recognition to transcribe your recordings",
-          microphonePermission: "We need microphone access to record audio for transcription",
-        },
-      ],
+      "expo-web-browser"
     ],
     experiments: {
       tsconfigPaths: true,

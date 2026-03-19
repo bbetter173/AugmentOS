@@ -1531,11 +1531,18 @@ class G2: NSObject, SGCManager {
         stopHeartbeats()
         Task { await reconnectionManager.stop() }
 
+        // Disconnect known peripherals
         if let left = leftPeripheral {
             centralManager?.cancelPeripheralConnection(left)
         }
         if let right = rightPeripheral {
             centralManager?.cancelPeripheralConnection(right)
+        }
+
+        // Also disconnect any other G2 peripherals the system still has connected
+        let connected = getConnectedDevices()
+        for peripheral in connected {
+            centralManager?.cancelPeripheralConnection(peripheral)
         }
 
         ready = false

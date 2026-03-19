@@ -10,7 +10,7 @@ import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
 import CoreModule, {MicPcmEvent} from "core"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {Text} from "@/components/ignite"
-import {useCactusSTT} from "cactus-react-native"
+// import {useCactusSTT} from "cactus-react-native"
 
 const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
   const binaryString = atob(base64)
@@ -140,13 +140,13 @@ function Compositor() {
   //   model: WHISPER_TINY_EN,
   // })
 
-  const cactusSTT = useCactusSTT({
-    model: "whisper-medium",
-    options: {
-      pro: true,
-      // quantization: "int8",
-    },
-  })
+  // const cactusSTT = useCactusSTT({
+  //   model: "whisper-medium",
+  //   options: {
+  //     pro: true,
+  //     // quantization: "int8",
+  //   },
+  // })
 
   const transcription = useRef<string>("")
   let useExecutorch = false
@@ -169,21 +169,21 @@ function Compositor() {
     //   return
     // }
 
-    const audioChunk = Array.from(new Int16Array(pcm))
-    // const audioChunk = decodePcm16ToFloat32(pcm)
-    // const audioChunk = Array.from(new Float32Array(pcm))
-    const result = await cactusSTT.streamTranscribeProcess({audio: audioChunk})
-    if (result.confirmed) {
-      // console.log("COMPOSITOR: c:", result.confirmed)
-      transcription.current += " " + result.confirmed
-      // if (result.confirmed.length > 100) {
-      //   transcription.current = transcription.current.slice(-100)
-      // }
-    }
-    if (result.pending) {
-      console.log("COMP: P:", result.pending)
-    }
-    console.log("COMP: F:", transcription.current)
+    // const audioChunk = Array.from(new Int16Array(pcm))
+    // // const audioChunk = decodePcm16ToFloat32(pcm)
+    // // const audioChunk = Array.from(new Float32Array(pcm))
+    // const result = await cactusSTT.streamTranscribeProcess({audio: audioChunk})
+    // if (result.confirmed) {
+    //   // console.log("COMPOSITOR: c:", result.confirmed)
+    //   transcription.current += " " + result.confirmed
+    //   // if (result.confirmed.length > 100) {
+    //   //   transcription.current = transcription.current.slice(-100)
+    //   // }
+    // }
+    // if (result.pending) {
+    //   console.log("COMP: P:", result.pending)
+    // }
+    // console.log("COMP: F:", transcription.current)
   }
 
   useEffect(() => {
@@ -192,16 +192,16 @@ function Compositor() {
         should_send_pcm: true,
       })
 
-      await cactusSTT.download({
-        onProgress: (progress: number) => {
-          console.log("COMPOSITOR: Downloading cactus model...", progress)
-        },
-      })
+      // await cactusSTT.download({
+      //   onProgress: (progress: number) => {
+      //     console.log("COMPOSITOR: Downloading cactus model...", progress)
+      //   },
+      // })
 
-      await cactusSTT.streamTranscribeStart({
-        confirmationThreshold: 0.99,
-        minChunkSize: 32000,
-      })
+      // await cactusSTT.streamTranscribeStart({
+      //   confirmationThreshold: 0.99,
+      //   minChunkSize: 32000,
+      // })
 
       const pcmSub = CoreModule.addListener("mic_pcm", (event: MicPcmEvent) => {
         // console.log("COMPOSITOR: Received mic pcm:", event.base64)

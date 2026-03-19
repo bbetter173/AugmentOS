@@ -88,7 +88,6 @@ class GlassesStore {
         store.set("core", "auth_token", "")
         store.set("core", "should_send_pcm", false)
         store.set("core", "should_send_lc3", false)
-        store.set("core", "should_send_transcript", false)
         store.set("core", "bypass_vad", false)
     }
 

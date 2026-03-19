@@ -43,9 +43,8 @@ export default function CoreStatusBar() {
       touchEventTimer.current = BackgroundTimer.setTimeout(() => {
         setTouchEvent(null)
       }, 1000)
-      console.log("touch_event", event)
+      // console.log("touch_event", event)
     })
-    console.log("insets", insets)
     return () => {
       sub.remove()
     }

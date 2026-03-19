@@ -183,11 +183,6 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "should_send_lc3", newValue) }
     }
 
-    private var shouldSendTranscript: Bool {
-        get { GlassesStore.shared.get("core", "should_send_transcript") as? Bool ?? false }
-        set { GlassesStore.shared.apply("core", "should_send_transcript", newValue) }
-    }
-
     private var metricSystem: Bool {
         get { GlassesStore.shared.get("core", "metric_system") as? Bool ?? false }
         set { GlassesStore.shared.apply("core", "metric_system", newValue) }
@@ -298,21 +293,21 @@ struct ViewState {
 
     override init() {
         Bridge.log("MAN: init()")
-        vad = SileroVADStrategy()
+        // vad = SileroVADStrategy()
         super.init()
 
         // Start memory monitoring (logs every 30s to help detect leaks)
         // MemoryMonitor.start()
 
-        Task {
-            self.vad?.setup(
-                sampleRate: .rate_16k,
-                frameSize: .size_1024,
-                quality: .normal,
-                silenceTriggerDurationMs: 4000,
-                speechTriggerDurationMs: 50
-            )
-        }
+        // Task {
+        //     self.vad?.setup(
+        //         sampleRate: .rate_16k,
+        //         frameSize: .size_1024,
+        //         quality: .normal,
+        //         silenceTriggerDurationMs: 4000,
+        //         speechTriggerDurationMs: 50
+        //     )
+        // }
 
         // Initialize persistent LC3 converter for unified audio encoding
         lc3Converter = PcmConverter()
@@ -1117,9 +1112,8 @@ struct ViewState {
     }
 
     func setMicState() {
-        let willSendPcm = shouldSendPcm || shouldSendLc3
-        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
-        micEnabled = willSendPcm || willSendTranscript
+        let willSendMicData = shouldSendPcm || shouldSendLc3
+        micEnabled = willSendMicData
         updateMicState()
     }
 

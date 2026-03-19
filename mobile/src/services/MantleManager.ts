@@ -395,12 +395,6 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("local_transcription", (event) => {
-          mantle.handle_local_transcription(event)
-        }),
-      )
-
-      this.subs.push(
         CoreModule.addListener("phone_notification", async (event) => {
           const res = await restComms.sendPhoneNotification({
             notificationId: event.notificationId,

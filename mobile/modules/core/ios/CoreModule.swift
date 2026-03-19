@@ -15,7 +15,6 @@ public class CoreModule: Module {
             "touch_event",
             "head_up",
             "battery_status",
-            "local_transcription",
             "wifi_status_change",
             "hotspot_status_change",
             "hotspot_error",
@@ -285,14 +284,6 @@ public class CoreModule: Module {
         AsyncFunction("keepRtmpStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
                 CoreManager.shared.keepRtmpStreamAlive(params)
-            }
-        }
-
-        // MARK: - Microphone Commands
-
-        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
-            await MainActor.run {
-                CoreManager.shared.setMicState()
             }
         }
 

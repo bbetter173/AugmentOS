@@ -59,29 +59,37 @@ class MicManager {
 **From the 039 API map:**
 
 ```typescript
-// Flattened from session.device.state.X to session.device.X
-session.device.wifiConnected // Observable<boolean>
-session.device.wifiSsid // Observable<string>
-session.device.batteryLevel // Observable<number>
-session.device.charging // Observable<boolean>
-session.device.caseBatteryLevel // Observable<number>
-session.device.connected // Observable<boolean>
-session.device.modelName // Observable<string>
+// Device state — keep the .state. nesting (NOT flattened)
+// There's too much on session.device already (events, actions, capabilities)
+// to also dump all the Observable state properties on the same level.
+session.device.state.wifiConnected // Observable<boolean>
+session.device.state.wifiSsid // Observable<string>
+session.device.state.batteryLevel // Observable<number>
+session.device.state.charging // Observable<boolean>
+session.device.state.caseBatteryLevel // Observable<number>
+session.device.state.connected // Observable<boolean>
+session.device.state.modelName // Observable<string>
 // ... more observables
 
-session.device.capabilities // moved from session.capabilities
-session.device.onButtonPress(handler) // moved from session.events
-session.device.onHeadPosition(handler) // moved from session.events
-session.device.onTouchEvent(handler) // moved from session.events
+// Hardware events (moved from session.events)
+session.device.onButtonPress(handler)
+session.device.onHeadPosition(handler)
+session.device.onTouchEvent(handler)
 session.device.onVpsCoordinates(handler)
-session.device.requestWifiSetup(ssid, pass) // moved from session-level
 session.device.subscribeToGestures(gestures)
+
+// Actions
+session.device.requestWifiSetup(ssid, pass) // moved from session-level
+
+// Capabilities
+session.device.capabilities // moved from session.capabilities
 ```
+
+> **Decision: Do NOT flatten `device.state`.** The 039 API map proposed flattening `session.device.state.batteryLevel` → `session.device.batteryLevel`, but `session.device` already has hardware events, WiFi actions, capabilities, and gesture subscriptions. Adding all Observable state properties on the same level makes it too crowded. Keeping `session.device.state` as a sub-object is cleaner — two levels of nesting is fine when `state` is a coherent group of read-only values. Same pattern as `session.phone.notifications.on()`.
 
 **What needs to be figured out:**
 
 - The Observable pattern — the current `DeviceState` uses a custom Observable. Is this the right pattern for v3? Should we use a simpler getter + onChange callback instead?
-- How does the flattening work at the type level? `session.device.batteryLevel` needs to be both a readable value AND an observable. What's the TypeScript type?
 - Hardware events (button, head position, touch) — these are currently on `session.events`. Moving to `session.device` makes sense but needs the handler registration to flow through to the subscription system correctly.
 - WiFi setup — the current implementation is on `AppSession` directly. Moving to `session.device` is a rename, but does the WiFi status interact with the reconnection system? (E.g., "glasses on WiFi" triggers video upload.)
 - VPS coordinates — is this still a thing? Is it used?

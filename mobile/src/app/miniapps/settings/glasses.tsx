@@ -183,7 +183,7 @@ function DeviceSettings() {
         {defaultWearable && (
           <RouteButton
             icon={<Icon name="unplug" size={24} color={theme.colors.secondary_foreground} />}
-            label={translate("deviceSettings:unpairGlasses")}
+            label={translate("deviceSettings:forgetGlasses")}
             onPress={confirmForgetGlasses}
           />
         )}

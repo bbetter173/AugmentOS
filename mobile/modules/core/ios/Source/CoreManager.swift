@@ -1290,19 +1290,35 @@ struct ViewState {
         controller = nil  // Clear the controller reference after disconnect
     }
 
+    func disconnectController() {
+        searchingController = false
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        controller?.disconnect()
+        controller = nil  // Clear the controller reference after disconnect
+    }
+
     func forget() {
         Bridge.log("MAN: Forgetting smart glasses")
-
         // Call forget first to stop timers/handlers/reconnect logic
         sgc?.forget()
-
         disconnect()
-
         // Clear state
         defaultWearable = ""
         deviceName = ""
         Bridge.saveSetting("default_wearable", "")
         Bridge.saveSetting("device_name", "")
+    }
+
+    func forgetController() {
+        Bridge.log("MAN: Forgetting controller")
+        controller?.forget()
+        disconnectController()
+        // Clear state
+        defaultController = ""
+        controllerDeviceName = ""
+        Bridge.saveSetting("controller_device_name", "")
+        Bridge.saveSetting("default_controller", "")
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
     }
 
     func findCompatibleDevices(_ deviceModel: String) {

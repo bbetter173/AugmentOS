@@ -41,7 +41,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await CoreModule.disconnect()
+      await CoreModule.disconnectController()
     } else {
       await CoreModule.connectDefaultController()
     }

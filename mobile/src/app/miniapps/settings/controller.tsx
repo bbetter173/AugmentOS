@@ -1,6 +1,6 @@
 import {ScrollView, Image, View} from "react-native"
 
-import {ConnectDeviceButton} from "@/components/glasses/ConnectDeviceButton"
+import {ConnectControllerButton} from "@/components/glasses/ConnectDeviceButton"
 import {NotConnectedInfo} from "@/components/glasses/info/NotConnectedInfo"
 import {Header, Screen, Icon} from "@/components/ignite"
 import {Spacer} from "@/components/ui/Spacer"
@@ -13,52 +13,33 @@ import {getGlassesImage} from "@/utils/getGlassesImage"
 import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
 
-import {Capabilities, DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
+import {DeviceTypes} from "@/../../cloud/packages/types/src"
 import CoreModule from "core"
 
-import OtaProgressSection from "@/components/glasses/OtaProgressSection"
-import {BatteryStatus} from "@/components/glasses/info/BatteryStatus"
 import {EmptyState} from "@/components/glasses/info/EmptyState"
-import {ButtonSettings} from "@/components/glasses/settings/ButtonSettings"
-import BrightnessSetting from "@/components/settings/BrightnessSetting"
-import {useApplets, useAppletStatusStore} from "@/stores/applets"
-// import showAlert from "@/utils/AlertUtils"
 import {showAlert} from "@/contexts/ModalContext"
 
 function DeviceSettings() {
   const {theme} = useAppTheme()
   const [defaultController] = useSetting(SETTINGS.default_controller.key)
-  const [autoBrightness, setAutoBrightness] = useSetting(SETTINGS.auto_brightness.key)
-  const [brightness, setBrightness] = useSetting(SETTINGS.brightness.key)
-  const [defaultButtonActionEnabled, setDefaultButtonActionEnabled] = useSetting(
-    SETTINGS.default_button_action_enabled.key,
-  )
+  const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const [superMode] = useSetting(SETTINGS.super_mode.key)
-  const [defaultButtonActionApp, setDefaultButtonActionApp] = useSetting(SETTINGS.default_button_action_app.key)
-  const glassesConnected = useGlassesStore((state) => state.connected)
 
   const {push, goBack} = useNavigationHistory()
-  const applets = useApplets()
-  const features: Capabilities = getModelCapabilities(defaultController)
 
-  const wifiLocalIp = useGlassesStore((state) => state.wifiSsid)
-  const bluetoothName = useGlassesStore((state) => state.bluetoothName)
-  const buildNumber = useGlassesStore((state) => state.buildNumber)
-  const otaProgress = useGlassesStore((state) => state.otaProgress)
-
-  const hasDeviceInfo = Boolean(bluetoothName || buildNumber || wifiLocalIp)
-
-  const confirmForgetGlasses = async () => {
+  const confirmForgetController = async () => {
     let result = await showAlert({
-      title: translate("settings:forgetGlasses"),
-      message: translate("settings:forgetGlassesConfirm"),
+      title: translate("settings:forgetController"),
+      message: translate("settings:forgetControllerConfirm"),
       buttons: [{text: translate("common:cancel"), style: "cancel"}, {text: translate("connection:unpair")}],
       options: {allowDismiss: false},
     })
     if (result === 1) {
-      CoreModule.forget()
-      useAppletStatusStore.getState().stopAllApplets()
-      useAppletStatusStore.getState().refreshApplets()
+      try {
+        CoreModule.forgetController()
+      } catch (e) {
+        console.log(e)
+      }
       // give us a second to forget the glasses before going back
       setTimeout(() => {
         goBack()
@@ -66,16 +47,16 @@ function DeviceSettings() {
     }
   }
 
-  const confirmDisconnectGlasses = async () => {
+  const confirmDisconnectController = async () => {
     let result = await showAlert({
-      title: translate("settings:disconnectGlassesTitle"),
-      message: translate("settings:disconnectGlassesConfirm"),
+      title: translate("settings:disconnectControllerTitle"),
+      message: translate("settings:disconnectControllerConfirm"),
       buttons: [{text: translate("common:cancel"), style: "cancel"}, {text: translate("connection:disconnect")}],
       options: {allowDismiss: false},
     })
 
     if (result === 1) {
-      CoreModule.disconnect()
+      CoreModule.disconnectController()
     }
   }
 
@@ -89,6 +70,24 @@ function DeviceSettings() {
       {superMode && (
         <RouteButton label={translate("settings:layoutSettings")} onPress={() => push("/miniapps/settings/layout")} />
       )}
+
+      <Group title={translate("deviceSettings:general")}>
+        {controllerConnected && defaultController !== DeviceTypes.SIMULATED && (
+          <RouteButton
+            icon={<Icon name="unlink" size={24} color={theme.colors.secondary_foreground} />}
+            label={translate("deviceSettings:disconnectController")}
+            onPress={confirmDisconnectController}
+          />
+        )}
+
+        {defaultController && (
+          <RouteButton
+            icon={<Icon name="unplug" size={24} color={theme.colors.secondary_foreground} />}
+            label={translate("deviceSettings:forgetController")}
+            onPress={confirmForgetController}
+          />
+        )}
+      </Group>
 
       {/* this just gives the user a bit more space to scroll */}
       <Spacer height={theme.spacing.s2} />
@@ -126,9 +125,9 @@ export default function ControllerSettings() {
       />
       <ScrollView className="pr-4 -mr-4" contentInsetAdjustmentBehavior="automatic">
         {!controllerConnected && <Spacer height={theme.spacing.s6} />}
-        {/* Show helper text if glasses are paired but not connected */}
-        {!controllerConnected && defaultController && <NotConnectedInfo />}
+        {!controllerConnected && <ConnectControllerButton />}
         <Spacer height={theme.spacing.s6} />
+        <DeviceSettings />
       </ScrollView>
     </Screen>
   )

@@ -133,9 +133,21 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("disconnectController") {
+            await MainActor.run {
+                CoreManager.shared.disconnectController()
+            }
+        }
+
         AsyncFunction("forget") {
             await MainActor.run {
                 CoreManager.shared.forget()
+            }
+        }
+
+        AsyncFunction("forgetController") {
+            await MainActor.run {
+                CoreManager.shared.forgetController()
             }
         }
 

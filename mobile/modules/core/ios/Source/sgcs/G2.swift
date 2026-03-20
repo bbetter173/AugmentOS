@@ -1115,7 +1115,250 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    /// Send BMP data to an image container via fragmented updateImageRawData
+    private func sendImageData(containerID: Int32, containerName: String, bmpData: Data) async
+        -> Bool
+    {
+        let fragmentSize = 4096
+        imageSessionCounter += 1
+        let sessionId = imageSessionCounter
+        let totalSize = Int32(bmpData.count)
+        var fragmentIndex: Int32 = 0
+        var offset = 0
+
+        while offset < bmpData.count {
+            let end = min(offset + fragmentSize, bmpData.count)
+            let fragment = bmpData[offset..<end]
+
+            let msg = EvenHubProto.updateImageRawDataMessage(
+                containerID: containerID,
+                containerName: containerName,
+                mapSessionId: Int32(sessionId),
+                mapTotalSize: totalSize,
+                compressMode: 0,
+                mapFragmentIndex: fragmentIndex,
+                mapFragmentPacketSize: Int32(fragment.count),
+                mapRawData: Data(fragment)
+            )
+            sendEvenHubCommand(msg)
+
+            fragmentIndex += 1
+            offset = end
+            try? await Task.sleep(nanoseconds: 200_000_000)  // 200ms between fragments
+        }
+
+        Bridge.log(
+            "G2: sendImageData(\(containerName)) - \(fragmentIndex) fragments, \(bmpData.count) bytes"
+        )
+        return true
+    }
+
+    func displayBitmapLoc(rawData: Data, x: Int32, y: Int32, id: Int32) async -> Bool {
+
+        Bridge.log("G2: displayBitmap() - decoded \(rawData.count) bytes from base64")
+
+        Bridge.log(
+            "G2: displayBitmap() - state: startupPageCreated=\(startupPageCreated), pageCreated=\(pageCreated)"
+        )
+
+        // --- Single-tile approach: scale source to fit 200x100, send as one image container ---
+        guard let bmpData = convertToG2Bmp(rawData, containerWidth: 200, containerHeight: 100)
+        else {
+            Bridge.log("G2: displayBitmap() - failed to convert image to BMP")
+            return false
+        }
+
+        // Center the 200x100 container on the 576x288 canvas
+        let containerW: Int32 = 200
+        let containerH: Int32 = 100
+        let containerX: Int32 = x
+        let containerY: Int32 = y
+        let containerID: Int32 = id
+        let containerName = "img-\(id)"
+
+        let imageContainer = EvenHubProto.imageContainerProperty(
+            x: containerX, y: containerY,
+            width: containerW, height: containerH,
+            containerID: containerID, containerName: containerName
+        )
+
+        let msg: Data
+        if !startupPageCreated {
+            Bridge.log("G2: displayBitmap() - creating startup page with image container")
+            msg = EvenHubProto.createPageMessage(imageContainers: [imageContainer])
+            startupPageCreated = true
+        } else {
+            Bridge.log("G2: displayBitmap() - rebuilding page with image container")
+            msg = EvenHubProto.rebuildPageMessage(imageContainers: [imageContainer])
+        }
+        sendEvenHubCommand(msg)
+        pageCreated = true
+        pageHasTextContainer = false
+        currentTextContent = ""
+        Bridge.log("G2: displayBitmap() - page sent, waiting 1s before sending fragments...")
+        try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1s - give glasses time to process page
+
+        // Send the BMP data
+        let success = await sendImageData(
+            containerID: containerID, containerName: containerName, bmpData: bmpData
+        )
+        if !success {
+            Bridge.log("G2: displayBitmap() - failed sending image data")
+        }
+
+        Bridge.log("G2: displayBitmap() - single tile sent, \(bmpData.count) bytes")
+        return success
+    }
+
+    func displayBitmapDouble(base64ImageData: String) async -> Bool {
+        guard let rawData = Data(base64Encoded: base64ImageData) else {
+            Bridge.log("G2: displayBitmap() - failed to decode base64")
+            return false
+        }
+
+        guard let bmpData = convertToG2Bmp(rawData, containerWidth: 200, containerHeight: 100)
+        else {
+            Bridge.log("G2: displayBitmap() - failed to convert image to BMP")
+            return false
+        }
+
+        // Define both containers
+        let container1 = EvenHubProto.imageContainerProperty(
+            x: 0, y: 0, width: 200, height: 100,
+            containerID: 10, containerName: "img-10"
+        )
+        let container2 = EvenHubProto.imageContainerProperty(
+            x: 200, y: 0, width: 200, height: 100,
+            containerID: 11, containerName: "img-11"
+        )
+        let container3 = EvenHubProto.imageContainerProperty(
+            x: 0, y: 100, width: 200, height: 100,
+            containerID: 12, containerName: "img-12"
+        )
+        let container4 = EvenHubProto.imageContainerProperty(
+            x: 200, y: 100, width: 200, height: 100,
+            containerID: 13, containerName: "img-13"
+        )
+
+        // Create/rebuild page with BOTH containers at once
+        let msg: Data
+        if !startupPageCreated {
+            msg = EvenHubProto.createPageMessage(imageContainers: [
+                container1, container2, container3, container4,
+            ])
+            startupPageCreated = true
+        } else {
+            msg = EvenHubProto.rebuildPageMessage(imageContainers: [
+                container1, container2, container3, container4,
+            ])
+        }
+        sendEvenHubCommand(msg)
+        pageCreated = true
+        pageHasTextContainer = false
+        currentTextContent = ""
+
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        // Now send image data to each container
+        let success1 = await sendImageData(
+            containerID: 10, containerName: "img-10", bmpData: bmpData)
+        let success2 = await sendImageData(
+            containerID: 11, containerName: "img-11", bmpData: bmpData)
+        let success3 = await sendImageData(
+            containerID: 12, containerName: "img-12", bmpData: bmpData)
+        let success4 = await sendImageData(
+            containerID: 13, containerName: "img-13", bmpData: bmpData)
+
+        return success1 && success2 && success3 && success4
+    }
+
     func displayBitmap(base64ImageData: String) async -> Bool {
+        return await displayBitmapOriginal(base64ImageData: base64ImageData)
+    }
+
+    /// Upscale BMP pixel data by 2x (200x100 → 400x200) using nearest-neighbor
+    private func upscaleBmp2x(_ bmpData: Data, srcWidth: Int, srcHeight: Int) -> Data? {
+        // Parse the BMP to extract pixel data, then rebuild at 2x
+        // BMP header: 14 bytes file header + 40 bytes DIB header + 64 bytes color table = 118 bytes
+        let headerSize = 14 + 40 + 64
+        guard bmpData.count > headerSize else {
+            Bridge.log("G2: upscaleBmp2x - BMP too small")
+            return nil
+        }
+
+        let srcPaddedRowSize = ((srcWidth + 1) / 2 + 3) & ~3  // 4-bit rows padded to 4 bytes
+        let pixelDataOffset = headerSize
+
+        let dstWidth = srcWidth * 2
+        let dstHeight = srcHeight * 2
+        let dstBytesPerRow = (dstWidth + 1) / 2
+        let dstPaddedRowSize = (dstBytesPerRow + 3) & ~3
+        let dstPixelDataSize = dstPaddedRowSize * dstHeight
+        let dstFileSize = headerSize + dstPixelDataSize
+
+        var dst = Data(capacity: dstFileSize)
+
+        // --- BMP File Header (14 bytes) ---
+        dst.append(contentsOf: [0x42, 0x4D])
+        dst.appendLittleEndian(UInt32(dstFileSize))
+        dst.appendLittleEndian(UInt16(0))
+        dst.appendLittleEndian(UInt16(0))
+        dst.appendLittleEndian(UInt32(headerSize))
+
+        // --- DIB Header (40 bytes) ---
+        dst.appendLittleEndian(UInt32(40))
+        dst.appendLittleEndian(Int32(dstWidth))
+        dst.appendLittleEndian(Int32(dstHeight))
+        dst.appendLittleEndian(UInt16(1))
+        dst.appendLittleEndian(UInt16(4))
+        dst.appendLittleEndian(UInt32(0))
+        dst.appendLittleEndian(UInt32(dstPixelDataSize))
+        dst.appendLittleEndian(Int32(2835))
+        dst.appendLittleEndian(Int32(2835))
+        dst.appendLittleEndian(UInt32(16))
+        dst.appendLittleEndian(UInt32(0))
+
+        // --- Color Table (same 16-entry grayscale) ---
+        for i in 0..<16 {
+            let val = UInt8(i * 17)
+            dst.append(contentsOf: [val, val, val, 0])
+        }
+
+        // --- Pixel Data (nearest-neighbor 2x upscale) ---
+        // BMP is bottom-up, so row 0 = bottom of image
+        // Each dst row maps to srcRow = dstRow / 2
+        for dstRow in 0..<dstHeight {
+            let srcRow = dstRow / 2
+            let srcRowOffset = pixelDataOffset + srcRow * srcPaddedRowSize
+            var rowBuf = [UInt8](repeating: 0, count: dstPaddedRowSize)
+
+            for dstCol in 0..<dstWidth {
+                let srcCol = dstCol / 2
+
+                // Read 4-bit nibble from source
+                let srcBytePos = srcRowOffset + srcCol / 2
+                guard srcBytePos < bmpData.count else { continue }
+                let srcByte = bmpData[srcBytePos]
+                let nibble: UInt8 = (srcCol % 2 == 0) ? (srcByte >> 4) : (srcByte & 0x0F)
+
+                // Write 4-bit nibble to destination
+                let dstBytePos = dstCol / 2
+                if dstCol % 2 == 0 {
+                    rowBuf[dstBytePos] = nibble << 4
+                } else {
+                    rowBuf[dstBytePos] |= nibble
+                }
+            }
+            dst.append(contentsOf: rowBuf)
+        }
+
+        Bridge.log(
+            "G2: upscaleBmp2x - \(srcWidth)x\(srcHeight) → \(dstWidth)x\(dstHeight), \(dst.count) bytes"
+        )
+        return dst
+    }
+
+    func displayBitmapOriginal(base64ImageData: String) async -> Bool {
         guard let rawData = Data(base64Encoded: base64ImageData) else {
             Bridge.log("G2: displayBitmap() - failed to decode base64")
             return false
@@ -1174,44 +1417,6 @@ class G2: NSObject, SGCManager {
 
         Bridge.log("G2: displayBitmap() - single tile sent, \(bmpData.count) bytes")
         return success
-    }
-
-    /// Send BMP data to an image container via fragmented updateImageRawData
-    private func sendImageData(containerID: Int32, containerName: String, bmpData: Data) async
-        -> Bool
-    {
-        let fragmentSize = 4096
-        imageSessionCounter += 1
-        let sessionId = imageSessionCounter
-        let totalSize = Int32(bmpData.count)
-        var fragmentIndex: Int32 = 0
-        var offset = 0
-
-        while offset < bmpData.count {
-            let end = min(offset + fragmentSize, bmpData.count)
-            let fragment = bmpData[offset..<end]
-
-            let msg = EvenHubProto.updateImageRawDataMessage(
-                containerID: containerID,
-                containerName: containerName,
-                mapSessionId: Int32(sessionId),
-                mapTotalSize: totalSize,
-                compressMode: 0,
-                mapFragmentIndex: fragmentIndex,
-                mapFragmentPacketSize: Int32(fragment.count),
-                mapRawData: Data(fragment)
-            )
-            sendEvenHubCommand(msg)
-
-            fragmentIndex += 1
-            offset = end
-            try? await Task.sleep(nanoseconds: 200_000_000)  // 200ms between fragments
-        }
-
-        Bridge.log(
-            "G2: sendImageData(\(containerName)) - \(fragmentIndex) fragments, \(bmpData.count) bytes"
-        )
-        return true
     }
 
     // MARK: - Bitmap Conversion
@@ -1893,10 +2098,11 @@ class G2: NSObject, SGCManager {
 
                     if gestureName == "double_tap" {
                         // trigger dashboard:
-                        let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+                        let isHeadUp =
+                            GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                         // toggle head up:
                         GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
-                        if (isHeadUp) {
+                        if isHeadUp {
                             // clear the display after a delay:
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                                 self.clearDisplay()

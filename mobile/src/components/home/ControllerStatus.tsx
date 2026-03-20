@@ -135,7 +135,6 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
                   <Text className="text-secondary-foreground text-sm" text={`${controllerBatteryLevel}%`} />
                 </View>
               )}
-              <MicIcon width={18} height={18} />
               <Icon name="bluetooth-connected" size={22} color={theme.colors.foreground} />
             </View>
           </View>

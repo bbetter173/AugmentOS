@@ -1283,6 +1283,11 @@ struct ViewState {
         shouldSendBootingMessage = true  // Reset for next first connect
         GlassesStore.shared.apply("glasses", "fullyBooted", false)
         GlassesStore.shared.apply("glasses", "connected", false)
+        // disconnect the controller as well:
+        searchingController = false
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        controller?.disconnect()
+        controller = nil  // Clear the controller reference after disconnect
     }
 
     func forget() {

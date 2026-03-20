@@ -119,7 +119,7 @@ class R1: NSObject, ControllerManager {
         didSet {
             if _batteryLevel != oldValue && _batteryLevel >= 0 {
                 GlassesStore.shared.apply("glasses", "controllerBatteryLevel", _batteryLevel)
-                Bridge.sendBatteryStatus(level: _batteryLevel, charging: isCharging)
+                // Bridge.sendBatteryStatus(level: _batteryLevel, charging: isCharging)
             }
         }
     }

@@ -900,7 +900,27 @@ struct ViewState {
         // Re-apply display height after reconnection
         let h = GlassesStore.shared.get("core", "dashboard_height") as? Int ?? 4
         let d = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 5
-        sgc?.setDashboardPosition(h, d)
+        sgc.setDashboardPosition(h, d)
+    }
+
+    private func handleControllerReady() {
+        guard let controller else {
+            Bridge.log("MAN: Controller is nil, returning")
+            return
+        }
+        Bridge.log("MAN: handleControllerReady(): \(controller.type)")
+
+        pendingController = ""
+        defaultController = controller.type
+        searching = false
+
+        // save the default_controller now that we're connected:
+        Bridge.saveSetting("default_controller", defaultController)
+        Bridge.saveSetting("controller_device_name", controllerDeviceName)
+    }
+
+    private func handleControllerDisconnected() {
+        Bridge.log("MAN: Controller disconnected")
     }
 
     private func handleG1Ready() {

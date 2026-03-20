@@ -115,6 +115,12 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("connectDefaultController") {
+            await MainActor.run {
+                CoreManager.shared.connectDefaultController()
+            }
+        }
+
         AsyncFunction("connectSimulated") {
             await MainActor.run {
                 CoreManager.shared.connectSimulated()

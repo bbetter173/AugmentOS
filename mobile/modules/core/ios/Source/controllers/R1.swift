@@ -244,7 +244,7 @@ class R1: NSObject, ControllerManager {
         Bridge.log("R1: Ring ready")
 
         if let name = ringPeripheral?.name, let id = extractRingId(name) {
-            GlassesStore.shared.apply("core", "device_name", id)
+            GlassesStore.shared.apply("core", "controller_device_name", id)
         }
 
         GlassesStore.shared.apply("glasses", "controllerConnected", true)

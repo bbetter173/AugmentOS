@@ -303,6 +303,8 @@ const en = {
     pairGlasses: "Pair glasses",
     setupWithoutGlasses: "Setup without glasses",
     connectGlasses: "Connect glasses",
+    connectRing: "Connect ring",
+    connectController: "Connect controller",
     getSupport: "Get support",
     getSupportMessage: "You will be taken to our support page in your browser.",
     connectingGlasses: "Connecting glasses...",

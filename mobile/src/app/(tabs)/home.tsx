@@ -29,6 +29,7 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AllAppsGridSheet from "@/components/home/AllAppsGridSheet"
 import BottomSheet from "@gorhom/bottom-sheet"
 import {BlurTargetView, BlurView} from "expo-blur"
+import { ControllerStatus } from "@/components/home/ControllerStatus"
 
 export default function Homepage() {
   const refreshApplets = useRefreshApplets()
@@ -83,6 +84,7 @@ export default function Homepage() {
         <Group>
           {!appSwitcherUi && <CompactDeviceStatus />}
           {appSwitcherUi && <DeviceStatus />}
+          {appSwitcherUi && <ControllerStatus />}
           {!offlineMode && !appSwitcherUi && <BackgroundAppsLink />}
         </Group>
         <View className="h-2" />

@@ -154,7 +154,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   const features = getModelCapabilities(defaultWearable)
 
-  if (!glassesConnected || !glassesFullyBooted || isSearching || !true) {
+  if (!glassesConnected || !glassesFullyBooted || isSearching) {
     return (
       <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
         <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2">

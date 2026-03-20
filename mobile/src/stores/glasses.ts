@@ -78,9 +78,10 @@ const initialState: GlassesStore = {
   otaInProgress: false,
   mtkUpdatedThisSession: false,
   // ring:
-  ringConnected: false,
-  ringBatteryLevel: -1,
-  ringSignalStrength: -1,
+  controllerConnected: false,
+  controllerFullyBooted: false,
+  controllerBatteryLevel: -1,
+  controllerSignalStrength: -1,
 }
 
 export const useGlassesStore = create<GlassesState>()(

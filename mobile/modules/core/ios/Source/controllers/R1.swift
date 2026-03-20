@@ -118,7 +118,7 @@ class R1: NSObject, ControllerManager {
     @Published private var _batteryLevel: Int = -1 {
         didSet {
             if _batteryLevel != oldValue && _batteryLevel >= 0 {
-                GlassesStore.shared.apply("glasses", "batteryLevel", _batteryLevel)
+                GlassesStore.shared.apply("glasses", "controllerBatteryLevel", _batteryLevel)
                 Bridge.sendBatteryStatus(level: _batteryLevel, charging: isCharging)
             }
         }
@@ -247,8 +247,8 @@ class R1: NSObject, ControllerManager {
             GlassesStore.shared.apply("core", "device_name", id)
         }
 
-        GlassesStore.shared.apply("glasses", "connected", true)
-        GlassesStore.shared.apply("glasses", "fullyBooted", true)
+        GlassesStore.shared.apply("glasses", "controllerConnected", true)
+        GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
 
         startHeartbeat()
     }
@@ -343,8 +343,8 @@ class R1: NSObject, ControllerManager {
         notifySubscriptionCount = 0
         initSequenceRun = false
         ready = false
-        GlassesStore.shared.apply("glasses", "connected", false)
-        GlassesStore.shared.apply("glasses", "fullyBooted", false)
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
     }
 
     // MARK: - Reconnection

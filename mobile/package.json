@@ -128,6 +128,7 @@
     "react-native-sherpa-onnx": "^0.3.6",
     "react-native-shimmer-placeholder": "^2.0.9",
     "react-native-svg": "15.15.3",
+    "react-native-tcp-socket": "^6.4.1",
     "react-native-toast-message": "^2.3.3",
     "react-native-udp": "^4.1.7",
     "react-native-video": "^6.19.0",

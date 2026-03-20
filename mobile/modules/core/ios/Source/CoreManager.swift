@@ -123,6 +123,21 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "deviceAddress", newValue) }
     }
 
+    private var defaultController: String {
+        get { GlassesStore.shared.get("core", "default_controller") as? String ?? "" }
+        set { GlassesStore.shared.apply("core", "default_controller", newValue) }
+    }
+
+    private var pendingController: String {
+        get { GlassesStore.shared.get("core", "pending_controller") as? String ?? "" }
+        set { GlassesStore.shared.apply("core", "pending_controller", newValue) }
+    }
+
+    private var controllerDeviceName: String {
+        get { GlassesStore.shared.get("core", "controller_device_name") as? String ?? "" }
+        set { GlassesStore.shared.apply("core", "controller_device_name", newValue) }
+    }
+
     private var screenDisabled: Bool {
         get { GlassesStore.shared.get("core", "screen_disabled") as? Bool ?? false }
         set { GlassesStore.shared.apply("core", "screen_disabled", newValue) }
@@ -1172,6 +1187,20 @@ struct ViewState {
         initSGC(defaultWearable)
         searching = true
         sgc?.connectById(deviceName)
+        connectDefaultController()
+    }
+
+    func connectDefaultController() {
+        if defaultController.isEmpty {
+            Bridge.log("MAN: No default controller, returning")
+            return
+        }
+        if controllerDeviceName.isEmpty {
+            Bridge.log("MAN: No controller device name, returning")
+            return
+        }
+        initController(defaultController)
+        controller?.connectById(controllerDeviceName)
     }
 
     func connectByName(_ dName: String) {

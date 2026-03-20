@@ -154,15 +154,16 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: false,
     persist: false,
   },
-  pending_device_name: {
-    key: "pending_device_name",
-    defaultValue: () => "",
-    writable: true,
-    saveOnServer: false,
-    persist: false,
-  },
   default_wearable: {
     key: "default_wearable",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  device_name: {key: "device_name", defaultValue: () => "", writable: true, saveOnServer: true, persist: true},
+  device_address: {
+    key: "device_address",
     defaultValue: () => "",
     writable: true,
     saveOnServer: true,
@@ -175,12 +176,11 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
-  device_name: {key: "device_name", defaultValue: () => "", writable: true, saveOnServer: true, persist: true},
-  device_address: {
-    key: "device_address",
+  pending_controller: {
+    key: "pending_controller",
     defaultValue: () => "",
     writable: true,
-    saveOnServer: true,
+    saveOnServer: false,
     persist: true,
   },
   controller_device_name: {
@@ -553,11 +553,11 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.button_max_recording_time.key,
   // device / pairing:
   SETTINGS.pending_wearable.key,
-  SETTINGS.pending_device_name.key,
   SETTINGS.default_wearable.key,
   SETTINGS.device_name.key,
   SETTINGS.device_address.key,
   SETTINGS.default_controller.key,
+  SETTINGS.pending_controller.key,
   SETTINGS.controller_device_name.key,
   SETTINGS.controller_address.key,
   // offline applets:

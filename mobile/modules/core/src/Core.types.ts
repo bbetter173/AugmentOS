@@ -333,9 +333,10 @@ export interface GlassesStatus {
   otaProgress: OtaProgress | null
   otaInProgress: boolean
   // ring info
-  ringConnected: boolean
-  ringBatteryLevel: number
-  ringSignalStrength: number
+  controllerConnected: boolean
+  controllerFullyBooted: boolean
+  controllerBatteryLevel: number
+  controllerSignalStrength: number
 }
 
 export type MicRanking = "auto" | "phone" | "glasses" | "bluetooth"

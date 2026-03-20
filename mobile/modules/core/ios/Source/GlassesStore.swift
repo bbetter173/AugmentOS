@@ -42,6 +42,7 @@ class GlassesStore {
         store.set("glasses", "hotspotPassword", "")
         store.set("glasses", "hotspotGatewayIp", "")
         store.set("glasses", "bluetoothName", "")
+        store.set("glasses", "controllerConnected", false)
         store.set("glasses", "signalStrength", -1)
         store.set("glasses", "ringSignalStrength", -1)
 
@@ -115,6 +116,14 @@ class GlassesStore {
                     CoreManager.shared.handleDeviceDisconnected()
                 }
                 // we shouldn't call store.set in this function as this is only intended for side-effects, not driving state updates
+            }
+        case ("glasses", "controllerFullyBooted"):
+            if let ready = value as? Bool {
+                if ready {
+                    CoreManager.shared.handleControllerReady()
+                } else {
+                    CoreManager.shared.handleControllerDisconnected()
+                }
             }
 
         case ("glasses", "headUp"):

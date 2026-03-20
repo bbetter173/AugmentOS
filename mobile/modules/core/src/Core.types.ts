@@ -358,6 +358,7 @@ export interface WifiSearchResult {
 export interface CoreStatus {
   // state:
   searching: boolean
+  searchingController: boolean
   systemMicUnavailable: boolean
   micRanking: MicRanking[]
   currentMic: MicRanking | null

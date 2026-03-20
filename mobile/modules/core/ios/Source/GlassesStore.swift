@@ -49,6 +49,7 @@ class GlassesStore {
         // CORE STATE:
         store.set("core", "systemMicUnavailable", false)
         store.set("core", "searching", false)
+        store.set("core", "searchingController", false)
         store.set("core", "micEnabled", false)
         store.set("core", "currentMic", "")
         store.set("core", "searchResults", [])

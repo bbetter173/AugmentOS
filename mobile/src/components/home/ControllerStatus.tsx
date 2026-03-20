@@ -37,7 +37,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
   const controllerFullyBooted = useGlassesStore((state) => state.controllerFullyBooted)
   const features = getModelCapabilities(defaultController)
   const controllerBatteryLevel = useGlassesStore((state) => state.controllerBatteryLevel)
-  const isSearching = useCoreStore((state) => state.searching)
+  const isSearching = useCoreStore((state) => state.searchingController)
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {

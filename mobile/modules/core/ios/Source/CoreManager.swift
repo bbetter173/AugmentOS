@@ -215,6 +215,11 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "searching", newValue) }
     }
 
+    private var searchingController: Bool {
+        get { GlassesStore.shared.get("core", "searchingController") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "searchingController", newValue) }
+    }
+
     private var glassesBtcConnected: Bool {
         get { GlassesStore.shared.get("glasses", "btcConnected") as? Bool ?? false }
         set { GlassesStore.shared.apply("glasses", "btcConnected", newValue) }
@@ -1220,6 +1225,7 @@ struct ViewState {
             return
         }
         initController(defaultController)
+        searchingController = true
         controller?.connectById(controllerDeviceName)
     }
 

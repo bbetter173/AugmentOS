@@ -616,6 +616,7 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             try {
                 DevApi.setCameraFov(fov, roiPosition);
                 SysControl.restartCameraHal(this);
+                CameraRestartCooldown.setCooldown();
                 Log.d(TAG, "Applied saved camera FOV on start: fov=" + fov + ", roi_position=" + roiPosition);
             } catch (UnsatisfiedLinkError e) {
                 Log.d(TAG, "libxydev not available (non-K900?), skipping apply saved FOV");

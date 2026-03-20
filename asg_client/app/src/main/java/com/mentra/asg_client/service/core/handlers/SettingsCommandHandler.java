@@ -214,6 +214,10 @@ public class SettingsCommandHandler implements ICommandHandler {
                 return false;
             }
             asgSettings.setCameraFov(fov, roiPosition);
+
+            // Re-read sanitized values — setCameraFov clamps invalid FOV/ROI before persisting
+            fov = asgSettings.getCameraFov();
+            roiPosition = asgSettings.getCameraRoiPosition();
             Log.d(TAG, "Camera FOV saved: fov=" + fov + ", roi_position=" + roiPosition);
 
             Context context = serviceManager.getContext();

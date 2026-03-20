@@ -1158,6 +1158,14 @@ public class MediaCaptureService {
             return;
         }
         
+
+        // Check if camera HAL is restarting after FOV change
+        if (CameraRestartCooldown.isActive()) {
+            Log.w(TAG, "Cannot take photo - camera HAL restarting after FOV change");
+            sendPhotoErrorResponse("local", "CAMERA_BUSY", "Camera restarting after FOV change");
+            return;
+        }
+
         // Check if video recording is active - photos cannot interrupt video recording
         if (isRecordingVideo) {
             Log.e(TAG, "Cannot take photo - video recording in progress");
@@ -1324,6 +1332,13 @@ public class MediaCaptureService {
         if (RtmpStreamingService.isStreaming()) {
             Log.e(TAG, "Cannot take photo - RTMP streaming active");
             sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Camera busy with RTMP streaming");
+            return;
+        }
+
+        // Check if camera HAL is restarting after FOV change
+        if (CameraRestartCooldown.isActive()) {
+            Log.w(TAG, "Cannot take photo - camera HAL restarting after FOV change");
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Camera restarting after FOV change");
             return;
         }
 
@@ -2248,6 +2263,13 @@ public class MediaCaptureService {
      * @param compress Compression level (none, medium, heavy)
      */
     public void takePhotoAutoTransfer(String photoFilePath, String requestId, String webhookUrl, String authToken, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound, String compress) {
+        // Check if camera HAL is restarting after FOV change
+        if (CameraRestartCooldown.isActive()) {
+            Log.w(TAG, "Cannot take photo - camera HAL restarting after FOV change");
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Camera restarting after FOV change");
+            return;
+        }
+
         // Check battery level before proceeding (defense-in-depth)
         if (mStateManager != null) {
             int batteryLevel = mStateManager.getBatteryLevel();
@@ -2292,11 +2314,18 @@ public class MediaCaptureService {
         if (ENABLE_PHOTO_TIMING_LOGS) {
             Log.i(TAG, "⏱️ [TIMING] BLE Photo request START - ID: " + requestId);
         }
-        
+
         // Check if RTMP streaming is active - photos cannot interrupt streams
         if (RtmpStreamingService.isStreaming()) {
             Log.e(TAG, "Cannot take photo - RTMP streaming active");
             sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Camera busy with RTMP streaming");
+            return;
+        }
+
+        // Check if camera HAL is restarting after FOV change
+        if (CameraRestartCooldown.isActive()) {
+            Log.w(TAG, "Cannot take photo - camera HAL restarting after FOV change");
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Camera restarting after FOV change");
             return;
         }
 

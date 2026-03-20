@@ -325,6 +325,20 @@ async function handleCameraFovSet(
       return;
     }
 
+    // Validate FOV and ROI values before forwarding to glasses
+    const SUPPORTED_FOV = [82, 92, 102, 118];
+    const { fov, roiPosition } = message;
+    if (!SUPPORTED_FOV.includes(fov) || roiPosition < 0 || roiPosition > 2) {
+      logger.warn({ fov, roiPosition, packageName: message.packageName }, "Invalid camera FOV/ROI values");
+      sendError(
+        appWebsocket,
+        AppErrorCode.MALFORMED_MESSAGE,
+        `Invalid FOV/ROI: fov must be one of [${SUPPORTED_FOV.join(", ")}], roiPosition must be 0-2`,
+        logger,
+      );
+      return;
+    }
+
     const glassesFovRequest = {
       type: CloudToGlassesMessageType.CAMERA_FOV_SET,
       sessionId: userSession.sessionId,

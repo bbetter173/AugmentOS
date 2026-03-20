@@ -14,7 +14,7 @@ public class DevApi {
 
     /** ROI position for camera FOV (matches K900Server_mentra naming) */
     public static final int ROI_POSITION_CENTER = 0;
-    public static final int ROI_POSITION_BOTTIM = 1;
+    public static final int ROI_POSITION_BOTTOM = 1;
     public static final int ROI_POSITION_TOP = 2;
 
     /**
@@ -54,7 +54,7 @@ public class DevApi {
     /**
      * Set camera FOV and ROI position (K900 HAL). Caller must call SysControl.restartCameraHal(context) after this.
      * @param fov FOV value (e.g. 82, 92, 102)
-     * @param roiPosition ROI_POSITION_CENTER, ROI_POSITION_BOTTIM, or ROI_POSITION_TOP
+     * @param roiPosition ROI_POSITION_CENTER, ROI_POSITION_BOTTOM, or ROI_POSITION_TOP
      */
     public static void setCameraFov(int fov, int roiPosition) {
         int v = ((roiPosition & 0xFF) << 8) | (fov & 0xFF);

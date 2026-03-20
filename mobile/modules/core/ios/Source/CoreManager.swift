@@ -903,7 +903,7 @@ struct ViewState {
         sgc.setDashboardPosition(h, d)
     }
 
-    private func handleControllerReady() {
+    func handleControllerReady() {
         guard let controller else {
             Bridge.log("MAN: Controller is nil, returning")
             return
@@ -919,7 +919,7 @@ struct ViewState {
         Bridge.saveSetting("controller_device_name", controllerDeviceName)
     }
 
-    private func handleControllerDisconnected() {
+    func handleControllerDisconnected() {
         Bridge.log("MAN: Controller disconnected")
     }
 

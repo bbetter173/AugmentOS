@@ -38,8 +38,8 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {spacing, ThemedStyle} from "@/theme"
 import {PhotoInfo} from "@/types/asg"
+import Share from "react-native-share"
 import showAlert from "@/utils/AlertUtils"
-// import {shareFile} from "@/utils/FileUtils"
 import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissions"
 import {ENABLE_TEST_GALLERY_DATA, TEST_GALLERY_ITEMS} from "@/utils/testGalleryData"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
@@ -419,67 +419,61 @@ export function GalleryScreen() {
     [isSelectionMode, photoSyncStates, togglePhotoSelection],
   )
 
-  // Handle photo sharing
-  // const handleSharePhoto = async (photo: PhotoInfo) => {
-  //   if (!photo) {
-  //     console.error("No photo provided to share")
-  //     return
-  //   }
+  // Handle photo sharing — copies to cache dir for Android FileProvider compatibility
+  const handleSharePhoto = async (photo: PhotoInfo) => {
+    if (!photo) {
+      console.error("No photo provided to share")
+      return
+    }
 
-  //   try {
-  //     const shareUrl = photo.is_video && photo.download ? photo.download : photo.url
-  //     let filePath = ""
+    try {
+      // Resolve the local file path
+      let filePath = ""
+      if (photo.filePath) {
+        filePath = photo.filePath.startsWith("file://") ? photo.filePath.replace("file://", "") : photo.filePath
+      } else if (photo.download?.startsWith("file://")) {
+        filePath = photo.download.replace("file://", "")
+      }
 
-  //     if (shareUrl?.startsWith("file://")) {
-  //       filePath = shareUrl.replace("file://", "")
-  //     } else if (photo.filePath) {
-  //       filePath = photo.filePath.startsWith("file://") ? photo.filePath.replace("file://", "") : photo.filePath
-  //     } else {
-  //       const mediaType = photo.is_video ? "video" : "photo"
-  //       setSelectedPhoto(null)
-  //       setTimeout(() => {
-  //         showAlert("Info", `Please sync this ${mediaType} first to share it`, [{text: translate("common:ok")}])
-  //       }, TIMING.ALERT_DELAY_MS)
-  //       return
-  //     }
+      if (!filePath) {
+        const mediaType = photo.is_video ? "video" : "photo"
+        showAlert("Info", `Please sync this ${mediaType} first to share it`, [{text: translate("common:ok")}])
+        return
+      }
 
-  //     if (!filePath) {
-  //       console.error("No valid file path found")
-  //       setSelectedPhoto(null)
-  //       setTimeout(() => {
-  //         showAlert("Error", "Unable to share this photo", [{text: translate("common:ok")}])
-  //       }, TIMING.ALERT_DELAY_MS)
-  //       return
-  //     }
+      // Verify file exists
+      const exists = await RNFS.exists(filePath)
+      if (!exists) {
+        showAlert("Error", "File not found. It may have been deleted.", [{text: translate("common:ok")}])
+        return
+      }
 
-  //     let shareMessage = photo.is_video ? "Check out this video" : "Check out this photo"
-  //     if (photo.glassesModel) {
-  //       shareMessage += ` taken with ${photo.glassesModel}`
-  //     }
-  //     shareMessage += "!"
+      // Copy to cache dir so react-native-share's FileProvider can access it
+      // (files in DocumentDirectoryPath aren't exposed by RNShareFileProvider)
+      const cacheDir = `${RNFS.CachesDirectoryPath}/share`
+      await RNFS.mkdir(cacheDir)
+      const cachePath = `${cacheDir}/${photo.name}`
+      await RNFS.copyFile(filePath, cachePath)
 
-  //     const mimeType = photo.mime_type || (photo.is_video ? "video/mp4" : "image/jpeg")
-  //     await shareFile(filePath, mimeType, "Share Photo", shareMessage)
-  //     console.log("Share completed successfully")
-  //   } catch (error) {
-  //     if (error instanceof Error && error.message?.includes("FileProvider")) {
-  //       setSelectedPhoto(null)
-  //       setTimeout(() => {
-  //         showAlert(
-  //           "Sharing Not Available",
-  //           "File sharing will work after the next app build. For now, you can find your photos in the AugmentOS folder.",
-  //           [{text: translate("common:ok")}],
-  //         )
-  //       }, TIMING.ALERT_DELAY_MS)
-  //     } else {
-  //       console.error("Error sharing photo:", error)
-  //       setSelectedPhoto(null)
-  //       setTimeout(() => {
-  //         showAlert("Error", "Failed to share photo", [{text: translate("common:ok")}])
-  //       }, TIMING.ALERT_DELAY_MS)
-  //     }
-  //   }
-  // }
+      const mimeType = photo.mime_type || (photo.is_video ? "video/mp4" : "image/jpeg")
+
+      await Share.open({
+        url: `file://${cachePath}`,
+        type: mimeType,
+        filename: photo.name,
+      })
+
+      // Clean up cache copy after share sheet closes
+      RNFS.unlink(cachePath).catch(() => {})
+    } catch (error: any) {
+      // react-native-share throws when user dismisses the share sheet — that's normal
+      if (error?.message?.includes("User did not share")) {
+        return
+      }
+      console.error("Error sharing photo:", error)
+      showAlert("Error", "Failed to share. Please try again.", [{text: translate("common:ok")}])
+    }
+  }
 
   // Handle sync button press - delegate to service
   const handleSyncPress = () => {
@@ -1230,7 +1224,7 @@ export function GalleryScreen() {
                   console.log("[GalleryScreen] 🎬 MediaViewer closed by user")
                   setSelectedPhoto(null)
                 }}
-                // onShare={() => selectedPhoto && handleSharePhoto(selectedPhoto)}
+                onShare={handleSharePhoto}
               />
             )
           })()}

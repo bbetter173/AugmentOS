@@ -24,12 +24,13 @@ interface AwesomeGalleryViewerProps {
   photos: PhotoInfo[]
   initialIndex: number
   onClose: () => void
-  onShare?: () => void
+  onShare?: (photo: PhotoInfo) => void
 }
 
 interface VideoPlayerItemProps {
   photo: PhotoInfo
   isActive: boolean
+  onSeekingChange?: (seeking: boolean) => void
 }
 
 interface ImageItemProps {
@@ -41,7 +42,7 @@ interface ImageItemProps {
 /**
  * Video player component for gallery items
  */
-const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPlayerItemProps) {
+const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekingChange}: VideoPlayerItemProps) {
   const {themed} = useAppTheme()
   const videoRef = useRef<ElementRef<typeof Video>>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -53,6 +54,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
   const [errorMessage, setErrorMessage] = useState("")
   const [isBuffering, setIsBuffering] = useState(true)
   const [showThumbnail, setShowThumbnail] = useState(true)
+  const [videoAspectRatio, setVideoAspectRatio] = useState(4 / 3)
   const wasInactiveRef = useRef(false)
   const userPausedRef = useRef(false) // Track if user manually paused
 
@@ -124,7 +126,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
         source={{uri: videoUrl}}
         poster={posterUrl}
         posterResizeMode="contain"
-        style={themed($video)}
+        style={{width: "100%", aspectRatio: videoAspectRatio}}
         resizeMode="contain"
         paused={!isPlaying}
         controls={false}
@@ -144,10 +146,13 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
             setCurrentTime(time)
           }
         }}
-        onLoad={({duration: dur}) => {
-          console.log("🎥 [VideoPlayerItem] Video loaded, duration:", dur)
+        onLoad={({duration: dur, naturalSize}) => {
+          console.log("🎥 [VideoPlayerItem] Video loaded, duration:", dur, "naturalSize:", naturalSize)
           setDuration(dur)
           setHasError(false)
+          if (naturalSize?.width && naturalSize?.height && naturalSize.height > 0) {
+            setVideoAspectRatio(naturalSize.width / naturalSize.height)
+          }
         }}
         onBuffer={({isBuffering: buffering}) => {
           console.log("🎥 [VideoPlayerItem] Buffering state:", buffering)
@@ -198,7 +203,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
       {/* Thumbnail placeholder while video loads - instant display */}
       {showThumbnail && posterUrl && !hasError && (
         <View style={themed($thumbnailOverlay)} pointerEvents="none">
-          <Image source={{uri: posterUrl}} style={themed($video)} contentFit="contain" />
+          <Image source={{uri: posterUrl}} style={{width: "100%", aspectRatio: videoAspectRatio}} contentFit="contain" />
         </View>
       )}
 
@@ -269,9 +274,13 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
                 minimumTrackTintColor="#FFFFFF"
                 maximumTrackTintColor="rgba(255,255,255,0.3)"
                 thumbTintColor="#FFFFFF"
-                onSlidingStart={() => setIsSeeking(true)}
+                onSlidingStart={() => {
+                  setIsSeeking(true)
+                  onSeekingChange?.(true)
+                }}
                 onSlidingComplete={(value) => {
                   videoRef.current?.seek(value)
+                  onSeekingChange?.(false)
                 }}
               />
 
@@ -364,6 +373,7 @@ function CustomOverlay({onClose, currentIndex, total, onShare}: CustomOverlayPro
  */
 export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, onShare}: AwesomeGalleryViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  const [isVideoSeeking, setIsVideoSeeking] = useState(false)
   const galleryRef = useRef<GalleryRef>(null)
 
   console.log("🎨 [AwesomeGalleryViewer] === RENDER START ===")
@@ -414,12 +424,12 @@ export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, on
       )
 
       if (isVideo) {
-        return <VideoPlayerItem photo={item} isActive={isActiveItem} />
+        return <VideoPlayerItem photo={item} isActive={isActiveItem} onSeekingChange={setIsVideoSeeking} />
       }
 
       return <ImageItem photo={item} setImageDimensions={setImageDimensions} isActive={isActiveItem} />
     },
-    [currentIndex],
+    [currentIndex, setIsVideoSeeking],
   )
 
   // Memoized keyExtractor
@@ -451,7 +461,7 @@ export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, on
         maxScale={3}
         doubleTapScale={2}
         pinchEnabled={true}
-        swipeEnabled={true}
+        swipeEnabled={!isVideoSeeking}
         doubleTapEnabled={true}
         disableVerticalSwipe={true}
         disableTransitionOnScaledImage={true}
@@ -462,7 +472,12 @@ export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, on
       />
 
       {/* Custom overlay */}
-      <CustomOverlay onClose={onClose} currentIndex={currentIndex} total={photos.length} onShare={onShare} />
+      <CustomOverlay
+        onClose={onClose}
+        currentIndex={currentIndex}
+        total={photos.length}
+        onShare={onShare ? () => onShare(photos[currentIndex]) : undefined}
+      />
     </Modal>
   )
 }
@@ -602,7 +617,7 @@ const $playButtonInline: ThemedStyle<any> = () => ({
 
 const $seekBar: ThemedStyle<any> = () => ({
   flex: 1,
-  height: 40,
+  height: 50,
 })
 
 const $timeText: ThemedStyle<any> = () => ({

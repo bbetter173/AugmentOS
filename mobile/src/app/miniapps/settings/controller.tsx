@@ -1,6 +1,6 @@
 import {ScrollView, Image, View} from "react-native"
 
-import {ConnectDeviceButton} from "@/components/glasses/ConnectDeviceButton"
+import {ConnectControllerButton} from "@/components/glasses/ConnectDeviceButton"
 import {NotConnectedInfo} from "@/components/glasses/info/NotConnectedInfo"
 import {Header, Screen, Icon} from "@/components/ignite"
 import {Spacer} from "@/components/ui/Spacer"
@@ -13,16 +13,10 @@ import {getGlassesImage} from "@/utils/getGlassesImage"
 import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
 
-import {Capabilities, DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
+import {DeviceTypes} from "@/../../cloud/packages/types/src"
 import CoreModule from "core"
 
-import OtaProgressSection from "@/components/glasses/OtaProgressSection"
-import {BatteryStatus} from "@/components/glasses/info/BatteryStatus"
 import {EmptyState} from "@/components/glasses/info/EmptyState"
-import {ButtonSettings} from "@/components/glasses/settings/ButtonSettings"
-import BrightnessSetting from "@/components/settings/BrightnessSetting"
-import {useApplets, useAppletStatusStore} from "@/stores/applets"
-// import showAlert from "@/utils/AlertUtils"
 import {showAlert} from "@/contexts/ModalContext"
 
 function DeviceSettings() {
@@ -35,13 +29,17 @@ function DeviceSettings() {
 
   const confirmForgetController = async () => {
     let result = await showAlert({
-      title: translate("settings:forgetGlasses"),
-      message: translate("settings:forgetGlassesConfirm"),
+      title: translate("settings:forgetController"),
+      message: translate("settings:forgetControllerConfirm"),
       buttons: [{text: translate("common:cancel"), style: "cancel"}, {text: translate("connection:unpair")}],
       options: {allowDismiss: false},
     })
     if (result === 1) {
-      CoreModule.forgetController()
+      try {
+        CoreModule.forgetController()
+      } catch (e) {
+        console.log(e)
+      }
       // give us a second to forget the glasses before going back
       setTimeout(() => {
         goBack()
@@ -127,8 +125,7 @@ export default function ControllerSettings() {
       />
       <ScrollView className="pr-4 -mr-4" contentInsetAdjustmentBehavior="automatic">
         {!controllerConnected && <Spacer height={theme.spacing.s6} />}
-        {/* Show helper text if glasses are paired but not connected */}
-        {!controllerConnected && defaultController && <NotConnectedInfo />}
+        {!controllerConnected && <ConnectControllerButton />}
         <Spacer height={theme.spacing.s6} />
         <DeviceSettings />
       </ScrollView>

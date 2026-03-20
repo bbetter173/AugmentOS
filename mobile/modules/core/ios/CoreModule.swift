@@ -145,6 +145,12 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("forgetController") {
+            await MainActor.run {
+                CoreManager.shared.forgetController()
+            }
+        }
+
         AsyncFunction("findCompatibleDevices") { (deviceModel: String) in
             await MainActor.run {
                 CoreManager.shared.findCompatibleDevices(deviceModel)

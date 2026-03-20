@@ -555,7 +555,7 @@ extension R1: CBCentralManagerDelegate {
             if self.isDisconnecting { return }
 
             self.resetConnectionState()
-            self.startReconnectionTimer()
+            // self.startReconnectionTimer()
         }
     }
 }

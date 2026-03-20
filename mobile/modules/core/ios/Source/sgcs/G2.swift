@@ -1079,7 +1079,7 @@ class G2: NSObject, SGCManager {
     // MARK: - SGCManager: Display Control
 
     func sendTextWall(_ text: String) {
-        Bridge.log("G2: sendTextWall(\(text.prefix(50))...)")
+        // Bridge.log("G2: sendTextWall(\(text.prefix(50))...)")
 
         if text.isEmpty {
             clearDisplay()
@@ -2048,7 +2048,7 @@ class G2: NSObject, SGCManager {
                     let resFields = resReader.parseFields()
                     if let errorCode = resFields[1] as? Int32 {
                         // 0=page_success, 4=img_success, 5=img_failed, 6=rebuild_success, 7=rebuild_failed, 8=text_success, 9=text_failed
-                        Bridge.log("G2: EvenHub response field\(resField) errorCode=\(errorCode)")
+                        // Bridge.log("G2: EvenHub response field\(resField) errorCode=\(errorCode)")
                         if errorCode == 9 {
                             Bridge.log(
                                 "G2: Glasses shutdown our EvenHub page — resetting page state")

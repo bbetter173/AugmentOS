@@ -1896,6 +1896,10 @@ class G2: NSObject, SGCManager {
                         let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                         // toggle head up:
                         GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
+                        if (isHeadUp) {
+                            // clear the display:
+                            clearDisplay()
+                        }
                     }
                 }
                 return

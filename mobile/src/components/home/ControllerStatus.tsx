@@ -110,12 +110,14 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
 
   return (
     <TouchableOpacity onPress={() => push("/miniapps/settings/controller")} className="h-28">
-      <GlassView>
-        <Image
-          source={getCurrentGlassesImage()}
-          className="w-full max-w-40 h-28 self-start"
-          style={{resizeMode: "contain"}}
-        />
+      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row gap-2">
+        <View className="flex-1 self-start justify-center h-full">
+          <Image
+            source={getCurrentGlassesImage()}
+            className="w-full max-w-40 h-28 self-start"
+            style={{resizeMode: "contain"}}
+          />
+        </View>
 
         <View className="w-1/2">
           <View className="items-end flex-col gap-3 justify-center flex-1">

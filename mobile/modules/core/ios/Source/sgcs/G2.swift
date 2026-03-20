@@ -1897,8 +1897,10 @@ class G2: NSObject, SGCManager {
                         // toggle head up:
                         GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
                         if (isHeadUp) {
-                            // clear the display:
-                            clearDisplay()
+                            // clear the display after a delay:
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.clearDisplay()
+                            }
                         }
                     }
                 }

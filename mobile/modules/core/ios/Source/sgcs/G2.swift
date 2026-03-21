@@ -1773,10 +1773,8 @@ class G2: NSObject, SGCManager {
         stopHeartbeats()
         Task { await reconnectionManager.stop() }
         disconnect()
-        // Keep UUIDs cached — if the user re-pairs, connectByUUID can reconnect
-        // even if the G2 isn't advertising (iOS auto-reconnected to bonded device).
-        // UUIDs are only used when DEVICE_SEARCH_ID is set (i.e. user explicitly
-        // selects a device), so this won't cause unwanted auto-connections.
+        leftGlassUUID = nil
+        rightGlassUUID = nil
         leftPeripheral = nil
         rightPeripheral = nil
         leftWriteChar = nil

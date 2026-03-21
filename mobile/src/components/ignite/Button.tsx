@@ -211,6 +211,8 @@ function OriginalButton(props: ButtonProps) {
               style={[
                 $textStyle(state),
                 {textAlign: props.textAlignment === "left" ? "left" : "center"},
+                !!LeftAccessory && {paddingLeft: 28},
+                !!RightAccessory && {paddingRight: 28},
               ]}>
               {children}
             </Text>

@@ -8,6 +8,10 @@ import {FirebaseAnalyticsSetup} from "@/effects/FirebaseAnalyticsSetup"
 import {OtaUpdateChecker} from "@/effects/OtaUpdateChecker"
 import {BtClassicPairing} from "@/effects/BtClassicPairing"
 import Compositor from "@/effects/Compositor"
+// import TranscriptionsListener from "@/effects/TranscriptionsListener"
+// import SherpaTest from "@/effects/SherpaTest"
+// import WhisperTest from "@/effects/WhisperTest"
+// import SherpaTest from "@/effects/SherpaTest"
 
 export const AllEffects = () => {
   return (
@@ -15,6 +19,9 @@ export const AllEffects = () => {
       <Reconnect />
       <BtClassicPairing />
       <Compositor />
+      {/* <WhisperTest /> */}
+      {/* <SherpaTest /> */}
+      {/* <TranscriptionsListener /> */}
       <MtkUpdateAlert />
       <OtaUpdateChecker />
       <NetworkMonitoring />

@@ -10,7 +10,4 @@
 // onnx runtime:
 #import <onnxruntime.h>
 
-// sherpa-onnx C API - direct file path
-#import "sherpa-onnx/c-api/c-api.h"
-
 #import <bzlib.h>

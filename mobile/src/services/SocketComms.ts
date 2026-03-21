@@ -451,7 +451,11 @@ class SocketComms {
       }
     }
 
-    CoreModule.setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+    CoreModule.update("core", {
+      // should_send_pcm: shouldSendPcmData,
+      should_send_lc3: shouldSendPcmData,// online apps always want lc3
+      bypass_vad: bypassVad,
+    })
   }
 
   public handle_display_event(msg: any) {

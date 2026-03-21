@@ -137,21 +137,28 @@ export default function SelectGlassesBluetoothScreen() {
           ) : (
             <ScrollView className="max-h-[300px] -mr-4 pr-4">
               <Group>
-                {rememberedSearchResults.map((res: DeviceSearchResult, index: number) => (
-                  <TouchableOpacity
-                    key={index}
-                    className="h-[50px] flex-row items-center justify-between bg-background px-4 py-3"
-                    onPress={() => triggerGlassesPairingGuide(res.deviceModel, res.deviceName)}>
-                    <View className="flex-1 px-2.5">
-                      <Text
-                        text={`${deviceModel} - ${filterDeviceName(res.deviceName)}`}
-                        className="flex-wrap text-sm font-semibold"
-                        numberOfLines={2}
-                      />
-                    </View>
-                    <Icon name="chevron-right" size={24} color={theme.colors.text} />
-                  </TouchableOpacity>
-                ))}
+                {rememberedSearchResults.map((res: DeviceSearchResult, index: number) => {
+                  let text = `${deviceModel} - ${filterDeviceName(res.deviceName)}`
+                  if (res.signalStrength) {
+                    text += ` - ${res.signalStrength}`
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      className="h-[50px] flex-row items-center justify-between bg-background px-4 py-3"
+                      onPress={() => triggerGlassesPairingGuide(res.deviceModel, res.deviceName)}>
+                      <View className="flex-1 px-2.5">
+                        <Text
+                          text={text}
+                          className="flex-wrap text-sm font-semibold"
+                          numberOfLines={2}
+                        />
+                      </View>
+                      <Icon name="chevron-right" size={24} color={theme.colors.text} />
+                    </TouchableOpacity>
+                  )
+                })}
               </Group>
             </ScrollView>
           )}

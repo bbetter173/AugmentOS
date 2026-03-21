@@ -84,11 +84,11 @@ export default function ChangeEmailScreen() {
               textStyle={themed($buttonText)}
               onPress={handleChangeEmail}
               disabled={!newEmail.trim() || isLoading}
-              {...(isLoading && {
+              {...(isLoading ? {
                 LeftAccessory: () => (
                   <ActivityIndicator size="small" color={theme.colors.foreground} style={{marginRight: 8}} />
                 ),
-              })}
+              } : {})}
             />
           </View>
         </View>

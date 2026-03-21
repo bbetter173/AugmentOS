@@ -29,6 +29,8 @@ export default function AppWebView() {
   const {goBack, push} = useNavigationHistory()
   const viewShotRef = useRef(null)
   const [appSwitcherUi] = useSetting(SETTINGS.app_switcher_ui.key)
+  const insets = useSaferAreaInsets()
+  const {theme} = useAppTheme()
 
   // Track if the server-side app start failed
   const [appStartFailed, setAppStartFailed] = useState(false)
@@ -306,9 +308,6 @@ export default function AppWebView() {
       </>
     )
   }
-
-  const insets = useSaferAreaInsets()
-  const {theme} = useAppTheme()
 
   // Capsule menu bounding rect relative to the webview content area.
   // CapsuleButton: h-7.5 (30px), width ~73px (px-2 + two 24px buttons + gap + divider)

@@ -1,6 +1,6 @@
 import {useLocalSearchParams} from "expo-router"
 import {useRef, useState, useEffect} from "react"
-import {Platform, View} from "react-native"
+import {Dimensions, Platform, View} from "react-native"
 import {WebView} from "react-native-webview"
 import Animated, {useSharedValue, useAnimatedStyle, withTiming} from "react-native-reanimated"
 
@@ -12,9 +12,10 @@ import restComms from "@/services/RestComms"
 import miniComms from "@/services/MiniComms"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {useAppletStatusStore} from "@/stores/applets"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
+import {useAppTheme} from "@/contexts/ThemeContext"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName} = useLocalSearchParams()
@@ -278,7 +279,7 @@ export default function AppWebView() {
   if (showError) {
     return (
       <>
-        {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
+        {appSwitcherUi && <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} />}
         <Screen preset="fixed" safeAreaEdges={[appSwitcherUi && "top"]} className="px-0">
           {!appSwitcherUi && (
             <View className="px-6">
@@ -307,10 +308,28 @@ export default function AppWebView() {
   }
 
   const insets = useSaferAreaInsets()
+  const {theme} = useAppTheme()
+
+  // Capsule menu bounding rect relative to the webview content area.
+  // CapsuleButton: h-7.5 (30px), width ~73px (px-2 + two 24px buttons + gap + divider)
+  // Positioned at right-2 (8px) with top = theme.spacing.s2 (8px) relative to webview.
+  const capsuleMenuHeight = 30
+  const capsuleMenuWidth = 73
+  const capsuleMenuRight = theme.spacing.s2
+  const capsuleMenuTop = theme.spacing.s2
+  const screenWidth = Dimensions.get("window").width
+  const capsuleMenuRect = appSwitcherUi ? {
+    top: capsuleMenuTop,
+    right: capsuleMenuRight,
+    bottom: capsuleMenuTop + capsuleMenuHeight,
+    left: screenWidth - capsuleMenuRight - capsuleMenuWidth,
+    width: capsuleMenuWidth,
+    height: capsuleMenuHeight,
+  } : null
 
   return (
     <>
-      {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
+      {appSwitcherUi && <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} />}
       <Screen
         preset="fixed"
         // safeAreaEdges={[appSwitcherUi && "top"]}
@@ -362,6 +381,7 @@ export default function AppWebView() {
                   window.MentraOS = {
                     platform: '${Platform.OS}',
                     capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
+                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : 'null'},
                   };
                   window.receiveNativeMessage = window.receiveNativeMessage || function() {};
                   true;

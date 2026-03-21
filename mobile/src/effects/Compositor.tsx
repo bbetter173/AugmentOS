@@ -6,7 +6,7 @@ import composer from "@/services/Composer"
 import {usePathname} from "expo-router"
 import {Screen} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import CoreModule, {MicPcmEvent} from "core"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {Text} from "@/components/ignite"
@@ -226,7 +226,7 @@ function Compositor() {
   return (
     <View className={`absolute inset-0 ${isActive ? "z-11" : "z-0"}`} pointerEvents="box-none">
       <View className="z-12">
-        <MiniAppDualButtonHeader
+        <MiniAppCapsuleMenu
           viewShotRef={viewShotRef}
           onEllipsisPress={() => {
             // push("/applet/settings", {

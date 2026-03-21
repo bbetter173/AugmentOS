@@ -11,7 +11,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useRef} from "react"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 
 export default function AccountPage() {
   const {theme, themed} = useAppTheme()
@@ -23,7 +23,7 @@ export default function AccountPage() {
 
   return (
     <>
-      <MiniAppDualButtonHeader packageName="com.mentra.settings" viewShotRef={viewShotRef} />
+      <MiniAppCapsuleMenu packageName="com.mentra.settings" viewShotRef={viewShotRef} />
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         <ScrollView className="pt-8 px-6" contentInsetAdjustmentBehavior="automatic">
           <View style={{flex: 1, gap: theme.spacing.s6}}>

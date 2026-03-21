@@ -12,7 +12,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useRefreshApplets} from "@/stores/applets"
 import {ThemedStyle} from "@/theme"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 
 export default function AppStoreWeb() {
   const [_webviewLoading, setWebviewLoading] = useState(true)
@@ -172,7 +172,7 @@ export default function AppStoreWeb() {
   // If the prefetched WebView is ready, show it in the correct style
   return (
     <>
-      <MiniAppDualButtonHeader packageName="com.mentra.store" viewShotRef={viewShotRef} />
+      <MiniAppCapsuleMenu packageName="com.mentra.store" viewShotRef={viewShotRef} />
       <Screen
         preset="fixed"
         safeAreaEdges={["top"]}

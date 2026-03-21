@@ -14,12 +14,12 @@ import GlassView from "@/components/ui/GlassView"
 import {translate} from "@/i18n"
 import * as ImageManipulator from "expo-image-manipulator"
 
-interface DualButtonProps {
+interface CapsuleButtonProps {
   onMinusPress?: () => void
   onEllipsisPress?: () => void
 }
 
-export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
+export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProps) {
   // const [isChina] = useSetting(SETTINGS.china_deployment.key)
   const {theme} = useAppTheme()
 
@@ -36,7 +36,7 @@ export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
   )
 }
 
-export function MiniAppDualButtonHeader({
+export function MiniAppCapsuleMenu({
   packageName,
   viewShotRef,
   onEllipsisPress,
@@ -107,7 +107,7 @@ export function MiniAppDualButtonHeader({
 
   return (
     <View className="z-2 absolute right-2 items-center justify-end flex-row" style={{top: top}}>
-      <DualButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
+      <CapsuleButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
       <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
     </View>
   )

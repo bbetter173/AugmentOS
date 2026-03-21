@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 import {Pressable, ScrollView, TextInput, TouchableOpacity, View} from "react-native"
 
 import {Button, Icon, Screen, Text} from "@/components/ignite"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import composer from "@/services/Composer"
 import Toast from "react-native-toast-message"
@@ -189,7 +189,7 @@ export default function MiniAppInstaller() {
   if (finalUrl) {
     return (
       <>
-        <MiniAppDualButtonHeader
+        <MiniAppCapsuleMenu
           packageName="com.mentra.lma_installer"
           viewShotRef={viewShotRef}
           onMinusPress={() => setFinalUrl("")}
@@ -204,7 +204,7 @@ export default function MiniAppInstaller() {
 
   return (
     <>
-      <MiniAppDualButtonHeader packageName="com.mentra.lma_installer" viewShotRef={viewShotRef} />
+      <MiniAppCapsuleMenu packageName="com.mentra.lma_installer" viewShotRef={viewShotRef} />
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         {/* <View className="h-24" /> */}
 

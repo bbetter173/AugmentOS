@@ -2,7 +2,7 @@ import {useRef} from "react"
 import {View} from "react-native"
 
 import {Screen} from "@/components/ignite"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
 import {Group} from "@/components/ui"
 
@@ -10,7 +10,7 @@ export default function GallerySettingsScreen() {
   const viewShotRef = useRef<View>(null)
   return (
     <>
-      <MiniAppDualButtonHeader packageName="com.mentra.mirror" viewShotRef={viewShotRef} />
+      <MiniAppCapsuleMenu packageName="com.mentra.mirror" viewShotRef={viewShotRef} />
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}>
         <View className="h-24" />
 

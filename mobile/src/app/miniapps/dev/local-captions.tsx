@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 import {View} from "react-native"
 
 import {Screen} from "@/components/ignite"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import LocalMiniApp from "@/components/home/LocalMiniApp"
 // import {Asset} from "expo-asset"
 // import * as FileSystem from "expo-file-system"
@@ -30,7 +30,7 @@ export default function LocalCaptionsExampleDev() {
   }, [])
   return (
     <>
-      <MiniAppDualButtonHeader packageName="com.mentra.local_captions" viewShotRef={viewShotRef} />
+      <MiniAppCapsuleMenu packageName="com.mentra.local_captions" viewShotRef={viewShotRef} />
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         <View className="flex-1">
           <LocalMiniApp html={html} packageName="com.mentra.local_captions" />

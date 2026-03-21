@@ -217,6 +217,7 @@ class CoreManager {
     // Frame size is configurable: 20 bytes (16kbps), 40 bytes (32kbps), 60 bytes (48kbps)
     private var lc3EncoderPtr: Long = 0
     private var lc3DecoderPtr: Long = 0
+    private val lc3Lock = Any()
     // Audio output format - defaults to LC3 for bandwidth savings
     private var audioOutputFormat: AudioOutputFormat = AudioOutputFormat.LC3
 
@@ -554,18 +555,20 @@ class CoreManager {
     }
 
     private fun convertAndSendMicLc3(pcmData: ByteArray) {
-        if (lc3EncoderPtr == 0L) {
-            Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
-            return
+        synchronized(lc3Lock) {
+            if (lc3EncoderPtr == 0L) {
+                Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
+                return
+            }
+            val lc3FrameSize =
+                    (GlassesStore.store.get("core", "lc3_frame_size") as Number).toInt()
+            val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
+            if (lc3Data == null || lc3Data.isEmpty()) {
+                Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
+                return
+            }
+            Bridge.sendMicLc3(lc3Data)
         }
-        val lc3FrameSize =
-                (GlassesStore.store.get("core", "lc3_frame_size") as Number).toInt()
-        val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
-        if (lc3Data == null || lc3Data.isEmpty()) {
-            Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
-            return
-        }
-        Bridge.sendMicLc3(lc3Data)
     } 
 
     private fun handleSendingPcm(pcmData: ByteArray) {
@@ -598,22 +601,26 @@ class CoreManager {
      * phone→cloud encoding.
      */
     fun handleGlassesMicData(rawLC3Data: ByteArray, frameSize: Int = 40) {
-        if (lc3DecoderPtr == 0L) {
-            Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
-            return
-        }
-
-        try {
-            // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
-            val pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)
-            if (pcmData != null && pcmData.isNotEmpty()) {
-                // Re-encode to canonical LC3 via handlePcm
-                handlePcm(pcmData)
-            } else {
-                Bridge.log("MAN: LC3 decode returned empty data")
+        val pcmData: ByteArray?
+        synchronized(lc3Lock) {
+            if (lc3DecoderPtr == 0L) {
+                Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
+                return
             }
-        } catch (e: Exception) {
-            Bridge.log("MAN: Failed to decode glasses LC3: ${e.message}")
+
+            try {
+                // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
+                pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)
+            } catch (e: Exception) {
+                Bridge.log("MAN: Failed to decode glasses LC3: ${e.message}")
+                return
+            }
+        }
+        if (pcmData != null && pcmData.isNotEmpty()) {
+            // Re-encode to canonical LC3 via handlePcm (outside lock to avoid deadlock)
+            handlePcm(pcmData)
+        } else {
+            Bridge.log("MAN: LC3 decode returned empty data")
         }
     }
 
@@ -627,7 +634,31 @@ class CoreManager {
     }
 
     // turns a single mic on and turns off all other mics:
+    private var isUpdatingMicState = false
+    private var pendingMicStateUpdate = false
+
     private fun updateMicState() {
+        // Guard against re-entrant calls from onRouteChange callbacks
+        if (isUpdatingMicState) {
+            pendingMicStateUpdate = true
+            return
+        }
+        isUpdatingMicState = true
+        pendingMicStateUpdate = false
+
+        try {
+            updateMicStateInternal()
+        } finally {
+            isUpdatingMicState = false
+            // If a re-entrant call was requested, run it now
+            if (pendingMicStateUpdate) {
+                pendingMicStateUpdate = false
+                updateMicState()
+            }
+        }
+    }
+
+    private fun updateMicStateInternal() {
         // go through the micRanking and find the first mic that is available:
         var micUsed: String = ""
 
@@ -1320,14 +1351,17 @@ class CoreManager {
         transcriber?.shutdown()
         transcriber = null
 
-        // Clean up LC3 encoder/decoder
-        if (lc3EncoderPtr != 0L) {
-            Lc3Cpp.freeEncoder(lc3EncoderPtr)
-            lc3EncoderPtr = 0
-        }
-        if (lc3DecoderPtr != 0L) {
-            Lc3Cpp.freeDecoder(lc3DecoderPtr)
-            lc3DecoderPtr = 0
+        // Clean up LC3 encoder/decoder (synchronized to prevent use-after-free
+        // if the recording thread is mid-encode/decode)
+        synchronized(lc3Lock) {
+            if (lc3EncoderPtr != 0L) {
+                Lc3Cpp.freeEncoder(lc3EncoderPtr)
+                lc3EncoderPtr = 0
+            }
+            if (lc3DecoderPtr != 0L) {
+                Lc3Cpp.freeDecoder(lc3DecoderPtr)
+                lc3DecoderPtr = 0
+            }
         }
     }
 }

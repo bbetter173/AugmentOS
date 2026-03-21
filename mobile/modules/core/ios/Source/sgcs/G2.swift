@@ -870,6 +870,7 @@ class G2: NSObject, SGCManager {
     private var pageCreated: Bool = false
     private var pageHasTextContainer: Bool = false // tracks if current page has a text container
     private var currentTextContent: String = ""
+    private var currentBitmapBase64: String = ""
     private var textContainerID: Int32 = 1
     private var imageSessionCounter: Int = 0
     private var heartbeatCounter: Int = 0
@@ -1277,6 +1278,8 @@ class G2: NSObject, SGCManager {
     }
 
     func displayBitmap(base64ImageData: String) async -> Bool {
+        currentBitmapBase64 = base64ImageData
+        currentTextContent = ""
         return await displayBitmapQuad(base64ImageData: base64ImageData)
     }
 
@@ -1693,6 +1696,7 @@ class G2: NSObject, SGCManager {
         pageCreated = true
         pageHasTextContainer = true
         currentTextContent = text
+        currentBitmapBase64 = ""
     }
 
     private func updateText(_ text: String) {
@@ -1704,6 +1708,7 @@ class G2: NSObject, SGCManager {
         )
         sendEvenHubCommand(msg)
         currentTextContent = text
+        currentBitmapBase64 = ""
     }
 
     // MARK: - SGCManager: Audio Control
@@ -2142,6 +2147,28 @@ class G2: NSObject, SGCManager {
                             // clear the display after a delay:
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                                 self.clearDisplay()
+                            }
+                        }
+                    }
+
+                    // System exit: glasses killed our EvenHub page (user selected another app from long-press menu)
+                    // Reset page state so next display call re-creates the page, then force re-create immediately
+                    if eventType == .systemExit || eventType == .abnormalExit {
+                        let savedText = currentTextContent
+                        let savedBitmap = currentBitmapBase64
+                        Bridge.log("G2: System exit — resetting page state and re-creating EvenHub page")
+                        startupPageCreated = false
+                        pageCreated = false
+                        pageHasTextContainer = false
+                        currentTextContent = ""
+                        currentBitmapBase64 = ""
+                        // Force re-create the page to reclaim EvenHub focus
+                        Task {
+                            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms for glasses to finish transition
+                            if !savedBitmap.isEmpty {
+                                await self.displayBitmap(base64ImageData: savedBitmap)
+                            } else {
+                                self.sendTextWall(savedText.isEmpty ? " " : savedText)
                             }
                         }
                     }

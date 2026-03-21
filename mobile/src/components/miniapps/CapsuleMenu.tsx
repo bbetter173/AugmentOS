@@ -222,8 +222,8 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" text="[settings]" />
             </View> */}
-            <View className="flex-col gap-2 items-center w-1/4">
-              <Button compactIcon onPress={handleShare} preset="alternate" className="rounded-2xl w-16 h-16">
+            <View className="flex-col gap-2 items-center w-1/4" style={isSystemApp ? {opacity: 0.8} : undefined}>
+              <Button compactIcon onPress={isSystemApp ? undefined : handleShare} preset="alternate" className="rounded-2xl w-16 h-16" disabled={isSystemApp}>
                 <Icon name="share" color={theme.colors.foreground} size={size} />
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:share" />

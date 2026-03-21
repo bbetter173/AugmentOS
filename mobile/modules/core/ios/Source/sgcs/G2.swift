@@ -1212,19 +1212,18 @@ class G2: NSObject, SGCManager {
         return success
     }
 
-    func displayBitmapDouble(base64ImageData: String) async -> Bool {
+    func displayBitmapQuad(base64ImageData: String) async -> Bool {
         guard let rawData = Data(base64Encoded: base64ImageData) else {
-            Bridge.log("G2: displayBitmap() - failed to decode base64")
+            Bridge.log("G2: displayBitmapQuad() - failed to decode base64")
             return false
         }
 
-        guard let bmpData = convertToG2Bmp(rawData, containerWidth: 200, containerHeight: 100)
-        else {
-            Bridge.log("G2: displayBitmap() - failed to convert image to BMP")
+        guard let tiles = renderAndSliceTo4Tiles(rawData) else {
+            Bridge.log("G2: displayBitmapQuad() - failed to slice image into tiles")
             return false
         }
 
-        // Define both containers
+        // 2x2 grid of 200x100 tiles covering 400x200
         let container1 = EvenHubProto.imageContainerProperty(
             x: 0, y: 0, width: 200, height: 100,
             containerID: 10, containerName: "img-10"
@@ -1242,7 +1241,6 @@ class G2: NSObject, SGCManager {
             containerID: 13, containerName: "img-13"
         )
 
-        // Create/rebuild page with BOTH containers at once
         let msg: Data
         if !startupPageCreated {
             msg = EvenHubProto.createPageMessage(imageContainers: [
@@ -1261,25 +1259,25 @@ class G2: NSObject, SGCManager {
 
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
-        // Now send image data to each container
+        // Send each tile's unique BMP data to its container
         let success1 = await sendImageData(
-            containerID: 10, containerName: "img-10", bmpData: bmpData
+            containerID: 10, containerName: "img-10", bmpData: tiles[0]
         )
         let success2 = await sendImageData(
-            containerID: 11, containerName: "img-11", bmpData: bmpData
+            containerID: 11, containerName: "img-11", bmpData: tiles[1]
         )
         let success3 = await sendImageData(
-            containerID: 12, containerName: "img-12", bmpData: bmpData
+            containerID: 12, containerName: "img-12", bmpData: tiles[2]
         )
         let success4 = await sendImageData(
-            containerID: 13, containerName: "img-13", bmpData: bmpData
+            containerID: 13, containerName: "img-13", bmpData: tiles[3]
         )
 
         return success1 && success2 && success3 && success4
     }
 
     func displayBitmap(base64ImageData: String) async -> Bool {
-        return await displayBitmapOriginal(base64ImageData: base64ImageData)
+        return await displayBitmapQuad(base64ImageData: base64ImageData)
     }
 
     /// Upscale BMP pixel data by 2x (200x100 → 400x200) using nearest-neighbor

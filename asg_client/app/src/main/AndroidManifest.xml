@@ -160,6 +160,12 @@
             android:foregroundServiceType="camera|microphone" />
 
         <service
+            android:name="com.mentra.asg_client.io.streaming.services.WebRtcStreamingService"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="camera|microphone" />
+
+        <service
             android:name="com.mentra.asg_client.io.ota.services.OtaService"
             android:enabled="true"
             android:exported="false"

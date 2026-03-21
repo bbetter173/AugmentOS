@@ -903,6 +903,11 @@ struct ViewState {
         Bridge.saveSetting("default_wearable", defaultWearable)
         Bridge.saveSetting("device_name", deviceName)
         //        Bridge.saveSetting("device_address", deviceAddress)
+
+        // Re-apply display height after reconnection
+        let h = GlassesStore.shared.get("core", "dashboard_height") as? Int ?? 4
+        let d = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 5
+        sgc?.setDashboardPosition(h, d)
     }
 
     private func handleG1Ready() {

@@ -28,6 +28,7 @@ import {MediaViewer} from "@/components/glasses/Gallery/MediaViewer"
 import {PhotoImage} from "@/components/glasses/Gallery/PhotoImage"
 import {ProgressRing} from "@/components/glasses/Gallery/ProgressRing"
 import {Header, Icon, Text} from "@/components/ignite"
+import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
@@ -452,7 +453,10 @@ export function GalleryScreen() {
       // (files in DocumentDirectoryPath aren't exposed by RNShareFileProvider)
       const cacheDir = `${RNFS.CachesDirectoryPath}/share`
       await RNFS.mkdir(cacheDir)
-      const cachePath = `${cacheDir}/${photo.name}`
+      const basename = filePath.split("/").pop() || photo.name
+      const cachePath = `${cacheDir}/${basename}`
+      // Remove stale cache copy if it exists from a previous share
+      await RNFS.unlink(cachePath).catch(() => {})
       await RNFS.copyFile(filePath, cachePath)
 
       const mimeType = photo.mime_type || (photo.is_video ? "video/mp4" : "image/jpeg")
@@ -546,6 +550,55 @@ export function GalleryScreen() {
         },
       },
     ])
+  }
+
+  // Handle sharing multiple selected photos/videos
+  const handleShareSelectedPhotos = async () => {
+    if (selectedPhotos.size === 0) return
+
+    try {
+      const photosToShare = allPhotos
+        .filter((p) => p.photo && selectedPhotos.has(p.photo.name))
+        .map((p) => p.photo!)
+      const shareUrls: string[] = []
+      const cacheDir = `${RNFS.CachesDirectoryPath}/share`
+      await RNFS.mkdir(cacheDir)
+
+      for (const photo of photosToShare) {
+        let filePath = ""
+        if (photo.filePath) {
+          filePath = photo.filePath.startsWith("file://") ? photo.filePath.replace("file://", "") : photo.filePath
+        } else if (photo.download?.startsWith("file://")) {
+          filePath = photo.download.replace("file://", "")
+        }
+        if (!filePath) continue
+
+        const exists = await RNFS.exists(filePath)
+        if (!exists) continue
+
+        const basename = filePath.split("/").pop() || photo.name
+        const cachePath = `${cacheDir}/${basename}`
+        await RNFS.unlink(cachePath).catch(() => {})
+        await RNFS.copyFile(filePath, cachePath)
+        shareUrls.push(`file://${cachePath}`)
+      }
+
+      if (shareUrls.length === 0) {
+        showAlert("Info", "No files available to share. Please sync first.", [{text: translate("common:ok")}])
+        return
+      }
+
+      await Share.open({urls: shareUrls})
+
+      // Clean up cache copies
+      for (const url of shareUrls) {
+        RNFS.unlink(url.replace("file://", "")).catch(() => {})
+      }
+    } catch (error: any) {
+      if (error?.message?.includes("User did not share")) return
+      console.error("Error sharing selected photos:", error)
+      showAlert("Error", "Failed to share. Please try again.", [{text: translate("common:ok")}])
+    }
   }
 
   // Initial mount - load gallery data
@@ -1113,18 +1166,28 @@ export function GalleryScreen() {
         }
         RightActionComponent={
           isSelectionMode ? (
-            <TouchableOpacity
-              onPress={() => {
-                if (selectedPhotos.size > 0) {
-                  handleDeleteSelectedPhotos()
-                }
-              }}
-              disabled={selectedPhotos.size === 0}>
-              <View style={themed($deleteButton)}>
-                <Icon name="trash" size={20} color={theme.colors.text} />
-                <Text style={themed($deleteButtonText)}>Delete</Text>
-              </View>
-            </TouchableOpacity>
+            <View style={{flexDirection: "row", alignItems: "center", gap: 16}}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedPhotos.size > 0) {
+                    handleDeleteSelectedPhotos()
+                  }
+                }}
+                disabled={selectedPhotos.size === 0}
+                hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                <Icon name="trash" size={22} color={theme.colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedPhotos.size > 0) {
+                    handleShareSelectedPhotos()
+                  }
+                }}
+                disabled={selectedPhotos.size === 0}
+                hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                <MaterialCommunityIcons name="share-variant" size={22} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
           ) : (
             <TouchableOpacity onPress={() => push("/asg/gallery-settings")} style={themed($settingsButton)}>
               <Icon name="settings" size={24} color={theme.colors.text} />

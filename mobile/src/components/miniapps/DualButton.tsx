@@ -4,7 +4,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
-import {Dimensions, Image as RNImage, Platform, Share, View, PixelRatio} from "react-native"
+import {Dimensions, Image as RNImage, InteractionManager, Platform, Share, View, PixelRatio} from "react-native"
 import {Pressable} from "react-native-gesture-handler"
 import {captureRef} from "react-native-view-shot"
 import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo} from "react"
@@ -99,7 +99,10 @@ export function MiniAppDualButtonHeader({
   }
 
   focusEffectPreventBack(() => {
-    handleExit()
+    // Defer screenshot capture so it doesn't block the navigation animation
+    InteractionManager.runAfterInteractions(() => {
+      handleExit()
+    })
   }, true)
 
   return (
@@ -257,8 +260,8 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:feedback" />
             </View>
 
-            <View className="flex-col gap-2 items-center w-1/4">
-              <Button compactIcon onPress={handleSettings} preset="alternate" className="rounded-2xl w-16 h-16">
+            <View className="flex-col gap-2 items-center w-1/4" style={isSystemApp ? {opacity: 0.8} : undefined}>
+              <Button compactIcon onPress={isSystemApp ? undefined : handleSettings} preset="alternate" className="rounded-2xl w-16 h-16" disabled={isSystemApp}>
                 <Icon name="cog" color={theme.colors.foreground} size={size} />
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:settings" />

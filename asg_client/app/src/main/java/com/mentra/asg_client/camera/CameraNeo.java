@@ -2245,8 +2245,10 @@ public class CameraNeo extends LifecycleService {
      * Close camera resources
      */
     private void closeCamera() {
+        boolean lockAcquired = false;
         try {
-            if (!cameraOpenCloseLock.tryAcquire(5000, TimeUnit.MILLISECONDS)) {
+            lockAcquired = cameraOpenCloseLock.tryAcquire(5000, TimeUnit.MILLISECONDS);
+            if (!lockAcquired) {
                 Log.e(TAG, "closeCamera: Failed to acquire lock within 5 seconds, proceeding with cleanup anyway");
             }
             if (cameraCaptureSession != null) {
@@ -2281,7 +2283,9 @@ public class CameraNeo extends LifecycleService {
         } catch (InterruptedException e) {
             Log.e(TAG, "Interrupted while closing camera", e);
         } finally {
-            cameraOpenCloseLock.release();
+            if (lockAcquired) {
+                cameraOpenCloseLock.release();
+            }
         }
     }
 

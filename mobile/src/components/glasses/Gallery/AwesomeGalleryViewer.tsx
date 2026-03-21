@@ -7,7 +7,7 @@ import Slider from "@react-native-community/slider"
 import {Image} from "expo-image"
 import {useState, useRef, useEffect, useCallback, useMemo, memo, type ElementRef} from "react"
 // eslint-disable-next-line no-restricted-imports
-import {View, TouchableOpacity, Modal, StatusBar, Text, Dimensions} from "react-native"
+import {View, TouchableOpacity, Modal, StatusBar, Text, useWindowDimensions} from "react-native"
 import Gallery, {GalleryRef} from "react-native-awesome-gallery"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
@@ -17,7 +17,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {ThemedStyle} from "@/theme"
 import {PhotoInfo} from "@/types/asg"
 
-const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get("window")
+// Screen dimensions are now obtained via useWindowDimensions() hook for rotation support
 
 interface AwesomeGalleryViewerProps {
   visible: boolean
@@ -44,6 +44,7 @@ interface ImageItemProps {
  */
 const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekingChange}: VideoPlayerItemProps) {
   const {themed} = useAppTheme()
+  const {width: screenWidth, height: screenHeight} = useWindowDimensions()
   const videoRef = useRef<ElementRef<typeof Video>>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showControls, setShowControls] = useState(true)
@@ -120,7 +121,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
   }
 
   return (
-    <View style={themed($videoPlayerContainer)}>
+    <View style={{flex: 1, width: screenWidth, height: screenHeight, backgroundColor: "black", justifyContent: "center", alignItems: "center", paddingTop: screenHeight * 0.05}}>
       <Video
         ref={videoRef}
         source={{uri: videoUrl}}
@@ -193,7 +194,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
       {/* Tap area to toggle controls */}
       <TouchableOpacity
         activeOpacity={1}
-        style={themed($tapArea)}
+        style={{position: "absolute", top: 0, left: 0, bottom: screenHeight * 0.15, right: 0, zIndex: 1}}
         onPress={() => {
           console.log("🎮 [TapArea] Toggling controls, current state:", showControls)
           setShowControls(!showControls)
@@ -221,7 +222,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
 
       {/* Unified video controls - elegant bottom bar */}
       {showControls && !hasError && (
-        <View style={themed($videoControlsContainer)} pointerEvents="auto">
+        <View style={{position: "absolute", bottom: screenHeight * 0.1, left: 0, right: 0, paddingHorizontal: 24, zIndex: 100}} pointerEvents="auto">
           <TouchableOpacity
             style={themed($controlBarWrapper)}
             activeOpacity={1}
@@ -299,6 +300,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
  */
 const ImageItem = memo(function ImageItem({photo, setImageDimensions, isActive: _isActive}: ImageItemProps) {
   const {themed} = useAppTheme()
+  const {width: screenWidth, height: screenHeight} = useWindowDimensions()
   const hasReportedDimensions = useRef(false)
 
   const imageUri = photo.filePath
@@ -308,10 +310,10 @@ const ImageItem = memo(function ImageItem({photo, setImageDimensions, isActive: 
     : photo.url
 
   // Memoize styles to prevent expo-image from restarting loads on iOS
-  const imageStyle = useMemo(() => themed($image), [themed])
+  const imageStyle = useMemo(() => ({width: screenWidth, height: screenHeight}), [screenWidth, screenHeight])
 
   return (
-    <View style={themed($imageContainer)}>
+    <View style={{width: screenWidth, height: screenHeight, justifyContent: "center", alignItems: "center", paddingTop: screenHeight * 0.05}}>
       <Image
         source={{uri: imageUri}}
         style={imageStyle}
@@ -514,30 +516,7 @@ const $counterText: ThemedStyle<any> = ({spacing}) => ({
   marginLeft: spacing.s3,
 })
 
-// Video player styles
-const $videoPlayerContainer: ThemedStyle<any> = () => ({
-  flex: 1,
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
-  backgroundColor: "black",
-  justifyContent: "center",
-  alignItems: "center",
-  paddingTop: SCREEN_HEIGHT * 0.05, // Shift videos 5% down for better visual balance (matches images)
-})
-
-const $video: ThemedStyle<any> = () => ({
-  width: "100%",
-  aspectRatio: 4 / 3,
-})
-
-const $tapArea: ThemedStyle<any> = () => ({
-  position: "absolute",
-  top: 0,
-  left: 0,
-  bottom: SCREEN_HEIGHT * 0.15, // Don't cover bottom controls area - allows swipes near controls
-  right: 0,
-  zIndex: 1,
-})
+// Video player styles (dynamic dimensions now inlined via useWindowDimensions)
 
 const $errorContainer: ThemedStyle<any> = () => ({
   position: "absolute",
@@ -556,7 +535,7 @@ const $errorBadge: ThemedStyle<any> = ({spacing}) => ({
   borderRadius: 16,
   padding: spacing.s8,
   alignItems: "center",
-  maxWidth: SCREEN_WIDTH * 0.8,
+  maxWidth: "80%",
   borderWidth: 2,
   borderColor: "rgba(255,107,107,0.3)",
 })
@@ -583,14 +562,6 @@ const $errorSubtext: ThemedStyle<any> = () => ({
   lineHeight: 18,
 })
 
-const $videoControlsContainer: ThemedStyle<any> = ({spacing}) => ({
-  position: "absolute",
-  bottom: SCREEN_HEIGHT * 0.1, // 10% from bottom - scales with screen size
-  left: 0,
-  right: 0,
-  paddingHorizontal: spacing.s6,
-  zIndex: 100,
-})
 
 const $controlBarWrapper: ThemedStyle<any> = () => ({
   width: "100%",
@@ -628,19 +599,7 @@ const $timeText: ThemedStyle<any> = () => ({
   textAlign: "center",
 })
 
-// Image item styles
-const $imageContainer: ThemedStyle<any> = () => ({
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
-  justifyContent: "center",
-  alignItems: "center",
-  paddingTop: SCREEN_HEIGHT * 0.05, // Shift images 5% down for better visual balance
-})
-
-const $image: ThemedStyle<any> = () => ({
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
-})
+// Image item styles (dynamic dimensions now inlined via useWindowDimensions)
 
 const $thumbnailOverlay: ThemedStyle<any> = () => ({
   position: "absolute",

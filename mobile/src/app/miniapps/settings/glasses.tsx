@@ -257,7 +257,7 @@ export default function Glasses() {
         RightActionComponent={glassesComponent}
       />
       <ScrollView
-        style={{marginRight: -theme.spacing.s4, paddingRight: theme.spacing.s4}}
+        style={{marginHorizontal: -theme.spacing.s4, paddingHorizontal: theme.spacing.s4}}
         contentInsetAdjustmentBehavior="automatic">
         {!glassesConnected && <Spacer height={theme.spacing.s6} />}
         {!glassesConnected && <ConnectDeviceButton />}

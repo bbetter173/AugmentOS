@@ -684,7 +684,11 @@ export class AsgCameraApiClient {
           // processing completes (in mediaProcessingQueue) to avoid data loss on crash.
 
           return {downloadedFile, fileSize: file.size}
-        } catch (error) {
+        } catch (error: any) {
+          // Re-throw cancellation so it terminates the entire batch
+          if (error?.message === "Sync cancelled") {
+            throw error
+          }
           console.error(`[ASG Camera API] Failed to download ${file.name}:`, error)
           return {error: file.name}
         }

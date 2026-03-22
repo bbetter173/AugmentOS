@@ -3,6 +3,7 @@
  * Orchestrates gallery sync independently of UI lifecycle
  */
 
+import * as RNFS from "@dr.pogodin/react-native-fs"
 import NetInfo from "@react-native-community/netinfo"
 import CoreModule from "core"
 import {AppState, AppStateStatus, Platform} from "react-native"
@@ -15,6 +16,7 @@ import {PhotoInfo, CaptureGroup} from "@/types/asg"
 import {showAlert} from "@/utils/AlertUtils"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
+import {BackgroundTimer} from "@/utils/timers"
 import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissions"
 
 import {translate} from "@/i18n"
@@ -48,8 +50,8 @@ const TIMING = {
 class GallerySyncService {
   private static instance: GallerySyncService
   private hotspotListenerRegistered = false
-  private hotspotConnectionTimeout: ReturnType<typeof setTimeout> | null = null
-  private hotspotRequestTimeout: ReturnType<typeof setTimeout> | null = null
+  private hotspotConnectionTimeout: number | null = null
+  private hotspotRequestTimeout: number | null = null
   private abortController: AbortController | null = null
   private isInitialized = false
   private glassesStoreUnsubscribe: (() => void) | null = null
@@ -122,12 +124,12 @@ class GallerySyncService {
     }
 
     if (this.hotspotConnectionTimeout) {
-      clearTimeout(this.hotspotConnectionTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotConnectionTimeout!)
       this.hotspotConnectionTimeout = null
     }
 
     if (this.hotspotRequestTimeout) {
-      clearTimeout(this.hotspotRequestTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotRequestTimeout!)
       this.hotspotRequestTimeout = null
     }
 
@@ -157,11 +159,11 @@ class GallerySyncService {
 
     // Clear timeouts
     if (this.hotspotConnectionTimeout) {
-      clearTimeout(this.hotspotConnectionTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotConnectionTimeout!)
       this.hotspotConnectionTimeout = null
     }
     if (this.hotspotRequestTimeout) {
-      clearTimeout(this.hotspotRequestTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotRequestTimeout!)
       this.hotspotRequestTimeout = null
     }
 
@@ -204,7 +206,7 @@ class GallerySyncService {
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS))
+          await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, RETRY_DELAY_MS))
 
           const netState = await NetInfo.fetch()
           console.log(
@@ -269,7 +271,7 @@ class GallerySyncService {
 
     // Clear the hotspot request timeout since we got a response
     if (this.hotspotRequestTimeout) {
-      clearTimeout(this.hotspotRequestTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotRequestTimeout!)
       this.hotspotRequestTimeout = null
     }
 
@@ -296,10 +298,10 @@ class GallerySyncService {
     console.log("[GallerySyncService] 📡 Glasses need time to start WiFi AP and broadcast SSID")
 
     if (this.hotspotConnectionTimeout) {
-      clearTimeout(this.hotspotConnectionTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotConnectionTimeout!)
     }
 
-    this.hotspotConnectionTimeout = setTimeout(() => {
+    this.hotspotConnectionTimeout = BackgroundTimer.setTimeout(() => {
       this.hotspotConnectionTimeout = null
       // Pre-flight: abort if Bluetooth disconnected during the wait
       const stillConnected = useGlassesStore.getState().connected
@@ -324,7 +326,7 @@ class GallerySyncService {
     const store = useGallerySyncStore.getState()
 
     if (this.hotspotConnectionTimeout) {
-      clearTimeout(this.hotspotConnectionTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotConnectionTimeout!)
       this.hotspotConnectionTimeout = null
     }
 
@@ -346,8 +348,8 @@ class GallerySyncService {
     // Reset processing queue for new sync session
     mediaProcessingQueue.reset()
 
-    // Check if already syncing
-    if (store.syncState === "syncing" || store.syncState === "connecting_wifi") {
+    // R1: Check if already syncing (including requesting_hotspot to prevent double-tap)
+    if (store.syncState === "syncing" || store.syncState === "connecting_wifi" || store.syncState === "requesting_hotspot") {
       console.log(`[GallerySyncService] ⚠️ Already syncing (state: ${store.syncState}), ignoring start request`)
       return
     }
@@ -417,6 +419,26 @@ class GallerySyncService {
       } else {
         console.log("[GallerySyncService]   ✅ Camera roll permission already granted")
       }
+    }
+
+    // S1: Disk space check — abort early if insufficient space
+    try {
+      const fsInfo = await RNFS.getFSInfo()
+      const freeSpaceMB = fsInfo.freeSpace / (1024 * 1024)
+      console.log(`[GallerySyncService]   💾 Free disk space: ${freeSpaceMB.toFixed(0)} MB`)
+      if (fsInfo.freeSpace < 500 * 1024 * 1024) {
+        console.error("[GallerySyncService]   ❌ Insufficient disk space (<500MB)")
+        showAlert(
+          "Insufficient Storage",
+          `Only ${freeSpaceMB.toFixed(0)} MB free. Please free up at least 500 MB before syncing.`,
+          [{text: "OK"}],
+        )
+        store.setSyncError("Insufficient storage space")
+        return
+      }
+    } catch (fsError) {
+      console.warn("[GallerySyncService]   ⚠️ Could not check disk space:", fsError)
+      // Continue — don't block sync if check fails
     }
 
     // Reset abort controller
@@ -613,7 +635,7 @@ class GallerySyncService {
     store.setSyncServiceOpenedHotspot(true)
 
     // Set timeout for hotspot request - if we don't get a response, fail gracefully
-    this.hotspotRequestTimeout = setTimeout(() => {
+    this.hotspotRequestTimeout = BackgroundTimer.setTimeout(() => {
       const currentStore = useGallerySyncStore.getState()
       if (currentStore.syncState === "requesting_hotspot") {
         console.error("[GallerySyncService] Hotspot request timed out")
@@ -632,7 +654,7 @@ class GallerySyncService {
     } catch (error) {
       // Clear the timeout since we got an immediate error
       if (this.hotspotRequestTimeout) {
-        clearTimeout(this.hotspotRequestTimeout)
+        BackgroundTimer.clearTimeout(this.hotspotRequestTimeout!)
         this.hotspotRequestTimeout = null
       }
       console.error("[GallerySyncService]   ❌ Failed to request hotspot:", error)
@@ -734,13 +756,15 @@ class GallerySyncService {
     const appStateSubscription = AppState.addEventListener("change", appStateHandler)
     console.log("[GallerySyncService] 👂 App state listener registered")
 
+    // L2: Wrap retry loop in try/finally to guarantee listener cleanup on all exit paths
+    try {
+
     for (let attempt = 1; attempt <= TIMING.IOS_WIFI_MAX_RETRIES; attempt++) {
       const attemptStartTime = Date.now()
 
       // Check if cancelled
       if (this.abortController?.signal.aborted) {
         console.log("[GallerySyncService] 🛑 Sync was cancelled - aborting WiFi connection")
-        appStateSubscription.remove()
         store.setSyncError("Sync cancelled")
         return
       }
@@ -843,7 +867,7 @@ class GallerySyncService {
 
             // Don't wait after last attempt
             if (i < maxVerifyAttempts - 1) {
-              await new Promise((resolve) => setTimeout(resolve, 500))
+              await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, 500))
             }
           }
 
@@ -872,6 +896,10 @@ class GallerySyncService {
         try {
           const finalSSID = await WifiManager.getCurrentWifiSSID()
           console.log(`[GallerySyncService] 📶 Final SSID check before download: "${finalSSID}"`)
+          if (Platform.OS === "android") {
+            // Some local builds can have stale generated typings for the core module.
+            ;(CoreModule as any).logCurrentWifiFrequency?.()
+          }
           if (finalSSID !== hotspotInfo.ssid) {
             console.error(
               `[GallerySyncService] ❌ SSID mismatch detected! Expected "${hotspotInfo.ssid}", got "${finalSSID}"`,
@@ -899,14 +927,14 @@ class GallerySyncService {
 
               // Try to reach the glasses health endpoint with a short timeout
               const probeController = new AbortController()
-              const probeTimeout = setTimeout(() => probeController.abort(), 1000) // 1 second timeout per probe
+              const probeTimeout = BackgroundTimer.setTimeout(() => probeController.abort(), 1000) // 1 second timeout per probe
 
               const probeStartTime = Date.now()
               const probeResponse = await fetch(`http://${hotspotInfo.ip}:8089/api/health`, {
                 method: "GET",
                 signal: probeController.signal,
               })
-              clearTimeout(probeTimeout)
+              BackgroundTimer.clearTimeout(probeTimeout)
 
               const probeDuration = Date.now() - probeStartTime
               console.log(
@@ -932,7 +960,7 @@ class GallerySyncService {
 
             // Wait 500ms before next probe (unless this was the last attempt)
             if (probeNum < maxProbeAttempts) {
-              await new Promise((resolve) => setTimeout(resolve, 500))
+              await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, 500))
             }
           }
 
@@ -1065,7 +1093,7 @@ class GallerySyncService {
           console.log(`[GallerySyncService] 🔄 Preparing retry ${attempt + 1}/${TIMING.IOS_WIFI_MAX_RETRIES}`)
           console.log(`[GallerySyncService] ⏱️ Waiting ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (${reason})`)
           console.log(`[GallerySyncService] 📱 App currently: ${AppState.currentState}`)
-          await new Promise((resolve) => setTimeout(resolve, TIMING.IOS_WIFI_RETRY_DELAY_MS))
+          await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, TIMING.IOS_WIFI_RETRY_DELAY_MS))
           console.log(`[GallerySyncService] ⏱️ Wait complete - starting retry`)
         } else {
           console.error("[GallerySyncService] 🚫 No more retry attempts available")
@@ -1075,7 +1103,6 @@ class GallerySyncService {
 
     // All retries exhausted
     const totalWifiDuration = Date.now() - wifiConnectStartTime
-    appStateSubscription.remove()
 
     console.error("[GallerySyncService] ❌ ========================================")
     console.error("[GallerySyncService] ❌ WIFI CONNECTION FAILED - ALL RETRIES EXHAUSTED")
@@ -1102,6 +1129,11 @@ class GallerySyncService {
 
     if (store.syncServiceOpenedHotspot) {
       await this.closeHotspot()
+    }
+
+    } finally {
+      // L2: Guarantee listener cleanup on all exit paths (cancel, success, error, exhaustion)
+      appStateSubscription.remove()
     }
   }
 
@@ -1278,13 +1310,13 @@ class GallerySyncService {
         files,
         true,
         (current, total, fileName, fileProgress, downloadedFile) => {
-          // CRITICAL: This callback MUST NOT be async!
-          // RNFS progress callbacks cannot handle async errors properly and will crash with null error codes.
-          // All async operations inside must be wrapped in try-catch and not propagate errors.
+          // CRITICAL: This callback MUST NOT throw!
+          // RNFS progress callbacks run inside native bridge — throwing here causes
+          // EXC_BAD_ACCESS. Cancellation is handled via AbortSignal → RNFS.stopDownload.
 
-          // Check if cancelled
+          // Check if cancelled — just return, abort signal will stop the download
           if (this.abortController?.signal.aborted) {
-            throw new Error("Sync cancelled")
+            return
           }
 
           // Update store
@@ -1355,7 +1387,7 @@ class GallerySyncService {
               }
 
               // Enqueue for background processing (non-blocking)
-              const isPhoto = downloadedFile.name?.match(/\.(jpg|jpeg|png)$/i)
+              const _isPhoto = downloadedFile.name?.match(/\.(jpg|jpeg|png)$/i)
               const isVideo = downloadedFile.name?.match(/\.(mp4|mov)$/i)
               const leaf = downloadedFile.name?.includes("/")
                 ? downloadedFile.name.substring(downloadedFile.name.lastIndexOf("/") + 1)
@@ -1386,6 +1418,7 @@ class GallerySyncService {
           // Update notification
           gallerySyncNotifications.updateProgress(current, total, fileName, fileProgress || 0)
         },
+        this.abortController?.signal,
       )
 
       downloadedCount = downloadResult.downloaded.length
@@ -1539,13 +1572,18 @@ class GallerySyncService {
           )
 
           // Download all files in this capture
-          const result = await asgCameraApi.downloadCapture(capture, (bytesDownloaded, totalBytes) => {
-            if (this.abortController?.signal.aborted) throw new Error("Sync cancelled")
-            const progress = totalBytes > 0 ? Math.round((bytesDownloaded / totalBytes) * 100) : 0
-            const cs = useGallerySyncStore.getState()
-            cs.onFileProgress(capture.capture_id, Math.min(progress, 99))
-            gallerySyncNotifications.updateProgress(i + 1, captures.length, capture.capture_id, progress)
-          })
+          const result = await asgCameraApi.downloadCapture(
+            capture,
+            (bytesDownloaded, totalBytes) => {
+              // Don't throw in progress callbacks — abort signal stops the download
+              if (this.abortController?.signal.aborted) return
+              const progress = totalBytes > 0 ? Math.round((bytesDownloaded / totalBytes) * 100) : 0
+              const cs = useGallerySyncStore.getState()
+              cs.onFileProgress(capture.capture_id, Math.min(progress, 99))
+              gallerySyncNotifications.updateProgress(i + 1, captures.length, capture.capture_id, progress)
+            },
+            this.abortController?.signal,
+          )
 
           // Mark 100% progress
           const cs2 = useGallerySyncStore.getState()
@@ -1792,7 +1830,7 @@ class GallerySyncService {
 
     // Auto-reset to idle after 3 seconds to clear "Sync complete!" message
     console.log("[GallerySyncService]   ⏲️ Scheduling auto-reset to idle in 4 seconds...")
-    setTimeout(() => {
+    BackgroundTimer.setTimeout(() => {
       const currentStore = useGallerySyncStore.getState()
       if (currentStore.syncState === "complete") {
         console.log("[GallerySyncService]   🔄 Auto-resetting sync state to idle")
@@ -1825,7 +1863,7 @@ class GallerySyncService {
 
     // Clear timeout
     if (this.hotspotConnectionTimeout) {
-      clearTimeout(this.hotspotConnectionTimeout)
+      BackgroundTimer.clearTimeout(this.hotspotConnectionTimeout!)
       this.hotspotConnectionTimeout = null
     }
 
@@ -1900,20 +1938,12 @@ class GallerySyncService {
       return
     }
 
+    // R5: Resume by going through full startSync() flow to re-request hotspot
+    // (stale hotspot credentials are unreliable). The saved queue will be used
+    // to skip already-downloaded files when startFileDownload detects them.
     console.log(`[GallerySyncService] Resuming sync from file ${queue.currentIndex + 1}/${queue.files.length}`)
-
-    const store = useGallerySyncStore.getState()
-    const remainingFiles = queue.files.slice(queue.currentIndex)
-
-    // Reset abort controller so cancellation works for resumed syncs
-    this.abortController = new AbortController()
-
-    // Set up state
-    store.setHotspotInfo(queue.hotspotInfo)
-    store.setSyncing(remainingFiles)
-
-    // Try to connect and resume
-    await this.connectToHotspotWifi(queue.hotspotInfo)
+    console.log("[GallerySyncService] Re-requesting hotspot via full startSync flow")
+    await this.startSync()
   }
 
   /**

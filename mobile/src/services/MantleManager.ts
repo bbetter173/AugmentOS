@@ -43,9 +43,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, ({data: {locations}, error}) => {
 
 class MantleManager {
   private static instance: MantleManager | null = null
-  private calendarSyncTimer: ReturnType<typeof setInterval> | null = null
-  private clearTextTimeout: ReturnType<typeof setTimeout> | null = null
-  private micDataTimeout: ReturnType<typeof setTimeout> | null = null
+  private calendarSyncTimer: ReturnType<typeof BackgroundTimer.setInterval> | null = null
+  private clearTextTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
+  private micDataTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
   private MIC_TIMEOUT_MS: number = 1000
   private transcriptProcessor: TranscriptProcessor
   private subs: Array<any> = []
@@ -139,7 +139,7 @@ class MantleManager {
   private async setupPeriodicTasks() {
     this.sendCalendarEvents()
     // Calendar sync every hour
-    this.calendarSyncTimer = setInterval(
+    this.calendarSyncTimer = BackgroundTimer.setInterval(
       () => {
         this.sendCalendarEvents()
       },
@@ -395,12 +395,6 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("local_transcription", (event) => {
-          mantle.handle_local_transcription(event)
-        }),
-      )
-
-      this.subs.push(
         CoreModule.addListener("phone_notification", async (event) => {
           const res = await restComms.sendPhoneNotification({
             notificationId: event.notificationId,
@@ -408,7 +402,7 @@ class MantleManager {
             title: event.title,
             content: event.content,
             priority: event.priority.toString(),
-            timestamp: parseInt(event.timestamp),
+            timestamp: parseInt(event.timestamp.toString()),
             packageName: event.packageName,
           })
           if (res.is_error()) {
@@ -448,7 +442,29 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("mic_data", (event) => {
+        CoreModule.addListener("mic_lc3", (event) => {
+          if (this.micDataTimeout) {
+            BackgroundTimer.clearTimeout(this.micDataTimeout)
+          }
+          this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+            useDebugStore.getState().setDebugInfo({micDataRecvd: false})
+          }, this.MIC_TIMEOUT_MS)
+          useDebugStore.getState().setDebugInfo({micDataRecvd: true})
+
+          // console.log("MANTLE: Received mic_lc3 event from Core", event.lc3.length)
+
+          // Route audio to: UDP (if enabled) -> WebSocket (fallback)
+          if (udp.enabledAndReady()) {
+            // UDP audio is enabled and ready - send directly via UDP
+            udp.sendAudio(event.lc3)
+          } else {
+            socketComms.sendBinary(event.lc3)
+          }
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("mic_pcm", (event) => {
           if (this.micDataTimeout) {
             BackgroundTimer.clearTimeout(this.micDataTimeout)
           }
@@ -460,18 +476,9 @@ class MantleManager {
           // Route audio to: UDP (if enabled) -> WebSocket (fallback)
           if (udp.enabledAndReady()) {
             // UDP audio is enabled and ready - send directly via UDP
-            udp.sendAudio(event.base64)
+            udp.sendAudio(event.pcm)
           } else {
-            // Fallback to WebSocket
-            const binaryString = atob(event.base64)
-            const bytes = new Uint8Array(binaryString.length)
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i)
-            }
-            if (__DEV__ && Math.random() < 0.03) {
-              console.log("MANTLE: Received mic data:", bytes.length, "bytes")
-            }
-            socketComms.sendBinary(bytes)
+            socketComms.sendBinary(event.pcm)
           }
         }),
       )
@@ -520,6 +527,13 @@ class MantleManager {
             message: event.message,
             timestamp: event.timestamp,
           })
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("ota_start_ack", (event) => {
+          console.log("MANTLE: ota_start_ack received from glasses")
+          GlobalEventEmitter.emit("ota_start_ack", {timestamp: event.timestamp})
         }),
       )
 
@@ -665,9 +679,9 @@ class MantleManager {
   public async resetDisplayTimeout() {
     if (this.clearTextTimeout) {
       // console.log("MANTLE: canceling pending timeout")
-      clearTimeout(this.clearTextTimeout)
+      BackgroundTimer.clearTimeout(this.clearTextTimeout)
     }
-    this.clearTextTimeout = setTimeout(() => {
+    this.clearTextTimeout = BackgroundTimer.setTimeout(() => {
       console.log("MANTLE: clearing text from wall")
     }, 10000) // 10 seconds
   }

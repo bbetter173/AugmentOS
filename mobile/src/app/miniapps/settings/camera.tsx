@@ -1,5 +1,5 @@
 import {getModelCapabilities} from "@/../../cloud/packages/types/src"
-import {View, ScrollView, TouchableOpacity, ViewStyle, TextStyle} from "react-native"
+import {View, ScrollView, Pressable, ViewStyle, TextStyle} from "react-native"
 
 import {Icon, Text, Screen, Header} from "@/components/ignite"
 import ToggleSetting from "@/components/settings/ToggleSetting"
@@ -57,63 +57,49 @@ export default function CameraSettingsScreen() {
     return "720p"
   })()
 
-  const handlePhotoSizeChange = async (size: PhotoSize) => {
+  const handlePhotoSizeChange = (size: PhotoSize) => {
     if (!glassesConnected) {
       console.log("Cannot change photo size - glasses not connected")
       return
     }
-
-    try {
-      setPhotoSize(size)
-      await CoreModule.updateButtonPhotoSize(size)
-    } catch (error) {
-      console.error("Failed to update photo size:", error)
-    }
+    setPhotoSize(size)
+    CoreModule.updateCore({button_photo_size: size}).catch((error: any) => {
+      console.error("Failed to update photo size on glasses:", error)
+    })
   }
 
-  const handleVideoResolutionChange = async (resolution: VideoResolution) => {
+  const handleVideoResolutionChange = (resolution: VideoResolution) => {
     if (!glassesConnected) {
       console.log("Cannot change video resolution - glasses not connected")
       return
     }
-
-    try {
-      // Convert resolution to width/height/fps
-      const width = resolution === "4K" ? 3840 : resolution === "1440p" ? 2560 : resolution === "1080p" ? 1920 : 1280
-      const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
-      const fps = resolution === "4K" ? 15 : 30
-
-      setVideoSettings({width, height, fps})
-    } catch (error) {
-      console.error("Failed to update video resolution:", error)
-    }
+    const width = resolution === "4K" ? 3840 : resolution === "1440p" ? 2560 : resolution === "1080p" ? 1920 : 1280
+    const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
+    const fps = resolution === "4K" ? 15 : 30
+    setVideoSettings({width, height, fps})
+    CoreModule.updateCore({button_video_width: width, button_video_height: height, button_video_fps: fps}).catch((error: any) => {
+      console.error("Failed to update video settings on glasses:", error)
+    })
   }
 
-  const _handleLedToggle = async (enabled: boolean) => {
+  const _handleLedToggle = (enabled: boolean) => {
     if (!glassesConnected) {
       console.log("Cannot toggle LED - glasses not connected")
       return
     }
-
-    try {
-      setLedEnabled(enabled)
-    } catch (error) {
-      console.error("Failed to update LED setting:", error)
-    }
+    setLedEnabled(enabled)
   }
 
-  const handleMaxRecordingTimeChange = async (time: MaxRecordingTime) => {
+  const handleMaxRecordingTimeChange = (time: MaxRecordingTime) => {
     if (!glassesConnected) {
       console.log("Cannot change max recording time - glasses not connected")
       return
     }
-
-    try {
-      const minutes = parseInt(time.replace("m", ""))
-      setMaxRecordingTime(minutes)
-    } catch (error) {
-      console.error("Failed to update max recording time:", error)
-    }
+    const minutes = parseInt(time.replace("m", ""))
+    setMaxRecordingTime(minutes)
+    CoreModule.updateCore({button_max_recording_time: minutes}).catch((error: any) => {
+      console.error("Failed to update max recording time on glasses:", error)
+    })
   }
 
   // Check if glasses support camera button feature using capabilities
@@ -144,8 +130,9 @@ export default function CameraSettingsScreen() {
           {Object.entries(PHOTO_SIZE_LABELS).map(([value, label], index, arr) => {
             const isFirst = index === 0
             const isLast = index === arr.length - 1
+            const isSelected = photoSize === value
             return (
-              <TouchableOpacity
+              <Pressable
                 key={value}
                 style={[
                   themed($optionItem),
@@ -154,14 +141,15 @@ export default function CameraSettingsScreen() {
                     borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
                     borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
                     borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: photoSize === value ? 1 : undefined,
-                    borderColor: photoSize === value ? theme.colors.primary : undefined,
+                    borderWidth: isSelected ? 1 : undefined,
+                    borderColor: isSelected ? theme.colors.primary : undefined,
                   },
                 ]}
+                hitSlop={{top: 4, bottom: 4, left: 4, right: 4}}
                 onPress={() => handlePhotoSizeChange(value as PhotoSize)}>
                 <Text style={themed($optionText)}>{label}</Text>
-                {photoSize === value && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </TouchableOpacity>
+                {isSelected && <Icon name="check" size={24} color={theme.colors.primary} />}
+              </Pressable>
             )
           })}
         </View>
@@ -175,8 +163,9 @@ export default function CameraSettingsScreen() {
           {Object.entries(VIDEO_RESOLUTION_LABELS).map(([value, label], index, arr) => {
             const isFirst = index === 0
             const isLast = index === arr.length - 1
+            const isSelected = videoResolution === value
             return (
-              <TouchableOpacity
+              <Pressable
                 key={value}
                 style={[
                   themed($optionItem),
@@ -185,14 +174,15 @@ export default function CameraSettingsScreen() {
                     borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
                     borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
                     borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: videoResolution === value ? 1 : undefined,
-                    borderColor: videoResolution === value ? theme.colors.primary : undefined,
+                    borderWidth: isSelected ? 1 : undefined,
+                    borderColor: isSelected ? theme.colors.primary : undefined,
                   },
                 ]}
+                hitSlop={{top: 4, bottom: 4, left: 4, right: 4}}
                 onPress={() => handleVideoResolutionChange(value as VideoResolution)}>
                 <Text style={themed($optionText)}>{label}</Text>
-                {videoResolution === value && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </TouchableOpacity>
+                {isSelected && <Icon name="check" size={24} color={theme.colors.primary} />}
+              </Pressable>
             )
           })}
         </View>
@@ -204,8 +194,10 @@ export default function CameraSettingsScreen() {
           {Object.entries(MAX_RECORDING_TIME_LABELS).map(([value, label], index, arr) => {
             const isFirst = index === 0
             const isLast = index === arr.length - 1
+            const minutes = parseInt(value.replace("m", ""))
+            const isSelected = maxRecordingTime === minutes
             return (
-              <TouchableOpacity
+              <Pressable
                 key={value}
                 style={[
                   themed($optionItem),
@@ -214,17 +206,15 @@ export default function CameraSettingsScreen() {
                     borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
                     borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
                     borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: maxRecordingTime === parseInt(value.replace("m", "")) ? 1 : undefined,
-                    borderColor:
-                      maxRecordingTime === parseInt(value.replace("m", "")) ? theme.colors.primary : undefined,
+                    borderWidth: isSelected ? 1 : undefined,
+                    borderColor: isSelected ? theme.colors.primary : undefined,
                   },
                 ]}
+                hitSlop={{top: 4, bottom: 4, left: 4, right: 4}}
                 onPress={() => handleMaxRecordingTimeChange(value as MaxRecordingTime)}>
                 <Text style={themed($optionText)}>{label}</Text>
-                {maxRecordingTime === parseInt(value.replace("m", "")) && (
-                  <Icon name="check" size={24} color={theme.colors.primary} />
-                )}
-              </TouchableOpacity>
+                {isSelected && <Icon name="check" size={24} color={theme.colors.primary} />}
+              </Pressable>
             )
           })}
         </View>
@@ -268,7 +258,9 @@ const $optionItem: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
   flexDirection: "row",
   justifyContent: "space-between",
   alignItems: "center",
-  padding: spacing.s4,
+  paddingVertical: spacing.s4 + 2,
+  paddingHorizontal: spacing.s4,
+  minHeight: 52,
   backgroundColor: colors.background,
   marginBottom: spacing.s2,
 })

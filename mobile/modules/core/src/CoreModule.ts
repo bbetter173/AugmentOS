@@ -20,9 +20,12 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   requestStatus(): Promise<void>
   connectDefault(): Promise<void>
   connectByName(deviceName: string): Promise<void>
+  connectDefaultController(): Promise<void>
+  disconnectController(): Promise<void>
   connectSimulated(): Promise<void>
   disconnect(): Promise<void>
   forget(): Promise<void>
+  forgetController(): Promise<void>
   findCompatibleDevices(deviceModel: string): Promise<void>
   showDashboard(): Promise<void>
   ping(): Promise<void>
@@ -35,6 +38,8 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   sendWifiCredentials(ssid: string, password: string): Promise<void>
   forgetWifiNetwork(ssid: string): Promise<void>
   setHotspotState(enabled: boolean): Promise<void>
+  /** Logs current WiFi frequency (MHz) and 5 GHz band to Android logcat. */
+  logCurrentWifiFrequency(): Promise<void>
 
   // Gallery Commands
   queryGalleryStatus(): Promise<void>

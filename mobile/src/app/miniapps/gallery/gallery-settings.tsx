@@ -166,11 +166,15 @@ export default function GallerySettingsScreen() {
                 value: localVideoCount.toString(),
               },
               {
-                label: translate("glasses:photosOnGlasses", {glassesName: defaultWearable || translate("glasses:title")}),
+                label: translate("glasses:photosOnGlasses", {
+                  glassesName: defaultWearable || translate("glasses:title"),
+                }),
                 value: glassesPhotoCount > 0 ? glassesPhotoCount.toString() : "—",
               },
               {
-                label: translate("glasses:videosOnGlasses", {glassesName: defaultWearable || translate("glasses:title")}),
+                label: translate("glasses:videosOnGlasses", {
+                  glassesName: defaultWearable || translate("glasses:title"),
+                }),
                 value: glassesVideoCount > 0 ? glassesVideoCount.toString() : "—",
               },
               {

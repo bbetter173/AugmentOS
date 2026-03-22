@@ -1863,6 +1863,8 @@ class G2: NSObject, SGCManager {
     func sendButtonMaxRecordingTime() {}
     func sendButtonCameraLedSetting() {}
 
+    func sendCameraFovSetting() {}
+
     // MARK: - SGCManager: Network (G2 has no WiFi)
 
     func requestWifiScan() {}

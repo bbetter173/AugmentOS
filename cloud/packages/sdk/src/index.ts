@@ -154,6 +154,7 @@ export type {
   CloudToGlassesMessage,
   PhotoRequestToGlasses,
   RgbLedControlToGlasses,
+  CameraFovSetToGlasses,
   SettingsUpdate,
   StartRtmpStream,
   StopRtmpStream,
@@ -170,6 +171,8 @@ export type {
   AppToCloudMessage,
   PhotoRequest,
   RgbLedControlRequest,
+  CameraFovSetRequest,
+  CameraRoiPosition,
 } from "./types/messages/app-to-cloud";
 
 // From layout.ts
@@ -218,6 +221,7 @@ export {
   isRtmpStreamStopRequest,
   isPhotoRequest as isPhotoRequestFromApp,
   isRgbLedControlRequest,
+  isCameraFovSetRequest,
   isOwnershipRelease,
 } from "./types/messages/app-to-cloud";
 

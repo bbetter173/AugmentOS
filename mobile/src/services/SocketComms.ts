@@ -454,6 +454,7 @@ class SocketComms {
     CoreModule.update("core", {
       // should_send_pcm: shouldSendPcmData,
       should_send_lc3: shouldSendPcmData,// online apps always want lc3
+      should_send_transcript: shouldSendTranscript,
       bypass_vad: bypassVad,
     })
   }
@@ -605,6 +606,15 @@ class SocketComms {
     )
   }
 
+  private handle_camera_fov_set(msg: any) {
+    const ROI_MAP: Record<string, number> = {center: 0, bottom: 1, top: 2}
+    const fov = typeof msg.fov === "number" ? Math.min(118, Math.max(82, msg.fov)) : 118
+    const roiStr: string = msg.roiPosition ?? "center"
+    const numericRoi = ROI_MAP[roiStr] ?? 0
+    console.log(`SOCKET: camera_fov_set fov=${fov} roi=${roiStr} (${numericRoi})`)
+    useSettingsStore.getState().setSetting(SETTINGS.camera_fov.key, {fov, roi_position: numericRoi}, false)
+  }
+
   private handle_show_wifi_setup(msg: any) {
     const reason = msg.reason || "This operation requires your glasses to be connected to WiFi."
 
@@ -678,7 +688,7 @@ class SocketComms {
     audioPlaybackService.stopForApp(appId)
   }
 
-  private handle_ping(msg: any) {
+  private handle_ping(_msg: any) {
     ws.sendText(JSON.stringify({type: "pong"}))
   }
 
@@ -767,6 +777,10 @@ class SocketComms {
 
       case "rgb_led_control":
         this.handle_rgb_led_control(msg)
+        break
+
+      case "camera_fov_set":
+        this.handle_camera_fov_set(msg)
         break
 
       case "show_wifi_setup":

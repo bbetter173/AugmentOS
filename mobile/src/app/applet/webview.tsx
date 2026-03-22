@@ -317,14 +317,16 @@ export default function AppWebView() {
   const capsuleMenuRight = theme.spacing.s2
   const capsuleMenuTop = theme.spacing.s2
   const screenWidth = Dimensions.get("window").width
-  const capsuleMenuRect = appSwitcherUi ? {
-    top: capsuleMenuTop,
-    right: capsuleMenuRight,
-    bottom: capsuleMenuTop + capsuleMenuHeight,
-    left: screenWidth - capsuleMenuRight - capsuleMenuWidth,
-    width: capsuleMenuWidth,
-    height: capsuleMenuHeight,
-  } : null
+  const capsuleMenuRect = appSwitcherUi
+    ? {
+        top: capsuleMenuTop,
+        right: capsuleMenuRight,
+        bottom: capsuleMenuTop + capsuleMenuHeight,
+        left: screenWidth - capsuleMenuRight - capsuleMenuWidth,
+        width: capsuleMenuWidth,
+        height: capsuleMenuHeight,
+      }
+    : null
 
   return (
     <>
@@ -380,7 +382,7 @@ export default function AppWebView() {
                   window.MentraOS = {
                     platform: '${Platform.OS}',
                     capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
-                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : 'null'},
+                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : "null"},
                   };
                   window.receiveNativeMessage = window.receiveNativeMessage || function() {};
                   true;

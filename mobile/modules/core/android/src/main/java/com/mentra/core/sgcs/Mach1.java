@@ -192,6 +192,10 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
+    public void sendCameraFovSetting() {
+    }
+
+    @Override
     public void setBrightness(int level, boolean autoMode) {
         Bridge.log("Mach1: setBrightness() - level: " + level + "%, autoMode: " + autoMode);
         updateGlassesBrightness(level);

@@ -305,6 +305,8 @@ class MentraNex : SGCManager() {
     override fun sendButtonMaxRecordingTime() { Bridge.log("Nex: sendButtonMaxRecordingTime operation not supported") }
     override fun sendButtonCameraLedSetting() { Bridge.log("Nex: sendButtonCameraLedSetting operation not supported") }
 
+    override fun sendCameraFovSetting() { Bridge.log("Nex: sendCameraFovSetting operation not supported") }
+
     override fun sendUserEmailToGlasses(email: String) {  Bridge.log("Nex: sendUserEmailToGlasses operation not supported") }
 
     override fun sendIncidentId(incidentId: String) { Bridge.log("Nex: sendIncidentId operation not supported") }

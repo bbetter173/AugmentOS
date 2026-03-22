@@ -1,7 +1,7 @@
 /**
- * @fileoverview Even Realities G1 Hardware Capabilities
+ * @fileoverview Mentra Display Hardware Capabilities
  *
- * Capability profile for the Even Realities G1 smart glasses model.
+ * Capability profile for the Mentra Display smart glasses model.
  * Defines the hardware and software features available on this device.
  */
 

@@ -40,11 +40,12 @@ public class AsgCameraServer extends AsgServer {
     private static final int DEFAULT_PORT = 8089;
 
     /**
-     * Provider that returns the file name of an actively recording video, or null if idle.
+     * Provider that returns the capture ID (directory name, e.g. "VID_xxx") of an
+     * actively recording video, or null if idle.
      * Used to exclude in-progress recordings from sync and download responses.
      */
     public interface ActiveRecordingProvider {
-        String getActiveRecordingFileName();
+        String getActiveRecordingCaptureId();
     }
 
     // File management system
@@ -1175,12 +1176,17 @@ public class AsgCameraServer extends AsgServer {
     }
 
     /**
-     * @return true if the given file name is the one currently being recorded
+     * @return true if the given file belongs to a capture that is currently being recorded.
+     *         Derives the capture ID from the file name and compares against the active recording.
      */
     private boolean isActiveRecording(String fileName) {
         if (activeRecordingProvider == null || fileName == null) return false;
-        String active = activeRecordingProvider.getActiveRecordingFileName();
-        return active != null && active.equals(fileName);
+        String activeCaptureId = activeRecordingProvider.getActiveRecordingCaptureId();
+        if (activeCaptureId == null) return false;
+        // deriveCaptureId handles both folder-based ("VID_xxx/base.mp4" -> "VID_xxx")
+        // and legacy flat ("VID_xxx.mp4" -> "VID_xxx") paths
+        String fileCaptureId = deriveCaptureId(fileName);
+        return activeCaptureId.equals(fileCaptureId);
     }
 
     /**

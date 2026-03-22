@@ -87,6 +87,7 @@ export const simulatedPackageName = "com.mentra.simulated"
 export const mirrorPackageName = "com.mentra.mirror"
 export const lmaInstallerPackageName = "com.mentra.lma_installer"
 export const mentraAiPackageName = "com.mentra.ai"
+export const feedbackPackageName = "com.mentra.feedback"
 export const notifyPackageName = "cloud.augmentos.notify"
 
 export const uninstallAppUI = async (clientApp: ClientAppletInterface) => {
@@ -188,6 +189,7 @@ export const SYSTEM_APPS = [
   mirrorPackageName,
   mentraAiPackageName,
   notifyPackageName,
+  feedbackPackageName,
 ]
 
 // get offline applets:
@@ -318,7 +320,6 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
           //   return undefined
           // }
-
           // let result = await showAlert({
           //   title: translate("transcription:noModelInstalled"),
           //   message: translate("transcription:noModelInstalledMessage"),
@@ -327,11 +328,9 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           //     {text: translate("transcription:goToSettings"), style: "default"},
           //   ],
           // })
-
           // if (result === 1) {
           //   push("/miniapps/settings/transcription")
           // }
-
           // throw new Error("No model available")
         })
       },
@@ -494,6 +493,24 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       local: false,
       onStart: () => saveLocalAppRunningState(mirrorPackageName, true),
       onStop: () => saveLocalAppRunningState(mirrorPackageName, false),
+    },
+    {
+      packageName: feedbackPackageName,
+      name: translate("miniApps:feedback"),
+      type: "background",
+      offline: true,
+      logoUrl: require("@assets/applet-icons/feedback.png"),
+      offlineRoute: "/miniapps/settings/feedback",
+      webviewUrl: "",
+      healthy: true,
+      hidden: false,
+      permissions: [],
+      running: false,
+      loading: false,
+      local: false,
+      hardwareRequirements: [],
+      onStart: () => saveLocalAppRunningState(feedbackPackageName, true),
+      onStop: () => saveLocalAppRunningState(feedbackPackageName, false),
     },
     // {
     //   packageName: simulatedPackageName,

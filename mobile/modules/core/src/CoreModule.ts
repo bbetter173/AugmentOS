@@ -99,6 +99,9 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   validateSttModel(path: string): Promise<boolean>
   extractTarBz2(sourcePath: string, destinationPath: string): Promise<boolean>
 
+  // Beta build detection (TestFlight on iOS, extensible to Google Play Beta on Android)
+  isBetaBuild(): Promise<boolean>
+
   // Android-specific commands
   getInstalledApps(): Promise<any>
   hasNotificationListenerPermission(): Promise<boolean>

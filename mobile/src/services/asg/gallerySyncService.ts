@@ -1828,21 +1828,23 @@ class GallerySyncService {
     console.log("[GallerySyncService]   🔄 Clearing glasses gallery count (synced all items)")
     store.clearGlassesGalleryStatus()
 
-    // Auto-reset to idle after 3 seconds to clear "Sync complete!" message
+    // Auto-reset to idle after 4 seconds to clear "Sync complete!" message,
+    // then query glasses for any new content taken during the sync.
+    // The query MUST happen after the reset — otherwise setGlassesGalleryStatus
+    // sees syncState="complete" + hasContent=true and immediately resets to idle,
+    // making it look like sync accomplished nothing (circular sync loop).
     console.log("[GallerySyncService]   ⏲️ Scheduling auto-reset to idle in 4 seconds...")
-    BackgroundTimer.setTimeout(() => {
+    BackgroundTimer.setTimeout(async () => {
       const currentStore = useGallerySyncStore.getState()
       if (currentStore.syncState === "complete") {
         console.log("[GallerySyncService]   🔄 Auto-resetting sync state to idle")
         currentStore.setSyncState("idle")
       }
+      // Now query glasses — any content reported will show the sync button
+      // naturally without preempting the "Sync complete!" message
+      console.log("[GallerySyncService]   🔍 Querying glasses for post-sync gallery status...")
+      await this.queryGlassesGalleryStatus()
     }, 4000)
-
-    // Query glasses for updated gallery status after sync completes
-    // This will detect any photos taken DURING the sync that weren't included
-    console.log("[GallerySyncService]   🔍 Querying glasses for post-sync gallery status...")
-    console.log("[GallerySyncService]   ℹ️ This detects new photos taken during the sync")
-    await this.queryGlassesGalleryStatus()
 
     console.log("[GallerySyncService] ========================================")
     console.log("[GallerySyncService] ✅ SYNC FULLY COMPLETE")

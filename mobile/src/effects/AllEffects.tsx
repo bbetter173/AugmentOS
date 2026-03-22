@@ -8,6 +8,7 @@ import {FirebaseAnalyticsSetup} from "@/effects/FirebaseAnalyticsSetup"
 import {OtaUpdateChecker} from "@/effects/OtaUpdateChecker"
 import {BtClassicPairing} from "@/effects/BtClassicPairing"
 import Compositor from "@/effects/Compositor"
+import {ScreenshotFeedbackPrompt} from "@/effects/ScreenshotFeedbackPrompt"
 // import TranscriptionsListener from "@/effects/TranscriptionsListener"
 // import SherpaTest from "@/effects/SherpaTest"
 // import WhisperTest from "@/effects/WhisperTest"
@@ -29,6 +30,7 @@ export const AllEffects = () => {
       <GalleryModeSync />
       <ConsoleLogger />
       <FirebaseAnalyticsSetup />
+      <ScreenshotFeedbackPrompt />
     </>
   )
 }

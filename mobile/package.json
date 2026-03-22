@@ -85,6 +85,7 @@
     "expo-navigation-bar": "~55.0.8",
     "expo-notifications": "~55.0.11",
     "expo-router": "~55.0.4",
+    "expo-screen-capture": "~55.0.9",
     "expo-splash-screen": "~55.0.10",
     "expo-squircle-view": "^1.1.0",
     "expo-status-bar": "~55.0.4",

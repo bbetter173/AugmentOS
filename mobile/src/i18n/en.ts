@@ -55,7 +55,7 @@ const en = {
       "Microphone permission is required to use the phone microphone feature. Please grant the microphone permission in settings.",
     infoTitle: "About this setting",
     infoDescription:
-      "Most users should leave this set to \"Automatic\". Only change this if you need to use a Bluetooth lapel microphone to improve transcription quality.",
+      'Most users should leave this set to "Automatic". Only change this if you need to use a Bluetooth lapel microphone to improve transcription quality.',
   },
   positionSettings: {
     title: "Display position",
@@ -488,7 +488,8 @@ const en = {
     disconnectControllerTitle: "Disconnect the ring?",
     disconnectControllerConfirm: "Are you sure you want to disconnect the ring?",
     forgetController: "Unpair ring",
-    forgetControllerConfirm: "To finish the process, make sure to remove your ring from your phone's Bluetooth settings.",
+    forgetControllerConfirm:
+      "To finish the process, make sure to remove your ring from your phone's Bluetooth settings.",
     signOut: "Sign Out",
     signOutConfirm: "Are you sure you want to sign out?",
     signOutError: "There was an error signing out. Please try again.",
@@ -711,6 +712,9 @@ const en = {
     sensingDisabled: "Sensors are disabled. Camera, microphone, and other sensors won't work in apps.",
     microphoneActive: "Microphone Active",
     microphoneActiveMessage: "One or more apps are currently using your glasses microphone.",
+    screenshotFeedbackTitle: "Please Submit Feedback In-App",
+    screenshotFeedbackMessage:
+      "Our in-app feedback captures device logs, glasses state, and more. This is more useful for fixing issues than sending a screenshot through TestFlight. Please use the in-app feedback instead!",
     warning: "Warning",
     developerSettingsWarning: "These settings may break the app. Use at your own risk.",
     optOutOfBeta: "Opt Out of Beta",
@@ -886,6 +890,7 @@ const en = {
     mirror: "Glasses Mirror",
     simulated: "Simulated Glasses",
     store: "Get more apps",
+    feedback: "Give Feedback",
     lmaInstaller: "Local Store",
     lmaLoader: "Side Loader",
   },

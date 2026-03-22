@@ -1371,92 +1371,6 @@ class G2 : SGCManager() {
         Bridge.log("G2: sendCameraFovSetting")
     }
 
-    // Display Control
-    override fun setBrightness(level: Int, autoMode: Boolean) {
-        Bridge.log("G2: setBrightness level=$level auto=$autoMode")
-        // TODO: Send EvenHub brightness command
-    }
-
-    override fun clearDisplay() {
-        Bridge.log("G2: clearDisplay")
-        // TODO: Send EvenHub SHUTDOWN_PAGE
-    }
-
-    override fun sendTextWall(text: String) {
-        Bridge.log("G2: sendTextWall")
-        // TODO: Send EvenHub CREATE_STARTUP_PAGE with TextContainer
-    }
-
-    override fun sendDoubleTextWall(top: String, bottom: String) {
-        Bridge.log("G2: sendDoubleTextWall")
-        // TODO: Send EvenHub CREATE_STARTUP_PAGE with two TextContainers
-    }
-
-    override fun displayBitmap(base64ImageData: String): Boolean {
-        Bridge.log("G2: displayBitmap")
-        // TODO: Send EvenHub ImageContainer with 4-bit BMP
-        return false
-    }
-
-    override fun showDashboard() {
-        Bridge.log("G2: showDashboard")
-    }
-
-    override fun setDashboardPosition(height: Int, depth: Int) {
-        Bridge.log("G2: setDashboardPosition")
-    }
-
-    // Device Control
-    override fun setHeadUpAngle(angle: Int) {
-        Bridge.log("G2: setHeadUpAngle")
-    }
-
-    override fun getBatteryStatus() {
-        Bridge.log("G2: getBatteryStatus")
-        // TODO: Request battery status via EvenHub
-    }
-
-    override fun setSilentMode(enabled: Boolean) {
-        Bridge.log("G2: setSilentMode")
-    }
-
-    override fun exit() {
-        Bridge.log("G2: exit")
-    }
-
-    override fun sendShutdown() {
-        Bridge.log("G2: sendShutdown")
-    }
-
-    override fun sendReboot() {
-        Bridge.log("G2: sendReboot")
-    }
-
-    override fun sendRgbLedControl(
-            requestId: String,
-            packageName: String?,
-            action: String,
-            color: String?,
-            ontime: Int,
-            offtime: Int,
-            count: Int
-    ) {
-        Bridge.log("G2: sendRgbLedControl - not supported")
-        Bridge.sendRgbLedControlResponse(requestId, false, "device_not_supported")
-    }
-
-    // ---------- SGCManager: Connection Management ----------
-
-    override fun disconnect() {
-        Bridge.log("G2: disconnect")
-        // TODO: Disconnect both L+R BLE connections
-    }
-
-    override fun forget() {
-        Bridge.log("G2: forget")
-        // TODO: Clear saved device addresses
-    }
-
     override fun findCompatibleDevices() {
         Bridge.log("G2: findCompatibleDevices()")
         DEVICE_SEARCH_ID = "NOT_SET"
@@ -1562,30 +1476,6 @@ class G2 : SGCManager() {
         // G2 doesn't have RGB LEDs
         Bridge.sendRgbLedControlResponse(requestId, false, "device_not_supported")
     }
-
-    // ---------- SGCManager: Messaging ----------
-
-    // G2 doesn't use JSON messaging
-
-    // ---------- SGCManager: Camera & Media (not supported on G2) ----------
-
-    override fun requestPhoto(
-        requestId: String, appId: String, size: String, webhookUrl: String?,
-        authToken: String?, compress: String?, flash: Boolean, sound: Boolean
-    ) {}
-    override fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {}
-    override fun startRtmpStream(message: MutableMap<String, Any>) {}
-    override fun stopRtmpStream() {}
-    override fun sendRtmpKeepAlive(message: MutableMap<String, Any>) {}
-    override fun startBufferRecording() {}
-    override fun stopBufferRecording() {}
-    override fun saveBufferVideo(requestId: String, durationSeconds: Int) {}
-    override fun stopVideoRecording(requestId: String) {}
-    override fun sendButtonPhotoSettings() {}
-    override fun sendButtonModeSetting() {}
-    override fun sendButtonVideoRecordingSettings() {}
-    override fun sendButtonMaxRecordingTime() {}
-    override fun sendButtonCameraLedSetting() {}
 
     // ---------- SGCManager: Network (G2 has no WiFi) ----------
 

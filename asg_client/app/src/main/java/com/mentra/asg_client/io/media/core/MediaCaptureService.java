@@ -991,14 +991,19 @@ public class MediaCaptureService {
     }
 
     /**
-     * Get the file name (not full path) of the actively recording video, or null if idle.
+     * Get the capture directory name (e.g. "VID_20250322_120000_123") of the actively
+     * recording video, or null if idle. Used by AsgCameraServer to exclude the entire
+     * capture group from sync/download while recording is in progress.
      */
-    public String getActiveRecordingFileName() {
+    public String getActiveRecordingCaptureId() {
         if (!isRecordingVideo || currentVideoPath == null) {
             return null;
         }
+        // currentVideoPath is e.g. /sdcard/.../VID_xxx/base.mp4
+        // We need the parent directory name ("VID_xxx") which is the capture ID
         File f = new File(currentVideoPath);
-        return f.getName();
+        File parentDir = f.getParentFile();
+        return parentDir != null ? parentDir.getName() : f.getName();
     }
 
     /**

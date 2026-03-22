@@ -325,6 +325,12 @@ class CoreModule : Module() {
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
 
+        // MARK: - Beta Build Detection (TestFlight on iOS; TODO: Google Play Beta on Android)
+
+        AsyncFunction("isBetaBuild") {
+            false
+        }
+
         // MARK: - Android-specific Commands
 
         AsyncFunction("getInstalledApps") {

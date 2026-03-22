@@ -470,7 +470,7 @@ public class AsgClientServiceManager {
 
                 // Wire active recording provider so sync/download skip in-progress videos
                 if (mediaCaptureService != null) {
-                    cameraServer.setActiveRecordingProvider(mediaCaptureService::getActiveRecordingFileName);
+                    cameraServer.setActiveRecordingProvider(mediaCaptureService::getActiveRecordingCaptureId);
                     Log.d(TAG, "📡 Active recording provider set on camera server");
                 }
 

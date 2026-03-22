@@ -378,6 +378,16 @@ public class CoreModule: Module {
             return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
         }
 
+        // MARK: - Beta Build Detection
+
+        AsyncFunction("isBetaBuild") { () -> Bool in
+            #if targetEnvironment(simulator)
+            return false
+            #else
+            return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            #endif
+        }
+
         // MARK: - Android Stubs
 
         AsyncFunction("getInstalledApps") { () -> Any in

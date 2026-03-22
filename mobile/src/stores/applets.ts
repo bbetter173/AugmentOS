@@ -242,7 +242,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       healthy: true,
       hidden: false,
       permissions: [],
-      offlineRoute: "/miniapps/captions/main",
+      offlineRoute: "",
       running: false,
       loading: false,
       local: false,
@@ -252,30 +252,30 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       ],
       onStart: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
-          // const modelAvailable = await STTModelManager.isModelAvailable()
-          // if (modelAvailable) {
-          //   await storage.save(`${captionsPackageName}_running`, true)
-          //   // ensure transcriber is initialized with the current model:
-          //   await CoreModule.restartTranscriber()
-          //   // tell the core:
-          //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
-          //   return undefined
-          // }
+          const modelAvailable = await STTModelManager.isModelAvailable()
+          if (modelAvailable) {
+            await storage.save(`${captionsPackageName}_running`, true)
+            // ensure transcriber is initialized with the current model:
+            await CoreModule.restartTranscriber()
+            // tell the core:
+            await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
+            return undefined
+          }
 
-          // let result = await showAlert({
-          //   title: translate("transcription:noModelInstalled"),
-          //   message: translate("transcription:noModelInstalledMessage"),
-          //   buttons: [
-          //     {text: translate("common:cancel"), style: "cancel"},
-          //     {text: translate("transcription:goToSettings"), style: "default"},
-          //   ],
-          // })
+          let result = await showAlert({
+            title: translate("transcription:noModelInstalled"),
+            message: translate("transcription:noModelInstalledMessage"),
+            buttons: [
+              {text: translate("common:cancel"), style: "cancel"},
+              {text: translate("transcription:goToSettings"), style: "default"},
+            ],
+          })
 
-          // if (result === 1) {
-          //   push("/miniapps/settings/transcription")
-          // }
+          if (result === 1) {
+            push("/miniapps/settings/transcription")
+          }
 
-          // throw new Error("No model available")
+          throw new Error("No model available")
         })
       },
       onStop: (): AsyncResult<void, Error> => {

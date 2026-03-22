@@ -1,7 +1,8 @@
 import {getModelCapabilities} from "@/../../cloud/packages/types/src"
-import {View, ScrollView, Pressable, ViewStyle, TextStyle} from "react-native"
+import {View, ScrollView, ViewStyle, TextStyle} from "react-native"
 
-import {Icon, Text, Screen, Header} from "@/components/ignite"
+import {Text, Screen, Header} from "@/components/ignite"
+import {OptionList} from "@/components/ui/Options"
 import {ThemedSlider} from "@/components/settings/ThemedSlider"
 import ToggleSetting from "@/components/settings/ToggleSetting"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -21,32 +22,30 @@ type CameraRoiPosition = 0 | 1 | 2 // 0=Center, 1=Bottom, 2=Top
 const CAMERA_FOV_MIN = 82
 const CAMERA_FOV_MAX = 118
 
-const PHOTO_SIZE_LABELS: Record<PhotoSize, string> = {
-  small: "Low (960×720)",
-  medium: "Medium (1440×1088)",
-  large: "High (3264×2448)",
-}
+const PHOTO_SIZE_OPTIONS = [
+  {key: "small" as PhotoSize, label: "Low (960×720)"},
+  {key: "medium" as PhotoSize, label: "Medium (1440×1088)"},
+  {key: "large" as PhotoSize, label: "High (3264×2448)"},
+]
 
-const VIDEO_RESOLUTION_LABELS: Record<VideoResolution, string> = {
-  "720p": "720p (1280×720)",
-  "1080p": "1080p (1920×1080)",
-  // "1440p": "1440p (2560×1920)",
-  // "4K": "4K (3840×2160)",
-}
+const VIDEO_RESOLUTION_OPTIONS = [
+  {key: "720p" as VideoResolution, label: "720p (1280×720)"},
+  {key: "1080p" as VideoResolution, label: "1080p (1920×1080)"},
+]
 
-const MAX_RECORDING_TIME_LABELS: Record<MaxRecordingTime, string> = {
-  "3m": "3 minutes",
-  "5m": "5 minutes",
-  "10m": "10 minutes",
-  "15m": "15 minutes",
-  "20m": "20 minutes",
-}
+const MAX_RECORDING_TIME_OPTIONS = [
+  {key: "3m" as MaxRecordingTime, label: "3 minutes"},
+  {key: "5m" as MaxRecordingTime, label: "5 minutes"},
+  {key: "10m" as MaxRecordingTime, label: "10 minutes"},
+  {key: "15m" as MaxRecordingTime, label: "15 minutes"},
+  {key: "20m" as MaxRecordingTime, label: "20 minutes"},
+]
 
-const CAMERA_ROI_LABELS: Record<CameraRoiPosition, string> = {
-  0: "Center",
-  1: "Bottom",
-  2: "Top",
-}
+const ROI_POSITION_OPTIONS = [
+  {key: "0", label: "Center"},
+  {key: "1", label: "Bottom"},
+  {key: "2", label: "Top"},
+]
 
 export default function CameraSettingsScreen() {
   const {theme, themed} = useAppTheme()
@@ -82,6 +81,9 @@ export default function CameraSettingsScreen() {
     if (videoSettings.width >= 1920) return "1080p"
     return "720p"
   })()
+
+  // Derive max recording time key from stored number
+  const maxRecordingTimeKey: MaxRecordingTime = maxRecordingTime ? `${maxRecordingTime}m` as MaxRecordingTime : "5m"
 
   const handlePhotoSizeChange = (size: PhotoSize) => {
     if (!glassesConnected) {
@@ -162,111 +164,37 @@ export default function CameraSettingsScreen() {
     )
   }
 
+  const roiDisabled = currentFov === CAMERA_FOV_MAX
+
   return (
     <Screen preset="fixed">
       <Header leftIcon="chevron-left" onLeftPress={() => goBack()} title={translate("settings:cameraSettings")} />
       <ScrollView
         style={{marginRight: -theme.spacing.s4, paddingRight: theme.spacing.s4}}
         contentInsetAdjustmentBehavior="automatic">
-        <View style={themed($settingsGroup)}>
-          <Text style={themed($settingLabel)}>Action Button Photo Settings</Text>
-          <Text style={themed($settingSubtitle)}>Choose the resolution for photos taken with the action button.</Text>
-
-          {Object.entries(PHOTO_SIZE_LABELS).map(([value, label], index, arr) => {
-            const isFirst = index === 0
-            const isLast = index === arr.length - 1
-            const isSelected = photoSize === value
-            return (
-              <Pressable
-                key={value}
-                style={[
-                  themed($optionItem),
-                  {
-                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: isSelected ? 1 : undefined,
-                    borderColor: isSelected ? theme.colors.primary : undefined,
-                  },
-                ]}
-                hitSlop={{top: 4, bottom: 4, left: 4, right: 4}}
-                onPress={() => handlePhotoSizeChange(value as PhotoSize)}>
-                <Text style={themed($optionText)}>{label}</Text>
-                {isSelected && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </Pressable>
-            )
-          })}
+        <View style={themed($section)}>
+          <Text style={themed($sectionTitle)}>Action Button Photo Settings</Text>
+          <Text style={themed($sectionSubtitle)}>Choose the resolution for photos taken with the action button.</Text>
+          <OptionList options={PHOTO_SIZE_OPTIONS} selected={photoSize} onSelect={handlePhotoSizeChange} />
         </View>
 
-        <View style={themed($settingsGroup)}>
-          <Text style={themed($settingLabel)}>Action Button Video Settings</Text>
-          <Text style={themed($settingSubtitle)}>
+        <View style={themed($section)}>
+          <Text style={themed($sectionTitle)}>Action Button Video Settings</Text>
+          <Text style={themed($sectionSubtitle)}>
             Choose the resolution for videos recorded with the action button.
           </Text>
-
-          {Object.entries(VIDEO_RESOLUTION_LABELS).map(([value, label], index, arr) => {
-            const isFirst = index === 0
-            const isLast = index === arr.length - 1
-            const isSelected = videoResolution === value
-            return (
-              <Pressable
-                key={value}
-                style={[
-                  themed($optionItem),
-                  {
-                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: isSelected ? 1 : undefined,
-                    borderColor: isSelected ? theme.colors.primary : undefined,
-                  },
-                ]}
-                hitSlop={{top: 4, bottom: 4, left: 4, right: 4}}
-                onPress={() => handleVideoResolutionChange(value as VideoResolution)}>
-                <Text style={themed($optionText)}>{label}</Text>
-                {isSelected && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </Pressable>
-            )
-          })}
+          <OptionList options={VIDEO_RESOLUTION_OPTIONS} selected={videoResolution} onSelect={handleVideoResolutionChange} />
         </View>
 
-        <View style={themed($settingsGroup)}>
-          <Text style={themed($settingLabel)}>Maximum Recording Time</Text>
-          <Text style={themed($settingSubtitle)}>Maximum duration for button-triggered video recording</Text>
-
-          {Object.entries(MAX_RECORDING_TIME_LABELS).map(([value, label], index, arr) => {
-            const isFirst = index === 0
-            const isLast = index === arr.length - 1
-            const minutes = parseInt(value.replace("m", ""))
-            const isSelected = maxRecordingTime === minutes
-            return (
-              <Pressable
-                key={value}
-                style={[
-                  themed($optionItem),
-                  {
-                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: isSelected ? 1 : undefined,
-                    borderColor: isSelected ? theme.colors.primary : undefined,
-                  },
-                ]}
-                hitSlop={{top: 4, bottom: 4, left: 4, right: 4}}
-                onPress={() => handleMaxRecordingTimeChange(value as MaxRecordingTime)}>
-                <Text style={themed($optionText)}>{label}</Text>
-                {isSelected && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </Pressable>
-            )
-          })}
+        <View style={themed($section)}>
+          <Text style={themed($sectionTitle)}>Maximum Recording Time</Text>
+          <Text style={themed($sectionSubtitle)}>Maximum duration for button-triggered video recording</Text>
+          <OptionList options={MAX_RECORDING_TIME_OPTIONS} selected={maxRecordingTimeKey} onSelect={handleMaxRecordingTimeChange} />
         </View>
 
-        <View style={themed($settingsGroup)}>
-          <Text style={themed($settingLabel)}>{translate("settings:cameraFovRoiTitle")}</Text>
-          <Text style={themed($settingSubtitle)}>{translate("settings:cameraFovRoiExplanation")}</Text>
+        <View style={themed($section)}>
+          <Text style={themed($sectionTitle)}>{translate("settings:cameraFovRoiTitle")}</Text>
+          <Text style={themed($sectionSubtitle)}>{translate("settings:cameraFovRoiExplanation")}</Text>
 
           <ThemedSlider
             value={currentFov}
@@ -279,36 +207,17 @@ export default function CameraSettingsScreen() {
             }}
           />
 
-          <Text style={[themed($settingSubtitle), {marginTop: theme.spacing.s4}]}>ROI position</Text>
-          {([0, 1, 2] as const).map((roi, index, arr) => {
-            const isFirst = index === 0
-            const isLast = index === arr.length - 1
-            const roiDisabled = currentFov === CAMERA_FOV_MAX
-            return (
-              <TouchableOpacity
-                key={roi}
-                disabled={roiDisabled}
-                style={[
-                  themed($optionItem),
-                  {
-                    borderTopLeftRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderTopRightRadius: isFirst ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomLeftRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderBottomRightRadius: isLast ? theme.spacing.s4 : theme.spacing.s1,
-                    borderWidth: currentRoi === roi ? 1 : undefined,
-                    borderColor: currentRoi === roi ? theme.colors.primary : undefined,
-                    opacity: roiDisabled ? 0.5 : 1,
-                  },
-                ]}
-                onPress={() => handleCameraFovChange(currentFov, roi)}>
-                <Text style={themed($optionText)}>{CAMERA_ROI_LABELS[roi]}</Text>
-                {currentRoi === roi && <Icon name="check" size={24} color={theme.colors.primary} />}
-              </TouchableOpacity>
-            )
-          })}
+          <Text style={[themed($sectionSubtitle), {marginTop: theme.spacing.s4}]}>ROI position</Text>
+          <View style={{opacity: roiDisabled ? 0.5 : 1}} pointerEvents={roiDisabled ? "none" : "auto"}>
+            <OptionList
+              options={ROI_POSITION_OPTIONS}
+              selected={String(currentRoi)}
+              onSelect={(key) => handleCameraFovChange(currentFov, Number(key) as CameraRoiPosition)}
+            />
+          </View>
         </View>
         {_devMode && (
-          <View style={themed($settingsGroup)}>
+          <View style={themed($section)}>
             <ToggleSetting
               label={translate("settings:postProcessing")}
               subtitle={translate("settings:postProcessingSubtitle")}
@@ -322,41 +231,23 @@ export default function CameraSettingsScreen() {
   )
 }
 
-const $settingsGroup: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
-  backgroundColor: colors.primary_foreground,
+const $section: ThemedStyle<ViewStyle> = ({spacing}) => ({
   paddingVertical: 14,
   paddingHorizontal: 16,
-  borderRadius: spacing.s4,
   marginVertical: spacing.s3,
 })
 
-const $settingLabel: ThemedStyle<TextStyle> = ({colors}) => ({
+const $sectionTitle: ThemedStyle<TextStyle> = ({colors}) => ({
   color: colors.text,
   fontSize: 14,
   fontWeight: "600",
   marginBottom: spacing.s1,
 })
 
-const $settingSubtitle: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
+const $sectionSubtitle: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
   color: colors.textDim,
   fontSize: 12,
   marginBottom: spacing.s3,
-})
-
-const $optionItem: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  paddingVertical: spacing.s4 + 2,
-  paddingHorizontal: spacing.s4,
-  minHeight: 52,
-  backgroundColor: colors.background,
-  marginBottom: spacing.s2,
-})
-
-const $optionText: ThemedStyle<TextStyle> = ({colors}) => ({
-  color: colors.text,
-  fontSize: 16,
 })
 
 const $emptyStateContainer: ThemedStyle<ViewStyle> = ({spacing}) => ({

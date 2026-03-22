@@ -45,6 +45,9 @@ Pod::Spec.new do |s|
   # System libraries required by MentraOS
   s.library = 'bz2'
 
+  # Vendored frameworks
+  s.vendored_frameworks = 'Packages/SherpaOnnx/sherpa-onnx.xcframework'
+
   # Resources (model files)
   s.resources = 'Packages/VAD/Silero/Model/*.onnx'
 
@@ -56,6 +59,7 @@ Pod::Spec.new do |s|
     "Packages/CoreObjC/lc3_cpp.h",
     "Packages/CoreObjC/mdct_neon.h",
     "Packages/CoreObjC/ltpf_neon.h",
+    "Packages/SherpaOnnx/sherpa-onnx.xcframework/Headers/sherpa-onnx/c-api/cxx-api.h",
     "Source/Bridging-Header.h"
   ]
 

@@ -198,6 +198,11 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "should_send_lc3", newValue) }
     }
 
+    private var shouldSendTranscript: Bool {
+        get { GlassesStore.shared.get("core", "should_send_transcript") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "should_send_transcript", newValue) }
+    }
+
     private var metricSystem: Bool {
         get { GlassesStore.shared.get("core", "metric_system") as? Bool ?? false }
         set { GlassesStore.shared.apply("core", "metric_system", newValue) }
@@ -292,6 +297,9 @@ struct ViewState {
     private var vadBuffer = [Data]()
     private var isSpeaking = false
 
+    /// STT:
+    private var transcriber: SherpaOnnxTranscriber?
+
     var viewStates: [ViewState] = [
         ViewState(
             topText: " ", bottomText: " ", title: " ", layoutType: "text_wall", text: ""
@@ -313,21 +321,37 @@ struct ViewState {
 
     override init() {
         Bridge.log("MAN: init()")
-        // vad = SileroVADStrategy()
+        vad = SileroVADStrategy()
         super.init()
 
         // Start memory monitoring (logs every 30s to help detect leaks)
         // MemoryMonitor.start()
 
-        // Task {
-        //     self.vad?.setup(
-        //         sampleRate: .rate_16k,
-        //         frameSize: .size_1024,
-        //         quality: .normal,
-        //         silenceTriggerDurationMs: 4000,
-        //         speechTriggerDurationMs: 50
-        //     )
-        // }
+        // Initialize SherpaOnnx Transcriber
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let window = windowScene.windows.first,
+            let rootViewController = window.rootViewController
+        {
+            transcriber = SherpaOnnxTranscriber(context: rootViewController)
+        } else {
+            Bridge.log("Failed to create SherpaOnnxTranscriber - no root view controller found")
+        }
+
+        // Initialize the transcriber
+        if let transcriber = transcriber {
+            transcriber.initialize()
+            Bridge.log("SherpaOnnxTranscriber fully initialized")
+        }
+
+        Task {
+            self.vad?.setup(
+                sampleRate: .rate_16k,
+                frameSize: .size_1024,
+                quality: .normal,
+                silenceTriggerDurationMs: 4000,
+                speechTriggerDurationMs: 50
+            )
+        }
 
         // Initialize persistent LC3 converter for unified audio encoding
         lc3Converter = PcmConverter()
@@ -413,6 +437,11 @@ struct ViewState {
         // handle incoming PCM data from the microphone manager and feed to the VAD:
         if bypassVad {
             handleSendingPcm(pcmData)
+
+            // Send PCM to local transcriber (always needs raw PCM)
+            if shouldSendTranscript || offlineCaptionsRunning {
+                transcriber?.acceptAudio(pcm16le: pcmData)
+            }
             return
         }
 
@@ -444,6 +473,11 @@ struct ViewState {
             emptyVadBuffer()
 
             handleSendingPcm(pcmData)
+
+            // Send PCM to local transcriber (always needs raw PCM)
+            if shouldSendTranscript || offlineCaptionsRunning {
+                transcriber?.acceptAudio(pcm16le: pcmData)
+            }
         } else {
             checkSetVadStatus(speaking: false)
             // add to the vadBuffer (stores PCM for potential later sending):
@@ -860,6 +894,11 @@ struct ViewState {
         updateMicState()
     }
 
+    func restartTranscriber() {
+        Bridge.log("MAN: Restarting SherpaOnnxTranscriber via command")
+        transcriber?.restart()
+    }
+
     // MARK: - connection state management
 
     func handleDeviceReady() {
@@ -1156,8 +1195,9 @@ struct ViewState {
     }
 
     func setMicState() {
-        let willSendMicData = shouldSendPcm || shouldSendLc3
-        micEnabled = willSendMicData
+        let willSendPcm = shouldSendPcm || shouldSendLc3
+        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        micEnabled = willSendPcm || willSendTranscript
         updateMicState()
     }
 
@@ -1346,6 +1386,9 @@ struct ViewState {
     }
 
     func cleanup() {
+        // Clean up transcriber resources
+        transcriber?.shutdown()
+        transcriber = nil
 
         // Clean up LC3 converter
         lc3Converter = nil

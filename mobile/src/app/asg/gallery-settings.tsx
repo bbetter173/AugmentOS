@@ -131,7 +131,9 @@ export default function GallerySettingsScreen() {
   return (
     <Screen preset="fixed">
       <Header title={translate("glasses:gallerySettings")} leftIcon="chevron-left" onLeftPress={() => goBack()} />
-      <ScrollView showsVerticalScrollIndicator={false} style={{marginHorizontal: -theme.spacing.s4, paddingHorizontal: theme.spacing.s4}}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{marginHorizontal: -theme.spacing.s4, paddingHorizontal: theme.spacing.s4}}>
         {/* Camera Settings button for glasses with configurable button */}
         {features?.hasButton && (
           <View style={[themed($section), {marginTop: theme.spacing.s4}]}>
@@ -166,11 +168,15 @@ export default function GallerySettingsScreen() {
                 value: localVideoCount.toString(),
               },
               {
-                label: translate("glasses:photosOnGlasses", {glassesName: defaultWearable || translate("glasses:title")}),
+                label: translate("glasses:photosOnGlasses", {
+                  glassesName: defaultWearable || translate("glasses:title"),
+                }),
                 value: glassesPhotoCount > 0 ? glassesPhotoCount.toString() : "—",
               },
               {
-                label: translate("glasses:videosOnGlasses", {glassesName: defaultWearable || translate("glasses:title")}),
+                label: translate("glasses:videosOnGlasses", {
+                  glassesName: defaultWearable || translate("glasses:title"),
+                }),
                 value: glassesVideoCount > 0 ? glassesVideoCount.toString() : "—",
               },
               {

@@ -24,7 +24,14 @@ import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/Navigatio
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import restComms from "@/services/RestComms"
-import {useApplets, useAppletStatusStore, useRefreshApplets, useStartApplet, useStopApplet, SYSTEM_APPS} from "@/stores/applets"
+import {
+  useApplets,
+  useAppletStatusStore,
+  useRefreshApplets,
+  useStartApplet,
+  useStopApplet,
+  SYSTEM_APPS,
+} from "@/stores/applets"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
 import {askPermissionsUI} from "@/utils/PermissionsUtils"
@@ -664,15 +671,17 @@ export default function AppSettings() {
 
           {/* App Settings Section */}
           <View style={themed($settingsContainer)}>
-            {settingsLoading && (!serverAppInfo?.settings || typeof serverAppInfo.settings === "undefined") ? (
-              <SettingsSkeleton />
-            ) : processedSettings.length > 0 ? (
-              processedSettings.map(({setting, isFirst, isLast}, index) =>
-                renderSetting(setting, isFirst, isLast, index),
-              )
-            ) : null /* (
+            {
+              settingsLoading && (!serverAppInfo?.settings || typeof serverAppInfo.settings === "undefined") ? (
+                <SettingsSkeleton />
+              ) : processedSettings.length > 0 ? (
+                processedSettings.map(({setting, isFirst, isLast}, index) =>
+                  renderSetting(setting, isFirst, isLast, index),
+                )
+              ) : null /* (
               <Text style={themed($noSettingsText)}>{translate("appSettings:noSettings")}</Text>
-            ) */}
+            ) */
+            }
           </View>
 
           {/* Additional Information Section */}

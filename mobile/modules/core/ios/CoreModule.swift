@@ -31,6 +31,7 @@ public class CoreModule: Module {
             "audio_connected",
             "audio_disconnected",
             "save_setting",
+            "local_transcription",
             "phone_notification",
             "phone_notification_dismissed",
             "ws_text",
@@ -333,6 +334,50 @@ public class CoreModule: Module {
             }
         }
 
+        // MARK: - Microphone Commands
+
+        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
+            await MainActor.run {
+                CoreManager.shared.setMicState()
+            }
+        }
+
+        AsyncFunction("restartTranscriber") {
+            await MainActor.run {
+                CoreManager.shared.restartTranscriber()
+            }
+        }
+
+        // MARK: - Display Commands
+
+        AsyncFunction("clearDisplay") {
+            await MainActor.run {
+                CoreManager.shared.sgc?.clearDisplay()
+            }
+        }
+
+        // MARK: - STT Model Management
+
+        AsyncFunction("setSttModelDetails") { (path: String, languageCode: String) in
+            STTTools.setSttModelDetails(path, languageCode)
+        }
+
+        AsyncFunction("getSttModelPath") { () -> String in
+            return STTTools.getSttModelPath()
+        }
+
+        AsyncFunction("checkSttModelAvailable") { () -> Bool in
+            return STTTools.checkSTTModelAvailable()
+        }
+
+        AsyncFunction("validateSttModel") { (path: String) -> Bool in
+            return STTTools.validateSTTModel(path)
+        }
+
+        AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
+            return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
+        }
+
         // MARK: - Android Stubs
 
         AsyncFunction("getInstalledApps") { () -> Any in
@@ -365,4 +410,5 @@ public class CoreModule: Module {
         }
 
     }
+
 }

@@ -81,6 +81,7 @@ class GlassesStore {
         store.set("core", "button_photo_size", "medium")
         store.set("core", "button_camera_led", true)
         store.set("core", "button_max_recording_time", 10)
+        store.set("core", "camera_fov", ["fov": 118, "roi_position": 0])
         store.set("core", "button_video_width", 1280)
         store.set("core", "button_video_height", 720)
         store.set("core", "button_video_fps", 30)
@@ -90,6 +91,7 @@ class GlassesStore {
         store.set("core", "auth_token", "")
         store.set("core", "should_send_pcm", false)
         store.set("core", "should_send_lc3", false)
+        store.set("core", "should_send_transcript", false)
         store.set("core", "bypass_vad", false)
     }
 
@@ -203,6 +205,9 @@ class GlassesStore {
 
         case ("core", "button_max_recording_time"):
             CoreManager.shared.sgc?.sendButtonMaxRecordingTime()
+
+        case ("core", "camera_fov"):
+            CoreManager.shared.sgc?.sendCameraFovSetting()
 
         case ("core", "button_video_width"), ("core", "button_video_height"),
             ("core", "button_video_fps"):

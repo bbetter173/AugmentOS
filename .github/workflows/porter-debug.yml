@@ -4,9 +4,7 @@ on:
   workflow_dispatch: # Manual trigger fallback
   push:
     branches:
-      - cloud/issues-044
-      - new-context-soniox
-      - cloud/044-ci-build-audit
+      - cloud/issues-048
     paths:
       - "cloud/**"
       - ".github/workflows/porter-debug.yml"

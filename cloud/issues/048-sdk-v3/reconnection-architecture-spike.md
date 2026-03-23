@@ -4,7 +4,7 @@
 **Related:** [SDK v3 spike](./spike.md), [client SDK spike](./client-sdk-spike.md)
 **Status:** Spike
 **Date:** 2026-03-17
-**Updated:** 2026-03-17 — complete rewrite from brainstorm session
+**Updated:** 2026-03-19 — added cloud restart / booting / parked-session recovery decisions and deferred cloud attach model
 
 ---
 
@@ -195,7 +195,7 @@ interface SDKSessionState {
   cloudHostname: string | null // which cloud we're connected to
 
   // Connection
-  connectionState: "disconnected" | "connecting" | "connected"
+  connectionState: "disconnected" | "connecting" | "connected" | "parked"
   webSocket: WebSocket | null
 
   // Subscriptions (source of truth — derived from handlers)
@@ -211,6 +211,8 @@ interface SDKSessionState {
 ```
 
 **Key invariant:** `subscriptions` is ALWAYS derived from `handlers`. When a handler is added, the subscription is added. When a handler is removed, the subscription is removed. They cannot drift. This is the Bug 007 fix made structural.
+
+**Additional invariant:** `parked` means "preserve the in-memory MentraSession state, stop active reconnect attempts, and wait for the cloud to explicitly start/reattach the app." It is not a fresh start and it is not a terminal stop.
 
 ### State: Cloud Side
 
@@ -273,6 +275,18 @@ CONNECTING ──→ RUNNING ──→ TRANSPORT_DOWN ──→ RUNNING         
 | `STOPPING`       | `STOPPED`        | Stop completes                             | Clean up AppSession.                                                                                                                |
 
 **Critical difference from v2:** Resurrection does NOT destroy the AppSession. The cloud keeps it alive with all subscriptions. It just sends a webhook to get the SDK to reconnect. When the SDK connects, it finds the existing AppSession waiting for it.
+
+### Cloud Restart Authority
+
+When the cloud process itself restarts, it becomes authoritative again for app lifecycle ordering.
+
+That means:
+
+- mini apps should **not** keep blindly racing to reconnect while the cloud is rebuilding user/app state
+- the restarted cloud should be able to tell a reconnecting mini app: "do not attach yet; preserve your state and wait for me to explicitly start you"
+- the mini app should preserve `MentraSession` state during that hold window, rather than destroying it immediately
+
+This is a different case from normal transport reconnect. It is a cloud recovery / reattach problem.
 
 ### State Machine: Cloud Side (v2 apps — legacy, unchanged)
 
@@ -546,6 +560,153 @@ t=30s   User switches BACK to Cloud A.
         Either way, data resumes.
 ```
 
+### Scenario 5: Cloud Crash / Restart / Reattach
+
+This happens when:
+
+- the cloud crashes or is redeployed
+- the mini app SDK notices transport loss and starts reconnecting
+- the mobile client and cloud are still rebuilding `UserSession` / running-app state
+
+The key design decision:
+
+- the restarted cloud is authoritative
+- the mini app should preserve state briefly
+- the cloud should explicitly tell the mini app to stop active reconnect attempts and wait for `start`
+
+```
+Cloud                                         SDK
+ │                                              │
+ │  (Cloud process crashes / restarts)          │  (WebSocket drops)
+ │                                              │
+ │                                              │  MentraSession enters reconnect flow
+ │                                              │  Has in-memory state, session handlers, subscriptions
+ │                                              │
+ │←─── SDK reconnect attempt ──────────────────│
+ │                                              │
+ │  Cloud has not rebuilt UserSession yet       │
+ │  or has not restored running apps yet        │
+ │                                              │
+ │──── BOOTING / REATTACH_LATER ─────────────→ │
+ │     { reason: "booting" }                    │
+ │                                              │
+ │                                              │ SDK transitions to PARKED
+ │                                              │ - preserve MentraSession state
+ │                                              │ - stop active reconnect attempts
+ │                                              │ - wait for start webhook
+ │                                              │ - start bounded grace timer
+ │                                              │
+ │  Cloud continues boot                        │
+ │  UserSession reconnects                      │
+ │  runningApps restored                        │
+ │                                              │
+ │──── Start Webhook ─────────────────────────→ │
+ │                                              │
+ │                                              │ SDK still has preserved runtime
+ │                                              │ → reattach existing MentraSession
+ │                                              │ → do NOT destroy app state
+ │                                              │
+ │←─── RECONNECT / CONNECTION_INIT ────────────│
+ │                                              │
+ │──── ACK / RECONNECT_ACK ──────────────────→ │
+ │                                              │
+ │                                              │ MentraSession resumes RUNNING
+```
+
+If the cloud later determines the app should **not** be running, it must give a terminal rejection (`not_running`, stop webhook, or equivalent) and the parked session may then be destroyed.
+
+If the user manually stops the app:
+
+- no parked grace period
+- no preservation behavior
+- state should be destroyed immediately
+
+So the recovery rules are:
+
+1. Manual stop: destroy immediately.
+2. Normal transport blip: self-reconnect immediately.
+3. Cloud restart / boot race: cloud replies `booting`, SDK parks and waits for explicit `start`.
+4. No `start` arrives before park timeout: SDK destroys preserved state.
+
+This is preferred over letting mini apps keep retrying until they happen to win the boot-order race.
+
+### Cloud-Side Deferred Attach Model
+
+For v3 apps, this boot/recovery path should be implemented as a deferred attach layer that sits between `/app-ws` and `UserSession`.
+
+Design rules:
+
+- `UserSession` remains owned by the glasses/mobile connection.
+- `/app-ws` does **not** create a speculative full `UserSession`.
+- v2 mini apps keep current immediate `SESSION_NOT_FOUND` behavior.
+- v3 mini apps may be accepted at the transport level and held in a deferred unattached state while the cloud restores user/app state.
+
+Suggested internal shape:
+
+```typescript
+interface DeferredAppConnection {
+  userId: string
+  packageName: string
+  sdkVersion: string
+  priorSessionId?: string
+  websocket: WebSocket
+  connectedAt: Date
+  expiresAt: Date
+  reason: "booting" | "awaiting_app_restore"
+}
+```
+
+This registry should be process-local and live outside `UserSession`, because its purpose is to exist even when no `UserSession` has been recreated yet.
+
+Default timeout decisions:
+
+- cloud holds deferred sockets for up to **30 seconds**
+- SDK parks the corresponding `MentraSession` for up to **30 seconds**
+
+Default terminal timeout behavior:
+
+- cloud sends terminal rejection with reason `boot_timeout`
+- SDK tears down the parked runtime state
+
+### When Cloud Should Defer vs Reject vs Attach
+
+For authenticated v3 `RECONNECT` attempts:
+
+1. No `UserSession` exists yet for the `userId`
+   - send `RECONNECT_DEFERRED`
+   - reason: `booting`
+   - keep socket open in deferred registry
+
+2. `UserSession` exists, but app-restore ordering is not complete yet
+   - send `RECONNECT_DEFERRED`
+   - reason: `awaiting_app_restore`
+   - keep socket open in deferred registry
+
+3. `UserSession` exists and the app is expected to be running
+   - attach immediately
+   - send `RECONNECT_ACK`
+
+4. The cloud determines the app should not be running here
+   - send `RECONNECT_REJECTED`
+   - reason: `not_running`
+   - close the socket
+
+### Deferred Attach Matching Rules
+
+When the cloud finishes rebuilding state, it should try to attach deferred sockets before issuing a fresh webhook start.
+
+Matching precedence:
+
+1. exact prior `sessionId`
+2. otherwise `userId + packageName`
+
+Attach preference:
+
+- if a valid deferred v3 socket is already waiting for an app the cloud expects to run, reuse that socket
+- only issue a new webhook start if no attachable deferred socket exists
+
+This reduces reconnect churn and makes cloud restart recovery feel continuous from the mini app's point of view.
+
 **SDK's decision logic when receiving a webhook:**
 
 ```
@@ -702,6 +863,8 @@ The SDK uses `cloudHostname` to derive all URLs:
 
 The `sessionId` in the webhook tells the SDK: "I have a preserved session with this ID. If you still have it, send RECONNECT. If not, send CONNECTION_INIT." This is how the SDK decides whether to reconnect or start fresh.
 
+**Default implementation decision:** when the SDK receives a start webhook while it already has a parked preserved runtime for the same app, it should prefer reusing that existing `MentraSession` instance rather than constructing a new one.
+
 ### Stop Webhook (unchanged)
 
 ```typescript
@@ -726,10 +889,12 @@ Sent when the SDK reconnects to a cloud where it previously had a session. The `
 {
   type: "reconnect",
   sessionId: string,        // UUID from the previous CONNECTION_ACK
-  sdkVersion: string,
+  sdkVersion: string,       // REQUIRED for v3 reconnect protocol
   timestamp: string
 }
 ```
+
+**Default implementation decision:** `sdkVersion` is present on both `CONNECTION_INIT` and `RECONNECT`. That lets the cloud determine v3 behavior before deciding whether to defer, attach, or reject the reconnect.
 
 ### RECONNECT_ACK (Cloud → SDK)
 
@@ -748,18 +913,58 @@ Cloud confirms the reconnection. Includes current subscriptions for reconciliati
 
 ### RECONNECT_REJECTED (Cloud → SDK)
 
-Cloud can't find the session (expired, or wrong cloud). SDK should fall back to CONNECTION_INIT.
+Cloud can't attach the reconnect request as-is.
 
 ```typescript
 {
   type: "reconnect_rejected",
-  code: "SESSION_NOT_FOUND" | "SESSION_STOPPED" | "SESSION_EXPIRED",
+  code: "NOT_RUNNING" | "BOOT_TIMEOUT" | "SESSION_STOPPED" | "SESSION_EXPIRED",
   message: string,
   timestamp: string
 }
 ```
 
-When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). The cloud will create a new AppSession.
+Default v3 behavior:
+
+- `NOT_RUNNING` and `BOOT_TIMEOUT` are terminal for the parked runtime
+- SDK should destroy preserved state and stop waiting
+- do **not** blindly fall back to fresh `CONNECTION_INIT` for cloud boot/recovery cases
+
+For non-boot, non-terminal reconnect mismatch cases, the cloud may still choose to allow a fresh `CONNECTION_INIT` on the same transport.
+
+### RECONNECT_DEFERRED (Cloud → SDK)
+
+Cloud accepted the transport connection but is not yet ready to attach the app logically. This is used during cloud restart/bootstrap recovery for **v3 SDKs only**.
+
+```typescript
+{
+  type: "reconnect_deferred",
+  code: "BOOTING" | "AWAITING_APP_RESTORE",
+  message: string,
+  timeoutMs: 30000,
+  timestamp: string
+}
+```
+
+SDK behavior on `RECONNECT_DEFERRED`:
+
+- transition to `parked`
+- preserve the current `MentraSession` object and all in-memory state
+- stop active reconnect attempts
+- keep the current WebSocket open as an unattached control channel until:
+  - the cloud later attaches it and sends `RECONNECT_ACK` / `CONNECTION_ACK`, or
+  - the cloud sends terminal rejection, or
+  - the parked timeout expires
+
+**Default implementation decision:** do **not** rely on "send then immediately close." The deferred socket stays open until it is promoted, rejected, or timed out.
+
+Cloud behavior on `RECONNECT_DEFERRED`:
+
+- do not create a speculative `UserSession`
+- store the authenticated app socket in a deferred registry
+- keep it open for up to 30 seconds
+- attempt attach when user/app restore ordering completes
+- prefer attaching the deferred socket over issuing a fresh webhook start when possible
 
 ### Modified CONNECTION_INIT (SDK → Cloud)
 
@@ -775,6 +980,8 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
   // CONNECTION_INIT always means "fresh start."
 }
 ```
+
+**Default implementation decision:** `CONNECTION_INIT` remains the fresh-start message, but if it arrives over a deferred/parked transport during cloud recovery, the cloud may attach it to a preserved AppSession instead of creating a brand new one.
 
 ### Modified CONNECTION_ACK (Cloud → SDK)
 
@@ -793,6 +1000,23 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
 }
 ```
 
+### Public SDK Runtime Signal
+
+The SDK should expose a public reconnect signal:
+
+```typescript
+session.onReconnected(() => {
+  // optional refresh logic
+})
+```
+
+This fires when:
+
+- a transport reconnect successfully resumes the same logical session
+- a parked session is reattached after cloud boot/recovery
+
+It does **not** fire on a true fresh start.
+
 ---
 
 ## What Changes Where
@@ -808,6 +1032,7 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
   - legacy mode: → `GRACE_PERIOD` (current behavior, unchanged)
 - Resurrection: do NOT destroy AppSession. Keep it alive. Just send the webhook and wait for the SDK to connect.
 - `handleReconnect(ws, sessionId)`: new method — matches sessionId to existing AppSession, attaches new WebSocket, cancels 5s timer, sends `RECONNECT_ACK`
+- Support deferred unattached sockets during cloud boot/recovery for v3 apps.
 
 ### Cloud: AppManager
 
@@ -819,11 +1044,18 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
 - New: `handleReconnect(ws, reconnectMessage)`:
   - Find AppSession by `sessionId`
   - If found and in `TRANSPORT_DOWN` or `RESURRECTING` → attach WebSocket, resume
-  - If not found → send `RECONNECT_REJECTED`, SDK will fall back to `CONNECTION_INIT`
+  - If no `UserSession` exists yet → keep socket open and send `RECONNECT_DEFERRED { code: "BOOTING" }`
+  - If `UserSession` exists but app restore ordering is incomplete → keep socket open and send `RECONNECT_DEFERRED { code: "AWAITING_APP_RESTORE" }`
+  - If app is not expected to run here → send `RECONNECT_REJECTED { code: "NOT_RUNNING" }`
 - Resurrection (`handleAppSessionGracePeriodExpired`):
   - v3 mode: keep AppSession alive, send start webhook, wait for SDK
   - legacy mode: `stopApp()` + `startApp()` (current behavior)
 - Include `cloudHostname` and `sessionId` in start webhook payload
+- Attach matching priority:
+  - exact `sessionId`
+  - otherwise same `userId + packageName + cloudHostname` for parked/deferred recovery
+  - if multiple parked candidates exist, newest preserved runtime wins
+- Prefer attaching a matching deferred socket over issuing a new webhook start when possible
 
 ### Cloud: SubscriptionManager
 
@@ -841,6 +1073,10 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
 
 - Accept connections on `/ws/miniapp` (new) and `/app-ws` (legacy alias)
 - Accept connections on `/ws/client` (new) and `/glasses-ws` (legacy alias)
+- Add a process-local deferred v3 app socket registry outside `UserSession`
+  - keyed by `userId`, `packageName`, optional prior `sessionId`
+  - used only for authenticated v3 reconnects during boot / restore gaps
+  - expires entries after 30 seconds
 - Handle `RECONNECT` message type in `handleAppMessage`:
   - Parse `sessionId` from message
   - Delegate to `appManager.handleReconnect(ws, message)`
@@ -852,22 +1088,29 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
 - On WebSocket disconnect:
   - Immediately reconnect (no exponential backoff)
   - Send `RECONNECT` with `sessionId` (not `CONNECTION_INIT`)
-  - Retry the WebSocket connection every 1s until connected or the session is stopped
+  - Retry the WebSocket connection every `1s, 1s, 2s, 2s`, then cap at 5s until connected, parked, or stopped
 - On `RECONNECT_ACK`:
   - Compare local subscriptions (from handlers) vs cloud subscriptions (from ACK)
   - If mismatch → send `SUBSCRIPTION_UPDATE`
   - If match → do nothing, data resumes
+- On `RECONNECT_DEFERRED`:
+  - Enter `parked`
+  - Preserve in-memory state
+  - Stop active reconnect attempts
+  - Start 30s parked timeout
 - On `RECONNECT_REJECTED`:
-  - Fall back to `CONNECTION_INIT` (fresh start)
-  - New sessionId will be assigned
+  - If terminal and not parked → fall back to `CONNECTION_INIT` on the same transport
+  - If terminal after parking → destroy preserved state and stop retrying
 - On webhook received:
   - If currently connected to a different cloud → send `OWNERSHIP_RELEASE` to current cloud, connect to new cloud
   - If not connected → connect
   - If webhook includes `sessionId` that SDK recognizes → send `RECONNECT`
   - If webhook includes `sessionId` that SDK doesn't recognize, or no `sessionId` → send `CONNECTION_INIT`
 - Send `sdkVersion` in `CONNECTION_INIT`
+- Send `sdkVersion` in `RECONNECT`
 - Expose `session.userId` (MongoDB `_id`) and `session.email` (optional)
 - Expose `session.wasResurrected` (from `CONNECTION_ACK.resurrected`)
+- Expose `session.onReconnected()`
 
 ### SDK: MentraApp / AppServer
 
@@ -879,15 +1122,15 @@ When the SDK receives this, it falls back to `CONNECTION_INIT` (fresh start). Th
 
 ## Open Questions
 
-| #   | Question                                           | Notes                                                                                                                                                                                                                                                                                                                                     |
-| --- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Event buffering during TRANSPORT_DOWN**          | Should the cloud buffer events during the 5s hold and replay on reconnect? Most reconnects happen in milliseconds — the gap is tiny. Buffering adds complexity. Probably drop events during the gap — the app misses a few ms of data, not meaningful for most use cases.                                                                 |
-| 2   | **Cloud restart scenario**                         | If the cloud process itself restarts (deploy, crash), all in-memory AppSessions are gone. SDK's `RECONNECT` gets `RECONNECT_REJECTED`. Falls back to `CONNECTION_INIT`. Cloud creates new AppSession with empty subs. SDK sends `SUBSCRIPTION_UPDATE`. This is equivalent to a fresh start — acceptable? Or persist AppSessions to Redis? |
-| 3   | **RECONNECT retry strategy**                       | SDK reconnects immediately with no backoff. If the WebSocket can't be established (network fully down), keep retrying every 1s? Or slightly increase (1s, 1s, 2s, 2s)? Must succeed within 5s or cloud resurrects.                                                                                                                        |
-| 4   | **userId transition plan**                         | How do we migrate from email-based userId to MongoDB `_id`? Support both simultaneously during transition? What about external systems (dev console, BetterStack logs, debug tools) that use email?                                                                                                                                       |
-| 5   | **Kill sessionId as email-packageName**            | The old `sessionId` format (`email-packageName`) — do we keep it for any backward compat purpose? Or completely replace with the UUID? v2 SDKs send it in `CONNECTION_INIT` — does the cloud still need to parse it?                                                                                                                      |
-| 6   | **Subscription comparison algorithm**              | How does the SDK compare local vs remote subscriptions? Set equality? Order-independent string comparison? Do we need to handle stream type aliases (e.g., `transcription:en-US` vs `transcription:en`)?                                                                                                                                  |
-| 7   | **onReconnect event**                              | Should the developer know a reconnect happened? Silent reconnect is clean (session "just works"). But some apps might want to refresh data. Emit `session.on("reconnected")` always? Or opt-in?                                                                                                                                           |
-| 8   | **v2 backport of resurrected flag**                | Should we add `resurrected: true` to v2 `CONNECTION_ACK` as well? Non-breaking addition. v2 SDKs would ignore it, but devs who check raw messages could use it.                                                                                                                                                                           |
-| 9   | **RECONNECT_REJECTED → immediate CONNECTION_INIT** | When SDK gets `RECONNECT_REJECTED`, should it send `CONNECTION_INIT` on the same WebSocket connection? Or close and reconnect? Same-connection is faster. New-connection is cleaner.                                                                                                                                                      |
-| 10  | **Multi-cloud webhook conflict**                   | If Cloud A and Cloud B both send start webhooks simultaneously (race condition during switch), the SDK follows the most recent. But "most recent" based on what — webhook receipt time? Does the webhook include a timestamp the SDK can compare?                                                                                         |
+| #   | Question                                  | Notes                                                                                                                                                                                                                                                                     |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Event buffering during TRANSPORT_DOWN** | Should the cloud buffer events during the 5s hold and replay on reconnect? Most reconnects happen in milliseconds — the gap is tiny. Buffering adds complexity. Probably drop events during the gap — the app misses a few ms of data, not meaningful for most use cases. |
+| 2   | **Cloud restart boot response shape**     | Decision made: use `RECONNECT_DEFERRED` over an accepted WebSocket transport, keep the socket open, and park the SDK session. Default parked timeout: **30s**.                                                                                                            |
+| 3   | **RECONNECT retry strategy**              | Decision made: immediate reconnect for normal transport blips; on explicit `RECONNECT_DEFERRED`, stop active retries and park; for non-booting transport failures, default retry cadence is **1s, 1s, 2s, 2s, then cap at 5s**.                                           |
+| 4   | **userId transition plan**                | How do we migrate from email-based userId to MongoDB `_id`? Support both simultaneously during transition? What about external systems (dev console, BetterStack logs, debug tools) that use email?                                                                       |
+| 5   | **Kill sessionId as email-packageName**   | The old `sessionId` format (`email-packageName`) — do we keep it for any backward compat purpose? Or completely replace with the UUID? v2 SDKs send it in `CONNECTION_INIT` — does the cloud still need to parse it?                                                      |
+| 6   | **Subscription comparison algorithm**     | How does the SDK compare local vs remote subscriptions? Set equality? Order-independent string comparison? Do we need to handle stream type aliases (e.g., `transcription:en-US` vs `transcription:en`)?                                                                  |
+| 7   | **onReconnect event**                     | Decision made: expose `session.onReconnected()` for successful reconnect/reattach of the same logical session.                                                                                                                                                            |
+| 8   | **v2 backport of resurrected flag**       | Should we add `resurrected: true` to v2 `CONNECTION_ACK` as well? Non-breaking addition. v2 SDKs would ignore it, but devs who check raw messages could use it.                                                                                                           |
+| 9   | **RECONNECT_REJECTED behavior**           | Decision made: do not blindly fall back to fresh `CONNECTION_INIT` when the cloud is booting; use `RECONNECT_DEFERRED` instead. For terminal non-booting rejection, the default behavior is to reuse the same accepted transport for fresh `CONNECTION_INIT`.             |
+| 10  | **Multi-cloud webhook conflict**          | If Cloud A and Cloud B both send start webhooks simultaneously (race condition during switch), the SDK follows the most recent. But "most recent" based on what — webhook receipt time? Does the webhook include a timestamp the SDK can compare?                         |

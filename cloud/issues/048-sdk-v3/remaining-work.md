@@ -13,117 +13,64 @@ This document catalogs everything that still needs to be spiked, discussed, or d
 
 **Spikes completed:**
 
-| Spike                                                                      | Covers                                                                                     | Status      |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
-| [spike.md](./spike.md)                                                     | Core SDK v3 — MentraSession, managers, MentraApp, compat shims, translation, transcription | ✅ Complete |
-| [client-sdk-spike.md](./client-sdk-spike.md)                               | Local runtime — Hermes, MentraJS framework, build pipeline, TranscriptionCapabilities      | ✅ Complete |
-| [reconnection-architecture-spike.md](./reconnection-architecture-spike.md) | Reconnection, resurrection, session identity, subscription sync, multi-cloud, userId/email | ✅ Complete |
-| [session-camera-spike.md](./session-camera-spike.md)                       | Camera — photos, streaming unification, video recording (future), error propagation        | ✅ Complete |
-| [session-speaker-spike.md](./session-speaker-spike.md)                     | Speaker — audio output, TTS, audio streaming, priority/conflict                            | ✅ Complete |
-| [session-state-spike.md](./session-state-spike.md)                         | Typed shared state — session.state\<T\>, webview hooks, transport                          | ✅ Complete |
+| Spike                                                                      | Covers                                                                                         | Status      |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------- |
+| [spike.md](./spike.md)                                                     | Core SDK v3 — MentraSession, managers, MiniAppServer, compat shims, translation, transcription | ✅ Complete |
+| [client-sdk-spike.md](./client-sdk-spike.md)                               | Local runtime — Hermes, MentraJS framework, build pipeline, TranscriptionCapabilities          | ✅ Complete |
+| [reconnection-architecture-spike.md](./reconnection-architecture-spike.md) | Reconnection, resurrection, session identity, subscription sync, multi-cloud, userId/email     | ✅ Complete |
+| [session-camera-spike.md](./session-camera-spike.md)                       | Camera — photos, streaming unification, video recording (future), error propagation            | ✅ Complete |
+| [session-speaker-spike.md](./session-speaker-spike.md)                     | Speaker — audio output, TTS, audio streaming, priority/conflict                                | ✅ Complete |
+| [session-state-spike.md](./session-state-spike.md)                         | Typed shared state — session.state\<T\>, webview hooks, transport                              | ✅ Complete |
+| [session-mic-spike.md](./session-mic-spike.md)                             | Mic — raw PCM audio, VAD, mic↔transcription relationship, audio routing                       | ✅ Complete |
+| [session-device-spike.md](./session-device-spike.md)                       | Device — Observable state, hardware events, WiFi, capabilities, gestures                       | ✅ Complete |
+| [session-phone-spike.md](./session-phone-spike.md)                         | Phone — notifications, calendar, phone battery, sub-scoped managers                            | ✅ Complete |
 
 ---
 
-## Needs Its Own Spike
+## Spiked (Previously "Needs Its Own Spike")
 
-These are complex enough that they should be spiked before implementation. They have open design questions that need team input.
+These were complex enough that they needed dedicated spikes. All three are now complete.
 
-### 1. `session.mic` — Audio Input
+### 1. `session.mic` — Audio Input ✅
 
-**What:** The input side of audio. `session.speaker` (output) is spiked. `session.mic` (input) is not.
+**Spike:** [session-mic-spike.md](./session-mic-spike.md)
 
-**From the 039 API map:**
+**Key decisions:**
 
-```typescript
-class MicManager {
-  onChunk(handler: (chunk: AudioChunk) => void): () => void
-  onVoiceActivity(handler: (vad: Vad) => void): () => void
-  readonly isSpeaking: boolean // from VAD
-  readonly isActive: boolean // is mic streaming?
-  readonly hasPermission: boolean
-}
-```
+- Mic and transcription are **independent subscriptions on a shared resource**. Subscribing to transcription does NOT give you raw audio, and vice versa. Either enables the hardware mic.
+- `MicManager` wraps binary frames with metadata (always-present `sampleRate`, `channels`, `timestamp`) — fixes the v2 inconsistency where `sampleRate` was optional and missing from one of two code paths.
+- VAD `status: boolean | "true" | "false"` mixed type is normalized to a clean `isSpeaking: boolean` by the `MicManager`.
+- `session.mic.isActive` is **per-app** (reflects whether THIS app has a `onChunk` subscription), not global mic state.
+- Transport abstraction handles local vs cloud routing — `MicManager` doesn't know or care where audio comes from.
+- Wire protocol: **zero changes**. All v3 work is SDK-side.
 
-**What needs to be figured out:**
+### 2. `session.device` — Hardware & Device State ✅
 
-- How does `session.mic` interact with `session.transcription`? Transcription consumes mic audio. Are they independent subscriptions? Does subscribing to transcription implicitly activate the mic?
-- Today, mic audio goes: glasses → phone → cloud (UDP) → transcription provider. For local apps, it goes: glasses → phone → on-device Whisper/Sherpa. Does the mic manager need to know about this routing?
-- The current cloud has `MicrophoneManager`, `UdpAudioManager`, `AudioManager` — what's the relationship and does it need cleanup?
-- Raw audio chunks vs processed audio — what format does `onChunk` deliver? PCM? What sample rate?
-- Multiple apps subscribing to mic simultaneously — is this supported? (Currently yes via subscriptions, but should it be?)
+**Spike:** [session-device-spike.md](./session-device-spike.md)
 
-### 2. `session.device` — Hardware & Device State
+**Key decisions:**
 
-**What:** The 039 API map significantly redesigned this manager. Not spiked.
+- **Keep `Observable<T>` pattern** as-is. It's working, well-tested, and has the right semantics (sync read, reactive subscribe, cleanup function, change detection, error isolation).
+- **Do NOT flatten `device.state`** (overrides 039 D14). Too many other things on `session.device` (events, actions, capabilities) to also dump observables there.
+- **Kill `getWifiStatus()` and `isWifiConnected()`** — the Observable `session.device.state.wifiConnected` is the single source. Legacy methods become deprecated shims.
+- **Fix `subscribeToGestures` subscription leak** — v3 registers proper handlers internally instead of bypassing EventManager.
+- **Keep VPS coordinates** — dormant but costs nothing. Fix the double-subscribe bug, move to `session.device.onVpsCoordinates()`, mark as experimental.
+- **Battery: keep both Observable and event** — Observable for "what is battery now?", event for apps that need `timeRemaining` or every update.
+- Wire protocol: **zero changes**.
 
-**From the 039 API map:**
+### 3. `session.phone` — Phone Events ✅
 
-```typescript
-// Device state — keep the .state. nesting (NOT flattened)
-// There's too much on session.device already (events, actions, capabilities)
-// to also dump all the Observable state properties on the same level.
-session.device.state.wifiConnected // Observable<boolean>
-session.device.state.wifiSsid // Observable<string>
-session.device.state.batteryLevel // Observable<number>
-session.device.state.charging // Observable<boolean>
-session.device.state.caseBatteryLevel // Observable<number>
-session.device.state.connected // Observable<boolean>
-session.device.state.modelName // Observable<string>
-// ... more observables
+**Spike:** [session-phone-spike.md](./session-phone-spike.md)
 
-// Hardware events (moved from session.events)
-session.device.onButtonPress(handler)
-session.device.onHeadPosition(handler)
-session.device.onTouchEvent(handler)
-session.device.onVpsCoordinates(handler)
-session.device.subscribeToGestures(gestures)
+**Key decisions:**
 
-// Actions
-session.device.requestWifiSetup(ssid, pass) // moved from session-level
-
-// Capabilities
-session.device.capabilities // moved from session.capabilities
-```
-
-> **Decision: Do NOT flatten `device.state`.** The 039 API map proposed flattening `session.device.state.batteryLevel` → `session.device.batteryLevel`, but `session.device` already has hardware events, WiFi actions, capabilities, and gesture subscriptions. Adding all Observable state properties on the same level makes it too crowded. Keeping `session.device.state` as a sub-object is cleaner — two levels of nesting is fine when `state` is a coherent group of read-only values. Same pattern as `session.phone.notifications.on()`.
-
-**What needs to be figured out:**
-
-- The Observable pattern — the current `DeviceState` uses a custom Observable. Is this the right pattern for v3? Should we use a simpler getter + onChange callback instead?
-- Hardware events (button, head position, touch) — these are currently on `session.events`. Moving to `session.device` makes sense but needs the handler registration to flow through to the subscription system correctly.
-- WiFi setup — the current implementation is on `AppSession` directly. Moving to `session.device` is a rename, but does the WiFi status interact with the reconnection system? (E.g., "glasses on WiFi" triggers video upload.)
-- VPS coordinates — is this still a thing? Is it used?
-
-### 3. `session.phone` — Phone Events
-
-**What:** Sub-scoped notifications and calendar under `session.phone`.
-
-**From the 039 API map:**
-
-```typescript
-class PhoneManager {
-  readonly battery: number | null
-  onBatteryUpdate(handler): () => void
-
-  readonly notifications: {
-    on(handler): () => void
-    onDismissed(handler): () => void
-    readonly hasPermission: boolean
-  }
-
-  readonly calendar: {
-    on(handler): () => void
-    readonly hasPermission: boolean
-  }
-}
-```
-
-**What needs to be figured out:**
-
-- The sub-scoping pattern (`session.phone.notifications.on()`) — how does this interact with the subscription system? Is `notifications` a sub-manager with its own handler tracking?
-- Phone battery vs glasses battery — `session.phone.battery` vs `session.device.batteryLevel`. Clear enough naming?
-- The cloud already routes phone notifications and calendar events (issue 047 dashboard work). Does the `PhoneManager` just subscribe to the existing streams?
-- Are there other phone capabilities that should be here? (e.g., phone GPS is on `session.location`, phone notifications on `session.phone.notifications` — is this the right split?)
+- **Sub-scoped managers**: `session.phone.notifications` and `session.phone.calendar` are lightweight sub-managers with their own `.on()`, `.hasPermission`, and handler tracking. Better discoverability and scales better than flat methods.
+- **Phone battery stays permission-free** — battery level isn't sensitive data. No gate where none is needed.
+- **No notification caching in v3.0** — notifications are transient real-time alerts, not a queryable set. Calendar caching + replay stays (cloud's `CalendarManager` already does this).
+- **Clean up `NotificationDismissedEvent`** — remove unreliable `title`/`content` fields that the REST path doesn't populate.
+- **Normalize calendar field names**: `dtStart` → `start`, `dtEnd` → `end`, `timeStamp` → `timestamp`.
+- **Fix `phone_battery_update` category** — recategorize from `HARDWARE` to `PHONE` for consistency.
+- Wire protocol: **zero changes**.
 
 ---
 
@@ -247,8 +194,8 @@ Each spike has open questions. These should be reviewed and decided before or du
 **From reconnection-architecture-spike.md:**
 
 - Event buffering during TRANSPORT_DOWN (5s) — buffer or drop?
-- Cloud restart: persist AppSessions to Redis? Or accept fresh start?
-- RECONNECT retry strategy (every 1s? slight backoff?)
+- Cloud-side deferred app socket registry placement and implementation — implement to spec
+- RECONNECT retry strategy for non-booting failures — implement the default `1s, 1s, 2s, 2s, then cap at 5s`
 - userId transition plan (email → MongoDB \_id)
 - Kill old sessionId format entirely?
 - Subscription comparison algorithm
@@ -294,7 +241,7 @@ This is a suggestion, not a decision — the team should prioritize based on wha
 
 - `MentraSession` (renamed from AppSession)
 - `Transport` interface + `WebSocketTransport`
-- `MentraApp` (callback pattern)
+- `MiniAppServer` (callback pattern)
 - `AppServer` compat shim
 - Message dispatch refactor (DataStreamRouter)
 - `@mentra/sdk/session` entrypoint
@@ -306,9 +253,9 @@ This is a suggestion, not a decision — the team should prioritize based on wha
 - `TranslationManager` (with `to(string | string[])`)
 - `DisplayManager` (rename from layouts, add wrap/showText)
 - `SpeakerManager` (rename from AudioManager, audio streaming)
-- `MicManager` (new — audio input)
-- `DeviceManager` (new — hardware events, WiFi, capabilities)
-- `PhoneManager` (new — notifications, calendar)
+- `MicManager` (new — audio input, see [session-mic-spike.md](./session-mic-spike.md))
+- `DeviceManager` (new — hardware events, WiFi, capabilities, see [session-device-spike.md](./session-device-spike.md))
+- `PhoneManager` (new — notifications, calendar, see [session-phone-spike.md](./session-phone-spike.md))
 - `PermissionsManager`, `LocationManager`, `StorageManager`, `TimeUtils`, `DashboardManager`
 - `CameraManager` (unified streaming, photo cleanup)
 

@@ -6,6 +6,7 @@
 **Spec:** [`039-sdk-v3-api-surface/v2-v3-api-map.md`](../039-sdk-v3-api-surface/v2-v3-api-map.md)
 **Date:** 2026-03-17
 **Updated:** 2026-03-17 — `MentraSession` rename, local runtime, app distribution
+**Updated:** 2026-03-18 — `MiniAppServer` naming decision
 
 ---
 
@@ -20,20 +21,22 @@
 - Cloud wire protocol (WebSocket messages, subscription strings, webhook format) does NOT change.
 - v2 apps already deployed must keep working with the current cloud.
 - v3 is a breaking change for SDK consumers, but we provide a v2 compat layer so `npm update` doesn't immediately break existing apps.
-- The compat layer is a separate object (`AppServer`) that wraps the new `MentraApp`. It ships in v3.0 with deprecation warnings and is removed in v3.1.
-- The session layer (`MentraSession` + managers) must be runtime-agnostic — no Node.js/Bun/server dependencies. It must run on a cloud server (via `MentraApp`) AND on-device (via a local runtime on the phone). Same API, different host environments.
+- The compat layer is a separate object (`AppServer`) that wraps the new `MiniAppServer`. It ships in v3.0 with deprecation warnings and is removed in v3.1.
+- The session layer (`MentraSession` + managers) must be runtime-agnostic — no Node.js/Bun/server dependencies. It must run on a cloud server (via `MiniAppServer`) AND on-device (via a local runtime on the phone). Same API, different host environments.
 
 **Key naming:**
 
-- `MentraApp` — the HTTP server (Hono, creates sessions from webhooks). Cloud/server apps only.
+- `MiniAppServer` — the HTTP server (Hono, creates sessions from webhooks). Cloud/server apps only.
 - `MentraSession` — one user's connection. The thing developers interact with. Same class everywhere — cloud, phone, webview.
-- `AppServer` — deprecated v2 compat shim that wraps `MentraApp`.
+- `AppServer` — deprecated v2 compat shim that wraps `MiniAppServer`.
+
+**Naming rationale:** the host class is intentionally `MiniAppServer`, not `MentraApp`, to avoid confusion once mini apps can also run locally on the phone without any server. `MentraSession` is the cross-runtime API; `MiniAppServer` is the cloud-only host.
 
 ---
 
 ## The Express → Hono Problem
 
-The biggest migration friction isn't the API rename — it's the runtime change. v2 apps subclass `AppServer` which used to be Express-based. v3 (`MentraApp`) is Hono + Bun. A developer who did `class MyApp extends AppServer` and used Express middleware or `getExpressApp()` has a real porting challenge.
+The biggest migration friction isn't the API rename — it's the runtime change. v2 apps subclass `AppServer` which used to be Express-based. v3 (`MiniAppServer`) is Hono + Bun. A developer who did `class MyApp extends AppServer` and used Express middleware or `getExpressApp()` has a real porting challenge.
 
 However, looking at actual usage:
 
@@ -41,16 +44,16 @@ However, looking at actual usage:
 2. **Streaming example** — subclasses `AppServer`, overrides `onSession`/`onStop`, never touches Express.
 3. **Public example app** — same pattern: subclass, override hooks, done.
 
-In practice, almost nobody calls `getExpressApp()` or uses Express middleware. The subclass pattern is just a way to register `onSession`/`onStop`/`onToolCall` callbacks. The v3 `MentraApp` callback pattern does the same thing without inheritance.
+In practice, almost nobody calls `getExpressApp()` or uses Express middleware. The subclass pattern is just a way to register `onSession`/`onStop`/`onToolCall` callbacks. The v3 `MiniAppServer` callback pattern does the same thing without inheritance.
 
 **The compat shim for `AppServer` doesn't need Express at all.** It just needs to:
 
 1. Accept the same constructor config
 2. Let subclasses override `onSession`, `onStop`, `onToolCall`
-3. Internally create a `MentraApp` and wire the overrides as callbacks
+3. Internally create a `MiniAppServer` and wire the overrides as callbacks
 4. Delegate `start()` / `stop()`
 
-If a developer was using `getExpressApp()` to add custom Express routes, the shim logs a deprecation error telling them to add Hono routes on the `MentraApp` instance instead. That's the one breaking edge case.
+If a developer was using `getExpressApp()` to add custom Express routes, the shim logs a deprecation error telling them to add Hono routes on the `MiniAppServer` instance instead. That's the one breaking edge case.
 
 ---
 
@@ -62,15 +65,15 @@ If a developer was using `getExpressApp()` to add custom Express routes, the shi
 ┌─────────────────────────────────────────────────────┐
 │                  Developer's code                    │
 │                                                      │
-│  v3 path:  const app = new MentraApp({...})          │
+│  v3 path:  const app = new MiniAppServer({...})      │
 │            app.onSession((session) => {...})          │
 │                                                      │
 │  v2 compat: class MyApp extends AppServer {...}      │
-│             (internally creates MentraApp)            │
+│             (internally creates MiniAppServer)        │
 └──────────────────┬──────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────────────┐
-│              MentraApp  (Hono server)                │
+│              MiniAppServer  (Hono server)            │
 │                                                      │
 │  Routes: /api/_mentraos/webhook                      │
 │          /api/_mentraos/tool                          │
@@ -165,25 +168,25 @@ If a developer was using `getExpressApp()` to add custom Express routes, the shi
 
 ### v2 Compat Shim Layer
 
-The shim is a **separate file** (`compat/AppServer.ts`) that wraps `MentraApp`:
+The shim is a **separate file** (`compat/AppServer.ts`) that wraps `MiniAppServer`:
 
 ```typescript
 // compat/AppServer.ts — the entire v2 compat layer
 
-import { MentraApp } from "../MentraApp";
+import { MiniAppServer } from "../MiniAppServer";
 import type { MentraSession } from "../session/MentraSession";
 
-/** @deprecated Use MentraApp instead. Will be removed in v3.1. */
+/** @deprecated Use MiniAppServer instead. Will be removed in v3.1. */
 export class AppServer {
-  private _app: MentraApp;
+  private _app: MiniAppServer;
 
   constructor(config: AppServerConfig) {
     console.warn(
-      "⚠️ AppServer is deprecated. Use MentraApp instead.\n" +
+      "⚠️ AppServer is deprecated. Use MiniAppServer instead.\n" +
       "   See migration guide: https://docs.mentra.glass/sdk/migration"
     );
 
-    this._app = new MentraApp({
+    this._app = new MiniAppServer({
       packageName: config.packageName,
       apiKey: config.apiKey,
       port: config.port ?? 7010,
@@ -221,16 +224,16 @@ export class AppServer {
   async start() { return this._app.start(); }
   async stop() { return this._app.stop(); }
 
-  /** @deprecated MentraApp is a Hono app — add routes directly on it. */
+  /** @deprecated MiniAppServer is a Hono app — add routes directly on it. */
   getExpressApp() {
     console.error(
-      "❌ getExpressApp() is removed in v3. MentraApp uses Hono, not Express.\n" +
+      "❌ getExpressApp() is removed in v3. MiniAppServer uses Hono, not Express.\n" +
       "   Add routes directly: app.get('/my-route', handler)"
     );
     return this._app;
   }
 
-  /** @deprecated Use the MentraApp instance directly. */
+  /** @deprecated Use the MiniAppServer instance directly. */
   getHonoApp() { return this._app; }
 }
 }
@@ -244,7 +247,7 @@ The captions app — the most complex real-world SDK user — would work with **
 // This STILL WORKS in v3.0 (with deprecation warnings)
 export class LiveCaptionsApp extends AppServer {
   constructor(config) {
-    super({packageName: config.packageName, apiKey: config.apiKey, port: config.port})
+    super({ packageName: config.packageName, apiKey: config.apiKey, port: config.port });
   }
 
   protected async onSession(session: MentraSession, sessionId: string, userId: string) {
@@ -258,26 +261,26 @@ Then in v3.1, they migrate to:
 
 ```typescript
 // v3 way — clean, cloud app
-const app = new MentraApp({packageName: "...", apiKey: "...", port: 3000})
+const app = new MiniAppServer({ packageName: "...", apiKey: "...", port: 3000 });
 
 app.onSession((session) => {
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
-})
+    session.display.showText(data.text);
+  });
+});
 
-await app.start()
+await app.start();
 ```
 
 And the exact same session code works as a local app on the phone:
 
 ```typescript
-// v3 way — local app (same session API, no MentraApp / no server)
+// v3 way — local app (same session API, no MiniAppServer / no server)
 // The phone OS runtime creates the session and calls this:
 export default function onSession(session: MentraSession) {
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
+    session.display.showText(data.text);
+  });
 }
 ```
 
@@ -303,52 +306,52 @@ export default function onSession(session: MentraSession) {
 
 The `LegacyEventShim` is a single object exposed as `session.events` that maps every old `session.events.*` method to the corresponding v3 manager call. It's one file, ~200 lines of pure delegation, logs a deprecation warning on first access. Removed entirely in v3.1.
 
-**Key principle:** The v3 `MentraSession` implementation has NO awareness of the shim. The shim wraps the session from the outside. The new managers are the real implementation. The shim is applied in the `AppServer` compat constructor, not in `MentraApp`.
+**Key principle:** The v3 `MentraSession` implementation has NO awareness of the shim. The shim wraps the session from the outside. The new managers are the real implementation. The shim is applied in the `AppServer` compat constructor, not in `MiniAppServer`.
 
-Actually — correction. The shim should be on `MentraSession` itself so that even `MentraApp` users who happen to use old method names get warnings. The session exposes both the new managers AND the deprecated accessors, but the deprecated ones are just getters that delegate. This means:
+Actually — correction. The shim should be on `MentraSession` itself so that even `MiniAppServer` users who happen to use old method names get warnings. The session exposes both the new managers AND the deprecated accessors, but the deprecated ones are just getters that delegate. This means:
 
 ```typescript
 class MentraSession {
   // ─── v3 managers (the real API) ───────────────
-  readonly transcription: TranscriptionManager
-  readonly translation: TranslationManager
-  readonly display: DisplayManager
-  readonly camera: CameraModule
-  readonly speaker: SpeakerManager
-  readonly mic: MicManager
-  readonly device: DeviceManager
-  readonly phone: PhoneManager
-  readonly location: LocationManager
-  readonly led: LedModule
-  readonly storage: StorageManager
-  readonly permissions: PermissionsManager
-  readonly dashboard: DashboardManager
-  readonly time: TimeUtils
+  readonly transcription: TranscriptionManager;
+  readonly translation: TranslationManager;
+  readonly display: DisplayManager;
+  readonly camera: CameraModule;
+  readonly speaker: SpeakerManager;
+  readonly mic: MicManager;
+  readonly device: DeviceManager;
+  readonly phone: PhoneManager;
+  readonly location: LocationManager;
+  readonly led: LedModule;
+  readonly storage: StorageManager;
+  readonly permissions: PermissionsManager;
+  readonly dashboard: DashboardManager;
+  readonly time: TimeUtils;
 
   // ─── v2 compat (deprecated getters, removed in v3.1) ───
   /** @deprecated Use session.display */
   get layouts() {
-    return this.display
+    return this.display;
   }
 
   /** @deprecated Use session.speaker */
   get audio() {
-    return this.speaker
+    return this.speaker;
   }
 
   /** @deprecated Use session.storage */
   get simpleStorage() {
-    return this.storage
+    return this.storage;
   }
 
   /** @deprecated Use session.storage */
   get settings() {
-    return this._legacySettings
+    return this._legacySettings;
   }
 
   /** @deprecated Use managers directly */
   get events() {
-    return this._legacyEvents
+    return this._legacyEvents;
   }
 
   // etc.
@@ -375,45 +378,45 @@ interface TranscriptionConfig {
   /** Language hints — advisory input for accuracy, NOT filters.
    *  Uses ISO 639-1 codes: 'en', 'ja', 'es', etc.
    *  Default: auto-detect (no hints). */
-  languageHints?: string[]
+  languageHints?: string[];
 
   /** Custom vocabulary for better recognition of domain-specific terms.
    *  e.g., ['MentraOS', 'HIPAA', 'kubectl'] */
-  vocabulary?: string[]
+  vocabulary?: string[];
 
   /** Enable/disable speaker diarization.
    *  Default: true (Soniox gives it for free). */
-  diarization?: boolean
+  diarization?: boolean;
 }
 
 interface TranscriptionEvent {
-  text: string
-  isFinal: boolean
-  language: string // ISO 639-1 detected language
-  speakerId?: string
-  utteranceId?: string
-  confidence?: number
-  startTime: number
-  endTime: number
-  duration?: number
-  metadata?: TranscriptionMetadata
+  text: string;
+  isFinal: boolean;
+  language: string; // ISO 639-1 detected language
+  speakerId?: string;
+  utteranceId?: string;
+  confidence?: number;
+  startTime: number;
+  endTime: number;
+  duration?: number;
+  metadata?: TranscriptionMetadata;
 }
 
 class TranscriptionManager {
   /** Subscribe to ALL transcription events (auto-detect, all languages). */
-  on(handler: (data: TranscriptionEvent) => void): () => void
+  on(handler: (data: TranscriptionEvent) => void): () => void;
 
   /** Subscribe to transcription for specific language(s).
    *  Each call is independent — multiple can be active simultaneously.
    *  Accepts a single language or array. Returns cleanup function. */
-  forLanguage(lang: string | string[], handler: (data: TranscriptionEvent) => void): () => void
+  forLanguage(lang: string | string[], handler: (data: TranscriptionEvent) => void): () => void;
 
   /** Configure hints, vocabulary, diarization. Applies to all active subscriptions.
    *  Can be called mid-session. */
-  configure(config: TranscriptionConfig): void
+  configure(config: TranscriptionConfig): void;
 
   /** Stop all transcriptions and unsubscribe all handlers. */
-  stop(): void
+  stop(): void;
 }
 ```
 
@@ -422,33 +425,33 @@ class TranscriptionManager {
 ```typescript
 // Simplest — zero config, auto-detect, diarization included
 session.transcription.on((data) => {
-  console.log(`[${data.language}] ${data.speakerId}: ${data.text}`)
-})
+  console.log(`[${data.language}] ${data.speakerId}: ${data.text}`);
+});
 
 // Language-specific — each call is independent, both active simultaneously
 const stopEnglish = session.transcription.forLanguage("en", (data) => {
-  showOnLeftPanel(data.text)
-})
+  showOnLeftPanel(data.text);
+});
 const stopJapanese = session.transcription.forLanguage("ja", (data) => {
-  showOnRightPanel(data.text)
-})
+  showOnRightPanel(data.text);
+});
 
 // Stop just one — Japanese keeps running
-stopEnglish()
+stopEnglish();
 
 // Multiple languages, one handler
 session.transcription.forLanguage(["en", "ja", "es"], (data) => {
-  console.log(`[${data.language}] ${data.text}`)
-})
+  console.log(`[${data.language}] ${data.text}`);
+});
 
 // Configure hints (applies to all active subscriptions)
 session.transcription.configure({
   languageHints: ["en", "ja"],
   vocabulary: ["MentraOS", "Soniox"],
-})
+});
 
 // Stop everything
-session.transcription.stop()
+session.transcription.stop();
 ```
 
 ### Wire protocol mapping
@@ -469,14 +472,14 @@ session.transcription.forLanguage(["en", "ja"], handler)
 
 ```typescript
 // v2 code:
-session.events.onTranscription(handler)
+session.events.onTranscription(handler);
 // LegacyEventShim maps to:
-session.transcription.on(handler)
+session.transcription.on(handler);
 
 // v2 code:
-session.events.onTranscriptionForLanguage("en-US", handler, opts)
+session.events.onTranscriptionForLanguage("en-US", handler, opts);
 // LegacyEventShim maps to:
-session.transcription.forLanguage("en", handler)
+session.transcription.forLanguage("en", handler);
 // (strips region suffix from BCP-47 → ISO 639-1)
 ```
 
@@ -491,45 +494,45 @@ The 039 spec deferred translation to v3.1. We're pulling it into v3.0 because it
 ```typescript
 interface TranslationEvent {
   /** Translated text. */
-  text: string
+  text: string;
 
   /** Whether this is a final translation (vs interim). */
-  isFinal: boolean
+  isFinal: boolean;
 
   /** Detected source language (ISO 639-1). */
-  sourceLanguage: string
+  sourceLanguage: string;
 
   /** Target language (ISO 639-1). */
-  targetLanguage: string
+  targetLanguage: string;
 
   /** Original (untranslated) text. */
-  originalText?: string
+  originalText?: string;
 
   /** Utterance grouping ID. */
-  utteranceId?: string
+  utteranceId?: string;
 
   /** Confidence score (0-1). */
-  confidence?: number
+  confidence?: number;
 
-  startTime: number
-  endTime: number
+  startTime: number;
+  endTime: number;
 }
 
 class TranslationManager {
   /** Subscribe to ALL active translation events. */
-  on(handler: (data: TranslationEvent) => void): () => void
+  on(handler: (data: TranslationEvent) => void): () => void;
 
   /** Auto-detect source, translate to one or more targets.
    *  Each call is independent — multiple can be active simultaneously.
    *  Accepts a single language or array. Returns cleanup function. */
-  to(target: string | string[], handler: (data: TranslationEvent) => void): () => void
+  to(target: string | string[], handler: (data: TranslationEvent) => void): () => void;
 
   /** Explicit source, translate to one or more targets.
    *  Same independence and cleanup semantics as to(). */
-  fromTo(source: string, target: string | string[], handler: (data: TranslationEvent) => void): () => void
+  fromTo(source: string, target: string | string[], handler: (data: TranslationEvent) => void): () => void;
 
   /** Stop all translations and unsubscribe all handlers. */
-  stop(): void
+  stop(): void;
 }
 ```
 
@@ -538,38 +541,38 @@ class TranslationManager {
 ```typescript
 // Simplest — auto-detect source, translate to Spanish
 session.translation.to("es", (data) => {
-  session.display.showText(data.text)
-})
+  session.display.showText(data.text);
+});
 
 // Multiple targets simultaneously — both active, independent
 const stopSpanish = session.translation.to("es", (data) => {
-  showOnLeftPanel(data.text)
-})
+  showOnLeftPanel(data.text);
+});
 const stopJapanese = session.translation.to("ja", (data) => {
-  showOnRightPanel(data.text)
-})
+  showOnRightPanel(data.text);
+});
 
 // Stop just Spanish — Japanese keeps running
-stopSpanish()
+stopSpanish();
 
 // Multiple targets in one call — handler gets called for each
 session.translation.to(["es", "ja", "fr"], (data) => {
   // data.targetLanguage tells you which one
-  console.log(`[${data.targetLanguage}] ${data.text}`)
-})
+  console.log(`[${data.targetLanguage}] ${data.text}`);
+});
 
 // Explicit source and target
 session.translation.fromTo("en", "ja", (data) => {
-  session.display.showText(data.text)
-})
+  session.display.showText(data.text);
+});
 
 // Explicit source, multiple targets
 session.translation.fromTo("en", ["es", "ja"], (data) => {
-  console.log(`[${data.targetLanguage}] ${data.text}`)
-})
+  console.log(`[${data.targetLanguage}] ${data.text}`);
+});
 
 // Stop everything
-session.translation.stop()
+session.translation.stop();
 ```
 
 ### Wire protocol mapping
@@ -592,10 +595,10 @@ The cloud doesn't need to change. Same subscription strings, same DataStream mes
 
 ```typescript
 // v2 code:
-session.events.onTranslationForLanguage("en-US", "es-ES", handler)
+session.events.onTranslationForLanguage("en-US", "es-ES", handler);
 
 // LegacyEventShim maps to:
-session.translation.fromTo("en", "es", handler)
+session.translation.fromTo("en", "es", handler);
 // (strips region suffix from BCP-47 → ISO 639-1)
 ```
 
@@ -607,17 +610,17 @@ session.translation.fromTo("en", "es", handler)
 
 ```typescript
 interface Transport {
-  send(data: string): void
-  onMessage(handler: (data: string) => void): void
-  onClose(handler: (code: number, reason: string) => void): void
-  close(): void
-  readonly readyState: number
+  send(data: string): void;
+  onMessage(handler: (data: string) => void): void;
+  onClose(handler: (code: number, reason: string) => void): void;
+  close(): void;
+  readonly readyState: number;
 }
 ```
 
 A real WebSocket satisfies this. A React Native bridge adapter satisfies this. A mock for testing satisfies this. `MentraSession` never imports `WebSocket` directly — it receives a `Transport` from the host environment.
 
-For cloud apps, `MentraApp` creates a `WebSocketTransport` when the webhook arrives. For local apps, the phone OS runtime creates a `NativeBridgeTransport` when the app is loaded. The session doesn't know or care which one it got.
+For cloud apps, `MiniAppServer` creates a `WebSocketTransport` when the webhook arrives. For local apps, the phone OS runtime creates a `NativeBridgeTransport` when the app is loaded. The session doesn't know or care which one it got.
 
 This also means the session layer has **zero Node.js/Bun/server dependencies** — no `ws`, no `http`, no `fs`, no `Hono`. Pure JavaScript that runs in any JS engine (V8, JSC, Hermes, QuickJS).
 
@@ -658,31 +661,31 @@ For `DATA_STREAM` messages (which carry transcription, translation, notification
 ```typescript
 // DataStreamRouter handles the DATA_STREAM message type
 class DataStreamRouter {
-  private handlers = new Map<string, (data: any) => void>()
+  private handlers = new Map<string, (data: any) => void>();
 
   register(streamPrefix: string, handler: (data: any) => void) {
-    this.handlers.set(streamPrefix, handler)
+    this.handlers.set(streamPrefix, handler);
   }
 
   handle(msg: DataStreamMessage) {
     // msg.streamType might be "transcription:en", "translation:en-ja", etc.
     for (const [prefix, handler] of this.handlers) {
       if (msg.streamType.startsWith(prefix)) {
-        handler(msg.data)
-        return
+        handler(msg.data);
+        return;
       }
     }
   }
 }
 
 // TranscriptionManager registers:
-dataStreamRouter.register("transcription", (data) => this.emit(data))
+dataStreamRouter.register("transcription", (data) => this.emit(data));
 
 // TranslationManager registers:
-dataStreamRouter.register("translation", (data) => this.emit(data))
+dataStreamRouter.register("translation", (data) => this.emit(data));
 
 // PhoneManager registers:
-dataStreamRouter.register("phone_notification", (data) => this.notifications.emit(data))
+dataStreamRouter.register("phone_notification", (data) => this.notifications.emit(data));
 ```
 
 ---
@@ -695,13 +698,13 @@ Per 039 §24, SDK endpoints move behind `/api/_mentraos/`. But the cloud current
 
 ```typescript
 // Primary (v3)
-app.post("/api/_mentraos/webhook", webhookHandler)
-app.post("/api/_mentraos/tool", toolHandler)
+app.post("/api/_mentraos/webhook", webhookHandler);
+app.post("/api/_mentraos/tool", toolHandler);
 // ... etc.
 
 // Legacy aliases (for current cloud)
-app.post("/webhook", webhookHandler) // same handler, no deprecation warning (cloud sends these)
-app.post("/tool", toolHandler)
+app.post("/webhook", webhookHandler); // same handler, no deprecation warning (cloud sends these)
+app.post("/tool", toolHandler);
 // ... etc.
 ```
 
@@ -726,13 +729,13 @@ The developer's code is identical:
 ```typescript
 // This same code works as a cloud app AND a local app
 session.transcription.on((data) => {
-  session.display.showText(data.text)
-})
+  session.display.showText(data.text);
+});
 ```
 
 The only difference is WHERE it runs and HOW the session is established:
 
-- **Cloud app:** `MentraApp` receives a webhook → creates `MentraSession` with `WebSocketTransport`
+- **Cloud app:** `MiniAppServer` receives a webhook → creates `MentraSession` with `WebSocketTransport`
 - **Local app:** Phone OS runtime loads the JS bundle → creates `MentraSession` with `NativeBridgeTransport`
 
 The phone's OS runtime routes messages to the right place:
@@ -823,7 +826,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 | ------------------------------ | ------------ | ----------------------------- |
 | `AppSession` → `MentraSession` | ~2,423 lines | ~500 lines                    |
 | `AppServer`                    | ~1,006 lines | ~150 lines (compat shim)      |
-| `MentraApp` (new)              | —            | ~400 lines                    |
+| `MiniAppServer` (new)          | —            | ~400 lines                    |
 | Total new managers             | —            | ~1,200 lines across ~10 files |
 | Dead code removed              | —            | ~650 lines                    |
 
@@ -842,7 +845,7 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 | Duplicate URL validation in constructor                | Single validation pass                                   |
 | Duplicate `connect()` promise resolution               | Single resolve point                                     |
 | `console.log` in `disconnect()`                        | Use `this.logger` everywhere                             |
-| `onSettingsUpdate` duck-typing with `as any`           | Proper callback on `MentraApp`                           |
+| `onSettingsUpdate` duck-typing with `as any`           | Proper callback on `MiniAppServer`                       |
 | Error wrapping copy-pasted ~20 times                   | `toErrorMessage()` utility                               |
 | `_audioStreamReadyHandlers` is public                  | Private, accessed via module method                      |
 | Stale comment with missing `${}` interpolation (L1309) | Fix the template literal                                 |
@@ -854,13 +857,13 @@ An app can be hybrid — run locally for low-latency features (display, camera, 
 
 ### Phase 1: Foundation
 
-**Goal:** `MentraSession` exists with transport abstraction. `MentraApp` works. `AppServer` shim wraps it. Existing apps still run.
+**Goal:** `MentraSession` exists with transport abstraction. `MiniAppServer` works. `AppServer` shim wraps it. Existing apps still run.
 
 1. Define `Transport` interface
 2. Rename `AppSession` → `MentraSession`, accept `Transport` in constructor
-3. Create `WebSocketTransport` (wraps `ws` — used by `MentraApp` only, not in session layer)
-4. Create `MentraApp` class (Hono server, callback hooks, route namespacing)
-5. Create `AppServer` compat shim (wraps `MentraApp`, maps overrides → callbacks)
+3. Create `WebSocketTransport` (wraps `ws` — used by `MiniAppServer` only, not in session layer)
+4. Create `MiniAppServer` class (Hono server, callback hooks, route namespacing)
+5. Create `AppServer` compat shim (wraps `MiniAppServer`, maps overrides → callbacks)
 6. Slim config — remove deprecated fields
 7. Verify captions app runs with zero changes via `AppServer` shim
 8. Add `toErrorMessage()` utility, route namespacing with legacy aliases
@@ -963,14 +966,14 @@ packages/sdk/src/
 ├── index.ts                          # Public exports (full: server + session)
 ├── session.ts                        # Session-only entrypoint (no server deps)
 ├── server/
-│   └── MentraApp.ts                  # Hono server, callback hooks, webhook handling
+│   └── MiniAppServer.ts              # Hono server, callback hooks, webhook handling
 ├── compat/
 │   ├── AppServer.ts                  # v2 compat shim (class inheritance → callbacks)
 │   ├── LegacyEventShim.ts           # v2 compat: session.events.* → managers
 │   └── deprecated-aliases.ts        # AppSession type alias, session.onTranscription() etc.
 ├── transport/
 │   ├── Transport.ts                  # Transport interface (send, onMessage, close, etc.)
-│   └── WebSocketTransport.ts         # WebSocket implementation (used by MentraApp only)
+│   └── WebSocketTransport.ts         # WebSocket implementation (used by MiniAppServer only)
 ├── session/
 │   ├── MentraSession.ts              # Slim orchestrator (~500 lines), accepts Transport
 │   ├── DataStreamRouter.ts           # Message dispatch for DATA_STREAM subtypes
@@ -1008,7 +1011,7 @@ packages/sdk/src/
 }
 ```
 
-- `import { MentraApp, MentraSession } from "@mentra/sdk"` — full package, includes server
+- `import { MiniAppServer, MentraSession } from "@mentra/sdk"` — full package, includes server
 - `import { MentraSession } from "@mentra/sdk/session"` — session only, zero server deps, runs anywhere JS runs
 
 The `session` entrypoint is what the phone OS runtime would use to create sessions for local apps. It imports nothing from `server/` or `transport/WebSocketTransport.ts`. The phone runtime provides its own `NativeBridgeTransport` that implements the `Transport` interface.

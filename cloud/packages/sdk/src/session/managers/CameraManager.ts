@@ -475,14 +475,34 @@ export class CameraManager {
   }
 
   private handleStreamCheckResponse(response: StreamStatusCheckResponse): void {
-    const firstEntry = this.pendingStreamChecks.entries().next();
-    if (firstEntry.done || !firstEntry.value) {
+    // Match by requestId from the response — don't blindly pop the first entry.
+    // This prevents concurrent checkExistingStream() calls from resolving the wrong promise.
+    const requestId = (response as any).requestId;
+    const pending = requestId ? this.pendingStreamChecks.get(requestId) : undefined;
+
+    // Fallback: if the cloud doesn't include requestId, pop the first entry (v2 behavior)
+    if (!pending) {
+      const firstEntry = this.pendingStreamChecks.entries().next();
+      if (firstEntry.done || !firstEntry.value) {
+        return;
+      }
+      const [fallbackId, fallbackPending] = firstEntry.value;
+      clearTimeout(fallbackPending.timeoutId);
+      this.pendingStreamChecks.delete(fallbackId);
+      fallbackPending.resolve({
+        hasActiveStream: response.hasActiveStream,
+        streamInfo: response.streamInfo
+          ? {
+              ...response.streamInfo,
+              createdAt: new Date(response.streamInfo.createdAt),
+            }
+          : undefined,
+      });
       return;
     }
 
-    const [requestId, pending] = firstEntry.value;
     clearTimeout(pending.timeoutId);
-    this.pendingStreamChecks.delete(requestId);
+    this.pendingStreamChecks.delete(requestId!);
     pending.resolve({
       hasActiveStream: response.hasActiveStream,
       streamInfo: response.streamInfo

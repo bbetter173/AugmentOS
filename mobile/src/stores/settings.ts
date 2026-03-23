@@ -154,13 +154,6 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: false,
     persist: false,
   },
-  pending_device_name: {
-    key: "pending_device_name",
-    defaultValue: () => "",
-    writable: true,
-    saveOnServer: false,
-    persist: false,
-  },
   default_wearable: {
     key: "default_wearable",
     defaultValue: () => "",
@@ -171,6 +164,34 @@ export const SETTINGS: Record<string, Setting> = {
   device_name: {key: "device_name", defaultValue: () => "", writable: true, saveOnServer: true, persist: true},
   device_address: {
     key: "device_address",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  default_controller: {
+    key: "default_controller",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  pending_controller: {
+    key: "pending_controller",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
+    persist: true,
+  },
+  controller_device_name: {
+    key: "controller_device_name",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  controller_address: {
+    key: "controller_address",
     defaultValue: () => "",
     writable: true,
     saveOnServer: true,
@@ -384,6 +405,13 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  camera_fov: {
+    key: "camera_fov",
+    defaultValue: () => ({fov: 118, roi_position: 0}),
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   media_post_processing: {
     key: "media_post_processing",
     defaultValue: () => false,
@@ -436,6 +464,28 @@ export const SETTINGS: Record<string, Setting> = {
     defaultValue: () => false,
     writable: true,
     saveOnServer: false,
+    persist: true,
+  },
+  // offline translation
+  offline_translation_running: {
+    key: "offline_translation_running",
+    defaultValue: () => false,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  offline_translation_source: {
+    key: "offline_translation_source",
+    defaultValue: () => "en",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  offline_translation_target: {
+    key: "offline_translation_target",
+    defaultValue: () => "es",
+    writable: true,
+    saveOnServer: true,
     persist: true,
   },
   // button action settings
@@ -508,15 +558,22 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.button_video_settings.key,
   SETTINGS.button_camera_led.key,
   SETTINGS.button_max_recording_time.key,
+  SETTINGS.camera_fov.key,
   // device / pairing:
   SETTINGS.pending_wearable.key,
-  SETTINGS.pending_device_name.key,
   SETTINGS.default_wearable.key,
   SETTINGS.device_name.key,
   SETTINGS.device_address.key,
+  SETTINGS.default_controller.key,
+  SETTINGS.pending_controller.key,
+  SETTINGS.controller_device_name.key,
+  SETTINGS.controller_address.key,
   // offline applets:
   SETTINGS.offline_mode.key,
   SETTINGS.offline_captions_running.key,
+  SETTINGS.offline_translation_running.key,
+  SETTINGS.offline_translation_source.key,
+  SETTINGS.offline_translation_target.key,
   SETTINGS.gallery_mode.key,
   // notifications:
   SETTINGS.notifications_enabled.key,
@@ -544,13 +601,10 @@ interface SettingsState {
 }
 
 const getDefaultSettings = () =>
-  Object.keys(SETTINGS).reduce(
-    (acc, key) => {
-      acc[key] = SETTINGS[key].defaultValue()
-      return acc
-    },
-    {} as Record<string, any>,
-  )
+  Object.keys(SETTINGS).reduce((acc, key) => {
+    acc[key] = SETTINGS[key].defaultValue()
+    return acc
+  }, {} as Record<string, any>)
 
 export const useSettingsStore = create<SettingsState>()(
   subscribeWithSelector((set, get) => ({
@@ -731,7 +785,7 @@ export const useSettingsStore = create<SettingsState>()(
       return coreSettings
     },
     resetAllSettingsLocally: () => {
-      set((state) => ({
+      set((_state) => ({
         settings: getDefaultSettings(),
         isInitialized: true,
       }))

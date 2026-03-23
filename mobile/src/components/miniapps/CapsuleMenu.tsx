@@ -4,7 +4,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
-import {Dimensions, Platform, Share, View} from "react-native"
+import {Dimensions, Image as RNImage, InteractionManager, Platform, Share, View, PixelRatio} from "react-native"
 import {Pressable} from "react-native-gesture-handler"
 import {captureRef} from "react-native-view-shot"
 import {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo} from "react"
@@ -12,30 +12,31 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AppIcon from "@/components/home/AppIcon"
 import GlassView from "@/components/ui/GlassView"
 import {translate} from "@/i18n"
+import * as ImageManipulator from "expo-image-manipulator"
 
-interface DualButtonProps {
+interface CapsuleButtonProps {
   onMinusPress?: () => void
   onEllipsisPress?: () => void
 }
 
-export function DualButton({onMinusPress, onEllipsisPress}: DualButtonProps) {
-  const [isChina] = useSetting(SETTINGS.china_deployment.key)
+export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProps) {
+  // const [isChina] = useSetting(SETTINGS.china_deployment.key)
   const {theme} = useAppTheme()
 
   return (
-    <GlassView transparent={false} className="flex-row gap-2 rounded-full bg-primary-foreground px-2 py-1 items-center">
-      <Pressable hitSlop={10} onPress={onEllipsisPress}>
-        <Icon name="ellipsis" color={theme.colors.foreground} />
+    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-7.5 items-center">
+      <Pressable hitSlop={10} onPress={onEllipsisPress} style={{width: 24, alignItems: "center"}}>
+        <Icon name="ellipsis" size={18} color={theme.colors.foreground} />
       </Pressable>
-      <View className="h-4 w-px bg-gray-300" />
-      <Pressable hitSlop={10} onPress={onMinusPress}>
-        <Icon name={isChina ? "x" : "minus"} color={theme.colors.foreground} />
+      <View className="h-4 w-px bg-primary-foreground/80" />
+      <Pressable hitSlop={10} onPress={onMinusPress} style={{width: 24, alignItems: "center"}}>
+        <Icon name={"circle-x"} size={18} color={theme.colors.foreground} />
       </Pressable>
     </GlassView>
   )
 }
 
-export function MiniAppDualButtonHeader({
+export function MiniAppCapsuleMenu({
   packageName,
   viewShotRef,
   onEllipsisPress,
@@ -47,7 +48,10 @@ export function MiniAppDualButtonHeader({
   onMinusPress?: () => void
 }) {
   const {goBack} = useNavigationHistory()
+  const insets = useSaferAreaInsets()
+  const {theme} = useAppTheme()
   const bottomSheetRef = useRef<BottomSheetModal>(null)
+  const top = insets.top + theme.spacing.s2
 
   const handleEllipsisPress = useCallback(() => {
     if (onEllipsisPress) {
@@ -61,30 +65,49 @@ export function MiniAppDualButtonHeader({
     if (onMinusPress) {
       onMinusPress()
     } else {
-      handleExit()
+      handleExit(true)
     }
   }, [onMinusPress])
 
-  const handleExit = async () => {
-    // take a screenshot of the webview and save it to the applet zustand store:
+  const handleExit = async (fromButtonPress?: boolean) => {
     try {
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
         quality: 0.1,
       })
-      // save uri to zustand store
-      await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
+      const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
+        RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
+      })
+      let amountToChop = insets.top * PixelRatio.get()
+
+      const context = ImageManipulator.ImageManipulator.manipulate(uri)
+      context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
+      const imageRef = await context.renderAsync()
+      const cropped = await imageRef.saveAsync({
+        format: ImageManipulator.SaveFormat.JPEG,
+        compress: 0.1,
+      })
+
+      await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
     } catch (e) {
       console.warn("screenshot failed:", e)
     }
-    goBack()
+
+    if (fromButtonPress) {
+      goBack()
+    }
   }
+
   focusEffectPreventBack(() => {
-    handleExit()
+    // Defer screenshot capture so it doesn't block the navigation animation
+    InteractionManager.runAfterInteractions(() => {
+      handleExit()
+    })
   }, true)
+
   return (
-    <View className="z-2 absolute top-3 right-6 items-center justify-end flex-row">
-      <DualButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
+    <View className="z-2 absolute right-2 items-center justify-end flex-row" style={{top: top}}>
+      <CapsuleButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
       <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
     </View>
   )
@@ -199,8 +222,8 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" text="[settings]" />
             </View> */}
-            <View className="flex-col gap-2 items-center w-1/4">
-              <Button compactIcon onPress={handleShare} preset="alternate" className="rounded-2xl w-16 h-16">
+            <View className="flex-col gap-2 items-center w-1/4" style={isSystemApp ? {opacity: 0.8} : undefined}>
+              <Button compactIcon onPress={isSystemApp ? undefined : handleShare} preset="alternate" className="rounded-2xl w-16 h-16" disabled={isSystemApp}>
                 <Icon name="share" color={theme.colors.foreground} size={size} />
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:share" />
@@ -237,8 +260,8 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:feedback" />
             </View>
 
-            <View className="flex-col gap-2 items-center w-1/4">
-              <Button compactIcon onPress={handleSettings} preset="alternate" className="rounded-2xl w-16 h-16">
+            <View className="flex-col gap-2 items-center w-1/4" style={isSystemApp ? {opacity: 0.8} : undefined}>
+              <Button compactIcon onPress={isSystemApp ? undefined : handleSettings} preset="alternate" className="rounded-2xl w-16 h-16" disabled={isSystemApp}>
                 <Icon name="cog" color={theme.colors.foreground} size={size} />
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:settings" />

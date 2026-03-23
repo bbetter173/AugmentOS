@@ -18,6 +18,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.util.Size;
 
+import com.dev.api.DevApi;
 import com.mentra.asg_client.SysControl;
 import com.mentra.asg_client.io.bluetooth.interfaces.BluetoothStateListener;
 import com.mentra.asg_client.io.media.core.MediaCaptureService;
@@ -209,6 +210,9 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             // Initialize dependency injection container
             Log.d(TAG, "🔧 Initializing service container");
             initializeServiceContainer();
+
+            // Apply saved camera FOV on start (K900) so last user choice survives reboot
+            applySavedCameraFovOnStart();
 
             // Initialize WiFi debouncing
             Log.d(TAG, "📶 Initializing WiFi debouncing");
@@ -591,6 +595,34 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             Log.d(TAG, "✅ WiFi debouncing initialized successfully");
         } catch (Exception e) {
             Log.e(TAG, "💥 Error initializing WiFi debouncing", e);
+        }
+    }
+
+    /**
+     * Apply saved camera FOV on service start (K900). Ensures last user-chosen FOV is applied after reboot.
+     * No-op on non-K900 devices (UnsatisfiedLinkError from libxydev).
+     */
+    private void applySavedCameraFovOnStart() {
+        try {
+            if (serviceContainer == null || serviceContainer.getServiceManager() == null) {
+                return;
+            }
+            var asgSettings = serviceContainer.getServiceManager().getAsgSettings();
+            if (asgSettings == null) {
+                return;
+            }
+            int fov = asgSettings.getCameraFov();
+            int roiPosition = asgSettings.getCameraRoiPosition();
+            try {
+                DevApi.setCameraFov(fov, roiPosition);
+                SysControl.restartCameraHal(this);
+                CameraRestartCooldown.setCooldown();
+                Log.d(TAG, "Applied saved camera FOV on start: fov=" + fov + ", roi_position=" + roiPosition);
+            } catch (UnsatisfiedLinkError e) {
+                Log.d(TAG, "libxydev not available (non-K900?), skipping apply saved FOV");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not apply saved camera FOV on start", e);
         }
     }
 

@@ -2,6 +2,7 @@
 
 import { Layout } from "../layouts";
 import { CloudToGlassesMessageType, ResponseTypes, UpdateTypes } from "../message-types";
+import { CameraRoiPosition } from "./app-to-cloud";
 
 import { BaseMessage } from "./base";
 // import { UserSession } from "../user-session";
@@ -122,6 +123,17 @@ export interface RgbLedControlToGlasses extends BaseMessage {
   ontime?: number;
   offtime?: number;
   count?: number;
+}
+
+/**
+ * Camera FOV set request to glasses/mobile
+ */
+export interface CameraFovSetToGlasses extends BaseMessage {
+  type: CloudToGlassesMessageType.CAMERA_FOV_SET;
+  requestId: string;
+  appId: string;
+  fov: number;
+  roiPosition: CameraRoiPosition;
 }
 
 // TODO(isaiah): Deprecated, remove this after new mobile client refactor complete, and we migrate to SettingsStateChange.
@@ -266,6 +278,7 @@ export type CloudToGlassesMessage =
   | MicrophoneStateChange
   | PhotoRequestToGlasses
   | RgbLedControlToGlasses
+  | CameraFovSetToGlasses
   | AudioPlayRequestToGlasses
   | AudioStopRequestToGlasses
   | SettingsUpdate

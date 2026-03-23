@@ -142,17 +142,28 @@ public class CrustModule: Module {
       var assetIdentifier: String?
       let semaphore = DispatchSemaphore(value: 0)
       var resultError: Error?
+      var creationFailed = false
 
       PHPhotoLibrary.shared().performChanges {
-        let creationRequest: PHAssetChangeRequest
         let pathExtension = fileURL.pathExtension.lowercased()
 
+        let creationRequest: PHAssetChangeRequest
         if ["mp4", "mov", "avi", "m4v"].contains(pathExtension) {
-          creationRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(
-            atFileURL: fileURL)!
+          guard let req = PHAssetChangeRequest.creationRequestForAssetFromVideo(
+            atFileURL: fileURL) else {
+            NSLog("CrustModule: Failed to create video asset request for: \(filePath)")
+            creationFailed = true
+            return
+          }
+          creationRequest = req
         } else {
-          creationRequest = PHAssetChangeRequest.creationRequestForAssetFromImage(
-            atFileURL: fileURL)!
+          guard let req = PHAssetChangeRequest.creationRequestForAssetFromImage(
+            atFileURL: fileURL) else {
+            NSLog("CrustModule: Failed to create image asset request for: \(filePath)")
+            creationFailed = true
+            return
+          }
+          creationRequest = req
         }
 
         if let captureMillis = captureTimeMillis {
@@ -169,6 +180,10 @@ public class CrustModule: Module {
       }
 
       semaphore.wait()
+
+      if creationFailed {
+        return ["success": false, "error": "Failed to create asset request - file may be corrupted or unsupported"]
+      }
 
       if let error = resultError {
         NSLog("CrustModule: Error saving to gallery: \(error.localizedDescription)")

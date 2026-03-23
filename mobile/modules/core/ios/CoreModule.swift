@@ -15,7 +15,6 @@ public class CoreModule: Module {
             "touch_event",
             "head_up",
             "battery_status",
-            "local_transcription",
             "wifi_status_change",
             "hotspot_status_change",
             "hotspot_error",
@@ -32,11 +31,13 @@ public class CoreModule: Module {
             "audio_connected",
             "audio_disconnected",
             "save_setting",
+            "local_transcription",
             "phone_notification",
             "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
-            "mic_data",
+            "mic_pcm",
+            "mic_lc3",
             "rtmp_stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
@@ -115,6 +116,12 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("connectDefaultController") {
+            await MainActor.run {
+                CoreManager.shared.connectDefaultController()
+            }
+        }
+
         AsyncFunction("connectSimulated") {
             await MainActor.run {
                 CoreManager.shared.connectSimulated()
@@ -127,9 +134,21 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("disconnectController") {
+            await MainActor.run {
+                CoreManager.shared.disconnectController()
+            }
+        }
+
         AsyncFunction("forget") {
             await MainActor.run {
                 CoreManager.shared.forget()
+            }
+        }
+
+        AsyncFunction("forgetController") {
+            await MainActor.run {
+                CoreManager.shared.forgetController()
             }
         }
 
@@ -287,20 +306,6 @@ public class CoreModule: Module {
             }
         }
 
-        // MARK: - Microphone Commands
-
-        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
-            await MainActor.run {
-                CoreManager.shared.setMicState(sendPcmData, sendTranscript, bypassVad)
-            }
-        }
-
-        AsyncFunction("restartTranscriber") {
-            await MainActor.run {
-                CoreManager.shared.restartTranscriber()
-            }
-        }
-
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { (playing: Bool) in
@@ -329,7 +334,29 @@ public class CoreModule: Module {
             }
         }
 
-        // MARK: - STT Commands
+        // MARK: - Microphone Commands
+
+        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
+            await MainActor.run {
+                CoreManager.shared.setMicState()
+            }
+        }
+
+        AsyncFunction("restartTranscriber") {
+            await MainActor.run {
+                CoreManager.shared.restartTranscriber()
+            }
+        }
+
+        // MARK: - Display Commands
+
+        AsyncFunction("clearDisplay") {
+            await MainActor.run {
+                CoreManager.shared.sgc?.clearDisplay()
+            }
+        }
+
+        // MARK: - STT Model Management
 
         AsyncFunction("setSttModelDetails") { (path: String, languageCode: String) in
             STTTools.setSttModelDetails(path, languageCode)
@@ -349,6 +376,16 @@ public class CoreModule: Module {
 
         AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
             return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
+        }
+
+        // MARK: - Beta Build Detection
+
+        AsyncFunction("isBetaBuild") { () -> Bool in
+            #if targetEnvironment(simulator)
+            return false
+            #else
+            return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            #endif
         }
 
         // MARK: - Android Stubs
@@ -383,4 +420,5 @@ public class CoreModule: Module {
         }
 
     }
+
 }

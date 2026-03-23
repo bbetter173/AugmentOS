@@ -41,6 +41,7 @@ const initialState: GlassesStore = {
   micEnabled: false,
   connectionState: "disconnected",
   btcConnected: false,
+  signalStrength: -1,
   // device info
   deviceModel: "",
   androidVersion: "",
@@ -76,6 +77,11 @@ const initialState: GlassesStore = {
   otaProgress: null,
   otaInProgress: false,
   mtkUpdatedThisSession: false,
+  // ring:
+  controllerConnected: false,
+  controllerFullyBooted: false,
+  controllerBatteryLevel: -1,
+  controllerSignalStrength: -1,
 }
 
 export const useGlassesStore = create<GlassesState>()(

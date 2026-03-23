@@ -20,9 +20,12 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   requestStatus(): Promise<void>
   connectDefault(): Promise<void>
   connectByName(deviceName: string): Promise<void>
+  connectDefaultController(): Promise<void>
+  disconnectController(): Promise<void>
   connectSimulated(): Promise<void>
   disconnect(): Promise<void>
   forget(): Promise<void>
+  forgetController(): Promise<void>
   findCompatibleDevices(deviceModel: string): Promise<void>
   showDashboard(): Promise<void>
   ping(): Promise<void>
@@ -95,6 +98,9 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   checkSttModelAvailable(): Promise<boolean>
   validateSttModel(path: string): Promise<boolean>
   extractTarBz2(sourcePath: string, destinationPath: string): Promise<boolean>
+
+  // Beta build detection (TestFlight on iOS, extensible to Google Play Beta on Android)
+  isBetaBuild(): Promise<boolean>
 
   // Android-specific commands
   getInstalledApps(): Promise<any>

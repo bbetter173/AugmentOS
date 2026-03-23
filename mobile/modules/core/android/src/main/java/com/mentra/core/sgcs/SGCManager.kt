@@ -38,6 +38,7 @@ abstract class SGCManager {
     abstract fun sendButtonVideoRecordingSettings()
     abstract fun sendButtonMaxRecordingTime()
     abstract fun sendButtonCameraLedSetting()
+    abstract fun sendCameraFovSetting()
 
     // Display Control
     abstract fun setBrightness(level: Int, autoMode: Boolean)

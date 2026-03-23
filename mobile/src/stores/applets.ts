@@ -37,12 +37,14 @@ export interface ClientAppletInterface extends AppletInterface {
   runtimePermissions?: string[]
   declaredPermissions?: string[]
   version?: string
+  needsPcm?: boolean
+  needsTranscript?: boolean
 }
 
 interface AppStatusState {
   apps: ClientAppletInterface[]
   refreshApplets: () => Promise<void>
-  startApplet: (applet: ClientAppletInterface) => Promise<void>
+  startApplet: (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => Promise<void>
   stopApplet: (packageName: string) => Promise<void>
   stopAllApplets: () => AsyncResult<void, Error>
   saveScreenshot: (packageName: string, screenshot: string) => Promise<void>
@@ -85,6 +87,7 @@ export const simulatedPackageName = "com.mentra.simulated"
 export const mirrorPackageName = "com.mentra.mirror"
 export const lmaInstallerPackageName = "com.mentra.lma_installer"
 export const mentraAiPackageName = "com.mentra.ai"
+export const feedbackPackageName = "com.mentra.feedback"
 export const notifyPackageName = "cloud.augmentos.notify"
 
 export const uninstallAppUI = async (clientApp: ClientAppletInterface) => {
@@ -185,7 +188,8 @@ export const SYSTEM_APPS = [
   simulatedPackageName,
   mirrorPackageName,
   mentraAiPackageName,
-  notifyPackageName
+  notifyPackageName,
+  feedbackPackageName,
 ]
 
 // get offline applets:
@@ -285,6 +289,117 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
         })
       },
     },
+    {
+      packageName: notifyPackageName,
+      name: translate("miniApps:offlineCaptions"),
+      type: "standard", // Foreground app (only one at a time)
+      offline: true, // Works without internet connection
+      // logoUrl: getCaptionsIcon(isDark),
+      logoUrl: require("@assets/applet-icons/notification.png"),
+      // description: "Live captions for your mentra glasses.",
+      webviewUrl: "",
+      healthy: true,
+      hidden: false,
+      permissions: [],
+      offlineRoute: "",
+      running: false,
+      loading: false,
+      local: false,
+      hardwareRequirements: [
+        {type: HardwareType.DISPLAY, level: HardwareRequirementLevel.REQUIRED},
+        {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
+      ],
+      onStart: (): AsyncResult<void, Error> => {
+        return Res.try_async(async () => {
+          // const modelAvailable = await STTModelManager.isModelAvailable()
+          // if (modelAvailable) {
+          //   await storage.save(`${captionsPackageName}_running`, true)
+          //   // ensure transcriber is initialized with the current model:
+          //   await CoreModule.restartTranscriber()
+          //   // tell the core:
+          //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
+          //   return undefined
+          // }
+          // let result = await showAlert({
+          //   title: translate("transcription:noModelInstalled"),
+          //   message: translate("transcription:noModelInstalledMessage"),
+          //   buttons: [
+          //     {text: translate("common:cancel"), style: "cancel"},
+          //     {text: translate("transcription:goToSettings"), style: "default"},
+          //   ],
+          // })
+          // if (result === 1) {
+          //   push("/miniapps/settings/transcription")
+          // }
+          // throw new Error("No model available")
+        })
+      },
+      onStop: (): AsyncResult<void, Error> => {
+        return Res.try_async(async () => {
+          await storage.save(`${captionsPackageName}_running`, false)
+          // tell the core:
+          await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
+          return undefined
+        })
+      },
+    },
+    // {
+    //   packageName: captionsPackageName,
+    //   name: translate("miniApps:offlineCaptions"),
+    //   type: "standard", // Foreground app (only one at a time)
+    //   offline: true, // Works without internet connection
+    //   // logoUrl: getCaptionsIcon(isDark),
+    //   logoUrl: require("@assets/applet-icons/captions.png"),
+    //   // description: "Live captions for your mentra glasses.",
+    //   webviewUrl: "",
+    //   healthy: true,
+    //   hidden: false,
+    //   permissions: [],
+    //   offlineRoute: "",
+    //   running: false,
+    //   loading: false,
+    //   local: false,
+    //   hardwareRequirements: [
+    //     {type: HardwareType.DISPLAY, level: HardwareRequirementLevel.REQUIRED},
+    //     {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
+    //   ],
+    //   onStart: (): AsyncResult<void, Error> => {
+    //     return Res.try_async(async () => {
+    //       const modelAvailable = await STTModelManager.isModelAvailable()
+    //       if (modelAvailable) {
+    //         await storage.save(`${captionsPackageName}_running`, true)
+    //         // ensure transcriber is initialized with the current model:
+    //         await CoreModule.restartTranscriber()
+    //         // tell the core:
+    //         await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
+    //         return undefined
+    //       }
+
+    //       let result = await showAlert({
+    //         title: translate("transcription:noModelInstalled"),
+    //         message: translate("transcription:noModelInstalledMessage"),
+    //         buttons: [
+    //           {text: translate("common:cancel"), style: "cancel"},
+    //           {text: translate("transcription:goToSettings"), style: "default"},
+    //         ],
+    //       })
+
+    //       if (result === 1) {
+    //         push("/miniapps/settings/transcription")
+    //       }
+
+    //       throw new Error("No model available")
+    //     })
+    //   },
+    //   onStop: (): AsyncResult<void, Error> => {
+    //     return Res.try_async(async () => {
+    //       await storage.save(`${captionsPackageName}_running`, false)
+    //       // tell the core:
+    //       await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
+    //       return undefined
+    //     })
+    //   },
+    // },
     // {
     //   packageName: galleryPackageName,
     //   name: translate("miniApps:gallery"),
@@ -378,6 +493,24 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       local: false,
       onStart: () => saveLocalAppRunningState(mirrorPackageName, true),
       onStop: () => saveLocalAppRunningState(mirrorPackageName, false),
+    },
+    {
+      packageName: feedbackPackageName,
+      name: translate("miniApps:feedback"),
+      type: "background",
+      offline: true,
+      logoUrl: require("@assets/applet-icons/feedback.png"),
+      offlineRoute: "/miniapps/settings/feedback",
+      webviewUrl: "",
+      healthy: true,
+      hidden: false,
+      permissions: [],
+      running: false,
+      loading: false,
+      local: false,
+      hardwareRequirements: [],
+      onStart: () => saveLocalAppRunningState(feedbackPackageName, true),
+      onStop: () => saveLocalAppRunningState(feedbackPackageName, false),
     },
     // {
     //   packageName: simulatedPackageName,

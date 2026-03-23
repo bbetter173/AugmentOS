@@ -47,7 +47,8 @@ class CoreModule : Module() {
             "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
-            "mic_data",
+            "mic_pcm",
+            "mic_lc3",
             "rtmp_stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
@@ -255,7 +256,7 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            coreManager?.setMicState(sendPcmData, sendTranscript, bypassVad)
+            coreManager?.setMicState()
         }
 
         AsyncFunction("restartTranscriber") { coreManager?.restartTranscriber() }
@@ -322,6 +323,12 @@ class CoreModule : Module() {
 
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
+        }
+
+        // MARK: - Beta Build Detection (TestFlight on iOS; TODO: Google Play Beta on Android)
+
+        AsyncFunction("isBetaBuild") {
+            false
         }
 
         // MARK: - Android-specific Commands

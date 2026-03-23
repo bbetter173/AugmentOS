@@ -30,6 +30,7 @@ import {
   PermissionType,
   RgbLedControlRequest,
   CameraFovSetRequest,
+  CameraRoiPosition,
   OwnershipReleaseMessage,
   AppStateChange,
 } from "@mentra/sdk";
@@ -327,13 +328,14 @@ async function handleCameraFovSet(
 
     // Validate FOV and ROI values before forwarding to glasses
     const SUPPORTED_FOV = [82, 92, 102, 118];
+    const VALID_ROI_POSITIONS: CameraRoiPosition[] = ["center", "top", "bottom"];
     const { fov, roiPosition } = message;
-    if (!SUPPORTED_FOV.includes(fov) || roiPosition < 0 || roiPosition > 2) {
+    if (!SUPPORTED_FOV.includes(fov) || !VALID_ROI_POSITIONS.includes(roiPosition)) {
       logger.warn({ fov, roiPosition, packageName: message.packageName }, "Invalid camera FOV/ROI values");
       sendError(
         appWebsocket,
         AppErrorCode.MALFORMED_MESSAGE,
-        `Invalid FOV/ROI: fov must be one of [${SUPPORTED_FOV.join(", ")}], roiPosition must be 0-2`,
+        `Invalid FOV/ROI: fov must be one of [${SUPPORTED_FOV.join(", ")}], roiPosition must be one of ${VALID_ROI_POSITIONS.map((p) => `"${p}"`).join(", ")}`,
         logger,
       );
       return;

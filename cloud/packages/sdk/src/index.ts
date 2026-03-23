@@ -95,7 +95,11 @@ export * from "./types/capabilities";
 // App session and server exports
 export * from "./app/index";
 export * from "./MiniAppServer";
-export * from "./session";
+
+// v3 session — explicit re-exports to avoid name collisions with v2 types
+// The full set of manager types is available via "@mentra/sdk/session" entrypoint
+export { MentraSession } from "./session/MentraSession";
+export type { MentraSessionConfig } from "./session/MentraSession";
 
 // Logging exports
 export * from "./logging/logger";

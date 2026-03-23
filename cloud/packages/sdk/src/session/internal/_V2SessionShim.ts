@@ -206,7 +206,7 @@ export class _V2SessionShim {
 
   /** @deprecated Use the specific manager methods instead. */
   on(event: string, handler: (data: any) => void): () => void {
-    return this.events.on(event, handler);
+    return this.events.on(event as any, handler);
   }
 
   // ─── Gesture Subscription ───────────────────────────────────────────────

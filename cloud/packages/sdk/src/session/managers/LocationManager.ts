@@ -101,8 +101,10 @@ export interface LocationManagerDeps {
  * Internal bookkeeping for a single `onUpdate()` registration.
  */
 interface Registration {
-  /** Cleanup function returned by `router.on()`. */
+  /** Cleanup function returned by `router.on()` for the primary stream. */
   routerCleanup: () => void;
+  /** Cleanup function returned by `router.on()` for the secondary location_update stream. */
+  updateCleanup: () => void;
   /** The stream key this registration subscribed to. */
   streamKey: string;
 }
@@ -266,7 +268,7 @@ export class LocationManager {
       }
     });
 
-    const reg: Registration = { routerCleanup, streamKey };
+    const reg: Registration = { routerCleanup, updateCleanup, streamKey };
 
     this.registrations.add(reg);
 
@@ -344,6 +346,7 @@ export class LocationManager {
     const snapshot = Array.from(this.registrations);
     for (const reg of snapshot) {
       reg.routerCleanup();
+      reg.updateCleanup();
       this.registrations.delete(reg);
     }
 

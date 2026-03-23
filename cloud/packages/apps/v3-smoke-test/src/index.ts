@@ -134,18 +134,31 @@ function wireSession(session: MentraSession): void {
   userSession.attachSession(session);
   session.display.showDoubleTextWall("THIS IS THE FIRST PART", "THIS IS THE SECOND PART");
 
-  console.log("Session connected", {
-    sessionId: session.sessionId,
-    userId,
-  });
+  // console.log("Session connected", {
+  //   sessionId: session.sessionId,
+  //   userId,
+  // })
+  session.logger.info(
+    {
+      sessionId: session.sessionId,
+      userId,
+    },
+    `MentraSession connected for ${userId}, sessionId: ${session.sessionId}`,
+  );
 
   session.onReconnected(() => {
     userSession.markReconnected(session);
-
-    console.log("Session reconnected", {
-      sessionId: session.sessionId,
-      userId,
-    });
+    session.logger.info(
+      {
+        sessionId: session.sessionId,
+        userId,
+      },
+      `MentraSession reconnected for ${userId}, sessionId: ${session.sessionId}`,
+    );
+    // console.log("Session reconnected", {
+    //   sessionId: session.sessionId,
+    //   userId,
+    // })
 
     // session.display.showTextWall("Reconnected")
   });
@@ -153,11 +166,14 @@ function wireSession(session: MentraSession): void {
   session.onStopped((reason) => {
     userSession.markStopped(reason);
 
-    console.log("MentraSession stopped", {
-      sessionId: session.sessionId,
-      userId,
-      reason,
-    });
+    session.logger.info(
+      {
+        sessionId: session.sessionId,
+        userId,
+        reason,
+      },
+      `MentraSession stopped for ${userId}, sessionId: ${session.sessionId}, reason: ${reason}`,
+    );
   });
 
   session.transcription.configure({

@@ -19,7 +19,7 @@ import { TimeUtils } from "./managers/TimeUtils";
 import { TranscriptionManager } from "./managers/TranscriptionManager";
 import { TranslationManager } from "./managers/TranslationManager";
 import { _MessageRouter } from "./internal/_MessageRouter";
-import { _SessionLifecycleManager } from "./internal/_SessionLifecycleManager";
+import { _ConnectionManager } from "./internal/_ConnectionManager";
 import { _SubscriptionManager } from "./internal/_SubscriptionManager";
 
 export interface MentraSessionConfig extends LoggerConfig {
@@ -86,7 +86,7 @@ export class MentraSession {
   private readonly cleanupTasks: Array<() => void | Promise<void>> = [];
   private readonly _router: _MessageRouter;
   private readonly _subscriptions: _SubscriptionManager;
-  private readonly _lifecycleManager: _SessionLifecycleManager;
+  private readonly _lifecycleManager: _ConnectionManager;
 
   constructor(config: MentraSessionConfig) {
     this.transport = config.transport;
@@ -113,17 +113,22 @@ export class MentraSession {
         service: "mentra-session",
       });
 
-    this._router = new _MessageRouter(this.logger);
+    // SDK internal logger — tagged with _sdk: true so the clean transport
+    // filters it to warn+ in the terminal. BetterStack still gets everything.
+    // Developer's session.logger (above) has no _sdk tag → always visible.
+    const sdkLogger = this.logger.child({ _sdk: true });
+
+    this._router = new _MessageRouter(sdkLogger);
     this._subscriptions = new _SubscriptionManager({
-      logger: this.logger,
+      logger: sdkLogger,
       isConnected: () => this.isConnected,
       sendMessage: this.sendMessage.bind(this),
       getPackageName: () => this.config.packageName,
       getSessionId: () => this.runtimeSessionId,
     });
-    this._lifecycleManager = new _SessionLifecycleManager({
+    this._lifecycleManager = new _ConnectionManager({
       transport: this.transport,
-      logger: this.logger,
+      logger: sdkLogger,
       autoReconnect: this.config.autoReconnect,
       maxReconnectAttempts: this.config.maxReconnectAttempts,
       reconnectDelay: this.config.reconnectDelay,
@@ -137,7 +142,7 @@ export class MentraSession {
       },
     });
 
-    this.permissions = new PermissionsManager({ logger: this.logger });
+    this.permissions = new PermissionsManager({ logger: sdkLogger });
 
     const deps = {
       router: this._router.dataStreamRouter,
@@ -146,7 +151,7 @@ export class MentraSession {
       removeSubscription: (stream: string) => this._subscriptions.remove(stream),
       sendMessage: this.sendMessage.bind(this),
       sendBinary: this.sendBinary.bind(this),
-      logger: this.logger,
+      logger: sdkLogger,
       getPackageName: () => this.config.packageName,
       getSessionId: () => this.runtimeSessionId,
       getServerUrl: () => this.getServerUrl(),

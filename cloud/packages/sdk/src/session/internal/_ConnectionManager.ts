@@ -5,7 +5,7 @@ interface ConnectableTransport extends Transport {
   connect?: () => Promise<void>;
 }
 
-export interface _SessionLifecycleManagerDeps {
+export interface _ConnectionManagerDeps {
   transport: Transport;
   logger: Logger;
   autoReconnect: boolean;
@@ -20,8 +20,8 @@ export interface _SessionLifecycleManagerDeps {
 
 const PING_INTERVAL_MS = 15_000;
 
-export class _SessionLifecycleManager {
-  private readonly deps: _SessionLifecycleManagerDeps;
+export class _ConnectionManager {
+  private readonly deps: _ConnectionManagerDeps;
 
   private connected = false;
   private parked = false;
@@ -31,7 +31,7 @@ export class _SessionLifecycleManager {
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private parkedTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(deps: _SessionLifecycleManagerDeps) {
+  constructor(deps: _ConnectionManagerDeps) {
     this.deps = deps;
     this.attachTransportHandlers();
   }

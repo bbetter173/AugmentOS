@@ -841,7 +841,7 @@ export class DashboardManager {
           if (ws && ws.readyState === WebSocketReadyState.OPEN) {
             const appMessage = {
               ...message,
-              sessionId: `${this.userSession.sessionId}-${packageName}`,
+              sessionId: this.userSession.getAppSessionId(packageName),
             };
             ws.send(JSON.stringify(appMessage));
           }

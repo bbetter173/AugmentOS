@@ -151,16 +151,26 @@ export interface WebSocketError {
   details?: unknown;
 }
 
+import type { Context } from "hono";
+
 import type { AppSession } from "../app/session";
 
 /**
- * Hono Context variables for authenticated requests
- * Access via c.get("authUserId") and c.get("activeSession")
+ * Hono Context variables for authenticated requests.
+ * Apps should prefer the public auth helpers instead of reading these
+ * variables directly from the context.
  */
 export interface AuthVariables {
   authUserId?: string;
   activeSession: AppSession | null;
 }
+
+export interface MentraAuthContext {
+  userId: string | null;
+  session: AppSession | null;
+}
+
+export type MentraAuthHonoContext = Context<{ Variables: AuthVariables }>;
 
 /**
  * @deprecated Use AuthVariables with Hono context instead

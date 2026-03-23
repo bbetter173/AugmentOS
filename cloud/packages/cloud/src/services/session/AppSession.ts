@@ -14,6 +14,7 @@
  */
 
 import { Logger } from "pino";
+import { randomUUID } from "crypto";
 
 import { ExtendedStreamType, StreamType, isLanguageStream, parseLanguageStream } from "@mentra/sdk";
 
@@ -51,6 +52,7 @@ export enum AppConnectionState {
  * Configuration for creating an AppSession
  */
 export interface AppSessionConfig {
+  sessionId?: string;
   packageName: string;
   logger: Logger;
   onGracePeriodExpired: (appSession: AppSession) => Promise<void>;
@@ -104,6 +106,7 @@ const LOG_PING_PONG = false;
  */
 export class AppSession {
   // ===== Identity =====
+  public readonly sessionId: string;
   public readonly packageName: string;
   private readonly logger: Logger;
 
@@ -164,6 +167,7 @@ export class AppSession {
   } | null = null;
 
   constructor(config: AppSessionConfig) {
+    this.sessionId = config.sessionId ?? randomUUID();
     this.packageName = config.packageName;
     this.logger = config.logger.child({
       service: "AppSession",

@@ -85,6 +85,9 @@ async function listIncidents(c: AppContext) {
  */
 async function getIncident(c: AppContext) {
   const incidentId = c.req.param("incidentId");
+  if (!incidentId) {
+    return c.json({ error: "incidentId is required" }, 400);
+  }
 
   try {
     const incident = await Incident.findOne({ incidentId }).lean();
@@ -109,6 +112,9 @@ async function getIncident(c: AppContext) {
  */
 async function getIncidentLogs(c: AppContext) {
   const incidentId = c.req.param("incidentId");
+  if (!incidentId) {
+    return c.json({ error: "incidentId is required" }, 400);
+  }
 
   try {
     const logs = await incidentStorage.getIncidentLogs(incidentId);

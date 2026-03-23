@@ -585,7 +585,7 @@ export class UnmanagedStreamingExtension {
     // Direct message to the App that owns the stream
     const appOwnerMessage = {
       type: CloudToAppMessageType.RTMP_STREAM_STATUS,
-      sessionId: `${this.userSession.sessionId}-${packageName}`,
+      sessionId: this.userSession.getAppSessionId(packageName),
       streamId,
       status, // The SDK status string
       errorDetails,

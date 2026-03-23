@@ -295,6 +295,9 @@ async function searchApps(c: AppContext) {
 async function getAppByPackage(c: AppContext) {
   try {
     const packageName = c.req.param("packageName");
+    if (!packageName) {
+      return c.json({ success: false, message: "packageName is required" }, 400);
+    }
     const app = await appService.getApp(packageName);
 
     if (!app) {
@@ -333,6 +336,9 @@ async function startApp(c: AppContext) {
 
   if (!userSession) {
     return c.json({ success: false, message: "No active session found" }, 401);
+  }
+  if (!packageName) {
+    return c.json({ success: false, message: "packageName is required" }, 400);
   }
 
   try {
@@ -376,6 +382,9 @@ async function stopApp(c: AppContext) {
 
   if (!userSession) {
     return c.json({ success: false, message: "No active session found" }, 401);
+  }
+  if (!packageName) {
+    return c.json({ success: false, message: "packageName is required" }, 400);
   }
 
   try {

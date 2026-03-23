@@ -94,6 +94,8 @@ export * from "./types/capabilities";
 
 // App session and server exports
 export * from "./app/index";
+export * from "./MiniAppServer";
+export * from "./session";
 
 // Logging exports
 export * from "./logging/logger";
@@ -261,7 +263,13 @@ export interface WebSocketError {
   details?: unknown;
 }
 
-export type { AuthenticatedRequest, AuthVariables } from "./types/index";
+export type { AuthenticatedRequest, AuthVariables, MentraAuthContext, MentraAuthHonoContext } from "./types/index";
 
-// Frontend authentication routes for Bun fullstack apps
-export { createMentraAuthRoutes, generateFrontendToken } from "./app/webview/index";
+// Frontend authentication helpers for Bun fullstack apps
+export {
+  createAuthMiddleware,
+  createMentraAuthRoutes,
+  generateFrontendToken,
+  getMentraAuth,
+  requireMentraAuth,
+} from "./app/webview/index";

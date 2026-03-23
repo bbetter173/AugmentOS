@@ -698,7 +698,7 @@ export class TranslationManager {
 
       // Send to each app using AppManager
       for (const packageName of subscribedApps) {
-        const appSessionId = `${this.userSession.sessionId}-${packageName}`;
+        const appSessionId = this.userSession.getAppSessionId(packageName);
 
         const dataStream: DataStream = {
           type: CloudToAppMessageType.DATA_STREAM,

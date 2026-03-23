@@ -1894,7 +1894,7 @@ export class TranscriptionManager {
 
       // Send to each app using APP MANAGER (with resurrection) instead of direct WebSocket
       for (const packageName of subscribedApps) {
-        const appSessionId = `${this.userSession.sessionId}-${packageName}`;
+        const appSessionId = this.userSession.getAppSessionId(packageName);
 
         // Use the app's own subscription string as streamType so old SDKs
         // can exact-match their handler key. Falls back to effectiveSubscription

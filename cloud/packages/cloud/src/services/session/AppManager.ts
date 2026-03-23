@@ -30,6 +30,7 @@ import { logger as rootLogger } from "../logging/pino-logger";
 import { metricsService } from "../metrics";
 import { PosthogService } from "../logging/posthog.service";
 import { IWebSocket, WebSocketReadyState } from "../websocket/types";
+import { deferredAppConnectionRegistry, type DeferredAppConnection } from "../websocket/DeferredAppConnectionRegistry";
 
 import { AppSession, AppConnectionState as AppSessionState } from "./AppSession";
 import { HardwareCompatibilityService } from "./HardwareCompatibilityService";
@@ -84,6 +85,10 @@ interface AppMessageResult {
   sent: boolean;
   resurrectionTriggered: boolean;
   error?: string;
+}
+
+interface AppAttachOptions {
+  ackType?: CloudToAppMessageType.CONNECTION_ACK | CloudToAppMessageType.RECONNECT_ACK;
 }
 
 export class AppManager {
@@ -765,6 +770,18 @@ export class AppManager {
       }
       appSession.startConnecting();
 
+      const deferredConnection = deferredAppConnectionRegistry.consume(this.userSession.userId, packageName);
+      if (deferredConnection) {
+        this.attachDeferredConnection(packageName, deferredConnection)
+          .then(() => {
+            resolve({ success: true });
+          })
+          .catch((error) => {
+            reject(error as Error);
+          });
+        return;
+      }
+
       // Continue with webhook trigger
       this.triggerAppWebhookInternal(app, resolve, reject, startTime);
     });
@@ -817,24 +834,36 @@ export class AppManager {
         { packageName, name, publicUrl },
         `Triggering App webhook for ${packageName} for user ${this.userSession.userId}`,
       );
+      const appSession = this.getAppSession(packageName);
+      if (!appSession) {
+        throw new Error(`AppSession missing while triggering webhook for ${packageName}`);
+      }
 
       // Set up the websocket URL for the App connection
+      const websocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/ws/miniapp`;
+      const mentraOSWebsocketUrl = websocketUrl;
       const augmentOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
 
       // Construct the webhook URL from the app's public URL
       const webhookURL = `${app.publicUrl}/webhook`;
-      this.logger.info({ augmentOSWebsocketUrl, packageName }, `Triggering webhook for ${packageName}: ${webhookURL}`);
+      this.logger.info({ websocketUrl, packageName }, `Triggering webhook for ${packageName}: ${webhookURL}`);
 
       // Trigger boot screen.
       this.userSession.displayManager.handleAppStart(app.packageName);
 
-      await this.triggerWebhook(webhookURL, {
-        type: WebhookRequestType.SESSION_REQUEST,
-        sessionId: this.userSession.userId + "-" + packageName,
-        userId: this.userSession.userId,
-        timestamp: new Date().toISOString(),
-        augmentOSWebsocketUrl,
-      });
+      await this.triggerWebhook(
+        webhookURL,
+        {
+          type: WebhookRequestType.SESSION_REQUEST,
+          sessionId: appSession.sessionId,
+          userId: this.userSession.userId,
+          timestamp: new Date().toISOString(),
+          websocketUrl,
+          mentraOSWebsocketUrl,
+          augmentOSWebsocketUrl,
+        },
+        packageName,
+      );
 
       this.logger.info(
         {
@@ -930,7 +959,7 @@ export class AppManager {
    * @param payload - Data to send
    * @throws If webhook fails after retries
    */
-  private async triggerWebhook(url: string, payload: SessionWebhookRequest): Promise<void> {
+  private async triggerWebhook(url: string, payload: SessionWebhookRequest, packageName?: string): Promise<void> {
     const maxRetries = 2;
     const baseDelay = 1000; // 1 second
 
@@ -948,7 +977,7 @@ export class AppManager {
           if (axios.isAxiosError(error)) {
             // Enrich the error with context for better debugging
             const enrichedError = Object.assign(error, {
-              packageName: payload.sessionId.split("-")[1],
+              packageName: packageName ?? "unknown_package",
               webhookUrl: url,
               attempts: maxRetries,
               timeout: 10000,
@@ -999,7 +1028,7 @@ export class AppManager {
       // Trigger app stop webhook
       try {
         // TODO(isaiah): Move logic to stop app out of appService and into this class.
-        await appService.triggerStopByPackageName(packageName, this.userSession.userId);
+        await appService.triggerStopByPackageName(packageName, this.userSession.userId, appSession?.sessionId);
       } catch (webhookError) {
         this.logger.error(webhookError, `Error triggering stop webhook for ${packageName}:`);
       }
@@ -1095,6 +1124,67 @@ export class AppManager {
     return appSession?.isRunning ?? false;
   }
 
+  async handleReconnect(
+    ws: IWebSocket,
+    reconnectMessage: { sessionId: string; sdkVersion?: string },
+    packageName: string,
+  ): Promise<void> {
+    const appSession = this.apps.get(packageName);
+    const shouldDefer = await this.shouldDeferReconnect(packageName);
+
+    if (!appSession && shouldDefer) {
+      ws.send(
+        JSON.stringify({
+          type: CloudToAppMessageType.RECONNECT_DEFERRED,
+          code: "AWAITING_APP_RESTORE",
+          message: "Cloud is restoring app state",
+          timeoutMs: 30_000,
+          timestamp: new Date(),
+        }),
+      );
+
+      deferredAppConnectionRegistry.register({
+        userId: this.userSession.userId,
+        packageName,
+        sdkVersion: reconnectMessage.sdkVersion ?? "3.0.0",
+        priorSessionId: reconnectMessage.sessionId,
+        websocket: ws as any,
+        reason: "awaiting_app_restore",
+      });
+      return;
+    }
+
+    if (appSession && appSession.sessionId !== reconnectMessage.sessionId) {
+      ws.send(
+        JSON.stringify({
+          type: CloudToAppMessageType.RECONNECT_REJECTED,
+          code: "SESSION_EXPIRED",
+          message: "Reconnect session identity does not match the active app session",
+          timestamp: new Date(),
+        }),
+      );
+      ws.close(1008, "Session expired");
+      return;
+    }
+
+    if (!appSession || appSession.isStopped) {
+      ws.send(
+        JSON.stringify({
+          type: CloudToAppMessageType.RECONNECT_REJECTED,
+          code: "NOT_RUNNING",
+          message: "App is not expected to run for this user session",
+          timestamp: new Date(),
+        }),
+      );
+      ws.close(1008, "App not running");
+      return;
+    }
+
+    await this.attachAppSocket(packageName, ws, {
+      ackType: CloudToAppMessageType.RECONNECT_ACK,
+    });
+  }
+
   /**
    * Handle App initialization
    *
@@ -1103,7 +1193,7 @@ export class AppManager {
    */
   async handleAppInit(ws: IWebSocket, initMessage: AppConnectionInit): Promise<void> {
     try {
-      const { packageName, apiKey, sessionId } = initMessage;
+      const { packageName, apiKey } = initMessage;
 
       // Validate the API key
       const isValidApiKey = await developerService.validateApiKey(packageName, apiKey, this.userSession);
@@ -1187,65 +1277,9 @@ export class AppManager {
         );
       }
 
-      // Get or create AppSession and handle the connection
-      // AppSession now owns the WebSocket (Phase 4d)
-      const connectedAppSession = this.getOrCreateAppSession(packageName);
-      if (!connectedAppSession) {
-        this.logger.warn({ packageName }, `[AppManager] Cannot handle app init - AppManager disposed`);
-        ws.close(1008, "Session ended");
-        return;
-      }
-      connectedAppSession.handleConnect(ws);
-
-      // Note: Close event handler is now managed by AppSession.handleConnect()
-      // AppSession registers its own close handler and calls our onDisconnect callback
-      // This ensures proper cleanup when AppSession is disposed
-
-      // Note: AppSession state is now RUNNING after handleConnect()
-      // runningApps and loadingApps are derived from AppSession state via getRunningAppNames()/getLoadingAppNames()
-
-      // Get app settings with proper fallback hierarchy
-      const app = this.userSession.installedApps.get(packageName);
-
-      // Get user's settings with fallback to app defaults
-      const user = await User.findOrCreateUser(this.userSession.userId);
-      const userSettings = user.getAppSettings(packageName) || app?.settings || [];
-
-      // Load MentraOS system settings from UserSettingsManager (single source of truth)
-      // Maps from REST keys (snake_case) to SDK keys (camelCase) for backward compatibility
-      const mentraosSettings = this.userSession.userSettingsManager.buildMentraosSettings();
-
-      // Send connection acknowledgment with capabilities
-      const ackMessage = {
-        type: CloudToAppMessageType.CONNECTION_ACK,
-        sessionId: sessionId,
-        settings: userSettings,
-        mentraosSettings: mentraosSettings,
-        capabilities: this.userSession.getCapabilities(),
-        timestamp: new Date(),
-      };
-
-      ws.send(JSON.stringify(ackMessage));
-      metricsService.incrementMiniappMessagesOut();
-
-      // Send full device state snapshot immediately after CONNECTION_ACK
-      this.userSession.deviceManager.sendFullStateSnapshot(ws);
-
-      // update user.runningApps in database.
-      try {
-        if (user) {
-          await user.addRunningApp(packageName);
-        }
-      } catch (error) {
-        this.logger.error(
-          error,
-          `Error updating user's running apps for ${this.userSession.userId} for app ${packageName}`,
-        );
-        this.logger.debug(
-          { packageName, userId: this.userSession.userId },
-          `Failed to update user's running apps for ${this.userSession.userId}`,
-        );
-      }
+      await this.attachAppSocket(packageName, ws, {
+        ackType: CloudToAppMessageType.CONNECTION_ACK,
+      });
 
       // Resolve pending connection if it exists
       const pending = this.pendingConnections.get(packageName);
@@ -1590,6 +1624,88 @@ export class AppManager {
     } catch (error) {
       this.logger.error(error, `Error handling app connection close for ${packageName}:`);
     }
+  }
+
+  private async attachAppSocket(packageName: string, ws: IWebSocket, options: AppAttachOptions = {}): Promise<void> {
+    const connectedAppSession = this.getOrCreateAppSession(packageName);
+    if (!connectedAppSession) {
+      this.logger.warn({ packageName }, `[AppManager] Cannot attach app socket - AppManager disposed`);
+      ws.close(1008, "Session ended");
+      return;
+    }
+
+    connectedAppSession.handleConnect(ws);
+    const sessionId = connectedAppSession.sessionId;
+
+    const app = this.userSession.installedApps.get(packageName);
+    const user = await User.findOrCreateUser(this.userSession.userId);
+    const userSettings = user.getAppSettings(packageName) || app?.settings || [];
+    const mentraosSettings = this.userSession.userSettingsManager.buildMentraosSettings();
+
+    const ackMessage = {
+      type: options.ackType ?? CloudToAppMessageType.CONNECTION_ACK,
+      sessionId,
+      settings: userSettings,
+      mentraosSettings,
+      capabilities: this.userSession.getCapabilities(),
+      subscriptions: connectedAppSession.getSubscriptions(),
+      userId: this.userSession.userId,
+      timestamp: new Date(),
+    };
+
+    ws.send(JSON.stringify(ackMessage));
+    metricsService.incrementMiniappMessagesOut();
+    this.userSession.deviceManager.sendFullStateSnapshot(ws);
+
+    try {
+      await user.addRunningApp(packageName);
+    } catch (error) {
+      this.logger.error(
+        error,
+        `Error updating user's running apps for ${this.userSession.userId} for app ${packageName}`,
+      );
+      this.logger.debug({ packageName, userId: this.userSession.userId }, "Failed to update user's running apps");
+    }
+  }
+
+  private async attachDeferredConnection(
+    packageName: string,
+    deferredConnection: DeferredAppConnection,
+  ): Promise<void> {
+    if (deferredAppConnectionRegistry.isExpired(deferredConnection)) {
+      try {
+        deferredConnection.websocket.send(
+          JSON.stringify({
+            type: CloudToAppMessageType.RECONNECT_REJECTED,
+            code: "BOOT_TIMEOUT",
+            message: "Deferred reconnect timed out while cloud was restoring state",
+            timestamp: new Date(),
+          }),
+        );
+      } finally {
+        deferredConnection.websocket.close(1008, "Deferred reconnect timed out");
+      }
+      throw new Error(`Deferred connection expired for ${packageName}`);
+    }
+
+    await this.attachAppSocket(packageName, deferredConnection.websocket as any, {
+      ackType: CloudToAppMessageType.RECONNECT_ACK,
+    });
+
+    const pending = this.pendingConnections.get(packageName);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      this.pendingConnections.delete(packageName);
+    }
+  }
+
+  private async shouldDeferReconnect(packageName: string): Promise<boolean> {
+    if (this.pendingConnections.has(packageName)) {
+      return true;
+    }
+
+    const user = await User.findOrCreateUser(this.userSession.userId);
+    return user.runningApps.includes(packageName);
   }
 
   /**

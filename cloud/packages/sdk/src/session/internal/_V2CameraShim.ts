@@ -9,7 +9,7 @@ import type {
   RtmpStreamOptions,
 } from "../managers/CameraManager";
 
-export interface _CompatPhotoRequestOptions {
+export interface _V2PhotoRequestOptions {
   saveToGallery?: boolean;
   customWebhookUrl?: string;
   authToken?: string;
@@ -18,7 +18,7 @@ export interface _CompatPhotoRequestOptions {
   sound?: boolean;
 }
 
-export interface _CompatPhotoRequestBridge {
+export interface _V2PhotoRequestBridge {
   registerPhotoRequest(
     requestId: string,
     request: {
@@ -38,9 +38,9 @@ export interface _CompatPhotoRequestBridge {
     | undefined;
 }
 
-interface _CompatCameraAdapterConfig {
-  photoRequestBridge?: _CompatPhotoRequestBridge;
-  getCompatSession?: () => unknown;
+interface _V2CameraShimConfig {
+  photoRequestBridge?: _V2PhotoRequestBridge;
+  getV2Session?: () => unknown;
 }
 
 function generateRequestId(): string {
@@ -51,11 +51,11 @@ function generateRequestId(): string {
   return `photo_req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
-export class _CompatCameraAdapter {
+export class _V2CameraShim {
   private readonly session: MentraSession;
-  private readonly config: _CompatCameraAdapterConfig;
+  private readonly config: _V2CameraShimConfig;
 
-  constructor(session: MentraSession, config: _CompatCameraAdapterConfig = {}) {
+  constructor(session: MentraSession, config: _V2CameraShimConfig = {}) {
     this.session = session;
     this.config = config;
   }
@@ -72,7 +72,7 @@ export class _CompatCameraAdapter {
     return this.session.camera.onPhotoTaken(handler);
   }
 
-  async requestPhoto(options?: _CompatPhotoRequestOptions): Promise<LegacyPhotoData> {
+  async requestPhoto(options?: _V2PhotoRequestOptions): Promise<LegacyPhotoData> {
     const bridge = this.config.photoRequestBridge;
     const userId = this.session.userId;
 
@@ -86,7 +86,7 @@ export class _CompatCameraAdapter {
       bridge.registerPhotoRequest(requestId, {
         userId,
         sessionId: this.session.sessionId,
-        session: this.config.getCompatSession?.() ?? this.session,
+        session: this.config.getV2Session?.() ?? this.session,
         resolve,
         reject,
         timestamp: Date.now(),

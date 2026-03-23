@@ -1,8 +1,8 @@
 import { WebSocketTransport } from "../transport/WebSocketTransport";
 import type { SessionWebhookRequest } from "../types";
 import { MentraSession, type MentraSessionConfig } from "../session";
-import { _CompatMentraSessionAdapter } from "../session/internal/_CompatMentraSessionAdapter";
-import type { _CompatPhotoRequestBridge } from "../session/internal/_CompatCameraAdapter";
+import { _V2SessionShim } from "../session/internal/_V2SessionShim";
+import type { _V2PhotoRequestBridge } from "../session/internal/_V2CameraShim";
 
 export interface _MentraSessionServerFactoryConfig {
   packageName: string;
@@ -10,12 +10,12 @@ export interface _MentraSessionServerFactoryConfig {
   serverUrl?: string;
   logLevel?: MentraSessionConfig["logLevel"];
   verbose?: MentraSessionConfig["verbose"];
-  photoRequestBridge?: _CompatPhotoRequestBridge;
+  photoRequestBridge?: _V2PhotoRequestBridge;
 }
 
 export interface _MentraSessionServerFactoryResult {
   session: MentraSession;
-  compatSession: _CompatMentraSessionAdapter;
+  compatSession: _V2SessionShim;
 }
 
 export class _MentraSessionServerFactory {
@@ -54,7 +54,7 @@ export class _MentraSessionServerFactory {
 
     return {
       session,
-      compatSession: new _CompatMentraSessionAdapter(session, {
+      compatSession: new _V2SessionShim(session, {
         photoRequestBridge: this.config.photoRequestBridge,
       }),
     };

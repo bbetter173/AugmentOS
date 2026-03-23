@@ -9,7 +9,7 @@ type SettingsChangeMap = Record<
   }
 >;
 
-export class _CompatSettingsAdapter {
+export class _V2SettingsShim {
   private readonly session: MentraSession;
 
   constructor(session: MentraSession) {

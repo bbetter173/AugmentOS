@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import type { WebhookResponse, SessionWebhookRequest, StopWebhookRequest, ToolCall } from "../types";
-import type { _CompatPhotoRequestBridge } from "../session/internal/_CompatCameraAdapter";
-import { _CompatMentraSessionAdapter } from "../session/internal/_CompatMentraSessionAdapter";
+import type { _V2PhotoRequestBridge } from "../session/internal/_V2CameraShim";
+import { _V2SessionShim } from "../session/internal/_V2SessionShim";
 import { _MentraSessionServerFactory } from "./_MentraSessionServerFactory";
 import { _MiniAppServerCallbackBridge } from "./_MiniAppServerCallbackBridge";
 import { _MiniAppSessionRegistry } from "./_MiniAppSessionRegistry";
@@ -13,7 +13,7 @@ export interface _MiniAppServerRuntimeConfig {
   serverUrl?: string;
   logLevel?: "none" | "error" | "warn" | "info" | "debug";
   verbose?: boolean;
-  photoRequestBridge?: _CompatPhotoRequestBridge;
+  photoRequestBridge?: _V2PhotoRequestBridge;
 }
 
 export class _MiniAppServerRuntime {
@@ -21,7 +21,7 @@ export class _MiniAppServerRuntime {
 
   private readonly logger: Logger;
   private readonly factory: _MentraSessionServerFactory;
-  private readonly callbacks = new _MiniAppServerCallbackBridge<_CompatMentraSessionAdapter>();
+  private readonly callbacks = new _MiniAppServerCallbackBridge<_V2SessionShim>();
   private readonly stopSuppression = new Set<string>();
 
   constructor(config: _MiniAppServerRuntimeConfig) {
@@ -36,11 +36,11 @@ export class _MiniAppServerRuntime {
     });
   }
 
-  onSession(handler: (session: _CompatMentraSessionAdapter) => void | Promise<void>): void {
+  onSession(handler: (session: _V2SessionShim) => void | Promise<void>): void {
     this.callbacks.registerSessionHandler(handler);
   }
 
-  onStop(handler: (session: _CompatMentraSessionAdapter | null, reason: string) => void | Promise<void>): void {
+  onStop(handler: (session: _V2SessionShim | null, reason: string) => void | Promise<void>): void {
     this.callbacks.registerStopHandler(handler);
   }
 

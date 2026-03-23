@@ -13,7 +13,7 @@ import { _MiniAppServerRuntime } from "./internal/_MiniAppServerRuntime";
  * The public surface still extends AppServer for compatibility, but webhook
  * session lifecycle now flows through the v3 MentraSession runtime.
  */
-class CompatMentraSession extends AppSession {}
+class V2BridgeSession extends AppSession {}
 
 export type MiniAppServerConfig = AppServerConfig;
 
@@ -62,7 +62,7 @@ export class MiniAppServer extends AppServer {
       return this;
     }
 
-    const mentraSession = arg1 as CompatMentraSession;
+    const mentraSession = arg1 as V2BridgeSession;
     return super.onSession(mentraSession, sessionId!, userId!);
   }
 

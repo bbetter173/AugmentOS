@@ -10,7 +10,24 @@ type LegacyEventName =
   | "vps_coordinates"
   | "photo_taken";
 
-export class _CompatEventManagerAdapter {
+/**
+ * V2 Event Manager Shim
+ *
+ * Maps every `session.events.*` method from the v2 API to the
+ * corresponding v3 manager method. This is the compatibility layer
+ * for code that does `session.events.onTranscription(handler)` etc.
+ *
+ * Note on `ontranslationForLanguage` (lowercase 'on'):
+ * The v2 EventManager had this as a lowercase method name — it was a bug
+ * in the original codebase that shipped and became part of the public API.
+ * We preserve the lowercase version for backward compat AND add a
+ * correctly-cased `onTranslationForLanguage` alias so both work.
+ *
+ * Removed in v3.1.
+ *
+ * @internal
+ */
+export class _V2EventManagerShim {
   private readonly session: MentraSession;
 
   constructor(session: MentraSession) {
@@ -25,7 +42,18 @@ export class _CompatEventManagerAdapter {
     return this.session.transcription.forLanguage(language, handler);
   }
 
+  /**
+   * Original v2 method name (lowercase 'on' — was a bug, shipped as public API).
+   * Preserved for backward compat with code that calls `events.ontranslationForLanguage()`.
+   */
   ontranslationForLanguage(source: string, target: string, handler: (data: any) => void): () => void {
+    return this.session.translation.fromTo(source, target, handler);
+  }
+
+  /**
+   * Correctly-cased alias. Both `onTranslationForLanguage` and `ontranslationForLanguage` work.
+   */
+  onTranslationForLanguage(source: string, target: string, handler: (data: any) => void): () => void {
     return this.session.translation.fromTo(source, target, handler);
   }
 

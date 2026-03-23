@@ -1,9 +1,9 @@
 import { MentraSession } from "../session";
-import { _CompatMentraSessionAdapter } from "../session/internal/_CompatMentraSessionAdapter";
+import { _V2SessionShim } from "../session/internal/_V2SessionShim";
 
 export interface _MiniAppSessionRecord {
   session: MentraSession;
-  compatSession: _CompatMentraSessionAdapter;
+  compatSession: _V2SessionShim;
   userId: string;
   sessionId: string;
 }

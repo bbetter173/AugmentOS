@@ -72,6 +72,8 @@ The `fov` value (82--118 degrees) directly sets the FOV of the raw image the cam
 
 `roiPosition` controls where the crop window sits vertically on the sensor: `"top"` shifts it upward, `"bottom"` shifts it downward, and `"center"` keeps it in the middle. This lets apps pan the visible area up or down without the user physically tilting the glasses. At `fov: 118` there is no crop, so `roiPosition` has no effect.
 
+**Output resolution vs. ROI:** The sensor crop gets smaller as FOV decreases, but the **delivered frame often stays at the same output size** (for example **1080p** / 1920×1080 in typical video paths). The pipeline **scales the cropped region up** to that resolution, so the picture stays full-frame and “HD,” but **you are not gaining unlimited real detail** as you zoom in—past roughly **102°**, **angular resolution** (actual sharpness per degree in the scene) **often stops improving**, and at the narrowest FOVs you may see **softer or noisier** results because fewer native sensor samples are stretched across the same pixel grid, in addition to limits from optics and the ISP.
+
 ```typescript
 // Narrow the FOV to 92 degrees (defaults to center crop)
 await session.camera.setFov({ fov: 92 });

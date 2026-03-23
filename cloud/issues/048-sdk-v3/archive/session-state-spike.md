@@ -45,13 +45,13 @@ The developer defines their app's shared state as a TypeScript interface. This i
 ```typescript
 // shared/state.ts
 interface AppState {
-  lastTranscript: string
+  lastTranscript: string;
   settings: {
-    fontSize: number
-    language: string
-    showTimestamps: boolean
-  }
-  connectionCount: number
+    fontSize: number;
+    language: string;
+    showTimestamps: boolean;
+  };
+  connectionCount: number;
 }
 ```
 
@@ -60,9 +60,9 @@ interface AppState {
 The state interface is passed as a generic parameter to `MentraSession`. This threads type information through the entire session, so every `.state` call is fully type-checked:
 
 ```typescript
-import type {AppState} from "../shared/state"
+import type { AppState } from "../shared/state";
 
-type Session = MentraSession<AppState>
+type Session = MentraSession<AppState>;
 ```
 
 ### Full type definitions
@@ -80,32 +80,32 @@ interface StateManager<T extends Record<string, unknown>> {
    * Set a value in shared state. Immediately available locally
    * and synchronized to all connected webviews.
    */
-  set<K extends keyof T>(key: K, value: T[K]): void
+  set<K extends keyof T>(key: K, value: T[K]): void;
 
   /**
    * Get the current value of a state key.
    * Returns undefined if the key has never been set.
    */
-  get<K extends keyof T>(key: K): T[K] | undefined
+  get<K extends keyof T>(key: K): T[K] | undefined;
 
   /**
    * Subscribe to changes on a specific key.
    * Fires whenever set() is called for that key (from either side).
    * Returns an unsubscribe function.
    */
-  on<K extends keyof T>(key: K, handler: (value: T[K]) => void): () => void
+  on<K extends keyof T>(key: K, handler: (value: T[K]) => void): () => void;
 
   /**
    * Get a snapshot of all current state.
    */
-  getAll(): Partial<T>
+  getAll(): Partial<T>;
 
   /**
    * Subscribe to any state change.
    * Fires on every set() call with the key and new value.
    * Returns an unsubscribe function.
    */
-  onAny(handler: <K extends keyof T>(key: K, value: T[K]) => void): () => void
+  onAny(handler: <K extends keyof T>(key: K, value: T[K]) => void): () => void;
 }
 
 /**
@@ -113,21 +113,21 @@ interface StateManager<T extends Record<string, unknown>> {
  * T defaults to Record<string, unknown> for untyped usage.
  */
 class MentraSession<T extends Record<string, unknown> = Record<string, unknown>> {
-  readonly transcription: TranscriptionManager
-  readonly translation: TranslationManager
-  readonly display: DisplayManager
-  readonly camera: CameraModule
-  readonly speaker: SpeakerManager
-  readonly mic: MicManager
-  readonly device: DeviceManager
-  readonly phone: PhoneManager
-  readonly location: LocationManager
-  readonly led: LedModule
-  readonly storage: StorageManager
-  readonly permissions: PermissionsManager
-  readonly dashboard: DashboardManager
-  readonly time: TimeUtils
-  readonly state: StateManager<T> // ← NEW
+  readonly transcription: TranscriptionManager;
+  readonly translation: TranslationManager;
+  readonly display: DisplayManager;
+  readonly camera: CameraModule;
+  readonly speaker: SpeakerManager;
+  readonly mic: MicManager;
+  readonly device: DeviceManager;
+  readonly phone: PhoneManager;
+  readonly location: LocationManager;
+  readonly led: LedModule;
+  readonly storage: StorageManager;
+  readonly permissions: PermissionsManager;
+  readonly dashboard: DashboardManager;
+  readonly time: TimeUtils;
+  readonly state: StateManager<T>; // ← NEW
 
   // ... v2 compat getters, etc.
 }
@@ -137,34 +137,34 @@ class MentraSession<T extends Record<string, unknown> = Record<string, unknown>>
 
 ```typescript
 // session/index.ts
-import type {AppState} from "../shared/state"
+import type { AppState } from "../shared/state";
 
 export default function onSession(session: MentraSession<AppState>) {
   // ✅ Type-checked — "lastTranscript" exists and is string
-  session.state.set("lastTranscript", "hello world")
+  session.state.set("lastTranscript", "hello world");
 
   // ❌ TS error — value must be string, not number
-  session.state.set("lastTranscript", 42)
+  session.state.set("lastTranscript", 42);
 
   // ❌ TS error — "nonExistent" is not a key in AppState
-  session.state.set("nonExistent", "foo")
+  session.state.set("nonExistent", "foo");
 
   // ✅ Type-checked — returns string | undefined
-  const transcript = session.state.get("lastTranscript")
+  const transcript = session.state.get("lastTranscript");
 
   // ✅ Typed callback — settings is AppState["settings"]
   session.state.on("settings", (settings) => {
-    console.log(settings.fontSize) // ✅ number
-    console.log(settings.language) // ✅ string
-  })
+    console.log(settings.fontSize); // ✅ number
+    console.log(settings.language); // ✅ string
+  });
 
   // Subscribe to transcription and push to shared state
   session.transcription.on((event) => {
-    session.state.set("lastTranscript", event.text)
-  })
+    session.state.set("lastTranscript", event.text);
+  });
 
   // Snapshot of all state
-  const snapshot = session.state.getAll()
+  const snapshot = session.state.getAll();
   // ^? Partial<AppState>
 }
 ```
@@ -179,72 +179,72 @@ The webview side exposes React hooks that subscribe to shared state. These hooks
  * Re-renders the component when the value changes.
  * Returns the current value (or undefined if not yet set).
  */
-function useMentraState<T extends Record<string, unknown>, K extends keyof T>(key: K): T[K] | undefined
+function useMentraState<T extends Record<string, unknown>, K extends keyof T>(key: K): T[K] | undefined;
 
 /**
  * React hook — returns the current connection status
  * between the webview and the session runtime.
  */
-function useMentraConnection(): ConnectionStatus
+function useMentraConnection(): ConnectionStatus;
 
 type ConnectionStatus =
   | "connected" // WebSocket open, state syncing
   | "connecting" // WebSocket handshake in progress
   | "disconnected" // WebSocket closed, will retry
-  | "no-session" // No active session exists (app not running)
+  | "no-session"; // No active session exists (app not running)
 
 /**
  * React hook — returns the auth context for the current webview.
  * Already exists in the current SDK — reused here for state transport auth.
  */
 function useMentraAuth(): {
-  frontendToken: string | null
-  sessionId: string | null
-  userId: string | null
-}
+  frontendToken: string | null;
+  sessionId: string | null;
+  userId: string | null;
+};
 ```
 
 Webview component example:
 
 ```tsx
 // webview/App.tsx
-import type {AppState} from "../shared/state"
+import type { AppState } from "../shared/state";
 
 function CaptionsView() {
   // ✅ Type-checked — "lastTranscript" exists in AppState, typed as string
-  const lastTranscript = useMentraState<AppState, "lastTranscript">("lastTranscript")
+  const lastTranscript = useMentraState<AppState, "lastTranscript">("lastTranscript");
 
   // ❌ TS error — "doesNotExist" is not a key in AppState
-  const oops = useMentraState<AppState, "doesNotExist">("doesNotExist")
+  const oops = useMentraState<AppState, "doesNotExist">("doesNotExist");
 
-  const status = useMentraConnection()
+  const status = useMentraConnection();
 
   if (status === "no-session") {
-    return <div>App is not running</div>
+    return <div>App is not running</div>;
   }
 
   if (status !== "connected") {
-    return <div>Connecting...</div>
+    return <div>Connecting...</div>;
   }
 
   return (
     <div>
       <p>{lastTranscript ?? "Waiting for speech..."}</p>
     </div>
-  )
+  );
 }
 
 function SettingsPanel() {
-  const settings = useMentraState<AppState, "settings">("settings")
-  const {setMentraState} = useMentraActions<AppState>()
+  const settings = useMentraState<AppState, "settings">("settings");
+  const { setMentraState } = useMentraActions<AppState>();
 
   // Webview can write state too — syncs back to session
   const updateFontSize = (size: number) => {
     setMentraState("settings", {
       ...settings,
       fontSize: size,
-    })
-  }
+    });
+  };
 
   return (
     <div>
@@ -257,7 +257,7 @@ function SettingsPanel() {
         onChange={(e) => updateFontSize(Number(e.target.value))}
       />
     </div>
-  )
+  );
 }
 ```
 
@@ -269,8 +269,8 @@ Webview write hook:
  * Writes are sent to the session and broadcast to all subscribers.
  */
 function useMentraActions<T extends Record<string, unknown>>(): {
-  setMentraState: <K extends keyof T>(key: K, value: T[K]) => void
-}
+  setMentraState: <K extends keyof T>(key: K, value: T[K]) => void;
+};
 ```
 
 ---
@@ -420,34 +420,34 @@ The framework handles the bridge setup automatically:
 ```typescript
 // shared/state.ts
 export interface AppState {
-  lastTranscript: string
+  lastTranscript: string;
   settings: {
-    fontSize: number
-    language: string
-  }
+    fontSize: number;
+    language: string;
+  };
 }
 ```
 
 ```typescript
 // session/index.ts
-import type {AppState} from "../shared/state"
+import type { AppState } from "../shared/state";
 
 export default function onSession(session: MentraSession<AppState>) {
-  session.state.set("lastTranscript", "hello") // ✅
-  session.state.set("lastTranscript", 42) // ❌ TS2345: number not assignable to string
-  session.state.set("bogus", "value") // ❌ TS2345: "bogus" not assignable to keyof AppState
+  session.state.set("lastTranscript", "hello"); // ✅
+  session.state.set("lastTranscript", 42); // ❌ TS2345: number not assignable to string
+  session.state.set("bogus", "value"); // ❌ TS2345: "bogus" not assignable to keyof AppState
 }
 ```
 
 ```tsx
 // webview/App.tsx
-import type {AppState} from "../shared/state"
+import type { AppState } from "../shared/state";
 
 function MyComponent() {
-  const transcript = useMentraState<AppState, "lastTranscript">("lastTranscript")
+  const transcript = useMentraState<AppState, "lastTranscript">("lastTranscript");
   //    ^? string | undefined
 
-  const nope = useMentraState<AppState, "bogus">("bogus")
+  const nope = useMentraState<AppState, "bogus">("bogus");
   //   ❌ TS2344: "bogus" does not satisfy keyof AppState
 }
 ```
@@ -472,17 +472,17 @@ Typical pattern:
 ```typescript
 export default function onSession(session: MentraSession<AppState>) {
   // Load persisted settings into ephemeral state on startup
-  const savedSettings = await session.storage.get("settings")
+  const savedSettings = await session.storage.get("settings");
   if (savedSettings) {
-    session.state.set("settings", savedSettings)
+    session.state.set("settings", savedSettings);
   }
 
   // When webview changes settings, persist AND update state
   session.state.on("settings", async (settings) => {
-    await session.storage.set("settings", settings)
+    await session.storage.set("settings", settings);
     // State is already updated — webview sees it immediately
     // Storage write is for persistence across restarts
-  })
+  });
 }
 ```
 

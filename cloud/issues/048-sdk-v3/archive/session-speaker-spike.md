@@ -128,70 +128,70 @@ session.speaker.hasPermission                          // → boolean
 ```typescript
 // ─── Track System ───────────────────────────────
 
-type TrackId = 0 | 1 | 2
+type TrackId = 0 | 1 | 2;
 // 0 = speaker (default), 1 = app_audio, 2 = tts
 
 // ─── URL Playback ───────────────────────────────
 
 interface PlayOptions {
-  url: string
-  volume?: number // 0.0–1.0, default: 1.0
-  trackId?: TrackId // default: 0
-  stopOtherAudio?: boolean // default: false
+  url: string;
+  volume?: number; // 0.0–1.0, default: 1.0
+  trackId?: TrackId; // default: 0
+  stopOtherAudio?: boolean; // default: false
 }
 
 interface PlayResult {
-  duration: number // ms — total audio duration
+  duration: number; // ms — total audio duration
 }
 
 // ─── Text-to-Speech ─────────────────────────────
 
 interface SpeakOptions {
-  voiceId?: string // ElevenLabs voice ID
-  modelId?: string // ElevenLabs model ID
-  voiceSettings?: VoiceSettings
-  volume?: number // 0.0–1.0, default: 1.0
-  trackId?: TrackId // default: 2
-  stopOtherAudio?: boolean // default: false
+  voiceId?: string; // ElevenLabs voice ID
+  modelId?: string; // ElevenLabs model ID
+  voiceSettings?: VoiceSettings;
+  volume?: number; // 0.0–1.0, default: 1.0
+  trackId?: TrackId; // default: 2
+  stopOtherAudio?: boolean; // default: false
 }
 
 interface VoiceSettings {
-  stability?: number // 0.0–1.0
-  similarityBoost?: number // 0.0–1.0
-  style?: number // 0.0–1.0
-  speed?: number // 0.5–2.0
+  stability?: number; // 0.0–1.0
+  similarityBoost?: number; // 0.0–1.0
+  style?: number; // 0.0–1.0
+  speed?: number; // 0.5–2.0
 }
 
 // ─── Audio Output Streaming ─────────────────────
 
 interface StreamOptions {
-  format?: "mp3" | "pcm16" // default: 'mp3'
-  sampleRate?: number // Hz, default: 44100
-  channels?: 1 | 2 // default: 1
-  bitrate?: number // kbps, default: 128
-  volume?: number // 0.0–1.0, default: 1.0
-  trackId?: TrackId // default: 1
-  stopOtherAudio?: boolean // default: false
+  format?: "mp3" | "pcm16"; // default: 'mp3'
+  sampleRate?: number; // Hz, default: 44100
+  channels?: 1 | 2; // default: 1
+  bitrate?: number; // kbps, default: 128
+  volume?: number; // 0.0–1.0, default: 1.0
+  trackId?: TrackId; // default: 1
+  stopOtherAudio?: boolean; // default: false
 }
 
 interface AudioOutputStream {
-  readonly id: string // stream UUID
-  readonly state: StreamState
+  readonly id: string; // stream UUID
+  readonly state: StreamState;
 
-  write(chunk: Uint8Array): void // send audio bytes
-  end(): Promise<void> // graceful close — flush remaining audio, then stop
-  flush(): void // interrupt — silence immediately, discard buffered data
+  write(chunk: Uint8Array): void; // send audio bytes
+  end(): Promise<void>; // graceful close — flush remaining audio, then stop
+  flush(): void; // interrupt — silence immediately, discard buffered data
 
-  onStateChange(handler: (state: StreamState) => void): void
+  onStateChange(handler: (state: StreamState) => void): void;
 }
 
-type StreamState = "created" | "streaming" | "ending" | "ended" | "error"
+type StreamState = "created" | "streaming" | "ending" | "ended" | "error";
 
 // ─── Errors ─────────────────────────────────────
 
 interface SpeakerError {
-  code: SpeakerErrorCode
-  message: string
+  code: SpeakerErrorCode;
+  message: string;
 }
 
 type SpeakerErrorCode =
@@ -199,37 +199,37 @@ type SpeakerErrorCode =
   | "TTS_FAILED" // ElevenLabs API error
   | "STREAM_FAILED" // output stream error (encoding, relay, phone disconnected)
   | "PERMISSION_DENIED" // app doesn't have speaker permission
-  | "INVALID_OPTIONS" // bad options (e.g., volume out of range)
+  | "INVALID_OPTIONS"; // bad options (e.g., volume out of range)
 ```
 
 ### Usage Examples
 
 ```typescript
 // Simple playback
-await session.speaker.play({url: "https://example.com/alert.mp3"})
+await session.speaker.play({ url: "https://example.com/alert.mp3" });
 
 // TTS with custom voice
 await session.speaker.speak("Hello world", {
   voiceId: "pNInz6obpgDQGcFmaJgB",
   volume: 0.8,
-})
+});
 
 // Real-time AI audio streaming
-const stream = await session.speaker.createStream({format: "mp3"})
+const stream = await session.speaker.createStream({ format: "mp3" });
 // ... pipe ElevenLabs streaming TTS chunks into the stream ...
-stream.write(mp3Chunk)
-stream.write(mp3Chunk)
-stream.write(mp3Chunk)
-stream.end()
+stream.write(mp3Chunk);
+stream.write(mp3Chunk);
+stream.write(mp3Chunk);
+stream.end();
 
 // Interrupt — immediately silence and discard buffered audio
-stream.flush()
+stream.flush();
 
 // Stop all audio on a specific track
-await session.speaker.stop(1)
+await session.speaker.stop(1);
 
 // Stop all audio on all tracks
-await session.speaker.stop()
+await session.speaker.stop();
 ```
 
 ---

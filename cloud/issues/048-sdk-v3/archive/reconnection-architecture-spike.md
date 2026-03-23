@@ -191,22 +191,22 @@ With the reconnect webhook (proposed below), Cloud A can try to bring the app ba
 // What the SDK holds for each session
 interface SDKSessionState {
   // Identity
-  sessionId: string | null // UUID from last CONNECTION_ACK (null if never connected)
-  cloudHostname: string | null // which cloud we're connected to
+  sessionId: string | null; // UUID from last CONNECTION_ACK (null if never connected)
+  cloudHostname: string | null; // which cloud we're connected to
 
   // Connection
-  connectionState: "disconnected" | "connecting" | "connected" | "parked"
-  webSocket: WebSocket | null
+  connectionState: "disconnected" | "connecting" | "connected" | "parked";
+  webSocket: WebSocket | null;
 
   // Subscriptions (source of truth — derived from handlers)
-  handlers: Map<string, Set<Function>> // eventType → callbacks
-  subscriptions: Set<string> // derived from handlers, always in sync
+  handlers: Map<string, Set<Function>>; // eventType → callbacks
+  subscriptions: Set<string>; // derived from handlers, always in sync
 
   // Received from cloud
-  settings: AppSettings
-  capabilities: Capabilities
-  userId: string // MongoDB _id
-  email: string | undefined // optional
+  settings: AppSettings;
+  capabilities: Capabilities;
+  userId: string; // MongoDB _id
+  email: string | undefined; // optional
 }
 ```
 
@@ -220,22 +220,22 @@ interface SDKSessionState {
 // What the cloud holds per mini app per user
 interface CloudAppSessionState {
   // Identity
-  sessionId: string // UUID, unique per cloud per session instance
-  packageName: string
-  sdkVersion: string | null // from CONNECTION_INIT, null for v2
+  sessionId: string; // UUID, unique per cloud per session instance
+  packageName: string;
+  sdkVersion: string | null; // from CONNECTION_INIT, null for v2
 
   // Connection
-  connectionState: AppConnectionState // see state machine below
-  webSocket: WebSocket | null // null during TRANSPORT_DOWN
-  reconnectionMode: "legacy" | "v3" // derived from sdkVersion
+  connectionState: AppConnectionState; // see state machine below
+  webSocket: WebSocket | null; // null during TRANSPORT_DOWN
+  reconnectionMode: "legacy" | "v3"; // derived from sdkVersion
 
   // Subscriptions (matches what the SDK last told us)
-  subscriptions: Set<string>
-  locationRate: LocationRate | null
+  subscriptions: Set<string>;
+  locationRate: LocationRate | null;
 
   // Metadata
-  connectedAt: Date | null
-  disconnectedAt: Date | null
+  connectedAt: Date | null;
+  disconnectedAt: Date | null;
 }
 ```
 
@@ -319,9 +319,9 @@ Cloud reads `sdkVersion` and sets `reconnectionMode`:
 
 ```typescript
 if (!sdkVersion || semver.lt(sdkVersion, "3.0.0")) {
-  appSession.reconnectionMode = "legacy" // current behavior
+  appSession.reconnectionMode = "legacy"; // current behavior
 } else {
-  appSession.reconnectionMode = "v3" // new behavior
+  appSession.reconnectionMode = "v3"; // new behavior
 }
 ```
 
@@ -513,14 +513,14 @@ Cloud                                         SDK
 app.onSession((session) => {
   if (session.wasResurrected) {
     // Optional: restore state from storage
-    const saved = await session.storage.get("lastState")
+    const saved = await session.storage.get("lastState");
   }
 
   // Register handlers (same as always)
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
-})
+    session.display.showText(data.text);
+  });
+});
 ```
 
 ### Scenario 4: Multi-Cloud Switch
@@ -645,14 +645,14 @@ Suggested internal shape:
 
 ```typescript
 interface DeferredAppConnection {
-  userId: string
-  packageName: string
-  sdkVersion: string
-  priorSessionId?: string
-  websocket: WebSocket
-  connectedAt: Date
-  expiresAt: Date
-  reason: "booting" | "awaiting_app_restore"
+  userId: string;
+  packageName: string;
+  sdkVersion: string;
+  priorSessionId?: string;
+  websocket: WebSocket;
+  connectedAt: Date;
+  expiresAt: Date;
+  reason: "booting" | "awaiting_app_restore";
 }
 ```
 
@@ -784,8 +784,8 @@ Every connection (reconnect or fresh) follows the same reconciliation:
 **V3:**
 
 ```typescript
-session.userId // "65f2a1b3c4d5e6f7a8b9c0d1" — MongoDB _id, stable, never changes
-session.email // "isaiahballah@gmail.com" | undefined — optional
+session.userId; // "65f2a1b3c4d5e6f7a8b9c0d1" — MongoDB _id, stable, never changes
+session.email; // "isaiahballah@gmail.com" | undefined — optional
 ```
 
 **Why:**
@@ -1007,7 +1007,7 @@ The SDK should expose a public reconnect signal:
 ```typescript
 session.onReconnected(() => {
   // optional refresh logic
-})
+});
 ```
 
 This fires when:

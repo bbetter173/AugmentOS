@@ -32,22 +32,22 @@ The `DeviceState` class holds 13 `Observable<T>` properties representing the gla
 // device-state.ts — 13 observable properties
 class DeviceState {
   // WiFi (3)
-  readonly wifiConnected: Observable<boolean>
-  readonly wifiSsid: Observable<string | null>
-  readonly wifiLocalIp: Observable<string | null>
+  readonly wifiConnected: Observable<boolean>;
+  readonly wifiSsid: Observable<string | null>;
+  readonly wifiLocalIp: Observable<string | null>;
   // Battery (6)
-  readonly batteryLevel: Observable<number | null>
-  readonly charging: Observable<boolean | null>
-  readonly caseBatteryLevel: Observable<number | null>
-  readonly caseCharging: Observable<boolean | null>
-  readonly caseOpen: Observable<boolean | null>
-  readonly caseRemoved: Observable<boolean | null>
+  readonly batteryLevel: Observable<number | null>;
+  readonly charging: Observable<boolean | null>;
+  readonly caseBatteryLevel: Observable<number | null>;
+  readonly caseCharging: Observable<boolean | null>;
+  readonly caseOpen: Observable<boolean | null>;
+  readonly caseRemoved: Observable<boolean | null>;
   // Hotspot (2)
-  readonly hotspotEnabled: Observable<boolean | null>
-  readonly hotspotSsid: Observable<string | null>
+  readonly hotspotEnabled: Observable<boolean | null>;
+  readonly hotspotSsid: Observable<string | null>;
   // Connection & Device (2)
-  readonly connected: Observable<boolean>
-  readonly modelName: Observable<string | null>
+  readonly connected: Observable<boolean>;
+  readonly modelName: Observable<string | null>;
 }
 ```
 
@@ -64,7 +64,7 @@ Each `Observable<T>` provides:
 
 ```typescript
 // AppSession constructor — L400
-this.device = {state: new DeviceState(this)}
+this.device = { state: new DeviceState(this) };
 ```
 
 Note the wrapping: `session.device` is a plain object with a `state` property. There's no `DeviceManager` class in v2 — `device` is just `{ state: DeviceState }`.
@@ -88,7 +88,7 @@ await userSession.deviceManager.updateDeviceState({
   wifiConnected: message.wifi?.connected,
   wifiSsid: message.wifi?.ssid ?? undefined,
   timestamp: new Date().toISOString(),
-})
+});
 ```
 
 **Cloud → SDK flow:**
@@ -110,9 +110,9 @@ Hardware events (buttons, head position, touch, gestures, battery, VPS) originat
 
 ```typescript
 interface ButtonPress {
-  type: "button_press"
-  buttonId: string
-  pressType: "short" | "long"
+  type: "button_press";
+  buttonId: string;
+  pressType: "short" | "long";
 }
 ```
 
@@ -126,8 +126,8 @@ interface ButtonPress {
 
 ```typescript
 interface HeadPosition {
-  type: "head_position"
-  position: "up" | "down"
+  type: "head_position";
+  position: "up" | "down";
 }
 ```
 
@@ -141,10 +141,10 @@ interface HeadPosition {
 
 ```typescript
 interface TouchEvent {
-  type: "touch_event"
-  device_model: string
-  gesture_name: string
-  timestamp: Date
+  type: "touch_event";
+  device_model: string;
+  gesture_name: string;
+  timestamp: Date;
 }
 ```
 
@@ -167,7 +167,7 @@ Under the hood, pattern 2 creates a stream subscription of `"touch_event:triple_
 **Bulk gesture subscription:**
 
 ```typescript
-session.subscribeToGestures(["single_tap", "double_tap"])
+session.subscribeToGestures(["single_tap", "double_tap"]);
 ```
 
 This creates individual stream subscriptions for each gesture. However, this method has a bug — it bypasses the EventManager's handler tracking (calls `subscribe()` directly alongside `events.onTouchEvent()` for each gesture), potentially causing dangling subscriptions.
@@ -178,10 +178,10 @@ This creates individual stream subscriptions for each gesture. However, this met
 
 ```typescript
 interface GlassesBatteryUpdate {
-  type: "glasses_battery_update"
-  level: number // 0-100
-  charging: boolean
-  timeRemaining?: number // minutes
+  type: "glasses_battery_update";
+  level: number; // 0-100
+  charging: boolean;
+  timeRemaining?: number; // minutes
 }
 ```
 
@@ -202,17 +202,17 @@ Both should be consistent (same source), but they're conceptually duplicate — 
 
 ```typescript
 interface VpsCoordinates {
-  type: "vps_coordinates"
-  deviceModel: string
-  requestId: string
-  x: number
-  y: number
-  z: number
-  qx: number
-  qy: number
-  qz: number
-  qw: number
-  confidence: number
+  type: "vps_coordinates";
+  deviceModel: string;
+  requestId: string;
+  x: number;
+  y: number;
+  z: number;
+  qx: number;
+  qy: number;
+  qz: number;
+  qw: number;
+  confidence: number;
 }
 ```
 
@@ -279,23 +279,23 @@ Additionally, `ConnectionValidator.validateWifiForOperation()` is used to gate s
 
 ```typescript
 interface Capabilities {
-  modelName: string
-  hasCamera: boolean
-  camera: CameraCapabilities | null
-  hasDisplay: boolean
-  display: DisplayCapabilities | null
-  hasMicrophone: boolean
-  microphone: MicrophoneCapabilities | null
-  hasSpeaker: boolean
-  speaker: SpeakerCapabilities | null
-  hasIMU: boolean
-  imu: IMUCapabilities | null
-  hasButton: boolean
-  button: ButtonCapabilities | null
-  hasLight: boolean
-  light: LightCapabilities | null
-  power: PowerCapabilities
-  hasWifi: boolean
+  modelName: string;
+  hasCamera: boolean;
+  camera: CameraCapabilities | null;
+  hasDisplay: boolean;
+  display: DisplayCapabilities | null;
+  hasMicrophone: boolean;
+  microphone: MicrophoneCapabilities | null;
+  hasSpeaker: boolean;
+  speaker: SpeakerCapabilities | null;
+  hasIMU: boolean;
+  imu: IMUCapabilities | null;
+  hasButton: boolean;
+  button: ButtonCapabilities | null;
+  hasLight: boolean;
+  light: LightCapabilities | null;
+  power: PowerCapabilities;
+  hasWifi: boolean;
 }
 ```
 
@@ -319,8 +319,8 @@ Capabilities are defined in `HARDWARE_CAPABILITIES` as a static record mapping m
 
 ```typescript
 // Direct on AppSession
-session.capabilities // → Capabilities object
-session.events.onCapabilitiesUpdate(handler)
+session.capabilities; // → Capabilities object
+session.events.onCapabilitiesUpdate(handler);
 ```
 
 Per the 039 API map, this moves to `session.device.capabilities` in v3.
@@ -405,55 +405,55 @@ session.device.onCapabilitiesChange(handler)       // → () => void
  */
 interface Observable<T> {
   /** Current value (synchronous read). */
-  readonly value: T
+  readonly value: T;
 
   /** Subscribe to value changes. Returns cleanup function.
    *  If a value has already been set, fires immediately with current value. */
-  onChange(callback: (value: T) => void): () => void
+  onChange(callback: (value: T) => void): () => void;
 }
 
 // ─── Device State ───────────────────────────────
 
 interface DeviceStateObservables {
   // Connection
-  readonly connected: Observable<boolean>
-  readonly modelName: Observable<string | null>
+  readonly connected: Observable<boolean>;
+  readonly modelName: Observable<string | null>;
 
   // Battery
-  readonly batteryLevel: Observable<number | null>
-  readonly charging: Observable<boolean | null>
-  readonly caseBatteryLevel: Observable<number | null>
-  readonly caseCharging: Observable<boolean | null>
-  readonly caseOpen: Observable<boolean | null>
-  readonly caseRemoved: Observable<boolean | null>
+  readonly batteryLevel: Observable<number | null>;
+  readonly charging: Observable<boolean | null>;
+  readonly caseBatteryLevel: Observable<number | null>;
+  readonly caseCharging: Observable<boolean | null>;
+  readonly caseOpen: Observable<boolean | null>;
+  readonly caseRemoved: Observable<boolean | null>;
 
   // WiFi
-  readonly wifiConnected: Observable<boolean>
-  readonly wifiSsid: Observable<string | null>
-  readonly wifiLocalIp: Observable<string | null>
+  readonly wifiConnected: Observable<boolean>;
+  readonly wifiSsid: Observable<string | null>;
+  readonly wifiLocalIp: Observable<string | null>;
 
   // Hotspot
-  readonly hotspotEnabled: Observable<boolean | null>
-  readonly hotspotSsid: Observable<string | null>
+  readonly hotspotEnabled: Observable<boolean | null>;
+  readonly hotspotSsid: Observable<string | null>;
 }
 
 // ─── Hardware Events ────────────────────────────
 
 interface ButtonPressEvent {
-  buttonId: string
-  pressType: "short" | "long"
-  timestamp: number
+  buttonId: string;
+  pressType: "short" | "long";
+  timestamp: number;
 }
 
 interface HeadPositionEvent {
-  position: "up" | "down"
-  timestamp: number
+  position: "up" | "down";
+  timestamp: number;
 }
 
 interface TouchEventData {
-  gesture: string // renamed from gesture_name (camelCase consistency)
-  model: string // renamed from device_model
-  timestamp: number
+  gesture: string; // renamed from gesture_name (camelCase consistency)
+  model: string; // renamed from device_model
+  timestamp: number;
 }
 
 type GestureType =
@@ -464,44 +464,44 @@ type GestureType =
   | "forward_swipe"
   | "backward_swipe"
   | "up_swipe"
-  | "down_swipe"
+  | "down_swipe";
 
 interface BatteryUpdateEvent {
-  level: number // 0-100
-  charging: boolean
-  timeRemaining?: number // minutes
-  timestamp: number
+  level: number; // 0-100
+  charging: boolean;
+  timeRemaining?: number; // minutes
+  timestamp: number;
 }
 
 interface VpsCoordinatesEvent {
-  model: string
-  requestId: string
-  position: {x: number; y: number; z: number}
-  orientation: {qx: number; qy: number; qz: number; qw: number}
-  confidence: number
-  timestamp: number
+  model: string;
+  requestId: string;
+  position: { x: number; y: number; z: number };
+  orientation: { qx: number; qy: number; qz: number; qw: number };
+  confidence: number;
+  timestamp: number;
 }
 
 // ─── Capabilities ───────────────────────────────
 
 interface Capabilities {
-  modelName: string
-  hasCamera: boolean
-  camera: CameraCapabilities | null
-  hasDisplay: boolean
-  display: DisplayCapabilities | null
-  hasMicrophone: boolean
-  microphone: MicrophoneCapabilities | null
-  hasSpeaker: boolean
-  speaker: SpeakerCapabilities | null
-  hasIMU: boolean
-  imu: IMUCapabilities | null
-  hasButton: boolean
-  button: ButtonCapabilities | null
-  hasLight: boolean
-  light: LightCapabilities | null
-  power: PowerCapabilities
-  hasWifi: boolean
+  modelName: string;
+  hasCamera: boolean;
+  camera: CameraCapabilities | null;
+  hasDisplay: boolean;
+  display: DisplayCapabilities | null;
+  hasMicrophone: boolean;
+  microphone: MicrophoneCapabilities | null;
+  hasSpeaker: boolean;
+  speaker: SpeakerCapabilities | null;
+  hasIMU: boolean;
+  imu: IMUCapabilities | null;
+  hasButton: boolean;
+  button: ButtonCapabilities | null;
+  hasLight: boolean;
+  light: LightCapabilities | null;
+  power: PowerCapabilities;
+  hasWifi: boolean;
 }
 
 // Sub-capabilities unchanged from v2 — CameraCapabilities, DisplayCapabilities, etc.
@@ -515,73 +515,78 @@ interface Capabilities {
 // Battery monitoring
 session.device.state.batteryLevel.onChange((level) => {
   if (level !== null && level < 20) {
-    session.display.showText("Low battery!")
+    session.display.showText("Low battery!");
   }
-})
+});
 
 // WiFi status
 session.device.state.wifiConnected.onChange((connected) => {
   if (connected) {
-    startVideoUpload()
+    startVideoUpload();
   }
-})
+});
 
 // Read current value (synchronous)
-const currentBattery = session.device.state.batteryLevel.value
-const isCharging = session.device.state.charging.value
+const currentBattery = session.device.state.batteryLevel.value;
+const isCharging = session.device.state.charging.value;
 
 // ─── Hardware events ────────────────────────────
 
 // Button press
 const stopButton = session.device.onButtonPress((event) => {
   if (event.pressType === "long") {
-    toggleRecording()
+    toggleRecording();
   }
-})
+});
 
 // Head position (used for dashboard cycling, etc.)
 session.device.onHeadPosition((event) => {
   if (event.position === "up") {
-    showDashboard()
+    showDashboard();
   }
-})
+});
 
 // Specific gesture
 session.device.onTouchEvent("double_tap", (event) => {
-  togglePause()
-})
+  togglePause();
+});
 
 // All touch events
 session.device.onTouchEvent((event) => {
-  console.log(`Gesture: ${event.gesture} on ${event.model}`)
-})
+  console.log(`Gesture: ${event.gesture} on ${event.model}`);
+});
 
 // Bulk gesture subscription
-const stopGestures = session.device.subscribeToGestures(["single_tap", "double_tap", "forward_swipe", "backward_swipe"])
+const stopGestures = session.device.subscribeToGestures([
+  "single_tap",
+  "double_tap",
+  "forward_swipe",
+  "backward_swipe",
+]);
 
 // Battery event (per-event, subscription-based — as opposed to Observable)
 session.device.onBatteryUpdate((event) => {
-  console.log(`Battery: ${event.level}%, charging: ${event.charging}`)
-})
+  console.log(`Battery: ${event.level}%, charging: ${event.charging}`);
+});
 
 // ─── WiFi setup ─────────────────────────────────
 
-session.device.requestWifiSetup("Video upload requires WiFi")
+session.device.requestWifiSetup("Video upload requires WiFi");
 
 // ─── Capabilities ───────────────────────────────
 
 if (session.device.capabilities.hasCamera) {
-  session.camera.takePhoto()
+  session.camera.takePhoto();
 }
 
 session.device.onCapabilitiesChange((caps) => {
   // Model changed — maybe user switched glasses
-  console.log(`Now connected to: ${caps.modelName}`)
-})
+  console.log(`Now connected to: ${caps.modelName}`);
+});
 
 // Cleanup
-stopButton()
-stopGestures()
+stopButton();
+stopGestures();
 ```
 
 ---
@@ -606,8 +611,8 @@ A simpler getter + onChange callback would look like:
 
 ```typescript
 // Alternative (NOT recommended):
-session.device.getBatteryLevel() // getter
-session.device.onBatteryLevelChange(cb) // onChange
+session.device.getBatteryLevel(); // getter
+session.device.onBatteryLevelChange(cb); // onChange
 ```
 
 This has two problems: (a) it doubles the API surface (getter + listener for each property), and (b) the getter is a function call rather than a property read. The Observable wraps both into one object.
@@ -698,13 +703,13 @@ The `DeviceManager` owns all hardware event registrations:
 
 ```typescript
 // v3 — all hardware on session.device
-session.device.onButtonPress(handler)
-session.device.onHeadPosition(handler)
-session.device.onTouchEvent(handler)
-session.device.onTouchEvent("triple_tap", handler)
-session.device.subscribeToGestures(gestures)
-session.device.onBatteryUpdate(handler)
-session.device.onVpsCoordinates(handler)
+session.device.onButtonPress(handler);
+session.device.onHeadPosition(handler);
+session.device.onTouchEvent(handler);
+session.device.onTouchEvent("triple_tap", handler);
+session.device.subscribeToGestures(gestures);
+session.device.onBatteryUpdate(handler);
+session.device.onVpsCoordinates(handler);
 ```
 
 Internally, the `DeviceManager` registers handlers on the `DataStreamRouter` for the relevant stream types (`button_press`, `head_position`, `touch_event`, `touch_event:*`, `glasses_battery_update`, `vps_coordinates`). The subscription system works exactly as before — registering a handler adds a subscription, removing the last handler for a stream removes the subscription.

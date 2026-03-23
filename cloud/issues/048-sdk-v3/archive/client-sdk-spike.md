@@ -137,7 +137,7 @@ globalThis.__mentraTransport = {
     /* cleanup */
   },
   readyState: 1, // "open" while glasses connected
-}
+};
 ```
 
 The SDK picks this up on initialization:
@@ -145,22 +145,22 @@ The SDK picks this up on initialization:
 ```typescript
 // Inside @mentra/sdk/session — TypeScript, bundled with the app
 class NativeBridgeTransport implements Transport {
-  private bridge = globalThis.__mentraTransport
+  private bridge = globalThis.__mentraTransport;
 
   send(data: string) {
-    this.bridge.send(data)
+    this.bridge.send(data);
   }
   onMessage(handler: (data: string) => void) {
-    this.bridge.onMessage(handler)
+    this.bridge.onMessage(handler);
   }
   onClose(handler: (code: number, reason: string) => void) {
-    this.bridge.onClose(handler)
+    this.bridge.onClose(handler);
   }
   close() {
-    this.bridge.close()
+    this.bridge.close();
   }
   get readyState() {
-    return this.bridge.readyState
+    return this.bridge.readyState;
   }
 }
 ```
@@ -275,18 +275,18 @@ Bundles run in a sandboxed Hermes context — no access to the filesystem, netwo
 
 ```typescript
 // session/index.ts — compiled to session.hbc
-import {MentraSession} from "@mentra/sdk/session"
+import { MentraSession } from "@mentra/sdk/session";
 
 // The runtime calls this when the session is ready
 export default function onSession(session: MentraSession) {
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
+    session.display.showText(data.text);
+  });
 }
 
 // Optional: called when the session ends (glasses disconnect, app stopped)
 export function onStop(session: MentraSession) {
-  console.log("bye")
+  console.log("bye");
 }
 ```
 
@@ -294,13 +294,13 @@ This is the same pattern as cloud apps:
 
 ```typescript
 // Cloud app (for comparison)
-const app = new MentraApp({packageName: "...", apiKey: "..."})
+const app = new MentraApp({ packageName: "...", apiKey: "..." });
 
 app.onSession((session) => {
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
-})
+    session.display.showText(data.text);
+  });
+});
 ```
 
 The only difference: cloud apps use `MentraApp` (Hono server that creates sessions from webhooks). Local apps export `onSession` and the phone runtime calls it directly. The `MentraSession` class and all managers are the same TypeScript code in both cases — only the transport differs.
@@ -374,22 +374,22 @@ Every field on `TranscriptionEvent` stays optional. The developer queries capabi
 ```typescript
 interface TranscriptionCapabilities {
   /** Can detect the spoken language automatically. */
-  languageDetection: boolean
+  languageDetection: boolean;
 
   /** Can identify different speakers. */
-  diarization: boolean
+  diarization: boolean;
 
   /** Provides word-level start/end timestamps. */
-  wordTimestamps: boolean
+  wordTimestamps: boolean;
 
   /** Provides per-segment confidence scores. */
-  confidence: boolean
+  confidence: boolean;
 
   /** Which languages the current engine supports. */
-  supportedLanguages: string[]
+  supportedLanguages: string[];
 
   /** Whether the engine is running locally or in the cloud. */
-  local: boolean
+  local: boolean;
 }
 ```
 
@@ -399,27 +399,27 @@ Usage:
 export default function onSession(session: MentraSession) {
   // Always works — text and isFinal are always present
   session.transcription.on((data) => {
-    session.display.showText(data.text)
-  })
+    session.display.showText(data.text);
+  });
 
   // Check capabilities before relying on optional fields
-  const caps = session.transcription.capabilities
+  const caps = session.transcription.capabilities;
 
   if (caps.diarization) {
     session.transcription.on((data) => {
       if (data.speakerId) {
-        showSpeakerLabel(data.speakerId, data.text)
+        showSpeakerLabel(data.speakerId, data.text);
       }
-    })
+    });
   }
 
   // React to capability changes (e.g., network drops, switch to local)
   session.transcription.onCapabilitiesChange((newCaps) => {
     if (!newCaps.diarization) {
       // Switched to local model — hide speaker labels
-      hideSpeakerLabels()
+      hideSpeakerLabels();
     }
-  })
+  });
 }
 ```
 
@@ -440,10 +440,10 @@ Translation has the same problem — cloud translation (Soniox) gives you source
 
 ```typescript
 interface TranslationCapabilities {
-  sourceDetection: boolean // can auto-detect source language?
-  supportedPairs: string[][] // [["en", "es"], ["en", "ja"], ...]
-  simultaneousTargets: number // how many targets at once? Soniox: many, local: 1
-  local: boolean
+  sourceDetection: boolean; // can auto-detect source language?
+  supportedPairs: string[][]; // [["en", "es"], ["en", "ja"], ...]
+  simultaneousTargets: number; // how many targets at once? Soniox: many, local: 1
+  local: boolean;
 }
 ```
 
@@ -487,24 +487,24 @@ Example: an AI assistant app that shows live captions locally (Whisper) but send
 export default function onSession(session: MentraSession) {
   // Local: real-time captions via on-device Sherpa-ONNX
   session.transcription.on((data) => {
-    session.display.showText(data.text)
+    session.display.showText(data.text);
 
     if (data.isFinal) {
       // Cloud: send to LLM for a response
       askCloudLLM(data.text).then((response) => {
-        session.speaker.speak(response)
-      })
+        session.speaker.speak(response);
+      });
     }
-  })
+  });
 }
 
 async function askCloudLLM(text: string): Promise<string> {
   const res = await fetch("https://api.example.com/chat", {
     method: "POST",
-    body: JSON.stringify({message: text}),
-  })
-  const data = await res.json()
-  return data.reply
+    body: JSON.stringify({ message: text }),
+  });
+  const data = await res.json();
+  return data.reply;
 }
 ```
 
@@ -627,33 +627,33 @@ For apps that have both `session/` and `webview/`, the framework provides a shar
 
 ```typescript
 // session/index.ts — runs in Hermes, always on
-import {state} from "@mentra/sdk/session"
+import { state } from "@mentra/sdk/session";
 
 export default function onSession(session: MentraSession) {
   session.transcription.on((data) => {
     // Update shared state — webview sees this when active
-    state.set("lastTranscript", data.text)
-    state.set("language", data.language)
+    state.set("lastTranscript", data.text);
+    state.set("language", data.language);
 
-    session.display.showText(data.text)
-  })
+    session.display.showText(data.text);
+  });
 
   // React to webview actions
   state.on("settingsChanged", (newSettings) => {
     session.transcription.configure({
       languageHints: [newSettings.preferredLanguage],
-    })
-  })
+    });
+  });
 }
 ```
 
 ```tsx
 // webview/App.tsx — runs in webview, only when phone screen is on
-import {useMentraState} from "@mentra/sdk/webview"
+import { useMentraState } from "@mentra/sdk/webview";
 
 function App() {
-  const lastTranscript = useMentraState("lastTranscript")
-  const language = useMentraState("language")
+  const lastTranscript = useMentraState("lastTranscript");
+  const language = useMentraState("language");
 
   return (
     <div>
@@ -662,7 +662,7 @@ function App() {
       <p>Detected: {language}</p>
       <SettingsPanel />
     </div>
-  )
+  );
 }
 ```
 

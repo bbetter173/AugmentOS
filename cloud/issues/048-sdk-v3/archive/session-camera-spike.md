@@ -111,24 +111,24 @@ session.camera.hasPermission                           // → boolean
 
 ```typescript
 interface PhotoOptions {
-  size?: "small" | "medium" | "large" | "full" // default: 'medium'
-  compression?: "none" | "medium" | "heavy" // default: 'medium'
-  saveToGallery?: boolean // default: false
-  sound?: boolean // default: true
-  timeout?: number // ms, default: 30000
+  size?: "small" | "medium" | "large" | "full"; // default: 'medium'
+  compression?: "none" | "medium" | "heavy"; // default: 'medium'
+  saveToGallery?: boolean; // default: false
+  sound?: boolean; // default: true
+  timeout?: number; // ms, default: 30000
 }
 
 interface PhotoData {
-  url: string
-  width: number
-  height: number
-  timestamp: number
-  savedToGallery: boolean
+  url: string;
+  width: number;
+  height: number;
+  timestamp: number;
+  savedToGallery: boolean;
 }
 
 interface RecordingOptions {
-  maxDuration?: number // ms, default: 300000 (5 min)
-  quality?: "low" | "medium" | "high"
+  maxDuration?: number; // ms, default: 300000 (5 min)
+  quality?: "low" | "medium" | "high";
 }
 
 /**
@@ -138,18 +138,18 @@ interface RecordingOptions {
  * when the video URL becomes available.
  */
 interface RecordingStopResult {
-  recordingId: string // unique ID for this recording
-  duration: number // ms — how long the recording was
-  uploadStatus: RecordingUploadStatus // current upload state
-  url?: string // presigned URL — only present if already uploaded
-  expiresAt?: number // unix timestamp — only present if url is present
+  recordingId: string; // unique ID for this recording
+  duration: number; // ms — how long the recording was
+  uploadStatus: RecordingUploadStatus; // current upload state
+  url?: string; // presigned URL — only present if already uploaded
+  expiresAt?: number; // unix timestamp — only present if url is present
 }
 
 type RecordingUploadStatus =
   | "uploading" // glasses are on WiFi, upload in progress right now
   | "queued" // glasses are NOT on WiFi, will upload when WiFi available
   | "available" // upload complete, url is populated
-  | "failed" // upload failed (storage full, network error, etc.)
+  | "failed"; // upload failed (storage full, network error, etc.)
 
 /**
  * Fired throughout the recording lifecycle — during recording (duration updates),
@@ -157,48 +157,48 @@ type RecordingUploadStatus =
  * if the glasses weren't on WiFi when recording stopped).
  */
 interface RecordingStatusEvent {
-  recordingId: string
-  status: RecordingStatus
-  duration?: number // ms — updated during recording and on stop
-  uploadStatus?: RecordingUploadStatus // present once recording stops
-  url?: string // presigned URL — only present when uploadStatus is "available"
-  size?: number // bytes — only present when uploadStatus is "available"
-  expiresAt?: number // unix timestamp — only present when url is present
-  error?: string // present when status is "error" or uploadStatus is "failed"
+  recordingId: string;
+  status: RecordingStatus;
+  duration?: number; // ms — updated during recording and on stop
+  uploadStatus?: RecordingUploadStatus; // present once recording stops
+  url?: string; // presigned URL — only present when uploadStatus is "available"
+  size?: number; // bytes — only present when uploadStatus is "available"
+  expiresAt?: number; // unix timestamp — only present when url is present
+  error?: string; // present when status is "error" or uploadStatus is "failed"
 }
 
 type RecordingStatus =
   | "recording" // actively recording
   | "stopping" // stop requested, glasses finishing up
   | "stopped" // recording stopped, upload lifecycle begins
-  | "error" // recording failed (camera busy, storage full, etc.)
+  | "error"; // recording failed (camera busy, storage full, etc.)
 
-type RecordingStatusHandler = (event: RecordingStatusEvent) => void
+type RecordingStatusHandler = (event: RecordingStatusEvent) => void;
 
 interface StreamOptions {
-  url?: string // RTMP or SRT URL — omit for managed
-  destinations?: StreamDestination[] // re-stream targets (managed only)
+  url?: string; // RTMP or SRT URL — omit for managed
+  destinations?: StreamDestination[]; // re-stream targets (managed only)
 }
 
 interface StreamDestination {
-  name: string
-  url: string // e.g., rtmp://a.rtmp.youtube.com/live2/xxxx
+  name: string;
+  url: string; // e.g., rtmp://a.rtmp.youtube.com/live2/xxxx
 }
 
 interface StreamInfo {
   // Only present for managed streams (no url passed):
-  hls?: string
-  dash?: string
-  webrtc?: string
+  hls?: string;
+  dash?: string;
+  webrtc?: string;
   // Always present:
-  status: StreamStatus
+  status: StreamStatus;
 }
 
-type StreamStatus = "starting" | "live" | "stopping" | "stopped" | "error"
+type StreamStatus = "starting" | "live" | "stopping" | "stopped" | "error";
 
 interface CameraError {
-  code: CameraErrorCode
-  message: string
+  code: CameraErrorCode;
+  message: string;
 }
 
 type CameraErrorCode =
@@ -209,7 +209,7 @@ type CameraErrorCode =
   | "STREAM_FAILED"
   | "RECORDING_FAILED"
   | "RECORDING_STORAGE_FULL"
-  | "RECORDING_UPLOAD_FAILED"
+  | "RECORDING_UPLOAD_FAILED";
 ```
 
 ### The Managed vs Unmanaged Decision
@@ -382,29 +382,29 @@ SDK calls stopRecording()
 session.camera.onRecordingStatus((event) => {
   switch (event.uploadStatus) {
     case "queued":
-      session.display.showText("Video saved. Will upload on WiFi.")
-      break
+      session.display.showText("Video saved. Will upload on WiFi.");
+      break;
     case "uploading":
-      session.display.showText("Uploading video...")
-      break
+      session.display.showText("Uploading video...");
+      break;
     case "available":
-      console.log("Video ready:", event.url)
+      console.log("Video ready:", event.url);
       // Download, process, store permanently on your server, etc.
-      break
+      break;
     case "failed":
-      console.error("Upload failed:", event.error)
-      break
+      console.error("Upload failed:", event.error);
+      break;
   }
-})
+});
 
 // Start recording
-await session.camera.startRecording({maxDuration: 30000})
+await session.camera.startRecording({ maxDuration: 30000 });
 
 // ... user does stuff ...
 
 // Stop — resolves immediately, URL comes later via onRecordingStatus
-const result = await session.camera.stopRecording()
-console.log(`Recorded ${result.duration}ms, upload: ${result.uploadStatus}`)
+const result = await session.camera.stopRecording();
+console.log(`Recorded ${result.duration}ms, upload: ${result.uploadStatus}`);
 ```
 
 ### Cloud Storage
@@ -457,11 +457,11 @@ This is a subscription-based event (like `onStreamStatus`), not a request-respon
 
 ```typescript
 const stop = session.camera.onPhotoTaken((photo) => {
-  console.log("Photo captured:", photo.url)
-})
+  console.log("Photo captured:", photo.url);
+});
 
 // Later:
-stop() // unsubscribe
+stop(); // unsubscribe
 ```
 
 ---
@@ -486,9 +486,9 @@ SRT is the same pattern as RTMP unmanaged streaming — the developer passes a U
 ```typescript
 // SDK internal logic:
 function detectProtocol(url: string): "rtmp" | "srt" {
-  if (url.startsWith("srt://")) return "srt"
-  if (url.startsWith("rtmp://") || url.startsWith("rtmps://")) return "rtmp"
-  throw new CameraError("STREAM_FAILED", `Unsupported URL scheme: ${url}`)
+  if (url.startsWith("srt://")) return "srt";
+  if (url.startsWith("rtmp://") || url.startsWith("rtmps://")) return "rtmp";
+  throw new CameraError("STREAM_FAILED", `Unsupported URL scheme: ${url}`);
 }
 ```
 

@@ -3,7 +3,8 @@
 **Issue:** 048  
 **Status:** Working spec  
 **Scope:** Hidden/internal SDK runtime design for `MiniAppServer`, `MentraSession`, transport, routing, subscriptions, lifecycle, and compatibility  
-**Date:** 2025-02-14
+**Date:** 2026-03-14  
+**Updated:** 2026-03-19 — naming decisions, internal class consolidation, v2 shim naming
 
 ---
 
@@ -69,14 +70,19 @@ The internal runtime has three layers:
    - per-user runtime orchestrator
    - owns transport lifecycle, routing, subscriptions, and manager instances
 
-3. Managers
+3. Internal subsystems (`_`-prefixed, never exported)
+   - `_SessionManager` — server-level: creates, tracks, and tears down sessions from webhooks
+   - `_ConnectionManager` — session-level: connect, reconnect, ping, park, disconnect
+   - `_SubscriptionManager` — session-level: ref-counted subscription set, sends SUBSCRIPTION_UPDATE
+   - `_MessageRouter` — session-level: owns MessageHandlerRegistry + DataStreamRouter
+
+4. Managers
    - subsystem implementations such as transcription, mic, speaker, device, phone, camera, storage
 
-The compatibility layer sits beside this, not inside it:
-
-4. `AppServer` / legacy session shims
+5. V2 compatibility shims (`_V2*Shim`, never exported)
    - old surface preserved temporarily
-   - delegates into the new runtime or a compat adapter
+   - delegates into the new runtime managers
+   - removed in v3.1
 
 There is also an explicit distinction between:
 
@@ -95,16 +101,16 @@ The purpose of the underscore-prefixed layer is to keep the public top-level cla
 
 ### `MiniAppServer`
 
-`MiniAppServer` is the cloud-only host wrapper.
+`MiniAppServer` is the cloud-only host wrapper. Named `MiniAppServer` (not `MentraApp`) to avoid confusion with future local apps that don't need a server. See `decisions.md` D-002.
 
 It owns:
 
-- Hono app construction
+- Hono app construction (extends `AppServer` during transition)
 - Mentra webhook/tool/settings/health/photo-upload routes
 - route aliasing for current cloud compatibility
-- session registry keyed by SDK/cloud session identity
-- creation and disposal of session runtime instances
+- `_SessionManager` — creates, tracks, and disposes session instances
 - bridging incoming cloud webhook events into per-user session startup and shutdown
+- onSession/onStop/onToolCall callback registration
 
 It does **not** own:
 
@@ -261,7 +267,7 @@ This is the cloud-side equivalent of the SDK parked-session model:
 
 ## Routing Architecture
 
-The routing model is two-stage.
+The routing model is two-stage, plus a binary bypass.
 
 ### Stage 1: top-level message routing
 
@@ -278,7 +284,7 @@ Examples:
 
 ### Stage 2: `data_stream` routing
 
-`DataStreamRouter` dispatches by `streamType`.
+`DataStreamRouter` dispatches by `streamType` with prefix matching.
 
 Examples:
 
@@ -288,13 +294,23 @@ Examples:
 - `touch_event:double_tap`
 - `phone_notification`
 
-This means:
+Prefix matching rules:
 
-- `MentraSession` owns the registries
-- `MentraSession` bridges `data_stream` top-level messages into the stream router
+- `"transcription"` matches `"transcription:en"`, `"transcription:auto"`, etc.
+- The character after the prefix must be `:` or end-of-string (prevents `"touch_event"` from matching `"touch_event_other"`)
+- ALL matching handlers fire (not just the first match) — critical for multiple simultaneous `forLanguage()` calls
+
+### Stage 3: binary bypass
+
+Raw PCM audio arrives as binary WebSocket frames. These bypass JSON routing entirely and are handed directly from `_ConnectionManager` to `MicManager.handleBinaryAudio()`. This is the one exception to "everything goes through the router."
+
+### Ownership
+
+- `_MessageRouter` owns both registries (wrapped in a thin class)
+- `MentraSession` creates `_MessageRouter` and registers the bridge between stage 1 and stage 2
 - managers register only for the message or stream keys they care about
 
-This replaces the legacy giant `handleMessage()` model.
+This replaces the legacy 413-line `handleMessage()` if/else chain.
 
 The routing implementation itself may live inside private underscore-prefixed runtime helpers as long as the architectural boundary remains the same.
 
@@ -316,12 +332,14 @@ That means:
 
 ### Session responsibility
 
-`MentraSession` owns the actual wire-visible subscription set and the `SUBSCRIPTION_UPDATE` send.
+`_SubscriptionManager` owns the actual wire-visible subscription set and the `SUBSCRIPTION_UPDATE` send.
 
 Managers do not send subscription update messages directly. They call:
 
-- `addSubscription(stream)`
-- `removeSubscription(stream)`
+- `addSubscription(stream)` — provided via the manager dependency bag
+- `removeSubscription(stream)` — provided via the manager dependency bag
+
+**Known issue:** `_SubscriptionManager` currently sends a `SUBSCRIPTION_UPDATE` on every individual `add()`/`remove()` call. If `onSession` registers 5 subscriptions synchronously, that's 5 messages. This needs debouncing — collect changes within a microtask and send one batched update.
 
 ### Manager responsibility
 
@@ -348,24 +366,25 @@ The runtime should consider these internal state groups canonical.
 ### Identity
 
 - `packageName`
-- `sessionId`
+- `sessionId` (runtime session ID, may differ from webhook session ID after reconnect)
 - `userId` if known
-- server/base URL if needed for REST-backed managers
+- server/base URL if needed for REST-backed managers (e.g., `StorageManager`)
 
-### Connection
+### Connection (owned by `_ConnectionManager`)
 
 - `transport`
 - connected/disconnected flag
-- explicit disconnect flag
+- explicit disconnect flag (prevents reconnect after intentional close)
 - reconnect attempt counter
-- reconnect timer
-- ping interval
+- reconnect timer (exponential backoff)
+- ping interval (15s keepalive)
+- parked timer (for deferred reconnect scenarios)
 
-### Routing
+### Routing (owned by `_MessageRouter`)
 
-- `MessageHandlerRegistry`
-- `DataStreamRouter`
-- manager cleanup callbacks
+- `MessageHandlerRegistry` — top-level message type dispatch
+- `DataStreamRouter` — DATA_STREAM streamType dispatch with prefix matching
+- manager cleanup callbacks (stored in `cleanupTasks` array on MentraSession)
 
 ### Cloud-provided session state
 
@@ -422,16 +441,29 @@ The lifecycle flow may be coordinated by a private `_SessionLifecycleManager` if
 
 For the current implementation pass:
 
-- `MentraSession` owns reconnect attempt policy.
+- `_ConnectionManager` owns reconnect attempt policy (exponential backoff, max attempts, parked timeout).
 - reconnect is transport/session level, not manager level.
 - manager subscriptions/config should be re-applied from current runtime state after reconnect.
 
-Required principle:
+Required principles:
 
 - reconnect should preserve the session runtime instance whenever possible
 - losing the transport should not automatically imply losing manager state or developer-installed handlers
+- on reconnect: if the session has completed an initial connect, send `RECONNECT` (with sessionId) instead of `CONNECTION_INIT`. If `RECONNECT` is rejected, fall back to `CONNECTION_INIT`.
+- after `CONNECTION_ACK` or `RECONNECT_ACK`: call `_SubscriptionManager.sync()` to re-send the full subscription set
+- after reconnect: replay `TranscriptionManager.config` via `configure()` if it was previously set
 
-The more ambitious cloud-side resurrection redesign remains governed by [`reconnection-architecture-spike.md`](./reconnection-architecture-spike.md) and may require additive cloud work later.
+The more ambitious cloud-side resurrection redesign remains governed by [`archive/reconnection-architecture-spike.md`](./archive/reconnection-architecture-spike.md) and may require additive cloud work later.
+
+### State preservation across reconnect
+
+Different managers have different preservation semantics during a transport blip:
+
+- `DeviceManager` Observable values → preserved in memory (may be stale until next DEVICE_STATE_UPDATE)
+- `TranscriptionManager`/`TranslationManager` handlers → preserved, re-subscribed via `_SubscriptionManager.sync()`
+- `MicManager` audio stream → inherently lost (binary stream is dead, resumes when transport reconnects)
+- `SpeakerManager` active `AudioOutputStream` → enters error state (HTTP chunked response to phone is dead)
+- `StorageManager` pending writes → flushed or lost depending on timing
 
 ---
 
@@ -439,25 +471,32 @@ The more ambitious cloud-side resurrection redesign remains governed by [`reconn
 
 All managers should receive structural dependencies from the session rather than concrete session implementation references wherever practical.
 
-Expected dependency shape includes some subset of:
+The unified dependency bag passed to all managers:
 
-- `router`
-- `messageHandlers`
-- `addSubscription`
-- `removeSubscription`
-- `sendMessage`
-- `sendBinary`
-- `logger`
-- `getPackageName`
-- `getSessionId`
-- `getServerUrl`
-- `permissions`
+```typescript
+{
+  router: DataStreamRouter          // register for DATA_STREAM subtypes
+  messageHandlers: MessageHandlerRegistry  // register for top-level message types
+  addSubscription: (stream: string) => void
+  removeSubscription: (stream: string) => void
+  sendMessage: (message: unknown) => void
+  sendBinary: (data: ArrayBuffer | Uint8Array) => void
+  logger: Logger
+  getPackageName: () => string
+  getSessionId: () => string
+  getServerUrl: () => string | null   // for REST-backed managers (StorageManager)
+  permissions: PermissionsManager     // for .hasPermission getters
+}
+```
+
+Some managers use a subset (e.g., `PermissionsManager` only needs `{logger}`, `TimeUtils` needs nothing). Some need extra config (e.g., `StorageManager` receives `{userId, apiKey}` separately).
 
 This is intentional:
 
-- keeps managers testable
-- reduces coupling
+- keeps managers testable (mock the bag, test the manager)
+- reduces coupling (no manager imports MentraSession)
 - allows the runtime to evolve without rewriting every manager
+- enables future local-app runtime to provide the same bag with different implementations
 
 The same principle applies to private underscore-prefixed managers: they should also prefer narrow structural dependencies over hard coupling to giant top-level classes.
 
@@ -471,32 +510,31 @@ This must stay explicit.
 
 The target runtime is:
 
-- `MiniAppServer`
-- real `MentraSession`
-- manager-based subsystem APIs
+- `MiniAppServer` (cloud host)
+- real `MentraSession` (per-user session)
+- manager-based subsystem APIs (14 managers)
 
-### Legacy compatibility
+### Legacy compatibility (v2 shims)
 
-The compatibility surface is:
+The compatibility surface is implemented as `_V2*Shim` classes in `session/internal/`:
 
-- `AppServer`
-- legacy-style session aliases/shims where needed
+| Shim                  | What it provides                                                                                                    | Delegates to                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `_V2SessionShim`      | `session.layouts`, `session.audio`, `session.simpleStorage`, `session.events`, `session.settings`, `session.camera` | v3 managers via MentraSession                           |
+| `_V2EventManagerShim` | `session.events.onTranscription()`, `onButtonPress()`, `onPhoneNotifications()`, etc.                               | TranscriptionManager, DeviceManager, PhoneManager, etc. |
+| `_V2CameraShim`       | `requestPhoto()`, `startStream()`, `startManagedStream()`, etc.                                                     | CameraManager                                           |
+| `_V2SettingsShim`     | `settings.get()`, `settings.has()`, `settings.onChange()`                                                           | MentraSession.settingsData                              |
+| `_V2AudioStreamShim`  | EventEmitter-style `.on("close", ...)` on AudioOutputStream                                                         | SpeakerManager's AudioOutputStream                      |
 
-The compatibility layer should be implemented as an adapter over the new runtime, not as the permanent core runtime.
+The compatibility layer wraps the new runtime, not the other way around. Old public names forward to new internals — never the reverse.
 
-That means the intended final direction is:
+**Known gap:** `_V2SessionShim` is missing ~15 utility methods from the old `AppSession` (e.g., `getSettings()`, `subscribe()`, `getWifiStatus()`, `capabilities`, `sendMessage()`). These need to be added before v2 apps can run on the v3 runtime without changes. See `implementation-status.md` for the full list.
 
-- old public names forward to new internals
-- not the other way around
+### Current transition state
 
-### Temporary current state
+`MiniAppServer` extends the v2 `AppServer` for backward compat. When a v3-style `app.onSession((session) => {...})` callback is registered, webhooks flow through `_SessionManager` → `MentraSession` → v3 runtime. When a v2-style subclass overrides `onSession(session, sessionId, userId)`, it goes through the old `AppServer` path entirely.
 
-Right now the repo is still transitional:
-
-- real `MentraSession` exists
-- `MiniAppServer` still rides on legacy `AppServer`/`AppSession`
-
-This is temporary and should be treated as a migration stage, not the target architecture.
+This dual path is temporary. The goal is for all paths to flow through `MentraSession` once v2 compat is verified.
 
 ---
 
@@ -506,20 +544,20 @@ These internals are not equally stable yet.
 
 ### Lower-risk areas
 
-- transport abstraction
-- message routing pattern
-- subscription ownership model
-- manager-based split
-- lean public classes with private implementation managers
-- ping/reconnect ownership living in the session
+- transport abstraction (complete, tested)
+- message routing pattern (complete, well-tested prefix matching)
+- subscription ownership model (complete, ref-counting works)
+- manager-based split (all 14 managers complete)
+- ping/reconnect ownership living in `_ConnectionManager`
 
 ### Higher-risk areas
 
-- camera, because current cloud path still depends on `/photo-upload` behavior
+- **CONNECTION_INIT handshake** — v3 sends userId via HTTP headers instead of sessionId in CONNECTION_INIT. Must verify the cloud's app WebSocket upgrade handler supports header-based auth. **This is the #1 compatibility risk.**
+- camera, because current cloud path still depends on `/photo-upload` behavior and the `_V2CameraShim` bridges this
 - storage, because it depends on existing HTTP endpoints and auth assumptions
 - permissions, because current cloud payloads are not yet ideal for the cleaner model
-- exact `MiniAppServer` cutover strategy from legacy `AppServer`
-- exact compat implementation for legacy `session.events`, `session.layouts`, `session.audio`, and similar aliases
+- v2 compat completeness — `_V2SessionShim` is missing utility methods that real v2 apps use
+- `_SubscriptionManager` batching — currently sends per-add, should debounce
 
 ---
 
@@ -527,14 +565,19 @@ These internals are not equally stable yet.
 
 The following should be considered decided unless we find a concrete incompatibility:
 
-1. `MiniAppServer` is the cloud host abstraction.
+1. `MiniAppServer` is the cloud host abstraction. Not `MentraApp` — that name is reserved for potential future use.
 2. `MentraSession` is the real per-user runtime abstraction.
 3. `MentraSession` depends on `Transport`, not `ws`.
-4. message routing is registry-based, not giant conditional-chain based.
-5. subscriptions are derived from handler registrations.
-6. managers are the primary private subsystem boundary.
-7. `MiniAppServer` and `MentraSession` should stay lean, with heavier hidden orchestration moved into underscore-prefixed private managers where appropriate.
-8. the compat layer is temporary and should wrap the new runtime.
+4. Message routing is registry-based, not giant conditional-chain based.
+5. Subscriptions are derived from handler registrations.
+6. Managers are the primary private subsystem boundary.
+7. The compat layer (`_V2*Shim`) is temporary and wraps the new runtime.
+8. Internal classes use `_` prefix: `_SessionManager`, `_ConnectionManager`, `_SubscriptionManager`, `_MessageRouter`.
+9. V2 compat shims use `_V2` prefix + `Shim` suffix: `_V2SessionShim`, `_V2EventManagerShim`, etc.
+10. Server-level internals (`_SessionManager`) consolidate factory + registry + lifecycle into one class.
+11. `MentraSession` and `MiniAppServer` stay thin — complex stateful logic is extracted to `_`-prefixed internals.
+12. Binary audio frames bypass JSON routing and go directly to `MicManager.handleBinaryAudio()`.
+13. Handler errors are isolated — a buggy handler cannot crash the session, transport, or other managers.
 
 ---
 
@@ -549,16 +592,15 @@ These details are still allowed to evolve during implementation:
 
 ---
 
-## Missing Context Check
+## Related Documents
 
-At this point, the major missing internal-spec gap should be closed.
+| Document                   | Purpose                                                               |
+| -------------------------- | --------------------------------------------------------------------- |
+| `decisions.md`             | Every decision with rationale — the "why" reference                   |
+| `implementation-status.md` | Current build state, bugs, what's left — the "where are we" reference |
+| `docs-update-spec.md`      | Plan for developer-facing documentation                               |
+| `sdk-release-sop.md`       | Standard operating procedure for SDK releases                         |
+| `sdk-cicd-plan.md`         | CI/CD pipeline plan for automated publishing                          |
+| `archive/`                 | Pre-implementation spikes — design rationale, not current specs       |
 
-We now have:
-
-- public API spec
-- runtime naming decision
-- reconnect philosophy
-- implementation progress log
-- private runtime architecture
-
-The main remaining unknowns are no longer architectural blind spots. They are implementation and compatibility decisions discovered while wiring the runtime into the active cloud path.
+The main remaining unknowns are no longer architectural blind spots. They are implementation and compatibility decisions discovered while wiring the runtime into the active cloud path. See `implementation-status.md` for the specific list of bugs and gaps.

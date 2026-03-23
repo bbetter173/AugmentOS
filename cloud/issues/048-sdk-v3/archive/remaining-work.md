@@ -82,11 +82,11 @@ These are straightforward renames/restructures that can be implemented directly 
 
 ```typescript
 class PermissionsManager {
-  has(permission: PermissionType): boolean
-  getAll(): Record<PermissionType, boolean>
-  onUpdate(handler): () => void
+  has(permission: PermissionType): boolean;
+  getAll(): Record<PermissionType, boolean>;
+  onUpdate(handler): () => void;
 }
-type PermissionType = "location" | "microphone" | "camera" | "notifications" | "calendar"
+type PermissionType = "location" | "microphone" | "camera" | "notifications" | "calendar";
 ```
 
 Straightforward. Individual managers expose `.hasPermission` as a getter that reads from this central store. No open design questions.

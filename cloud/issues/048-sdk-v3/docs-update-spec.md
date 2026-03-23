@@ -1,5 +1,9 @@
 # SDK v3 — Documentation Update Spec
 
+> **Note:** This doc was originally written using `MentraApp` as the server class name.
+> That was renamed to `MiniAppServer` — see `decisions.md` D-002.
+> All references below use the current name.
+
 **Issue:** 048
 **Related:** All spikes in this directory, [039 API map](../039-sdk-v3-api-surface/v2-v3-api-map.md)
 **Status:** Spec (not yet started)
@@ -223,7 +227,7 @@ The migration guide (`/sdk/migration`) is the most important document. Here's th
 
 - Wire protocol (WebSocket messages, subscription strings)
 - Cloud behavior
-- Webhook format (still sends to /webhook, SDK mounts both old and new paths)
+- Webhook format (still sends to /webhook, MiniAppServer mounts both old and new paths)
 - Settings, capabilities, device state — same data, new access patterns
 
 ## FAQ
@@ -232,7 +236,7 @@ The migration guide (`/sdk/migration`) is the most important document. Here's th
 - "Will my v2 app break on npm update?" → No.
 - "When is the compat layer removed?" → v3.1 (date TBD, minimum 8 weeks)
 - "Can I use v3 and v2 patterns in the same app?" → Yes, during the transition.
-- "What about my Express middleware?" → See /sdk/migration/app-server
+- "What about my Express middleware?" → See /sdk/migration/app-server (Express is gone — MiniAppServer uses Hono)
 - "I used session.events.on() as a generic escape hatch" → Still works in v3.0
 ```
 

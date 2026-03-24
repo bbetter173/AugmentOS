@@ -2,7 +2,7 @@
 
 ## Overview
 
-**What this doc covers:** What needs to change across infrastructure, cloud, and mobile to make UDP audio work on IPv6-only cellular networks — and the rollout order to do it safely.
+**What this doc covers:** What needs to change across infrastructure, cloud, and mobile to make UDP audio work on IPv6-only cellular networks — the exact steps, commands, and code changes required.
 **Why this doc exists:** Issue 051 confirmed that Australian users on IPv6-only cellular (Telstra, Optus, Vodafone) cannot reach the UDP audio endpoint because we send a raw IPv4 address. NAT64 — the mechanism that lets IPv6 hosts reach IPv4 — only works with hostnames, not raw IPs. No hostname, no NAT64, no audio, no transcription.
 **What you need to know first:** [cloud/issues/051-g1-captions-dropout-after-ble-reconnect/spike.md](../051-g1-captions-dropout-after-ble-reconnect/spike.md) (Finding 3), [cloud/issues/udp-loadbalancer/](../udp-loadbalancer/) (how the UDP LB is set up today).
 **Who should read this:** Cloud engineers, mobile engineers, anyone managing DNS or Porter deployments.
@@ -16,121 +16,172 @@ This affects any user on an IPv6-only carrier. Australia is the first confirmed 
 ## Current Architecture
 
 ```
-Phone ← CONNECTION_ACK { udpHost: "20.239.105.210", udpPort: 8000 }
-         ↓
-Phone opens UDP socket to 20.239.105.210:8000 (raw IPv4)
-         ↓
-On IPv6-only network: FAILS — no IPv4 route, no DNS lookup to trigger NAT64
+Cloud env:   UDP_HOST=20.239.105.210  (raw IPv4, set in Porter)
+                 ↓
+Cloud code:  ackMessage.udpHost = process.env.UDP_HOST
+                 ↓
+Phone gets:  CONNECTION_ACK { udpHost: "20.239.105.210", udpPort: 8000 }
+                 ↓
+Phone code:  udp.configure(msg.udpHost, msg.udpPort, ...)
+                 ↓
+UdpManager:  dgram.createSocket({ type: "udp4" })  ← hardcoded IPv4
+             socket.send(packet, port, host)
+                 ↓
+On IPv6-only: FAILS — udp4 socket can't route to IPv4 without NAT64,
+              and raw IP bypasses DNS64
 ```
 
-The raw IP comes from:
+There are TWO problems stacked:
 
-1. Azure assigns a public IPv4 to the Kubernetes `LoadBalancer` service (`cloud-{env}-udp`)
-2. We copy that IP into Porter env var `UDP_HOST` (or Doppler)
-3. Cloud reads `process.env.UDP_HOST` and sends it in `CONNECTION_ACK`
-4. Phone passes it directly to `UdpManager.configure(host, port)` — no DNS, no resolution
+1. **No hostname** → DNS64/NAT64 can't synthesize an IPv6 route to the IPv4 endpoint
+2. **`udp4` socket** → even if we resolve a hostname to IPv6, `dgram.createSocket({type: "udp4"})` in `mobile/src/services/UdpManager.ts:338` can't use an IPv6 address
 
-Hostnames were documented as a "nice to have" in `cloud/issues/udp-loadbalancer/udp-loadbalancer-spec.md` but never implemented. Every reference in the codebase uses raw IPv4.
+### Key field names (don't change these)
+
+| Where               | Name                            | Current value                                     |
+| ------------------- | ------------------------------- | ------------------------------------------------- |
+| Porter env var      | `UDP_HOST`                      | Raw IPv4 (e.g. `20.239.105.210`)                  |
+| Porter env var      | `UDP_PORT`                      | `8000`                                            |
+| CONNECTION_ACK JSON | `udpHost`                       | Whatever `process.env.UDP_HOST` is                |
+| CONNECTION_ACK JSON | `udpPort`                       | Whatever `process.env.UDP_PORT` is (default 8000) |
+| Phone reads         | `msg.udpHost \|\| msg.udp_host` | Passed straight to `UdpManager.configure()`       |
+
+The phone field `udpHost` is what existing clients read. We keep this field name — just change its value from a raw IP to a hostname.
 
 ## Spec
 
-### 1. Create DNS hostnames for every region's UDP endpoint
+### Step 1: Create DNS records in Cloudflare
 
-Create a DNS-only A record in Cloudflare for each cluster's UDP LoadBalancer IP. **Proxy must be OFF (gray cloud)** — Cloudflare cannot proxy UDP traffic.
+Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → select the `mentraglass.com` zone → DNS → Records.
 
-Naming convention: `udp-{env}-{region}.mentraglass.com`
+For each region, add an **A record** with **Proxy OFF (DNS only / gray cloud)**. Cloudflare cannot proxy UDP — orange cloud would silently drop all packets.
 
-| Cluster | Region         | Current UDP_HOST    | New hostname                         |
-| ------- | -------------- | ------------------- | ------------------------------------ |
-| 4689    | central-us     | `52.189.74.237`     | `udp-prod-uscentral.mentraglass.com` |
-| 4965    | us-west        | (check via kubectl) | `udp-prod-uswest.mentraglass.com`    |
-| 4977    | us-east        | (check via kubectl) | `udp-prod-useast.mentraglass.com`    |
-| 4696    | france         | (check via kubectl) | `udp-prod-france.mentraglass.com`    |
-| 4754    | east-asia      | `20.239.105.210`    | `udp-prod-eastasia.mentraglass.com`  |
-| 4978    | australia-east | (check via kubectl) | `udp-prod-au.mentraglass.com`        |
-| 4753    | canada-central | (check via kubectl) | `udp-prod-canada.mentraglass.com`    |
+| Record | Type                 | Name                 | Content (IPv4) | Proxy | TTL |
+| ------ | -------------------- | -------------------- | -------------- | ----- | --- |
+| A      | `udp-prod-uscentral` | `52.189.74.237`      | DNS only       | 300   |
+| A      | `udp-prod-uswest`    | _(get from kubectl)_ | DNS only       | 300   |
+| A      | `udp-prod-useast`    | _(get from kubectl)_ | DNS only       | 300   |
+| A      | `udp-prod-france`    | _(get from kubectl)_ | DNS only       | 300   |
+| A      | `udp-prod-eastasia`  | `20.239.105.210`     | DNS only       | 300   |
+| A      | `udp-prod-au`        | _(get from kubectl)_ | DNS only       | 300   |
+| A      | `udp-prod-canada`    | _(get from kubectl)_ | DNS only       | 300   |
 
-For clusters with both dev and prod, also create `udp-dev-{region}.mentraglass.com`.
+This produces hostnames like `udp-prod-au.mentraglass.com`.
 
-**To get the actual IPs for clusters not listed above:**
+For dev deployments, also create `udp-dev-{region}.mentraglass.com`.
 
+**To get UDP LoadBalancer IPs you don't have yet:**
+
+```bash
+# List clusters
+porter cluster list
+
+# For each cluster, get the UDP service external IP
+porter kubectl -- get svc -n default --cluster <CLUSTER_ID> | grep udp
 ```
-porter kubectl -- get svc -n default -l porter.run/app-name=cloud-prod --cluster <ID> | grep udp
+
+The `EXTERNAL-IP` column is the value for the A record.
+
+**Verify after creation:**
+
+```bash
+dig udp-prod-au.mentraglass.com +short
+# Should return the IPv4 address
 ```
 
-### 2. Update `UDP_HOST` env vars to use hostnames
+### Step 2: Update Porter env vars from raw IP to hostname
 
-For each cloud deployment, change the Porter env var `UDP_HOST` from the raw IP to the new hostname:
+Use the Porter CLI or the [Porter Dashboard](https://dashboard.porter.run/) → select the app → Environment tab.
 
-```
+**Via CLI:**
+
+```bash
+# Example: update East Asia prod
 porter env set -a cloud-prod --cluster 4754 \
   -v 'UDP_HOST=udp-prod-eastasia.mentraglass.com'
+
+# Example: update Australia prod
+porter env set -a cloud-prod --cluster 4978 \
+  -v 'UDP_HOST=udp-prod-au.mentraglass.com'
 ```
 
-Repeat for every cluster. The cloud code (`bun-websocket.ts`) already passes `UDP_HOST` as a string — no cloud code change needed for this step.
+**Via Dashboard:** Go to the app → Settings → Environment → find `UDP_HOST` → change the value → Save. The app will redeploy with the new value.
 
-The phone now receives `udpHost: "udp-prod-eastasia.mentraglass.com"` in `CONNECTION_ACK` instead of `udpHost: "20.239.105.210"`.
-
-### 3. Mobile: ensure UDP socket handles hostname resolution and IPv6
-
-The phone's `UdpManager` currently receives the host string and passes it to the React Native UDP library. Two things need to be verified and potentially fixed:
-
-**a) Hostname resolution:** The UDP library must resolve the hostname before sending. On IPv6-only networks with DNS64, the resolver returns a synthesized IPv6 address (e.g., `64:ff9b::14ef:69d2` for `20.239.105.210`). The library must use this IPv6 address for the socket.
-
-**b) Dual-stack socket:** The current error (`IPv6 has been deactivated due to bind/connect`) suggests the socket is created in IPv4-only mode. The socket creation needs to support both IPv4 and IPv6 (dual-stack), or detect the network type and choose accordingly.
-
-This is the part that requires mobile code changes. The specific fix depends on which React Native UDP library is in use — check `mobile/package.json` for the UDP dependency and its IPv6 support.
-
-**Fallback behavior:** If hostname resolution fails (e.g., DNS is unreachable), the phone should log a clear error and retry. It should NOT fall back to WebSocket for audio — that's a separate transport with different latency characteristics and would mask the problem.
-
-### 4. Keep raw IP as fallback during migration
-
-To avoid breaking existing clients during rollout, the cloud should send both hostname and raw IP:
+No cloud code changes needed for this step. The cloud already does:
 
 ```typescript
-// cloud/packages/cloud/src/services/websocket/bun-websocket.ts
-const udpHost = process.env.UDP_HOST // now a hostname
-const udpIp = process.env.UDP_HOST_IP // raw IP fallback (optional)
-const udpPort = process.env.UDP_PORT ? parseInt(process.env.UDP_PORT, 10) : 8000
-if (udpHost) {
-  ;(ackMessage as any).udpHost = udpHost
-  ;(ackMessage as any).udpHostFallbackIp = udpIp || null
-  ;(ackMessage as any).udpPort = udpPort
-}
+// cloud/packages/cloud/src/services/websocket/bun-websocket.ts:371
+const udpHost = process.env.UDP_HOST // now a hostname string
+;(ackMessage as any).udpHost = udpHost // sent as-is in CONNECTION_ACK
 ```
 
-Mobile clients that understand `udpHost` as a hostname use it directly (with DNS resolution). Older clients that can't resolve hostnames fall back to `udpHostFallbackIp`. Once all clients are updated, the fallback can be removed.
+After this, phones receive `udpHost: "udp-prod-au.mentraglass.com"` instead of `udpHost: "20.239.105.210"`.
+
+### Step 3: Mobile — fix the `udp4` hardcoded socket
+
+This is the only code change required. In `mobile/src/services/UdpManager.ts`, the socket is hardcoded to IPv4:
+
+```typescript
+// Current (line ~338):
+this.socket = dgram.createSocket({type: "udp4"})
+```
+
+This must become a dual-stack or IPv6-capable socket. The `react-native-udp` library (v4.1.7, based on `dgram`) supports `udp6`. The fix:
+
+**Option A — always use `udp6` (simplest):** IPv6 sockets on most platforms can send to both IPv4 and IPv6 destinations (via IPv4-mapped IPv6 addresses). Test this first.
+
+```typescript
+this.socket = dgram.createSocket({type: "udp6"})
+```
+
+**Option B — detect network type:** Check what address the hostname resolves to and create the matching socket type. More defensive but more code.
+
+**Option C — try `udp6`, fall back to `udp4`:** Create a `udp6` socket. If bind fails, retry with `udp4`. Handles edge cases on older Android versions where `udp6` isn't available.
+
+The `socket.send(packet, port, host)` calls in `sendAudio()`, `sendAudioRaw()`, and `sendPing()` already pass `this.config.host` as a string — `react-native-udp` handles DNS resolution internally when given a hostname. No changes needed to the send calls.
+
+### Backward Compatibility
+
+**Old clients receiving a hostname in `udpHost`:** Old mobile clients read `msg.udpHost` and pass it directly to `udp.configure(host, port)` → `socket.send(packet, port, host)`. The `react-native-udp` `send()` function does resolve hostnames (node `dgram` behavior). So old clients on **IPv4 networks will work** — the library resolves the hostname to IPv4 and sends.
+
+Old clients on **IPv6-only networks already don't work** (they fail today with raw IPs too), so the hostname doesn't make them worse.
+
+**No new JSON field needed.** The existing `udpHost` field carries the hostname. No `udpHostFallbackIp` or `UDP_HOST_IP` required — old clients handle hostname strings via the UDP library's built-in resolution. The `udp4` socket type on old clients means they'll resolve to IPv4 only (which is the same as today's behavior with raw IPs).
+
+The only clients that benefit from the hostname + need a code change are those on IPv6-only networks, and they need the `udp4` → `udp6` socket fix (Step 3) to actually use IPv6 addresses.
 
 ## Rollout Order
 
-1. **Create DNS records** — zero risk, no client impact, purely additive
-2. **Verify DNS resolution** — `dig udp-prod-au.mentraglass.com` returns the correct IP from multiple locations
-3. **Update one non-production deployment** (e.g., `cloud-dev` on central-us) — change `UDP_HOST` to hostname, test with a phone on WiFi (dual-stack) and cellular
-4. **Mobile release with dual-stack UDP** — update `UdpManager` to handle hostname resolution and IPv6 sockets
-5. **Roll hostnames to all production clusters** — update `UDP_HOST` for every cluster
-6. **Verify on an IPv6-only network** — test with an Australian SIM or use an IPv6-only WiFi hotspot (many guides online for creating one with a Mac)
-7. **Clean up** — remove `UDP_HOST_IP` fallback after all clients are updated (minimum 2 app versions later)
+1. **Create DNS records in Cloudflare** — zero risk, purely additive, no client impact
+2. **Verify DNS resolution** — `dig` from multiple locations, confirm correct IPs
+3. **Update `UDP_HOST` on one non-prod deployment** (e.g., `cloud-dev` on central-us) — test with a phone on WiFi to confirm hostname resolution works with existing `udp4` socket on IPv4 networks
+4. **Ship mobile update** with `udp4` → `udp6` (or dual-stack) socket change
+5. **Roll `UDP_HOST` hostname to all production clusters** — after mobile update is in the wild
+6. **Test on IPv6-only network** — use an Australian SIM, or create an IPv6-only WiFi hotspot on a Mac (`sudo sysctl -w net.inet6.ip6.accept_rtadv=1` + share IPv6-only connection)
+7. **Set TTL to 3600** — once stable, raise DNS TTL from 300s to 3600s to reduce lookup overhead
 
 ## Decision Log
 
-| Decision                                            | Alternatives considered                  | Why we chose this                                                                                                                                                                         |
-| --------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DNS-only A records in Cloudflare (gray cloud)       | Cloudflare proxy (orange cloud)          | Cloudflare cannot proxy UDP — only HTTP/WS. Orange cloud would silently drop all UDP packets.                                                                                             |
-| Hostname in CONNECTION_ACK (not build-time env var) | `EXPO_PUBLIC_UDP_HOST_OVERRIDE`          | The CONNECTION_ACK path is already how every production phone gets the UDP endpoint. Build-time env vars are only for dev/debug. Changing CONNECTION_ACK fixes all users on next connect. |
-| `mentraglass.com` domain (not `augmentos.cloud`)    | `augmentos.cloud` subdomain              | `mentraglass.com` is the production domain. Using it for UDP keeps DNS management in one zone.                                                                                            |
-| Keep raw IP as temporary fallback                   | Hard cut to hostname-only                | Old mobile clients that don't handle hostname resolution would break. Fallback avoids a forced update.                                                                                    |
-| Per-region hostnames (not a single global hostname) | Single `udp.mentraglass.com` with GeoDNS | Each region has a separate Azure LB with a separate IP. GeoDNS adds complexity and a failure mode we don't need. Per-region hostnames match the existing per-region `UDP_HOST` env vars.  |
+| Decision                                      | Alternatives considered                                  | Why we chose this                                                                                                                                                                 |
+| --------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DNS-only A records in Cloudflare (gray cloud) | Cloudflare proxy (orange cloud)                          | Cloudflare cannot proxy UDP — only HTTP/WS. Orange cloud would silently drop all UDP packets.                                                                                     |
+| Change `UDP_HOST` value, not the field name   | Add new `UDP_HOSTNAME` env var + new `udpHostname` field | Unnecessary complexity. Old clients handle hostname strings fine on IPv4. The `udpHost` field already carries a string — changing its content from IP to hostname is transparent. |
+| Per-region hostnames (not global GeoDNS)      | Single `udp.mentraglass.com` with geo routing            | Each region has its own Azure LB with its own IP. GeoDNS adds a failure mode. Per-region hostnames match the existing per-region `UDP_HOST` env vars.                             |
+| `mentraglass.com` domain                      | `augmentos.cloud`                                        | `mentraglass.com` is the current production domain. Keeps DNS in one zone.                                                                                                        |
+| `udp6` socket type                            | Dual-stack detection                                     | Simplest fix. IPv6 sockets handle IPv4 destinations via mapped addresses on iOS and modern Android. Test on both platforms to confirm.                                            |
 
 ## Testing
 
-- **Dual-stack WiFi (IPv4 + IPv6):** UDP should work exactly as before. Hostname resolves to IPv4 A record. No behavior change.
-- **IPv6-only cellular (Australia):** UDP should now work. DNS64 synthesizes an IPv6 address from the A record. Phone opens IPv6 socket. Packets flow through carrier's NAT64 gateway to the IPv4 Azure LB.
-- **IPv4-only network:** UDP should work exactly as before. Hostname resolves to IPv4 A record.
-- **DNS failure:** Phone should log a clear error and retry. No silent failure.
-- **Old client + new cloud (hostname in CONNECTION_ACK):** If the old client passes the hostname string to the UDP library and the library tries to use it as a raw IP, it will fail. This is why the fallback IP field exists — old clients can use `udpHostFallbackIp` if `udpHost` doesn't look like an IP.
+| Scenario                            | Expected result                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dual-stack WiFi (IPv4 + IPv6)       | Hostname resolves to IPv4 A record. `udp6` socket sends to IPv4-mapped address. No behavior change from user perspective.                         |
+| IPv6-only cellular (Australia)      | DNS64 synthesizes IPv6 from A record. `udp6` socket sends to synthesized address. Packets go through NAT64 to Azure LB IPv4. **This is the fix.** |
+| IPv4-only network                   | Hostname resolves to IPv4. `udp6` socket sends via IPv4-mapped address. Works.                                                                    |
+| DNS failure                         | Phone logs error, retries on next UDP probe cycle (every 5 seconds). No silent failure.                                                           |
+| Old client (udp4 socket) + hostname | Hostname resolves to IPv4 via A record. `udp4` socket sends. Works on IPv4 networks. Fails on IPv6-only networks (same as today — no regression). |
 
 ## Edge Cases
 
-- **Azure LB IP changes:** If the Kubernetes service is deleted and recreated, Azure assigns a new IP. The DNS A record must be updated. This is the same operational burden as updating `UDP_HOST` today — but now it's one DNS record update instead of N Porter env var updates.
-- **DNS propagation delay:** Cloudflare DNS-only records propagate within seconds (not hours). But if a phone caches a stale DNS result, it would fail to reach the new IP. TTL should be set low (60–300 seconds) during the migration period.
-- **Multiple pods behind one LB:** The UDP LoadBalancer service already handles this — Azure LB distributes packets across pods. Hostname resolution doesn't change this behavior.
+- **Azure LB IP changes:** If the K8s service is deleted/recreated, Azure assigns a new IP. Update the Cloudflare A record. This is one DNS update vs N Porter env var updates — simpler than today.
+- **DNS TTL caching:** Set TTL to 300s during migration. If a phone caches a stale IP after a LB IP change, it fails until cache expires. Low TTL minimizes this window.
+- **`udp6` not supported on old Android:** If `dgram.createSocket({type: "udp6"})` fails on an old device, catch the error and fall back to `udp4`. Log a warning so we know it happened.

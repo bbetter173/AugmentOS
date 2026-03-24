@@ -126,15 +126,141 @@ At 12:31:16.629 the app transitions to `inactive`, then `background` at 12:31:17
 
 ---
 
+## Pipeline Failure Point Analysis
+
+Systematic analysis of every stage in the transcription pipeline, with evidence for or against each being the cause of the 30-second latency.
+
+```
+Phone mic → LC3 encode → UDP transport → Cloud AudioManager → Soniox feed → Soniox ASR → Transcript routing → Captions app → Display delivery → Phone WebSocket → Glasses BLE
+```
+
+### ✅ Ruled out by evidence
+
+**Phone mic capture** — Phone logs confirm `CORE: MIC: Started recording from: iPhone Microphone` at 48kHz Float32. Audio flowing throughout session.
+
+**Audio encoding (LC3)** — Phone logs show `UDP: Sending audio #N` at consistent 10-second intervals for every 100 packets. Encoding keeping up with real-time.
+
+**UDP transport (not WebSocket)** — Phone logs explicitly show `UDP: Sending audio ... to 4.178.21.21:8000`. Audio goes via UDP, not WebSocket. The reason we added UDP as the main transport was exactly to avoid the latency WebSocket causes on bad cellular — and UDP IS being used here. No fallback to WebSocket visible in the logs.
+
+**Phone sending slower than real-time** — BetterStack `msSinceLast100` (time between every 100th UDP packet arriving at the cloud) = `~10,000ms ± 50ms` consistently during BOTH the healthy period (07:00–07:04) AND the degraded period (07:05–07:08). The packet arrival rate is identical before and after the failure. If the phone were sending slower than real-time, latency would grow linearly from session start, not spike abruptly at 07:05.
+
+```
+Healthy:   07:04:04  msSinceLast100 = 10025
+           07:04:14  msSinceLast100 = 9998
+           07:04:24  msSinceLast100 = 10005
+Degraded:  07:05:04  msSinceLast100 = 9990
+           07:05:14  msSinceLast100 = 10115
+           07:05:24  msSinceLast100 = 9900
+           07:06:04  msSinceLast100 = 9998
+           07:06:14  msSinceLast100 = 10003
+```
+
+No change whatsoever in audio arrival rate when transcription output stops.
+
+**Cloud audio ingestion** — Same `msSinceLast100` evidence. The AudioManager is receiving packets at a steady rate throughout. No ingestion delay.
+
+**Cloud transcript routing (to captions app)** — When display updates DO arrive during the burst period, they come in rapid clusters (10+ in under 1 second). If the routing layer between Soniox results and the captions app were slow, the bursts would be smoothed. They're sharp — routing is instant once transcripts arrive.
+
+**Captions app processing** — Same evidence. Display requests are generated rapidly within each burst. The captions app is not the bottleneck.
+
+**Display delivery (cloud → phone → glasses)** — Every single `Display sent successfully` in the cloud logs completes cleanly. No delivery failures.
+
+**WebSocket transport delay** — `mic_state_change` messages arrive at the phone at steady 10-second intervals throughout the entire session. If the WebSocket had 30-second latency, those control messages would be delayed too. They're not. Also, a WebSocket transport delay would produce a uniform 30-second shift on all messages, not the burst/silence pattern we see.
+
+### ❓ Cannot determine from current logs
+
+**Cloud feeding audio to Soniox stream** — There is no log between "audio arrived at AudioManager" and "audio fed to Soniox SDK stream." If there is a buffer or queue between those two stages that backed up, it would be invisible with current instrumentation.
+
+**Soniox ASR processing time** — There is no log showing when Soniox returns transcript tokens. The `📝 TRANSCRIPTION` debug-level logs are not captured in BetterStack for this user (log level issue — only info+ captured). We cannot see whether Soniox was returning results slowly, returning them in batches, or not returning them at all.
+
+### Where the 30-second latency lives
+
+Everything outside these two stages is confirmed healthy. The failure narrows to exactly the uninstrumented gap:
+
+```
+AudioManager receives UDP packet → [??? no logs ???] → Soniox SDK stream → [??? no logs ???] → transcript token → relayDataToApps
+```
+
+Both "cloud's internal feed to Soniox" and "Soniox's own processing" are invisible with current logging. The burst pattern (silence → flood → silence) is consistent with either hypothesis.
+
+---
+
+## `enforce_local_transcription` Code Audit
+
+Traced the full path of `enforce_local_transcription` through mobile client and cloud to determine whether it has any effect on the transcription pipeline.
+
+### How it's supposed to work
+
+1. `enforce_local_transcription` is in `CORE_SETTINGS_KEYS` — sent to the native layer on session start
+2. The native layer initializes the Sherpa ONNX model when the setting is true
+3. When `shouldSendTranscript` or `offlineCaptionsRunning` is true, audio PCM is fed to Sherpa ONNX
+4. Sherpa ONNX produces transcript → `Bridge.sendLocalTranscription()` → emits `local_transcription` event to JS
+5. `MantleManager.handle_local_transcription()` routes the transcript:
+   - If `offline_captions_running: true` → display directly on glasses (fully offline, no cloud)
+   - If `offline_captions_running: false` → `socketComms.sendLocalTranscription(data)` → send to cloud via WebSocket
+
+### What actually happens for User 3
+
+User 3 has `enforce_local_transcription: true` + `offline_captions_running: false`.
+
+The critical gate is `shouldSendTranscript`. This flag is set by the cloud's `mic_state_change` message. Looking at `SocketComms.handle_microphone_state_change()`:
+
+- `requiredData` includes `"pcm"` → sets `shouldSendPcmData = true`
+- `requiredData` includes `"transcription"` → sets `shouldSendTranscript = true`
+
+But the cloud's `MicrophoneManager.calculateRequiredData()` **always sends `"pcm"`, never `"transcription"`**:
+
+```
+// cloud/packages/cloud/src/services/session/MicrophoneManager.ts
+calculateRequiredData(hasPCM, hasTranscription) {
+    const requiredData = [];
+    // NOTE: For now online apps always need PCM data
+    if (hasPCM || hasTranscription) {
+      requiredData.push("pcm");
+    }
+    return requiredData;
+}
+```
+
+The comment says it all: "For now online apps always need PCM data." The `"transcription"` option exists in the type system but is dead code.
+
+Since the cloud sends `requiredData = ["pcm"]`, the phone sets `should_send_lc3 = true` (audio via UDP) but `should_send_transcript` stays `false`. In the native layer:
+
+```
+// mobile/modules/core/ios/Source/CoreManager.swift
+if shouldSendTranscript || offlineCaptionsRunning {
+    transcriber?.acceptAudio(pcm16le: pcmData)
+}
+```
+
+Neither flag is true. **Sherpa ONNX is initialized but literally never receives audio.** The "processing loop started" log was a red herring.
+
+### The three actual modes
+
+| Setting combo                                                           | What actually happens                                                                                  |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `enforce_local_transcription: false`                                    | Soniox cloud path. Normal.                                                                             |
+| `enforce_local_transcription: true` + `offline_captions_running: false` | **Same as above.** Sherpa ONNX loads but is starved of input. Soniox does all ASR. Setting is a no-op. |
+| `enforce_local_transcription: true` + `offline_captions_running: true`  | Fully offline. Sherpa ONNX receives audio, displays directly to glasses, no cloud involvement.         |
+
+### Impact on investigation
+
+- User 3's captions were 100% dependent on the cloud Soniox path despite `enforce_local_transcription: true`
+- `enforce_local_transcription` is NOT a fallback for Soniox failures — it does nothing unless `offline_captions_running` is also true
+- The setting has zero effect on the cloud — the cloud doesn't read it and doesn't change its behavior based on it
+- The setting name is misleading — it doesn't "enforce" anything on its own
+
+---
+
 ## Findings
 
-### 1. The audio transport path was healthy throughout
+### 1. The audio transport path was healthy throughout — confirmed by packet timing
 
-UDP audio stats every 10 seconds without interruption from 07:00 to 07:39. The phone was encoding and sending audio. The cloud was receiving it. Whatever broke was downstream of audio ingestion.
+UDP audio stats every 10 seconds without interruption from 07:00 to 07:39. `msSinceLast100` = ~10,000ms ± 50ms during both healthy and degraded periods — no change in arrival rate. Audio is transported via UDP (not WebSocket), confirmed by phone logs. The phone is sending at real-time rate, the cloud is receiving at real-time rate.
 
 ### 2. Transcription output flatlined abruptly at ~07:05 UTC
 
-The drop was not gradual — it went from 79 display updates/minute to zero within two minutes. No client-side state change is visible in the cloud logs at this time (no WebSocket disconnect, no BLE event). The failure is somewhere between audio arriving at the cloud and transcripts being dispatched to the captions app.
+The drop was not gradual — it went from 79 display updates/minute to zero within two minutes. No client-side state change is visible in the cloud logs at this time (no WebSocket disconnect, no BLE event). The failure is somewhere between audio arriving at the cloud AudioManager and transcripts being dispatched to the captions app — the only uninstrumented segment of the pipeline.
 
 ### 3. The stream stayed "open" — no error was logged
 
@@ -148,19 +274,13 @@ This is either:
 
 We did not find any public Soniox status page or incident report for this date to confirm or rule out an upstream issue on their side.
 
-### 4. The burst flush pattern rules out a network gap
+### 4. The burst flush pattern rules out network issues
 
-If the 30-second silence were a network issue (phone → cloud), UDP audio would also drop. It didn't. If it were a display delivery failure (cloud → glasses), display sends would fail. They don't — every `Display sent successfully` completes cleanly once a transcript arrives. The burst pattern points to transcripts backing up somewhere in the pipeline and being flushed when the blockage clears.
+If the 30-second silence were a phone→cloud network issue, UDP audio would also drop (it didn't — `msSinceLast100` unchanged). If it were a WebSocket transport delay, `mic_state_change` messages would also be delayed (they weren't — steady 10-second intervals). If it were a display delivery failure, display sends would fail (they don't — every `Display sent successfully` completes cleanly). The burst pattern points to transcripts backing up somewhere between AudioManager and Soniox output, then flushing when the blockage clears.
 
-### 5. `enforce_local_transcription: true` adds uncertainty
+### 5. `enforce_local_transcription: true` is confirmed as a no-op
 
-User 3 has `enforce_local_transcription: true`. If this setting actually routes the captions app through the local Sherpa ONNX path rather than the cloud Soniox stream, then a Soniox issue would have no effect on this user — yet their captions still stopped. This either means:
-
-- The captions app subscribes to Soniox regardless of the phone-side setting
-- Local transcription results are routed through the same pipeline segment that stalled
-- The `enforce_local_transcription` setting doesn't work the way it's documented
-
-This needs to be traced in the code before drawing conclusions.
+Code audit confirms: the cloud always sends `requiredData = ["pcm"]`, never `"transcription"`. The phone's `shouldSendTranscript` flag stays false. Sherpa ONNX is initialized but never fed audio. User 3's captions were entirely dependent on Soniox cloud. The setting had zero effect on the pipeline or the cloud's behavior. See the code audit section above for the full trace.
 
 ### 6. Self-resolving behavior is consistent with a temporary upstream issue
 
@@ -170,9 +290,9 @@ User 2's latency resolved on its own after ~20 minutes without any app restart o
 
 The `handleDeviceReady()` → settings save → audio check → mic state change cascade fires at least 8 times in under 2 seconds during a single connection event. Each cycle triggers cloud-side subscription updates, which in turn generate ~15 `mic_state_change` messages back to the client in ~490ms. This is not confirmed as a cause of the transcription stall, but it means every G1 connection event creates a burst of redundant work on both the client and the cloud. Under load (multiple users reconnecting simultaneously), this amplification could contribute to pipeline congestion.
 
-### 8. Local transcription may not be producing output despite being enabled
+### 8. Local transcription is not producing output — confirmed by code, not a logging gap
 
-User 3 has `enforce_local_transcription: true` and the Sherpa ONNX processing loop starts successfully, but no transcript output from the local engine is visible in the logs. Combined with Finding 5 (we don't know what `enforce_local_transcription` actually controls for the captions app), this raises the possibility that User 3 had no working transcription path at all: local transcription running but not producing output, and the cloud Soniox path stalled. Whether the absence of local transcript logs is a logging gap or an actual output failure needs to be determined by examining the Sherpa ONNX integration code and the log levels captured in bug reports.
+The absence of local transcript logs is not a logging gap — it's expected behavior. The code audit confirms Sherpa ONNX never receives audio when `offline_captions_running: false`, regardless of `enforce_local_transcription`. The model loads, the processing loop starts, but `acceptAudio()` is never called because `shouldSendTranscript` is false (cloud sends `["pcm"]` not `["transcription"]`).
 
 ---
 
@@ -184,41 +304,42 @@ What we know for certain:
 - Multiple users reported the same symptom in the same 24-hour window
 - No errors were logged in the cloud when transcription stopped — it failed silently
 - The burst pattern means transcripts were buffering somewhere, not disappearing entirely
+- Audio arrival rate at the cloud was identical during healthy and degraded periods (`msSinceLast100` unchanged)
+- Every pipeline stage except the Soniox feed / Soniox ASR segment has been ruled out by evidence
+- `enforce_local_transcription: true` is a confirmed no-op when `offline_captions_running: false` — code audit traced the full path
 
 What we do not know:
 
-- The root cause — Soniox upstream degradation, internal cloud pipeline stall, client-side initialization churn, and captions app connection issues are all plausible hypotheses
+- The root cause — the failure lives in the uninstrumented gap between AudioManager and transcript token dispatch, which includes both the cloud's internal Soniox feed and Soniox's own ASR processing
 - Whether the three user reports share the same root cause or are independent failures that coincided
 - How many other sessions were affected (no aggregate query run yet)
-- What `enforce_local_transcription: true` actually controls for the captions app end-to-end
-- Whether Sherpa ONNX is producing output that isn't logged, or genuinely failing silently
 - Whether the `handleDeviceReady` churn and mic_state_change flood contribute to pipeline congestion under load
 - What the team member was "fixing" when they posted in Discord
 
-| Finding                                                  | Confidence                    |
-| -------------------------------------------------------- | ----------------------------- |
-| Audio path healthy throughout                            | High                          |
-| Transcription output stopped abruptly at ~07:05 UTC      | High                          |
-| Silent failure — no error logged                         | High                          |
-| Burst pattern = buffered backlog, not network drop       | High                          |
-| `handleDeviceReady` fires 8+ times per connection        | High (observed in logs)       |
-| `mic_state_change` flood correlates with reconnect churn | High (observed in logs)       |
-| Audio route check fails repeatedly for G1 (expected)     | High (architectural mismatch) |
-| Sherpa ONNX starts but no output visible in logs         | Medium — could be log gap     |
-| Root cause is upstream Soniox degradation                | Unknown — hypothesis only     |
-| Root cause is internal cloud pipeline stall              | Unknown — hypothesis only     |
-| Root cause is client-side initialization amplification   | Unknown — hypothesis only     |
-| `enforce_local_transcription` bypasses Soniox            | Unknown — needs code trace    |
+| Finding                                                   | Confidence                                      |
+| --------------------------------------------------------- | ----------------------------------------------- |
+| Audio path healthy throughout (UDP, not WS)               | High — `msSinceLast100` unchanged               |
+| Phone sending at real-time rate                           | High — identical packet timing pre/post failure |
+| Transcription output stopped abruptly at ~07:05 UTC       | High                                            |
+| Silent failure — no error logged                          | High                                            |
+| Burst pattern = buffered backlog, not network drop        | High — UDP/WS/display all healthy               |
+| Failure is between AudioManager and transcript dispatch   | High — all other stages ruled out               |
+| `enforce_local_transcription` is a no-op (code confirmed) | High — dead code path, Sherpa ONNX starved      |
+| `handleDeviceReady` fires 8+ times per connection         | High (observed in logs)                         |
+| `mic_state_change` flood correlates with reconnect churn  | High (observed in logs)                         |
+| Root cause is upstream Soniox degradation                 | Unknown — hypothesis only                       |
+| Root cause is internal cloud pipeline stall               | Unknown — hypothesis only                       |
+| Root cause is client-side initialization amplification    | Unknown — hypothesis only                       |
 
 ---
 
 ## Next Steps
 
-1. **Add silent stream detection**: If a stream has been open >60s with 0 tokens returned while audio is actively flowing, log a warning. Right now this failure mode is completely invisible. This applies regardless of what the root cause turns out to be.
-2. **Trace `enforce_local_transcription` end-to-end**: Does it affect what the captions app subscribes to? If not, the setting is misleading users. Also confirm whether Sherpa ONNX transcript output is logged in bug reports — if not, add logging so we can distinguish "model running but not producing output" from "model producing output that isn't logged."
-3. **Aggregate BetterStack query**: How many sessions had zero display updates + active UDP audio in the 07:00–07:30 UTC window on March 24? If it was widespread, it points more strongly to a shared upstream cause.
-4. **Reach out to Soniox**: Ask if they had any degradation or incidents on their end around March 23–24. Their SDK doesn't surface errors unless the stream closes — a slowdown or internal queue backup on their side would look exactly like what we observed.
-5. **Add error logging to token dispatch path**: If transcripts stop flowing through any part of the pipeline, it should produce a log entry, not silence.
-6. **Debounce or deduplicate `handleDeviceReady()`**: Investigate why `handleDeviceReady()` fires 8+ times for a single G1 connection event. Each invocation triggers settings writes, audio route checks, and cloud subscription updates that generate `mic_state_change` responses. A debounce window or a guard that skips redundant calls for the same device within N seconds would eliminate the amplification. This is worth fixing independently of the latency investigation — it's unnecessary load on both the client and the cloud.
-7. **Remove or fix the G1 audio route check**: The `AudioMonitor` check for device "4" in iOS audio routes will never succeed for a BLE-connected device like the G1. Either remove the check for BLE devices or replace it with the correct mechanism for detecting G1 audio availability. This eliminates noise in the logs and removes a confusing failure signal during initialization.
-8. **Investigate iOS backgrounding impact on transcription**: Determine whether app backgrounding during an active captions session could interrupt Sherpa ONNX processing or delay UDP audio handling. If so, consider requesting a background audio session entitlement or warning the user when the app is backgrounded during an active session.
+1. **Instrument the blind spot**: Add logging at the exact point audio is fed to the Soniox SDK stream, and at the point transcript tokens are returned. This is the only uninstrumented segment in the entire pipeline. Without it, we cannot distinguish between "cloud not feeding Soniox" and "Soniox not returning results."
+2. **Add silent stream detection**: If a stream has been open >60s with 0 tokens returned while audio is actively flowing, log a warning and consider stream restart. Right now this failure mode is completely invisible.
+3. **Fix `enforce_local_transcription`**: The setting is a confirmed no-op unless `offline_captions_running` is also true. Either make it actually work (have the cloud send `requiredData = ["transcription"]` when the setting is active, so the phone feeds audio to Sherpa ONNX and sends transcripts to cloud) or remove / rename the setting so users aren't misled.
+4. **Aggregate BetterStack query**: How many sessions had zero display updates + active UDP audio in the 07:00–07:30 UTC window on March 24? If it was widespread, it points more strongly to a shared upstream cause.
+5. **Reach out to Soniox**: Ask if they had any degradation or incidents on their end around March 23–24. Their SDK doesn't surface errors unless the stream closes — a slowdown or internal queue backup on their side would look exactly like what we observed.
+6. **Debounce or deduplicate `handleDeviceReady()`**: Investigate why `handleDeviceReady()` fires 8+ times for a single G1 connection event. Each invocation triggers settings writes, audio route checks, and cloud subscription updates that generate `mic_state_change` responses. This is unnecessary load on both the client and the cloud regardless of the latency investigation.
+7. **Remove or fix the G1 audio route check**: The `AudioMonitor` check for device name in iOS audio routes will never succeed for a BLE-connected device like the G1. Either remove the check for BLE devices or replace it with the correct mechanism. This eliminates noise in the logs.
+8. **Investigate iOS backgrounding impact**: Determine whether app backgrounding during an active captions session could interrupt UDP audio handling or delay processing.

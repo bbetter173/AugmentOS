@@ -23,8 +23,12 @@ export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProp
   // const [isChina] = useSetting(SETTINGS.china_deployment.key)
   const {theme} = useAppTheme()
 
+  // On Android, GlassView is just a plain View with no blur, so the capsule
+  // needs an explicit background to stay readable over arbitrary app content.
+  const androidStyle = Platform.OS === "android" ? {backgroundColor: theme.colors.card} : undefined
+
   return (
-    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-7.5 items-center">
+    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-7.5 items-center" style={androidStyle}>
       <Pressable hitSlop={10} onPress={onEllipsisPress} style={{width: 24, alignItems: "center"}}>
         <Icon name="ellipsis" size={18} color={theme.colors.foreground} />
       </Pressable>
@@ -103,6 +107,9 @@ export function MiniAppCapsuleMenu({
     InteractionManager.runAfterInteractions(() => {
       handleExit()
     })
+    if (Platform.OS === "android") {
+      goBack()
+    }
   }, true)
 
   return (

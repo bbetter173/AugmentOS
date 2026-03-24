@@ -38,19 +38,19 @@ Hostnames were documented as a "nice to have" in `cloud/issues/udp-loadbalancer/
 
 Create a DNS-only A record in Cloudflare for each cluster's UDP LoadBalancer IP. **Proxy must be OFF (gray cloud)** — Cloudflare cannot proxy UDP traffic.
 
-Naming convention: `udp-{env}-{region}.mentra.glass`
+Naming convention: `udp-{env}-{region}.mentraglass.com`
 
-| Cluster | Region         | Current UDP_HOST    | New hostname                      |
-| ------- | -------------- | ------------------- | --------------------------------- |
-| 4689    | central-us     | `52.189.74.237`     | `udp-prod-uscentral.mentra.glass` |
-| 4965    | us-west        | (check via kubectl) | `udp-prod-uswest.mentra.glass`    |
-| 4977    | us-east        | (check via kubectl) | `udp-prod-useast.mentra.glass`    |
-| 4696    | france         | (check via kubectl) | `udp-prod-france.mentra.glass`    |
-| 4754    | east-asia      | `20.239.105.210`    | `udp-prod-eastasia.mentra.glass`  |
-| 4978    | australia-east | (check via kubectl) | `udp-prod-au.mentra.glass`        |
-| 4753    | canada-central | (check via kubectl) | `udp-prod-canada.mentra.glass`    |
+| Cluster | Region         | Current UDP_HOST    | New hostname                         |
+| ------- | -------------- | ------------------- | ------------------------------------ |
+| 4689    | central-us     | `52.189.74.237`     | `udp-prod-uscentral.mentraglass.com` |
+| 4965    | us-west        | (check via kubectl) | `udp-prod-uswest.mentraglass.com`    |
+| 4977    | us-east        | (check via kubectl) | `udp-prod-useast.mentraglass.com`    |
+| 4696    | france         | (check via kubectl) | `udp-prod-france.mentraglass.com`    |
+| 4754    | east-asia      | `20.239.105.210`    | `udp-prod-eastasia.mentraglass.com`  |
+| 4978    | australia-east | (check via kubectl) | `udp-prod-au.mentraglass.com`        |
+| 4753    | canada-central | (check via kubectl) | `udp-prod-canada.mentraglass.com`    |
 
-For clusters with both dev and prod, also create `udp-dev-{region}.mentra.glass`.
+For clusters with both dev and prod, also create `udp-dev-{region}.mentraglass.com`.
 
 **To get the actual IPs for clusters not listed above:**
 
@@ -64,12 +64,12 @@ For each cloud deployment, change the Porter env var `UDP_HOST` from the raw IP 
 
 ```
 porter env set -a cloud-prod --cluster 4754 \
-  -v 'UDP_HOST=udp-prod-eastasia.mentra.glass'
+  -v 'UDP_HOST=udp-prod-eastasia.mentraglass.com'
 ```
 
 Repeat for every cluster. The cloud code (`bun-websocket.ts`) already passes `UDP_HOST` as a string — no cloud code change needed for this step.
 
-The phone now receives `udpHost: "udp-prod-eastasia.mentra.glass"` in `CONNECTION_ACK` instead of `udpHost: "20.239.105.210"`.
+The phone now receives `udpHost: "udp-prod-eastasia.mentraglass.com"` in `CONNECTION_ACK` instead of `udpHost: "20.239.105.210"`.
 
 ### 3. Mobile: ensure UDP socket handles hostname resolution and IPv6
 
@@ -89,13 +89,13 @@ To avoid breaking existing clients during rollout, the cloud should send both ho
 
 ```typescript
 // cloud/packages/cloud/src/services/websocket/bun-websocket.ts
-const udpHost = process.env.UDP_HOST; // now a hostname
-const udpIp = process.env.UDP_HOST_IP; // raw IP fallback (optional)
-const udpPort = process.env.UDP_PORT ? parseInt(process.env.UDP_PORT, 10) : 8000;
+const udpHost = process.env.UDP_HOST // now a hostname
+const udpIp = process.env.UDP_HOST_IP // raw IP fallback (optional)
+const udpPort = process.env.UDP_PORT ? parseInt(process.env.UDP_PORT, 10) : 8000
 if (udpHost) {
-  (ackMessage as any).udpHost = udpHost;
-  (ackMessage as any).udpHostFallbackIp = udpIp || null;
-  (ackMessage as any).udpPort = udpPort;
+  ;(ackMessage as any).udpHost = udpHost
+  ;(ackMessage as any).udpHostFallbackIp = udpIp || null
+  ;(ackMessage as any).udpPort = udpPort
 }
 ```
 
@@ -104,7 +104,7 @@ Mobile clients that understand `udpHost` as a hostname use it directly (with DNS
 ## Rollout Order
 
 1. **Create DNS records** — zero risk, no client impact, purely additive
-2. **Verify DNS resolution** — `dig udp-prod-au.mentra.glass` returns the correct IP from multiple locations
+2. **Verify DNS resolution** — `dig udp-prod-au.mentraglass.com` returns the correct IP from multiple locations
 3. **Update one non-production deployment** (e.g., `cloud-dev` on central-us) — change `UDP_HOST` to hostname, test with a phone on WiFi (dual-stack) and cellular
 4. **Mobile release with dual-stack UDP** — update `UdpManager` to handle hostname resolution and IPv6 sockets
 5. **Roll hostnames to all production clusters** — update `UDP_HOST` for every cluster
@@ -113,13 +113,13 @@ Mobile clients that understand `udpHost` as a hostname use it directly (with DNS
 
 ## Decision Log
 
-| Decision                                            | Alternatives considered               | Why we chose this                                                                                                                                                                         |
-| --------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DNS-only A records in Cloudflare (gray cloud)       | Cloudflare proxy (orange cloud)       | Cloudflare cannot proxy UDP — only HTTP/WS. Orange cloud would silently drop all UDP packets.                                                                                             |
-| Hostname in CONNECTION_ACK (not build-time env var) | `EXPO_PUBLIC_UDP_HOST_OVERRIDE`       | The CONNECTION_ACK path is already how every production phone gets the UDP endpoint. Build-time env vars are only for dev/debug. Changing CONNECTION_ACK fixes all users on next connect. |
-| `mentra.glass` domain (not `augmentos.cloud`)       | `augmentos.cloud` subdomain           | `mentra.glass` is the production domain. Using it for UDP keeps DNS management in one zone.                                                                                               |
-| Keep raw IP as temporary fallback                   | Hard cut to hostname-only             | Old mobile clients that don't handle hostname resolution would break. Fallback avoids a forced update.                                                                                    |
-| Per-region hostnames (not a single global hostname) | Single `udp.mentra.glass` with GeoDNS | Each region has a separate Azure LB with a separate IP. GeoDNS adds complexity and a failure mode we don't need. Per-region hostnames match the existing per-region `UDP_HOST` env vars.  |
+| Decision                                            | Alternatives considered                  | Why we chose this                                                                                                                                                                         |
+| --------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DNS-only A records in Cloudflare (gray cloud)       | Cloudflare proxy (orange cloud)          | Cloudflare cannot proxy UDP — only HTTP/WS. Orange cloud would silently drop all UDP packets.                                                                                             |
+| Hostname in CONNECTION_ACK (not build-time env var) | `EXPO_PUBLIC_UDP_HOST_OVERRIDE`          | The CONNECTION_ACK path is already how every production phone gets the UDP endpoint. Build-time env vars are only for dev/debug. Changing CONNECTION_ACK fixes all users on next connect. |
+| `mentraglass.com` domain (not `augmentos.cloud`)    | `augmentos.cloud` subdomain              | `mentraglass.com` is the production domain. Using it for UDP keeps DNS management in one zone.                                                                                            |
+| Keep raw IP as temporary fallback                   | Hard cut to hostname-only                | Old mobile clients that don't handle hostname resolution would break. Fallback avoids a forced update.                                                                                    |
+| Per-region hostnames (not a single global hostname) | Single `udp.mentraglass.com` with GeoDNS | Each region has a separate Azure LB with a separate IP. GeoDNS adds complexity and a failure mode we don't need. Per-region hostnames match the existing per-region `UDP_HOST` env vars.  |
 
 ## Testing
 

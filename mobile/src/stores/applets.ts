@@ -44,6 +44,7 @@ export interface ClientAppletInterface extends AppletInterface {
 interface AppStatusState {
   apps: ClientAppletInterface[]
   refreshApplets: () => Promise<void>
+  retryStartApp: (packageName: string) => void
   startApplet: (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => Promise<void>
   stopApplet: (packageName: string) => Promise<void>
   stopAllApplets: () => AsyncResult<void, Error>
@@ -662,6 +663,27 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
 
 export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
   apps: [],
+
+  retryStartApp: (packageName: string) => {
+    // Re-send start request and set up polling (used by error screen retry)
+    if (refreshInterval) {
+      BackgroundTimer.clearInterval(refreshInterval)
+      refreshInterval = null
+    }
+    let pollCount = 0
+    const MAX_POLLS = 6
+    refreshInterval = BackgroundTimer.setInterval(() => {
+      pollCount++
+      useAppletStatusStore.getState().refreshApplets()
+      if (pollCount >= MAX_POLLS) {
+        if (refreshInterval) {
+          BackgroundTimer.clearInterval(refreshInterval)
+          refreshInterval = null
+        }
+      }
+    }, 1000)
+    restComms.startApp(packageName)
+  },
 
   refreshApplets: async () => {
     const state = get()

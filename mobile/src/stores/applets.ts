@@ -609,6 +609,7 @@ const startStopOfflineApplet = (applet: ClientAppletInterface, status: boolean):
 }
 
 let refreshTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
+let refreshInterval: ReturnType<typeof BackgroundTimer.setInterval> | null = null
 // actually turn on or off an applet:
 const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncResult<void, Error> => {
   // Offline apps don't need to wait for server confirmation
@@ -621,15 +622,36 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
     return startStopOfflineApplet(applet, status)
   }
 
-  // TODO: not the best way to handle this, but it works reliably:
-  // For online apps, schedule a refresh to confirm the state from the server
+  // Clear any pending refresh timers
   if (refreshTimeout) {
     BackgroundTimer.clearTimeout(refreshTimeout)
     refreshTimeout = null
   }
-  refreshTimeout = BackgroundTimer.setTimeout(() => {
-    useAppletStatusStore.getState().refreshApplets()
-  }, 2000)
+  if (refreshInterval) {
+    BackgroundTimer.clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+
+  // For online apps, poll every 1s for up to 6s to confirm server state
+  if (status) {
+    let pollCount = 0
+    const MAX_POLLS = 6
+    refreshInterval = BackgroundTimer.setInterval(() => {
+      pollCount++
+      useAppletStatusStore.getState().refreshApplets()
+      if (pollCount >= MAX_POLLS) {
+        if (refreshInterval) {
+          BackgroundTimer.clearInterval(refreshInterval)
+          refreshInterval = null
+        }
+      }
+    }, 1000)
+  } else {
+    // For stop, single refresh after 2s is fine
+    refreshTimeout = BackgroundTimer.setTimeout(() => {
+      useAppletStatusStore.getState().refreshApplets()
+    }, 2000)
+  }
 
   if (status) {
     return restComms.startApp(applet.packageName)
@@ -651,8 +673,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     }
 
     let onlineApps: ClientAppletInterface[] = []
-    // let res = await restComms.getApplets()
-    let res = await restComms.retry(() => restComms.getApplets(), 3, 1000)
+    let res = await restComms.getApplets()
     if (res.is_error()) {
       console.error(`APPLETS: Failed to get applets: ${res.error}`)
       // continue anyway in case we're just offline:

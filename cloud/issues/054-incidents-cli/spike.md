@@ -63,24 +63,24 @@ Path: `incidents/{incidentId}.json`
 
 ```typescript
 interface IncidentLogs {
-  incidentId: string
-  createdAt: string
-  feedback: Record<string, unknown> // user's bug report text + system info
-  phoneState: Record<string, unknown> // glasses, core, settings snapshots
-  phoneLogs: LogEntry[] // mobile app console logs
-  cloudLogs: LogEntry[] // BetterStack cloud logs (10min window)
-  glassesLogs: LogEntry[] // ASG client logs
-  glassesFirmwareLogs: LogEntry[] // BES chip logs
-  appTelemetryLogs: Record<string, LogEntry[]> // miniapp logs keyed by packageName
-  attachments?: AttachmentMetadata[] // screenshot references
+  incidentId: string;
+  createdAt: string;
+  feedback: Record<string, unknown>; // user's bug report text + system info
+  phoneState: Record<string, unknown>; // glasses, core, settings snapshots
+  phoneLogs: LogEntry[]; // mobile app console logs
+  cloudLogs: LogEntry[]; // BetterStack cloud logs (10min window)
+  glassesLogs: LogEntry[]; // ASG client logs
+  glassesFirmwareLogs: LogEntry[]; // BES chip logs
+  appTelemetryLogs: Record<string, LogEntry[]>; // miniapp logs keyed by packageName
+  attachments?: AttachmentMetadata[]; // screenshot references
 }
 
 interface LogEntry {
-  timestamp: number | string
-  level: string
-  message: string
-  source?: string
-  metadata?: Record<string, unknown>
+  timestamp: number | string;
+  level: string;
+  message: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
 }
 ```
 
@@ -145,9 +145,33 @@ Linear ticket creation: fully built but disabled (commented out). Email notifica
 
 ## CLI Design
 
+### Primary workflow
+
+The core use case is: someone gives you an incident ID, you pull everything and investigate.
+
+```
+1. Get ID:     "c3f3e699-43fa-45e2-a6d3-09c64ab64980"
+2. Get info:   bun run incidents get c3f3e699
+3. Phone logs: bun run incidents logs c3f3e699 --type phone
+4. Cloud logs: bun run incidents logs c3f3e699 --type cloud
+5. Search:     bun run incidents logs c3f3e699 --grep "disconnect"
+```
+
+The `list` command is secondary — for when you don't have an ID and need to find one.
+
+### Scope: no API changes
+
+The existing agent API already supports everything the CLI needs:
+
+- `GET /api/agent/incidents` — list with limit/offset
+- `GET /api/agent/incidents/:id` — metadata from MongoDB
+- `GET /api/agent/incidents/:id/logs` — full logs from R2
+
+All filtering (severity, user, date, grep) is done **client-side in the CLI**. Not efficient at scale, but fine for now — the incident volume is manageable. API-side filtering (add query params, add severity to MongoDB) is a separate future issue.
+
 ### Location
 
-New package at `cloud/packages/incidents/`. Separate from the cloud server — it's a client tool, not a server component. Has its own `package.json` with minimal dependencies (just an HTTP client and a CLI arg parser, if any).
+New package at `cloud/packages/incidents/`. Separate from the cloud server — it's a client tool, not a server component. Has its own `package.json` with minimal dependencies.
 
 ### Auth
 
@@ -157,66 +181,54 @@ The API host defaults to `https://api.mentra.glass` but can be overridden via `M
 
 ### Commands
 
-```
-bun run cloud/packages/incidents/src/cli.ts list [options]
-bun run cloud/packages/incidents/src/cli.ts get <incidentId>
-bun run cloud/packages/incidents/src/cli.ts logs <incidentId> [options]
-```
-
-**`list`** — list recent incidents
+**`get <id>`** — the main command. Show incident details.
 
 ```
-Options:
-  --limit <n>         Number of results (default: 20, max: 500)
-  --offset <n>        Pagination offset (default: 0)
-  --status <status>   Filter by status (processing/complete/partial/failed)
-  --severity <n>      Filter by severity rating (1-5) [requires API enhancement]
-  --json              Output raw JSON instead of formatted table
-```
+bun run incidents get c3f3e699
 
-Output: table with columns `ID (short) | Status | Severity | Summary | User | Created`
-
-**`get`** — show incident details
-
-```
 Options:
   --json              Output raw JSON
 ```
 
-Output: formatted display of feedback text, system info, phone state snapshot, LLM summary, severity, running apps, and timestamps.
+Output: formatted display of feedback text (expected/actual behavior), severity rating, system info (app version, platform, device, OS, glasses status, wearable, network, build info), phone state snapshot, LLM summary, running apps, timestamps.
 
-**`logs`** — fetch and display logs
+Accepts full UUID or a short prefix (first 8 chars) — the CLI matches against the list.
+
+**`logs <id>`** — fetch and display logs for an incident
 
 ```
+bun run incidents logs c3f3e699 --type phone
+bun run incidents logs c3f3e699 --type cloud --level error
+bun run incidents logs c3f3e699 --grep "disconnect"
+
 Options:
   --type <type>       Log type: phone, cloud, glasses, firmware, apps, all (default: all)
   --app <package>     Filter app telemetry by package name
   --level <level>     Filter by log level: error, warn, info, debug
-  --grep <pattern>    Search log messages by regex
+  --grep <pattern>    Search log messages (case-insensitive substring match)
   --limit <n>         Max log entries to display (default: 200)
   --json              Output raw JSON
 ```
 
-Output: formatted log entries, color-coded by level (red=error, yellow=warn, white=info, gray=debug). Each line: `[timestamp] [level] [source] message`.
+Output: formatted log entries, color-coded by level (red=error, yellow=warn, white=info, gray=debug). Each line: `[timestamp] [level] [source] message`. Filtered client-side.
 
-### API enhancements needed
+**`list`** — list recent incidents (secondary, for finding IDs)
 
-The current agent API (`GET /api/agent/incidents`) only supports `limit` and `offset`. For the CLI to be useful, we should add:
+```
+bun run incidents list
+bun run incidents list --limit 50
+bun run incidents list --user johndoe@gmail.com
 
-| Parameter  | Purpose                                                                                                    |
-| ---------- | ---------------------------------------------------------------------------------------------------------- |
-| `status`   | Filter by processing status                                                                                |
-| `severity` | Filter by feedback severity rating (stored in R2 feedback, not MongoDB — needs a MongoDB field or R2 scan) |
-| `search`   | Text search across summary field                                                                           |
-| `userId`   | Filter by user (useful for "show me this user's history")                                                  |
-| `since`    | Only incidents after this ISO date                                                                         |
+Options:
+  --limit <n>         Number of results (default: 20, max: 500)
+  --user <email>      Filter by user email (client-side filter)
+  --severity <n>      Filter by severity >= n (client-side, requires fetching logs for each)
+  --json              Output raw JSON
+```
 
-Severity is the tricky one — it's in the R2 feedback JSON, not in the MongoDB model. Options:
+Output: table with columns `ID (short) | Status | Summary | User | Created`
 
-1. Add `severity` field to the MongoDB `Incident` model (backfill existing records)
-2. Filter client-side in the CLI (works but wasteful for large datasets)
-
-Option 1 is cleaner. The severity is available at creation time from `feedback.severityRating`.
+Note: `--user` and `--severity` filtering happens client-side after fetching the list from the API. `--user` is cheap (metadata includes userId). `--severity` is expensive (severity is in R2 logs, not MongoDB metadata) — for v1, skip it or just show it without filtering.
 
 ### Package structure
 
@@ -238,23 +250,31 @@ cloud/packages/incidents/
 ### Running it
 
 ```bash
-# From repo root
+# From the incidents package
 cd cloud/packages/incidents
-bun run src/cli.ts list --limit 10
+bun run src/cli.ts get c3f3e699
+bun run src/cli.ts logs c3f3e699 --type phone
 
-# Or with a package.json script alias
-bun run incidents list --limit 10
-
-# Or from the cloud workspace root
-bun run --filter @mentra/incidents cli list --limit 10
+# Or via package.json script alias
+bun run incidents get c3f3e699
 ```
+
+---
+
+## Future Enhancements (separate issues, not v1)
+
+**API-side filtering:** Add `userId`, `severity`, `since` query params to `GET /api/agent/incidents`. Requires adding `severity` to the MongoDB Incident model (available at creation time from `feedback.severityRating`). Eliminates client-side filtering overhead.
+
+**Remote-triggered incident report:** New `POST /api/agent/incidents/request` endpoint that takes a `userId` and pushes a `REQUEST_INCIDENT_REPORT` message via the glasses WebSocket to the user's phone. The phone collects current logs + phone state and auto-submits a bug report. Captures state at the exact moment of the issue instead of whenever the user gets around to filing. Requires client changes (new message type handler in mobile).
+
+**Attachment access:** The agent API doesn't have an attachment endpoint (console API does). Add `GET /api/agent/incidents/:id/attachments/:filename` to the agent API if the CLI needs to fetch screenshots.
 
 ---
 
 ## Next Steps
 
-1. Write `spec.md` with exact API contract changes (add severity to MongoDB, add query params to agent API)
-2. Write `design.md` with the implementation plan (file-by-file changes)
-3. Build the CLI package
-4. Add `MENTRA_AGENT_API_KEY` to `cloud/.env.example` with a placeholder value
-5. Test against prod agent API with real incident data
+1. Build the CLI package — zero API changes, just the client tool
+2. Add `MENTRA_AGENT_API_KEY` to `cloud/.env.example` with a placeholder value
+3. Test against prod agent API with real incident data
+4. Separate issue for API-side filtering enhancements
+5. Separate issue for remote-triggered incident reports

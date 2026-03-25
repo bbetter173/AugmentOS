@@ -20,12 +20,18 @@ extension Data {
 
 /// Nex firmware expects tier 1–3 in protobuf `DisplayDistanceConfig.distance_cm` (name is legacy, not cm).
 /// Keep in sync with `NexProtobufUtils.dashboardDepthToDistanceCm` (Android `NexSGCUtils.kt`).
-private enum NexDashboardDisplayWire {
+enum NexDashboardDisplayWire {
     static let depthMin = 1
     static let depthMax = 3
 
     static func depthToWireTier(_ depth: Int) -> UInt32 {
         UInt32(min(max(depth, depthMin), depthMax))
+    }
+
+    /// Read an `Any?` value from the store, default to `depthMin`, and clamp to valid range.
+    static func clampDepthFromStore(_ value: Any?) -> Int {
+        let raw = value as? Int ?? depthMin
+        return min(max(raw, depthMin), depthMax)
     }
 }
 

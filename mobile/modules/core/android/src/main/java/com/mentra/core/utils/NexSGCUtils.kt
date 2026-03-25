@@ -46,17 +46,6 @@ object NexDisplayConstants {
     /** Matches dashboard depth slider in app settings (1-3); values outside range clamp. */
     const val DASHBOARD_DEPTH_MIN: Int = 1
     const val DASHBOARD_DEPTH_MAX: Int = 3
-
-    /**
-     * Virtual projection distance for [DisplayDistanceConfig]; linear map from dashboard depth.
-     * Confirm with Nex firmware (spec example ~50 cm).
-     */
-    const val NEX_DISPLAY_DISTANCE_CM_MIN: Int = 35
-    const val NEX_DISPLAY_DISTANCE_CM_MAX: Int = 65
-
-    /** Wire-safe bounds for [distance_cm] on the wire. */
-    const val NEX_DISTANCE_CM_WIRE_MIN: Int = 10
-    const val NEX_DISTANCE_CM_WIRE_MAX: Int = 500
 }
 
 object NexBluetoothPacketTypes {
@@ -71,17 +60,16 @@ object NexProtobufUtils {
 
     private const val WHITELIST_CMD: Int = 0x04
 
-    /** Maps persisted dashboard depth (1-3) to BLE [distance_cm]; keep in sync with iOS MentraNex. */
+    /**
+     * Maps dashboard depth to the value Nex firmware expects in [DisplayDistanceConfig.distance_cm].
+     * The protobuf field is still named `distance_cm`, but Nex treats it as a **tier** 1–3, not centimeters.
+     * Keep in sync with iOS `NexDashboardDisplayWire.depthToWireTier`.
+     */
     fun dashboardDepthToDistanceCm(depth: Int): Int {
-        val d = depth.coerceIn(
+        return depth.coerceIn(
             NexDisplayConstants.DASHBOARD_DEPTH_MIN,
             NexDisplayConstants.DASHBOARD_DEPTH_MAX
         )
-        val spanCm = NexDisplayConstants.NEX_DISPLAY_DISTANCE_CM_MAX - NexDisplayConstants.NEX_DISPLAY_DISTANCE_CM_MIN
-        val spanDepth =
-            NexDisplayConstants.DASHBOARD_DEPTH_MAX - NexDisplayConstants.DASHBOARD_DEPTH_MIN
-        return NexDisplayConstants.NEX_DISPLAY_DISTANCE_CM_MIN +
-            (d - NexDisplayConstants.DASHBOARD_DEPTH_MIN) * spanCm / spanDepth
     }
 
     data class AppInfo(
@@ -317,22 +305,22 @@ object NexProtobufUtils {
     }
 
     fun generateDisplayDistanceCommandBytes(distanceCm: Int): ByteArray {
-        val clamped = distanceCm.coerceIn(
-            NexDisplayConstants.NEX_DISTANCE_CM_WIRE_MIN,
-            NexDisplayConstants.NEX_DISTANCE_CM_WIRE_MAX
+        val tier = distanceCm.coerceIn(
+            NexDisplayConstants.DASHBOARD_DEPTH_MIN,
+            NexDisplayConstants.DASHBOARD_DEPTH_MAX
         )
         Bridge.log("Nex: === SENDING DISPLAY DISTANCE COMMAND TO GLASSES ===")
-        Bridge.log("Nex: Display distance_cm: $clamped")
+        Bridge.log("Nex: Display distance tier (distance_cm field): $tier")
 
         val displayDistanceConfig = DisplayDistanceConfig.newBuilder()
-            .setDistanceCm(clamped)
+            .setDistanceCm(tier)
             .build()
 
         val phoneToGlasses = PhoneToGlasses.newBuilder()
             .setDisplayDistance(displayDistanceConfig)
             .build()
 
-        Bridge.log("Nex: Sent display distance command => distance_cm: $clamped")
+        Bridge.log("Nex: Sent display distance command => distance_cm (tier): $tier")
 
         return generateProtobufCommandBytes(phoneToGlasses)
     }

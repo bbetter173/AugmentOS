@@ -18,21 +18,14 @@ extension Data {
     }
 }
 
-/// Dashboard depth → BLE `distance_cm`; keep in sync with `NexDisplayConstants` / `NexProtobufUtils.dashboardDepthToDistanceCm` (Android `NexSGCUtils.kt`).
+/// Nex firmware expects tier 1–3 in protobuf `DisplayDistanceConfig.distance_cm` (name is legacy, not cm).
+/// Keep in sync with `NexProtobufUtils.dashboardDepthToDistanceCm` (Android `NexSGCUtils.kt`).
 private enum NexDashboardDisplayWire {
     static let depthMin = 1
     static let depthMax = 3
-    static let distanceCmMin = 35
-    static let distanceCmMax = 65
-    static let wireDistanceCmMin = 10
-    static let wireDistanceCmMax = 500
 
-    static func depthToDistanceCm(_ depth: Int) -> UInt32 {
-        let d = min(max(depth, depthMin), depthMax)
-        let spanCm = distanceCmMax - distanceCmMin
-        let spanDepth = depthMax - depthMin
-        let v = distanceCmMin + (d - depthMin) * spanCm / spanDepth
-        return UInt32(min(max(v, wireDistanceCmMin), wireDistanceCmMax))
+    static func depthToWireTier(_ depth: Int) -> UInt32 {
+        UInt32(min(max(depth, depthMin), depthMax))
     }
 }
 
@@ -1117,11 +1110,11 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
             return
         }
 
-        let distanceCm = NexDashboardDisplayWire.depthToDistanceCm(depth)
-        Bridge.log("NEX: Setting display distance_cm to \(distanceCm) (dashboard depth \(depth))")
+        let tier = NexDashboardDisplayWire.depthToWireTier(depth)
+        Bridge.log("NEX: Setting display distance tier \(tier) in distance_cm field (dashboard depth \(depth))")
 
         let displayDistanceConfig = Mentraos_Ble_DisplayDistanceConfig.with {
-            $0.distanceCm = distanceCm
+            $0.distanceCm = tier
         }
 
         let phoneToGlasses = Mentraos_Ble_PhoneToGlasses.with {

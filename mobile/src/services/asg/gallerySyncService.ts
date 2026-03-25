@@ -349,7 +349,11 @@ class GallerySyncService {
     mediaProcessingQueue.reset()
 
     // R1: Check if already syncing (including requesting_hotspot to prevent double-tap)
-    if (store.syncState === "syncing" || store.syncState === "connecting_wifi" || store.syncState === "requesting_hotspot") {
+    if (
+      store.syncState === "syncing" ||
+      store.syncState === "connecting_wifi" ||
+      store.syncState === "requesting_hotspot"
+    ) {
       console.log(`[GallerySyncService] ⚠️ Already syncing (state: ${store.syncState}), ignoring start request`)
       return
     }
@@ -758,379 +762,382 @@ class GallerySyncService {
 
     // L2: Wrap retry loop in try/finally to guarantee listener cleanup on all exit paths
     try {
+      for (let attempt = 1; attempt <= TIMING.IOS_WIFI_MAX_RETRIES; attempt++) {
+        const attemptStartTime = Date.now()
 
-    for (let attempt = 1; attempt <= TIMING.IOS_WIFI_MAX_RETRIES; attempt++) {
-      const attemptStartTime = Date.now()
-
-      // Check if cancelled
-      if (this.abortController?.signal.aborted) {
-        console.log("[GallerySyncService] 🛑 Sync was cancelled - aborting WiFi connection")
-        store.setSyncError("Sync cancelled")
-        return
-      }
-
-      try {
-        console.log("[GallerySyncService] ----------------------------------------")
-        console.log(
-          `[GallerySyncService] 📡 ATTEMPT ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES} - Starting WiFi connection`,
-        )
-        console.log(`[GallerySyncService] ⏱️ Time since WiFi phase started: ${Date.now() - wifiConnectStartTime}ms`)
-        console.log(`[GallerySyncService] 📱 App backgrounded during connection: ${appBackgrounded}`)
-
-        // Check current WiFi state before attempting connection
-        let preConnectSSID = "unknown"
-        try {
-          preConnectSSID = await WifiManager.getCurrentWifiSSID()
-          console.log(`[GallerySyncService] 📡 Current WiFi SSID: "${preConnectSSID}"`)
-
-          // Check if already connected (shouldn't happen, but good to verify)
-          if (preConnectSSID === hotspotInfo.ssid) {
-            console.log("[GallerySyncService] ✅ Already connected to target SSID! Proceeding to download.")
-            appStateSubscription.remove()
-
-            const totalWifiDuration = Date.now() - wifiConnectStartTime
-            console.log("[GallerySyncService] ========================================")
-            console.log("[GallerySyncService] ✅ WIFI CONNECTION COMPLETE (already connected)")
-            console.log("[GallerySyncService] ========================================")
-            console.log(`[GallerySyncService] ⏱️ Total WiFi phase duration: ${totalWifiDuration}ms`)
-            console.log(`[GallerySyncService] 🚀 Proceeding to file download from ${hotspotInfo.ip}:8089`)
-
-            await this.startFileDownload(hotspotInfo)
-            return // Exit function successfully
-          }
-        } catch (preError: any) {
-          console.warn(`[GallerySyncService] ⚠️ Could not get current SSID: ${preError?.message}`)
-          console.warn("[GallerySyncService] ⚠️ Error code:", preError?.code)
-        }
-
-        // Use connectToProtectedSSID with joinOnce=false for persistent connection
-        console.log(`[GallerySyncService] 🔌 Calling WifiManager.connectToProtectedSSID...`)
-        console.log(`[GallerySyncService] 🔌 Parameters:`)
-        console.log(`[GallerySyncService]    - SSID: "${hotspotInfo.ssid}"`)
-        console.log(`[GallerySyncService]    - Password: ${"*".repeat(hotspotInfo.password.length)}`)
-        console.log(`[GallerySyncService]    - joinOnce: false`)
-        console.log(`[GallerySyncService]    - isHidden: false`)
-
-        const connectCallStartTime = Date.now()
-        appBackgrounded = false // Reset flag for this attempt
-        appBackgroundTime = null
-
-        await WifiManager.connectToProtectedSSID(hotspotInfo.ssid, hotspotInfo.password, false, false)
-
-        const connectCallDuration = Date.now() - connectCallStartTime
-        console.log(`[GallerySyncService] ✅ WifiManager.connectToProtectedSSID returned successfully`)
-        console.log(`[GallerySyncService] ⏱️ Library call duration: ${connectCallDuration}ms`)
-        console.log(`[GallerySyncService] 📱 App was backgrounded during call: ${appBackgrounded}`)
-        if (appBackgrounded && appBackgroundTime) {
-          console.log(`[GallerySyncService] ⏱️ Time until backgrounding: ${appBackgroundTime - connectCallStartTime}ms`)
-        }
-        console.log(`[GallerySyncService] 📝 Note: On iOS, this does NOT guarantee actual connection!`)
-
-        // iOS-specific: Verify actual WiFi connection by polling SSID
-        // The library promise resolves when iOS ACCEPTS the request, not when connection completes
-        if (Platform.OS === "ios") {
-          console.log(`[GallerySyncService] 🍎 iOS: Starting connection verification...`)
-          console.log(`[GallerySyncService] 🍎 Will poll getCurrentWifiSSID() for up to 15 seconds`)
-
-          const maxVerifyAttempts = 30 // 30 × 500ms = 15 seconds
-          let connected = false
-          let lastSeenSSID = "unknown"
-
-          for (let i = 0; i < maxVerifyAttempts; i++) {
-            try {
-              const currentSSID = await WifiManager.getCurrentWifiSSID()
-              lastSeenSSID = currentSSID || "null"
-
-              console.log(
-                `[GallerySyncService] 🍎 Verify poll ${i + 1}/${maxVerifyAttempts}: Current="${currentSSID}", Target="${
-                  hotspotInfo.ssid
-                }"`,
-              )
-
-              if (currentSSID === hotspotInfo.ssid) {
-                console.log(
-                  `[GallerySyncService] 🍎 ✅ VERIFICATION SUCCESS! Connected to target network after ${
-                    (i + 1) * 500
-                  }ms`,
-                )
-                connected = true
-                break
-              } else if (i === 0 && currentSSID === lastSeenSSID) {
-                console.log(
-                  `[GallerySyncService] 🍎 ⚠️ Still on original network - iOS dialog may not have appeared yet`,
-                )
-              }
-            } catch (ssidError: any) {
-              console.log(`[GallerySyncService] 🍎 ⚠️ Poll ${i + 1}: Could not check SSID: ${ssidError?.message}`)
-              lastSeenSSID = "error"
-            }
-
-            // Don't wait after last attempt
-            if (i < maxVerifyAttempts - 1) {
-              await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, 500))
-            }
-          }
-
-          if (!connected) {
-            console.error(`[GallerySyncService] 🍎 ❌ VERIFICATION FAILED after 15 seconds`)
-            console.error(`[GallerySyncService] 🍎 Last seen SSID: "${lastSeenSSID}"`)
-            console.error(`[GallerySyncService] 🍎 Expected SSID: "${hotspotInfo.ssid}"`)
-            console.error(`[GallerySyncService] 🍎 Possible causes:`)
-            console.error(`[GallerySyncService] 🍎   1. User did not tap "Join" on iOS WiFi dialog`)
-            console.error(`[GallerySyncService] 🍎   2. iOS dialog did not appear (permission issue?)`)
-            console.error(`[GallerySyncService] 🍎   3. iOS refused to switch networks`)
-            throw new Error(`iOS WiFi verification failed - still on "${lastSeenSSID}", expected "${hotspotInfo.ssid}"`)
-          }
-        }
-
-        const attemptDuration = Date.now() - attemptStartTime
-        console.log(`[GallerySyncService] ✅ WiFi connection successful!`)
-        console.log(`[GallerySyncService] ⏱️ Total attempt duration: ${attemptDuration}ms`)
-        console.log(`[GallerySyncService] 🎉 Platform: ${Platform.OS}`)
-
-        // Remove app state listener
-        appStateSubscription.remove()
-        console.log("[GallerySyncService] 👂 App state listener removed")
-
-        // Final verification: Check SSID one more time before starting download
-        try {
-          const finalSSID = await WifiManager.getCurrentWifiSSID()
-          console.log(`[GallerySyncService] 📶 Final SSID check before download: "${finalSSID}"`)
-          if (Platform.OS === "android") {
-            // Some local builds can have stale generated typings for the core module.
-            ;(CoreModule as any).logCurrentWifiFrequency?.()
-          }
-          if (finalSSID !== hotspotInfo.ssid) {
-            console.error(
-              `[GallerySyncService] ❌ SSID mismatch detected! Expected "${hotspotInfo.ssid}", got "${finalSSID}"`,
-            )
-            throw new Error(`WiFi SSID mismatch - connected to "${finalSSID}" instead of "${hotspotInfo.ssid}"`)
-          }
-        } catch (finalError: any) {
-          console.warn(`[GallerySyncService] ⚠️ Could not perform final SSID check: ${finalError?.message}`)
-          // Continue anyway - we've done our best to verify
-        }
-
-        // iOS-specific: Wait for actual network connectivity to glasses
-        // Even though SSID is correct, iOS needs time for routing tables to update
-        // We actively probe the glasses HTTP server until it's reachable
-        if (Platform.OS === "ios") {
-          console.log(`[GallerySyncService] 🍎 Waiting for iOS network routes to glasses IP...`)
-          console.log(`[GallerySyncService] 🍎 Will probe http://${hotspotInfo.ip}:8089/api/health`)
-
-          const maxProbeAttempts = 20 // 20 attempts × 500ms = 10 seconds max
-          let networkReady = false
-
-          for (let probeNum = 1; probeNum <= maxProbeAttempts; probeNum++) {
-            try {
-              console.log(`[GallerySyncService] 🍎 Connectivity probe ${probeNum}/${maxProbeAttempts}...`)
-
-              // Try to reach the glasses health endpoint with a short timeout
-              const probeController = new AbortController()
-              const probeTimeout = BackgroundTimer.setTimeout(() => probeController.abort(), 1000) // 1 second timeout per probe
-
-              const probeStartTime = Date.now()
-              const probeResponse = await fetch(`http://${hotspotInfo.ip}:8089/api/health`, {
-                method: "GET",
-                signal: probeController.signal,
-              })
-              BackgroundTimer.clearTimeout(probeTimeout)
-
-              const probeDuration = Date.now() - probeStartTime
-              console.log(
-                `[GallerySyncService] 🍎 Probe ${probeNum} response: HTTP ${probeResponse.status} (${probeDuration}ms)`,
-              )
-
-              if (probeResponse.status === 200 || probeResponse.status === 404) {
-                // 200 = health endpoint exists, 404 = glasses responded (no health endpoint)
-                // Either way, network is working!
-                console.log(`[GallerySyncService] 🍎 ✅ Network connectivity verified after ${probeNum} probes!`)
-                networkReady = true
-                break
-              }
-            } catch (probeError: any) {
-              const errorMsg = probeError?.message || "unknown"
-              console.log(
-                `[GallerySyncService] 🍎 Probe ${probeNum} failed: ${errorMsg.substring(0, 50)}${
-                  errorMsg.length > 50 ? "..." : ""
-                }`,
-              )
-              // Continue to next probe
-            }
-
-            // Wait 500ms before next probe (unless this was the last attempt)
-            if (probeNum < maxProbeAttempts) {
-              await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, 500))
-            }
-          }
-
-          if (!networkReady) {
-            console.error(
-              `[GallerySyncService] 🍎 ❌ Network connectivity probe failed after ${maxProbeAttempts} attempts`,
-            )
-            console.error(`[GallerySyncService] 🍎 iOS routing tables may not be ready for ${hotspotInfo.ip}`)
-            throw new Error(
-              `iOS network not ready - could not reach ${hotspotInfo.ip}:8089 after ${maxProbeAttempts} attempts`,
-            )
-          }
-        }
-
-        // Start the actual download
-        const totalWifiDuration = Date.now() - wifiConnectStartTime
-        console.log("[GallerySyncService] ========================================")
-        console.log("[GallerySyncService] ✅ WIFI CONNECTION COMPLETE")
-        console.log("[GallerySyncService] ========================================")
-        console.log(`[GallerySyncService] ⏱️ Total WiFi phase duration: ${totalWifiDuration}ms`)
-        console.log(`[GallerySyncService] 🎯 Attempts used: ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES}`)
-        console.log(`[GallerySyncService] 🚀 Proceeding to file download from ${hotspotInfo.ip}:8089`)
-
-        await this.startFileDownload(hotspotInfo)
-        return // Success - exit the retry loop
-      } catch (error: any) {
-        lastError = error
-        const attemptDuration = Date.now() - attemptStartTime
-
-        console.error("[GallerySyncService] ❌ ========================================")
-        console.error(`[GallerySyncService] ❌ WiFi ATTEMPT ${attempt} FAILED`)
-        console.error("[GallerySyncService] ❌ ========================================")
-        console.error(`[GallerySyncService] ❌ Error message: ${error?.message || "No message"}`)
-        console.error(`[GallerySyncService] ❌ Error code: ${error?.code || "No code"}`)
-        console.error(`[GallerySyncService] ❌ Error type: ${error?.name || typeof error}`)
-        console.error(`[GallerySyncService] ❌ Platform: ${Platform.OS}`)
-        console.error(`[GallerySyncService] ❌ Attempt duration: ${attemptDuration}ms`)
-        console.error(`[GallerySyncService] ❌ App was backgrounded: ${appBackgrounded}`)
-        if (appBackgrounded && appBackgroundTime) {
-          console.error(`[GallerySyncService] ❌ Time in background: ${Date.now() - appBackgroundTime}ms`)
-        }
-        console.error(`[GallerySyncService] ❌ Full error object:`, JSON.stringify(error, null, 2))
-
-        // If user explicitly denied, don't retry
-        if (error?.code === "userDenied" || error?.message?.includes("cancel")) {
-          console.warn("[GallerySyncService] 🚫 User cancelled WiFi connection - aborting")
-          appStateSubscription.remove()
-          store.setSyncError("WiFi connection cancelled")
-          if (store.syncServiceOpenedHotspot) {
-            await this.closeHotspot()
-          }
+        // Check if cancelled
+        if (this.abortController?.signal.aborted) {
+          console.log("[GallerySyncService] 🛑 Sync was cancelled - aborting WiFi connection")
+          store.setSyncError("Sync cancelled")
           return
         }
 
-        // Handle "didNotFindNetwork" - hotspot may still be initializing
-        if (error?.code === "didNotFindNetwork") {
-          console.warn("[GallerySyncService] 🔍 Network not found - hotspot may still be initializing")
-          console.warn(
-            `[GallerySyncService] 🔍 Will retry in ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (attempt ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES})`,
-          )
-        }
-
-        // Handle "timeoutOccurred" - likely caused by app backgrounding during WiFi dialog
-        if (error?.code === "timeoutOccurred") {
-          console.error("[GallerySyncService] ⏰ WiFi connection timeout occurred")
-          console.error(`[GallerySyncService] ⏰ App was backgrounded: ${appBackgrounded}`)
-          if (appBackgrounded && appBackgroundTime) {
-            console.error(`[GallerySyncService] ⏰ Time in background: ${Date.now() - appBackgroundTime}ms`)
-            console.error("[GallerySyncService] ⏰ Android may have shown WiFi dialog that user didn't interact with")
-          }
-          console.warn(
-            `[GallerySyncService] 🔍 Will retry in ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (attempt ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES})`,
-          )
-        }
-
-        // DISABLED: Check if WiFi was disabled during connection attempt (Android 10+ specific error)
-        // if (Platform.OS === "android" && error?.message?.includes("enable wifi manually")) {
-        //   console.error("[GallerySyncService] WiFi was disabled during connection")
-        //
-        //   // Mark that we're waiting for WiFi so we can auto-retry when user returns
-        //   this.waitingForWifiRetry = true
-        //
-        //   showAlert("WiFi Required", "WiFi must be enabled to sync photos. Please enable WiFi and try again.", [
-        //     {
-        //       text: "Cancel",
-        //       style: "cancel",
-        //       onPress: () => {
-        //         this.waitingForWifiRetry = false
-        //         this.wifiSettingsOpenedAt = null
-        //         store.setSyncError("WiFi disabled - enable WiFi and try again")
-        //         if (store.syncServiceOpenedHotspot) {
-        //           this.closeHotspot()
-        //         }
-        //       },
-        //     },
-        //     {
-        //       text: "Open Settings",
-        //       onPress: async () => {
-        //         // Set timestamp so we can enforce cooldown on next sync attempt
-        //         this.wifiSettingsOpenedAt = Date.now()
-        //         await SettingsNavigationUtils.openWifiSettings()
-        //         store.setSyncError("Enable WiFi and try sync again")
-        //         if (store.syncServiceOpenedHotspot) {
-        //           await this.closeHotspot()
-        //         }
-        //       },
-        //     },
-        //   ])
-        //   return
-        // }
-
-        // Let connection fail naturally and show generic error
-        if (Platform.OS === "android" && error?.message?.includes("enable wifi manually")) {
-          console.error("[GallerySyncService] 🚫 WiFi was disabled during connection - aborting")
-          appStateSubscription.remove()
-          store.setSyncError("Could not connect - check WiFi is enabled")
-          if (store.syncServiceOpenedHotspot) {
-            await this.closeHotspot()
-          }
-          return
-        }
-
-        // For "internal error" or "unableToConnect", wait and retry
-        // iOS: Gives user time to interact with system dialog
-        // Android: Gives hotspot time to fully initialize and start broadcasting
-        if (attempt < TIMING.IOS_WIFI_MAX_RETRIES) {
-          const reason =
-            Platform.OS === "ios" ? "user may be seeing system dialog" : "hotspot may still be initializing"
+        try {
           console.log("[GallerySyncService] ----------------------------------------")
-          console.log(`[GallerySyncService] 🔄 Preparing retry ${attempt + 1}/${TIMING.IOS_WIFI_MAX_RETRIES}`)
-          console.log(`[GallerySyncService] ⏱️ Waiting ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (${reason})`)
-          console.log(`[GallerySyncService] 📱 App currently: ${AppState.currentState}`)
-          await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, TIMING.IOS_WIFI_RETRY_DELAY_MS))
-          console.log(`[GallerySyncService] ⏱️ Wait complete - starting retry`)
-        } else {
-          console.error("[GallerySyncService] 🚫 No more retry attempts available")
+          console.log(
+            `[GallerySyncService] 📡 ATTEMPT ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES} - Starting WiFi connection`,
+          )
+          console.log(`[GallerySyncService] ⏱️ Time since WiFi phase started: ${Date.now() - wifiConnectStartTime}ms`)
+          console.log(`[GallerySyncService] 📱 App backgrounded during connection: ${appBackgrounded}`)
+
+          // Check current WiFi state before attempting connection
+          let preConnectSSID = "unknown"
+          try {
+            preConnectSSID = await WifiManager.getCurrentWifiSSID()
+            console.log(`[GallerySyncService] 📡 Current WiFi SSID: "${preConnectSSID}"`)
+
+            // Check if already connected (shouldn't happen, but good to verify)
+            if (preConnectSSID === hotspotInfo.ssid) {
+              console.log("[GallerySyncService] ✅ Already connected to target SSID! Proceeding to download.")
+              appStateSubscription.remove()
+
+              const totalWifiDuration = Date.now() - wifiConnectStartTime
+              console.log("[GallerySyncService] ========================================")
+              console.log("[GallerySyncService] ✅ WIFI CONNECTION COMPLETE (already connected)")
+              console.log("[GallerySyncService] ========================================")
+              console.log(`[GallerySyncService] ⏱️ Total WiFi phase duration: ${totalWifiDuration}ms`)
+              console.log(`[GallerySyncService] 🚀 Proceeding to file download from ${hotspotInfo.ip}:8089`)
+
+              await this.startFileDownload(hotspotInfo)
+              return // Exit function successfully
+            }
+          } catch (preError: any) {
+            console.warn(`[GallerySyncService] ⚠️ Could not get current SSID: ${preError?.message}`)
+            console.warn("[GallerySyncService] ⚠️ Error code:", preError?.code)
+          }
+
+          // Use connectToProtectedSSID with joinOnce=false for persistent connection
+          console.log(`[GallerySyncService] 🔌 Calling WifiManager.connectToProtectedSSID...`)
+          console.log(`[GallerySyncService] 🔌 Parameters:`)
+          console.log(`[GallerySyncService]    - SSID: "${hotspotInfo.ssid}"`)
+          console.log(`[GallerySyncService]    - Password: ${"*".repeat(hotspotInfo.password.length)}`)
+          console.log(`[GallerySyncService]    - joinOnce: false`)
+          console.log(`[GallerySyncService]    - isHidden: false`)
+
+          const connectCallStartTime = Date.now()
+          appBackgrounded = false // Reset flag for this attempt
+          appBackgroundTime = null
+
+          await WifiManager.connectToProtectedSSID(hotspotInfo.ssid, hotspotInfo.password, false, false)
+
+          const connectCallDuration = Date.now() - connectCallStartTime
+          console.log(`[GallerySyncService] ✅ WifiManager.connectToProtectedSSID returned successfully`)
+          console.log(`[GallerySyncService] ⏱️ Library call duration: ${connectCallDuration}ms`)
+          console.log(`[GallerySyncService] 📱 App was backgrounded during call: ${appBackgrounded}`)
+          if (appBackgrounded && appBackgroundTime) {
+            console.log(
+              `[GallerySyncService] ⏱️ Time until backgrounding: ${appBackgroundTime - connectCallStartTime}ms`,
+            )
+          }
+          console.log(`[GallerySyncService] 📝 Note: On iOS, this does NOT guarantee actual connection!`)
+
+          // iOS-specific: Verify actual WiFi connection by polling SSID
+          // The library promise resolves when iOS ACCEPTS the request, not when connection completes
+          if (Platform.OS === "ios") {
+            console.log(`[GallerySyncService] 🍎 iOS: Starting connection verification...`)
+            console.log(`[GallerySyncService] 🍎 Will poll getCurrentWifiSSID() for up to 15 seconds`)
+
+            const maxVerifyAttempts = 30 // 30 × 500ms = 15 seconds
+            let connected = false
+            let lastSeenSSID = "unknown"
+
+            for (let i = 0; i < maxVerifyAttempts; i++) {
+              try {
+                const currentSSID = await WifiManager.getCurrentWifiSSID()
+                lastSeenSSID = currentSSID || "null"
+
+                console.log(
+                  `[GallerySyncService] 🍎 Verify poll ${i + 1}/${maxVerifyAttempts}: Current="${currentSSID}", Target="${
+                    hotspotInfo.ssid
+                  }"`,
+                )
+
+                if (currentSSID === hotspotInfo.ssid) {
+                  console.log(
+                    `[GallerySyncService] 🍎 ✅ VERIFICATION SUCCESS! Connected to target network after ${
+                      (i + 1) * 500
+                    }ms`,
+                  )
+                  connected = true
+                  break
+                } else if (i === 0 && currentSSID === lastSeenSSID) {
+                  console.log(
+                    `[GallerySyncService] 🍎 ⚠️ Still on original network - iOS dialog may not have appeared yet`,
+                  )
+                }
+              } catch (ssidError: any) {
+                console.log(`[GallerySyncService] 🍎 ⚠️ Poll ${i + 1}: Could not check SSID: ${ssidError?.message}`)
+                lastSeenSSID = "error"
+              }
+
+              // Don't wait after last attempt
+              if (i < maxVerifyAttempts - 1) {
+                await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, 500))
+              }
+            }
+
+            if (!connected) {
+              console.error(`[GallerySyncService] 🍎 ❌ VERIFICATION FAILED after 15 seconds`)
+              console.error(`[GallerySyncService] 🍎 Last seen SSID: "${lastSeenSSID}"`)
+              console.error(`[GallerySyncService] 🍎 Expected SSID: "${hotspotInfo.ssid}"`)
+              console.error(`[GallerySyncService] 🍎 Possible causes:`)
+              console.error(`[GallerySyncService] 🍎   1. User did not tap "Join" on iOS WiFi dialog`)
+              console.error(`[GallerySyncService] 🍎   2. iOS dialog did not appear (permission issue?)`)
+              console.error(`[GallerySyncService] 🍎   3. iOS refused to switch networks`)
+              throw new Error(
+                `iOS WiFi verification failed - still on "${lastSeenSSID}", expected "${hotspotInfo.ssid}"`,
+              )
+            }
+          }
+
+          const attemptDuration = Date.now() - attemptStartTime
+          console.log(`[GallerySyncService] ✅ WiFi connection successful!`)
+          console.log(`[GallerySyncService] ⏱️ Total attempt duration: ${attemptDuration}ms`)
+          console.log(`[GallerySyncService] 🎉 Platform: ${Platform.OS}`)
+
+          // Remove app state listener
+          appStateSubscription.remove()
+          console.log("[GallerySyncService] 👂 App state listener removed")
+
+          // Final verification: Check SSID one more time before starting download
+          try {
+            const finalSSID = await WifiManager.getCurrentWifiSSID()
+            console.log(`[GallerySyncService] 📶 Final SSID check before download: "${finalSSID}"`)
+            if (Platform.OS === "android") {
+              // Some local builds can have stale generated typings for the core module.
+              ;(CoreModule as any).logCurrentWifiFrequency?.()
+            }
+            if (finalSSID !== hotspotInfo.ssid) {
+              console.error(
+                `[GallerySyncService] ❌ SSID mismatch detected! Expected "${hotspotInfo.ssid}", got "${finalSSID}"`,
+              )
+              throw new Error(`WiFi SSID mismatch - connected to "${finalSSID}" instead of "${hotspotInfo.ssid}"`)
+            }
+          } catch (finalError: any) {
+            console.warn(`[GallerySyncService] ⚠️ Could not perform final SSID check: ${finalError?.message}`)
+            // Continue anyway - we've done our best to verify
+          }
+
+          // iOS-specific: Wait for actual network connectivity to glasses
+          // Even though SSID is correct, iOS needs time for routing tables to update
+          // We actively probe the glasses HTTP server until it's reachable
+          if (Platform.OS === "ios") {
+            console.log(`[GallerySyncService] 🍎 Waiting for iOS network routes to glasses IP...`)
+            console.log(`[GallerySyncService] 🍎 Will probe http://${hotspotInfo.ip}:8089/api/health`)
+
+            const maxProbeAttempts = 20 // 20 attempts × 500ms = 10 seconds max
+            let networkReady = false
+
+            for (let probeNum = 1; probeNum <= maxProbeAttempts; probeNum++) {
+              try {
+                console.log(`[GallerySyncService] 🍎 Connectivity probe ${probeNum}/${maxProbeAttempts}...`)
+
+                // Try to reach the glasses health endpoint with a short timeout
+                const probeController = new AbortController()
+                const probeTimeout = BackgroundTimer.setTimeout(() => probeController.abort(), 1000) // 1 second timeout per probe
+
+                const probeStartTime = Date.now()
+                const probeResponse = await fetch(`http://${hotspotInfo.ip}:8089/api/health`, {
+                  method: "GET",
+                  signal: probeController.signal,
+                })
+                BackgroundTimer.clearTimeout(probeTimeout)
+
+                const probeDuration = Date.now() - probeStartTime
+                console.log(
+                  `[GallerySyncService] 🍎 Probe ${probeNum} response: HTTP ${probeResponse.status} (${probeDuration}ms)`,
+                )
+
+                if (probeResponse.status === 200 || probeResponse.status === 404) {
+                  // 200 = health endpoint exists, 404 = glasses responded (no health endpoint)
+                  // Either way, network is working!
+                  console.log(`[GallerySyncService] 🍎 ✅ Network connectivity verified after ${probeNum} probes!`)
+                  networkReady = true
+                  break
+                }
+              } catch (probeError: any) {
+                const errorMsg = probeError?.message || "unknown"
+                console.log(
+                  `[GallerySyncService] 🍎 Probe ${probeNum} failed: ${errorMsg.substring(0, 50)}${
+                    errorMsg.length > 50 ? "..." : ""
+                  }`,
+                )
+                // Continue to next probe
+              }
+
+              // Wait 500ms before next probe (unless this was the last attempt)
+              if (probeNum < maxProbeAttempts) {
+                await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, 500))
+              }
+            }
+
+            if (!networkReady) {
+              console.error(
+                `[GallerySyncService] 🍎 ❌ Network connectivity probe failed after ${maxProbeAttempts} attempts`,
+              )
+              console.error(`[GallerySyncService] 🍎 iOS routing tables may not be ready for ${hotspotInfo.ip}`)
+              throw new Error(
+                `iOS network not ready - could not reach ${hotspotInfo.ip}:8089 after ${maxProbeAttempts} attempts`,
+              )
+            }
+          }
+
+          // Start the actual download
+          const totalWifiDuration = Date.now() - wifiConnectStartTime
+          console.log("[GallerySyncService] ========================================")
+          console.log("[GallerySyncService] ✅ WIFI CONNECTION COMPLETE")
+          console.log("[GallerySyncService] ========================================")
+          console.log(`[GallerySyncService] ⏱️ Total WiFi phase duration: ${totalWifiDuration}ms`)
+          console.log(`[GallerySyncService] 🎯 Attempts used: ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES}`)
+          console.log(`[GallerySyncService] 🚀 Proceeding to file download from ${hotspotInfo.ip}:8089`)
+
+          await this.startFileDownload(hotspotInfo)
+          return // Success - exit the retry loop
+        } catch (error: any) {
+          lastError = error
+          const attemptDuration = Date.now() - attemptStartTime
+
+          console.error("[GallerySyncService] ❌ ========================================")
+          console.error(`[GallerySyncService] ❌ WiFi ATTEMPT ${attempt} FAILED`)
+          console.error("[GallerySyncService] ❌ ========================================")
+          console.error(`[GallerySyncService] ❌ Error message: ${error?.message || "No message"}`)
+          console.error(`[GallerySyncService] ❌ Error code: ${error?.code || "No code"}`)
+          console.error(`[GallerySyncService] ❌ Error type: ${error?.name || typeof error}`)
+          console.error(`[GallerySyncService] ❌ Platform: ${Platform.OS}`)
+          console.error(`[GallerySyncService] ❌ Attempt duration: ${attemptDuration}ms`)
+          console.error(`[GallerySyncService] ❌ App was backgrounded: ${appBackgrounded}`)
+          if (appBackgrounded && appBackgroundTime) {
+            console.error(`[GallerySyncService] ❌ Time in background: ${Date.now() - appBackgroundTime}ms`)
+          }
+          console.error(`[GallerySyncService] ❌ Full error object:`, JSON.stringify(error, null, 2))
+
+          // If user explicitly denied, don't retry
+          if (error?.code === "userDenied" || error?.message?.includes("cancel")) {
+            console.warn("[GallerySyncService] 🚫 User cancelled WiFi connection - aborting")
+            appStateSubscription.remove()
+            store.setSyncError("WiFi connection cancelled")
+            if (store.syncServiceOpenedHotspot) {
+              await this.closeHotspot()
+            }
+            return
+          }
+
+          // Handle "didNotFindNetwork" - hotspot may still be initializing
+          if (error?.code === "didNotFindNetwork") {
+            console.warn("[GallerySyncService] 🔍 Network not found - hotspot may still be initializing")
+            console.warn(
+              `[GallerySyncService] 🔍 Will retry in ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (attempt ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES})`,
+            )
+          }
+
+          // Handle "timeoutOccurred" - likely caused by app backgrounding during WiFi dialog
+          if (error?.code === "timeoutOccurred") {
+            console.error("[GallerySyncService] ⏰ WiFi connection timeout occurred")
+            console.error(`[GallerySyncService] ⏰ App was backgrounded: ${appBackgrounded}`)
+            if (appBackgrounded && appBackgroundTime) {
+              console.error(`[GallerySyncService] ⏰ Time in background: ${Date.now() - appBackgroundTime}ms`)
+              console.error("[GallerySyncService] ⏰ Android may have shown WiFi dialog that user didn't interact with")
+            }
+            console.warn(
+              `[GallerySyncService] 🔍 Will retry in ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (attempt ${attempt}/${TIMING.IOS_WIFI_MAX_RETRIES})`,
+            )
+          }
+
+          // DISABLED: Check if WiFi was disabled during connection attempt (Android 10+ specific error)
+          // if (Platform.OS === "android" && error?.message?.includes("enable wifi manually")) {
+          //   console.error("[GallerySyncService] WiFi was disabled during connection")
+          //
+          //   // Mark that we're waiting for WiFi so we can auto-retry when user returns
+          //   this.waitingForWifiRetry = true
+          //
+          //   showAlert("WiFi Required", "WiFi must be enabled to sync photos. Please enable WiFi and try again.", [
+          //     {
+          //       text: "Cancel",
+          //       style: "cancel",
+          //       onPress: () => {
+          //         this.waitingForWifiRetry = false
+          //         this.wifiSettingsOpenedAt = null
+          //         store.setSyncError("WiFi disabled - enable WiFi and try again")
+          //         if (store.syncServiceOpenedHotspot) {
+          //           this.closeHotspot()
+          //         }
+          //       },
+          //     },
+          //     {
+          //       text: "Open Settings",
+          //       onPress: async () => {
+          //         // Set timestamp so we can enforce cooldown on next sync attempt
+          //         this.wifiSettingsOpenedAt = Date.now()
+          //         await SettingsNavigationUtils.openWifiSettings()
+          //         store.setSyncError("Enable WiFi and try sync again")
+          //         if (store.syncServiceOpenedHotspot) {
+          //           await this.closeHotspot()
+          //         }
+          //       },
+          //     },
+          //   ])
+          //   return
+          // }
+
+          // Let connection fail naturally and show generic error
+          if (Platform.OS === "android" && error?.message?.includes("enable wifi manually")) {
+            console.error("[GallerySyncService] 🚫 WiFi was disabled during connection - aborting")
+            appStateSubscription.remove()
+            store.setSyncError("Could not connect - check WiFi is enabled")
+            if (store.syncServiceOpenedHotspot) {
+              await this.closeHotspot()
+            }
+            return
+          }
+
+          // For "internal error" or "unableToConnect", wait and retry
+          // iOS: Gives user time to interact with system dialog
+          // Android: Gives hotspot time to fully initialize and start broadcasting
+          if (attempt < TIMING.IOS_WIFI_MAX_RETRIES) {
+            const reason =
+              Platform.OS === "ios" ? "user may be seeing system dialog" : "hotspot may still be initializing"
+            console.log("[GallerySyncService] ----------------------------------------")
+            console.log(`[GallerySyncService] 🔄 Preparing retry ${attempt + 1}/${TIMING.IOS_WIFI_MAX_RETRIES}`)
+            console.log(`[GallerySyncService] ⏱️ Waiting ${TIMING.IOS_WIFI_RETRY_DELAY_MS}ms (${reason})`)
+            console.log(`[GallerySyncService] 📱 App currently: ${AppState.currentState}`)
+            await new Promise((resolve) => BackgroundTimer.setTimeout(resolve, TIMING.IOS_WIFI_RETRY_DELAY_MS))
+            console.log(`[GallerySyncService] ⏱️ Wait complete - starting retry`)
+          } else {
+            console.error("[GallerySyncService] 🚫 No more retry attempts available")
+          }
         }
       }
-    }
 
-    // All retries exhausted
-    const totalWifiDuration = Date.now() - wifiConnectStartTime
+      // All retries exhausted
+      const totalWifiDuration = Date.now() - wifiConnectStartTime
 
-    console.error("[GallerySyncService] ❌ ========================================")
-    console.error("[GallerySyncService] ❌ WIFI CONNECTION FAILED - ALL RETRIES EXHAUSTED")
-    console.error("[GallerySyncService] ❌ ========================================")
-    console.error(`[GallerySyncService] ❌ Platform: ${Platform.OS}`)
-    console.error(`[GallerySyncService] ❌ Total attempts: ${TIMING.IOS_WIFI_MAX_RETRIES}`)
-    console.error(`[GallerySyncService] ❌ Total duration: ${totalWifiDuration}ms`)
-    console.error(`[GallerySyncService] ❌ App was backgrounded at some point: ${appBackgrounded}`)
-    console.error(`[GallerySyncService] ❌ Last error message: ${lastError?.message || "No message"}`)
-    console.error(`[GallerySyncService] ❌ Last error code: ${lastError?.code || "No code"}`)
-    console.error("[GallerySyncService] ❌ ========================================")
+      console.error("[GallerySyncService] ❌ ========================================")
+      console.error("[GallerySyncService] ❌ WIFI CONNECTION FAILED - ALL RETRIES EXHAUSTED")
+      console.error("[GallerySyncService] ❌ ========================================")
+      console.error(`[GallerySyncService] ❌ Platform: ${Platform.OS}`)
+      console.error(`[GallerySyncService] ❌ Total attempts: ${TIMING.IOS_WIFI_MAX_RETRIES}`)
+      console.error(`[GallerySyncService] ❌ Total duration: ${totalWifiDuration}ms`)
+      console.error(`[GallerySyncService] ❌ App was backgrounded at some point: ${appBackgrounded}`)
+      console.error(`[GallerySyncService] ❌ Last error message: ${lastError?.message || "No message"}`)
+      console.error(`[GallerySyncService] ❌ Last error code: ${lastError?.code || "No code"}`)
+      console.error("[GallerySyncService] ❌ ========================================")
 
-    // Provide user-friendly error message based on error type
-    let userErrorMessage = lastError?.message || "Failed to connect to glasses WiFi"
+      // Provide user-friendly error message based on error type
+      let userErrorMessage = lastError?.message || "Failed to connect to glasses WiFi"
 
-    if (lastError?.code === "timeoutOccurred" && appBackgrounded) {
-      userErrorMessage =
-        "WiFi connection timed out. Android may be blocking automatic WiFi switching. Please manually connect to the glasses hotspot in Settings."
-    } else if (lastError?.message?.includes("internal error")) {
-      userErrorMessage = "Could not connect to glasses WiFi. Please ensure you accept the WiFi prompt when it appears."
-    }
+      if (lastError?.code === "timeoutOccurred" && appBackgrounded) {
+        userErrorMessage =
+          "WiFi connection timed out. Android may be blocking automatic WiFi switching. Please manually connect to the glasses hotspot in Settings."
+      } else if (lastError?.message?.includes("internal error")) {
+        userErrorMessage =
+          "Could not connect to glasses WiFi. Please ensure you accept the WiFi prompt when it appears."
+      }
 
-    store.setSyncError(userErrorMessage)
+      store.setSyncError(userErrorMessage)
 
-    if (store.syncServiceOpenedHotspot) {
-      await this.closeHotspot()
-    }
-
+      if (store.syncServiceOpenedHotspot) {
+        await this.closeHotspot()
+      }
     } finally {
       // L2: Guarantee listener cleanup on all exit paths (cancel, success, error, exhaustion)
       appStateSubscription.remove()

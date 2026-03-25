@@ -191,7 +191,11 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
                   onPress={handleConnectOrDisconnect}>
                   <View className="flex-row items-center gap-2 flex-1">
                     <ActivityIndicator size="small" color={theme.colors.foreground} />
-                    <Text className="text-secondary-foreground" style={{fontSize: 14}} text={translate("common:cancel")} />
+                    <Text
+                      className="text-secondary-foreground"
+                      style={{fontSize: 14}}
+                      text={translate("common:cancel")}
+                    />
                   </View>
                 </Button>
               )}

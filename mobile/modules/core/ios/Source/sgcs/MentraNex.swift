@@ -18,6 +18,17 @@ extension Data {
     }
 }
 
+/// Nex firmware expects tier 1–3 in protobuf `DisplayDistanceConfig.distance_cm` (name is legacy, not cm).
+/// Keep in sync with `NexProtobufUtils.dashboardDepthToDistanceCm` (Android `NexSGCUtils.kt`).
+private enum NexDashboardDisplayWire {
+    static let depthMin = 1
+    static let depthMax = 3
+
+    static func depthToWireTier(_ depth: Int) -> UInt32 {
+        UInt32(min(max(depth, depthMin), depthMax))
+    }
+}
+
 @MainActor
 @objc(MentraNexSGC)
 class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SGCManager {
@@ -70,8 +81,18 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
     func showDashboard() {}
 
-    func setDashboardPosition(_ height: Int, _: Int) {
+    func setDashboardPosition(_ height: Int, _ depth: Int) {
+        // Same order as Android MentraNex: display_height then display_distance.
         updateGlassesDisplayHeight(height)
+        updateGlassesDisplayDistance(depth: depth)
+    }
+
+    func setDashboardHeightOnly(_ height: Int) {
+        updateGlassesDisplayHeight(height)
+    }
+
+    func setDashboardDepthOnly(_ depth: Int) {
+        updateGlassesDisplayDistance(depth: depth)
     }
 
     func setHeadUpAngle(_: Int) {}
@@ -1077,6 +1098,27 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
         let phoneToGlasses = Mentraos_Ble_PhoneToGlasses.with {
             $0.displayHeight = displayHeightConfig
+        }
+
+        let protobufData = try! phoneToGlasses.serializedData()
+        queueDataWithOptimalChunking(protobufData, packetType: PACKET_TYPE_PROTOBUF)
+    }
+
+    private func updateGlassesDisplayDistance(depth: Int) {
+        guard nexReady else {
+            Bridge.log("NEX: Not ready to update display distance. Device not initialized.")
+            return
+        }
+
+        let tier = NexDashboardDisplayWire.depthToWireTier(depth)
+        Bridge.log("NEX: Setting display distance tier \(tier) in distance_cm field (dashboard depth \(depth))")
+
+        let displayDistanceConfig = Mentraos_Ble_DisplayDistanceConfig.with {
+            $0.distanceCm = tier
+        }
+
+        let phoneToGlasses = Mentraos_Ble_PhoneToGlasses.with {
+            $0.displayDistance = displayDistanceConfig
         }
 
         let protobufData = try! phoneToGlasses.serializedData()

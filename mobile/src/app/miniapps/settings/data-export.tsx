@@ -237,10 +237,14 @@ export default function DataExportPage() {
     setCopying(true)
     try {
       Clipboard.setStringAsync(jsonString)
-      showAlert(translate("profileSettings:dataExportCopied"), translate("profileSettings:dataExportCopiedMessage"), [{text: translate("common:ok")}])
+      showAlert(translate("profileSettings:dataExportCopied"), translate("profileSettings:dataExportCopiedMessage"), [
+        {text: translate("common:ok")},
+      ])
     } catch (error) {
       console.error("DataExport: Error copying to clipboard:", error)
-      showAlert(translate("common:error"), translate("profileSettings:dataExportCopyError"), [{text: translate("common:ok")}])
+      showAlert(translate("common:error"), translate("profileSettings:dataExportCopyError"), [
+        {text: translate("common:ok")},
+      ])
     } finally {
       setCopying(false)
     }
@@ -263,7 +267,9 @@ export default function DataExportPage() {
       }
     } catch (error) {
       console.error("DataExport: Error sharing:", error)
-      showAlert(translate("common:error"), translate("profileSettings:dataExportShareError"), [{text: translate("common:ok")}])
+      showAlert(translate("common:error"), translate("profileSettings:dataExportShareError"), [
+        {text: translate("common:ok")},
+      ])
     } finally {
       setSharing(false)
     }
@@ -427,7 +433,6 @@ const $buttonContainer: ThemedStyle<ViewStyle> = ({spacing}) => ({
   flexDirection: "row",
   gap: spacing.s3,
 })
-
 
 const $previewContainer: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
   backgroundColor: colors.primary_foreground,

@@ -730,7 +730,9 @@ export class AsgCameraApiClient {
     abortSignal?: AbortSignal,
   ): Promise<{captureDir: string; primaryPath: string; bracketPaths: string[]; sidecarPath?: string}> {
     const captureDir = localStorageService.getPhotoFilePath(capture.capture_id)
-    console.log(`[ASG Camera API] downloadCapture: ${capture.capture_id} (${capture.files.length} files) -> ${captureDir}`)
+    console.log(
+      `[ASG Camera API] downloadCapture: ${capture.capture_id} (${capture.files.length} files) -> ${captureDir}`,
+    )
 
     // Ensure capture directory exists
     const dirExists = await RNFS.exists(captureDir)
@@ -771,7 +773,7 @@ export class AsgCameraApiClient {
           fromUrl: downloadUrl,
           toFile: localFilePath,
           headers: {
-            Accept: "*/*",
+            "Accept": "*/*",
             "User-Agent": "MentraOS-Mobile/1.0",
           },
           connectionTimeout: 300000,

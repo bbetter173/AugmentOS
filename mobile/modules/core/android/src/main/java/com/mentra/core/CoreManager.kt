@@ -147,7 +147,7 @@ class CoreManager {
         set(value) = GlassesStore.apply("core", "dashboard_height", value)
 
     private var dashboardDepth: Int
-        get() = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 5
+        get() = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
         set(value) = GlassesStore.apply("core", "dashboard_depth", value)
 
     private var galleryMode: Boolean

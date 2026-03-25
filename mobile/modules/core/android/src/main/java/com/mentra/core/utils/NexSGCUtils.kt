@@ -19,6 +19,7 @@ import mentraos.ble.MentraosBle.MicStateConfig
 import mentraos.ble.MentraosBle.BrightnessConfig
 import mentraos.ble.MentraosBle.AutoBrightnessConfig
 import mentraos.ble.MentraosBle.HeadUpAngleConfig
+import mentraos.ble.MentraosBle.DisplayDistanceConfig
 import mentraos.ble.MentraosBle.DisplayHeightConfig
 import mentraos.ble.MentraosBle.VersionRequest
 
@@ -41,6 +42,21 @@ object NexDisplayConstants {
     const val OLD_FONT_SIZE: Int = 21 // Font size
     const val FONT_DIVIDER: Float = 2.0f
     const val LINES_PER_SCREEN: Int = 5 // Lines per screen
+
+    /** Matches dashboard depth slider in app settings (1-3); values outside range clamp. */
+    const val DASHBOARD_DEPTH_MIN: Int = 1
+    const val DASHBOARD_DEPTH_MAX: Int = 3
+
+    /**
+     * Virtual projection distance for [DisplayDistanceConfig]; linear map from dashboard depth.
+     * Confirm with Nex firmware (spec example ~50 cm).
+     */
+    const val NEX_DISPLAY_DISTANCE_CM_MIN: Int = 35
+    const val NEX_DISPLAY_DISTANCE_CM_MAX: Int = 65
+
+    /** Wire-safe bounds for [distance_cm] on the wire. */
+    const val NEX_DISTANCE_CM_WIRE_MIN: Int = 10
+    const val NEX_DISTANCE_CM_WIRE_MAX: Int = 500
 }
 
 object NexBluetoothPacketTypes {
@@ -54,6 +70,19 @@ object NexProtobufUtils {
     private const val TAG = "NexProtobufUtils"
 
     private const val WHITELIST_CMD: Int = 0x04
+
+    /** Maps persisted dashboard depth (1-3) to BLE [distance_cm]; keep in sync with iOS MentraNex. */
+    fun dashboardDepthToDistanceCm(depth: Int): Int {
+        val d = depth.coerceIn(
+            NexDisplayConstants.DASHBOARD_DEPTH_MIN,
+            NexDisplayConstants.DASHBOARD_DEPTH_MAX
+        )
+        val spanCm = NexDisplayConstants.NEX_DISPLAY_DISTANCE_CM_MAX - NexDisplayConstants.NEX_DISPLAY_DISTANCE_CM_MIN
+        val spanDepth =
+            NexDisplayConstants.DASHBOARD_DEPTH_MAX - NexDisplayConstants.DASHBOARD_DEPTH_MIN
+        return NexDisplayConstants.NEX_DISPLAY_DISTANCE_CM_MIN +
+            (d - NexDisplayConstants.DASHBOARD_DEPTH_MIN) * spanCm / spanDepth
+    }
 
     data class AppInfo(
         val id: String,
@@ -269,23 +298,42 @@ object NexProtobufUtils {
         return generateProtobufCommandBytes(phoneToGlasses)
     }
 
-    fun generateDisplayHeightCommandBytes(height: Int, depth: Int): ByteArray {
-        // clamp height to 0-8 and depth to 1-9
+    fun generateDisplayHeightCommandBytes(height: Int): ByteArray {
         val clampedHeight = height.coerceIn(0, 8)
-        val clampedDepth = depth.coerceIn(1, 9)
 
-        Bridge.log("Nex: === SENDING DASHBOARD POSITION COMMAND TO GLASSES ===")
-        Bridge.log("Nex: Dashboard Position - Height: $clampedHeight (0-8), Depth: $clampedDepth (1-9)")
+        Bridge.log("Nex: === SENDING DISPLAY HEIGHT COMMAND TO GLASSES ===")
+        Bridge.log("Nex: Display height: $clampedHeight (0-8)")
         val displayHeightConfig = DisplayHeightConfig.newBuilder()
             .setHeight(clampedHeight)
             .build()
-        
+
         val phoneToGlasses = PhoneToGlasses.newBuilder()
             .setDisplayHeight(displayHeightConfig)
             .build()
-        
-        Bridge.log("Nex: Sent dashboard height/depth command => Height: $clampedHeight, Depth: $clampedDepth")
-        
+
+        Bridge.log("Nex: Sent display height command => Height: $clampedHeight")
+
+        return generateProtobufCommandBytes(phoneToGlasses)
+    }
+
+    fun generateDisplayDistanceCommandBytes(distanceCm: Int): ByteArray {
+        val clamped = distanceCm.coerceIn(
+            NexDisplayConstants.NEX_DISTANCE_CM_WIRE_MIN,
+            NexDisplayConstants.NEX_DISTANCE_CM_WIRE_MAX
+        )
+        Bridge.log("Nex: === SENDING DISPLAY DISTANCE COMMAND TO GLASSES ===")
+        Bridge.log("Nex: Display distance_cm: $clamped")
+
+        val displayDistanceConfig = DisplayDistanceConfig.newBuilder()
+            .setDistanceCm(clamped)
+            .build()
+
+        val phoneToGlasses = PhoneToGlasses.newBuilder()
+            .setDisplayDistance(displayDistanceConfig)
+            .build()
+
+        Bridge.log("Nex: Sent display distance command => distance_cm: $clamped")
+
         return generateProtobufCommandBytes(phoneToGlasses)
     }
 

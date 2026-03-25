@@ -12,6 +12,9 @@ class GlassesStore {
     static let shared = GlassesStore()
     let store = ObservableStore()
 
+    private var dashboardHeightDebounceTask: Task<Void, Never>?
+    private var dashboardDepthDebounceTask: Task<Void, Never>?
+
     private init() {
         // SETTINGS are snake_case
         // CORE STATE is camelCase
@@ -72,7 +75,7 @@ class GlassesStore {
         store.set("core", "brightness", 50)
         store.set("core", "auto_brightness", true)
         store.set("core", "dashboard_height", 4)
-        store.set("core", "dashboard_depth", 5)
+        store.set("core", "dashboard_depth", 2)
         store.set("core", "head_up_angle", 30)
         store.set("core", "contextual_dashboard", true)
         store.set("core", "gallery_mode", false)
@@ -101,6 +104,24 @@ class GlassesStore {
 
     func set(_ category: String, _ key: String, _ value: Any) {
         store.set(category, key, value)
+    }
+
+    private func scheduleDashboardHeightToGlasses() {
+        dashboardHeightDebounceTask?.cancel()
+        dashboardHeightDebounceTask = Task { @MainActor in
+            try? await Task.yield()
+            let h = store.get("core", "dashboard_height") as? Int ?? 4
+            CoreManager.shared.sgc?.setDashboardHeightOnly(h)
+        }
+    }
+
+    private func scheduleDashboardDepthToGlasses() {
+        dashboardDepthDebounceTask?.cancel()
+        dashboardDepthDebounceTask = Task { @MainActor in
+            try? await Task.yield()
+            let d = store.get("core", "dashboard_depth") as? Int ?? 2
+            CoreManager.shared.sgc?.setDashboardDepthOnly(d)
+        }
     }
 
     // Apply changes with side effects
@@ -172,10 +193,11 @@ class GlassesStore {
                 }
             }
 
-        case ("core", "dashboard_height"), ("core", "dashboard_depth"):
-            let h = store.get("core", "dashboard_height") as? Int ?? 4
-            let d = store.get("core", "dashboard_depth") as? Int ?? 5
-            Task { await CoreManager.shared.sgc?.setDashboardPosition(h, d) }
+        case ("core", "dashboard_height"):
+            scheduleDashboardHeightToGlasses()
+
+        case ("core", "dashboard_depth"):
+            scheduleDashboardDepthToGlasses()
 
         case ("core", "head_up_angle"):
             if let angle = value as? Int {

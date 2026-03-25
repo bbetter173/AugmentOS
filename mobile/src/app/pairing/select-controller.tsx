@@ -78,23 +78,22 @@ export default function SelectControllerScreen() {
       <Spacer className="h-4" />
       <ScrollView className="-mr-4 pr-4 pt-6">
         <View className="flex-col gap-4 pb-8">
-          {controllerOptions
-            .map((controller) => (
-              <TouchableOpacity key={controller.key} onPress={() => triggerGlassesPairingGuide(controller.deviceModel)}>
-                <GlassView className="bg-primary-foreground flex-col items-center justify-center h-[190px] rounded-2xl overflow-hidden">
-                  <View className="flex-col items-center justify-center gap-3 w-full">
-                    <View className="items-center justify-center min-h-6">
-                      {getManufacturerLogo(controller.deviceModel)}
-                    </View>
-                    <Image
-                      source={getGlassesImage(controller.deviceModel)}
-                      className="w-[180px] max-h-[80px] object-contain"
-                    />
-                    <Text className="text-[16px] text-foreground" text={controller.deviceModel} />
+          {controllerOptions.map((controller) => (
+            <TouchableOpacity key={controller.key} onPress={() => triggerGlassesPairingGuide(controller.deviceModel)}>
+              <GlassView className="bg-primary-foreground flex-col items-center justify-center h-[190px] rounded-2xl overflow-hidden">
+                <View className="flex-col items-center justify-center gap-3 w-full">
+                  <View className="items-center justify-center min-h-6">
+                    {getManufacturerLogo(controller.deviceModel)}
                   </View>
-                </GlassView>
-              </TouchableOpacity>
-            ))}
+                  <Image
+                    source={getGlassesImage(controller.deviceModel)}
+                    className="w-[180px] max-h-[80px] object-contain"
+                  />
+                  <Text className="text-[16px] text-foreground" text={controller.deviceModel} />
+                </View>
+              </GlassView>
+            </TouchableOpacity>
+          ))}
           <Spacer height={theme.spacing.s4} />
         </View>
       </ScrollView>

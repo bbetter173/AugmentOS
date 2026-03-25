@@ -223,6 +223,13 @@ export type OtaStartAckEvent = {
   timestamp: number
 }
 
+/** Nex BLE protobuf trace (NexEventUtils); payload matches native Map keys. */
+export type BleCommandTraceEvent = {
+  command: string
+  commandText: string
+  timestamp: number
+}
+
 // Union type of all core events
 export type CoreEvent = Parameters<CoreModuleEvents[keyof CoreModuleEvents]>[0]
 
@@ -264,6 +271,8 @@ export type CoreModuleEvents = {
   ota_update_available: (event: OtaUpdateAvailableEvent) => void
   ota_progress: (event: OtaProgressEvent) => void
   ota_start_ack: (event: OtaStartAckEvent) => void
+  send_command_to_ble: (event: BleCommandTraceEvent) => void
+  receive_command_from_ble: (event: BleCommandTraceEvent) => void
 }
 
 export type GlassesConnectionState = "disconnected" | "connected" | "connecting"

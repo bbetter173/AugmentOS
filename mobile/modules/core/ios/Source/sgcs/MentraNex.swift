@@ -18,6 +18,24 @@ extension Data {
     }
 }
 
+/// Dashboard depth → BLE `distance_cm`; keep in sync with `NexDisplayConstants` / `NexProtobufUtils.dashboardDepthToDistanceCm` (Android `NexSGCUtils.kt`).
+private enum NexDashboardDisplayWire {
+    static let depthMin = 1
+    static let depthMax = 3
+    static let distanceCmMin = 35
+    static let distanceCmMax = 65
+    static let wireDistanceCmMin = 10
+    static let wireDistanceCmMax = 500
+
+    static func depthToDistanceCm(_ depth: Int) -> UInt32 {
+        let d = min(max(depth, depthMin), depthMax)
+        let spanCm = distanceCmMax - distanceCmMin
+        let spanDepth = depthMax - depthMin
+        let v = distanceCmMin + (d - depthMin) * spanCm / spanDepth
+        return UInt32(min(max(v, wireDistanceCmMin), wireDistanceCmMax))
+    }
+}
+
 @MainActor
 @objc(MentraNexSGC)
 class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SGCManager {
@@ -70,8 +88,18 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
     func showDashboard() {}
 
-    func setDashboardPosition(_ height: Int, _: Int) {
+    func setDashboardPosition(_ height: Int, _ depth: Int) {
+        // Same order as Android MentraNex: display_height then display_distance.
         updateGlassesDisplayHeight(height)
+        updateGlassesDisplayDistance(depth: depth)
+    }
+
+    func setDashboardHeightOnly(_ height: Int) {
+        updateGlassesDisplayHeight(height)
+    }
+
+    func setDashboardDepthOnly(_ depth: Int) {
+        updateGlassesDisplayDistance(depth: depth)
     }
 
     func setHeadUpAngle(_: Int) {}
@@ -1077,6 +1105,27 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
         let phoneToGlasses = Mentraos_Ble_PhoneToGlasses.with {
             $0.displayHeight = displayHeightConfig
+        }
+
+        let protobufData = try! phoneToGlasses.serializedData()
+        queueDataWithOptimalChunking(protobufData, packetType: PACKET_TYPE_PROTOBUF)
+    }
+
+    private func updateGlassesDisplayDistance(depth: Int) {
+        guard nexReady else {
+            Bridge.log("NEX: Not ready to update display distance. Device not initialized.")
+            return
+        }
+
+        let distanceCm = NexDashboardDisplayWire.depthToDistanceCm(depth)
+        Bridge.log("NEX: Setting display distance_cm to \(distanceCm) (dashboard depth \(depth))")
+
+        let displayDistanceConfig = Mentraos_Ble_DisplayDistanceConfig.with {
+            $0.distanceCm = distanceCm
+        }
+
+        let phoneToGlasses = Mentraos_Ble_PhoneToGlasses.with {
+            $0.displayDistance = displayDistanceConfig
         }
 
         let protobufData = try! phoneToGlasses.serializedData()

@@ -32,8 +32,11 @@ import {
   detectSttModel,
   getOnlineTypeOrNull,
   type SttRecognitionResult,
+  StreamingSttEngine,
+  SttStream,
+  SttEngine,
+  STTModelType,
 } from "react-native-sherpa-onnx/stt"
-import type {StreamingSttEngine, SttStream} from "react-native-sherpa-onnx/stt"
 
 /**
  * Persists STT/TTS engine instances and UI state across screen navigation.
@@ -47,10 +50,20 @@ import type {StreamingSttEngine, SttStream} from "react-native-sherpa-onnx/stt"
  * 'background' or before reloading the bundle) to free native resources.
  */
 
-import type {SttEngine} from "react-native-sherpa-onnx/stt"
-import type {TtsEngine} from "react-native-sherpa-onnx/tts"
-import type {STTModelType} from "react-native-sherpa-onnx/stt"
-import type {TTSModelType} from "react-native-sherpa-onnx/tts"
+import type {TtsEngine, TTSModelType} from "react-native-sherpa-onnx/tts"
+// import {getAudioFilesForModel, type AudioFileInfo} from "../../audioConfig"
+// import { Ionicons } from '@react-native-vector-icons/ionicons';
+import {createPcmLiveStream, type PcmLiveStreamHandle} from "react-native-sherpa-onnx/audio"
+
+/**
+ * Model configuration helpers for the example app.
+ * This is app-specific and not part of the library.
+ *
+ * These helpers work with any model name - use listAssetModels() to discover
+ * available models dynamically instead of hardcoding model names.
+ */
+
+import {assetModelPath, fileModelPath, getDefaultModelPath, type ModelPathConfig} from "react-native-sherpa-onnx"
 
 // --- STT cache ---
 
@@ -281,9 +294,6 @@ export function getAudioFilesForModel(modelId: string): AudioFileInfo[] {
   // Default: return Chinese files (for other models)
   return AUDIO_FILES.filter((file) => file.language === "zh")
 }
-// import {getAudioFilesForModel, type AudioFileInfo} from "../../audioConfig"
-// import { Ionicons } from '@react-native-vector-icons/ionicons';
-import {createPcmLiveStream, type PcmLiveStreamHandle} from "react-native-sherpa-onnx/audio"
 
 // import { ModelCategory } from 'react-native-sherpa-onnx/download';
 
@@ -314,16 +324,6 @@ export const RECOMMENDED_MODEL_IDS: Record<string, string[]> = {
   ],
   [ModelCategory.Qnn]: [],
 }
-
-/**
- * Model configuration helpers for the example app.
- * This is app-specific and not part of the library.
- *
- * These helpers work with any model name - use listAssetModels() to discover
- * available models dynamically instead of hardcoding model names.
- */
-
-import {assetModelPath, fileModelPath, getDefaultModelPath, type ModelPathConfig} from "react-native-sherpa-onnx"
 
 const titleCase = (value: string) => (value.length > 0 ? value[0]!.toUpperCase() + value.slice(1) : value)
 
@@ -388,8 +388,8 @@ export function getFileModelPath(modelName: string, category?: ModelCategory, ba
   const resolvedBase = basePath
     ? basePath.replace(/\/+$/, "")
     : category
-    ? `${DocumentDirectoryPath}/sherpa-onnx/models/${category}`
-    : getDefaultModelPath()
+      ? `${DocumentDirectoryPath}/sherpa-onnx/models/${category}`
+      : getDefaultModelPath()
   const path = `${resolvedBase}/${modelName}`.replace(/\/+/g, "/")
   return fileModelPath(path)
 }
@@ -1094,562 +1094,560 @@ export default function SherpaTest() {
   const availableAudioFiles = currentModelFolder ? getAudioFilesForModel(currentModelFolder) : []
 
   return (
-      <View className="flex-1 absolute inset-0 bg-white z-10 pt-30">
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="p-4 pb-10"
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
-          {currentModelFolder != null && (
-            <TouchableOpacity
-              className="bg-red-50 border border-red-300 rounded-lg py-2 px-4 mb-4 self-start"
-              onPress={handleFree}
-              disabled={loading}>
-              <Text className="text-red-600 font-medium">Release model</Text>
-            </TouchableOpacity>
+    <View className="flex-1 absolute inset-0 bg-white z-10 pt-30">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="p-4 pb-10"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled">
+        {currentModelFolder != null && (
+          <TouchableOpacity
+            className="bg-red-50 border border-red-300 rounded-lg py-2 px-4 mb-4 self-start"
+            onPress={handleFree}
+            disabled={loading}>
+            <Text className="text-red-600 font-medium">Release model</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Section 1: Initialize Model */}
+        <View className="mb-6">
+          <Text className="text-lg font-bold text-gray-900 mb-1">1. Initialize Model</Text>
+          <Text className="text-sm text-gray-500 mb-3">Select a model, then tap "Use model".</Text>
+
+          {(currentModelFolder || selectedModelForInit) && (
+            <View className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">
+              <Text className="text-green-800 text-sm font-medium">
+                {currentModelFolder
+                  ? `Initialized: ${getModelDisplayName(currentModelFolder)}`
+                  : `Selected: ${selectedModelForInit ? getModelDisplayName(selectedModelForInit) : ""}`}
+              </Text>
+            </View>
           )}
 
-          {/* Section 1: Initialize Model */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-1">1. Initialize Model</Text>
-            <Text className="text-sm text-gray-500 mb-3">Select a model, then tap "Use model".</Text>
-
-            {(currentModelFolder || selectedModelForInit) && (
-              <View className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">
-                <Text className="text-green-800 text-sm font-medium">
-                  {currentModelFolder
-                    ? `Initialized: ${getModelDisplayName(currentModelFolder)}`
-                    : `Selected: ${selectedModelForInit ? getModelDisplayName(selectedModelForInit) : ""}`}
-                </Text>
-              </View>
-            )}
-
-            {loadingModels ? (
-              <View className="items-center py-8">
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text className="text-gray-500 mt-3">Discovering available models...</Text>
-              </View>
-            ) : availableModels.length === 0 ? (
-              <View className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
-                <Text className="text-yellow-800 text-sm">
-                  No models found in assets/models/ folder. Please add STT models first. See STT_MODEL_SETUP.md for
-                  details.
-                </Text>
-              </View>
-            ) : (
-              <View className="flex-row flex-wrap gap-2">
-                {availableModels.map((modelFolder) => {
-                  const isSelected = selectedModelForInit === modelFolder
-                  const isInitialized = currentModelFolder === modelFolder
-                  return (
-                    <TouchableOpacity
-                      key={modelFolder}
-                      className={`border rounded-lg p-3 min-w-[140px] flex-1 ${
-                        isInitialized
-                          ? "bg-green-50 border-green-400"
-                          : isSelected
+          {loadingModels ? (
+            <View className="items-center py-8">
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text className="text-gray-500 mt-3">Discovering available models...</Text>
+            </View>
+          ) : availableModels.length === 0 ? (
+            <View className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+              <Text className="text-yellow-800 text-sm">
+                No models found in assets/models/ folder. Please add STT models first. See STT_MODEL_SETUP.md for
+                details.
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-row flex-wrap gap-2">
+              {availableModels.map((modelFolder) => {
+                const isSelected = selectedModelForInit === modelFolder
+                const isInitialized = currentModelFolder === modelFolder
+                return (
+                  <TouchableOpacity
+                    key={modelFolder}
+                    className={`border rounded-lg p-3 min-w-[140px] flex-1 ${
+                      isInitialized
+                        ? "bg-green-50 border-green-400"
+                        : isSelected
                           ? "bg-blue-50 border-blue-400"
                           : "bg-white border-gray-200"
-                      } ${loading ? "opacity-50" : ""}`}
-                      onPress={() => setSelectedModelForInit(modelFolder)}
-                      disabled={loading}>
-                      <Text className={`font-semibold text-sm ${isSelected ? "text-blue-700" : "text-gray-800"}`}>
-                        {getModelDisplayName(modelFolder)}
-                      </Text>
-                      {(() => {
-                        const sizeHintInfo = getSizeHint(modelFolder)
-                        const qualityHintInfo = getQualityHint(modelFolder)
-                        return (
-                          <View className="flex-row gap-3 mt-1">
-                            <View className="flex-row items-center gap-1">
-                              <Text style={{color: sizeHintInfo.iconColor}} className="text-xs">
-                                ●
-                              </Text>
-                              <Text className="text-xs text-gray-500">{sizeHintInfo.tier}</Text>
-                            </View>
-                            <View className="flex-row items-center gap-1">
-                              <Text style={{color: qualityHintInfo.iconColor}} className="text-xs">
-                                ★
-                              </Text>
-                              <Text className="text-xs text-gray-500">{qualityHintInfo.text.split(",")[0]}</Text>
-                            </View>
+                    } ${loading ? "opacity-50" : ""}`}
+                    onPress={() => setSelectedModelForInit(modelFolder)}
+                    disabled={loading}>
+                    <Text className={`font-semibold text-sm ${isSelected ? "text-blue-700" : "text-gray-800"}`}>
+                      {getModelDisplayName(modelFolder)}
+                    </Text>
+                    {(() => {
+                      const sizeHintInfo = getSizeHint(modelFolder)
+                      const qualityHintInfo = getQualityHint(modelFolder)
+                      return (
+                        <View className="flex-row gap-3 mt-1">
+                          <View className="flex-row items-center gap-1">
+                            <Text style={{color: sizeHintInfo.iconColor}} className="text-xs">
+                              ●
+                            </Text>
+                            <Text className="text-xs text-gray-500">{sizeHintInfo.tier}</Text>
                           </View>
-                        )
-                      })()}
-                      <Text className="text-xs text-gray-400 mt-1">{modelFolder}</Text>
-                    </TouchableOpacity>
-                  )
-                })}
+                          <View className="flex-row items-center gap-1">
+                            <Text style={{color: qualityHintInfo.iconColor}} className="text-xs">
+                              ★
+                            </Text>
+                            <Text className="text-xs text-gray-500">{qualityHintInfo.text.split(",")[0]}</Text>
+                          </View>
+                        </View>
+                      )
+                    })()}
+                    <Text className="text-xs text-gray-400 mt-1">{modelFolder}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          )}
+
+          <TouchableOpacity
+            className={`bg-blue-600 rounded-lg py-3 px-4 mt-4 items-center ${
+              loading || (!selectedModelForInit && !currentModelFolder) ? "opacity-50" : ""
+            }`}
+            onPress={() => handleInitialize(selectedModelForInit ?? currentModelFolder ?? "")}
+            disabled={loading || (!selectedModelForInit && !currentModelFolder)}>
+            {loading ? (
+              <View className="flex-row items-center gap-2">
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text className="text-white font-semibold">Initializing…</Text>
               </View>
+            ) : (
+              <Text className="text-white font-semibold">Use model</Text>
             )}
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              className={`bg-blue-600 rounded-lg py-3 px-4 mt-4 items-center ${
-                loading || (!selectedModelForInit && !currentModelFolder) ? "opacity-50" : ""
-              }`}
-              onPress={() => handleInitialize(selectedModelForInit ?? currentModelFolder ?? "")}
-              disabled={loading || (!selectedModelForInit && !currentModelFolder)}>
-              {loading ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text className="text-white font-semibold">Initializing…</Text>
-                </View>
-              ) : (
-                <Text className="text-white font-semibold">Use model</Text>
-              )}
-            </TouchableOpacity>
+          {initResult && !(error && errorSource === "init") && (
+            <View className="bg-gray-50 rounded-lg p-3 mt-3">
+              <Text className="text-xs font-semibold text-gray-500 mb-1">Result:</Text>
+              <Text className="text-sm text-gray-800">{initResult}</Text>
+            </View>
+          )}
 
-            {initResult && !(error && errorSource === "init") && (
-              <View className="bg-gray-50 rounded-lg p-3 mt-3">
-                <Text className="text-xs font-semibold text-gray-500 mb-1">Result:</Text>
-                <Text className="text-sm text-gray-800">{initResult}</Text>
-              </View>
-            )}
+          {error && errorSource === "init" && (
+            <View className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
+              <Text className="text-xs font-semibold text-red-500 mb-1">Error:</Text>
+              <Text className="text-sm text-red-700">{error}</Text>
+            </View>
+          )}
+        </View>
 
-            {error && errorSource === "init" && (
-              <View className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
-                <Text className="text-xs font-semibold text-red-500 mb-1">Error:</Text>
-                <Text className="text-sm text-red-700">{error}</Text>
+        {/* Section 2: Select Model Type (if multiple detected) */}
+        {detectedModels.length > 1 && (
+          <View className="mb-6">
+            <Text className="text-lg font-bold text-gray-900 mb-1">2. Select Model Type</Text>
+            <Text className="text-sm text-gray-500 mb-3">
+              Multiple model types were detected. Select which one to use for transcription.
+            </Text>
+
+            <View className="gap-2">
+              {detectedModels.map((model, index) => (
+                <TouchableOpacity
+                  key={`${model.type}-${index}`}
+                  className={`border rounded-lg p-3 ${
+                    selectedModelType === model.type ? "bg-blue-50 border-blue-400" : "bg-white border-gray-200"
+                  }`}
+                  onPress={() => setSelectedModelType(model.type)}>
+                  <Text
+                    className={`font-bold text-sm ${
+                      selectedModelType === model.type ? "text-blue-700" : "text-gray-800"
+                    }`}>
+                    {model.type.toUpperCase()}
+                  </Text>
+                  <Text className="text-xs text-gray-400 mt-1">
+                    {getModelDisplayName(model.modelDir.replace(/^.*[/\\]/, "") || model.modelDir)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {!selectedModelType && (
+              <View className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mt-3">
+                <Text className="text-yellow-800 text-sm">Please select a model type above</Text>
               </View>
             )}
           </View>
+        )}
 
-          {/* Section 2: Select Model Type (if multiple detected) */}
-          {detectedModels.length > 1 && (
-            <View className="mb-6">
-              <Text className="text-lg font-bold text-gray-900 mb-1">2. Select Model Type</Text>
-              <Text className="text-sm text-gray-500 mb-3">
-                Multiple model types were detected. Select which one to use for transcription.
+        {/* Section: Transcribe Audio */}
+        <View className="mb-6">
+          <Text className="text-lg font-bold text-gray-900 mb-1">
+            {detectedModels.length > 1 ? "3. Transcribe Audio" : "2. Transcribe Audio"}
+          </Text>
+          <Text className="text-sm text-gray-500 mb-3">
+            Select an audio source and transcribe it using the selected model.
+          </Text>
+
+          {!selectedModelType && (
+            <View className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+              <Text className="text-yellow-800 text-sm">
+                {!currentModelFolder ? "Please initialize a model directory first" : "Please select a model type first"}
               </Text>
+            </View>
+          )}
 
+          {/* Audio source chooser */}
+          {selectedModelType && !audioSourceType && (
+            <>
+              <Text className="font-semibold text-gray-700 mb-2">Choose Audio Source:</Text>
+              <View className="flex-row gap-2">
+                <TouchableOpacity
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-3 items-center"
+                  onPress={() => setAudioSourceType("example")}>
+                  <Text className="text-lg mb-1">📁</Text>
+                  <Text className="text-sm font-medium text-gray-700 text-center">Example Audio</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-3 items-center"
+                  onPress={() => setAudioSourceType("own")}>
+                  <Text className="text-lg mb-1">🎵</Text>
+                  <Text className="text-sm font-medium text-gray-700 text-center">Your Own Audio</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className={`flex-1 border rounded-lg p-3 items-center ${
+                    isLiveSupported ? "bg-gray-50 border-gray-200" : "bg-gray-100 border-gray-100 opacity-50"
+                  }`}
+                  onPress={() => {
+                    if (isLiveSupported) setAudioSourceType("live")
+                    else showLiveNotSupportedMessage()
+                  }}>
+                  <Text className="text-lg mb-1">🎤</Text>
+                  <Text className="text-sm font-medium text-gray-700 text-center">Live Transcription</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* Example audio */}
+          {selectedModelType && audioSourceType === "example" && availableAudioFiles.length > 0 && (
+            <>
+              <Text className="font-semibold text-gray-700 mb-2">Select Audio File:</Text>
               <View className="gap-2">
-                {detectedModels.map((model, index) => (
+                {availableAudioFiles.map((audioFile: any) => (
                   <TouchableOpacity
-                    key={`${model.type}-${index}`}
+                    key={audioFile.id}
                     className={`border rounded-lg p-3 ${
-                      selectedModelType === model.type ? "bg-blue-50 border-blue-400" : "bg-white border-gray-200"
+                      selectedAudio?.id === audioFile.id ? "bg-blue-50 border-blue-400" : "bg-white border-gray-200"
                     }`}
-                    onPress={() => setSelectedModelType(model.type)}>
+                    onPress={() => setSelectedAudio(audioFile)}>
                     <Text
-                      className={`font-bold text-sm ${
-                        selectedModelType === model.type ? "text-blue-700" : "text-gray-800"
+                      className={`font-semibold text-sm ${
+                        selectedAudio?.id === audioFile.id ? "text-blue-700" : "text-gray-800"
                       }`}>
-                      {model.type.toUpperCase()}
+                      {audioFile.name}
                     </Text>
-                    <Text className="text-xs text-gray-400 mt-1">
-                      {getModelDisplayName(model.modelDir.replace(/^.*[/\\]/, "") || model.modelDir)}
-                    </Text>
+                    <Text className="text-xs text-gray-500 mt-1">{audioFile.description}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {!selectedModelType && (
-                <View className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mt-3">
-                  <Text className="text-yellow-800 text-sm">Please select a model type above</Text>
+              {selectedAudio && (
+                <TouchableOpacity
+                  className={`bg-blue-600 rounded-lg py-3 px-4 mt-3 items-center ${
+                    transcribing || loading ? "opacity-50" : ""
+                  }`}
+                  onPress={handleTranscribe}
+                  disabled={transcribing || loading}>
+                  {transcribing ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="text-white font-semibold">Transcribe Audio</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                className="mt-4 py-2"
+                onPress={() => {
+                  setAudioSourceType(null)
+                  setSelectedAudio(null)
+                  setTranscriptionResult(null)
+                }}>
+                <Text className="text-blue-600 text-sm">← Change Audio Source</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Own audio */}
+          {selectedModelType && audioSourceType === "own" && (
+            <>
+              <Text className="font-semibold text-gray-700 mb-2">Select Local WAV File:</Text>
+              <TouchableOpacity
+                className={`bg-blue-600 rounded-lg py-3 px-4 items-center flex-row justify-center gap-2 ${
+                  loading ? "opacity-50" : ""
+                }`}
+                onPress={handlePickLocalFile}
+                disabled={loading}>
+                <Text className="text-white">📂</Text>
+                <Text className="text-white font-semibold">Choose Local WAV</Text>
+              </TouchableOpacity>
+
+              {customAudioName && (
+                <View className="bg-gray-50 rounded-lg p-3 mt-3">
+                  <Text className="text-xs text-gray-500">Selected file:</Text>
+                  <Text className="text-sm font-medium text-gray-800 mt-1">{customAudioName}</Text>
+                  <TouchableOpacity className="flex-row items-center gap-1 mt-2" onPress={handlePlayAudio}>
+                    <Text>▶️</Text>
+                    <Text className="text-blue-600 text-sm font-medium">Play Audio</Text>
+                  </TouchableOpacity>
                 </View>
               )}
+
+              {customAudioPath && (
+                <TouchableOpacity
+                  className={`bg-blue-600 rounded-lg py-3 px-4 mt-3 items-center ${
+                    transcribing || loading ? "opacity-50" : ""
+                  }`}
+                  onPress={handleTranscribe}
+                  disabled={transcribing || loading}>
+                  {transcribing ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="text-white font-semibold">Transcribe Audio</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                className="mt-4 py-2"
+                onPress={() => {
+                  setAudioSourceType(null)
+                  setCustomAudioPath(null)
+                  setCustomAudioName(null)
+                  setTranscriptionResult(null)
+                  if (soundPlayer) {
+                    soundPlayer.stop()
+                    soundPlayer.release()
+                    setSoundPlayer(null)
+                  }
+                }}>
+                <Text className="text-blue-600 text-sm">← Change Audio Source</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Live transcription */}
+          {selectedModelType && audioSourceType === "live" && (
+            <>
+              <Text className="font-semibold text-gray-700 mb-1">Live Transcription</Text>
+              <Text className="text-xs text-gray-400 mb-4">Input: Default</Text>
+              <View className="items-center">
+                <Pressable
+                  className={`w-24 h-24 rounded-full items-center justify-center ${
+                    isLiveRecording ? "bg-red-500" : "bg-blue-600"
+                  }`}
+                  onPressIn={handleLivePressIn}
+                  onPressOut={handleLivePressOut}>
+                  <Text className="text-white text-4xl">🎤</Text>
+                </Pressable>
+              </View>
+              <Text className="text-xs text-gray-500 text-center mt-3">
+                Hold the button and speak. Release to see the final result.
+              </Text>
+              <TouchableOpacity
+                className="mt-4 py-2"
+                onPress={() => {
+                  if (isLiveRecording) return
+                  setAudioSourceType(null)
+                  setTranscriptionResult(null)
+                }}
+                disabled={isLiveRecording}>
+                <Text className="text-blue-600 text-sm">← Change Audio Source</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Transcription results */}
+          {selectedModelType &&
+            (audioSourceType === "example" || audioSourceType === "own" || audioSourceType === "live") &&
+            (audioSourceType === "live" || transcriptionResult) && (
+              <View
+                className={`bg-green-50 border border-green-200 rounded-lg p-4 mt-4 ${
+                  audioSourceType === "live" ? "min-h-[120px]" : ""
+                }`}>
+                {transcriptionResult ? (
+                  <>
+                    <View className="flex-row justify-between items-center mb-2">
+                      <Text className="text-xs font-semibold text-green-800">Transcription:</Text>
+                      <View className="flex-row gap-3">
+                        <TouchableOpacity
+                          onPress={() => {
+                            const t = transcriptionResult.text ?? ""
+                            //   if (t) Clipboard.setString(t)
+                          }}
+                          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                          <Text className="text-green-700 text-sm">📋</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const t = transcriptionResult.text ?? ""
+                            if (t) Share.share({message: t, title: "Transcription"})
+                          }}
+                          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                          <Text className="text-green-700 text-sm">↗</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <Text className="text-base text-gray-900 leading-6" selectable>
+                      {transcriptionResult.text ?? ""}
+                    </Text>
+
+                    {(transcriptionResult.lang || transcriptionResult.emotion || transcriptionResult.event) && (
+                      <View className="flex-row gap-3 mt-2">
+                        {transcriptionResult.lang && (
+                          <Text className="text-xs text-gray-500">Lang: {transcriptionResult.lang}</Text>
+                        )}
+                        {transcriptionResult.emotion && (
+                          <Text className="text-xs text-gray-500">Emotion: {transcriptionResult.emotion}</Text>
+                        )}
+                        {transcriptionResult.event && (
+                          <Text className="text-xs text-gray-500">Event: {transcriptionResult.event}</Text>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Tokens collapsible */}
+                    <TouchableOpacity
+                      className="flex-row items-center mt-3"
+                      onPress={() => setTokensExpanded((e) => !e)}>
+                      <Text className="text-green-700 text-xs mr-1">{tokensExpanded ? "▼" : "▶"}</Text>
+                      <Text className="text-green-700 text-xs font-semibold">
+                        Tokens ({(transcriptionResult.tokens ?? []).length})
+                      </Text>
+                    </TouchableOpacity>
+                    {tokensExpanded && (
+                      <View className="bg-white rounded-md p-2 mt-1">
+                        <View className="flex-row gap-3 mb-2">
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1"
+                            onPress={() => {
+                              const arr = transcriptionResult.tokens ?? []
+                              // Clipboard.setString(JSON.stringify(arr))
+                            }}>
+                            <Text className="text-green-700 text-xs">📋</Text>
+                            <Text className="text-green-700 text-xs">Copy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1"
+                            onPress={() => {
+                              const arr = transcriptionResult.tokens ?? []
+                              Share.share({message: JSON.stringify(arr), title: "Tokens"})
+                            }}>
+                            <Text className="text-green-700 text-xs">↗</Text>
+                            <Text className="text-green-700 text-xs">Share</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text className="text-xs text-gray-600">{(transcriptionResult.tokens ?? []).join(", ")}</Text>
+                      </View>
+                    )}
+
+                    {/* Timestamps collapsible */}
+                    <TouchableOpacity
+                      className="flex-row items-center mt-3"
+                      onPress={() => setTimestampsExpanded((e) => !e)}>
+                      <Text className="text-green-700 text-xs mr-1">{timestampsExpanded ? "▼" : "▶"}</Text>
+                      <Text className="text-green-700 text-xs font-semibold">
+                        Timestamps ({(transcriptionResult.timestamps ?? []).length})
+                      </Text>
+                    </TouchableOpacity>
+                    {timestampsExpanded && (
+                      <View className="bg-white rounded-md p-2 mt-1">
+                        <View className="flex-row gap-3 mb-2">
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1"
+                            onPress={() => {
+                              // Clipboard.setString(JSON.stringify(transcriptionResult.timestamps ?? []))
+                            }}>
+                            <Text className="text-green-700 text-xs">📋 Copy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1"
+                            onPress={() => {
+                              Share.share({
+                                message: JSON.stringify(transcriptionResult.timestamps ?? []),
+                                title: "Timestamps",
+                              })
+                            }}>
+                            <Text className="text-green-700 text-xs">↗ Share</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {(transcriptionResult.timestamps ?? []).length > 0 && (
+                          <ScrollView className="max-h-40" nestedScrollEnabled showsVerticalScrollIndicator>
+                            {(transcriptionResult.timestamps ?? []).map((item, i) => (
+                              <Text key={`ts-${i}`} className="text-xs text-gray-600">
+                                [{String(item)}]
+                              </Text>
+                            ))}
+                          </ScrollView>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Durations collapsible */}
+                    <TouchableOpacity
+                      className="flex-row items-center mt-3"
+                      onPress={() => setDurationsExpanded((e) => !e)}>
+                      <Text className="text-green-700 text-xs mr-1">{durationsExpanded ? "▼" : "▶"}</Text>
+                      <Text className="text-green-700 text-xs font-semibold">
+                        Durations ({(transcriptionResult.durations ?? []).length})
+                      </Text>
+                    </TouchableOpacity>
+                    {durationsExpanded && (
+                      <View className="bg-white rounded-md p-2 mt-1">
+                        <View className="flex-row gap-3 mb-2">
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1"
+                            onPress={() => {
+                              // Clipboard.setString(JSON.stringify(transcriptionResult.durations ?? []))
+                            }}>
+                            <Text className="text-green-700 text-xs">📋 Copy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            className="flex-row items-center gap-1"
+                            onPress={() => {
+                              Share.share({
+                                message: JSON.stringify(transcriptionResult.durations ?? []),
+                                title: "Durations",
+                              })
+                            }}>
+                            <Text className="text-green-700 text-xs">↗ Share</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {(transcriptionResult.durations ?? []).length > 0 && (
+                          <ScrollView className="max-h-40" nestedScrollEnabled showsVerticalScrollIndicator>
+                            {(transcriptionResult.durations ?? []).map((item, i) => (
+                              <Text key={`d-${i}`} className="text-xs text-gray-600">
+                                [{String(item)}]
+                              </Text>
+                            ))}
+                          </ScrollView>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Export actions */}
+                    <View className="flex-row gap-3 mt-4 pt-3 border-t border-green-200">
+                      <TouchableOpacity
+                        className="flex-row items-center gap-1"
+                        //   onPress={() => Clipboard.setString(JSON.stringify(transcriptionResult, null, 2))}>
+                      >
+                        <Text className="text-green-700 text-sm">📋</Text>
+                        <Text className="text-green-700 text-sm font-medium">Copy all as JSON</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="flex-row items-center gap-1"
+                        onPress={() =>
+                          Share.share({
+                            message: JSON.stringify(transcriptionResult, null, 2),
+                            title: "Export all as JSON",
+                          })
+                        }>
+                        <Text className="text-green-700 text-sm font-medium">Export all as JSON</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <Text className="text-gray-500 text-sm">Transcription will appear here while you speak.</Text>
+                )}
+              </View>
+            )}
+
+          {selectedModelType && audioSourceType === "example" && availableAudioFiles.length === 0 && (
+            <View className="py-4">
+              <Text className="text-gray-500 text-sm">No audio files available for this model</Text>
             </View>
           )}
 
-          {/* Section: Transcribe Audio */}
-          <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-1">
-              {detectedModels.length > 1 ? "3. Transcribe Audio" : "2. Transcribe Audio"}
-            </Text>
-            <Text className="text-sm text-gray-500 mb-3">
-              Select an audio source and transcribe it using the selected model.
-            </Text>
-
-            {!selectedModelType && (
-              <View className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
-                <Text className="text-yellow-800 text-sm">
-                  {!currentModelFolder
-                    ? "Please initialize a model directory first"
-                    : "Please select a model type first"}
-                </Text>
-              </View>
-            )}
-
-            {/* Audio source chooser */}
-            {selectedModelType && !audioSourceType && (
-              <>
-                <Text className="font-semibold text-gray-700 mb-2">Choose Audio Source:</Text>
-                <View className="flex-row gap-2">
-                  <TouchableOpacity
-                    className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-3 items-center"
-                    onPress={() => setAudioSourceType("example")}>
-                    <Text className="text-lg mb-1">📁</Text>
-                    <Text className="text-sm font-medium text-gray-700 text-center">Example Audio</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-3 items-center"
-                    onPress={() => setAudioSourceType("own")}>
-                    <Text className="text-lg mb-1">🎵</Text>
-                    <Text className="text-sm font-medium text-gray-700 text-center">Your Own Audio</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className={`flex-1 border rounded-lg p-3 items-center ${
-                      isLiveSupported ? "bg-gray-50 border-gray-200" : "bg-gray-100 border-gray-100 opacity-50"
-                    }`}
-                    onPress={() => {
-                      if (isLiveSupported) setAudioSourceType("live")
-                      else showLiveNotSupportedMessage()
-                    }}>
-                    <Text className="text-lg mb-1">🎤</Text>
-                    <Text className="text-sm font-medium text-gray-700 text-center">Live Transcription</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {/* Example audio */}
-            {selectedModelType && audioSourceType === "example" && availableAudioFiles.length > 0 && (
-              <>
-                <Text className="font-semibold text-gray-700 mb-2">Select Audio File:</Text>
-                <View className="gap-2">
-                  {availableAudioFiles.map((audioFile: any) => (
-                    <TouchableOpacity
-                      key={audioFile.id}
-                      className={`border rounded-lg p-3 ${
-                        selectedAudio?.id === audioFile.id ? "bg-blue-50 border-blue-400" : "bg-white border-gray-200"
-                      }`}
-                      onPress={() => setSelectedAudio(audioFile)}>
-                      <Text
-                        className={`font-semibold text-sm ${
-                          selectedAudio?.id === audioFile.id ? "text-blue-700" : "text-gray-800"
-                        }`}>
-                        {audioFile.name}
-                      </Text>
-                      <Text className="text-xs text-gray-500 mt-1">{audioFile.description}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {selectedAudio && (
-                  <TouchableOpacity
-                    className={`bg-blue-600 rounded-lg py-3 px-4 mt-3 items-center ${
-                      transcribing || loading ? "opacity-50" : ""
-                    }`}
-                    onPress={handleTranscribe}
-                    disabled={transcribing || loading}>
-                    {transcribing ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text className="text-white font-semibold">Transcribe Audio</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  className="mt-4 py-2"
-                  onPress={() => {
-                    setAudioSourceType(null)
-                    setSelectedAudio(null)
-                    setTranscriptionResult(null)
-                  }}>
-                  <Text className="text-blue-600 text-sm">← Change Audio Source</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Own audio */}
-            {selectedModelType && audioSourceType === "own" && (
-              <>
-                <Text className="font-semibold text-gray-700 mb-2">Select Local WAV File:</Text>
-                <TouchableOpacity
-                  className={`bg-blue-600 rounded-lg py-3 px-4 items-center flex-row justify-center gap-2 ${
-                    loading ? "opacity-50" : ""
-                  }`}
-                  onPress={handlePickLocalFile}
-                  disabled={loading}>
-                  <Text className="text-white">📂</Text>
-                  <Text className="text-white font-semibold">Choose Local WAV</Text>
-                </TouchableOpacity>
-
-                {customAudioName && (
-                  <View className="bg-gray-50 rounded-lg p-3 mt-3">
-                    <Text className="text-xs text-gray-500">Selected file:</Text>
-                    <Text className="text-sm font-medium text-gray-800 mt-1">{customAudioName}</Text>
-                    <TouchableOpacity className="flex-row items-center gap-1 mt-2" onPress={handlePlayAudio}>
-                      <Text>▶️</Text>
-                      <Text className="text-blue-600 text-sm font-medium">Play Audio</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {customAudioPath && (
-                  <TouchableOpacity
-                    className={`bg-blue-600 rounded-lg py-3 px-4 mt-3 items-center ${
-                      transcribing || loading ? "opacity-50" : ""
-                    }`}
-                    onPress={handleTranscribe}
-                    disabled={transcribing || loading}>
-                    {transcribing ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text className="text-white font-semibold">Transcribe Audio</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  className="mt-4 py-2"
-                  onPress={() => {
-                    setAudioSourceType(null)
-                    setCustomAudioPath(null)
-                    setCustomAudioName(null)
-                    setTranscriptionResult(null)
-                    if (soundPlayer) {
-                      soundPlayer.stop()
-                      soundPlayer.release()
-                      setSoundPlayer(null)
-                    }
-                  }}>
-                  <Text className="text-blue-600 text-sm">← Change Audio Source</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Live transcription */}
-            {selectedModelType && audioSourceType === "live" && (
-              <>
-                <Text className="font-semibold text-gray-700 mb-1">Live Transcription</Text>
-                <Text className="text-xs text-gray-400 mb-4">Input: Default</Text>
-                <View className="items-center">
-                  <Pressable
-                    className={`w-24 h-24 rounded-full items-center justify-center ${
-                      isLiveRecording ? "bg-red-500" : "bg-blue-600"
-                    }`}
-                    onPressIn={handleLivePressIn}
-                    onPressOut={handleLivePressOut}>
-                    <Text className="text-white text-4xl">🎤</Text>
-                  </Pressable>
-                </View>
-                <Text className="text-xs text-gray-500 text-center mt-3">
-                  Hold the button and speak. Release to see the final result.
-                </Text>
-                <TouchableOpacity
-                  className="mt-4 py-2"
-                  onPress={() => {
-                    if (isLiveRecording) return
-                    setAudioSourceType(null)
-                    setTranscriptionResult(null)
-                  }}
-                  disabled={isLiveRecording}>
-                  <Text className="text-blue-600 text-sm">← Change Audio Source</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Transcription results */}
-            {selectedModelType &&
-              (audioSourceType === "example" || audioSourceType === "own" || audioSourceType === "live") &&
-              (audioSourceType === "live" || transcriptionResult) && (
-                <View
-                  className={`bg-green-50 border border-green-200 rounded-lg p-4 mt-4 ${
-                    audioSourceType === "live" ? "min-h-[120px]" : ""
-                  }`}>
-                  {transcriptionResult ? (
-                    <>
-                      <View className="flex-row justify-between items-center mb-2">
-                        <Text className="text-xs font-semibold text-green-800">Transcription:</Text>
-                        <View className="flex-row gap-3">
-                          <TouchableOpacity
-                            onPress={() => {
-                              const t = transcriptionResult.text ?? ""
-                              //   if (t) Clipboard.setString(t)
-                            }}
-                            hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-                            <Text className="text-green-700 text-sm">📋</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => {
-                              const t = transcriptionResult.text ?? ""
-                              if (t) Share.share({message: t, title: "Transcription"})
-                            }}
-                            hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-                            <Text className="text-green-700 text-sm">↗</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      <Text className="text-base text-gray-900 leading-6" selectable>
-                        {transcriptionResult.text ?? ""}
-                      </Text>
-
-                      {(transcriptionResult.lang || transcriptionResult.emotion || transcriptionResult.event) && (
-                        <View className="flex-row gap-3 mt-2">
-                          {transcriptionResult.lang && (
-                            <Text className="text-xs text-gray-500">Lang: {transcriptionResult.lang}</Text>
-                          )}
-                          {transcriptionResult.emotion && (
-                            <Text className="text-xs text-gray-500">Emotion: {transcriptionResult.emotion}</Text>
-                          )}
-                          {transcriptionResult.event && (
-                            <Text className="text-xs text-gray-500">Event: {transcriptionResult.event}</Text>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Tokens collapsible */}
-                      <TouchableOpacity
-                        className="flex-row items-center mt-3"
-                        onPress={() => setTokensExpanded((e) => !e)}>
-                        <Text className="text-green-700 text-xs mr-1">{tokensExpanded ? "▼" : "▶"}</Text>
-                        <Text className="text-green-700 text-xs font-semibold">
-                          Tokens ({(transcriptionResult.tokens ?? []).length})
-                        </Text>
-                      </TouchableOpacity>
-                      {tokensExpanded && (
-                        <View className="bg-white rounded-md p-2 mt-1">
-                          <View className="flex-row gap-3 mb-2">
-                            <TouchableOpacity
-                              className="flex-row items-center gap-1"
-                              onPress={() => {
-                                const arr = transcriptionResult.tokens ?? []
-                                // Clipboard.setString(JSON.stringify(arr))
-                              }}>
-                              <Text className="text-green-700 text-xs">📋</Text>
-                              <Text className="text-green-700 text-xs">Copy</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              className="flex-row items-center gap-1"
-                              onPress={() => {
-                                const arr = transcriptionResult.tokens ?? []
-                                Share.share({message: JSON.stringify(arr), title: "Tokens"})
-                              }}>
-                              <Text className="text-green-700 text-xs">↗</Text>
-                              <Text className="text-green-700 text-xs">Share</Text>
-                            </TouchableOpacity>
-                          </View>
-                          <Text className="text-xs text-gray-600">{(transcriptionResult.tokens ?? []).join(", ")}</Text>
-                        </View>
-                      )}
-
-                      {/* Timestamps collapsible */}
-                      <TouchableOpacity
-                        className="flex-row items-center mt-3"
-                        onPress={() => setTimestampsExpanded((e) => !e)}>
-                        <Text className="text-green-700 text-xs mr-1">{timestampsExpanded ? "▼" : "▶"}</Text>
-                        <Text className="text-green-700 text-xs font-semibold">
-                          Timestamps ({(transcriptionResult.timestamps ?? []).length})
-                        </Text>
-                      </TouchableOpacity>
-                      {timestampsExpanded && (
-                        <View className="bg-white rounded-md p-2 mt-1">
-                          <View className="flex-row gap-3 mb-2">
-                            <TouchableOpacity
-                              className="flex-row items-center gap-1"
-                              onPress={() => {
-                                // Clipboard.setString(JSON.stringify(transcriptionResult.timestamps ?? []))
-                              }}>
-                              <Text className="text-green-700 text-xs">📋 Copy</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              className="flex-row items-center gap-1"
-                              onPress={() => {
-                                Share.share({
-                                  message: JSON.stringify(transcriptionResult.timestamps ?? []),
-                                  title: "Timestamps",
-                                })
-                              }}>
-                              <Text className="text-green-700 text-xs">↗ Share</Text>
-                            </TouchableOpacity>
-                          </View>
-                          {(transcriptionResult.timestamps ?? []).length > 0 && (
-                            <ScrollView className="max-h-40" nestedScrollEnabled showsVerticalScrollIndicator>
-                              {(transcriptionResult.timestamps ?? []).map((item, i) => (
-                                <Text key={`ts-${i}`} className="text-xs text-gray-600">
-                                  [{String(item)}]
-                                </Text>
-                              ))}
-                            </ScrollView>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Durations collapsible */}
-                      <TouchableOpacity
-                        className="flex-row items-center mt-3"
-                        onPress={() => setDurationsExpanded((e) => !e)}>
-                        <Text className="text-green-700 text-xs mr-1">{durationsExpanded ? "▼" : "▶"}</Text>
-                        <Text className="text-green-700 text-xs font-semibold">
-                          Durations ({(transcriptionResult.durations ?? []).length})
-                        </Text>
-                      </TouchableOpacity>
-                      {durationsExpanded && (
-                        <View className="bg-white rounded-md p-2 mt-1">
-                          <View className="flex-row gap-3 mb-2">
-                            <TouchableOpacity
-                              className="flex-row items-center gap-1"
-                              onPress={() => {
-                                // Clipboard.setString(JSON.stringify(transcriptionResult.durations ?? []))
-                              }}>
-                              <Text className="text-green-700 text-xs">📋 Copy</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              className="flex-row items-center gap-1"
-                              onPress={() => {
-                                Share.share({
-                                  message: JSON.stringify(transcriptionResult.durations ?? []),
-                                  title: "Durations",
-                                })
-                              }}>
-                              <Text className="text-green-700 text-xs">↗ Share</Text>
-                            </TouchableOpacity>
-                          </View>
-                          {(transcriptionResult.durations ?? []).length > 0 && (
-                            <ScrollView className="max-h-40" nestedScrollEnabled showsVerticalScrollIndicator>
-                              {(transcriptionResult.durations ?? []).map((item, i) => (
-                                <Text key={`d-${i}`} className="text-xs text-gray-600">
-                                  [{String(item)}]
-                                </Text>
-                              ))}
-                            </ScrollView>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Export actions */}
-                      <View className="flex-row gap-3 mt-4 pt-3 border-t border-green-200">
-                        <TouchableOpacity
-                          className="flex-row items-center gap-1"
-                          //   onPress={() => Clipboard.setString(JSON.stringify(transcriptionResult, null, 2))}>
-                        >
-                          <Text className="text-green-700 text-sm">📋</Text>
-                          <Text className="text-green-700 text-sm font-medium">Copy all as JSON</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          className="flex-row items-center gap-1"
-                          onPress={() =>
-                            Share.share({
-                              message: JSON.stringify(transcriptionResult, null, 2),
-                              title: "Export all as JSON",
-                            })
-                          }>
-                          <Text className="text-green-700 text-sm font-medium">Export all as JSON</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    <Text className="text-gray-500 text-sm">Transcription will appear here while you speak.</Text>
-                  )}
-                </View>
-              )}
-
-            {selectedModelType && audioSourceType === "example" && availableAudioFiles.length === 0 && (
-              <View className="py-4">
-                <Text className="text-gray-500 text-sm">No audio files available for this model</Text>
-              </View>
-            )}
-
-            {error && errorSource === "transcribe" && (
-              <View className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
-                <Text className="text-xs font-semibold text-red-500">Error:</Text>
-                <Text className="text-sm text-red-700">{error}</Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
-      </View>
+          {error && errorSource === "transcribe" && (
+            <View className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
+              <Text className="text-xs font-semibold text-red-500">Error:</Text>
+              <Text className="text-sm text-red-700">{error}</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   )
 }

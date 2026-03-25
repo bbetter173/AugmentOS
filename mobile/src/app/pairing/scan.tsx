@@ -131,35 +131,34 @@ export default function SelectGlassesBluetoothScreen() {
             text={translate("pairing:scanningForGlassesModel", {model: deviceModel})}
           />
 
-          {!rememberedSearchResults || rememberedSearchResults.filter((r) => r.deviceName !== "NOTREQUIREDSKIP").length === 0 ? (
+          {!rememberedSearchResults ||
+          rememberedSearchResults.filter((r) => r.deviceName !== "NOTREQUIREDSKIP").length === 0 ? (
             <View className="flex-1 justify-center py-4">
               <ActivityIndicator size="large" color={theme.colors.foreground} />
             </View>
           ) : (
             <ScrollView className="max-h-[300px] -mr-4 pr-4">
               <Group>
-                {rememberedSearchResults.filter((r) => r.deviceName !== "NOTREQUIREDSKIP").map((res: DeviceSearchResult, index: number) => {
-                  let text = `${deviceModel} - ${filterDeviceName(res.deviceName)}`
-                  if (devMode && res.signalStrength) {
-                    text += ` - ${res.signalStrength}`
-                  }
+                {rememberedSearchResults
+                  .filter((r) => r.deviceName !== "NOTREQUIREDSKIP")
+                  .map((res: DeviceSearchResult, index: number) => {
+                    let text = `${deviceModel} - ${filterDeviceName(res.deviceName)}`
+                    if (devMode && res.signalStrength) {
+                      text += ` - ${res.signalStrength}`
+                    }
 
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      className="h-[50px] flex-row items-center justify-between bg-background px-4 py-3"
-                      onPress={() => triggerGlassesPairingGuide(res.deviceModel, res.deviceName)}>
-                      <View className="flex-1 px-2.5">
-                        <Text
-                          text={text}
-                          className="flex-wrap text-sm font-semibold"
-                          numberOfLines={2}
-                        />
-                      </View>
-                      <Icon name="chevron-right" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                  )
-                })}
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        className="h-[50px] flex-row items-center justify-between bg-background px-4 py-3"
+                        onPress={() => triggerGlassesPairingGuide(res.deviceModel, res.deviceName)}>
+                        <View className="flex-1 px-2.5">
+                          <Text text={text} className="flex-wrap text-sm font-semibold" numberOfLines={2} />
+                        </View>
+                        <Icon name="chevron-right" size={24} color={theme.colors.text} />
+                      </TouchableOpacity>
+                    )
+                  })}
               </Group>
             </ScrollView>
           )}

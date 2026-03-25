@@ -943,7 +943,7 @@ struct ViewState {
 
         // Re-apply display height after reconnection
         let h = GlassesStore.shared.get("core", "dashboard_height") as? Int ?? 4
-        let d = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 5
+        let d = NexDashboardDisplayWire.clampDepthFromStore(GlassesStore.shared.get("core", "dashboard_depth"))
         sgc.setDashboardPosition(h, d)
     }
 

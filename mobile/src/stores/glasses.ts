@@ -27,6 +27,9 @@ export const getGlasesInfoPartial = (state: GlassesStatus) => {
     wifiConnected: state.wifiConnected,
     wifiSsid: state.wifiSsid,
     deviceModel: state.deviceModel,
+    // Cloud GlassesInfo uses modelName, map from deviceModel so the cloud
+    // knows which device is connected when it receives connection state updates
+    modelName: state.deviceModel || null,
   }
 }
 

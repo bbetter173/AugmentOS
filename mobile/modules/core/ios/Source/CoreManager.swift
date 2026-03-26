@@ -912,6 +912,9 @@ struct ViewState {
         defaultWearable = sgc.type
         searching = false
 
+        // Set deviceModel so it flows to RN and cloud alongside connected state
+        GlassesStore.shared.apply("glasses", "deviceModel", sgc.type)
+
         // Show welcome message on first connect for all display glasses
         if shouldSendBootingMessage {
             Task {

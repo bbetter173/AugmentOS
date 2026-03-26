@@ -83,7 +83,7 @@ export default function CameraSettingsScreen() {
   })()
 
   // Derive max recording time key from stored number
-  const maxRecordingTimeKey: MaxRecordingTime = maxRecordingTime ? `${maxRecordingTime}m` as MaxRecordingTime : "5m"
+  const maxRecordingTimeKey: MaxRecordingTime = maxRecordingTime ? (`${maxRecordingTime}m` as MaxRecordingTime) : "5m"
 
   const handlePhotoSizeChange = (size: PhotoSize) => {
     if (!glassesConnected) {
@@ -105,9 +105,11 @@ export default function CameraSettingsScreen() {
     const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
     const fps = resolution === "4K" ? 15 : 30
     setVideoSettings({width, height, fps})
-    CoreModule.updateCore({button_video_width: width, button_video_height: height, button_video_fps: fps}).catch((error: any) => {
-      console.error("Failed to update video settings on glasses:", error)
-    })
+    CoreModule.updateCore({button_video_width: width, button_video_height: height, button_video_fps: fps}).catch(
+      (error: any) => {
+        console.error("Failed to update video settings on glasses:", error)
+      },
+    )
   }
 
   const _handleLedToggle = (enabled: boolean) => {
@@ -183,13 +185,21 @@ export default function CameraSettingsScreen() {
           <Text style={themed($sectionSubtitle)}>
             Choose the resolution for videos recorded with the action button.
           </Text>
-          <OptionList options={VIDEO_RESOLUTION_OPTIONS} selected={videoResolution} onSelect={handleVideoResolutionChange} />
+          <OptionList
+            options={VIDEO_RESOLUTION_OPTIONS}
+            selected={videoResolution}
+            onSelect={handleVideoResolutionChange}
+          />
         </View>
 
         <View style={themed($section)}>
           <Text style={themed($sectionTitle)}>Maximum Recording Time</Text>
           <Text style={themed($sectionSubtitle)}>Maximum duration for button-triggered video recording</Text>
-          <OptionList options={MAX_RECORDING_TIME_OPTIONS} selected={maxRecordingTimeKey} onSelect={handleMaxRecordingTimeChange} />
+          <OptionList
+            options={MAX_RECORDING_TIME_OPTIONS}
+            selected={maxRecordingTimeKey}
+            onSelect={handleMaxRecordingTimeChange}
+          />
         </View>
 
         <View style={themed($section)}>

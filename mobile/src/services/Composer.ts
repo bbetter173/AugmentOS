@@ -184,7 +184,6 @@ class Composer {
     // update the applets store with the installed mini apps:
     // useAppletStatusStore.getState().setInstalledLmas(this.installedLmas)
     // useAppletStatusStore.getState().refreshApplets()
-
   }
 
   public async fanOutPcm(bytes: Uint8Array) {
@@ -193,8 +192,6 @@ class Composer {
     // if (offlineCaptionsRunning) {
     //   // send the pcm to the offline transcription service
     // }
-
-
     // TODO: fan out the PCM to the mini apps that request it
   }
 

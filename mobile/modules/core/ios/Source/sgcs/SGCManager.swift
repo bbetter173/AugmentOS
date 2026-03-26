@@ -49,6 +49,9 @@ protocol SGCManager {
     func displayBitmap(base64ImageData: String) async -> Bool
     func showDashboard()
     func setDashboardPosition(_ height: Int, _ depth: Int)
+    /// Default implementation sends both via [setDashboardPosition]; Nex overrides to one protobuf.
+    func setDashboardHeightOnly(_ height: Int)
+    func setDashboardDepthOnly(_ depth: Int)
 
     // MARK: - Device Control
 
@@ -102,6 +105,18 @@ protocol SGCManager {
 // doesn't seem to work for concurrency reasons :(
 // we can make read-only getters for convienence though:
 extension SGCManager {
+    // MARK: - Dashboard (default: combined wire format; Nex implements single-field)
+
+    func setDashboardHeightOnly(_ height: Int) {
+        let d = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 2
+        setDashboardPosition(height, d)
+    }
+
+    func setDashboardDepthOnly(_ depth: Int) {
+        let h = GlassesStore.shared.get("core", "dashboard_height") as? Int ?? 4
+        setDashboardPosition(h, depth)
+    }
+
     // MARK: - Default GlassesStore-backed property implementations
 
     var fullyBooted: Bool { GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false }

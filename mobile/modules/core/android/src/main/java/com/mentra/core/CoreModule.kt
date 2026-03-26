@@ -54,6 +54,9 @@ class CoreModule : Module() {
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
+            "send_command_to_ble",
+            "receive_command_from_ble",
         )
 
         OnCreate {

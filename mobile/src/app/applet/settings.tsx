@@ -1,6 +1,6 @@
 import {useFocusEffect, useLocalSearchParams} from "expo-router"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {Animated, BackHandler, TextStyle, View, ViewStyle} from "react-native"
+import {Animated, BackHandler, Platform, TextStyle, View, ViewStyle} from "react-native"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 
 import {Header, Icon, PillButton, Screen, Text} from "@/components/ignite"
@@ -93,9 +93,13 @@ export default function AppSettings() {
     goBack()
   }
   focusEffectPreventBack(() => {
-    // Only capture screenshot on back — don't call goBack() since the native
-    // back gesture/button already handles navigation (iosDontPreventBack=true)
+    // On iOS, iosDontPreventBack=true lets the native gesture handle navigation,
+    // so we only need to capture the screenshot. On Android, preventBack is still
+    // true so we must also call goBack() to navigate.
     saveScreenshot()
+    if (Platform.OS === "android") {
+      goBack()
+    }
   }, true)
 
   // Handle app start/stop actions with debouncing

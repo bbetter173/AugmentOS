@@ -29,8 +29,7 @@ class MiniComms {
   private static instance: MiniComms | null = null
   private messageHandlers: Record<string, (stringified: string) => void> = {}
 
-  private constructor() {
-  }
+  private constructor() {}
 
   public static getInstance(): MiniComms {
     if (!MiniComms.instance) {
@@ -215,9 +214,7 @@ class MiniComms {
   }
 
   private handleRequestTranscription(packageName: string, message: MiniAppMessage) {
-
     // composer
-
   }
 
   private sendResponse(packageName: string, requestId: string | undefined, result: any) {

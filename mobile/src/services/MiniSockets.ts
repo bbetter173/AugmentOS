@@ -1,7 +1,7 @@
-import TcpSocket from 'react-native-tcp-socket'
+import TcpSocket from "react-native-tcp-socket"
 
 const MINISOCKET_PORT = 8765
-const WS_GUID = '258EAFA5-E914-47DA-95CA-5AB9DC85B11C'
+const WS_GUID = "258EAFA5-E914-47DA-95CA-5AB9DC85B11C"
 
 // Minimal WebSocket frame builder for binary data
 function encodeWsFrame(data: Buffer, opcode: number = 0x02): Buffer {
@@ -30,7 +30,7 @@ function encodeWsFrame(data: Buffer, opcode: number = 0x02): Buffer {
 }
 
 function encodeWsTextFrame(text: string): Buffer {
-  return encodeWsFrame(Buffer.from(text, 'utf-8'), 0x01)
+  return encodeWsFrame(Buffer.from(text, "utf-8"), 0x01)
 }
 
 function encodeWsCloseFrame(): Buffer {
@@ -114,28 +114,28 @@ class MiniSockets {
       this.clients.set(clientId, client)
       console.log(`MINISOCKET: Client ${clientId} connected`)
 
-      socket.on('data', (data: Buffer | string) => {
-        const buf = typeof data === 'string' ? Buffer.from(data) : data
+      socket.on("data", (data: Buffer | string) => {
+        const buf = typeof data === "string" ? Buffer.from(data) : data
         this.handleData(clientId, buf)
       })
 
-      socket.on('error', (err) => {
+      socket.on("error", (err) => {
         console.error(`MINISOCKET: Client ${clientId} error:`, err.message)
         this.removeClient(clientId)
       })
 
-      socket.on('close', () => {
+      socket.on("close", () => {
         console.log(`MINISOCKET: Client ${clientId} disconnected`)
         this.removeClient(clientId)
       })
     })
 
-    this.server.listen({port: MINISOCKET_PORT, host: '127.0.0.1'}, () => {
+    this.server.listen({port: MINISOCKET_PORT, host: "127.0.0.1"}, () => {
       console.log(`MINISOCKET: Server listening on ws://127.0.0.1:${MINISOCKET_PORT}`)
     })
 
-    this.server.on('error', (err) => {
-      console.error('MINISOCKET: Server error:', err.message)
+    this.server.on("error", (err) => {
+      console.error("MINISOCKET: Server error:", err.message)
     })
   }
 
@@ -152,7 +152,7 @@ class MiniSockets {
     this.clients.clear()
     this.server?.close()
     this.server = null
-    console.log('MINISOCKET: Server stopped')
+    console.log("MINISOCKET: Server stopped")
   }
 
   public cleanup() {
@@ -217,10 +217,10 @@ class MiniSockets {
     if (!client.upgraded) {
       // Accumulate data for HTTP upgrade handshake
       client.buffer = Buffer.concat([client.buffer, data])
-      const request = client.buffer.toString('utf-8')
+      const request = client.buffer.toString("utf-8")
 
       // Wait for full HTTP headers
-      if (!request.includes('\r\n\r\n')) return
+      if (!request.includes("\r\n\r\n")) return
 
       this.handleUpgrade(clientId, request)
     } else {
@@ -237,7 +237,7 @@ class MiniSockets {
     // Extract Sec-WebSocket-Key
     const keyMatch = request.match(/Sec-WebSocket-Key:\s*(.+)\r\n/i)
     if (!keyMatch) {
-      console.error('MINISOCKET: Missing Sec-WebSocket-Key')
+      console.error("MINISOCKET: Missing Sec-WebSocket-Key")
       client.socket.destroy()
       this.removeClient(clientId)
       return
@@ -250,13 +250,13 @@ class MiniSockets {
     const acceptKey = this.computeAcceptKey(key)
 
     const response = [
-      'HTTP/1.1 101 Switching Protocols',
-      'Upgrade: websocket',
-      'Connection: Upgrade',
+      "HTTP/1.1 101 Switching Protocols",
+      "Upgrade: websocket",
+      "Connection: Upgrade",
       `Sec-WebSocket-Accept: ${acceptKey}`,
-      '',
-      '',
-    ].join('\r\n')
+      "",
+      "",
+    ].join("\r\n")
 
     client.socket.write(response)
     client.upgraded = true
@@ -268,12 +268,12 @@ class MiniSockets {
     // SHA-1 implementation for the WebSocket handshake
     const input = key + WS_GUID
     const sha1 = this.sha1(input)
-    return Buffer.from(sha1, 'hex').toString('base64')
+    return Buffer.from(sha1, "hex").toString("base64")
   }
 
   private sha1(str: string): string {
     // Minimal SHA-1 for WebSocket accept key computation
-    const msg = Buffer.from(str, 'utf-8')
+    const msg = Buffer.from(str, "utf-8")
 
     let h0 = 0x67452301
     let h1 = 0xefcdab89
@@ -300,7 +300,11 @@ class MiniSockets {
         w[i] = rotl((w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]) >>> 0, 1)
       }
 
-      let a = h0, b = h1, c = h2, d = h3, e = h4
+      let a = h0,
+        b = h1,
+        c = h2,
+        d = h3,
+        e = h4
 
       for (let i = 0; i < 80; i++) {
         let f: number, k: number
@@ -333,7 +337,7 @@ class MiniSockets {
       h4 = (h4 + e) >>> 0
     }
 
-    const hex = (n: number) => n.toString(16).padStart(8, '0')
+    const hex = (n: number) => n.toString(16).padStart(8, "0")
     return hex(h0) + hex(h1) + hex(h2) + hex(h3) + hex(h4)
   }
 
@@ -350,7 +354,7 @@ class MiniSockets {
       switch (frame.opcode) {
         case 0x01: // text
           try {
-            const text = frame.payload.toString('utf-8')
+            const text = frame.payload.toString("utf-8")
             console.log(`MINISOCKET: Text from client ${clientId}:`, text)
           } catch {}
           break

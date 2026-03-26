@@ -23,8 +23,12 @@ export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProp
   // const [isChina] = useSetting(SETTINGS.china_deployment.key)
   const {theme} = useAppTheme()
 
+  // On Android, GlassView is just a plain View with no blur, so the capsule
+  // needs an explicit background to stay readable over arbitrary app content.
+  const androidStyle = Platform.OS === "android" ? {backgroundColor: theme.colors.card} : undefined
+
   return (
-    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-7.5 items-center">
+    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-7.5 items-center" style={androidStyle}>
       <Pressable hitSlop={10} onPress={onEllipsisPress} style={{width: 24, alignItems: "center"}}>
         <Icon name="ellipsis" size={18} color={theme.colors.foreground} />
       </Pressable>
@@ -103,6 +107,9 @@ export function MiniAppCapsuleMenu({
     InteractionManager.runAfterInteractions(() => {
       handleExit()
     })
+    if (Platform.OS === "android") {
+      goBack()
+    }
   }, true)
 
   return (
@@ -223,7 +230,12 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
               <Text className="text-sm text-muted-foreground w-full text-center" text="[settings]" />
             </View> */}
             <View className="flex-col gap-2 items-center w-1/4" style={isSystemApp ? {opacity: 0.8} : undefined}>
-              <Button compactIcon onPress={isSystemApp ? undefined : handleShare} preset="alternate" className="rounded-2xl w-16 h-16" disabled={isSystemApp}>
+              <Button
+                compactIcon
+                onPress={isSystemApp ? undefined : handleShare}
+                preset="alternate"
+                className="rounded-2xl w-16 h-16"
+                disabled={isSystemApp}>
                 <Icon name="share" color={theme.colors.foreground} size={size} />
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:share" />
@@ -261,7 +273,12 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
             </View>
 
             <View className="flex-col gap-2 items-center w-1/4" style={isSystemApp ? {opacity: 0.8} : undefined}>
-              <Button compactIcon onPress={isSystemApp ? undefined : handleSettings} preset="alternate" className="rounded-2xl w-16 h-16" disabled={isSystemApp}>
+              <Button
+                compactIcon
+                onPress={isSystemApp ? undefined : handleSettings}
+                preset="alternate"
+                className="rounded-2xl w-16 h-16"
+                disabled={isSystemApp}>
                 <Icon name="cog" color={theme.colors.foreground} size={size} />
               </Button>
               <Text className="text-sm text-muted-foreground w-full text-center" tx="appInfo:settings" />

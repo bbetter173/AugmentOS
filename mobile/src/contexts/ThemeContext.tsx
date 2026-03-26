@@ -1,6 +1,5 @@
-import React from "react"
+import React, {createContext, FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 import * as SystemUI from "expo-system-ui"
-import {createContext, FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 import {Appearance, ColorSchemeName, Platform, StyleProp, useColorScheme} from "react-native"
 import * as NavigationBar from "expo-navigation-bar"
 

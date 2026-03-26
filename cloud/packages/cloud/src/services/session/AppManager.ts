@@ -43,7 +43,7 @@ const CLOUD_PUBLIC_HOST_NAME = process.env.CLOUD_PUBLIC_HOST_NAME; // e.g., "pro
 const CLOUD_LOCAL_HOST_NAME = process.env.CLOUD_LOCAL_HOST_NAME; // e.g., "localhost:8002" | "cloud" | "cloud-debug-cloud.default.svc.cluster.local:80"
 const AUGMENTOS_AUTH_JWT_SECRET = process.env.AUGMENTOS_AUTH_JWT_SECRET;
 
-const APP_SESSION_TIMEOUT_MS = 5000; // 5 seconds
+const APP_SESSION_TIMEOUT_MS = 6000; // 6 seconds
 
 // Note: Connection states are now managed by AppSession (AppSessionState)
 // The old AppConnectionState enum has been removed in Phase 4b

@@ -19,7 +19,7 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     if (transparent) {
       return (
         <GlassWithStyle
-          style={[style, {backgroundColor: "transparent", boxShadow: boxShadowStyle}]}
+          style={[style, {backgroundColor: "rgba(255,255,255,0.3)", boxShadow: boxShadowStyle}]}
           colorScheme={colorScheme}
           {...props}
           className="shadow-2xl">

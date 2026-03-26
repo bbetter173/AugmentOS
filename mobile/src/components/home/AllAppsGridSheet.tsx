@@ -46,7 +46,7 @@ export default function AllAppsGridSheet({bottomSheetRef}: {bottomSheetRef: Reac
         enableDynamicSizing={false}
         backgroundStyle={{backgroundColor: theme.colors.background}}
         handleIndicatorStyle={{backgroundColor: theme.colors.muted_foreground + "40", width: 64, height: 6}}
-        handleStyle={{height: 32+6, alignSelf: "center", justifyContent: "center"}}>
+        handleStyle={{height: 32 + 6, alignSelf: "center", justifyContent: "center"}}>
         {/* <View className="px-4"> */}
         {/* <View className="gap-4 px-4 mb-2">
             <Text className="text-lg font-bold text-foreground text-center" tx="home:apps" />

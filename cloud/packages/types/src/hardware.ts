@@ -163,6 +163,7 @@ export const HARDWARE_CAPABILITIES: Record<string, Capabilities> = {
   [mentraLive.modelName]: mentraLive,
   [simulatedGlasses.modelName]: simulatedGlasses,
   [vuzixZ100.modelName]: vuzixZ100,
+  [DeviceTypes.MACH1]: vuzixZ100, // Mach1 uses same Vuzix Ultralite hardware as Z100
   [none.modelName]: none,
 };
 

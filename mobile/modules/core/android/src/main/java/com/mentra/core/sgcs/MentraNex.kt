@@ -498,9 +498,26 @@ class MentraNex : SGCManager() {
     }
 
     override fun setDashboardPosition(height: Int, depth: Int) {
-        Bridge.log("Nex: setDashboardPosition() - height: " + height + ", depth: " + depth);
-        val cmdBytes = NexProtobufUtils.generateDisplayHeightCommandBytes(height, depth)
-        sendDataSequentially(cmdBytes, 10)
+        Bridge.log("Nex: setDashboardPosition() - height: " + height + ", depth: " + depth)
+        // Send display_height then display_distance; adjust order if Nex firmware requires otherwise.
+        val heightBytes = NexProtobufUtils.generateDisplayHeightCommandBytes(height)
+        sendDataSequentially(heightBytes, 10)
+        val distanceCm = NexProtobufUtils.dashboardDepthToDistanceCm(depth)
+        val distanceBytes = NexProtobufUtils.generateDisplayDistanceCommandBytes(distanceCm)
+        sendDataSequentially(distanceBytes, 10)
+    }
+
+    override fun setDashboardHeightOnly(height: Int) {
+        Bridge.log("Nex: setDashboardHeightOnly() - height: $height")
+        val heightBytes = NexProtobufUtils.generateDisplayHeightCommandBytes(height)
+        sendDataSequentially(heightBytes, 10)
+    }
+
+    override fun setDashboardDepthOnly(depth: Int) {
+        Bridge.log("Nex: setDashboardDepthOnly() - depth: $depth")
+        val distanceCm = NexProtobufUtils.dashboardDepthToDistanceCm(depth)
+        val distanceBytes = NexProtobufUtils.generateDisplayDistanceCommandBytes(distanceCm)
+        sendDataSequentially(distanceBytes, 10)
     }
 
     override fun ping() {

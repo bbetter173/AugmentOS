@@ -182,6 +182,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             guard let self else { return }
             Bridge.log("MACH1: batteryLevelListener: \(value)")
             batteryLevel = value
+            GlassesStore.shared.apply("glasses", "batteryLevel", value)
             ready = true
             connected = true
         })

@@ -218,6 +218,22 @@ class AudioPlaybackService {
 
       // Notify native that our app stopped playing audio (debounced)
       this.notifyAudioStopDebounced()
+      return
+    }
+
+    // Detect silent playback failures: expo-audio doesn't surface errors to JS,
+    // so when ExoPlayer fails to load/play a URL (network error, HTTP 500, etc.),
+    // the player state goes to "idle" with nothing loaded and no buffering.
+    // We wait 1500ms after play() to avoid false positives during initial load.
+    if (status.playbackState === "idle" && !status.isBuffering && !status.isLoaded) {
+      const elapsedMs = Date.now() - playback.startTime
+      if (elapsedMs > 1500) {
+        console.error(`AUDIO: Playback failed for ${playback.requestId} (player went idle after ${elapsedMs}ms)`)
+        playback.completed = true
+        playback.onComplete(playback.requestId, false, "Playback failed (player went idle)", null)
+        this.currentPlayback = null
+        this.notifyAudioStopDebounced()
+      }
     }
   }
 

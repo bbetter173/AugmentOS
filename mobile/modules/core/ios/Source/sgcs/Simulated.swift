@@ -79,16 +79,16 @@ class Simulated: SGCManager {
         Bridge.log("requestPhoto")
     }
 
-    func startRtmpStream(_: [String: Any]) {
-        Bridge.log("startRtmpStream")
+    func startStream(_: [String: Any]) {
+        Bridge.log("startStream")
     }
 
-    func stopRtmpStream() {
-        Bridge.log("stopRtmpStream")
+    func stopStream() {
+        Bridge.log("stopStream")
     }
 
-    func sendRtmpKeepAlive(_: [String: Any]) {
-        Bridge.log("sendRtmpKeepAlive")
+    func sendStreamKeepAlive(_: [String: Any]) {
+        Bridge.log("sendStreamKeepAlive")
     }
 
     func startBufferRecording() {

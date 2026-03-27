@@ -49,9 +49,7 @@ import org.greenrobot.eventbus.ThreadMode;
 import io.github.thibaultbee.streampack.data.AudioConfig;
 import io.github.thibaultbee.streampack.data.VideoConfig;
 import io.github.thibaultbee.streampack.error.StreamPackError;
-import io.github.thibaultbee.streampack.internal.muxers.ts.data.TsServiceInfo;
 import io.github.thibaultbee.streampack.ext.rtmp.streamers.CameraRtmpLiveStreamer;
-import io.github.thibaultbee.streampack.ext.srt.streamers.CameraSrtLiveStreamer;
 import io.github.thibaultbee.streampack.listeners.OnConnectionListener;
 import io.github.thibaultbee.streampack.listeners.OnErrorListener;
 //import io.github.thibaultbee.streampack.listeners.OnPacketListener;
@@ -77,11 +75,6 @@ public class RtmpStreamingService extends Service {
     private CameraRtmpLiveStreamer mStreamer;
     // Tracks the most recent streamer so we can still tear down the camera even if mStreamer is cleared
     private CameraRtmpLiveStreamer mLastStreamerForCleanup;
-
-    // SRT streaming fields (used when URL starts with srt://)
-    private CameraSrtLiveStreamer mSrtStreamer;
-    private CameraSrtLiveStreamer mLastSrtStreamerForCleanup;
-    private boolean mIsSrtMode = false;
 
     private String mRtmpUrl;
     private boolean mIsStreaming = false;
@@ -383,7 +376,7 @@ public class RtmpStreamingService extends Service {
     @SuppressLint("MissingPermission")
     private void initStreamer() {
         synchronized (mStateLock) {
-            if (mStreamer != null || mSrtStreamer != null) {
+            if (mStreamer != null) {
                 Log.d(TAG, "Releasing existing streamer before reinitializing");
                 releaseStreamer(true);
 
@@ -436,7 +429,7 @@ public class RtmpStreamingService extends Service {
             final OnConnectionListener sharedConnectionListener = new OnConnectionListener() {
                 @Override
                 public void onSuccess() {
-                    Log.i(TAG, (mIsSrtMode ? "SRT" : "RTMP") + " connection successful");
+                    Log.i(TAG, "RTMP connection successful");
 
                     synchronized (mStateLock) {
                         // NOW we're actually streaming
@@ -505,7 +498,7 @@ public class RtmpStreamingService extends Service {
                     }
                     mLastReconnectionTime = currentTime;
 
-                    Log.e(TAG, (mIsSrtMode ? "SRT" : "RTMP") + " connection failed: " + message);
+                    Log.e(TAG, "RTMP connection failed: " + message);
                     EventBus.getDefault().post(new StreamingEvent.ConnectionFailed(message));
 
                     // Report connection failure
@@ -516,7 +509,7 @@ public class RtmpStreamingService extends Service {
                     if (!isRetryableErrorString(message)) {
                         Log.w(TAG, "Fatal error detected - stopping stream");
                         if (sStatusCallback != null) {
-                            sStatusCallback.onStreamError((mIsSrtMode ? "SRT" : "RTMP") + " connection failed: " + message);
+                            sStatusCallback.onStreamError("RTMP connection failed: " + message);
                         }
                         stopStreaming(); // Clean up properly for fatal errors
                         return;
@@ -566,7 +559,7 @@ public class RtmpStreamingService extends Service {
                     }
                     mLastReconnectionTime = currentTime;
 
-                    Log.i(TAG, (mIsSrtMode ? "SRT" : "RTMP") + " connection lost: " + message);
+                    Log.i(TAG, "RTMP connection lost: " + message);
                     EventBus.getDefault().post(new StreamingEvent.Disconnected());
 
                     // Report connection lost
@@ -604,26 +597,8 @@ public class RtmpStreamingService extends Service {
                 }
             };
 
-            // Create the appropriate streamer based on the stream URL protocol
-            if (mIsSrtMode) {
-                TsServiceInfo tsServiceInfo = new TsServiceInfo(
-                        TsServiceInfo.ServiceType.DIGITAL_TV,
-                        (short) 0x4698,
-                        "AugmentOS",
-                        "Mentra"
-                );
-                mSrtStreamer = new CameraSrtLiveStreamer(
-                        this,
-                        true,
-                        tsServiceInfo,
-                        null,
-                        null,
-                        sharedErrorListener,
-                        sharedConnectionListener
-                );
-            } else {
-                mStreamer = new CameraRtmpLiveStreamer(this, true, sharedErrorListener, sharedConnectionListener);
-            }
+            // Create the RTMP streamer
+            mStreamer = new CameraRtmpLiveStreamer(this, true, sharedErrorListener, sharedConnectionListener);
 
             // For MIME type, use the actual mime type instead of null
             String audioMimeType = MediaFormat.MIMETYPE_AUDIO_AAC; // Default to AAC
@@ -641,7 +616,7 @@ public class RtmpStreamingService extends Service {
             boolean echoCancellation = mStreamConfig.isEchoCancellation();
             boolean noiseSuppression = mStreamConfig.isNoiseSuppression();
 
-            Log.i(TAG, "Initializing " + (mIsSrtMode ? "SRT" : "RTMP") + " stream with config: " + mStreamConfig.toString());
+            Log.i(TAG, "Initializing RTMP stream with config: " + mStreamConfig.toString());
 
             // Configure audio settings using proper constructor
             AudioConfig audioConfig = new AudioConfig(
@@ -671,27 +646,15 @@ public class RtmpStreamingService extends Service {
                     2.0f // Force keyframe every 2 seconds
             );
 
-            // Apply configurations and start preview on the active streamer
-            if (mIsSrtMode) {
-                mSrtStreamer.configure(videoConfig);
-                mSrtStreamer.configure(audioConfig);
-                mLastSrtStreamerForCleanup = mSrtStreamer;
-                if (mSurface != null && mSurface.isValid()) {
-                    mSrtStreamer.startPreview(mSurface, "0"); // Using "0" for back camera
-                    Log.d(TAG, "Started camera preview on surface (SRT)");
-                } else {
-                    Log.e(TAG, "Cannot start preview, surface is invalid");
-                }
+            // Apply configurations and start preview
+            mStreamer.configure(videoConfig);
+            mStreamer.configure(audioConfig);
+            mLastStreamerForCleanup = mStreamer;
+            if (mSurface != null && mSurface.isValid()) {
+                mStreamer.startPreview(mSurface, "0"); // Using "0" for back camera
+                Log.d(TAG, "Started camera preview on surface");
             } else {
-                mStreamer.configure(videoConfig);
-                mStreamer.configure(audioConfig);
-                mLastStreamerForCleanup = mStreamer;
-                if (mSurface != null && mSurface.isValid()) {
-                    mStreamer.startPreview(mSurface, "0"); // Using "0" for back camera
-                    Log.d(TAG, "Started camera preview on surface");
-                } else {
-                    Log.e(TAG, "Cannot start preview, surface is invalid");
-                }
+                Log.e(TAG, "Cannot start preview, surface is invalid");
             }
 
             // Notify that we're ready to connect a preview
@@ -724,21 +687,12 @@ public class RtmpStreamingService extends Service {
     }
 
     /**
-     * Returns true if the given URL uses the SRT protocol.
-     */
-    private static boolean isSrtUrl(String url) {
-        Log.i(TAG, "Checking if URL is SRT: " + url);
-        return url != null && url.startsWith("srt://");
-    }
-
-    /**
-     * Set the stream URL for streaming. Accepts rtmp://, rtmps://, or srt:// URLs.
-     * @param url Stream URL
+     * Set the RTMP URL for streaming.
+     * @param url Stream URL (rtmp:// or rtmps://)
      */
     public void setRtmpUrl(String url) {
         this.mRtmpUrl = url;
-        this.mIsSrtMode = isSrtUrl(url);
-        Log.i(TAG, (mIsSrtMode ? "SRT" : "RTMP") + " URL set to: " + url);
+        Log.i(TAG, "RTMP URL set to: " + url);
     }
 
     /**
@@ -838,7 +792,7 @@ public class RtmpStreamingService extends Service {
             }
 
             // Reinitialize streamer if needed
-            if (mIsSrtMode ? mSrtStreamer == null : mStreamer == null) {
+            if (mStreamer == null) {
                 Log.i(TAG, "Streamer is null, reinitializing");
                 initStreamer();
 
@@ -869,21 +823,13 @@ public class RtmpStreamingService extends Service {
 
             if (mSurface != null && mSurface.isValid()) {
                 try {
-                    if (mIsSrtMode) {
-                        if (mSrtStreamer != null) mSrtStreamer.stopPreview();
-                    } else {
-                        if (mStreamer != null) mStreamer.stopPreview();
-                    }
+                    if (mStreamer != null) mStreamer.stopPreview();
                 } catch (Exception e) {
                     Log.d(TAG, "No preview to stop: " + e.getMessage());
                 }
 
                 // Start fresh preview
-                if (mIsSrtMode) {
-                    mSrtStreamer.startPreview(mSurface, "0");
-                } else {
-                    mStreamer.startPreview(mSurface, "0");
-                }
+                mStreamer.startPreview(mSurface, "0");
                 Log.d(TAG, "Started camera preview for streaming");
 
                 // ADD THIS DELAY:
@@ -959,12 +905,8 @@ public class RtmpStreamingService extends Service {
                 }
             };
 
-            // Start the stream using the appropriate protocol
-            if (mIsSrtMode) {
-                mSrtStreamer.startStream(mRtmpUrl, streamContinuation);
-            } else {
-                mStreamer.startStream(mRtmpUrl, streamContinuation);
-            }
+            // Start the RTMP stream
+            mStreamer.startStream(mRtmpUrl, streamContinuation);
         } catch (Exception e) {
             String errorMsg = "Failed to start streaming: " + e.getMessage();
             Log.e(TAG, errorMsg, e);
@@ -1072,94 +1014,56 @@ public class RtmpStreamingService extends Service {
             }
         };
 
-        if (mIsSrtMode) {
-            CameraSrtLiveStreamer srtStreamerToCleanup = mSrtStreamer != null ? mSrtStreamer : mLastSrtStreamerForCleanup;
-            if (srtStreamerToCleanup != null) {
-                if (mSrtStreamer == null) {
-                    Log.w(TAG, "No active SRT streamer reference, using last known instance for cleanup");
-                }
-                try {
-                    srtStreamerToCleanup.stopStream(stopContinuation);
-                } catch (Exception e) {
-                    Log.e(TAG, "Exception stopping SRT stream", e);
-                }
-                try {
-                    srtStreamerToCleanup.stopPreview();
-                    Log.d(TAG, "Camera preview stopped (SRT)");
-                } catch (Exception e) {
-                    Log.e(TAG, "Error stopping SRT preview", e);
-                    StreamingReporting.reportPreviewStartFailure(RtmpStreamingService.this, "stop_preview_error", e);
-                    if (sStatusCallback != null) {
-                        sStatusCallback.onStreamError("Failed to stop camera preview: " + e.getMessage());
-                    }
-                }
-                try {
-                    srtStreamerToCleanup.release();
-                    Log.d(TAG, "SRT streamer released");
-                } catch (Exception e) {
-                    Log.e(TAG, "Error releasing SRT streamer", e);
-                    StreamingReporting.reportResourceCleanupFailure(RtmpStreamingService.this, "streamer", "release_error", e);
-                    if (sStatusCallback != null) {
-                        sStatusCallback.onStreamError("Failed to release streaming resources: " + e.getMessage());
-                    }
-                }
-                if (mSrtStreamer == srtStreamerToCleanup) {
-                    mSrtStreamer = null;
-                }
-                mLastSrtStreamerForCleanup = null;
+        CameraRtmpLiveStreamer streamerToCleanup = mStreamer != null ? mStreamer : mLastStreamerForCleanup;
+        if (streamerToCleanup != null) {
+            if (mStreamer == null) {
+                Log.w(TAG, "No active streamer reference, using last known instance for cleanup");
             }
-        } else {
-            CameraRtmpLiveStreamer streamerToCleanup = mStreamer != null ? mStreamer : mLastStreamerForCleanup;
-            if (streamerToCleanup != null) {
-                if (mStreamer == null) {
-                    Log.w(TAG, "No active streamer reference, using last known instance for cleanup");
-                }
-                try {
-                    // Force stop the stream
-                    streamerToCleanup.stopStream(stopContinuation);
-                } catch (Exception e) {
-                    Log.e(TAG, "Exception stopping stream", e);
-                }
-
-                // Stop preview
-                try {
-                    streamerToCleanup.stopPreview();
-                    Log.d(TAG, "Camera preview stopped");
-                } catch (Exception e) {
-                    Log.e(TAG, "Error stopping preview", e);
-
-                    // Report preview stop failure
-                    StreamingReporting.reportPreviewStartFailure(RtmpStreamingService.this,
-                        "stop_preview_error", e);
-
-                    // Notify TPA developer of cleanup failure
-                    if (sStatusCallback != null) {
-                        sStatusCallback.onStreamError("Failed to stop camera preview: " + e.getMessage());
-                    }
-                }
-
-                // Release the streamer completely
-                try {
-                    streamerToCleanup.release();
-                    Log.d(TAG, "Streamer released");
-                } catch (Exception e) {
-                    Log.e(TAG, "Error releasing streamer", e);
-
-                    // Report resource cleanup failure
-                    StreamingReporting.reportResourceCleanupFailure(RtmpStreamingService.this,
-                        "streamer", "release_error", e);
-
-                    // Notify TPA developer of cleanup failure
-                    if (sStatusCallback != null) {
-                        sStatusCallback.onStreamError("Failed to release streaming resources: " + e.getMessage());
-                    }
-                }
-
-                if (mStreamer == streamerToCleanup) {
-                    mStreamer = null;
-                }
-                mLastStreamerForCleanup = null;
+            try {
+                // Force stop the stream
+                streamerToCleanup.stopStream(stopContinuation);
+            } catch (Exception e) {
+                Log.e(TAG, "Exception stopping stream", e);
             }
+
+            // Stop preview
+            try {
+                streamerToCleanup.stopPreview();
+                Log.d(TAG, "Camera preview stopped");
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping preview", e);
+
+                // Report preview stop failure
+                StreamingReporting.reportPreviewStartFailure(RtmpStreamingService.this,
+                    "stop_preview_error", e);
+
+                // Notify TPA developer of cleanup failure
+                if (sStatusCallback != null) {
+                    sStatusCallback.onStreamError("Failed to stop camera preview: " + e.getMessage());
+                }
+            }
+
+            // Release the streamer completely
+            try {
+                streamerToCleanup.release();
+                Log.d(TAG, "Streamer released");
+            } catch (Exception e) {
+                Log.e(TAG, "Error releasing streamer", e);
+
+                // Report resource cleanup failure
+                StreamingReporting.reportResourceCleanupFailure(RtmpStreamingService.this,
+                    "streamer", "release_error", e);
+
+                // Notify TPA developer of cleanup failure
+                if (sStatusCallback != null) {
+                    sStatusCallback.onStreamError("Failed to release streaming resources: " + e.getMessage());
+                }
+            }
+
+            if (mStreamer == streamerToCleanup) {
+                mStreamer = null;
+            }
+            mLastStreamerForCleanup = null;
         }
 
         // Release surface

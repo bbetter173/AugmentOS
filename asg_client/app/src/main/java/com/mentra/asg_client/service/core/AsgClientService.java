@@ -340,10 +340,10 @@ public class AsgClientService extends Service implements NetworkStateListener, B
                 Log.d(TAG, "✅ WiFi debouncing cleanup completed");
             }
 
-            // Stop RTMP streaming
-            Log.d(TAG, "📹 Stopping RTMP streaming");
-            streamingManager.stopRtmpStreaming();
-            Log.d(TAG, "✅ RTMP streaming stopped");
+            // Stop any active stream
+            Log.d(TAG, "📹 Stopping active stream");
+            streamingManager.stopStreaming();
+            Log.d(TAG, "✅ Stream stopped");
 
             // Release RGB LED control authority back to BES
             Log.d(TAG, "🚨 Releasing RGB LED control authority back to BES");

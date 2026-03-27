@@ -282,11 +282,11 @@ class G1: NSObject, SGCManager {
         compress _: String?, flash _: Bool, sound _: Bool
     ) {}
 
-    func startRtmpStream(_: [String: Any]) {}
+    func startStream(_: [String: Any]) {}
 
-    func stopRtmpStream() {}
+    func stopStream() {}
 
-    func sendRtmpKeepAlive(_: [String: Any]) {}
+    func sendStreamKeepAlive(_: [String: Any]) {}
 
     func startBufferRecording() {}
 

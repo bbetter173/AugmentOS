@@ -1110,19 +1110,19 @@ class CoreManager {
         sgc?.ping()
     }
 
-    fun startRtmpStream(message: MutableMap<String, Any>) {
-        Bridge.log("MAN: startRtmpStream")
-        sgc?.startRtmpStream(message)
+    fun startStream(message: MutableMap<String, Any>) {
+        Bridge.log("MAN: startStream")
+        sgc?.startStream(message)
     }
 
-    fun stopRtmpStream() {
-        Bridge.log("MAN: stopRtmpStream")
-        sgc?.stopRtmpStream()
+    fun stopStream() {
+        Bridge.log("MAN: stopStream")
+        sgc?.stopStream()
     }
 
-    fun keepRtmpStreamAlive(message: MutableMap<String, Any>) {
-        Bridge.log("MAN: keepRtmpStreamAlive: (message)")
-        sgc?.sendRtmpKeepAlive(message)
+    fun keepStreamAlive(message: MutableMap<String, Any>) {
+        Bridge.log("MAN: keepStreamAlive: (message)")
+        sgc?.sendStreamKeepAlive(message)
     }
 
     fun requestWifiScan() {

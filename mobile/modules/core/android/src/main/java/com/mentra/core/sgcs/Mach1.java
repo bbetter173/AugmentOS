@@ -137,17 +137,17 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
-    public void startRtmpStream(@NonNull Map<String, Object> message) {
+    public void startStream(@NonNull Map<String, Object> message) {
 
     }
 
     @Override
-    public void stopRtmpStream() {
+    public void stopStream() {
 
     }
 
     @Override
-    public void sendRtmpKeepAlive(@NonNull Map<String, Object> message) {
+    public void sendStreamKeepAlive(@NonNull Map<String, Object> message) {
 
     }
 

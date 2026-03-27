@@ -20,7 +20,7 @@ import com.mentra.asg_client.service.core.handlers.VideoCommandHandler;
 import com.mentra.asg_client.service.core.handlers.PhoneReadyCommandHandler;
 import com.mentra.asg_client.service.core.handlers.AuthTokenCommandHandler;
 import com.mentra.asg_client.service.core.handlers.PingCommandHandler;
-import com.mentra.asg_client.service.core.handlers.RtmpCommandHandler;
+import com.mentra.asg_client.service.core.handlers.StreamCommandHandler;
 import com.mentra.asg_client.service.core.handlers.WifiCommandHandler;
 import com.mentra.asg_client.service.core.handlers.BatteryCommandHandler;
 import com.mentra.asg_client.service.core.handlers.ImuCommandHandler;
@@ -315,8 +315,8 @@ public class CommandProcessor {
             commandHandlerRegistry.registerHandler(new KeepAwakeCommandHandler());
             Log.d(TAG, "✅ Registered KeepAwakeCommandHandler");
 
-            commandHandlerRegistry.registerHandler(new RtmpCommandHandler(context, stateManager, streamingManager));
-            Log.d(TAG, "✅ Registered RtmpCommandHandler");
+            commandHandlerRegistry.registerHandler(new StreamCommandHandler(context, stateManager, streamingManager));
+            Log.d(TAG, "✅ Registered StreamCommandHandler");
 
             commandHandlerRegistry.registerHandler(new WifiCommandHandler(serviceManager, communicationManager, stateManager));
             Log.d(TAG, "✅ Registered WifiCommandHandler");

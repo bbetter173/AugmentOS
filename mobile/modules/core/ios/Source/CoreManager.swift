@@ -1090,19 +1090,19 @@ struct ViewState {
         sgc?.ping()
     }
 
-    func startRtmpStream(_ message: [String: Any]) {
-        Bridge.log("MAN: startRtmpStream: \(message)")
-        sgc?.startRtmpStream(message)
+    func startStream(_ message: [String: Any]) {
+        Bridge.log("MAN: startStream: \(message)")
+        sgc?.startStream(message)
     }
 
-    func stopRtmpStream() {
-        Bridge.log("MAN: stopRtmpStream")
-        sgc?.stopRtmpStream()
+    func stopStream() {
+        Bridge.log("MAN: stopStream")
+        sgc?.stopStream()
     }
 
-    func keepRtmpStreamAlive(_ message: [String: Any]) {
-        Bridge.log("MAN: sendRtmpKeepAlive: \(message)")
-        sgc?.sendRtmpKeepAlive(message)
+    func keepStreamAlive(_ message: [String: Any]) {
+        Bridge.log("MAN: sendStreamKeepAlive: \(message)")
+        sgc?.sendStreamKeepAlive(message)
     }
 
     func requestWifiScan() {

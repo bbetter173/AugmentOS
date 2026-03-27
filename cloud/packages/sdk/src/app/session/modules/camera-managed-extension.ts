@@ -248,7 +248,7 @@ export class CameraManagedExtension {
       thumbnailUrl?: string;
       activeViewers?: number;
       // For unmanaged streams
-      rtmpUrl?: string;
+      streamUrl?: string;
       requestingAppId?: string;
     };
   }> {

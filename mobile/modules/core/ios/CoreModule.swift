@@ -38,7 +38,7 @@ public class CoreModule: Module {
             "ws_bin",
             "mic_pcm",
             "mic_lc3",
-            "rtmp_stream_status",
+            "stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
@@ -288,23 +288,23 @@ public class CoreModule: Module {
             }
         }
 
-        // MARK: - RTMP Stream Commands
+        // MARK: - Stream Commands
 
-        AsyncFunction("startRtmpStream") { (params: [String: Any]) in
+        AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                CoreManager.shared.startRtmpStream(params)
+                CoreManager.shared.startStream(params)
             }
         }
 
-        AsyncFunction("stopRtmpStream") {
+        AsyncFunction("stopStream") {
             await MainActor.run {
-                CoreManager.shared.stopRtmpStream()
+                CoreManager.shared.stopStream()
             }
         }
 
-        AsyncFunction("keepRtmpStreamAlive") { (params: [String: Any]) in
+        AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                CoreManager.shared.keepRtmpStreamAlive(params)
+                CoreManager.shared.keepStreamAlive(params)
             }
         }
 

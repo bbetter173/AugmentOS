@@ -403,7 +403,7 @@ export class CloudflareStreamService {
 
       const result: LiveInputResult = {
         liveInputId: liveInput.uid,
-        rtmpUrl: srtUrl!,
+        rtmpUrl,
         srtUrl,
         hlsUrl: hlsUrl,
         dashUrl: dashUrl,

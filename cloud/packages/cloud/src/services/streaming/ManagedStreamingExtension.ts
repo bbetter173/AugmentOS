@@ -7,10 +7,10 @@ import {
   ManagedStreamStopRequest,
   ManagedStreamStatus,
   OutputStatus,
-  StartRtmpStream,
-  StopRtmpStream,
-  KeepRtmpStreamAlive,
-  RtmpStreamStatus,
+  StartStream,
+  StopStream,
+  KeepStreamAlive,
+  StreamStatus,
   KeepAliveAck,
 } from "@mentra/sdk";
 import UserSession from "../session/UserSession";
@@ -235,10 +235,10 @@ export class ManagedStreamingExtension {
     const sound = appSound ?? true;
 
     // Send start command to glasses with Cloudflare RTMP URL
-    const startMessage: StartRtmpStream = {
-      type: CloudToGlassesMessageType.START_RTMP_STREAM,
+    const startMessage: StartStream = {
+      type: CloudToGlassesMessageType.START_STREAM,
       sessionId: userSession.sessionId,
-      rtmpUrl: liveInput.rtmpUrl, // Cloudflare ingest URL
+      streamUrl: liveInput.srtUrl!, // Cloudflare ingest URL
       appId: "MANAGED_STREAM", // Special app ID for managed streams
       streamId: managedStream.streamId,
       video: video || {},
@@ -259,7 +259,7 @@ export class ManagedStreamingExtension {
           cfLiveInputId: liveInput.liveInputId,
           packageName,
         },
-        "Sent START_RTMP_STREAM for managed stream",
+        "Sent START_STREAM for managed stream",
       );
 
       // Send initial status without URLs (they're not ready yet)
@@ -333,7 +333,7 @@ export class ManagedStreamingExtension {
    * Handle RTMP stream status from glasses
    * @returns true if handled by managed streaming, false otherwise
    */
-  async handleStreamStatus(userSession: UserSession, status: RtmpStreamStatus): Promise<boolean> {
+  async handleStreamStatus(userSession: UserSession, status: StreamStatus): Promise<boolean> {
     const { streamId, status: glassesStatus } = status;
 
     // Check if this is a managed stream by stream ID
@@ -1188,8 +1188,8 @@ export class ManagedStreamingExtension {
       return;
     }
 
-    const message: KeepRtmpStreamAlive = {
-      type: CloudToGlassesMessageType.KEEP_RTMP_STREAM_ALIVE,
+    const message: KeepStreamAlive = {
+      type: CloudToGlassesMessageType.KEEP_STREAM_ALIVE,
       streamId,
       ackId,
     };
@@ -1265,8 +1265,8 @@ export class ManagedStreamingExtension {
 
     // Send stop command to glasses
     if (userSession.websocket?.readyState === WebSocket.OPEN) {
-      const stopMessage: StopRtmpStream = {
-        type: CloudToGlassesMessageType.STOP_RTMP_STREAM,
+      const stopMessage: StopStream = {
+        type: CloudToGlassesMessageType.STOP_STREAM,
         sessionId: userSession.sessionId,
         appId: "MANAGED_STREAM", // Same special app ID used when starting
         streamId: stream.streamId,

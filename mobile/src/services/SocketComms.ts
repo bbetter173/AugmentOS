@@ -89,7 +89,7 @@ class SocketComms {
     ws.sendText(JSON.stringify(msg))
   }
 
-  public sendRtmpStreamStatus(statusMessage: any) {
+  public sendStreamStatus(statusMessage: any) {
     // Forward the status message directly since it's already in the correct format
     ws.sendText(JSON.stringify(statusMessage))
     console.log("SOCKET: Sent RTMP stream status:", statusMessage)
@@ -534,22 +534,22 @@ class SocketComms {
     CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
   }
 
-  private handle_start_rtmp_stream(msg: any) {
-    const streamUrl = msg.rtmpUrl || msg.srtUrl || ""
+  private handle_start_stream(msg: any) {
+    const streamUrl = msg.streamUrl
     if (streamUrl) {
-      CoreModule.startRtmpStream(msg)
+      CoreModule.startStream(msg)
     } else {
-      console.log("Invalid stream request: missing rtmpUrl or srtUrl")
+      console.log("Invalid stream request: missing stream URL")
     }
   }
 
-  private handle_stop_rtmp_stream() {
-    CoreModule.stopRtmpStream()
+  private handle_stop_stream() {
+    CoreModule.stopStream()
   }
 
-  private handle_keep_rtmp_stream_alive(msg: any) {
-    console.log(`SOCKET: Received KEEP_RTMP_STREAM_ALIVE: ${JSON.stringify(msg)}`)
-    CoreModule.keepRtmpStreamAlive(msg)
+  private handle_keep_stream_alive(msg: any) {
+    console.log(`SOCKET: Received KEEP_STREAM_ALIVE: ${JSON.stringify(msg)}`)
+    CoreModule.keepStreamAlive(msg)
   }
 
   private handle_save_buffer_video(msg: any) {
@@ -743,16 +743,16 @@ class SocketComms {
         this.handle_photo_request(msg)
         break
 
-      case "start_rtmp_stream":
-        this.handle_start_rtmp_stream(msg)
+      case "start_stream":
+        this.handle_start_stream(msg)
         break
 
-      case "stop_rtmp_stream":
-        this.handle_stop_rtmp_stream()
+      case "stop_stream":
+        this.handle_stop_stream()
         break
 
-      case "keep_rtmp_stream_alive":
-        this.handle_keep_rtmp_stream_alive(msg)
+      case "keep_stream_alive":
+        this.handle_keep_stream_alive(msg)
         break
 
       case "start_buffer_recording":

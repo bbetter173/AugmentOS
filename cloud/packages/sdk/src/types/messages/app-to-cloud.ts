@@ -65,12 +65,12 @@ export interface RgbLedControlRequest extends BaseMessage {
 // Video, Audio and Stream configuration interfaces are imported from '../rtmp-stream'
 
 /**
- * RTMP stream request from App
+ * Stream request from App (supports RTMP, SRT, WHIP)
  */
-export interface RtmpStreamRequest extends BaseMessage {
-  type: AppToCloudMessageType.RTMP_STREAM_REQUEST;
+export interface StreamRequest extends BaseMessage {
+  type: AppToCloudMessageType.STREAM_REQUEST;
   packageName: string;
-  rtmpUrl: string;
+  streamUrl: string;
   video?: VideoConfig;
   audio?: AudioConfig;
   stream?: StreamConfig;
@@ -79,10 +79,10 @@ export interface RtmpStreamRequest extends BaseMessage {
 }
 
 /**
- * RTMP stream stop request from App
+ * Stream stop request from App
  */
-export interface RtmpStreamStopRequest extends BaseMessage {
-  type: AppToCloudMessageType.RTMP_STREAM_STOP;
+export interface StreamStopRequest extends BaseMessage {
+  type: AppToCloudMessageType.STREAM_STOP;
   packageName: string;
   streamId?: string; // Optional stream ID to specify which stream to stop
 }
@@ -261,8 +261,8 @@ export type AppToCloudMessage =
   | AudioStopRequest
   | AudioStreamStart
   | AudioStreamEnd
-  | RtmpStreamRequest
-  | RtmpStreamStopRequest
+  | StreamRequest
+  | StreamStopRequest
   | ManagedStreamRequest
   | ManagedStreamStopRequest
   | StreamStatusCheckRequest
@@ -437,17 +437,17 @@ export interface AppRoomLeave extends BaseMessage {
 }
 
 /**
- * Type guard to check if a message is an RTMP stream request
+ * Type guard to check if a message is a stream request
  */
-export function isRtmpStreamRequest(message: AppToCloudMessage): message is RtmpStreamRequest {
-  return message.type === AppToCloudMessageType.RTMP_STREAM_REQUEST;
+export function isStreamRequest(message: AppToCloudMessage): message is StreamRequest {
+  return message.type === AppToCloudMessageType.STREAM_REQUEST;
 }
 
 /**
- * Type guard to check if a message is an RTMP stream stop request
+ * Type guard to check if a message is a stream stop request
  */
-export function isRtmpStreamStopRequest(message: AppToCloudMessage): message is RtmpStreamStopRequest {
-  return message.type === AppToCloudMessageType.RTMP_STREAM_STOP;
+export function isStreamStopRequest(message: AppToCloudMessage): message is StreamStopRequest {
+  return message.type === AppToCloudMessageType.STREAM_STOP;
 }
 
 /**

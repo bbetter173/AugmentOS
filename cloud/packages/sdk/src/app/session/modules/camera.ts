@@ -9,10 +9,10 @@ import {
   PhotoRequest,
   PhotoData,
   AppToCloudMessageType,
-  RtmpStreamRequest,
-  RtmpStreamStopRequest,
-  RtmpStreamStatus,
-  isRtmpStreamStatus,
+  StreamRequest,
+  StreamStopRequest,
+  StreamStatus,
+  isStreamStatus,
   ManagedStreamStatus,
   StreamStatusCheckResponse,
   CameraFovSetRequest,
@@ -49,14 +49,15 @@ export interface PhotoRequestOptions {
 }
 
 /**
- * Configuration options for an RTMP or SRT stream
+ * Configuration options for a stream (RTMP, SRT, or WHIP)
  */
-export interface RtmpStreamOptions {
-  /** The stream URL to stream to. Supports rtmp://, rtmps://, and srt:// protocols.
+export interface StreamOptions {
+  /** The stream URL to stream to. Supports rtmp://, rtmps://, srt://, and https:// (WHIP) protocols.
    * @example "rtmp://server.example.com/live/stream-key"
    * @example "srt://server.example.com:4201?streamid=your-stream-id"
+   * @example "https://server.example.com/whip/endpoint"
    */
-  rtmpUrl: string;
+  streamUrl: string;
   /** Optional video configuration settings */
   video?: VideoConfig;
   /** Optional audio configuration settings */
@@ -95,7 +96,7 @@ const VALID_ROI_POSITIONS: CameraRoiPosition[] = ["center", "top", "bottom"];
  * const photoData = await session.camera.requestPhoto({ saveToGallery: true });
  *
  * // Start streaming
- * await session.camera.startStream({ rtmpUrl: 'rtmp://example.com/live/key' });
+ * await session.camera.startStream({ streamUrl: 'rtmp://example.com/live/key' });
  *
  * // Monitor stream status
  * session.camera.onStreamStatus((status) => {
@@ -120,7 +121,7 @@ export class CameraModule {
   // Streaming functionality
   private isStreaming: boolean = false;
   private currentStreamUrl?: string;
-  private currentStreamState?: RtmpStreamStatus;
+  private currentStreamState?: StreamStatus;
 
   // Managed streaming extension
   private managedExtension: CameraManagedExtension;
@@ -348,7 +349,7 @@ export class CameraModule {
   // =====================================
 
   /**
-   * 📹 Start an RTMP stream to the specified URL
+   * 📹 Start a stream to the specified URL (supports RTMP, SRT, WHIP)
    *
    * @param options - Configuration options for the stream
    * @returns Promise that resolves when the stream request is sent (not when streaming begins)
@@ -356,31 +357,31 @@ export class CameraModule {
    * @example
    * ```typescript
    * await session.camera.startStream({
-   *   rtmpUrl: 'rtmp://live.example.com/stream/key',
+   *   streamUrl: 'rtmp://live.example.com/stream/key',
    *   video: { resolution: '1920x1080', bitrate: 5000 },
    *   audio: { bitrate: 128 }
    * });
    * ```
    */
-  async startStream(options: RtmpStreamOptions): Promise<void> {
-    this.logger.info({ rtmpUrl: options.rtmpUrl }, `📹 RTMP stream request starting`);
+  async startStream(options: StreamOptions): Promise<void> {
+    this.logger.info({ streamUrl: options.streamUrl }, `📹 Stream request starting`);
 
     cameraWarnLog(this.session.getHttpsServerUrl?.(), this.packageName, "startStream");
 
-    if (!options.rtmpUrl) {
-      throw new Error("rtmpUrl is required");
+    if (!options.streamUrl) {
+      throw new Error("streamUrl is required");
     }
 
-    const url = options.rtmpUrl;
-    if (!url.startsWith("rtmp://") && !url.startsWith("rtmps://") && !url.startsWith("srt://")) {
-      throw new Error("Invalid stream URL: must start with rtmp://, rtmps://, or srt://");
+    const url = options.streamUrl;
+    if (!url.startsWith("rtmp://") && !url.startsWith("rtmps://") && !url.startsWith("srt://") && !url.startsWith("https://") && !url.startsWith("http://")) {
+      throw new Error("Invalid stream URL: must start with rtmp://, rtmps://, srt://, https://, or http://");
     }
 
     if (this.isStreaming) {
       this.logger.error(
         {
           currentStreamUrl: this.currentStreamUrl,
-          requestedUrl: options.rtmpUrl,
+          requestedUrl: options.streamUrl,
         },
         `📹 Already streaming error`,
       );
@@ -388,11 +389,11 @@ export class CameraModule {
     }
 
     // Create stream request message
-    const message: RtmpStreamRequest = {
-      type: AppToCloudMessageType.RTMP_STREAM_REQUEST,
+    const message: StreamRequest = {
+      type: AppToCloudMessageType.STREAM_REQUEST,
       packageName: this.packageName,
       sessionId: this.sessionId,
-      rtmpUrl: options.rtmpUrl,
+      streamUrl: options.streamUrl,
       video: options.video,
       audio: options.audio,
       stream: options.stream,
@@ -401,19 +402,19 @@ export class CameraModule {
     };
 
     // Save stream URL for reference
-    this.currentStreamUrl = options.rtmpUrl;
+    this.currentStreamUrl = options.streamUrl;
 
     // Send the request
     try {
       this.session.sendMessage(message);
       this.isStreaming = true;
 
-      this.logger.info({ rtmpUrl: options.rtmpUrl }, `📹 RTMP stream request sent successfully`);
+      this.logger.info({ streamUrl: options.streamUrl }, `📹 Stream request sent successfully`);
       return Promise.resolve();
     } catch (error) {
-      this.logger.error({ error, rtmpUrl: options.rtmpUrl }, `📹 Failed to send RTMP stream request`);
+      this.logger.error({ error, streamUrl: options.streamUrl }, `📹 Failed to send stream request`);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return Promise.reject(`Failed to request RTMP stream: ${errorMessage}`);
+      return Promise.reject(`Failed to request stream: ${errorMessage}`);
     }
   }
 
@@ -433,7 +434,7 @@ export class CameraModule {
         isCurrentlyStreaming: this.isStreaming,
         currentStreamUrl: this.currentStreamUrl,
       },
-      `📹 RTMP stream stop request`,
+      `📹 Stream stop request`,
     );
 
     if (!this.isStreaming) {
@@ -443,8 +444,8 @@ export class CameraModule {
     }
 
     // Create stop request message
-    const message: RtmpStreamStopRequest = {
-      type: AppToCloudMessageType.RTMP_STREAM_STOP,
+    const message: StreamStopRequest = {
+      type: AppToCloudMessageType.STREAM_STOP,
       packageName: this.packageName,
       sessionId: this.sessionId,
       streamId: this.currentStreamState?.streamId, // Include streamId if available
@@ -484,7 +485,7 @@ export class CameraModule {
    *
    * @returns The current stream status, or undefined if not available
    */
-  getStreamStatus(): RtmpStreamStatus | undefined {
+  getStreamStatus(): StreamStatus | undefined {
     return this.currentStreamState;
   }
 
@@ -494,7 +495,7 @@ export class CameraModule {
    */
   subscribeToStreamStatusUpdates(): void {
     if (this.session) {
-      this.session.subscribe(StreamType.RTMP_STREAM_STATUS);
+      this.session.subscribe(StreamType.STREAM_STATUS);
     } else {
       this.logger.error("Cannot subscribe to status updates: session reference not available");
     }
@@ -505,7 +506,7 @@ export class CameraModule {
    */
   unsubscribeFromStreamStatusUpdates(): void {
     if (this.session) {
-      this.session.unsubscribe(StreamType.RTMP_STREAM_STATUS);
+      this.session.unsubscribe(StreamType.STREAM_STATUS);
     }
   }
 
@@ -534,7 +535,7 @@ export class CameraModule {
     }
 
     this.subscribeToStreamStatusUpdates();
-    return this.session.on(StreamType.RTMP_STREAM_STATUS, handler);
+    return this.session.on(StreamType.STREAM_STATUS, handler);
   }
 
   /**
@@ -554,13 +555,13 @@ export class CameraModule {
     );
 
     // Verify this is a valid stream response
-    if (!isRtmpStreamStatus(message)) {
+    if (!isStreamStatus(message)) {
       this.logger.warn({ message }, `📹 Received invalid stream status message`);
       return;
     }
 
     // Convert to StreamStatus format
-    const status: RtmpStreamStatus = {
+    const status: StreamStatus = {
       type: message.type,
       streamId: message.streamId,
       status: message.status,
@@ -679,7 +680,7 @@ export class CameraModule {
    *   if (streamInfo.streamInfo?.type === 'managed') {
    *     console.log('HLS URL:', streamInfo.streamInfo.hlsUrl);
    *   } else {
-   *     console.log('RTMP URL:', streamInfo.streamInfo.rtmpUrl);
+   *     console.log('Stream URL:', streamInfo.streamInfo.streamUrl);
    *   }
    * }
    * ```
@@ -699,7 +700,7 @@ export class CameraModule {
       thumbnailUrl?: string;
       activeViewers?: number;
       // For unmanaged streams
-      rtmpUrl?: string;
+      streamUrl?: string;
       requestingAppId?: string;
     };
   }> {

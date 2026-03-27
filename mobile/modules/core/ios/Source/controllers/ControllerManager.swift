@@ -22,9 +22,9 @@ protocol ControllerManager {
         _ requestId: String, appId: String, size: String?, webhookUrl: String?, authToken: String?,
         compress: String?, flash: Bool, sound: Bool
     )
-    func startRtmpStream(_ message: [String: Any])
-    func stopRtmpStream()
-    func sendRtmpKeepAlive(_ message: [String: Any])
+    func startStream(_ message: [String: Any])
+    func stopStream()
+    func sendStreamKeepAlive(_ message: [String: Any])
     func startBufferRecording()
     func stopBufferRecording()
     func saveBufferVideo(requestId: String, durationSeconds: Int)

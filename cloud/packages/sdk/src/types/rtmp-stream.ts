@@ -1,6 +1,6 @@
 // src/types/rtmp-stream.ts
 
-import type { RtmpStreamStatus } from "./messages/glasses-to-cloud";
+import type { StreamStatus } from "./messages/glasses-to-cloud";
 
 /**
  * RTMP Streaming Types
@@ -71,4 +71,4 @@ export interface StreamConfig {
 /**
  * Type for stream status event handler
  */
-export type StreamStatusHandler = (status: RtmpStreamStatus) => void;
+export type StreamStatusHandler = (status: StreamStatus) => void;

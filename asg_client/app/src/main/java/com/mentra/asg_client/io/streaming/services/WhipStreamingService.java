@@ -17,6 +17,9 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import com.mentra.asg_client.audio.AudioAssets;
+import com.mentra.asg_client.io.hardware.core.HardwareManagerFactory;
+import com.mentra.asg_client.io.hardware.interfaces.IHardwareManager;
 import com.mentra.asg_client.io.streaming.config.WhipStreamConfig;
 import com.mentra.asg_client.io.streaming.interfaces.StreamingStatusCallback;
 
@@ -86,6 +89,10 @@ public class WhipStreamingService extends Service {
   private static StreamingStatusCallback sStatusCallback;
   private static WhipStreamConfig sPendingStreamConfig = null;
 
+  // Guard: PeerConnectionFactory.initialize() registers a BroadcastReceiver and must only be
+  // called once per process to avoid the NetworkMonitorAutoDetect IntentReceiver leak.
+  private static boolean sPeerConnectionFactoryInitialized = false;
+
   // Stream parameters
   private String mWhipUrl;
   /** Resource URL returned by the WHIP server in the Location header, used for teardown. */
@@ -111,10 +118,18 @@ public class WhipStreamingService extends Service {
   // HTTP client for WHIP signaling
   private OkHttpClient mHttpClient;
 
+  private IHardwareManager mHardwareManager;
+
   // ---- State management ----
-  private enum StreamState { IDLE, STARTING, STREAMING, STOPPING }
+  private enum StreamState { IDLE, STARTING, STREAMING, STOPPING, RECONNECTING }
   private volatile StreamState mStreamState = StreamState.IDLE;
   private final Object mStateLock = new Object();
+
+  // ---- Reconnection ----
+  private static final int MAX_RECONNECT_ATTEMPTS = 3;
+  private static final long RECONNECT_DELAY_MS = 3000;
+  private int mReconnectAttempts = 0;
+  private volatile boolean mIsReconnecting = false;
 
   private Handler mMainHandler;
 
@@ -169,6 +184,7 @@ public class WhipStreamingService extends Service {
 
     mMainHandler = new Handler(Looper.getMainLooper());
     mHttpClient = new OkHttpClient();
+    mHardwareManager = HardwareManagerFactory.getInstance(this);
 
     createNotificationChannel();
     Log.d(TAG, "WhipStreamingService created");
@@ -219,16 +235,20 @@ public class WhipStreamingService extends Service {
   /** Start streaming to the currently configured WHIP URL. */
   private void startStreaming() {
     synchronized (mStateLock) {
-      if (mStreamState != StreamState.IDLE) {
+      if (mStreamState != StreamState.IDLE && mStreamState != StreamState.RECONNECTING) {
         Log.w(TAG, "startStreaming() called in state " + mStreamState + ", ignoring");
         return;
       }
       mStreamState = StreamState.STARTING;
     }
 
-    Log.d(TAG, "Starting WHIP streaming to " + mWhipUrl);
-    notifyStarting(mWhipUrl);
-    updateNotification("Connecting…");
+    if (!mIsReconnecting) {
+      mReconnectAttempts = 0;
+    }
+
+    Log.d(TAG, (mIsReconnecting ? "Re-starting" : "Starting") + " WHIP streaming to " + mWhipUrl);
+    if (!mIsReconnecting) notifyStarting(mWhipUrl);
+    updateNotification(mIsReconnecting ? "Reconnecting…" : "Connecting…");
 
     try {
       initWebRtc();
@@ -244,6 +264,10 @@ public class WhipStreamingService extends Service {
 
   /** Stop the active stream and release all WebRTC resources. */
   private void stopStreaming() {
+    stopStreaming(false);
+  }
+
+  private void stopStreaming(boolean forReconnect) {
     synchronized (mStateLock) {
       if (mStreamState == StreamState.IDLE || mStreamState == StreamState.STOPPING) {
         return;
@@ -252,18 +276,57 @@ public class WhipStreamingService extends Service {
     }
 
     mMainHandler.removeCallbacks(mStatsRunnable);
-    Log.d(TAG, "Stopping WHIP streaming");
+    Log.d(TAG, "Stopping WHIP streaming (forReconnect=" + forReconnect + ")");
 
     if (mWhipResourceUrl != null) {
       deleteWhipResource(mWhipResourceUrl);
+      mWhipResourceUrl = null;
     }
 
     releaseWebRtc();
-    resetState();
 
-    notifyStopped();
-    updateNotification("Stream stopped");
+    if (forReconnect) {
+      synchronized (mStateLock) {
+        mStreamState = StreamState.RECONNECTING;
+      }
+    } else {
+      if (mLedEnabled && mHardwareManager != null && mHardwareManager.supportsRecordingLed()) {
+        mHardwareManager.setRecordingLedOff();
+      }
+      if (mSoundEnabled && mHardwareManager != null && mHardwareManager.supportsAudioPlayback()) {
+        mHardwareManager.playAudioAsset(AudioAssets.VIDEO_RECORDING_STOP);
+      }
+      mIsReconnecting = false;
+      mReconnectAttempts = 0;
+      resetState();
+      notifyStopped();
+      updateNotification("Stream stopped");
+    }
     Log.d(TAG, "WHIP streaming stopped");
+  }
+
+  /** Attempt to reconnect after a connection failure. */
+  private void attemptReconnect(String reason) {
+    mReconnectAttempts++;
+    if (mReconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      Log.w(TAG, "WHIP max reconnect attempts reached (" + MAX_RECONNECT_ATTEMPTS + ")");
+      mIsReconnecting = false;
+      mReconnectAttempts = 0;
+      notifyReconnectFailed(MAX_RECONNECT_ATTEMPTS);
+      stopStreaming(false);
+      return;
+    }
+
+    mIsReconnecting = true;
+    Log.d(TAG, "WHIP reconnect attempt " + mReconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS + " in " + RECONNECT_DELAY_MS + "ms");
+    notifyReconnecting(mReconnectAttempts, MAX_RECONNECT_ATTEMPTS, reason);
+
+    stopStreaming(true);
+
+    mMainHandler.postDelayed(() -> {
+      Log.d(TAG, "WHIP executing reconnect attempt " + mReconnectAttempts);
+      startStreaming();
+    }, RECONNECT_DELAY_MS);
   }
 
   // -----------------------------------------------------------------------
@@ -271,11 +334,14 @@ public class WhipStreamingService extends Service {
   // -----------------------------------------------------------------------
 
   private void initWebRtc() {
-    PeerConnectionFactory.InitializationOptions initOptions =
-        PeerConnectionFactory.InitializationOptions.builder(this)
-            .setEnableInternalTracer(false)
-            .createInitializationOptions();
-    PeerConnectionFactory.initialize(initOptions);
+    if (!sPeerConnectionFactoryInitialized) {
+      PeerConnectionFactory.InitializationOptions initOptions =
+          PeerConnectionFactory.InitializationOptions.builder(this)
+              .setEnableInternalTracer(false)
+              .createInitializationOptions();
+      PeerConnectionFactory.initialize(initOptions);
+      sPeerConnectionFactoryInitialized = true;
+    }
 
     mEglBase = EglBase.create();
 
@@ -335,10 +401,9 @@ public class WhipStreamingService extends Service {
   }
 
   private void createPeerConnectionAndOffer() {
+    // No STUN/TURN needed for WHIP: we connect outbound to a known server,
+    // so host candidates (local IP) are sufficient. STUN only adds latency here.
     List<PeerConnection.IceServer> iceServers = new ArrayList<>();
-    iceServers.add(PeerConnection.IceServer
-        .builder(mStreamConfig.getStunServer())
-        .createIceServer());
 
     PeerConnection.RTCConfiguration rtcConfig =
         new PeerConnection.RTCConfiguration(iceServers);
@@ -449,7 +514,20 @@ public class WhipStreamingService extends Service {
             mLastAudioBytesSent = 0;
             mMainHandler.postDelayed(mStatsRunnable, STATS_INTERVAL_MS);
             Log.d(TAG, "Streaming started via WHIP");
-            notifyStarted(mWhipUrl);
+            if (mLedEnabled && mHardwareManager != null && mHardwareManager.supportsRecordingLed()) {
+              mHardwareManager.setRecordingLedOn();
+            }
+            if (mSoundEnabled && mHardwareManager != null && mHardwareManager.supportsAudioPlayback()) {
+              mHardwareManager.playAudioAsset(AudioAssets.VIDEO_RECORDING_START);
+            }
+            if (mIsReconnecting) {
+              int attempt = mReconnectAttempts;
+              mIsReconnecting = false;
+              mReconnectAttempts = 0;
+              notifyReconnected(mWhipUrl, attempt);
+            } else {
+              notifyStarted(mWhipUrl);
+            }
             updateNotification("Streaming");
           }
 
@@ -518,10 +596,15 @@ public class WhipStreamingService extends Service {
     public void onConnectionChange(PeerConnection.PeerConnectionState newState) {
       Log.d(TAG, "PeerConnection state: " + newState);
       if (newState == PeerConnection.PeerConnectionState.FAILED) {
-        notifyError("PeerConnection failed");
-        mMainHandler.post(() -> stopStreaming());
+        mMainHandler.post(() -> attemptReconnect("PeerConnection failed"));
       } else if (newState == PeerConnection.PeerConnectionState.DISCONNECTED) {
-        Log.w(TAG, "PeerConnection disconnected");
+        Log.w(TAG, "PeerConnection disconnected — waiting before reconnect");
+        mMainHandler.postDelayed(() -> {
+          synchronized (mStateLock) {
+            if (mStreamState != StreamState.STREAMING) return;
+          }
+          attemptReconnect("PeerConnection disconnected");
+        }, 2000);
       }
     }
 
@@ -591,6 +674,18 @@ public class WhipStreamingService extends Service {
 
   private void notifyStopped() {
     if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStopped());
+  }
+
+  private void notifyReconnecting(int attempt, int maxAttempts, String reason) {
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnecting(attempt, maxAttempts, reason));
+  }
+
+  private void notifyReconnected(String url, int attempt) {
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnected(url, attempt));
+  }
+
+  private void notifyReconnectFailed(int maxAttempts) {
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnectFailed(maxAttempts));
   }
 
   private void notifyError(String error) {
@@ -700,6 +795,11 @@ public class WhipStreamingService extends Service {
     synchronized (sInstance.mStateLock) {
       return sInstance.mStreamState == StreamState.STREAMING;
     }
+  }
+
+  /** @return true if a reconnection is currently in progress */
+  public static boolean isReconnecting() {
+    return sInstance != null && sInstance.mIsReconnecting;
   }
 
   /** Register a callback to receive streaming status events. Pass null to unregister. */

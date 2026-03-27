@@ -277,7 +277,7 @@ public class MediaManager implements IMediaManager {
             public void onStreamStopped() {
                 Log.d(TAG, "Stream stopped");
                 // Don't send "stopped" if we're mid-reconnect
-                if (RtmpStreamingService.isReconnecting() || SrtStreamingService.isReconnecting()) {
+                if (RtmpStreamingService.isReconnecting() || SrtStreamingService.isReconnecting() || WhipStreamingService.isReconnecting()) {
                     Log.d(TAG, "Stream stopped for reconnection - skipping stopped status");
                     return;
                 }

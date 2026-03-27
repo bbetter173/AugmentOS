@@ -238,7 +238,7 @@ export class ManagedStreamingExtension {
     const startMessage: StartStream = {
       type: CloudToGlassesMessageType.START_STREAM,
       sessionId: userSession.sessionId,
-      streamUrl: liveInput.srtUrl!, // Cloudflare ingest URL
+      streamUrl: liveInput.webrtcUrl!, // Cloudflare ingest URL
       appId: "MANAGED_STREAM", // Special app ID for managed streams
       streamId: managedStream.streamId,
       video: video || {},

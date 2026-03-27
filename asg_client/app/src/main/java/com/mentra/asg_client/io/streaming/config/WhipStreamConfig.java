@@ -15,8 +15,7 @@ public class WhipStreamConfig {
   public static final boolean DEFAULT_ECHO_CANCELLATION = false;
   public static final boolean DEFAULT_NOISE_SUPPRESSION = false;
 
-  // Default STUN server (Google's public STUN)
-  public static final String DEFAULT_STUN_SERVER = "stun:stun.l.google.com:19302";
+  public static final String DEFAULT_STUN_SERVER = "stun:stun.cloudflare.com:3478";
 
   private int videoWidth = DEFAULT_VIDEO_WIDTH;
   private int videoHeight = DEFAULT_VIDEO_HEIGHT;

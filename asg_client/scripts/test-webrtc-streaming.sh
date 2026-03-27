@@ -1,5 +1,5 @@
 #!/bin/bash
-# test-webrtc-streaming.sh — Manual test driver for WebRtcStreamingService (WHIP)
+# test-webrtc-streaming.sh — Manual test driver for WhipStreamingService (WHIP)
 #
 # Usage:
 #   ./test-webrtc-streaming.sh start <whip_url> [stream_id]
@@ -20,8 +20,8 @@
 
 set -e
 
-SERVICE_CLASS="com.mentra.asg_client.io.streaming.services.WebRtcStreamingService"
-LOG_TAG="WebRtcStreamingService"
+SERVICE_CLASS="com.mentra.asg_client.io.streaming.services.WhipStreamingService"
+LOG_TAG="WhipStreamingService"
 
 # ── Detect installed package name ──────────────────────────────────────────────
 detect_package() {
@@ -70,7 +70,7 @@ cmd_start() {
   adb shell pm grant "$PKG" android.permission.CAMERA            2>/dev/null || true
   adb shell pm grant "$PKG" android.permission.RECORD_AUDIO      2>/dev/null || true
 
-  echo "→ Starting WebRtcStreamingService…"
+  echo "→ Starting WhipStreamingService…"
   adb shell am start-foreground-service \
     -n "${PKG}/${SERVICE_CLASS}" \
     --es whip_url  "$whip_url" \
@@ -90,7 +90,7 @@ cmd_stop() {
     exit 1
   fi
 
-  echo "→ Stopping WebRtcStreamingService (${PKG})…"
+  echo "→ Stopping WhipStreamingService (${PKG})…"
   adb shell am stopservice -n "${PKG}/${SERVICE_CLASS}" || true
   echo "Done."
 }
@@ -102,7 +102,7 @@ cmd_logs() {
   # Include a few related tags for full picture
   adb logcat -v time \
     "$LOG_TAG:D" \
-    "WebRtcTestActivity:D" \
+    "WhipStreamingService:D" \
     "PeerConnection:W" \
     "libjingle:W" \
     "*:S"
@@ -118,7 +118,7 @@ cmd_status() {
 
   echo "=== Running services for ${PKG} ==="
   adb shell dumpsys activity services "$PKG" 2>/dev/null \
-    | grep -E "(ServiceRecord|running|foreground|WebRtc)" || echo "(none found)"
+    | grep -E "(ServiceRecord|running|foreground|Whip)" || echo "(none found)"
 
   echo ""
   echo "=== Recent $LOG_TAG log lines ==="

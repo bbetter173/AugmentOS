@@ -10,6 +10,7 @@ import {
 } from "@mentra/sdk";
 
 import App from "../../models/app.model";
+import { appCache } from "../core/app-cache.service";
 import { SimplePermissionChecker } from "../permissions/simple-permission-checker";
 
 import { AppSession, LocationRate } from "./AppSession";
@@ -267,7 +268,7 @@ export class SubscriptionManager {
     // Validate permissions (best-effort)
     let allowedProcessed: ExtendedStreamType[] = processed;
     try {
-      const app = await App.findOne({ packageName });
+      const app = appCache.getByPackageName(packageName) || (await App.findOne({ packageName }).lean());
       if (app) {
         const { allowed, rejected } = SimplePermissionChecker.filterSubscriptions(app, processed);
         if (rejected.length > 0) {

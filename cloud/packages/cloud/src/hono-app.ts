@@ -13,6 +13,7 @@ import path from "path";
 
 import { CORS_ORIGINS } from "./config/cors";
 import { logger as rootLogger } from "./services/logging/pino-logger";
+import { isShuttingDown } from "./services/shutdown";
 import { metricsService } from "./services/metrics";
 import UserSession from "./services/session/UserSession";
 import { udpAudioServer } from "./services/udp/UdpAudioServer";
@@ -97,6 +98,17 @@ app.use(
   }),
 );
 
+// Drain middleware — reject all requests during graceful shutdown.
+// This prevents REST requests from hitting a dying pod that has no sessions.
+// Without this, the LB can route requests here during the 30s SIGTERM grace period.
+// /livez is excluded so Kubernetes can still check if the process is alive.
+app.use(async (c, next) => {
+  if (isShuttingDown() && c.req.path !== "/livez") {
+    return c.json({ status: "draining", message: "Server is shutting down" }, 503);
+  }
+  await next();
+});
+
 // Request logging middleware (replaces pino-http)
 // Logs all HTTP requests to Better Stack with detailed information
 app.use(async (c, next) => {
@@ -115,7 +127,7 @@ app.use(async (c, next) => {
   c.set("reqId", reqId);
 
   // Skip detailed logging for noisy endpoints (but still process them)
-  const isNoisyEndpoint = reqPath === "/health";
+  const isNoisyEndpoint = reqPath === "/health" || reqPath === "/livez";
 
   // Capture request details before processing
   const userAgent = c.req.header("user-agent") || "unknown";
@@ -197,10 +209,24 @@ app.use(async (c, next) => {
 });
 
 // ============================================================================
+// Liveness Probe
+// ============================================================================
+
+// Lightweight liveness probe — zero computation.
+// If the event loop can return 2 bytes, the process is alive.
+app.get("/livez", (c) => c.text("ok"));
+
+// ============================================================================
 // Health Check
 // ============================================================================
 
 app.get("/health", (c) => {
+  // A2: Return 503 during graceful shutdown so LB stops routing to this pod
+  if (isShuttingDown()) {
+    return c.json({ status: "draining", message: "Server is shutting down" }, 503);
+  }
+
+  const t0 = performance.now();
   try {
     const activeSessions = UserSession.getAllSessions();
 
@@ -212,9 +238,17 @@ app.get("/health", (c) => {
     metricsService.setUserSessions(activeSessions.length);
     metricsService.setMiniappSessions(miniappCount);
 
+    const memUsage = process.memoryUsage();
     return c.json({
       status: "ok",
       timestamp: new Date().toISOString(),
+      heapUsedMB: Math.round(memUsage.heapUsed / 1048576),
+      heapTotalMB: Math.round(memUsage.heapTotal / 1048576),
+      rssMB: Math.round(memUsage.rss / 1048576),
+      externalMB: Math.round(memUsage.external / 1048576),
+      eventLoopLagMs: metricsService.getCurrentLag?.() ?? 0,
+      activeSessions: activeSessions.length,
+      uptimeSeconds: Math.round(process.uptime()),
       ...metricsService.toJSON(),
     });
   } catch (error) {
@@ -227,6 +261,18 @@ app.get("/health", (c) => {
       },
       500,
     );
+  } finally {
+    const durationMs = performance.now() - t0;
+    if (durationMs > 50) {
+      logger.warn(
+        {
+          feature: "health-timing",
+          durationMs: Math.round(durationMs * 10) / 10,
+          activeSessions: UserSession.getAllSessions().length,
+        },
+        `Health check slow: ${Math.round(durationMs)}ms`,
+      );
+    }
   }
 });
 

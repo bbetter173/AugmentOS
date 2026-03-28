@@ -282,7 +282,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onSearchClear, onSearchChange
               <Button
                 onClick={() => navigate("/login")}
                 variant={theme === "light" ? "default" : "outline"}
-                className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] text-[var(--foreground)]">
+                className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] hover:bg-[var(--primary-foreground)] hover:opacity-80 text-[var(--foreground)]">
                 <User className="w-4 h-4" style={{ color: "var(--foreground)" }} />
                 Login
               </Button>
@@ -452,7 +452,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onSearchClear, onSearchChange
                   <Button
                     onClick={() => navigate("/login")}
                     variant={theme === "light" ? "default" : "outline"}
-                    className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] text-[var(--foreground)]">
+                    className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] hover:bg-[var(--primary-foreground)] hover:opacity-80 text-[var(--foreground)]">
                     <User className="w-4 h-4" style={{ color: "var(--foreground)" }} />
                     Login
                   </Button>

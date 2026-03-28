@@ -557,9 +557,7 @@ export function GalleryScreen() {
     if (selectedPhotos.size === 0) return
 
     try {
-      const photosToShare = allPhotos
-        .filter((p) => p.photo && selectedPhotos.has(p.photo.name))
-        .map((p) => p.photo!)
+      const photosToShare = allPhotos.filter((p) => p.photo && selectedPhotos.has(p.photo.name)).map((p) => p.photo!)
       const shareUrls: string[] = []
       const cacheDir = `${RNFS.CachesDirectoryPath}/share`
       await RNFS.mkdir(cacheDir)

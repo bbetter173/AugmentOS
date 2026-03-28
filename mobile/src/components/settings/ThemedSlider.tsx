@@ -53,45 +53,60 @@ export const ThemedSlider: React.FC<ThemedSliderProps> = ({
     }
   }, [value])
 
-  const computeValueFromX = useCallback((absoluteX: number) => {
-    if (sliderWidth === 0) {
-      return value
-    }
-    const relativeX = absoluteX - sliderPositionRef.current.x
-    const ratio = Math.max(0, Math.min(1, relativeX / sliderWidth))
-    return Math.round(min + ratio * (max - min))
-  }, [sliderWidth, min, max, value])
+  const computeValueFromX = useCallback(
+    (absoluteX: number) => {
+      if (sliderWidth === 0) {
+        return value
+      }
+      const relativeX = absoluteX - sliderPositionRef.current.x
+      const ratio = Math.max(0, Math.min(1, relativeX / sliderWidth))
+      return Math.round(min + ratio * (max - min))
+    },
+    [sliderWidth, min, max, value],
+  )
 
-  const handleBegin = useCallback((absoluteX: number) => {
-    isDraggingRef.current = true
-    const newValue = computeValueFromX(absoluteX)
-    setInternalValue(newValue)
-    onValueChangeRef.current(newValue)
-  }, [computeValueFromX])
+  const handleBegin = useCallback(
+    (absoluteX: number) => {
+      isDraggingRef.current = true
+      const newValue = computeValueFromX(absoluteX)
+      setInternalValue(newValue)
+      onValueChangeRef.current(newValue)
+    },
+    [computeValueFromX],
+  )
 
-  const handleUpdate = useCallback((absoluteX: number) => {
-    const newValue = computeValueFromX(absoluteX)
-    setInternalValue(newValue)
-    onValueChangeRef.current(newValue)
-  }, [computeValueFromX])
+  const handleUpdate = useCallback(
+    (absoluteX: number) => {
+      const newValue = computeValueFromX(absoluteX)
+      setInternalValue(newValue)
+      onValueChangeRef.current(newValue)
+    },
+    [computeValueFromX],
+  )
 
-  const handleEnd = useCallback((absoluteX: number) => {
-    const newValue = computeValueFromX(absoluteX)
-    setInternalValue(newValue)
-    onSlidingCompleteRef.current(newValue)
-    isDraggingRef.current = false
-  }, [computeValueFromX])
+  const handleEnd = useCallback(
+    (absoluteX: number) => {
+      const newValue = computeValueFromX(absoluteX)
+      setInternalValue(newValue)
+      onSlidingCompleteRef.current(newValue)
+      isDraggingRef.current = false
+    },
+    [computeValueFromX],
+  )
 
   const handleFinalize = useCallback(() => {
     isDraggingRef.current = false
   }, [])
 
-  const handleTap = useCallback((absoluteX: number) => {
-    const newValue = computeValueFromX(absoluteX)
-    setInternalValue(newValue)
-    onValueChangeRef.current(newValue)
-    onSlidingCompleteRef.current(newValue)
-  }, [computeValueFromX])
+  const handleTap = useCallback(
+    (absoluteX: number) => {
+      const newValue = computeValueFromX(absoluteX)
+      setInternalValue(newValue)
+      onValueChangeRef.current(newValue)
+      onSlidingCompleteRef.current(newValue)
+    },
+    [computeValueFromX],
+  )
 
   const pan = Gesture.Pan()
     .onBegin((e) => {
@@ -109,10 +124,9 @@ export const ThemedSlider: React.FC<ThemedSliderProps> = ({
     .activeOffsetX([-5, 5])
     .failOffsetY([-20, 20])
 
-  const tap = Gesture.Tap()
-    .onEnd((e) => {
-      runOnJS(handleTap)(e.absoluteX)
-    })
+  const tap = Gesture.Tap().onEnd((e) => {
+    runOnJS(handleTap)(e.absoluteX)
+  })
 
   const gesture = Gesture.Race(pan, tap)
 

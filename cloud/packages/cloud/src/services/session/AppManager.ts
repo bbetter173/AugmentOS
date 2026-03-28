@@ -23,6 +23,7 @@ import {
 
 // import subscriptionService from "./subscription.service";
 import App from "../../models/app.model";
+import { appCache } from "../core/app-cache.service";
 import { User } from "../../models/user.model";
 import appService from "../core/app.service";
 import * as developerService from "../core/developer.service";
@@ -43,7 +44,7 @@ const CLOUD_PUBLIC_HOST_NAME = process.env.CLOUD_PUBLIC_HOST_NAME; // e.g., "pro
 const CLOUD_LOCAL_HOST_NAME = process.env.CLOUD_LOCAL_HOST_NAME; // e.g., "localhost:8002" | "cloud" | "cloud-debug-cloud.default.svc.cluster.local:80"
 const AUGMENTOS_AUTH_JWT_SECRET = process.env.AUGMENTOS_AUTH_JWT_SECRET;
 
-const APP_SESSION_TIMEOUT_MS = 5000; // 5 seconds
+const APP_SESSION_TIMEOUT_MS = 6000; // 6 seconds
 
 // Note: Connection states are now managed by AppSession (AppSessionState)
 // The old AppConnectionState enum has been removed in Phase 4b
@@ -609,10 +610,14 @@ export class AppManager {
       logger.debug(`App ${packageName} is a standard app, checking for running foreground apps`);
       // Check if any other foreground app is running
       const runningAppsPackageNames = Array.from(this.userSession.runningApps.keys());
-      const runningForegroundApps = await App.find({
-        packageName: { $in: runningAppsPackageNames },
-        appType: AppType.STANDARD,
-      });
+      const cachedApps = appCache.getByPackageNames(runningAppsPackageNames);
+      const runningForegroundApps = (
+        cachedApps.length === runningAppsPackageNames.length
+          ? cachedApps
+          : await App.find({
+              packageName: { $in: runningAppsPackageNames },
+            }).lean()
+      ).filter((a: any) => a.appType === AppType.STANDARD);
       logger.debug(
         { runningAppsPackageNames, runningForegroundApps },
         `Running foreground apps: ${JSON.stringify(runningForegroundApps)}`,

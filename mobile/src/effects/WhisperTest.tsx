@@ -27,12 +27,12 @@
 //     const view = new DataView(buffer);
 //     const sampleCount = Math.floor(buffer.byteLength / 2);
 //     const samples = new Float32Array(sampleCount);
-  
+
 //     for (let i = 0; i < sampleCount; i++) {
 //       const sample = view.getInt16(i * 2, true);
 //       samples[i] = sample / 0x8000;
 //     }
-  
+
 //     return samples;
 //   };
 

@@ -8,6 +8,13 @@ import * as Device from "expo-device"
 import restComms from "@/services/RestComms"
 import {storage} from "@/utils/storage"
 
+/** Display depth is 1–3 (default 2); clamps legacy 4–5 from older builds. */
+function clampDashboardDepth(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw)
+  if (!Number.isFinite(n)) return 2
+  return Math.min(3, Math.max(1, Math.round(n)))
+}
+
 interface Setting {
   key: string
   defaultValue: () => any
@@ -370,7 +377,7 @@ export const SETTINGS: Record<string, Setting> = {
   },
   dashboard_depth: {
     key: "dashboard_depth",
-    defaultValue: () => 5,
+    defaultValue: () => 2,
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -526,6 +533,14 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: false,
     persist: false,
   },
+  // Contact email for feedback (persisted for Apple private relay users)
+  contact_email: {
+    key: "contact_email",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
+    persist: true,
+  },
 } as const
 
 export const OFFLINE_APPLETS: string[] = ["com.mentra.livecaptions", "com.mentra.camera"]
@@ -601,10 +616,13 @@ interface SettingsState {
 }
 
 const getDefaultSettings = () =>
-  Object.keys(SETTINGS).reduce((acc, key) => {
-    acc[key] = SETTINGS[key].defaultValue()
-    return acc
-  }, {} as Record<string, any>)
+  Object.keys(SETTINGS).reduce(
+    (acc, key) => {
+      acc[key] = SETTINGS[key].defaultValue()
+      return acc
+    },
+    {} as Record<string, any>,
+  )
 
 export const useSettingsStore = create<SettingsState>()(
   subscribeWithSelector((set, get) => ({
@@ -626,6 +644,10 @@ export const useSettingsStore = create<SettingsState>()(
 
         if (!setting.writable) {
           throw new Error(`SETTINGS: ${originalKey} is not writable!`)
+        }
+
+        if (originalKey === SETTINGS.dashboard_depth.key) {
+          value = clampDashboardDepth(value)
         }
 
         // Update store immediately for optimistic UI
@@ -674,7 +696,11 @@ export const useSettingsStore = create<SettingsState>()(
       // console.log(`GET SETTING: ${key} = ${state.settings[key]}`)
 
       try {
-        return state.settings[key] ?? SETTINGS[originalKey].defaultValue()
+        const raw = state.settings[key] ?? SETTINGS[originalKey].defaultValue()
+        if (originalKey === SETTINGS.dashboard_depth.key) {
+          return clampDashboardDepth(raw)
+        }
+        return raw
       } catch (e) {
         // for dynamically created settings, we need to create a new setting in SETTINGS:
         console.log(`Failed to get setting, creating new setting:(${key}):`, e)
@@ -696,6 +722,10 @@ export const useSettingsStore = create<SettingsState>()(
             continue
           }
           settingsToLoad[key.toLowerCase()] = value
+        }
+
+        if (settingsToLoad.dashboard_depth !== undefined) {
+          settingsToLoad.dashboard_depth = clampDashboardDepth(settingsToLoad.dashboard_depth)
         }
 
         set((state) => ({
@@ -754,6 +784,10 @@ export const useSettingsStore = create<SettingsState>()(
         // console.log("##############################################")
         // console.log(loadedSettings)
         // console.log("##############################################")
+
+        if (loadedSettings.dashboard_depth !== undefined) {
+          loadedSettings.dashboard_depth = clampDashboardDepth(loadedSettings.dashboard_depth)
+        }
 
         set((state) => ({
           isInitialized: true,

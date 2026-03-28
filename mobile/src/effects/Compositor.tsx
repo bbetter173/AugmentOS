@@ -4,12 +4,11 @@ import {useLocalMiniApps} from "@/stores/applets"
 import LocalMiniApp from "@/components/home/LocalMiniApp"
 import composer from "@/services/Composer"
 import {usePathname} from "expo-router"
-import {Screen} from "@/components/ignite"
+import {Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import CoreModule, {MicPcmEvent} from "core"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {Text} from "@/components/ignite"
 // import {useCactusSTT} from "cactus-react-native"
 
 const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {

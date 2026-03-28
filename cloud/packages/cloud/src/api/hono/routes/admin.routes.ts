@@ -16,6 +16,7 @@ import { memoryTelemetryService } from "../../../services/debug/MemoryTelemetryS
 import { logger as rootLogger } from "../../../services/logging/pino-logger";
 import type { AppEnv, AppContext } from "../../../types/hono";
 import { isMentraAdmin } from "../../../services/core/admin.utils";
+import { appCache } from "../../../services/core/app-cache.service";
 import { LeanDocument, Types } from "mongoose";
 
 const logger = rootLogger.child({ service: "admin.routes" });
@@ -56,6 +57,19 @@ app.post("/apps/:packageName/reject", validateAdminEmail, rejectApp);
 // Memory telemetry routes
 app.get("/memory/now", validateAdminEmail, getMemorySnapshot);
 app.post("/memory/heap-snapshot", validateAdminEmail, takeHeapSnapshotHandler);
+
+// Bun-native heap snapshot — returns JSON directly (loadable in Chrome DevTools → Memory → Load).
+// Lighter than the Node inspector-based POST version above.
+// Save response as .heapsnapshot file, then load in Chrome DevTools Memory tab.
+app.get("/memory/heap-snapshot-bun", validateAdminEmail, (c: AppContext) => {
+  try {
+    const snapshot = Bun.generateHeapSnapshot();
+    return c.json(snapshot);
+  } catch (error) {
+    logger.error(error, "Failed to generate Bun heap snapshot");
+    return c.json({ error: "Failed to generate heap snapshot" }, 500);
+  }
+});
 
 // ============================================================================
 // Middleware
@@ -179,6 +193,7 @@ async function createTestSubmission(c: AppContext) {
     });
 
     await testApp.save();
+    appCache.invalidate(); // fire-and-forget
 
     return c.json(
       {
@@ -358,6 +373,7 @@ async function approveApp(c: AppContext) {
     appDoc.reviewedAt = new Date();
 
     await appDoc.save();
+    appCache.invalidate(); // fire-and-forget
 
     // Send approval email to developer/organization contact (non-blocking)
     try {
@@ -425,6 +441,7 @@ async function rejectApp(c: AppContext) {
     appDoc.reviewedAt = new Date();
 
     await appDoc.save();
+    appCache.invalidate(); // fire-and-forget
 
     // Send rejection email to developer/organization contact (non-blocking)
     try {

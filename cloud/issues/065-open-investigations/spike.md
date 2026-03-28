@@ -104,6 +104,7 @@ Server-side pong timeout: DISABLED (PONG_TIMEOUT_ENABLED = false)
 **Why this matters for crashes:**
 
 Each reconnect cycle means:
+
 - New UserSession created (allocates managers, buffers, Soniox connection)
 - Old session enters grace period, then disposes (cleanup, our forced GC)
 - Apps restart, display reinitializes, transcription streams recreate
@@ -243,73 +244,89 @@ Debug, dev, local → old AugmentOS source (correct).
 
 Available for the next session:
 
-| Tool | Access | Purpose |
-|------|--------|---------|
-| `bstack` CLI | `cloud/tools/bstack/bstack.ts` | Pre-built SRE queries against BetterStack. Run: `cd cloud/tools/bstack && bun run bstack.ts health` |
-| BetterStack SQL API | ClickHouse creds in `.env` (`BETTERSTACK_USERNAME`, `BETTERSTACK_PASSWORD`) | Direct ClickHouse queries. Endpoint: `https://eu-nbg-2-connect.betterstackdata.com` |
-| BetterStack Management API | `BETTERSTACK_API_TOKEN` in `.env` | Uptime monitors, sources, dashboards |
-| MongoDB Atlas API | `MONGODB_ATLAS_PUBLIC_KEY` / `MONGODB_ATLAS_PRIVATE_KEY` in `.env` | Cluster health, connection pools, slow query logs, Performance Advisor. Use digest auth. Project ID: `67aeb2349c20fd24351c5392`. Cluster: `AugmentOS` (Azure US North Central, M10). |
-| Cloudflare API | `CLOUDFLARE_LB_API_TOKEN` in `.env` | Load balancer config, pool health, DNS. Account: `3c764e987404b8a1199ce5fdc3544a94`. |
-| Doppler CLI | Authenticated | Env var management. Project: `mentraos-cloud`. |
-| Porter CLI | Authenticated, cluster configs in 058 CONTEXT.md | Cluster/pod management. |
-| GitHub CLI | Authenticated | PRs, issues, deployments. |
-| `mongosh` | Installed, connection string in Doppler `MONGO_URL` | Direct MongoDB queries. |
-| `analyze-heap.ts` | `cloud/packages/cloud/src/scripts/analyze-heap.ts` | Live memory tracking, needs `MENTRA_ADMIN_JWT` env var. |
-| Incident logs | `scripts/fetch-incident-logs.sh` | Fetch mobile client logs for bug reports. Needs `MENTRA_AGENT_API_KEY`. |
+| Tool                       | Access                                                                      | Purpose                                                                                                                                                                              |
+| -------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bstack` CLI               | `cloud/tools/bstack/bstack.ts`                                              | Pre-built SRE queries against BetterStack. Run: `cd cloud/tools/bstack && bun run bstack.ts health`                                                                                  |
+| BetterStack SQL API        | ClickHouse creds in `.env` (`BETTERSTACK_USERNAME`, `BETTERSTACK_PASSWORD`) | Direct ClickHouse queries. Endpoint: `https://eu-nbg-2-connect.betterstackdata.com`                                                                                                  |
+| BetterStack Management API | `BETTERSTACK_API_TOKEN` in `.env`                                           | Uptime monitors, sources, dashboards                                                                                                                                                 |
+| MongoDB Atlas API          | `MONGODB_ATLAS_PUBLIC_KEY` / `MONGODB_ATLAS_PRIVATE_KEY` in `.env`          | Cluster health, connection pools, slow query logs, Performance Advisor. Use digest auth. Project ID: `67aeb2349c20fd24351c5392`. Cluster: `AugmentOS` (Azure US North Central, M10). |
+| Cloudflare API             | `CLOUDFLARE_LB_API_TOKEN` in `.env`                                         | Load balancer config, pool health, DNS. Account: `3c764e987404b8a1199ce5fdc3544a94`.                                                                                                 |
+| Doppler CLI                | Authenticated                                                               | Env var management. Project: `mentraos-cloud`.                                                                                                                                       |
+| Porter CLI                 | Authenticated, cluster configs in 058 CONTEXT.md                            | Cluster/pod management.                                                                                                                                                              |
+| GitHub CLI                 | Authenticated                                                               | PRs, issues, deployments.                                                                                                                                                            |
+| `mongosh`                  | Installed, connection string in Doppler `MONGO_URL`                         | Direct MongoDB queries.                                                                                                                                                              |
+| `analyze-heap.ts`          | `cloud/packages/cloud/src/scripts/analyze-heap.ts`                          | Live memory tracking, needs `MENTRA_ADMIN_JWT` env var.                                                                                                                              |
+| Incident logs              | `scripts/fetch-incident-logs.sh`                                            | Fetch mobile client logs for bug reports. Needs `MENTRA_AGENT_API_KEY`.                                                                                                              |
 
 ### Key BetterStack Sources
 
-| Source | ID | Table (recent) | What's in it |
-|--------|-----|-----------------|-------------|
-| MentraCloud-Prod | 2324289 | `remote(t373499_mentracloud_prod_logs)` | US Central, US West, US East prod + staging |
-| AugmentOS (legacy) | 1311181 | `remote(t373499_augmentos_logs)` | France, East Asia prod + dev/local/debug |
-| US Central collector | 2321796 | `remote(t373499_mentra_us_central_metrics)` | Container CPU, memory, restarts |
-| France collector | 2326580 | `remote(t373499_mentra_france_metrics)` | Container metrics |
-| East Asia collector | 2326583 | `remote(t373499_mentra_east_asia_metrics)` | Container metrics |
-| US West collector | 2326586 | `remote(t373499_mentra_us_west_metrics)` | Container metrics |
-| US East collector | 2326589 | `remote(t373499_mentra_us_east_metrics)` | Container metrics |
+| Source               | ID      | Table (recent)                              | What's in it                                |
+| -------------------- | ------- | ------------------------------------------- | ------------------------------------------- |
+| MentraCloud-Prod     | 2324289 | `remote(t373499_mentracloud_prod_logs)`     | US Central, US West, US East prod + staging |
+| AugmentOS (legacy)   | 1311181 | `remote(t373499_augmentos_logs)`            | France, East Asia prod + dev/local/debug    |
+| US Central collector | 2321796 | `remote(t373499_mentra_us_central_metrics)` | Container CPU, memory, restarts             |
+| France collector     | 2326580 | `remote(t373499_mentra_france_metrics)`     | Container metrics                           |
+| East Asia collector  | 2326583 | `remote(t373499_mentra_east_asia_metrics)`  | Container metrics                           |
+| US West collector    | 2326586 | `remote(t373499_mentra_us_west_metrics)`    | Container metrics                           |
+| US East collector    | 2326589 | `remote(t373499_mentra_us_east_metrics)`    | Container metrics                           |
 
 For historical logs, use `s3Cluster(primary, t373499_mentracloud_prod_s3) WHERE _row_type = 1`.
 
 ### Diagnostic Log Features (what our instrumentation emits)
 
-| Feature | What it shows | Shipped in |
-|---------|--------------|------------|
-| `gc-probe` | Forced GC duration, heap before/after, freed MB (every 60s) | 061 |
-| `gc-after-disconnect` | Forced GC after session dispose (rate-limited 10s) | 061 |
-| `event-loop-gap` | Detected >2s event loop freeze (the KEY diagnostic) | 062 |
-| `system-vitals` | RSS, heap, sessions, connections, mongoQueryCount, mongoTotalBlockingMs, op_audioProcessing_ms, op_appMessage_ms, opBudgetUsedPct (every 30s) | 061+062 |
-| `slow-query` | MongoDB queries exceeding `MONGOOSE_SLOW_QUERY_MS` (100ms) | 061 |
-| `app-cache` | Cache refresh count, apps cached, refresh time (every 30s) | 062 |
-| `health-timing` | /health endpoint slow (>50ms) | 061 |
-| `soniox-timing` | Soniox sendAudio slow (>50ms, rate-limited) | 061 |
+| Feature               | What it shows                                                                                                                                 | Shipped in |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `gc-probe`            | Forced GC duration, heap before/after, freed MB (every 60s)                                                                                   | 061        |
+| `gc-after-disconnect` | Forced GC after session dispose (rate-limited 10s)                                                                                            | 061        |
+| `event-loop-gap`      | Detected >2s event loop freeze (the KEY diagnostic)                                                                                           | 062        |
+| `system-vitals`       | RSS, heap, sessions, connections, mongoQueryCount, mongoTotalBlockingMs, op_audioProcessing_ms, op_appMessage_ms, opBudgetUsedPct (every 30s) | 061+062    |
+| `slow-query`          | MongoDB queries exceeding `MONGOOSE_SLOW_QUERY_MS` (100ms)                                                                                    | 061        |
+| `app-cache`           | Cache refresh count, apps cached, refresh time (every 30s)                                                                                    | 062        |
+| `health-timing`       | /health endpoint slow (>50ms)                                                                                                                 | 061        |
+| `soniox-timing`       | Soniox sendAudio slow (>50ms, rate-limited)                                                                                                   | 061        |
 
-### Porter Cluster IDs
+### Porter Cluster IDs & Health URLs
 
-| Region | Cluster ID | Doppler Config |
-|--------|-----------|----------------|
-| US Central | 4689 | prod_central-us |
-| France | 4696 | prod_france |
-| East Asia | 4754 | prod_east-asia |
-| US West | 4965 | prod_us-west |
-| US East | 4977 | prod_us-east |
+| Region     | Cluster ID | Doppler Config  | Health URL                                 | Ingress IP  |
+| ---------- | ---------- | --------------- | ------------------------------------------ | ----------- |
+| US Central | 4689       | prod_central-us | `https://uscentralapi.mentra.glass/health` | —           |
+| France     | 4696       | prod_france     | `https://franceapi.mentra.glass/health`    | —           |
+| East Asia  | 4754       | prod_east-asia  | `https://asiaeastapi.mentra.glass/health`  | 20.6.155.16 |
+| US West    | 4965       | prod_us-west    | `https://uswestapi.mentraglass.com/health` | —           |
+| US East    | 4977       | prod_us-east    | `https://useastapi.mentraglass.com/health` | —           |
+
+**⚠️ East Asia DNS naming:** East Asia uses `asiaeastapi.mentra.glass`, NOT `eastasiaapi.mentra.glass`. All other regions follow the `{region}api` pattern. This is a historical inconsistency in Porter custom domain setup.
+
+**East Asia Porter custom domains (from dashboard):**
+
+| Domain                      | Resolves?          | Notes                                               |
+| --------------------------- | ------------------ | --------------------------------------------------- |
+| `asiaeastapi.mentra.glass`  | ✅ → 20.6.155.16   | Direct region access — the one that works           |
+| `asiaeast.api.mentra.glass` | ❌ No DNS record   | Dead weight — no A record created                   |
+| `api.menrta.glass`          | ❌ Typo            | Should be `api.mentra.glass` — can be removed       |
+| `api.mentra.glass`          | ✅ → Cloudflare LB | Global LB domain (correct — East Asia is a backend) |
+| `global.augmentos.cloud`    | ✅ → Cloudflare    | Legacy global domain                                |
+| `east-asia.augmentos.cloud` | ✅ → Cloudflare    | Legacy region domain                                |
+
+**Cleanup TODO:** Remove `asiaeast.api.mentra.glass` and `api.menrta.glass` (typo) from East Asia Porter custom domains.
 
 ---
 
 ## PRIORITY ORDER FOR NEXT SESSION
 
-| # | Item | Type | Impact |
-|---|------|------|--------|
-| 1 | **Investigate client WebSocket churn** — why are clients disconnecting every 5-24 seconds? Check mobile client ping/pong code, Cloudflare WS settings. Use incident logs for mobile-side data. | Investigation | 🔴 Root cause #2 — reducing churn reduces memory pressure |
-| 2 | **Fix Cloudflare LB domain** — mobile uses `api.mentra.glass`, LB configured on `api.mentraglass.com`. Distribute traffic to reduce US Central from 82 → ~30 sessions. | Config fix | 🔴 Halves session count → halves GC pressure |
-| 3 | **Remove gc-after-disconnect** — it's making crash cascades worse. Hotfix to main. | Code fix | 🔴 Removes 2.5s of self-inflicted blocking during crashes |
-| 4 | **Test JSC GC tuning** — `BUN_JSC_largeHeapGrowthFactor=2.0` in Doppler. Could halve GC frequency. Zero code change. | Config test | 🟡 Might extend crash-free window significantly |
-| 5 | **Redeploy France/East Asia** — pick up new Doppler config (BetterStack source, cleaned env vars) | Deploy | 🟡 Gets all regions on same log source |
-| 6 | **Set up per-region uptime monitors** | Config | 🟡 Detect regional outages |
-| 7 | **Set up dashboard alerts** (RSS > 800MB, restarts, gaps) | Config | 🟡 Proactive crash detection |
-| 8 | **Write runbooks** for the bstack CLI tool | Docs | 🟢 Enables any engineer to diagnose |
-| 9 | **Flip MEMORY_TELEMETRY_ENABLED** | Config | 🟢 Per-session memory breakdown |
-| 10 | **Cherry-pick hotfixes to dev** | Git | 🟢 Keep branches in sync |
+| #   | Item                                                                                                                                                                                           | Type           | Impact                                                    | Status                                  |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | --------------------------------------------------------- | --------------------------------------- |
+| 1   | **Investigate client WebSocket churn** — why are clients disconnecting every 5-24 seconds? Check mobile client ping/pong code, Cloudflare WS settings. Use incident logs for mobile-side data. | Investigation  | 🔴 Root cause #2 — reducing churn reduces memory pressure | ❌ Open                                 |
+| 2   | **Fix Cloudflare LB domain** — mobile uses `api.mentra.glass`, LB configured on `api.mentraglass.com`. Distribute traffic to reduce US Central from 68 → ~25 sessions.                         | Config fix     | 🔴 Halves session count → halves GC pressure              | ❌ Open                                 |
+| 3   | **Remove gc-after-disconnect** — confirmed wasteful: 31 calls/hr on US Central, 2,242ms total blocking, frees 0 bytes every time.                                                              | Code fix       | 🔴 Removes 2.2s/hr of self-inflicted blocking             | ❌ Open                                 |
+| 4   | **Test JSC GC tuning** — `BUN_JSC_largeHeapGrowthFactor=2.0` in Doppler. Could halve GC frequency. Zero code change.                                                                           | Config test    | 🟡 Might extend crash-free window significantly           | ❌ Open                                 |
+| 5   | **Redeploy France/East Asia** — pick up new Doppler config (BetterStack source, cleaned env vars)                                                                                              | Deploy         | 🟡 Gets all regions on same log source                    | ❌ Open                                 |
+| 6   | **Set up per-region uptime monitors**                                                                                                                                                          | Config         | 🟡 Detect regional outages                                | ❌ Open                                 |
+| 7   | **Set up dashboard alerts** (RSS > 800MB, restarts, gaps)                                                                                                                                      | Config         | 🟡 Proactive crash detection                              | ❌ Open                                 |
+| 8   | **Write runbooks** for the bstack CLI tool                                                                                                                                                     | Docs           | 🟢 Enables any engineer to diagnose                       | ❌ Open                                 |
+| 9   | **Flip MEMORY_TELEMETRY_ENABLED**                                                                                                                                                              | Config         | 🟢 Per-session memory breakdown                           | ❌ Open                                 |
+| 10  | **Cherry-pick hotfixes to dev**                                                                                                                                                                | Git            | 🟢 Keep branches in sync                                  | ✅ Done (cloud/sync-main-to-dev merged) |
+| 11  | **Clean up East Asia Porter custom domains** — remove `asiaeast.api.mentra.glass` (no DNS) and `api.menrta.glass` (typo)                                                                       | Config cleanup | 🟢 Reduce confusion                                       | ❌ Open                                 |
 
 ---
 
@@ -317,56 +334,56 @@ For historical logs, use `s3Cluster(primary, t373499_mentracloud_prod_s3) WHERE 
 
 For reference — everything implemented and deployed to production:
 
-| What | Issue | Status |
-|------|-------|--------|
-| Doppler migration — all 8 apps on 5 clusters | 058 | ✅ Shipped |
-| BetterStack Collectors on all 5 clusters | 060 | ✅ Shipped |
-| REGION env var on all Doppler configs | 058 | ✅ Shipped |
-| UDP_HOST changed to DNS hostnames | 058 | ✅ Shipped |
-| BetterStack prod log source switched in Doppler | 058 | ✅ Shipped |
-| Cloudflare session affinity disabled (23hr cookie) | 058 | ✅ Shipped |
-| Cloudflare failover_across_pools enabled | 058 | ✅ Shipped |
-| GC probe (60s forced GC with timing) | 061 | ✅ Shipped |
-| GC on session disconnect (rate-limited) | 061 | ✅ Shipped (should be removed — see #5 above) |
-| Health check timing (warn >50ms) | 061 | ✅ Shipped |
-| Soniox send timing (warn >50ms) | 061 | ✅ Shipped |
-| Connection counting in vitals | 061 | ✅ Shipped |
-| MongoDB slow query plugin | 061 | ✅ Shipped |
-| Event loop gap detector | 062 | ✅ Shipped |
-| Cumulative MongoDB blocking metric | 062 | ✅ Shipped |
-| In-memory app cache (30s refresh, 9 hot paths, 18 write-path invalidations) | 062 | ✅ Shipped |
-| Hot path operation timing (audio, messages, display) | 062 | ✅ Shipped |
-| Graceful shutdown on SIGTERM | 063 | ✅ Shipped |
-| WebSocket close frames on deploy (1001 Going Away) | 063 | ✅ Shipped |
-| Global drain middleware (503 during shutdown) | 063 | ✅ Shipped |
-| 2s drain delay for close frame flush | 063 | ✅ Shipped |
-| SRE Dashboard for US Central (10 charts) | — | ✅ Built (ID 973977) |
-| bstack CLI tool | 064 | ✅ Built (on dev branch) |
-| Stale env var fixes (ADMIN_EMAILS, apps list, etc.) | 058 | ✅ Shipped |
-| R2 vars, OPEN_WEATHER_API_KEY added to Doppler | 058 | ✅ Shipped |
+| What                                                                        | Issue | Status                                        |
+| --------------------------------------------------------------------------- | ----- | --------------------------------------------- |
+| Doppler migration — all 8 apps on 5 clusters                                | 058   | ✅ Shipped                                    |
+| BetterStack Collectors on all 5 clusters                                    | 060   | ✅ Shipped                                    |
+| REGION env var on all Doppler configs                                       | 058   | ✅ Shipped                                    |
+| UDP_HOST changed to DNS hostnames                                           | 058   | ✅ Shipped                                    |
+| BetterStack prod log source switched in Doppler                             | 058   | ✅ Shipped                                    |
+| Cloudflare session affinity disabled (23hr cookie)                          | 058   | ✅ Shipped                                    |
+| Cloudflare failover_across_pools enabled                                    | 058   | ✅ Shipped                                    |
+| GC probe (60s forced GC with timing)                                        | 061   | ✅ Shipped                                    |
+| GC on session disconnect (rate-limited)                                     | 061   | ✅ Shipped (should be removed — see #5 above) |
+| Health check timing (warn >50ms)                                            | 061   | ✅ Shipped                                    |
+| Soniox send timing (warn >50ms)                                             | 061   | ✅ Shipped                                    |
+| Connection counting in vitals                                               | 061   | ✅ Shipped                                    |
+| MongoDB slow query plugin                                                   | 061   | ✅ Shipped                                    |
+| Event loop gap detector                                                     | 062   | ✅ Shipped                                    |
+| Cumulative MongoDB blocking metric                                          | 062   | ✅ Shipped                                    |
+| In-memory app cache (30s refresh, 9 hot paths, 18 write-path invalidations) | 062   | ✅ Shipped                                    |
+| Hot path operation timing (audio, messages, display)                        | 062   | ✅ Shipped                                    |
+| Graceful shutdown on SIGTERM                                                | 063   | ✅ Shipped                                    |
+| WebSocket close frames on deploy (1001 Going Away)                          | 063   | ✅ Shipped                                    |
+| Global drain middleware (503 during shutdown)                               | 063   | ✅ Shipped                                    |
+| 2s drain delay for close frame flush                                        | 063   | ✅ Shipped                                    |
+| SRE Dashboard for US Central (10 charts)                                    | —     | ✅ Built (ID 973977)                          |
+| bstack CLI tool                                                             | 064   | ✅ Built (on dev branch)                      |
+| Stale env var fixes (ADMIN_EMAILS, apps list, etc.)                         | 058   | ✅ Shipped                                    |
+| R2 vars, OPEN_WEATHER_API_KEY added to Doppler                              | 058   | ✅ Shipped                                    |
 
 ---
 
 ## KEY NUMBERS (as of March 28 ~22:00 UTC)
 
-| Metric | Value |
-|--------|-------|
-| Crash rate (before investigation) | ~7/day |
-| Crash rate (after 062 deploy) | 1 observed crash in ~4 hours |
-| US Central sessions | 80-84 |
-| US Central RSS at crash | ~850MB |
-| Heap at crash | ~500MB |
-| GC probe (forced, our code) | 82-142ms |
-| GC full collection (runtime, automatic) | 3,378ms (observed) |
-| Event loop gaps detected | 2 (3,378ms and 1,048ms) |
-| Time from first gap to crash | ~10 minutes |
-| MongoDB server execution time | 0ms (queries are fast, latency is network) |
-| MongoDB RTT: US Central | ~80ms |
-| MongoDB RTT: France | ~215ms |
-| MongoDB RTT: East Asia | ~370ms |
-| App cache: apps cached | 1,318 |
-| App cache: refresh time (US Central) | 130-160ms |
-| Operation budget at 80 sessions | 6-8% (healthy) |
-| Sessions with rapid churn (5-24s lifetimes) | Multiple observed before crash |
-| Deploy reconnect time (with graceful shutdown) | ~5 seconds |
-| Deploy reconnect time (before graceful shutdown) | 30-60 seconds |
+| Metric                                           | Value                                      |
+| ------------------------------------------------ | ------------------------------------------ |
+| Crash rate (before investigation)                | ~7/day                                     |
+| Crash rate (after 062 deploy)                    | 1 observed crash in ~4 hours               |
+| US Central sessions                              | 80-84                                      |
+| US Central RSS at crash                          | ~850MB                                     |
+| Heap at crash                                    | ~500MB                                     |
+| GC probe (forced, our code)                      | 82-142ms                                   |
+| GC full collection (runtime, automatic)          | 3,378ms (observed)                         |
+| Event loop gaps detected                         | 2 (3,378ms and 1,048ms)                    |
+| Time from first gap to crash                     | ~10 minutes                                |
+| MongoDB server execution time                    | 0ms (queries are fast, latency is network) |
+| MongoDB RTT: US Central                          | ~80ms                                      |
+| MongoDB RTT: France                              | ~215ms                                     |
+| MongoDB RTT: East Asia                           | ~370ms                                     |
+| App cache: apps cached                           | 1,318                                      |
+| App cache: refresh time (US Central)             | 130-160ms                                  |
+| Operation budget at 80 sessions                  | 6-8% (healthy)                             |
+| Sessions with rapid churn (5-24s lifetimes)      | Multiple observed before crash             |
+| Deploy reconnect time (with graceful shutdown)   | ~5 seconds                                 |
+| Deploy reconnect time (before graceful shutdown) | 30-60 seconds                              |

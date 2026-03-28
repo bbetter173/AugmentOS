@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
 import App from "../../../models/app.model";
+import { appCache } from "../../../services/core/app-cache.service";
 import { User } from "../../../models/user.model";
 import { OrganizationService } from "../../../services/core/organization.service";
 import { PermissionType } from "@mentra/sdk";
@@ -201,6 +202,7 @@ async function updatePermissions(c: AppContext) {
 
     // Update app permissions
     const updatedApp = await App.findOneAndUpdate({ packageName }, { $set: { permissions } }, { new: true });
+    appCache.invalidate(); // fire-and-forget — refresh cache after write
 
     logger.info(`Updated permissions for app ${packageName} by developer ${userEmail}`);
     return c.json(updatedApp);

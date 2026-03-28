@@ -23,6 +23,7 @@ import {
 
 // import subscriptionService from "./subscription.service";
 import App from "../../models/app.model";
+import { appCache } from "../core/app-cache.service";
 import { User } from "../../models/user.model";
 import appService from "../core/app.service";
 import * as developerService from "../core/developer.service";
@@ -609,10 +610,14 @@ export class AppManager {
       logger.debug(`App ${packageName} is a standard app, checking for running foreground apps`);
       // Check if any other foreground app is running
       const runningAppsPackageNames = Array.from(this.userSession.runningApps.keys());
-      const runningForegroundApps = await App.find({
-        packageName: { $in: runningAppsPackageNames },
-        appType: AppType.STANDARD,
-      });
+      const cachedApps = appCache.getByPackageNames(runningAppsPackageNames);
+      const runningForegroundApps = (
+        cachedApps.length === runningAppsPackageNames.length
+          ? cachedApps
+          : await App.find({
+              packageName: { $in: runningAppsPackageNames },
+            }).lean()
+      ).filter((a: any) => a.appType === AppType.STANDARD);
       logger.debug(
         { runningAppsPackageNames, runningForegroundApps },
         `Running foreground apps: ${JSON.stringify(runningForegroundApps)}`,

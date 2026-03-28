@@ -26,6 +26,8 @@ import {
 
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import { logger as rootLogger } from "../logging/pino-logger";
+import { operationTimers } from "../metrics/SystemVitalsLogger";
+import { isShuttingDown } from "../shutdown";
 import { metricsService } from "../metrics";
 import { PosthogService } from "../logging/posthog.service";
 import UserSession from "../session/UserSession";
@@ -55,6 +57,11 @@ const GRACE_PERIOD_CLEANUP_ENABLED = true;
  * Returns true if upgrade was successful, false otherwise.
  */
 export function handleUpgrade(req: Request, server: any): Response | undefined {
+  // A3: Reject new WebSocket upgrades during graceful shutdown
+  if (isShuttingDown()) {
+    return new Response("Server is shutting down", { status: 503 });
+  }
+
   const url = new URL(req.url);
   const path = url.pathname;
 
@@ -87,7 +94,7 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
 
   try {
     const payload = jwt.verify(token, AUGMENTOS_AUTH_JWT_SECRET) as any;
-    const userId = payload.email;
+    const userId = payload.email?.toLowerCase();
 
     if (!userId) {
       logger.warn("Glasses upgrade rejected: no userId in token");
@@ -139,7 +146,7 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
  */
 function handleAppUpgrade(req: Request, server: any, _url: URL): Response | undefined {
   const authHeader = req.headers.get("authorization");
-  const userId = req.headers.get("x-user-id") || "";
+  const userId = (req.headers.get("x-user-id") || "").toLowerCase();
   const sessionId = req.headers.get("x-session-id") || "";
 
   let appJwtPayload: { packageName: string; apiKey: string } | undefined;
@@ -398,6 +405,7 @@ async function handleGlassesConnectionInit(
  * Handle glasses WebSocket message
  */
 async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string | Buffer): Promise<void> {
+  const t0 = performance.now();
   metricsService.incrementClientMessagesIn();
   const { userId } = ws.data;
   const userSession = UserSession.getById(userId);
@@ -444,6 +452,8 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     await userSession.handleGlassesMessage(parsed);
   } catch (error) {
     userSession.logger.error({ error }, "Error processing glasses message");
+  } finally {
+    operationTimers.addTiming("glassesMessage", performance.now() - t0);
   }
 }
 
@@ -572,6 +582,7 @@ async function handleAppOpen(ws: AppServerWebSocket): Promise<void> {
  * Handle app WebSocket message
  */
 async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer): Promise<void> {
+  const t0 = performance.now();
   metricsService.incrementMiniappMessagesIn();
   const { userId, packageName } = ws.data;
 
@@ -612,7 +623,7 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
 
       // Parse session ID to get user ID
       const sessionParts = initMessage.sessionId.split("-");
-      const parsedUserId = sessionParts[0];
+      const parsedUserId = sessionParts[0]?.toLowerCase();
 
       if (sessionParts.length < 2) {
         logger.error({ sessionId: initMessage.sessionId }, "Invalid session ID format");
@@ -663,6 +674,8 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
   } catch (error) {
     logger.error({ error, userId, packageName }, "Error processing app message");
     ws.close(1011, "Internal server error");
+  } finally {
+    operationTimers.addTiming("appMessage", performance.now() - t0);
   }
 }
 

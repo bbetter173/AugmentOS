@@ -1,0 +1,54 @@
+# BetterStack Logs Helm Chart — values.yaml
+#
+# Deploys Vector as a DaemonSet to collect container stdout/stderr logs
+# and Kubernetes metrics, shipping them to BetterStack.
+#
+# This replaces the in-process @logtail/pino transport that causes
+# unbounded heap growth (see cloud/issues/067-heap-growth-investigation).
+#
+# Usage per cluster:
+#   porter helm --cluster <CLUSTER_ID> -- install betterstack-logs \
+#     betterstack-logs/betterstack-logs \
+#     --namespace betterstack \
+#     --create-namespace \
+#     --values cloud/infra/betterstack-logs/values.yaml \
+#     --set vector.customConfig.sinks.better_stack_http_sink.auth.token=$SOURCE_TOKEN \
+#     --set vector.customConfig.sinks.better_stack_http_metrics_sink.auth.token=$SOURCE_TOKEN \
+#     --set vector.customConfig.sinks.better_stack_http_sink.uri=https://$INGESTING_HOST/ \
+#     --set vector.customConfig.sinks.better_stack_http_metrics_sink.uri=https://$INGESTING_HOST/metrics
+#
+# Source tokens and ingesting hosts per region (stored in Doppler):
+#
+#   | Region     | Cluster | Doppler Config   | Doppler Key              |
+#   |------------|---------|------------------|--------------------------|
+#   | US Central | 4689    | prod_central-us  | BETTERSTACK_SOURCE_TOKEN |
+#   | France     | 4696    | prod_france      | BETTERSTACK_SOURCE_TOKEN |
+#   | East Asia  | 4754    | prod_east-asia   | BETTERSTACK_SOURCE_TOKEN |
+#   | US West    | 4965    | prod_us-west     | BETTERSTACK_SOURCE_TOKEN |
+#   | US East    | 4977    | prod_us-east     | BETTERSTACK_SOURCE_TOKEN |
+#
+# The ingesting host for the MentraCloud-Prod source is:
+#   s2324289.eu-nbg-2.betterstackdata.com
+#
+# To get the actual token value:
+#   doppler secrets get BETTERSTACK_SOURCE_TOKEN --project mentraos-cloud --config <CONFIG> --plain
+
+vector:
+  customConfig:
+    sinks:
+      better_stack_http_sink:
+        # Override uri and auth.token via --set flags (do NOT commit tokens)
+        uri: "https://PLACEHOLDER_INGESTING_HOST/"
+        auth:
+          strategy: "bearer"
+          token: "PLACEHOLDER_SOURCE_TOKEN"
+      better_stack_http_metrics_sink:
+        uri: "https://PLACEHOLDER_INGESTING_HOST/metrics"
+        auth:
+          strategy: "bearer"
+          token: "PLACEHOLDER_SOURCE_TOKEN"
+
+# The existing better-stack-collector DaemonSet already installs a metrics
+# server. Disable it here to avoid conflicts.
+metrics-server:
+  enabled: false

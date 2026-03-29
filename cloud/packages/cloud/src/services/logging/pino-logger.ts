@@ -4,24 +4,22 @@ import pino from "pino";
 const DEPLOYMENT_REGION = process.env.DEPLOYMENT_REGION;
 const isChina = DEPLOYMENT_REGION === "china";
 
-const BETTERSTACK_SOURCE_TOKEN = process.env.BETTERSTACK_SOURCE_TOKEN;
-const BETTERSTACK_ENDPOINT = process.env.BETTERSTACK_ENDPOINT || "https://s1311181.eu-nbg-2.betterstackdata.com";
 const NODE_ENV = process.env.NODE_ENV || "development";
 const REGION = process.env.REGION || process.env.DEPLOYMENT_REGION || "";
 const PORTER_APP_NAME = process.env.PORTER_APP_NAME || "cloud-local";
 
 // When LOG_STDOUT_JSON=true, write raw JSON to stdout instead of pino-pretty.
-// This allows an external log collector (Vector/BetterStack Kubernetes Helm chart)
-// to pick up structured JSON from container stdout and ship it to BetterStack
-// WITHOUT the in-process @logtail/pino transport that causes unbounded heap growth.
+// Vector (BetterStack Kubernetes Helm chart) picks up the JSON from container
+// stdout and ships it to BetterStack — no in-process transport, no worker
+// thread buffer, no heap growth.
 //
-// The @logtail/pino transport stays active alongside stdout so we can verify
-// both paths deliver logs before removing the in-process transport.
+// When LOG_STDOUT_JSON is not set (dev/local), pino-pretty writes to console
+// for human readability.
 //
 // See: cloud/issues/067-heap-growth-investigation/spike.md
 const LOG_STDOUT_JSON = process.env.LOG_STDOUT_JSON === "true";
 
-// Log filtering configuration
+// Log filtering configuration (optional — used for debugging specific features/services)
 const LOG_FEATURES = process.env.LOG_FEATURES?.split(",").map((f) => f.trim()) || [];
 const LOG_EXCLUDE_FEATURES = process.env.LOG_EXCLUDE_FEATURES?.split(",").map((f) => f.trim()) || [];
 const LOG_SERVICES = process.env.LOG_SERVICES?.split(",").map((s) => s.trim()) || [];
@@ -29,7 +27,7 @@ const LOG_EXCLUDE_SERVICES = process.env.LOG_EXCLUDE_SERVICES?.split(",").map((s
 
 // Check once at startup whether any filters are configured.
 // If not, skip the JSON.parse in createFilteredStream entirely — avoids
-// ~200-340 useless JSON.parse calls/sec on the main thread in production.
+// unnecessary JSON.parse calls on the main thread.
 const HAS_LOG_FILTERS =
   LOG_FEATURES.length > 0 ||
   LOG_EXCLUDE_FEATURES.length > 0 ||
@@ -37,12 +35,10 @@ const HAS_LOG_FILTERS =
   LOG_EXCLUDE_SERVICES.length > 0;
 
 // Determine log level based on environment
-// Use 'info' in development to reduce noise from debug logs
 const LOG_LEVEL = NODE_ENV === "production" ? "info" : "debug";
 
 // Custom filtering function
 const shouldLogMessage = (logObj: any): boolean => {
-  // If no filters are set, log everything
   if (!HAS_LOG_FILTERS) {
     return true;
   }
@@ -50,7 +46,6 @@ const shouldLogMessage = (logObj: any): boolean => {
   const feature = logObj.feature;
   const service = logObj.service;
 
-  // Check feature filters
   if (LOG_FEATURES.length > 0 && (!feature || !LOG_FEATURES.includes(feature))) {
     return false;
   }
@@ -59,7 +54,6 @@ const shouldLogMessage = (logObj: any): boolean => {
     return false;
   }
 
-  // Check service filters
   if (LOG_SERVICES.length > 0 && (!service || !LOG_SERVICES.includes(service))) {
     return false;
   }
@@ -74,9 +68,7 @@ const shouldLogMessage = (logObj: any): boolean => {
 // Setup streams array for Pino multistream
 const streams: pino.StreamEntry[] = [];
 
-// Custom filtering stream wrapper.
-// When no filters are configured (the common case in production), returns the
-// target stream directly — zero overhead, no JSON.parse per log line.
+// Filtering stream wrapper — only wraps with JSON.parse when filters are set.
 const createFilteredStream = (targetStream: any, _level: string) => {
   if (!HAS_LOG_FILTERS) {
     return targetStream;
@@ -89,7 +81,6 @@ const createFilteredStream = (targetStream: any, _level: string) => {
           targetStream.write(line);
         }
       } catch {
-        // If we can't parse the JSON, pass it through
         targetStream.write(line);
       }
     },
@@ -97,13 +88,10 @@ const createFilteredStream = (targetStream: any, _level: string) => {
 };
 
 // ── Stdout stream ──────────────────────────────────────────────────────────
-// LOG_STDOUT_JSON=true  → raw JSON to stdout (for Vector / external collector)
-// LOG_STDOUT_JSON=false → pino-pretty to stdout (for human readability)
+// LOG_STDOUT_JSON=true  → raw JSON to stdout (Vector picks it up, ships to BetterStack)
+// LOG_STDOUT_JSON=false → pino-pretty to stdout (dev/local readability)
 
 if (LOG_STDOUT_JSON) {
-  // Raw JSON to stdout — Vector picks this up from container logs and ships
-  // it to BetterStack with full Kubernetes metadata. No worker thread, no
-  // in-process buffer, no memory growth.
   const stdoutDest = pino.destination({ dest: 1, sync: false });
   const filteredStdout = createFilteredStream(stdoutDest, LOG_LEVEL);
 
@@ -112,7 +100,6 @@ if (LOG_STDOUT_JSON) {
     level: LOG_LEVEL,
   });
 } else {
-  // Pretty transport for development / legacy production with filtering
   const prettyTransport = pino.transport({
     target: "pino-pretty",
     options: {
@@ -132,27 +119,21 @@ if (LOG_STDOUT_JSON) {
   });
 }
 
-// ── BetterStack in-process transport ───────────────────────────────────────
-// Kept active alongside stdout so we can verify both paths deliver logs
-// before removing it. Once Vector log collection is confirmed working on all
-// clusters, this block can be removed entirely.
+// ── No in-process BetterStack transport ────────────────────────────────────
+// Previously we used @logtail/pino here, which ran in a Pino worker thread
+// via thread-stream. When the BetterStack HTTP API couldn't consume logs as
+// fast as we produced them (~100-170/sec), the thread-stream buffer grew
+// without bound — causing ~15 MB/min heap growth and eventual pod crashes.
+//
+// Log delivery is now handled by Vector (BetterStack Kubernetes Helm chart),
+// which runs as a DaemonSet outside the Node process. It tails container
+// stdout, flattens the Pino JSON, and ships to BetterStack with proper
+// backpressure handling. Zero in-process memory overhead.
+//
+// See: cloud/issues/067-heap-growth-investigation/spike.md
+// See: cloud/infra/betterstack-logs/values.yaml
 
-if (BETTERSTACK_SOURCE_TOKEN && !isChina) {
-  const betterStackTransport = pino.transport({
-    target: "@logtail/pino",
-    options: {
-      sourceToken: BETTERSTACK_SOURCE_TOKEN,
-      options: { endpoint: BETTERSTACK_ENDPOINT },
-    },
-  });
-
-  const filteredBetterStackStream = createFilteredStream(betterStackTransport, LOG_LEVEL);
-
-  streams.push({
-    stream: filteredBetterStackStream,
-    level: LOG_LEVEL,
-  });
-} else if (isChina) {
+if (isChina) {
   console.log("BetterStack is disabled for China");
 }
 
@@ -177,10 +158,7 @@ export const logger = pino(baseLoggerOptions, multistream);
 
 // Log the current configuration on startup
 if (LOG_STDOUT_JSON) {
-  logger.info(
-    { LOG_STDOUT_JSON: true, HAS_LOG_FILTERS },
-    "Pino logger: JSON stdout enabled (for Vector log collection)",
-  );
+  logger.info({ LOG_STDOUT_JSON: true, HAS_LOG_FILTERS }, "Pino logger: JSON stdout enabled (Vector log collection)");
 }
 
 if (HAS_LOG_FILTERS) {

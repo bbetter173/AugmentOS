@@ -188,6 +188,44 @@ Export as singleton `connectionChurnTracker`.
 
 **Why `wsCloseCodeDist` is a JSON string, not a nested object:** BetterStack's ClickHouse ingestion stores the entire vitals log as a single `raw` JSON blob. Nested objects require `JSONExtract` with path traversal. A flat string is queryable with `JSONExtract(raw, 'wsCloseCodeDist', 'Nullable(String)')` and can be further parsed if needed.
 
+### A8. Structured `ws-dispose` log event
+
+**File:** `packages/cloud/src/services/session/UserSession.ts`, inside `dispose()`
+
+Right before the existing `this.logger.info({ duration }, ...)` log in `dispose()`, enhance it with the full connection health context. This is the **session lifecycle summary** — it fires when the 1-minute grace period expires and no reconnect arrived.
+
+```json
+{
+  "feature": "ws-dispose",
+  "level": "info",
+  "sessionDurationSeconds": 142,
+  "reconnectCount": 3,
+  "lastCloseCode": 1006,
+  "lastCloseReason": "",
+  "timeSinceLastClientMessage": 94500,
+  "timeSinceLastAppPong": 94200,
+  "disposalReason": "grace_period_timeout",
+  "message": "Session disposed: duration=142s, reconnects=3, lastClose=1006, silent=94500ms"
+}
+```
+
+**Fields (in addition to what `dispose()` already logs):**
+
+| Field                        | Type                  | Computation                                                         |
+| ---------------------------- | --------------------- | ------------------------------------------------------------------- |
+| `feature`                    | `"ws-dispose"`        | Constant — for BetterStack filtering                                |
+| `sessionDurationSeconds`     | `number`              | Already computed in `dispose()` as `duration`                       |
+| `reconnectCount`             | `number`              | `this.reconnectCount`                                               |
+| `lastCloseCode`              | `number \| undefined` | From the session field set in A4                                    |
+| `lastCloseReason`            | `string \| undefined` | From the session field set in A4                                    |
+| `timeSinceLastClientMessage` | `number \| null`      | `Date.now() - this.lastClientMessageTime` or `null`                 |
+| `timeSinceLastAppPong`       | `number \| null`      | `Date.now() - this.lastAppLevelPongTime` or `null`                  |
+| `disposalReason`             | `string`              | Already tracked — `"grace_period_timeout"` or `"explicit_disposal"` |
+
+**Why this matters:** The `ws-close` event fires at the moment of disconnect. The `ws-reconnect` event fires if the client comes back. But `ws-dispose` fires when the client **doesn't** come back — the session is gone for good. This is the final verdict: "This session lasted 142 seconds, reconnected 3 times during its life, the final close was a 1006 with the client silent for 94 seconds, and they never came back." It ties the entire lifecycle together in one log line.
+
+This also captures sessions where `ws-close` and `ws-reconnect` fired multiple times — the `reconnectCount` in the dispose log tells you how many cycles happened before the session finally died.
+
 ### A7. Remove `gc-after-disconnect`
 
 **File:** `packages/cloud/src/services/session/UserSession.ts`, inside `dispose()`
@@ -211,13 +249,15 @@ Remove the block that calls `Bun.gc(true)` after session disposal (approximately
 
 ## Decision Log
 
-| Decision                                                                      | Alternatives considered                                 | Why we chose this                                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Track `lastClientMessageTime` on ALL messages including binary audio          | Track only on text messages                             | Audio is the most frequent client→server traffic. If audio stops, that's a strong signal. The overhead is a single `Date.now()` assignment — negligible.                                                                                 |
-| Store `lastCloseCode` on the session instead of passing through function args | Pass close code to `createOrReconnect()` as a parameter | Storing on the session is simpler and doesn't change any function signatures. The field is set in `handleGlassesClose()` and read in `createOrReconnect()` — both are called on the same session object.                                 |
-| JSON-stringify `closeCodes` in vitals instead of nested object                | Nested object in the log entry                          | BetterStack ClickHouse queries are simpler with a flat string. Nested objects require chained `JSONExtract` calls. A flat string works with a single `JSONExtract` and can be parsed client-side if needed.                              |
-| Remove `gc-after-disconnect` entirely instead of making it opt-in             | Add an env var to disable it                            | The data is in: 31 calls/hour, 2,242ms blocking, 0 bytes freed, every single time. There's no scenario where it's useful. The `gc-probe` provides the same diagnostic data on a fixed schedule without being triggered by user behavior. |
-| Log `ws-close` at `warn` level, `ws-reconnect` at `info` level                | Both at `info`, or both at `warn`                       | Closes are noteworthy events (especially 1006). Reconnects are normal recovery — they happen constantly and `warn` would create noise.                                                                                                   |
+| Decision                                                                                 | Alternatives considered                                 | Why we chose this                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Track `lastClientMessageTime` on ALL messages including binary audio                     | Track only on text messages                             | Audio is the most frequent client→server traffic. If audio stops, that's a strong signal. The overhead is a single `Date.now()` assignment — negligible.                                                                                                                                                      |
+| Store `lastCloseCode` on the session instead of passing through function args            | Pass close code to `createOrReconnect()` as a parameter | Storing on the session is simpler and doesn't change any function signatures. The field is set in `handleGlassesClose()` and read in `createOrReconnect()` — both are called on the same session object.                                                                                                      |
+| JSON-stringify `closeCodes` in vitals instead of nested object                           | Nested object in the log entry                          | BetterStack ClickHouse queries are simpler with a flat string. Nested objects require chained `JSONExtract` calls. A flat string works with a single `JSONExtract` and can be parsed client-side if needed.                                                                                                   |
+| Remove `gc-after-disconnect` entirely instead of making it opt-in                        | Add an env var to disable it                            | The data is in: 31 calls/hour, 2,242ms blocking, 0 bytes freed, every single time. There's no scenario where it's useful. The `gc-probe` provides the same diagnostic data on a fixed schedule without being triggered by user behavior.                                                                      |
+| Log `ws-close` at `warn` level, `ws-reconnect` at `info` level                           | Both at `info`, or both at `warn`                       | Closes are noteworthy events (especially 1006). Reconnects are normal recovery — they happen constantly and `warn` would create noise.                                                                                                                                                                        |
+| Log `ws-dispose` at `info` level, not `warn`                                             | `warn` level                                            | Session disposal after grace period timeout is normal system behavior — the client just didn't come back. The interesting data is in the fields (reconnect count, silence duration, close code), not the severity level.                                                                                      |
+| Include `timeSinceLastClientMessage` in `ws-dispose` even though it's also in `ws-close` | Only include it in `ws-close`                           | The dispose log fires 60 seconds after the close. Having the silence duration in both events means you can query either one independently without joining. The staleness values will be ~60s larger in dispose, which is expected — they measure "time since last client activity" at each event's timestamp. |
 
 ## Testing
 

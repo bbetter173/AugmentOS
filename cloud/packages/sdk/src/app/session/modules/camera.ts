@@ -2,7 +2,7 @@
  * 📷 Camera Module
  *
  * Unified camera functionality for App Sessions.
- * Handles both photo requests and RTMP streaming from connected glasses.
+ * Handles photo requests and livestreaming from connected glasses.
  */
 
 import {
@@ -86,7 +86,7 @@ const VALID_ROI_POSITIONS: CameraRoiPosition[] = ["center", "top", "bottom"];
  * Unified camera management for App Sessions.
  * Provides methods for:
  * - 📸 Requesting photos from glasses
- * - 📹 Starting/stopping RTMP streams
+ * - 📹 Starting/stopping livestreams
  * - 🔍 Monitoring photo and stream status
  * - 🧹 Cleanup and cancellation
  *
@@ -95,16 +95,16 @@ const VALID_ROI_POSITIONS: CameraRoiPosition[] = ["center", "top", "bottom"];
  * // Request a photo
  * const photoData = await session.camera.requestPhoto({ saveToGallery: true });
  *
- * // Start streaming
- * await session.camera.startStream({ streamUrl: 'rtmp://example.com/live/key' });
+ * // Start a livestream (managed, WebRTC by default)
+ * const urls = await session.camera.startLivestream();
+ *
+ * // Start a local livestream (unmanaged, to your own server)
+ * await session.camera.startLocalLivestream({ streamUrl: 'srt://192.168.1.100:4201' });
  *
  * // Monitor stream status
- * session.camera.onStreamStatus((status) => {
+ * session.camera.onLocalLivestreamStatus((status) => {
  *   console.log('Stream status:', status.status);
  * });
- *
- * // Stop streaming
- * await session.camera.stopStream();
  * ```
  */
 export class CameraModule {
@@ -345,28 +345,29 @@ export class CameraModule {
   }
 
   // =====================================
-  // 📹 Streaming Functionality
+  // 📹 Local Livestream (Unmanaged)
   // =====================================
 
   /**
-   * 📹 Start a stream to the specified URL (supports RTMP, SRT, WHIP)
+   * 📹 Start a local livestream to your own server (supports SRT, RTMP, WHIP)
    *
-   * @param options - Configuration options for the stream
+   * Use this when streaming to a server you control (local network or remote).
+   * For managed streaming with automatic WebRTC playback, use `startLivestream()` instead.
+   *
+   * @param options - Configuration options including the stream URL
    * @returns Promise that resolves when the stream request is sent (not when streaming begins)
    *
    * @example
    * ```typescript
-   * await session.camera.startStream({
-   *   streamUrl: 'rtmp://live.example.com/stream/key',
-   *   video: { resolution: '1920x1080', bitrate: 5000 },
-   *   audio: { bitrate: 128 }
+   * await session.camera.startLocalLivestream({
+   *   streamUrl: 'srt://192.168.1.100:4201?streamid=my-stream',
    * });
    * ```
    */
-  async startStream(options: StreamOptions): Promise<void> {
+  async startLocalLivestream(options: StreamOptions): Promise<void> {
     this.logger.info({ streamUrl: options.streamUrl }, `📹 Stream request starting`);
 
-    cameraWarnLog(this.session.getHttpsServerUrl?.(), this.packageName, "startStream");
+    cameraWarnLog(this.session.getHttpsServerUrl?.(), this.packageName, "startLocalLivestream");
 
     if (!options.streamUrl) {
       throw new Error("streamUrl is required");
@@ -419,16 +420,16 @@ export class CameraModule {
   }
 
   /**
-   * 🛑 Stop the current RTMP stream
+   * 🛑 Stop the current local livestream
    *
    * @returns Promise that resolves when the stop request is sent
    *
    * @example
    * ```typescript
-   * await session.camera.stopStream();
+   * await session.camera.stopLocalLivestream();
    * ```
    */
-  async stopStream(): Promise<void> {
+  async stopLocalLivestream(): Promise<void> {
     this.logger.info(
       {
         isCurrentlyStreaming: this.isStreaming,
@@ -511,13 +512,13 @@ export class CameraModule {
   }
 
   /**
-   * 👂 Listen for stream status updates using the standard event system
+   * 👂 Listen for local livestream status updates
    * @param handler - Function to call when stream status changes
    * @returns Cleanup function to remove the handler
    *
    * @example
    * ```typescript
-   * const cleanup = session.camera.onStreamStatus((status) => {
+   * const cleanup = session.camera.onLocalLivestreamStatus((status) => {
    *   console.log('Stream status:', status.status);
    *   if (status.status === 'error') {
    *     console.error('Stream error:', status.errorDetails);
@@ -528,7 +529,7 @@ export class CameraModule {
    * cleanup();
    * ```
    */
-  onStreamStatus(handler: StreamStatusHandler): () => void {
+  onLocalLivestreamStatus(handler: StreamStatusHandler): () => void {
     if (!this.session) {
       this.logger.error("Cannot listen for status updates: session reference not available");
       return () => {};
@@ -599,69 +600,112 @@ export class CameraModule {
   }
 
   // =====================================
-  // 📹 Managed Streaming Functionality
+  // 📹 Livestream (Managed)
   // =====================================
 
   /**
-   * 📹 Start a managed stream
+   * 📹 Start a livestream
    *
-   * The cloud handles the RTMP endpoint and returns HLS/DASH URLs for viewing.
-   * Multiple apps can consume the same managed stream simultaneously.
+   * Managed by Mentra cloud. Returns playback URLs automatically.
+   * By default uses WebRTC for sub-second latency. If restreamDestinations
+   * are provided, switches to SRT ingest with HLS/DASH playback.
+   * Multiple miniapps can consume the same livestream simultaneously.
    *
-   * @param options - Configuration options for the managed stream
-   * @returns Promise that resolves with viewing URLs when the stream is ready
+   * @param options - Configuration options for the livestream
+   * @returns Promise that resolves with playback URLs when the stream is ready
    *
    * @example
    * ```typescript
-   * const urls = await session.camera.startManagedStream({
-   *   quality: '720p',
-   *   enableWebRTC: true
+   * // Default: WebRTC (low latency)
+   * const urls = await session.camera.startLivestream();
+   * console.log('WebRTC URL:', urls.webrtcUrl);
+   *
+   * // With restream destinations: SRT + HLS/DASH
+   * const urls = await session.camera.startLivestream({
+   *   restreamDestinations: [{ url: 'rtmp://...', name: 'YouTube' }]
    * });
    * console.log('HLS URL:', urls.hlsUrl);
    * ```
    */
-  async startManagedStream(options?: ManagedStreamOptions): Promise<ManagedStreamResult> {
+  async startLivestream(options?: ManagedStreamOptions): Promise<ManagedStreamResult> {
     return this.managedExtension.startManagedStream(options);
   }
 
   /**
-   * 🛑 Stop the current managed stream
+   * 🛑 Stop the current livestream
    *
-   * This will stop streaming for this app only. If other apps are consuming
-   * the same managed stream, it will continue for them.
+   * This will stop streaming for this miniapp only. If other miniapps are consuming
+   * the same livestream, it will continue for them.
    *
    * @returns Promise that resolves when the stop request is sent
    */
-  async stopManagedStream(): Promise<void> {
+  async stopLivestream(): Promise<void> {
     return this.managedExtension.stopManagedStream();
   }
 
   /**
-   * 🔔 Register a handler for managed stream status updates
+   * 🔔 Register a handler for livestream status updates
    *
    * @param handler - Function to call when stream status changes
    * @returns Cleanup function to unregister the handler
    */
-  onManagedStreamStatus(handler: (status: ManagedStreamStatus) => void): () => void {
+  onLivestreamStatus(handler: (status: ManagedStreamStatus) => void): () => void {
     return this.managedExtension.onManagedStreamStatus(handler);
   }
 
   /**
-   * 📊 Check if currently managed streaming
+   * 📊 Check if a livestream is active
    *
-   * @returns true if a managed stream is active
+   * @returns true if a livestream is active
    */
-  isManagedStreamActive(): boolean {
+  isLivestreamActive(): boolean {
     return this.managedExtension.isManagedStreamActive();
   }
 
   /**
-   * 🔗 Get current managed stream URLs
+   * 🔗 Get current livestream URLs
    *
    * @returns Current stream URLs or undefined if not streaming
    */
-  getManagedStreamUrls(): ManagedStreamResult | undefined {
+  getLivestreamUrls(): ManagedStreamResult | undefined {
     return this.managedExtension.getManagedStreamUrls();
+  }
+
+  // =====================================
+  // 🔄 Deprecated aliases (old method names)
+  // =====================================
+
+  /** @deprecated Use `startLivestream()` instead */
+  async startManagedStream(options?: ManagedStreamOptions): Promise<ManagedStreamResult> {
+    return this.startLivestream(options);
+  }
+  /** @deprecated Use `stopLivestream()` instead */
+  async stopManagedStream(): Promise<void> {
+    return this.stopLivestream();
+  }
+  /** @deprecated Use `onLivestreamStatus()` instead */
+  onManagedStreamStatus(handler: (status: ManagedStreamStatus) => void): () => void {
+    return this.onLivestreamStatus(handler);
+  }
+  /** @deprecated Use `isLivestreamActive()` instead */
+  isManagedStreamActive(): boolean {
+    return this.isLivestreamActive();
+  }
+  /** @deprecated Use `getLivestreamUrls()` instead */
+  getManagedStreamUrls(): ManagedStreamResult | undefined {
+    return this.getLivestreamUrls();
+  }
+  /** @deprecated Use `startLocalLivestream()` instead */
+  async startStream(options: StreamOptions): Promise<void> {
+    return this.startLocalLivestream(options);
+  }
+  /** @deprecated Use `stopLocalLivestream()` instead */
+  async stopStream(): Promise<void> {
+    return this.stopLocalLivestream();
+  }
+  /** @deprecated Use `onLocalLivestreamStatus()` instead */
+  onStreamStatus(handler: StreamStatusHandler): () => void {
+    return this.onLocalLivestreamStatus(handler);
   }
 
   /**
@@ -747,7 +791,7 @@ export class CameraModule {
 
     // Stop streaming if active
     if (this.isStreaming) {
-      this.stopStream().catch((error) => {
+      this.stopLocalLivestream().catch((error) => {
         this.logger.error({ error }, "Error stopping stream during cleanup");
       });
     }

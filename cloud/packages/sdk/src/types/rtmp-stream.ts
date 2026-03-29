@@ -23,8 +23,8 @@ import type { StreamStatus } from "./messages/glasses-to-cloud";
  *
  * ```typescript
  * // This does both subscription and event listening in one call
- * const cleanup = session.camera.onStreamStatus((status) => {
- *   console.log('RTMP Status:', status);
+ * const cleanup = session.camera.onLocalLivestreamStatus((status) => {
+ *   console.log('Stream status:', status);
  * });
  *
  * // When done:

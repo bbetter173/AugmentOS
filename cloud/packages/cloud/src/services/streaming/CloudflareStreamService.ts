@@ -73,8 +73,6 @@ interface CloudflareLiveInput {
  * Configuration options for creating a live input
  */
 export interface CreateLiveInputConfig {
-  quality?: "720p" | "1080p";
-  enableWebRTC?: boolean;
   enableRecording?: boolean;
   requireSignedURLs?: boolean;
   restreamDestinations?: RestreamDestination[];
@@ -349,9 +347,7 @@ export class CloudflareStreamService {
         "🔍 Parsing live input data",
       );
 
-      // TODO: Modify this to use srt endpoint.
-
-      // Check for required fields
+      // Check for required fields (RTMP is still validated as Cloudflare always provides it)
       if (!liveInput.rtmps?.url || !liveInput.rtmps?.streamKey) {
         this.logger.error(
           {

@@ -67,8 +67,6 @@ export class ManagedStreamingExtension {
   async startManagedStream(userSession: UserSession, request: ManagedStreamRequest): Promise<string> {
     const {
       packageName,
-      quality,
-      enableWebRTC,
       video,
       audio,
       stream: streamOptions,
@@ -77,17 +75,21 @@ export class ManagedStreamingExtension {
     } = request;
     const userId = userSession.userId;
 
+    // Determine streaming mode: WebRTC (default) or SRT (when restreaming)
+    const useWebRTC = !restreamDestinations || restreamDestinations.length === 0;
+
     this.logger.info(
       {
         userId,
         packageName,
-        quality,
-        enableWebRTC,
+        mode: useWebRTC ? "webrtc" : "srt+restream",
         hasVideo: !!video,
         hasAudio: !!audio,
         restreamCount: restreamDestinations?.length || 0,
       },
-      "Starting managed stream request",
+      useWebRTC
+        ? "📡 Starting managed stream in WebRTC mode (WHIP ingest → WHEP playback, low latency)"
+        : "📡 Starting managed stream in SRT mode (SRT ingest → HLS/DASH playback, with RTMP fan-out)",
     );
 
     // Validate app is running
@@ -185,11 +187,9 @@ export class ManagedStreamingExtension {
     let liveInput;
     try {
       liveInput = await this.cloudflareService.createLiveInput(userId, {
-        quality,
-        enableWebRTC,
         enableRecording: true, // Must be true for live playback to work
         requireSignedURLs: false, // Public streams
-        restreamDestinations, // Pass through restream destinations
+        restreamDestinations: useWebRTC ? undefined : restreamDestinations,
       });
 
       this.logger.info(
@@ -237,15 +237,32 @@ export class ManagedStreamingExtension {
     const flash = true;
     const sound = appSound ?? true;
 
-    // Send start command to glasses with Cloudflare SRT ingest URL
-    if (!liveInput.srtUrl) {
-      throw new Error('No SRT ingest URL available from Cloudflare');
+    // Determine ingest URL based on streaming mode
+    let ingestUrl: string;
+    if (useWebRTC) {
+      if (!liveInput.webrtcUrl) {
+        throw new Error('No WebRTC ingest URL available from Cloudflare');
+      }
+      ingestUrl = liveInput.webrtcUrl;
+      this.logger.info(
+        { userId, packageName, protocol: "WHIP" },
+        "🚀 Streaming via WebRTC (WHIP) — app will receive webrtcUrl for low-latency WHEP playback",
+      );
+    } else {
+      if (!liveInput.srtUrl) {
+        throw new Error('No SRT ingest URL available from Cloudflare');
+      }
+      ingestUrl = liveInput.srtUrl;
+      this.logger.info(
+        { userId, packageName, protocol: "SRT", restreamCount: restreamDestinations?.length || 0 },
+        "🚀 Streaming via SRT — app will receive hlsUrl/dashUrl for HLS/DASH playback (restream destinations active)",
+      );
     }
 
     const startMessage: StartStream = {
       type: CloudToGlassesMessageType.START_STREAM,
       sessionId: userSession.sessionId,
-      streamUrl: liveInput.srtUrl,
+      streamUrl: ingestUrl,
       appId: "MANAGED_STREAM", // Special app ID for managed streams
       streamId: managedStream.streamId,
       video: video || {},

@@ -107,18 +107,18 @@ export interface RestreamDestination {
 }
 
 /**
- * Managed RTMP stream request from App
- * The cloud handles the RTMP endpoint and returns HLS/DASH URLs
+ * Managed stream request from App.
+ * By default, managed streams use WebRTC (WHIP ingest → WHEP playback) for low latency.
+ * If restreamDestinations are provided, falls back to SRT ingest with HLS/DASH playback.
  */
 export interface ManagedStreamRequest extends BaseMessage {
   type: AppToCloudMessageType.MANAGED_STREAM_REQUEST;
   packageName: string;
-  quality?: "720p" | "1080p";
-  enableWebRTC?: boolean;
   video?: VideoConfig;
   audio?: AudioConfig;
   stream?: StreamConfig;
-  /** Optional RTMP destinations to re-stream to (YouTube, Twitch, etc) */
+  /** Optional RTMP destinations to re-stream to (YouTube, Twitch, etc).
+   *  When present, stream uses SRT ingest + HLS/DASH playback instead of WebRTC. */
   restreamDestinations?: RestreamDestination[];
   /** Controls stream start/stop sounds. Defaults to true if omitted. */
   sound?: boolean;

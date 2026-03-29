@@ -8,8 +8,8 @@ Access the camera module through your app session:
 
 ```typescript
 const photo = await session.camera.requestPhoto();
-const stream = await session.camera.startManagedStream();
-await session.camera.startStream({ streamUrl: 'srt://example.com:4201?streamid=key' });
+const stream = await session.camera.startLivestream();
+await session.camera.startLocalLivestream({ streamUrl: 'srt://example.com:4201?streamid=key' });
 ```
 
 ## Photo Functionality
@@ -140,12 +140,12 @@ const photoWithWebhook = await session.camera.requestPhoto({
 
 Managed streaming provides zero-infrastructure streaming where the cloud handles ingest and returns HLS/DASH URLs for viewing. Multiple apps can access the same managed stream simultaneously.
 
-### startManagedStream()
+### startLivestream()
 
 Start a managed stream with automatic URL generation.
 
 ```typescript
-async startManagedStream(options?: ManagedStreamOptions): Promise<ManagedStreamResult>
+async startLivestream(options?: ManagedStreamOptions): Promise<ManagedStreamResult>
 ```
 
 #### Parameters
@@ -158,18 +158,17 @@ async startManagedStream(options?: ManagedStreamOptions): Promise<ManagedStreamR
 
 ```typescript
 interface ManagedStreamOptions {
-  /** Stream quality preset */
-  quality?: '720p' | '1080p';
-  /** Enable WebRTC for ultra-low latency viewing */
-  enableWebRTC?: boolean;
   /** Optional video configuration settings */
   video?: VideoConfig;
   /** Optional audio configuration settings */
   audio?: AudioConfig;
   /** Optional stream configuration settings */
   stream?: StreamConfig;
-  /** Optional RTMP destinations to re-stream to (e.g., YouTube, Twitch) */
+  /** Optional RTMP destinations to re-stream to (e.g., YouTube, Twitch).
+   *  When present, switches from WebRTC to SRT ingest + HLS/DASH playback. */
   restreamDestinations?: { url: string; name?: string }[];
+  /** Controls stream start/stop sounds. Defaults to true. */
+  sound?: boolean;
 }
 ```
 
@@ -177,11 +176,11 @@ interface ManagedStreamOptions {
 
 ```typescript
 interface ManagedStreamResult {
-  /** HLS URL for viewing the stream */
+  /** HLS URL for viewing (functional in SRT mode, i.e. when restreamDestinations provided) */
   hlsUrl: string;
-  /** DASH URL for viewing the stream */
+  /** DASH URL for viewing (functional in SRT mode, i.e. when restreamDestinations provided) */
   dashUrl: string;
-  /** WebRTC URL if enabled */
+  /** WebRTC (WHEP) URL for low-latency playback (functional in default WebRTC mode) */
   webrtcUrl?: string;
   /** Internal stream ID */
   streamId: string;
@@ -195,27 +194,27 @@ interface ManagedStreamResult {
 #### Example
 
 ```typescript
-// Basic managed streaming
-const result = await session.camera.startManagedStream();
-console.log('HLS URL:', result.hlsUrl);
-console.log('DASH URL:', result.dashUrl);
+// Default: WebRTC for low-latency playback
+const result = await session.camera.startLivestream();
+console.log('WebRTC URL:', result.webrtcUrl);
 
-// Advanced configuration with WebRTC
-const result = await session.camera.startManagedStream({
-  quality: '1080p',
-  enableWebRTC: true,
+// With restream destinations: SRT + HLS/DASH
+const result = await session.camera.startLivestream({
+  restreamDestinations: [
+    { url: 'rtmp://a.rtmp.youtube.com/live2/YOUR-KEY', name: 'YouTube' }
+  ],
   video: { frameRate: 30 },
   audio: { sampleRate: 48000 }
 });
-console.log('WebRTC URL:', result.webrtcUrl);
+console.log('HLS URL:', result.hlsUrl);
 ```
 
-### stopManagedStream()
+### stopLivestream()
 
 Stop the current managed stream.
 
 ```typescript
-async stopManagedStream(): Promise<void>
+async stopLivestream(): Promise<void>
 ```
 
 ### checkExistingStream()
@@ -259,24 +258,24 @@ if (streamCheck.hasActiveStream) {
   if (streamCheck.streamInfo?.type === 'managed') {
     console.log('HLS URL:', streamCheck.streamInfo.hlsUrl);
     // Join existing managed stream
-    const result = await session.camera.startManagedStream();
+    const result = await session.camera.startLivestream();
   } else {
     console.log('Active stream:', streamCheck.streamInfo?.streamUrl);
     console.log('Requested by:', streamCheck.streamInfo?.requestingAppId);
   }
 } else {
-  const result = await session.camera.startManagedStream();
+  const result = await session.camera.startLivestream();
 }
 ```
 
 ### Managed Stream Status Monitoring
 
-#### onManagedStreamStatus()
+#### onLivestreamStatus()
 
 Subscribe to managed stream status updates.
 
 ```typescript
-onManagedStreamStatus(handler: (status: ManagedStreamStatus) => void): () => void
+onLivestreamStatus(handler: (status: ManagedStreamStatus) => void): () => void
 ```
 
 #### ManagedStreamStatus
@@ -297,7 +296,7 @@ interface ManagedStreamStatus {
 #### Example
 
 ```typescript
-const unsubscribe = session.camera.onManagedStreamStatus((status) => {
+const unsubscribe = session.camera.onLivestreamStatus((status) => {
   if (status.status === 'active') {
     console.log(`HLS URL: ${status.hlsUrl}`);
   } else if (status.status === 'error') {
@@ -313,12 +312,12 @@ unsubscribe();
 
 Unmanaged streaming sends the camera feed directly to your ingest endpoint. You choose the protocol via the URL scheme. Only one unmanaged stream can be active at a time, and it blocks other apps from using the camera.
 
-### startStream()
+### startLocalLivestream()
 
 Start an unmanaged stream to a specified URL.
 
 ```typescript
-async startStream(options: StreamOptions): Promise<void>
+async startLocalLivestream(options: StreamOptions): Promise<void>
 ```
 
 #### Parameters
@@ -378,22 +377,22 @@ interface StreamConfig {
 
 ```typescript
 // SRT stream
-await session.camera.startStream({
+await session.camera.startLocalLivestream({
   streamUrl: 'srt://my-server.com:4201?streamid=my-key'
 });
 
 // RTMP stream
-await session.camera.startStream({
+await session.camera.startLocalLivestream({
   streamUrl: 'rtmp://live.example.com/stream/key'
 });
 
 // WHIP (WebRTC) stream
-await session.camera.startStream({
+await session.camera.startLocalLivestream({
   streamUrl: 'https://whip.example.com/ingest/endpoint'
 });
 
 // Advanced configuration
-await session.camera.startStream({
+await session.camera.startLocalLivestream({
   streamUrl: 'srt://my-server.com:4201?streamid=key',
   video: { width: 1920, height: 1080, bitrate: 5000000, frameRate: 30 },
   audio: { bitrate: 128000, sampleRate: 44100 },
@@ -401,22 +400,22 @@ await session.camera.startStream({
 });
 ```
 
-### stopStream()
+### stopLocalLivestream()
 
 Stop the current unmanaged stream.
 
 ```typescript
-async stopStream(): Promise<void>
+async stopLocalLivestream(): Promise<void>
 ```
 
 ### Unmanaged Stream Status Monitoring
 
-#### onStreamStatus()
+#### onLocalLivestreamStatus()
 
 Subscribe to unmanaged stream status updates.
 
 ```typescript
-onStreamStatus(handler: StreamStatusHandler): () => void
+onLocalLivestreamStatus(handler: StreamStatusHandler): () => void
 ```
 
 #### StreamStatusHandler
@@ -449,7 +448,7 @@ interface StreamStatus {
 #### Example
 
 ```typescript
-const unsubscribe = session.camera.onStreamStatus((status) => {
+const unsubscribe = session.camera.onLocalLivestreamStatus((status) => {
   console.log(`Stream status: ${status.status}`);
 
   if (status.status === 'active' && status.stats) {

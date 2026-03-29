@@ -85,6 +85,38 @@ function getFlag(flags: Record<string, string>, name: string, defaultVal: string
   return flags[name] ?? defaultVal;
 }
 
+/**
+ * Normalize a human-friendly duration string into ClickHouse INTERVAL syntax.
+ * Accepts: "30m", "1h", "2d", "30 MINUTE", "1 HOUR", etc.
+ * Returns: "30 MINUTE", "1 HOUR", "2 DAY", etc.
+ */
+function normalizeDuration(input: string): string {
+  const match = input.match(/^(\d+)\s*(m|min|minute|h|hr|hour|d|day|s|sec|second)s?$/i);
+  if (match) {
+    const num = match[1];
+    const unit = match[2].toLowerCase();
+    if (unit.startsWith("m")) return `${num} MINUTE`;
+    if (unit.startsWith("h")) return `${num} HOUR`;
+    if (unit.startsWith("d")) return `${num} DAY`;
+    if (unit.startsWith("s")) return `${num} SECOND`;
+  }
+  // Already in ClickHouse format (e.g. "30 MINUTE") or raw — pass through
+  return input;
+}
+
+/**
+ * Pick the correct BetterStack log source table for a region.
+ * France and East Asia may still be on the legacy AugmentOS source.
+ */
+function getSourceForRegion(region: string): string {
+  if (region === "france" || region === "east-asia") {
+    // These regions may still send to the legacy source until redeployed
+    // with the new BETTERSTACK_SOURCE_TOKEN. Check both — prefer prod.
+    return getLogsTable("prod");
+  }
+  return getLogsTable("prod");
+}
+
 // ---------------------------------------------------------------------------
 // SQL Query Engine
 // ---------------------------------------------------------------------------
@@ -187,22 +219,45 @@ async function cmdHealth() {
         continue;
       }
       const d = (await res.json()) as any;
+
+      // The /health response has nested fields:
+      //   sessions.userSessions, eventLoop.lagMs, uptimeSeconds, rssMB, heapUsedMB
+      // Also support flat fields for backward compatibility.
+      const sessions = d.sessions?.userSessions ?? d.activeSessions ?? "?";
+      const uptime = d.uptimeSeconds ?? "?";
+      const rss = d.rssMB ?? "?";
+      const lag = d.eventLoop?.lagMs ?? d.eventLoopLagMs ?? "?";
+      const heap = d.heapUsedMB ?? "?";
+
       results.push({
         region: regionId,
         status: d.status ?? "?",
-        sessions: d.activeSessions ?? "?",
-        uptime: `${d.uptimeSeconds ?? "?"}s`,
-        rss: `${d.rssMB ?? "?"}MB`,
-        lag: `${d.eventLoopLagMs ?? "?"}ms`,
+        sessions,
+        uptime: `${uptime}s`,
+        rss: `${rss}MB`,
+        heap: `${heap}MB`,
+        lag: `${typeof lag === "number" ? lag.toFixed(1) : lag}ms`,
       });
     } catch (err: any) {
-      results.push({ region: regionId, status: "UNREACHABLE", sessions: "-", uptime: "-", rss: "-", lag: "-" });
+      results.push({
+        region: regionId,
+        status: "UNREACHABLE",
+        sessions: "-",
+        uptime: "-",
+        rss: "-",
+        heap: "-",
+        lag: "-",
+      });
     }
   }
 
   printTable(results);
 
-  // Also check uptime monitors
+  // Also check uptime monitors (don't exit if token is missing)
+  if (!API_TOKEN) {
+    console.log("\n  (Skipping uptime monitors — BETTERSTACK_API_TOKEN not set)");
+    return;
+  }
   try {
     const monitors = await fetchUptime("/monitors");
     console.log("\n📡 Uptime Monitors:\n");
@@ -213,7 +268,7 @@ async function cmdHealth() {
     }));
     printTable(monitorRows);
   } catch {
-    console.log("\n  (Could not fetch uptime monitors — BETTERSTACK_API_TOKEN may not be set)");
+    console.log("\n  (Could not fetch uptime monitors)");
   }
 }
 
@@ -221,8 +276,8 @@ async function cmdHealth() {
 
 async function cmdDiagnostics(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "30 MINUTE");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "30 MINUTE"));
+  const source = getSourceForRegion(region);
 
   console.log(`🔍 Diagnostics — ${region} (last ${duration})\n`);
 
@@ -323,8 +378,8 @@ async function cmdDiagnostics(flags: Record<string, string>) {
 
 async function cmdCrashTimeline(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "10 MINUTE");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "10 MINUTE"));
+  const source = getSourceForRegion(region);
 
   console.log(`💥 Crash Timeline — ${region} (last ${duration})\n`);
 
@@ -359,8 +414,8 @@ async function cmdCrashTimeline(flags: Record<string, string>) {
 
 async function cmdMemory(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "1 HOUR");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "1 HOUR"));
+  const source = getSourceForRegion(region);
 
   console.log(`📈 Memory Trend — ${region} (last ${duration})\n`);
 
@@ -404,8 +459,8 @@ async function cmdMemory(flags: Record<string, string>) {
 
 async function cmdGc(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "1 HOUR");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "1 HOUR"));
+  const source = getSourceForRegion(region);
 
   console.log(`🗑️ GC Probe Analysis — ${region} (last ${duration})\n`);
 
@@ -446,8 +501,8 @@ async function cmdGc(flags: Record<string, string>) {
 
 async function cmdGaps(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "1 HOUR");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "6 HOUR"));
+  const source = getSourceForRegion(region);
 
   console.log(`⏱️ Event Loop Gaps — ${region} (last ${duration})\n`);
 
@@ -480,8 +535,8 @@ async function cmdGaps(flags: Record<string, string>) {
 
 async function cmdBudget(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "30 MINUTE");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "30 MINUTE"));
+  const source = getSourceForRegion(region);
 
   console.log(`📊 Operation Budget — ${region} (last ${duration})\n`);
 
@@ -536,8 +591,8 @@ async function cmdBudget(flags: Record<string, string>) {
 
 async function cmdSlowQueries(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const duration = getFlag(flags, "duration", "30 MINUTE");
-  const source = getLogsTable("prod");
+  const duration = normalizeDuration(getFlag(flags, "duration", "30 MINUTE"));
+  const source = getSourceForRegion(region);
 
   console.log(`🐢 Slow MongoDB Queries — ${region} (last ${duration})\n`);
 
@@ -566,7 +621,7 @@ async function cmdSlowQueries(flags: Record<string, string>) {
 
 async function cmdCache(flags: Record<string, string>) {
   const region = getFlag(flags, "region", "us-central");
-  const source = getLogsTable("prod");
+  const source = getSourceForRegion(region);
 
   console.log(`📦 App Cache Status — ${region}\n`);
 

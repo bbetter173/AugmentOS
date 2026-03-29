@@ -364,8 +364,8 @@ export function validateSqlCredentials(): void {
  */
 export function validateApiToken(): void {
   if (!API_TOKEN) {
-    console.error("❌ BETTERSTACK_API_TOKEN not set.");
-    console.error("   This is the management API token from BetterStack → Integrations → API.");
-    process.exit(1);
+    throw new Error(
+      "BETTERSTACK_API_TOKEN not set. This is the management API token from BetterStack → Integrations → API.",
+    );
   }
 }

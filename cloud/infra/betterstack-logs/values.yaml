@@ -71,13 +71,43 @@ vector:
             . = object!(pino_data)
           }
 
-          # Add minimal kubernetes context (just pod + container name, not the whole blob)
-          .kubernetes_pod = kube_pod
-          .kubernetes_container = kube_container
+          # Normalize fields to match what @logtail/pino sends to BetterStack.
+          # Without this, existing queries and Live Tail display break.
 
-          # Marker field so we can distinguish vector-delivered logs from @logtail/pino
-          # during the migration period. Remove after migration is complete.
-          .log_source = "vector"
+          # msg → message (Pino uses "msg", @logtail/pino renames to "message")
+          if exists(.msg) {
+            .message = del(.msg)
+          }
+
+          # time → dt (@logtail/pino sends "dt", Pino natively uses "time")
+          if exists(.time) {
+            .dt = del(.time)
+          }
+
+          # level: numeric → string (Pino outputs 10/20/30/40/50/60, BetterStack expects strings)
+          if is_integer(.level) {
+            numeric_level = to_int!(.level)
+            if numeric_level >= 60 {
+              .level = "fatal"
+            } else if numeric_level >= 50 {
+              .level = "error"
+            } else if numeric_level >= 40 {
+              .level = "warn"
+            } else if numeric_level >= 30 {
+              .level = "info"
+            } else if numeric_level >= 20 {
+              .level = "debug"
+            } else {
+              .level = "trace"
+            }
+          }
+
+          # Nest Vector metadata into _meta so it's out of the way of app fields.
+          # Everything from Pino stays flat at the root. The extra stuff Vector adds
+          # goes into _meta — there if you need it, not cluttering the log.
+          ._meta.kubernetes_pod = kube_pod
+          ._meta.kubernetes_container = kube_container
+          ._meta.log_source = "vector"
 
     sinks:
       # Override the default sink to use our flattened output instead of raw

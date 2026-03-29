@@ -237,11 +237,15 @@ export class ManagedStreamingExtension {
     const flash = true;
     const sound = appSound ?? true;
 
-    // Send start command to glasses with Cloudflare RTMP URL
+    // Send start command to glasses with Cloudflare SRT ingest URL
+    if (!liveInput.srtUrl) {
+      throw new Error('No SRT ingest URL available from Cloudflare');
+    }
+
     const startMessage: StartStream = {
       type: CloudToGlassesMessageType.START_STREAM,
       sessionId: userSession.sessionId,
-      streamUrl: liveInput.srtUrl!, // Cloudflare ingest URL
+      streamUrl: liveInput.srtUrl,
       appId: "MANAGED_STREAM", // Special app ID for managed streams
       streamId: managedStream.streamId,
       video: video || {},

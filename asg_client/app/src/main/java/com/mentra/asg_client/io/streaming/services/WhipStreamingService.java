@@ -581,6 +581,12 @@ public class WhipStreamingService extends Service {
     public void onIceGatheringChange(PeerConnection.IceGatheringState newState) {
       Log.d(TAG, "ICE gathering state: " + newState);
       if (newState == PeerConnection.IceGatheringState.COMPLETE) {
+        synchronized (mStateLock) {
+          if (mPeerConnection == null || mStreamState == StreamState.STOPPING || mStreamState == StreamState.IDLE) {
+            Log.w(TAG, "ICE gathering complete but stream already stopping/stopped, ignoring");
+            return;
+          }
+        }
         SessionDescription localSdp = mPeerConnection.getLocalDescription();
         if (localSdp != null) {
           postOfferToWhip(localSdp);
@@ -639,9 +645,11 @@ public class WhipStreamingService extends Service {
       mVideoCapturer.dispose();
       mVideoCapturer = null;
     }
-    if (mPeerConnection != null) {
-      mPeerConnection.close();
-      mPeerConnection = null;
+    synchronized (mStateLock) {
+      if (mPeerConnection != null) {
+        mPeerConnection.close();
+        mPeerConnection = null;
+      }
     }
     if (mVideoTrack != null) { mVideoTrack.dispose(); mVideoTrack = null; }
     if (mAudioTrack != null) { mAudioTrack.dispose(); mAudioTrack = null; }
@@ -665,31 +673,31 @@ public class WhipStreamingService extends Service {
   // -----------------------------------------------------------------------
 
   private void notifyStarting(String url) {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStarting(url));
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStarting(url, mCurrentStreamId));
   }
 
   private void notifyStarted(String url) {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStarted(url));
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStarted(url, mCurrentStreamId));
   }
 
   private void notifyStopped() {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStopped());
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamStopped(mCurrentStreamId));
   }
 
   private void notifyReconnecting(int attempt, int maxAttempts, String reason) {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnecting(attempt, maxAttempts, reason));
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnecting(attempt, maxAttempts, reason, mCurrentStreamId));
   }
 
   private void notifyReconnected(String url, int attempt) {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnected(url, attempt));
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnected(url, attempt, mCurrentStreamId));
   }
 
   private void notifyReconnectFailed(int maxAttempts) {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnectFailed(maxAttempts));
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onReconnectFailed(maxAttempts, mCurrentStreamId));
   }
 
   private void notifyError(String error) {
-    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamError(error));
+    if (sStatusCallback != null) mMainHandler.post(() -> sStatusCallback.onStreamError(error, mCurrentStreamId));
   }
 
   // -----------------------------------------------------------------------

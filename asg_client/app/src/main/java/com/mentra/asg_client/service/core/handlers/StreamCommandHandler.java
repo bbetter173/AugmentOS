@@ -179,15 +179,15 @@ public class StreamCommandHandler implements ICommandHandler {
      */
     public boolean handleStopCommand() {
         try {
-            if (RtmpStreamingService.isStreaming()) {
+            if (RtmpStreamingService.isStreaming() || RtmpStreamingService.isReconnecting()) {
                 RtmpStreamingService.stopStreaming(context);
                 streamingManager.sendStreamStatusResponse(true, ServiceConstants.STATUS_STOPPING, null);
                 return true;
-            } else if (SrtStreamingService.isStreaming()) {
+            } else if (SrtStreamingService.isStreaming() || SrtStreamingService.isReconnecting()) {
                 SrtStreamingService.stopStreaming(context);
                 streamingManager.sendStreamStatusResponse(true, ServiceConstants.STATUS_STOPPING, null);
                 return true;
-            } else if (WhipStreamingService.isStreaming()) {
+            } else if (WhipStreamingService.isStreaming() || WhipStreamingService.isReconnecting()) {
                 WhipStreamingService.stopStreaming(context);
                 streamingManager.sendStreamStatusResponse(true, ServiceConstants.STATUS_STOPPING, null);
                 return true;
@@ -212,7 +212,8 @@ public class StreamCommandHandler implements ICommandHandler {
                     || SrtStreamingService.isStreaming()
                     || WhipStreamingService.isStreaming();
             boolean isReconnecting = RtmpStreamingService.isReconnecting()
-                    || SrtStreamingService.isReconnecting();
+                    || SrtStreamingService.isReconnecting()
+                    || WhipStreamingService.isReconnecting();
 
             JSONObject status = new JSONObject();
             status.put("streaming", isStreaming);
@@ -284,13 +285,13 @@ public class StreamCommandHandler implements ICommandHandler {
     // -------------------------------------------------------------------------
 
     private void stopAllServices() {
-        if (RtmpStreamingService.isStreaming()) {
+        if (RtmpStreamingService.isStreaming() || RtmpStreamingService.isReconnecting()) {
             RtmpStreamingService.stopStreaming(context);
         }
-        if (SrtStreamingService.isStreaming()) {
+        if (SrtStreamingService.isStreaming() || SrtStreamingService.isReconnecting()) {
             SrtStreamingService.stopStreaming(context);
         }
-        if (WhipStreamingService.isStreaming()) {
+        if (WhipStreamingService.isStreaming() || WhipStreamingService.isReconnecting()) {
             WhipStreamingService.stopStreaming(context);
         }
         // Brief pause to let services clean up before starting a new one

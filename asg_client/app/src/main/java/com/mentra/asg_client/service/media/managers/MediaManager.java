@@ -244,13 +244,12 @@ public class MediaManager implements IMediaManager {
     private StreamingStatusCallback createStreamingStatusCallback() {
         return new StreamingStatusCallback() {
             @Override
-            public void onStreamStarting(String streamUrl) {
+            public void onStreamStarting(String streamUrl, String streamId) {
                 Log.d(TAG, "Stream starting to: " + streamUrl);
                 try {
                     JSONObject status = new JSONObject();
                     status.put("type", "stream_status");
                     status.put("status", "initializing");
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(true, status);
                 } catch (JSONException e) {
@@ -259,13 +258,12 @@ public class MediaManager implements IMediaManager {
             }
 
             @Override
-            public void onStreamStarted(String streamUrl) {
+            public void onStreamStarted(String streamUrl, String streamId) {
                 Log.d(TAG, "Stream successfully started to: " + streamUrl);
                 try {
                     JSONObject status = new JSONObject();
                     status.put("type", "stream_status");
                     status.put("status", "streaming");
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(true, status);
                 } catch (JSONException e) {
@@ -274,7 +272,7 @@ public class MediaManager implements IMediaManager {
             }
 
             @Override
-            public void onStreamStopped() {
+            public void onStreamStopped(String streamId) {
                 Log.d(TAG, "Stream stopped");
                 // Don't send "stopped" if we're mid-reconnect
                 if (RtmpStreamingService.isReconnecting() || SrtStreamingService.isReconnecting() || WhipStreamingService.isReconnecting()) {
@@ -285,7 +283,6 @@ public class MediaManager implements IMediaManager {
                     JSONObject status = new JSONObject();
                     status.put("type", "stream_status");
                     status.put("status", "stopped");
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(true, status);
                 } catch (JSONException e) {
@@ -294,7 +291,7 @@ public class MediaManager implements IMediaManager {
             }
 
             @Override
-            public void onReconnecting(int attempt, int maxAttempts, String reason) {
+            public void onReconnecting(int attempt, int maxAttempts, String reason, String streamId) {
                 Log.d(TAG, "Stream reconnecting: attempt " + attempt + "/" + maxAttempts + " - " + reason);
                 try {
                     JSONObject status = new JSONObject();
@@ -303,7 +300,6 @@ public class MediaManager implements IMediaManager {
                     status.put("attempt", attempt);
                     status.put("maxAttempts", maxAttempts);
                     status.put("reason", reason);
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(true, status);
                 } catch (JSONException e) {
@@ -312,14 +308,13 @@ public class MediaManager implements IMediaManager {
             }
 
             @Override
-            public void onReconnected(String streamUrl, int attempt) {
+            public void onReconnected(String streamUrl, int attempt, String streamId) {
                 Log.d(TAG, "Stream reconnected to: " + streamUrl + " on attempt " + attempt);
                 try {
                     JSONObject status = new JSONObject();
                     status.put("type", "stream_status");
                     status.put("status", "reconnected");
                     status.put("attempt", attempt);
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(true, status);
                 } catch (JSONException e) {
@@ -328,14 +323,13 @@ public class MediaManager implements IMediaManager {
             }
 
             @Override
-            public void onReconnectFailed(int maxAttempts) {
+            public void onReconnectFailed(int maxAttempts, String streamId) {
                 Log.d(TAG, "Stream reconnect failed after " + maxAttempts + " attempts");
                 try {
                     JSONObject status = new JSONObject();
                     status.put("type", "stream_status");
                     status.put("status", "reconnect_failed");
                     status.put("maxAttempts", maxAttempts);
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(false, status);
                 } catch (JSONException e) {
@@ -344,14 +338,13 @@ public class MediaManager implements IMediaManager {
             }
 
             @Override
-            public void onStreamError(String error) {
+            public void onStreamError(String error, String streamId) {
                 Log.e(TAG, "Stream error: " + error);
                 try {
                     JSONObject status = new JSONObject();
                     status.put("type", "stream_status");
                     status.put("status", "error");
                     status.put("errorDetails", error);
-                    String streamId = getActiveStreamId();
                     if (streamId != null && !streamId.isEmpty()) status.put("streamId", streamId);
                     sendStreamStatusResponse(false, status);
                 } catch (JSONException e) {
@@ -364,17 +357,6 @@ public class MediaManager implements IMediaManager {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
-
-    /**
-     * Returns the stream ID from whichever service is currently active.
-     */
-    private static String getActiveStreamId() {
-        String id = RtmpStreamingService.getCurrentStreamId();
-        if (id != null && !id.isEmpty()) return id;
-        id = SrtStreamingService.getCurrentStreamId();
-        if (id != null && !id.isEmpty()) return id;
-        return WhipStreamingService.getCurrentStreamId();
-    }
 
     private boolean isBleConnected() {
         return serviceManager != null

@@ -381,14 +381,18 @@ export class CloudflareStreamService {
       );
 
       const srtBaseUrl = liveInput.srt?.url;
+      const srtStreamId = liveInput.srt?.streamId;
+      const srtPassphrase = liveInput.srt?.passphrase;
 
-      const srtUrl = srtBaseUrl
-      ? `${srtBaseUrl}?streamid=${encodeURIComponent(
-          liveInput.srt?.streamId || ""
-        )}&passphrase=${encodeURIComponent(
-          liveInput.srt?.passphrase || ""
-        )}`
-      : undefined;
+      let srtUrl: string | undefined;
+      if (srtBaseUrl && srtStreamId && srtPassphrase) {
+        srtUrl = `${srtBaseUrl}?streamid=${encodeURIComponent(srtStreamId)}&passphrase=${encodeURIComponent(srtPassphrase)}`;
+      } else if (srtBaseUrl) {
+        this.logger.warn(
+          { hasSrtUrl: true, hasStreamId: !!srtStreamId, hasPassphrase: !!srtPassphrase },
+          "Incomplete SRT credentials from Cloudflare — SRT URL not constructed",
+        );
+      }
 
       const rtmpUrl = `${liveInput.rtmps.url}${liveInput.rtmps.streamKey}`;
 

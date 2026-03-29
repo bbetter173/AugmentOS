@@ -265,7 +265,7 @@ public class SrtStreamingService extends Service {
       Log.d(TAG, "Surface created: " + surfaceWidth + "x" + surfaceHeight);
     } catch (Exception e) {
       Log.e(TAG, "Error creating surface", e);
-      if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to create surface: " + e.getMessage());
+      if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to create surface: " + e.getMessage(), mCurrentStreamId);
     }
   }
 
@@ -299,7 +299,7 @@ public class SrtStreamingService extends Service {
           if (isRetryable) {
             scheduleReconnect("stream_error");
           } else {
-            if (sStatusCallback != null) sStatusCallback.onStreamError("Fatal SRT error: " + error.getMessage());
+            if (sStatusCallback != null) sStatusCallback.onStreamError("Fatal SRT error: " + error.getMessage(), mCurrentStreamId);
             stopStreaming();
           }
         }
@@ -321,10 +321,10 @@ public class SrtStreamingService extends Service {
             if (wasReconnecting) {
               long downtime = mLastReconnectionTime > 0 ? currentTime - mLastReconnectionTime : 0;
               Log.e(TAG, "🟢 SRT RECONNECTED after " + formatDuration(downtime) + " downtime");
-              if (sStatusCallback != null) sStatusCallback.onReconnected(mSrtUrl, mReconnectAttempts);
+              if (sStatusCallback != null) sStatusCallback.onReconnected(mSrtUrl, mReconnectAttempts, mCurrentStreamId);
             } else {
               Log.e(TAG, "🟢 SRT STREAM STARTED");
-              if (sStatusCallback != null) sStatusCallback.onStreamStarted(mSrtUrl);
+              if (sStatusCallback != null) sStatusCallback.onStreamStarted(mSrtUrl, mCurrentStreamId);
             }
 
             if (mCurrentStreamId != null && !mCurrentStreamId.isEmpty()) {
@@ -359,7 +359,7 @@ public class SrtStreamingService extends Service {
 
           if (!isRetryableErrorString(message)) {
             Log.w(TAG, "Fatal SRT error - stopping stream");
-            if (sStatusCallback != null) sStatusCallback.onStreamError("SRT connection failed: " + message);
+            if (sStatusCallback != null) sStatusCallback.onStreamError("SRT connection failed: " + message, mCurrentStreamId);
             stopStreaming();
             return;
           }
@@ -450,7 +450,7 @@ public class SrtStreamingService extends Service {
     } catch (Exception e) {
       Log.e(TAG, "Failed to initialize SRT streamer", e);
       EventBus.getDefault().post(new StreamingEvent.Error("Initialization failed: " + e.getMessage()));
-      if (sStatusCallback != null) sStatusCallback.onStreamError("Initialization failed: " + e.getMessage());
+      if (sStatusCallback != null) sStatusCallback.onStreamError("Initialization failed: " + e.getMessage(), mCurrentStreamId);
       StreamingReporting.reportInitializationFailure(SrtStreamingService.this, mSrtUrl, e.getMessage(), e);
     }
   }
@@ -492,7 +492,7 @@ public class SrtStreamingService extends Service {
       if (CameraNeo.isCameraInUse()) {
         String error = "camera_busy";
         Log.e(TAG, "Cannot start SRT stream - camera is busy");
-        if (sStatusCallback != null) sStatusCallback.onStreamError(error);
+        if (sStatusCallback != null) sStatusCallback.onStreamError(error, mCurrentStreamId);
         StreamingReporting.reportCameraBusyError(SrtStreamingService.this, "start_streaming");
         return;
       }
@@ -501,7 +501,7 @@ public class SrtStreamingService extends Service {
 
       if (mSrtUrl == null || mSrtUrl.isEmpty()) {
         String error = "SRT URL not set";
-        if (sStatusCallback != null) sStatusCallback.onStreamError(error);
+        if (sStatusCallback != null) sStatusCallback.onStreamError(error, mCurrentStreamId);
         StreamingReporting.reportUrlValidationFailure(SrtStreamingService.this, "null", "URL is null or empty");
         return;
       }
@@ -521,10 +521,10 @@ public class SrtStreamingService extends Service {
 
       if (mReconnecting) {
         Log.i(TAG, "Reconnecting to SRT (attempt " + mReconnectAttempts + ")");
-        if (sStatusCallback != null) sStatusCallback.onReconnecting(mReconnectAttempts, MAX_RECONNECT_ATTEMPTS, "connection_retry");
+        if (sStatusCallback != null) sStatusCallback.onReconnecting(mReconnectAttempts, MAX_RECONNECT_ATTEMPTS, "connection_retry", mCurrentStreamId);
       } else {
         Log.i(TAG, "Starting SRT streaming to " + mSrtUrl);
-        if (sStatusCallback != null) sStatusCallback.onStreamStarting(mSrtUrl);
+        if (sStatusCallback != null) sStatusCallback.onStreamStarting(mSrtUrl, mCurrentStreamId);
       }
 
       releaseSurface();
@@ -554,7 +554,7 @@ public class SrtStreamingService extends Service {
               Log.e(TAG, "Error starting SRT stream", (Throwable) o);
               mStreamState = StreamState.IDLE;
               mIsStreaming = false;
-              if (sStatusCallback != null) sStatusCallback.onStreamError(errorMsg);
+              if (sStatusCallback != null) sStatusCallback.onStreamError(errorMsg, mCurrentStreamId);
               StreamingReporting.reportStreamStartFailure(SrtStreamingService.this, mSrtUrl, ((Throwable) o).getMessage(), (Throwable) o);
               scheduleReconnect("start_error");
             } else {
@@ -574,7 +574,7 @@ public class SrtStreamingService extends Service {
       String errorMsg = "Failed to start SRT streaming: " + e.getMessage();
       Log.e(TAG, errorMsg, e);
       synchronized (mStateLock) { mStreamState = StreamState.IDLE; mIsStreaming = false; }
-      if (sStatusCallback != null) sStatusCallback.onStreamError(errorMsg);
+      if (sStatusCallback != null) sStatusCallback.onStreamError(errorMsg, mCurrentStreamId);
       StreamingReporting.reportStreamStartFailure(SrtStreamingService.this, mSrtUrl, e.getMessage(), e);
       scheduleReconnect("start_exception");
     }
@@ -610,7 +610,7 @@ public class SrtStreamingService extends Service {
         if (o instanceof Throwable) {
           Log.e(TAG, "Error during SRT stream stop", (Throwable) o);
           StreamingReporting.reportStreamStopFailure(SrtStreamingService.this, "stream_stop_error", (Throwable) o);
-          if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to stop SRT stream: " + ((Throwable) o).getMessage());
+          if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to stop SRT stream: " + ((Throwable) o).getMessage(), mCurrentStreamId);
         }
         Log.d(TAG, "SRT stream stop completed");
       }
@@ -622,12 +622,12 @@ public class SrtStreamingService extends Service {
       try { srtStreamerToCleanup.stopPreview(); Log.d(TAG, "SRT camera preview stopped"); } catch (Exception e) {
         Log.e(TAG, "Error stopping SRT preview", e);
         StreamingReporting.reportPreviewStartFailure(SrtStreamingService.this, "stop_preview_error", e);
-        if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to stop camera preview: " + e.getMessage());
+        if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to stop camera preview: " + e.getMessage(), mCurrentStreamId);
       }
       try { srtStreamerToCleanup.release(); Log.d(TAG, "SRT streamer released"); } catch (Exception e) {
         Log.e(TAG, "Error releasing SRT streamer", e);
         StreamingReporting.reportResourceCleanupFailure(SrtStreamingService.this, "streamer", "release_error", e);
-        if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to release SRT resources: " + e.getMessage());
+        if (sStatusCallback != null) sStatusCallback.onStreamError("Failed to release SRT resources: " + e.getMessage(), mCurrentStreamId);
       }
       if (mSrtStreamer == srtStreamerToCleanup) mSrtStreamer = null;
       mLastSrtStreamerForCleanup = null;
@@ -656,7 +656,7 @@ public class SrtStreamingService extends Service {
     }
 
     if (!preserveSession) {
-      if (sStatusCallback != null) sStatusCallback.onStreamStopped();
+      if (sStatusCallback != null) sStatusCallback.onStreamStopped(mCurrentStreamId);
       EventBus.getDefault().post(new StreamingEvent.Stopped());
       Log.i(TAG, "SRT streaming stopped");
     }
@@ -665,7 +665,7 @@ public class SrtStreamingService extends Service {
   private void scheduleReconnect(String reason) {
     if (mReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       Log.w(TAG, "Max SRT reconnection attempts reached");
-      if (sStatusCallback != null) sStatusCallback.onReconnectFailed(MAX_RECONNECT_ATTEMPTS);
+      if (sStatusCallback != null) sStatusCallback.onReconnectFailed(MAX_RECONNECT_ATTEMPTS, mCurrentStreamId);
       long totalDuration = System.currentTimeMillis() - mLastReconnectionTime;
       StreamingReporting.reportReconnectionExhaustion(SrtStreamingService.this, mSrtUrl, MAX_RECONNECT_ATTEMPTS, totalDuration);
       stopStreaming();
@@ -676,7 +676,7 @@ public class SrtStreamingService extends Service {
     mReconnectAttempts++;
     long delay = calculateReconnectDelay(mReconnectAttempts);
     Log.d(TAG, "Scheduling SRT reconnection #" + mReconnectAttempts + " in " + delay + "ms (reason: " + reason + ")");
-    if (sStatusCallback != null) sStatusCallback.onReconnecting(mReconnectAttempts, MAX_RECONNECT_ATTEMPTS, reason);
+    if (sStatusCallback != null) sStatusCallback.onReconnecting(mReconnectAttempts, MAX_RECONNECT_ATTEMPTS, reason, mCurrentStreamId);
     mReconnecting = true;
     updateNotificationIfImportant();
 
@@ -723,7 +723,7 @@ public class SrtStreamingService extends Service {
       if (mCurrentStreamId != null && mCurrentStreamId.equals(streamId) && mIsStreamingActive) {
         Log.w(TAG, "SRT stream timed out (no keep-alive): " + streamId);
         StreamingReporting.reportTimeoutError(SrtStreamingService.this, streamId, STREAM_TIMEOUT_MS);
-        if (sStatusCallback != null) sStatusCallback.onStreamError("SRT stream timed out - no keep-alive");
+        if (sStatusCallback != null) sStatusCallback.onStreamError("SRT stream timed out - no keep-alive", mCurrentStreamId);
         forceStopStreamingInternal(false);
       }
     }

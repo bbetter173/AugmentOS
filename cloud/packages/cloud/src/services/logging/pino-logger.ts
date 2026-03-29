@@ -1,6 +1,4 @@
 import pino from "pino";
-// import { posthog } from "./posthog.service";
-// import { pinoPostHogTransport } from "./transports/PostHogTransport";
 
 // Constants and configuration
 const DEPLOYMENT_REGION = process.env.DEPLOYMENT_REGION;
@@ -12,11 +10,31 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 const REGION = process.env.REGION || process.env.DEPLOYMENT_REGION || "";
 const PORTER_APP_NAME = process.env.PORTER_APP_NAME || "cloud-local";
 
+// When LOG_STDOUT_JSON=true, write raw JSON to stdout instead of pino-pretty.
+// This allows an external log collector (Vector/BetterStack Kubernetes Helm chart)
+// to pick up structured JSON from container stdout and ship it to BetterStack
+// WITHOUT the in-process @logtail/pino transport that causes unbounded heap growth.
+//
+// The @logtail/pino transport stays active alongside stdout so we can verify
+// both paths deliver logs before removing the in-process transport.
+//
+// See: cloud/issues/067-heap-growth-investigation/spike.md
+const LOG_STDOUT_JSON = process.env.LOG_STDOUT_JSON === "true";
+
 // Log filtering configuration
 const LOG_FEATURES = process.env.LOG_FEATURES?.split(",").map((f) => f.trim()) || [];
 const LOG_EXCLUDE_FEATURES = process.env.LOG_EXCLUDE_FEATURES?.split(",").map((f) => f.trim()) || [];
 const LOG_SERVICES = process.env.LOG_SERVICES?.split(",").map((s) => s.trim()) || [];
 const LOG_EXCLUDE_SERVICES = process.env.LOG_EXCLUDE_SERVICES?.split(",").map((s) => s.trim()) || [];
+
+// Check once at startup whether any filters are configured.
+// If not, skip the JSON.parse in createFilteredStream entirely — avoids
+// ~200-340 useless JSON.parse calls/sec on the main thread in production.
+const HAS_LOG_FILTERS =
+  LOG_FEATURES.length > 0 ||
+  LOG_EXCLUDE_FEATURES.length > 0 ||
+  LOG_SERVICES.length > 0 ||
+  LOG_EXCLUDE_SERVICES.length > 0;
 
 // Determine log level based on environment
 // Use 'info' in development to reduce noise from debug logs
@@ -25,12 +43,7 @@ const LOG_LEVEL = NODE_ENV === "production" ? "info" : "debug";
 // Custom filtering function
 const shouldLogMessage = (logObj: any): boolean => {
   // If no filters are set, log everything
-  if (
-    LOG_FEATURES.length === 0 &&
-    LOG_EXCLUDE_FEATURES.length === 0 &&
-    LOG_SERVICES.length === 0 &&
-    LOG_EXCLUDE_SERVICES.length === 0
-  ) {
+  if (!HAS_LOG_FILTERS) {
     return true;
   }
 
@@ -61,42 +74,69 @@ const shouldLogMessage = (logObj: any): boolean => {
 // Setup streams array for Pino multistream
 const streams: pino.StreamEntry[] = [];
 
-// Custom filtering stream wrapper
-const createFilteredStream = (targetStream: any, _level: string) => ({
-  write: (line: string) => {
-    try {
-      const logObj = JSON.parse(line);
-      if (shouldLogMessage(logObj)) {
+// Custom filtering stream wrapper.
+// When no filters are configured (the common case in production), returns the
+// target stream directly — zero overhead, no JSON.parse per log line.
+const createFilteredStream = (targetStream: any, _level: string) => {
+  if (!HAS_LOG_FILTERS) {
+    return targetStream;
+  }
+  return {
+    write: (line: string) => {
+      try {
+        const logObj = JSON.parse(line);
+        if (shouldLogMessage(logObj)) {
+          targetStream.write(line);
+        }
+      } catch {
+        // If we can't parse the JSON, pass it through
         targetStream.write(line);
       }
-    } catch {
-      // If we can't parse the JSON, pass it through
-      targetStream.write(line);
-    }
-  },
-});
+    },
+  };
+};
 
-// Pretty transport for development with filtering
-const prettyTransport = pino.transport({
-  target: "pino-pretty",
-  options: {
-    colorize: true,
-    translateTime: "SYS:standard",
-    ignore: "pid,hostname,env,service,server,req,res,responseTime",
-    messageFormat: "{msg}",
-    errorProps: "*",
-  },
-});
+// ── Stdout stream ──────────────────────────────────────────────────────────
+// LOG_STDOUT_JSON=true  → raw JSON to stdout (for Vector / external collector)
+// LOG_STDOUT_JSON=false → pino-pretty to stdout (for human readability)
 
-// Apply filtering to pretty transport
-const filteredPrettyStream = createFilteredStream(prettyTransport, LOG_LEVEL);
+if (LOG_STDOUT_JSON) {
+  // Raw JSON to stdout — Vector picks this up from container logs and ships
+  // it to BetterStack with full Kubernetes metadata. No worker thread, no
+  // in-process buffer, no memory growth.
+  const stdoutDest = pino.destination({ dest: 1, sync: false });
+  const filteredStdout = createFilteredStream(stdoutDest, LOG_LEVEL);
 
-streams.push({
-  stream: filteredPrettyStream,
-  level: LOG_LEVEL,
-});
+  streams.push({
+    stream: filteredStdout,
+    level: LOG_LEVEL,
+  });
+} else {
+  // Pretty transport for development / legacy production with filtering
+  const prettyTransport = pino.transport({
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:standard",
+      ignore: "pid,hostname,env,service,server,req,res,responseTime",
+      messageFormat: "{msg}",
+      errorProps: "*",
+    },
+  });
 
-// Add BetterStack transport if token is provided (with filtering)
+  const filteredPrettyStream = createFilteredStream(prettyTransport, LOG_LEVEL);
+
+  streams.push({
+    stream: filteredPrettyStream,
+    level: LOG_LEVEL,
+  });
+}
+
+// ── BetterStack in-process transport ───────────────────────────────────────
+// Kept active alongside stdout so we can verify both paths deliver logs
+// before removing it. Once Vector log collection is confirmed working on all
+// clusters, this block can be removed entirely.
+
 if (BETTERSTACK_SOURCE_TOKEN && !isChina) {
   const betterStackTransport = pino.transport({
     target: "@logtail/pino",
@@ -135,13 +175,15 @@ const baseLoggerOptions: pino.LoggerOptions = {
 // Create the root logger with multiple streams
 export const logger = pino(baseLoggerOptions, multistream);
 
-// Log the current filter configuration on startup
-if (
-  LOG_FEATURES.length > 0 ||
-  LOG_EXCLUDE_FEATURES.length > 0 ||
-  LOG_SERVICES.length > 0 ||
-  LOG_EXCLUDE_SERVICES.length > 0
-) {
+// Log the current configuration on startup
+if (LOG_STDOUT_JSON) {
+  logger.info(
+    { LOG_STDOUT_JSON: true, HAS_LOG_FILTERS },
+    "Pino logger: JSON stdout enabled (for Vector log collection)",
+  );
+}
+
+if (HAS_LOG_FILTERS) {
   logger.info(
     {
       LOG_FEATURES: LOG_FEATURES.length > 0 ? LOG_FEATURES : undefined,
@@ -152,25 +194,6 @@ if (
     "Log filtering enabled",
   );
 }
-
-// Flush logger on process exit
-// let isExiting = false;
-
-// const gracefulShutdown = async (signal: string) => {
-//   if (isExiting) return;
-//   isExiting = true;
-
-//   logger.warn(`Received ${signal}, shutting down gracefully...`);
-
-//   // Quick flush and exit
-//   try {
-//     logger.flush();
-//   } catch {
-//     // Ignore flush errors
-//   }
-
-//   process.exit(0);
-// };
 
 // Default export is the logger
 export default logger;

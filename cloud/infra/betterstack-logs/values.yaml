@@ -1,10 +1,16 @@
 # BetterStack Logs Helm Chart — values.yaml
 #
 # Deploys Vector as a DaemonSet to collect container stdout/stderr logs
-# and Kubernetes metrics, shipping them to BetterStack.
+# and ship them to BetterStack with Pino JSON flattened to top-level fields.
 #
 # This replaces the in-process @logtail/pino transport that causes
 # unbounded heap growth (see cloud/issues/067-heap-growth-investigation).
+#
+# The transforms below:
+#   1. Filter to only our cloud app containers (no kube-system noise)
+#   2. Parse the Pino JSON from the message field
+#   3. Flatten it to the top level so region=, feature=, service= work in Live Tail
+#   4. Add a log_source="vector" marker to distinguish from @logtail/pino during migration
 #
 # Usage per cluster:
 #   porter helm --cluster <CLUSTER_ID> -- install betterstack-logs \
@@ -12,31 +18,71 @@
 #     --namespace betterstack \
 #     --create-namespace \
 #     --values cloud/infra/betterstack-logs/values.yaml \
-#     --set vector.customConfig.sinks.better_stack_http_sink.auth.token=$SOURCE_TOKEN \
-#     --set vector.customConfig.sinks.better_stack_http_metrics_sink.auth.token=$SOURCE_TOKEN \
-#     --set vector.customConfig.sinks.better_stack_http_sink.uri=https://$INGESTING_HOST/ \
-#     --set vector.customConfig.sinks.better_stack_http_metrics_sink.uri=https://$INGESTING_HOST/metrics
+#     --set "vector.customConfig.sinks.better_stack_http_sink.auth.token=$SOURCE_TOKEN" \
+#     --set "vector.customConfig.sinks.better_stack_http_metrics_sink.auth.token=$SOURCE_TOKEN" \
+#     --set "vector.customConfig.sinks.better_stack_http_sink.uri=https://$INGESTING_HOST/" \
+#     --set "vector.customConfig.sinks.better_stack_http_metrics_sink.uri=https://$INGESTING_HOST/metrics"
 #
-# Source tokens and ingesting hosts per region (stored in Doppler):
-#
-#   | Region     | Cluster | Doppler Config   | Doppler Key              |
-#   |------------|---------|------------------|--------------------------|
-#   | US Central | 4689    | prod_central-us  | BETTERSTACK_SOURCE_TOKEN |
-#   | France     | 4696    | prod_france      | BETTERSTACK_SOURCE_TOKEN |
-#   | East Asia  | 4754    | prod_east-asia   | BETTERSTACK_SOURCE_TOKEN |
-#   | US West    | 4965    | prod_us-west     | BETTERSTACK_SOURCE_TOKEN |
-#   | US East    | 4977    | prod_us-east     | BETTERSTACK_SOURCE_TOKEN |
-#
-# The ingesting host for the MentraCloud-Prod source is:
-#   s2324289.eu-nbg-2.betterstackdata.com
-#
-# To get the actual token value:
+# Source tokens per region (stored in Doppler as BETTERSTACK_SOURCE_TOKEN):
 #   doppler secrets get BETTERSTACK_SOURCE_TOKEN --project mentraos-cloud --config <CONFIG> --plain
+#
+# The ingesting host for MentraCloud-Prod source:
+#   s2324289.eu-nbg-2.betterstackdata.com
 
 vector:
   customConfig:
+    transforms:
+      # Step 1: Filter to only our cloud app containers.
+      # Drops all kube-system, cert-manager, ingress-nginx, porter-agent, etc.
+      cloud_only_filter:
+        type: "filter"
+        inputs: ["better_stack_kubernetes_parser"]
+        condition: >
+          contains(to_string!(.kubernetes.container_name), "cloud-prod-cloud") ||
+          contains(to_string!(.kubernetes.container_name), "cloud-staging-cloud") ||
+          contains(to_string!(.kubernetes.container_name), "cloud-debug-cloud") ||
+          contains(to_string!(.kubernetes.container_name), "cloud-dev-cloud")
+
+      # Step 2: Flatten the Pino JSON so all fields are top-level.
+      # Input from Vector: { kubernetes: {...}, message: { level: 30, region: "us-west", ... } }
+      # Output:            { level: 30, region: "us-west", ..., kubernetes_pod: "...", log_source: "vector" }
+      flatten_pino:
+        type: "remap"
+        inputs: ["cloud_only_filter"]
+        source: |
+          # Grab kubernetes context before we restructure
+          kube_pod = to_string(.kubernetes.pod_name) ?? "unknown"
+          kube_container = to_string(.kubernetes.container_name) ?? "unknown"
+
+          # The Pino JSON lives in .message
+          # It may already be parsed as an object, or it may be a raw JSON string
+          pino_data = .message
+
+          if is_string(pino_data) {
+            parsed, err = parse_json(string!(pino_data))
+            if err == null {
+              pino_data = parsed
+            }
+          }
+
+          # If we successfully got a Pino object, flatten it to the top level
+          # This makes region=, feature=, service=, heapUsedMB= all queryable in Live Tail
+          if is_object(pino_data) {
+            . = object!(pino_data)
+          }
+
+          # Add minimal kubernetes context (just pod + container name, not the whole blob)
+          .kubernetes_pod = kube_pod
+          .kubernetes_container = kube_container
+
+          # Marker field so we can distinguish vector-delivered logs from @logtail/pino
+          # during the migration period. Remove after migration is complete.
+          .log_source = "vector"
+
     sinks:
+      # Override the default sink to use our flattened output instead of raw
       better_stack_http_sink:
+        inputs: ["flatten_pino"]
         # Override uri and auth.token via --set flags (do NOT commit tokens)
         uri: "https://PLACEHOLDER_INGESTING_HOST/"
         auth:
@@ -49,6 +95,6 @@ vector:
           token: "PLACEHOLDER_SOURCE_TOKEN"
 
 # The existing better-stack-collector DaemonSet already installs a metrics
-# server. Disable it here to avoid conflicts.
+# server on each cluster. Disable it here to avoid conflicts.
 metrics-server:
   enabled: false

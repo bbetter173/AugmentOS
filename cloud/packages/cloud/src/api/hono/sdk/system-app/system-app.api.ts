@@ -23,6 +23,7 @@ import { validateApiKey } from "../../../../services/sdk/sdk.auth.service";
 import * as AppUptimeService from "../../../../services/core/app-uptime.service";
 import { HardwareCompatibilityService } from "../../../../services/session/HardwareCompatibilityService";
 import { LOCAL_APPS } from "../../../../services/core/app.service";
+import { appCache } from "../../../../services/core/app-cache.service";
 
 const logger = rootLogger.child({ service: "system-app.api" });
 
@@ -139,10 +140,13 @@ async function listApps(c: AppContext) {
     const installedPackageNames =
       user?.installedApps?.map((installed: { packageName: string }) => installed.packageName) || [];
 
-    // Fetch apps from database
-    const installedApps = (await App.find({
-      packageName: { $in: installedPackageNames },
-    })) as AppI[];
+    // Fetch apps from cache with DB fallback
+    const cachedApps = appCache.getByPackageNames(installedPackageNames);
+    const installedApps = (
+      cachedApps.length === installedPackageNames.length
+        ? cachedApps
+        : await App.find({ packageName: { $in: installedPackageNames } }).lean()
+    ) as AppI[];
 
     // Combine with LOCAL_APPS (pre-installed system apps), avoiding duplicates
     const appMap = new Map<string, AppI>();
@@ -360,11 +364,13 @@ async function getUserTools(c: AppContext) {
       return c.json({ success: true, data: [] });
     }
 
-    // Fetch apps with tools from database
-    const apps = await App.find({
-      packageName: { $in: installedPackageNames },
-      tools: { $exists: true, $ne: [] },
-    });
+    // Fetch apps with tools from cache with DB fallback
+    const cachedApps = appCache.getByPackageNames(installedPackageNames);
+    const apps = (
+      cachedApps.length === installedPackageNames.length
+        ? cachedApps
+        : await App.find({ packageName: { $in: installedPackageNames } }).lean()
+    ).filter((a: any) => a.tools && Array.isArray(a.tools) && a.tools.length > 0);
 
     // Collect all tools with app info
     const allTools: Array<ToolSchema & { appPackageName: string }> = [];
@@ -407,8 +413,9 @@ async function getAppTools(c: AppContext) {
       return c.json({ success: false, error: "Missing targetPackageName" }, 400);
     }
 
-    // Fetch app from database
-    const appDoc = await App.findOne({ packageName: targetPackageName });
+    // Fetch app from cache with DB fallback
+    const appDoc =
+      appCache.getByPackageName(targetPackageName) || (await App.findOne({ packageName: targetPackageName }).lean());
 
     if (!appDoc) {
       return c.json({ success: false, error: "App not found" }, 404);
@@ -453,8 +460,9 @@ async function triggerTool(c: AppContext) {
       return c.json({ success: false, error: "Missing required field: userId" }, 400);
     }
 
-    // Get app from database
-    const appDoc = await App.findOne({ packageName: targetPackageName });
+    // Get app from cache with DB fallback
+    const appDoc =
+      appCache.getByPackageName(targetPackageName) || (await App.findOne({ packageName: targetPackageName }).lean());
 
     if (!appDoc) {
       return c.json({ success: false, error: "App not found" }, 404);
@@ -557,8 +565,9 @@ async function invokeTool(c: AppContext) {
       );
     }
 
-    // Get target app
-    const targetAppDoc = await App.findOne({ packageName: targetPackageName });
+    // Get target app from cache with DB fallback
+    const targetAppDoc =
+      appCache.getByPackageName(targetPackageName) || (await App.findOne({ packageName: targetPackageName }).lean());
     if (!targetAppDoc || !targetAppDoc.publicUrl) {
       return c.json(
         {

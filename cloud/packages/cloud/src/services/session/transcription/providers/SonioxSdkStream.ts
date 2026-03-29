@@ -92,6 +92,16 @@ export class SonioxSdkStream implements StreamInstance {
   private session: RealtimeSttSession;
   private utteranceBuffer: RealtimeUtteranceBuffer;
   private disposed = false;
+  private _lastSlowSendWarn: number = 0;
+
+  // ── Stored listener references for typed .off() cleanup in close() ──
+  private onResult?: (result: RealtimeResult) => void;
+  private onEndpoint?: () => void;
+  private onFinalized?: () => void;
+  private onFinished?: () => void;
+  private onError?: (error: Error) => void;
+  private onDisconnected?: (reason?: string) => void;
+  private onConnected?: () => void;
 
   // ── Utterance tracking ──────────────────────────────────────────────
   private currentUtteranceId: string | null = null;
@@ -197,14 +207,16 @@ export class SonioxSdkStream implements StreamInstance {
     this.logger.debug({ streamId: this.id }, "Connecting Soniox SDK session");
 
     // ── Wire up events BEFORE connecting ───────────────────────────
-    this.session.on("result", (result: RealtimeResult) => this.handleResult(result));
-    this.session.on("endpoint", () => this.handleEndpoint());
-    this.session.on("finalized", () => this.handleFinalized());
-    this.session.on("finished", () => this.handleFinished());
-    this.session.on("error", (error: Error) => this.handleError(error));
-    this.session.on("disconnected", (reason?: string) => this.handleDisconnected(reason));
-
-    this.session.on("connected", () => {
+    // Store listener references so we can .off() each one in close(),
+    // breaking the SonioxSdkStream → TranscriptionManager → UserSession
+    // reference chain that previously prevented garbage collection.
+    this.onResult = (result: RealtimeResult) => this.handleResult(result);
+    this.onEndpoint = () => this.handleEndpoint();
+    this.onFinalized = () => this.handleFinalized();
+    this.onFinished = () => this.handleFinished();
+    this.onError = (error: Error) => this.handleError(error);
+    this.onDisconnected = (reason?: string) => this.handleDisconnected(reason);
+    this.onConnected = () => {
       this.state = StreamState.READY;
       this.readyTime = Date.now();
       this.metrics.initializationTime = this.readyTime - this.startTime;
@@ -224,7 +236,15 @@ export class SonioxSdkStream implements StreamInstance {
       this.startGapDetection();
 
       this.callbacks.onReady?.();
-    });
+    };
+
+    this.session.on("result", this.onResult);
+    this.session.on("endpoint", this.onEndpoint);
+    this.session.on("finalized", this.onFinalized);
+    this.session.on("finished", this.onFinished);
+    this.session.on("error", this.onError);
+    this.session.on("disconnected", this.onDisconnected);
+    this.session.on("connected", this.onConnected);
 
     try {
       await this.session.connect();
@@ -267,7 +287,24 @@ export class SonioxSdkStream implements StreamInstance {
     }
 
     try {
+      const t0 = performance.now();
       this.session.sendAudio(new Uint8Array(data));
+      const sendDurationMs = performance.now() - t0;
+
+      // Log slow Soniox sends — if this blocks >50ms, it's starving the event loop.
+      // Rate-limited: at most one warning per 30 seconds per stream to avoid log flood
+      // (audio sends happen ~50 times/second per session).
+      if (sendDurationMs > 50 && Date.now() - (this._lastSlowSendWarn || 0) > 30_000) {
+        this._lastSlowSendWarn = Date.now();
+        this.logger.warn(
+          {
+            feature: "soniox-timing",
+            durationMs: Math.round(sendDurationMs * 10) / 10,
+            streamId: this.id,
+          },
+          `Soniox send slow: ${Math.round(sendDurationMs)}ms`,
+        );
+      }
 
       this.state = StreamState.ACTIVE;
       this.metrics.audioChunksWritten++;
@@ -379,7 +416,8 @@ export class SonioxSdkStream implements StreamInstance {
 
     try {
       // Graceful shutdown: finish() waits for remaining results, then closes.
-      // If the session is already disconnected, close() is a no-op.
+      // Keep listeners active through finish() so finalized/finished handlers
+      // can fire and flush final transcript data via emitFinal().
       const sessionState = this.session.state;
       if (sessionState === "connected" || sessionState === "finishing") {
         try {
@@ -393,6 +431,18 @@ export class SonioxSdkStream implements StreamInstance {
       }
     } catch (error) {
       this.logger.warn({ error, streamId: this.id }, "Error during Soniox SDK stream close");
+    } finally {
+      // Remove event listeners AFTER finish() to prevent leaking references
+      // to this stream (and transitively to TranscriptionManager → UserSession)
+      // via the session emitter. Must happen after finish() because finish()
+      // may emit finalized/finished events that flush pending transcript data.
+      if (this.onResult) this.session.off("result", this.onResult);
+      if (this.onEndpoint) this.session.off("endpoint", this.onEndpoint);
+      if (this.onFinalized) this.session.off("finalized", this.onFinalized);
+      if (this.onFinished) this.session.off("finished", this.onFinished);
+      if (this.onError) this.session.off("error", this.onError);
+      if (this.onDisconnected) this.session.off("disconnected", this.onDisconnected);
+      if (this.onConnected) this.session.off("connected", this.onConnected);
     }
 
     // Reset buffers

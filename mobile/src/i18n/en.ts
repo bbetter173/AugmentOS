@@ -908,7 +908,7 @@ const en = {
     offlineCaptions: "Offline Captions",
     mirror: "Glasses Mirror",
     simulated: "Simulated Glasses",
-    store: "Get more apps",
+    store: "MiniApp Store",
     feedback: "Give Feedback",
     lmaInstaller: "Local Store",
     lmaLoader: "Side Loader",

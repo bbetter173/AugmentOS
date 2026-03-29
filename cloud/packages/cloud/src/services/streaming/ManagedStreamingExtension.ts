@@ -65,14 +65,7 @@ export class ManagedStreamingExtension {
    * Start or join a managed stream
    */
   async startManagedStream(userSession: UserSession, request: ManagedStreamRequest): Promise<string> {
-    const {
-      packageName,
-      video,
-      audio,
-      stream: streamOptions,
-      restreamDestinations,
-      sound: appSound,
-    } = request;
+    const { packageName, video, audio, stream: streamOptions, restreamDestinations, sound: appSound } = request;
     const userId = userSession.userId;
 
     // Determine streaming mode: WebRTC (default) or SRT (when restreaming)
@@ -231,7 +224,7 @@ export class ManagedStreamingExtension {
 
     // Wait for Cloudflare live input to fully initialize
     this.logger.info({ userId, packageName }, "⏳ Waiting 3 seconds for Cloudflare live input to initialize");
-    //await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Flash is always on (privacy indicator for bystanders), sound is app-controlled via SDK
     const flash = true;
@@ -240,17 +233,17 @@ export class ManagedStreamingExtension {
     // Determine ingest URL based on streaming mode
     let ingestUrl: string;
     if (useWebRTC) {
-      if (!liveInput.webrtcUrl) {
-        throw new Error('No WebRTC ingest URL available from Cloudflare');
+      if (!liveInput.webrtcPublishUrl) {
+        throw new Error("No WebRTC ingest URL available from Cloudflare");
       }
-      ingestUrl = liveInput.webrtcUrl;
+      ingestUrl = liveInput.webrtcPublishUrl;
       this.logger.info(
         { userId, packageName, protocol: "WHIP" },
         "🚀 Streaming via WebRTC (WHIP) — app will receive webrtcUrl for low-latency WHEP playback",
       );
     } else {
       if (!liveInput.srtUrl) {
-        throw new Error('No SRT ingest URL available from Cloudflare');
+        throw new Error("No SRT ingest URL available from Cloudflare");
       }
       ingestUrl = liveInput.srtUrl;
       this.logger.info(

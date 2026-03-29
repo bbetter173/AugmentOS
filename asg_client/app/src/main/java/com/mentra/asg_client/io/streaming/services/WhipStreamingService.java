@@ -39,7 +39,9 @@ import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
+import org.webrtc.RtpParameters;
 import org.webrtc.RtpReceiver;
+import org.webrtc.RtpSender;
 import org.webrtc.RtpTransceiver;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
@@ -349,7 +351,7 @@ public class WhipStreamingService extends Service {
     mPeerConnectionFactory = PeerConnectionFactory.builder()
         .setOptions(factoryOptions)
         .setVideoEncoderFactory(
-            new DefaultVideoEncoderFactory(mEglBase.getEglBaseContext(), true, true))
+            new DefaultVideoEncoderFactory(mEglBase.getEglBaseContext(), true, false))
         .setVideoDecoderFactory(
             new DefaultVideoDecoderFactory(mEglBase.getEglBaseContext()))
         .createPeerConnectionFactory();
@@ -425,6 +427,10 @@ public class WhipStreamingService extends Service {
       transceiver.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY);
     }
 
+    // Apply bitrate cap and degradation preference to reduce encoder thermal load.
+    // Without this, the hardware encoder runs uncapped and overheats the SoC.
+    applyBitrateConstraints();
+
     MediaConstraints sdpConstraints = new MediaConstraints();
     mPeerConnection.createOffer(new SdpObserver() {
       @Override
@@ -457,6 +463,31 @@ public class WhipStreamingService extends Service {
       @Override public void onSetSuccess() {}
       @Override public void onSetFailure(String error) {}
     }, sdpConstraints);
+  }
+
+  /**
+   * Cap the video encoder bitrate via RTP sender parameters and set degradation
+   * preference to MAINTAIN_FRAMERATE so WebRTC drops quality-per-frame instead of
+   * frame rate when thermals get tight.
+   */
+  private void applyBitrateConstraints() {
+    for (RtpSender sender : mPeerConnection.getSenders()) {
+      if (sender.track() == null) continue;
+      if (!"video".equals(sender.track().kind())) continue;
+
+      RtpParameters params = sender.getParameters();
+      if (params == null) continue;
+
+      params.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_FRAMERATE;
+
+      for (RtpParameters.Encoding encoding : params.encodings) {
+        encoding.maxBitrateBps = mStreamConfig.getVideoBitrate();
+      }
+
+      sender.setParameters(params);
+      Log.i(TAG, "Applied video bitrate cap: " + (mStreamConfig.getVideoBitrate() / 1000)
+          + " kbps, degradation: MAINTAIN_FRAMERATE");
+    }
   }
 
   // -----------------------------------------------------------------------

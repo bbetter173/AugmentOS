@@ -202,10 +202,10 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             EventBus.getDefault().register(this);
             Log.d(TAG, "✅ EventBus registration successful");
 
-            // Enable EIS (Electronic Image Stabilization) for camera
-            Log.d(TAG, "🎥 Enabling EIS via vendor.debug.pixsmart.vs");
-            SysControl.setEisEnable(this, true);
-            Log.d(TAG, "✅ EIS enabled");
+            // EIS is toggled on/off at point of use:
+            // - Enabled before video recording (CameraNeo)
+            // - Disabled before streaming (StreamCommandHandler)
+            SysControl.setEisEnable(this, false);
 
             // Initialize dependency injection container
             Log.d(TAG, "🔧 Initializing service container");

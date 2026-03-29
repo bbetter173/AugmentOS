@@ -8,6 +8,7 @@ import com.mentra.asg_client.io.streaming.config.WhipStreamConfig;
 import com.mentra.asg_client.io.streaming.services.RtmpStreamingService;
 import com.mentra.asg_client.io.streaming.services.SrtStreamingService;
 import com.mentra.asg_client.io.streaming.services.WhipStreamingService;
+import com.mentra.asg_client.SysControl;
 import com.mentra.asg_client.service.legacy.interfaces.ICommandHandler;
 import com.mentra.asg_client.service.media.interfaces.IMediaManager;
 import com.mentra.asg_client.service.system.interfaces.IStateManager;
@@ -142,6 +143,9 @@ public class StreamCommandHandler implements ICommandHandler {
             if (videoJson == null) videoJson = data.optJSONObject("v");
             JSONObject audioJson = data.optJSONObject("audio");
             if (audioJson == null) audioJson = data.optJSONObject("a");
+
+            // Disable EIS during streaming to reduce camera HAL thermal load
+            SysControl.setEisEnable(context, false);
 
             switch (protocol) {
                 case RTMP: {

@@ -452,13 +452,20 @@ public class SysControl {
      * @param enable true to enable EIS, false to disable
      */
     public static void setEisEnable(Context context, boolean enable) {
-        Log.d(TAG, "🎥 Setting EIS (vendor.debug.pixsmart.vs) to: " + (enable ? "1" : "0"));
+        Log.d(TAG, "🎥 Setting EIS to: " + (enable ? "ENABLED" : "DISABLED"));
+        // Pixsmart EIS
         Intent nn = new Intent();
         nn.putExtra("cmd", "setProperty");
         nn.putExtra("name", "vendor.debug.pixsmart.vs");
         nn.putExtra("value", enable ? "1": "0");
         sendBroadcast(context, nn);
-        Log.d(TAG, "✅ EIS property broadcast sent");
+        // Morpho video EIS
+        Intent nn2 = new Intent();
+        nn2.putExtra("cmd", "setProperty");
+        nn2.putExtra("name", "vendor.debug.morpho.videoeis.mode");
+        nn2.putExtra("value", enable ? "1": "0");
+        sendBroadcast(context, nn2);
+        Log.d(TAG, "✅ EIS properties set (pixsmart + morpho)");
     }
 
     /**

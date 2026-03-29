@@ -11,8 +11,8 @@ public class RtmpStreamConfig {
     // Default values (matching current hardcoded values)
     public static final int DEFAULT_VIDEO_WIDTH = 1280;
     public static final int DEFAULT_VIDEO_HEIGHT = 720;
-    public static final int DEFAULT_VIDEO_BITRATE = 2000000; // 2 Mbps
-    public static final int DEFAULT_VIDEO_FPS = 30;
+    public static final int DEFAULT_VIDEO_BITRATE = 1500000; // 1.5 Mbps
+    public static final int DEFAULT_VIDEO_FPS = 24;
 
     public static final int DEFAULT_AUDIO_BITRATE = 64000; // 64 kbps
     public static final int DEFAULT_AUDIO_SAMPLE_RATE = 44100;

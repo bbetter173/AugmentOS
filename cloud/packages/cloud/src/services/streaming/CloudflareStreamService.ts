@@ -87,7 +87,8 @@ export interface LiveInputResult {
   rtmpUrl: string;
   hlsUrl: string;
   dashUrl: string;
-  webrtcUrl?: string;
+  webrtcUrl?: string; // WHEP playback URL (for viewers)
+  webrtcPublishUrl?: string; // WHIP publish URL (for glasses ingest)
   outputs?: CloudflareOutput[];
 }
 
@@ -407,7 +408,8 @@ export class CloudflareStreamService {
         srtUrl,
         hlsUrl: hlsUrl,
         dashUrl: dashUrl,
-        webrtcUrl: liveInput.webRTC?.url,
+        webrtcUrl: liveInput.webRTCPlayback?.url,
+        webrtcPublishUrl: liveInput.webRTC?.url,
       };
 
       // Create outputs if requested

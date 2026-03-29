@@ -128,7 +128,7 @@ const photo = await session.camera.requestPhoto({
 
 ```typescript
 await session.camera.startStream({
-  rtmpUrl: 'rtmp://live.example.com/stream/key',
+  streamUrl: 'srt://live.example.com:4201?streamid=key',
   video: {
     resolution: '1280x720',
     framerate: 30,

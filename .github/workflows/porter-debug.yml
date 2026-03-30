@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - cloud/issues-048
+      - cloud/issues-048-merge
     paths:
       - "cloud/**"
       - ".github/workflows/porter-debug.yml"

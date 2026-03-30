@@ -778,7 +778,13 @@ export class UserSession {
     // Clear the subscription-change debounce timer for this user. Its closure
     // captures `userSession`, so leaving it alive would prevent GC of the
     // disposed UserSession until the timer fires.
-    clearSubscriptionChangeTimer(this.userId);
+    // Only clear if this is still the active session for this userId — during
+    // reconnect races, a stale session's dispose must not cancel the newer
+    // session's pending subscription-change timer. The timer map is keyed by
+    // userId, so a blind clear would affect whichever session currently owns it.
+    if (UserSession.sessions.get(this.userId) === this || !UserSession.sessions.has(this.userId)) {
+      clearSubscriptionChangeTimer(this.userId);
+    }
 
     // Clean up all tracked resources (removes event listeners, clears timers)
     // This must happen BEFORE disposing managers to prevent stale callbacks

@@ -156,6 +156,13 @@ class SonioxTranslationStream implements TranslationStreamInstance {
   }
 
   private async connect(): Promise<void> {
+    // Silently return instead of rejecting — closeHandler schedules
+    // setTimeout(() => this.connect(), ...) without .catch(), so rejecting
+    // here would create an unhandled rejection during normal shutdown.
+    if (this.disposed || this.isClosing) {
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       try {
         // Create WebSocket connection

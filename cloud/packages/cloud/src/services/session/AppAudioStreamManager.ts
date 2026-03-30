@@ -151,6 +151,9 @@ export class AppAudioStreamManager {
   /** This user's active streams (typically 0 or 1) */
   private streams = new Map<string, ActiveStream>();
 
+  /** Timers for deferred stream cleanup — tracked so dispose() can cancel them */
+  private pendingCleanupTimers = new Set<NodeJS.Timeout>();
+
   private disposed = false;
 
   constructor(userId: string, logger: Logger, sendPlayRequest: SendPlayRequestFn) {
@@ -286,7 +289,11 @@ export class AppAudioStreamManager {
       writer.close().catch(() => {});
       // Clean up the stream entry after a short delay to let the HTTP
       // response drain
-      setTimeout(() => this.streams.delete(streamId), 1000);
+      const timer = setTimeout(() => {
+        this.pendingCleanupTimers.delete(timer);
+        this.streams.delete(streamId);
+      }, 1000);
+      this.pendingCleanupTimers.add(timer);
     } else {
       // Start the abandon timeout (resets on each write from the SDK)
       this.resetAbandonTimer(streamId, stream);
@@ -351,7 +358,11 @@ export class AppAudioStreamManager {
         // Already closed
       }
       // Clean up after a short delay to let HTTP response drain
-      setTimeout(() => this.streams.delete(streamId), 1000);
+      const timer = setTimeout(() => {
+        this.pendingCleanupTimers.delete(timer);
+        this.streams.delete(streamId);
+      }, 1000);
+      this.pendingCleanupTimers.add(timer);
     } else if (stream.pendingChunks.length > 0) {
       // There's buffered audio but no phone reader. The next claimStream()
       // call will flush it and then close. If the phone never reconnects,
@@ -413,6 +424,12 @@ export class AppAudioStreamManager {
     for (const streamId of this.streams.keys()) {
       this.destroyStream(streamId);
     }
+
+    // Clear any pending cleanup timers so their closures don't prevent GC
+    for (const timer of this.pendingCleanupTimers) {
+      clearTimeout(timer);
+    }
+    this.pendingCleanupTimers.clear();
 
     this.logger.debug("AppAudioStreamManager disposed");
   }

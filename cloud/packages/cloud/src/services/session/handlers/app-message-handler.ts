@@ -108,12 +108,14 @@ export async function handleAppMessage(
         await handleCameraFovSet(appWebsocket, userSession, message as CameraFovSetRequest, logger);
         break;
 
-      // Streaming
+      // Streaming (new SDK uses "stream_request", old SDK uses "rtmp_stream_request")
       case AppToCloudMessageType.STREAM_REQUEST:
-        await handleStreamRequest(appWebsocket, userSession, message as StreamRequest, logger);
+      case "rtmp_stream_request" as any:
+        await handleStreamRequest(appWebsocket, userSession, normalizeStreamRequest(message), logger);
         break;
 
       case AppToCloudMessageType.STREAM_STOP:
+      case "rtmp_stream_stop" as any:
         await handleStreamStop(appWebsocket, userSession, message as StreamStopRequest, logger);
         break;
 
@@ -371,6 +373,18 @@ async function handleCameraFovSet(
       logger,
     );
   }
+}
+
+/**
+ * Normalize old SDK "rtmp_stream_request" messages to new StreamRequest format.
+ * Old SDK sends { type: "rtmp_stream_request", rtmpUrl: "..." }
+ * New SDK sends { type: "stream_request", streamUrl: "..." }
+ */
+function normalizeStreamRequest(message: any): StreamRequest {
+  if (!message.streamUrl && message.rtmpUrl) {
+    message.streamUrl = message.rtmpUrl;
+  }
+  return message as StreamRequest;
 }
 
 /**

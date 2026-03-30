@@ -457,10 +457,7 @@ export class UnmanagedStreamingExtension {
    */
   handleStreamStatus(statusMessage: StreamStatus): void {
     const { streamId, status } = statusMessage;
-    this.logger.debug(
-      { streamId, status, debugKey: "STREAM_STATUS" },
-      "STREAM_STATUS Handling stream status update",
-    );
+    this.logger.debug({ streamId, status, debugKey: "STREAM_STATUS" }, "STREAM_STATUS Handling stream status update");
 
     if (!streamId) {
       this.logger.warn({ statusMessage }, "Received status message without streamId");
@@ -583,20 +580,27 @@ export class UnmanagedStreamingExtension {
     const packageName = streamInfo ? streamInfo.packageName : "unknown_package_owner";
 
     // Direct message to the App that owns the stream
-    const appOwnerMessage = {
-      type: CloudToAppMessageType.STREAM_STATUS,
+    // Send with BOTH new ("stream_status") and old ("rtmp_stream_status") type strings
+    // for backward compatibility with apps using older SDK versions
+    const baseMessage = {
       sessionId: `${this.userSession.sessionId}-${packageName}`,
       streamId,
-      status, // The SDK status string
+      status,
       errorDetails,
       stats,
-      appId: packageName, // Clarify which app this status pertains to
+      appId: packageName,
       timestamp: new Date(),
     };
 
+    const appOwnerMessage = { ...baseMessage, type: CloudToAppMessageType.STREAM_STATUS };
+    const legacyAppOwnerMessage = { ...baseMessage, type: "rtmp_stream_status" };
+
     // Send status to owning App using centralized messaging
     try {
+      // Send new type for new SDK apps
       const result = await this.userSession.appManager.sendMessageToApp(packageName, appOwnerMessage);
+      // Also send legacy type for old SDK apps (they throw on unrecognized types)
+      await this.userSession.appManager.sendMessageToApp(packageName, legacyAppOwnerMessage);
 
       if (result.sent) {
         this.logger.debug(
@@ -631,9 +635,8 @@ export class UnmanagedStreamingExtension {
       );
     }
 
-    // Broadcast DataStream to other subscribed Apps
-    const broadcastPayload: StreamStatus = {
-      type: GlassesToCloudMessageType.STREAM_STATUS,
+    // Broadcast DataStream to other subscribed Apps (both new and legacy types)
+    const broadcastBase = {
       sessionId: this.userSession.sessionId,
       streamId,
       status,
@@ -643,8 +646,18 @@ export class UnmanagedStreamingExtension {
       timestamp: new Date(),
     };
 
+    const broadcastPayload: StreamStatus = {
+      ...broadcastBase,
+      type: GlassesToCloudMessageType.STREAM_STATUS,
+    };
+    const legacyBroadcastPayload = {
+      ...broadcastBase,
+      type: "rtmp_stream_status",
+    };
+
     // Relay to Apps who subscribed to this stream
     this.userSession.relayMessageToApps(broadcastPayload);
+    this.userSession.relayMessageToApps(legacyBroadcastPayload);
 
     this.logger.debug({ streamId, status }, "Broadcast stream status via DataStream");
   }

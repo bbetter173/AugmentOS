@@ -198,6 +198,15 @@ class Composer {
     // TODO: fan out the PCM to the mini apps that request it
   }
 
+  public async fanOutPcm(bytes: Uint8Array) {
+    // let offlineCaptionsRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
+    // let offlineTranslationRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_translation_running.key)
+    // if (offlineCaptionsRunning) {
+    //   // send the pcm to the offline transcription service
+    // }
+    // TODO: fan out the PCM to the mini apps that request it
+  }
+
   // download the mini app from the url and unzip it to the app's cache directory/lma/<packageName>
   public installMiniApp(url: string): AsyncResult<void, Error> {
     return Res.try_async(async () => {

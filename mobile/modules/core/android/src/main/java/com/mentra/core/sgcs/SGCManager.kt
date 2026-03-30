@@ -23,9 +23,9 @@ abstract class SGCManager {
             flash: Boolean,
             sound: Boolean
     )
-    abstract fun startRtmpStream(message: MutableMap<String, Any>)
-    abstract fun stopRtmpStream()
-    abstract fun sendRtmpKeepAlive(message: MutableMap<String, Any>)
+    abstract fun startStream(message: MutableMap<String, Any>)
+    abstract fun stopStream()
+    abstract fun sendStreamKeepAlive(message: MutableMap<String, Any>)
     abstract fun startBufferRecording()
     abstract fun stopBufferRecording()
     abstract fun saveBufferVideo(requestId: String, durationSeconds: Int)
@@ -48,6 +48,18 @@ abstract class SGCManager {
     abstract fun displayBitmap(base64ImageData: String): Boolean
     abstract fun showDashboard()
     abstract fun setDashboardPosition(height: Int, depth: Int)
+
+    /** Default: full [setDashboardPosition] (e.g. G1 single command). Nex overrides to height protobuf only. */
+    open fun setDashboardHeightOnly(height: Int) {
+        val depth = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
+        setDashboardPosition(height, depth)
+    }
+
+    /** Default: full [setDashboardPosition]. Nex overrides to display_distance only. */
+    open fun setDashboardDepthOnly(depth: Int) {
+        val height = (GlassesStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
+        setDashboardPosition(height, depth)
+    }
 
     // Device Control
     abstract fun setHeadUpAngle(angle: Int)

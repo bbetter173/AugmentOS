@@ -12,6 +12,7 @@ import { AppI } from "@mentra/sdk";
 import App from "../../models/app.model";
 import { logger as rootLogger } from "../logging/pino-logger";
 import UserSession from "../session/UserSession";
+import { appCache } from "./app-cache.service";
 
 const SERVICE_NAME = "developer.service";
 const logger = rootLogger.child({ service: SERVICE_NAME });
@@ -57,11 +58,7 @@ export function generateAppJwt(packageName: string, apiKey: string): string {
  * @param userSession - Optional user session for tying logs to a user.
  * @returns Whether the API key is valid
  */
-export async function validateApiKey(
-  packageName: string,
-  apiKey: string,
-  userSession?: UserSession,
-): Promise<boolean> {
+export async function validateApiKey(packageName: string, apiKey: string, userSession?: UserSession): Promise<boolean> {
   const _logger = userSession
     ? userSession.logger.child({ service: SERVICE_NAME, packageName })
     : logger.child({ packageName });
@@ -98,10 +95,7 @@ export async function validateApiKey(
     // Hash the provided API key and compare with stored hash
     const hashedKey = hashApiKey(apiKey);
 
-    _logger.debug(
-      { hashedKey, apiKey },
-      `Validating API key for ${packageName}`,
-    );
+    _logger.debug(`Validating API key for ${packageName}`);
 
     // Compare the hashed API key with the stored hashed API key
     const isValid = hashedKey === app.hashedApiKey;
@@ -112,10 +106,7 @@ export async function validateApiKey(
 
     return isValid;
   } catch (error) {
-    _logger.error(
-      error as Error,
-      `Error validating API key for ${packageName}:`,
-    );
+    _logger.error(error as Error, `Error validating API key for ${packageName}:`);
     return false;
   }
 }
@@ -168,6 +159,7 @@ export async function createApp(
       visibility,
       hashedApiKey,
     });
+    appCache.invalidate(); // fire-and-forget — no await
 
     // Generate JWT
     const jwt = generateAppJwt(app.packageName, apiKey);
@@ -213,10 +205,7 @@ export async function regenerateApiKey(
     let isOrgMember = false;
     if (app.sharedWithOrganization && app.organizationDomain) {
       const emailParts = developerId.split("@");
-      if (
-        emailParts.length === 2 &&
-        emailParts[1].toLowerCase() === app.organizationDomain
-      ) {
+      if (emailParts.length === 2 && emailParts[1].toLowerCase() === app.organizationDomain) {
         isOrgMember = true;
       }
     }
@@ -231,6 +220,7 @@ export async function regenerateApiKey(
 
     // Update app with new hashed API key
     await App.findOneAndUpdate({ packageName }, { $set: { hashedApiKey } });
+    appCache.invalidate(); // fire-and-forget — no await
 
     // Generate JWT
     const jwt = generateAppJwt(packageName, apiKey);
@@ -295,10 +285,7 @@ function validateToolDefinitions(tools: any[]): any[] {
  * @param packageName - Package name of the app to use its hashed API key
  * @returns Promise resolving to the resulting hash string
  */
-export async function hashWithApiKey(
-  stringToHash: string,
-  packageName: string,
-): Promise<string> {
+export async function hashWithApiKey(stringToHash: string, packageName: string): Promise<string> {
   const app = await App.findOne({ packageName });
 
   if (!app || !app.hashedApiKey) {
@@ -306,9 +293,5 @@ export async function hashWithApiKey(
   }
 
   // Create a hash using the provided string and the app's hashed API key
-  return crypto
-    .createHash("sha256")
-    .update(stringToHash)
-    .update(app.hashedApiKey)
-    .digest("hex");
+  return crypto.createHash("sha256").update(stringToHash).update(app.hashedApiKey).digest("hex");
 }

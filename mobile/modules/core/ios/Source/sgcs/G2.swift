@@ -1850,9 +1850,9 @@ class G2: NSObject, SGCManager {
         compress _: String?, flash _: Bool, sound _: Bool
     ) {}
     func startVideoRecording(requestId _: String, save _: Bool, flash _: Bool, sound _: Bool) {}
-    func startRtmpStream(_: [String: Any]) {}
-    func stopRtmpStream() {}
-    func sendRtmpKeepAlive(_: [String: Any]) {}
+    func startStream(_: [String: Any]) {}
+    func stopStream() {}
+    func sendStreamKeepAlive(_: [String: Any]) {}
     func startBufferRecording() {}
     func stopBufferRecording() {}
     func saveBufferVideo(requestId _: String, durationSeconds _: Int) {}

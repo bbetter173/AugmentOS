@@ -428,9 +428,9 @@ class R1: NSObject, ControllerManager {
     ) {}
     func startVideoRecording(requestId: String, save: Bool, flash: Bool, sound: Bool) {}
     func stopVideoRecording(requestId: String) {}
-    func startRtmpStream(_ message: [String: Any]) {}
-    func stopRtmpStream() {}
-    func sendRtmpKeepAlive(_ message: [String: Any]) {}
+    func startStream(_ message: [String: Any]) {}
+    func stopStream() {}
+    func sendStreamKeepAlive(_ message: [String: Any]) {}
     func startBufferRecording() {}
     func stopBufferRecording() {}
     func saveBufferVideo(requestId: String, durationSeconds: Int) {}

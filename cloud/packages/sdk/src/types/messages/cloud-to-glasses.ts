@@ -168,15 +168,15 @@ export interface LiveKitInfo extends BaseMessage {
 }
 
 //===========================================================
-// RTMP Streaming Commands
+// Streaming Commands (RTMP / SRT / WHIP)
 //===========================================================
 
 /**
- * Start RTMP stream command to glasses
+ * Start stream command to glasses
  */
-export interface StartRtmpStream extends BaseMessage {
-  type: CloudToGlassesMessageType.START_RTMP_STREAM;
-  rtmpUrl: string;
+export interface StartStream extends BaseMessage {
+  type: CloudToGlassesMessageType.START_STREAM;
+  streamUrl: string;
   appId: string;
   streamId?: string;
   video?: any; // Video configuration
@@ -189,19 +189,19 @@ export interface StartRtmpStream extends BaseMessage {
 }
 
 /**
- * Stop RTMP stream command to glasses
+ * Stop stream command to glasses
  */
-export interface StopRtmpStream extends BaseMessage {
-  type: CloudToGlassesMessageType.STOP_RTMP_STREAM;
+export interface StopStream extends BaseMessage {
+  type: CloudToGlassesMessageType.STOP_STREAM;
   appId: string;
   streamId?: string;
 }
 
 /**
- * Keep RTMP stream alive command to glasses
+ * Keep stream alive command to glasses
  */
-export interface KeepRtmpStreamAlive extends BaseMessage {
-  type: CloudToGlassesMessageType.KEEP_RTMP_STREAM_ALIVE;
+export interface KeepStreamAlive extends BaseMessage {
+  type: CloudToGlassesMessageType.KEEP_STREAM_ALIVE;
   streamId: string;
   ackId: string;
 }
@@ -282,9 +282,9 @@ export type CloudToGlassesMessage =
   | AudioPlayRequestToGlasses
   | AudioStopRequestToGlasses
   | SettingsUpdate
-  | StartRtmpStream
-  | StopRtmpStream
-  | KeepRtmpStreamAlive
+  | StartStream
+  | StopStream
+  | KeepStreamAlive
   | SetLocationTier
   | RequestSingleLocation
   | LiveKitInfo
@@ -340,16 +340,16 @@ export function isSettingsUpdate(message: CloudToGlassesMessage): message is Set
   return message.type === CloudToGlassesMessageType.SETTINGS_UPDATE;
 }
 
-export function isStartRtmpStream(message: CloudToGlassesMessage): message is StartRtmpStream {
-  return message.type === CloudToGlassesMessageType.START_RTMP_STREAM;
+export function isStartStream(message: CloudToGlassesMessage): message is StartStream {
+  return message.type === CloudToGlassesMessageType.START_STREAM;
 }
 
-export function isStopRtmpStream(message: CloudToGlassesMessage): message is StopRtmpStream {
-  return message.type === CloudToGlassesMessageType.STOP_RTMP_STREAM;
+export function isStopStream(message: CloudToGlassesMessage): message is StopStream {
+  return message.type === CloudToGlassesMessageType.STOP_STREAM;
 }
 
-export function isKeepRtmpStreamAlive(message: CloudToGlassesMessage): message is KeepRtmpStreamAlive {
-  return message.type === CloudToGlassesMessageType.KEEP_RTMP_STREAM_ALIVE;
+export function isKeepStreamAlive(message: CloudToGlassesMessage): message is KeepStreamAlive {
+  return message.type === CloudToGlassesMessageType.KEEP_STREAM_ALIVE;
 }
 
 export function isAudioPlayRequestToGlasses(message: CloudToGlassesMessage): message is AudioPlayRequestToGlasses {

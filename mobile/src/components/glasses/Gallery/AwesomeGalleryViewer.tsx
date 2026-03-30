@@ -121,7 +121,16 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
   }
 
   return (
-    <View style={{flex: 1, width: screenWidth, height: screenHeight, backgroundColor: "black", justifyContent: "center", alignItems: "center", paddingTop: screenHeight * 0.05}}>
+    <View
+      style={{
+        flex: 1,
+        width: screenWidth,
+        height: screenHeight,
+        backgroundColor: "black",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingTop: screenHeight * 0.05,
+      }}>
       <Video
         ref={videoRef}
         source={{uri: videoUrl}}
@@ -204,7 +213,11 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
       {/* Thumbnail placeholder while video loads - instant display */}
       {showThumbnail && posterUrl && !hasError && (
         <View style={themed($thumbnailOverlay)} pointerEvents="none">
-          <Image source={{uri: posterUrl}} style={{width: "100%", aspectRatio: videoAspectRatio}} contentFit="contain" />
+          <Image
+            source={{uri: posterUrl}}
+            style={{width: "100%", aspectRatio: videoAspectRatio}}
+            contentFit="contain"
+          />
         </View>
       )}
 
@@ -222,7 +235,16 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekin
 
       {/* Unified video controls - elegant bottom bar */}
       {showControls && !hasError && (
-        <View style={{position: "absolute", bottom: screenHeight * 0.1, left: 0, right: 0, paddingHorizontal: 24, zIndex: 100}} pointerEvents="auto">
+        <View
+          style={{
+            position: "absolute",
+            bottom: screenHeight * 0.1,
+            left: 0,
+            right: 0,
+            paddingHorizontal: 24,
+            zIndex: 100,
+          }}
+          pointerEvents="auto">
           <TouchableOpacity
             style={themed($controlBarWrapper)}
             activeOpacity={1}
@@ -313,7 +335,14 @@ const ImageItem = memo(function ImageItem({photo, setImageDimensions, isActive: 
   const imageStyle = useMemo(() => ({width: screenWidth, height: screenHeight}), [screenWidth, screenHeight])
 
   return (
-    <View style={{width: screenWidth, height: screenHeight, justifyContent: "center", alignItems: "center", paddingTop: screenHeight * 0.05}}>
+    <View
+      style={{
+        width: screenWidth,
+        height: screenHeight,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingTop: screenHeight * 0.05,
+      }}>
       <Image
         source={{uri: imageUri}}
         style={imageStyle}
@@ -561,7 +590,6 @@ const $errorSubtext: ThemedStyle<any> = () => ({
   textAlign: "center",
   lineHeight: 18,
 })
-
 
 const $controlBarWrapper: ThemedStyle<any> = () => ({
   width: "100%",

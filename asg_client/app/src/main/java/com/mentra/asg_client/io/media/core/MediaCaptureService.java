@@ -429,7 +429,7 @@ public class MediaCaptureService {
 
     /**
      * Static helper for contexts without MediaCaptureService instance.
-     * Used by RtmpCommandHandler and other handlers.
+     * Used by StreamCommandHandler and other handlers.
      */
     public static void playBatteryLowSound(Context context) {
         IHardwareManager hwManager = HardwareManagerFactory.getInstance(context);

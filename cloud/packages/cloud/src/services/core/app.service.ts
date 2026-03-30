@@ -24,6 +24,7 @@ import { User } from "../../models/user.model";
 import crypto from "crypto";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { Types } from "mongoose";
+import { appCache } from "./app-cache.service";
 const logger = rootLogger.child({ service: "app.service" });
 
 const APPSTORE_ENABLED = true;
@@ -558,6 +559,8 @@ export class AppService {
       hashedApiKey,
     });
 
+    appCache.invalidate(); // fire-and-forget — no await
+
     return { app, apiKey };
   }
 
@@ -658,6 +661,8 @@ export class AppService {
     // Update app
     const updatedApp = await App.findOneAndUpdate({ packageName }, { $set: appData }, { new: true });
 
+    appCache.invalidate(); // fire-and-forget — no await
+
     return updatedApp!;
   }
 
@@ -730,6 +735,8 @@ export class AppService {
       { new: true },
     );
 
+    appCache.invalidate(); // fire-and-forget — no await
+
     return updatedApp!;
   }
 
@@ -763,6 +770,8 @@ export class AppService {
       throw new Error("You do not have permission to delete this app");
     }
     await App.findOneAndDelete({ packageName });
+
+    appCache.invalidate(); // fire-and-forget — no await
   }
 
   // TODO(isaiah): Move this logic to a new developer service to declutter the app service.
@@ -801,6 +810,8 @@ export class AppService {
 
     // Update app with new hashed API key
     await App.findOneAndUpdate({ packageName }, { $set: { hashedApiKey } });
+
+    appCache.invalidate(); // fire-and-forget — no await
 
     return apiKey;
   }
@@ -1018,6 +1029,9 @@ export class AppService {
     app.organizationDomain = organizationDomain;
     app.visibility = visibility;
     await app.save();
+
+    appCache.invalidate(); // fire-and-forget — no await
+
     return app;
   }
 
@@ -1044,6 +1058,9 @@ export class AppService {
     const validEmails = emails.filter((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email));
     app.sharedWithEmails = validEmails;
     await app.save();
+
+    appCache.invalidate(); // fire-and-forget — no await
+
     return app.toObject();
   }
 
@@ -1099,6 +1116,8 @@ export class AppService {
     // Update organization ID
     app.organizationId = targetOrgId;
     await app.save();
+
+    appCache.invalidate(); // fire-and-forget — no await
 
     // Log the move operation
     logger.info(

@@ -540,10 +540,10 @@ public class Bridge private constructor() {
             sendTypedMessage("ota_progress", eventBody as Map<String, Any>)
         }
 
-        /** Send RTMP stream status - forwards to websocket system (matches iOS) */
+        /** Send stream status - forwards to websocket system (matches iOS) */
         @JvmStatic
-        fun sendRtmpStreamStatus(statusJson: Map<String, Any>) {
-            sendTypedMessage("rtmp_stream_status", statusJson)
+        fun sendStreamStatus(statusJson: Map<String, Any>) {
+            sendTypedMessage("stream_status", statusJson)
         }
 
         /** Send keep alive ACK - forwards to websocket system (matches iOS) */

@@ -38,11 +38,13 @@ public class CoreModule: Module {
             "ws_bin",
             "mic_pcm",
             "mic_lc3",
-            "rtmp_stream_status",
+            "stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
-            "ota_progress"
+            "ota_progress",
+            "send_command_to_ble",
+            "receive_command_from_ble"
         )
 
         OnCreate {
@@ -286,23 +288,23 @@ public class CoreModule: Module {
             }
         }
 
-        // MARK: - RTMP Stream Commands
+        // MARK: - Stream Commands
 
-        AsyncFunction("startRtmpStream") { (params: [String: Any]) in
+        AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                CoreManager.shared.startRtmpStream(params)
+                CoreManager.shared.startStream(params)
             }
         }
 
-        AsyncFunction("stopRtmpStream") {
+        AsyncFunction("stopStream") {
             await MainActor.run {
-                CoreManager.shared.stopRtmpStream()
+                CoreManager.shared.stopStream()
             }
         }
 
-        AsyncFunction("keepRtmpStreamAlive") { (params: [String: Any]) in
+        AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                CoreManager.shared.keepRtmpStreamAlive(params)
+                CoreManager.shared.keepStreamAlive(params)
             }
         }
 
@@ -312,6 +314,14 @@ public class CoreModule: Module {
             // Notify PhoneAudioMonitor that our app started/stopped playing audio
             // This is used to suspend LC3 mic during audio playback to avoid MCU overload
             PhoneAudioMonitor.getInstance().setOwnAppAudioPlaying(playing)
+        }
+
+        AsyncFunction("getGlassesMediaVolume") { () async throws -> [String: Any] in
+            try await CoreManager.shared.getGlassesMediaVolume()
+        }
+
+        AsyncFunction("setGlassesMediaVolume") { (level: Int) async throws -> [String: Any] in
+            try await CoreManager.shared.setGlassesMediaVolume(level: level)
         }
 
         // MARK: - RGB LED Control
@@ -336,7 +346,7 @@ public class CoreModule: Module {
 
         // MARK: - Microphone Commands
 
-        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
+        AsyncFunction("setMicState") { (_: Bool, _: Bool, _: Bool) in
             await MainActor.run {
                 CoreManager.shared.setMicState()
             }
@@ -382,9 +392,9 @@ public class CoreModule: Module {
 
         AsyncFunction("isBetaBuild") { () -> Bool in
             #if targetEnvironment(simulator)
-            return false
+                return false
             #else
-            return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+                return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
             #endif
         }
 
@@ -418,7 +428,5 @@ public class CoreModule: Module {
         AsyncFunction("getInstalledAppsForNotifications") { () -> [[String: Any]] in
             return []
         }
-
     }
-
 }

@@ -28,6 +28,17 @@ export type BatteryStatusEvent = {
   timestamp: number
 }
 
+/** K900 `sr_getvol` response (Mentra Live glasses media step volume 0–15). */
+export type GlassesMediaVolumeGetResult = {
+  vol: number
+  statusCode: number
+}
+
+/** K900 `sr_vol` acknowledgment. */
+export type GlassesMediaVolumeSetResult = {
+  statusCode: number
+}
+
 export type LocalTranscriptionEvent = {
   text: string
   isFinal?: boolean
@@ -183,8 +194,8 @@ export type MicLc3Event = {
   lc3: ArrayBuffer
 }
 
-export type RtmpStreamStatusEvent = {
-  type: "rtmp_stream_status"
+export type StreamStatusEvent = {
+  type: "stream_status"
   [key: string]: any
 }
 
@@ -223,6 +234,13 @@ export type OtaStartAckEvent = {
   timestamp: number
 }
 
+/** Nex BLE protobuf trace (NexEventUtils); payload matches native Map keys. */
+export type BleCommandTraceEvent = {
+  command: string
+  commandText: string
+  timestamp: number
+}
+
 // Union type of all core events
 export type CoreEvent = Parameters<CoreModuleEvents[keyof CoreModuleEvents]>[0]
 
@@ -258,12 +276,14 @@ export type CoreModuleEvents = {
   ws_bin: (event: WsBinEvent) => void
   mic_pcm: (event: MicPcmEvent) => void
   mic_lc3: (event: MicLc3Event) => void
-  rtmp_stream_status: (event: RtmpStreamStatusEvent) => void
+  stream_status: (event: StreamStatusEvent) => void
   keep_alive_ack: (event: KeepAliveAckEvent) => void
   mtk_update_complete: (event: MtkUpdateCompleteEvent) => void
   ota_update_available: (event: OtaUpdateAvailableEvent) => void
   ota_progress: (event: OtaProgressEvent) => void
   ota_start_ack: (event: OtaStartAckEvent) => void
+  send_command_to_ble: (event: BleCommandTraceEvent) => void
+  receive_command_from_ble: (event: BleCommandTraceEvent) => void
 }
 
 export type GlassesConnectionState = "disconnected" | "connected" | "connecting"

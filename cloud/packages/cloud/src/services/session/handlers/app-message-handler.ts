@@ -21,8 +21,8 @@ import {
   AudioStopRequest,
   AudioStreamStart,
   AudioStreamEnd,
-  RtmpStreamRequest,
-  RtmpStreamStopRequest,
+  StreamRequest,
+  StreamStopRequest,
   ManagedStreamRequest,
   ManagedStreamStopRequest,
   StreamStatusCheckRequest,
@@ -36,6 +36,7 @@ import {
 } from "@mentra/sdk";
 
 import App from "../../../models/app.model";
+import { appCache } from "../../core/app-cache.service";
 import { SimplePermissionChecker } from "../../permissions/simple-permission-checker";
 import { metricsService } from "../../metrics/MetricsService";
 import { IWebSocket, WebSocketReadyState } from "../../websocket/types";
@@ -107,13 +108,15 @@ export async function handleAppMessage(
         await handleCameraFovSet(appWebsocket, userSession, message as CameraFovSetRequest, logger);
         break;
 
-      // RTMP streaming
-      case AppToCloudMessageType.RTMP_STREAM_REQUEST:
-        await handleRtmpStreamRequest(appWebsocket, userSession, message as RtmpStreamRequest, logger);
+      // Streaming (new SDK uses "stream_request", old SDK uses "rtmp_stream_request")
+      case AppToCloudMessageType.STREAM_REQUEST:
+      case "rtmp_stream_request" as any:
+        await handleStreamRequest(appWebsocket, userSession, normalizeStreamRequest(message), logger);
         break;
 
-      case AppToCloudMessageType.RTMP_STREAM_STOP:
-        await handleRtmpStreamStop(appWebsocket, userSession, message as RtmpStreamStopRequest, logger);
+      case AppToCloudMessageType.STREAM_STOP:
+      case "rtmp_stream_stop" as any:
+        await handleStreamStop(appWebsocket, userSession, message as StreamStopRequest, logger);
         break;
 
       // Location
@@ -373,19 +376,31 @@ async function handleCameraFovSet(
 }
 
 /**
- * Handle RTMP stream request
+ * Normalize old SDK "rtmp_stream_request" messages to new StreamRequest format.
+ * Old SDK sends { type: "rtmp_stream_request", rtmpUrl: "..." }
+ * New SDK sends { type: "stream_request", streamUrl: "..." }
  */
-async function handleRtmpStreamRequest(
+function normalizeStreamRequest(message: any): StreamRequest {
+  if (!message.streamUrl && message.rtmpUrl) {
+    message.streamUrl = message.rtmpUrl;
+  }
+  return message as StreamRequest;
+}
+
+/**
+ * Handle stream request (RTMP / SRT / WHIP)
+ */
+async function handleStreamRequest(
   appWebsocket: IWebSocket,
   userSession: UserSession,
-  message: RtmpStreamRequest,
+  message: StreamRequest,
   logger: Logger,
 ): Promise<void> {
   try {
     // Check camera permission
     const hasCameraPermission = await checkCameraPermission(message.packageName, userSession, logger);
     if (!hasCameraPermission) {
-      logger.warn({ packageName: message.packageName }, "RTMP stream request denied: no CAMERA permission");
+      logger.warn({ packageName: message.packageName }, "Stream request denied: no CAMERA permission");
       sendError(
         appWebsocket,
         AppErrorCode.PERMISSION_DENIED,
@@ -395,10 +410,10 @@ async function handleRtmpStreamRequest(
       return;
     }
 
-    const streamId = await userSession.unmanagedStreamingExtension.startRtmpStream(message);
-    logger.info({ streamId, packageName: message.packageName }, "RTMP Stream request processed");
+    const streamId = await userSession.unmanagedStreamingExtension.startStream(message);
+    logger.info({ streamId, packageName: message.packageName }, "Stream request processed");
   } catch (e) {
-    logger.error({ e, packageName: message.packageName }, "Error starting RTMP stream");
+    logger.error({ e, packageName: message.packageName }, "Error starting stream");
 
     const errorMessage = (e as Error).message || "Failed to start stream.";
     const errorCode = (e as any).code;
@@ -414,19 +429,19 @@ async function handleRtmpStreamRequest(
 }
 
 /**
- * Handle RTMP stream stop
+ * Handle stream stop
  */
-async function handleRtmpStreamStop(
+async function handleStreamStop(
   appWebsocket: IWebSocket,
   userSession: UserSession,
-  message: RtmpStreamStopRequest,
+  message: StreamStopRequest,
   logger: Logger,
 ): Promise<void> {
   try {
-    await userSession.unmanagedStreamingExtension.stopRtmpStream(message);
-    logger.info({ packageName: message.packageName, streamId: message.streamId }, "RTMP Stream stop processed");
+    await userSession.unmanagedStreamingExtension.stopStream(message);
+    logger.info({ packageName: message.packageName, streamId: message.streamId }, "Stream stop processed");
   } catch (e) {
-    logger.error({ e, packageName: message.packageName }, "Error stopping RTMP stream");
+    logger.error({ e, packageName: message.packageName }, "Error stopping stream");
     sendError(appWebsocket, AppErrorCode.INTERNAL_ERROR, (e as Error).message || "Failed to stop stream", logger);
   }
 }
@@ -661,7 +676,7 @@ async function handleStreamStatusCheck(
           streamId: managedStreamState.streamId,
           status: "active",
           createdAt: managedStreamState.createdAt,
-          rtmpUrl: managedStreamState.rtmpUrl,
+          streamUrl: managedStreamState.rtmpUrl,
           requestingAppId: managedStreamState.requestingAppId,
         };
       }
@@ -671,7 +686,7 @@ async function handleStreamStatusCheck(
         streamId: unmanagedStreamInfo.streamId,
         status: unmanagedStreamInfo.status,
         createdAt: unmanagedStreamInfo.startTime,
-        rtmpUrl: unmanagedStreamInfo.rtmpUrl,
+        streamUrl: unmanagedStreamInfo.streamUrl,
         requestingAppId: unmanagedStreamInfo.packageName,
       };
     }
@@ -740,7 +755,7 @@ function handleOwnershipRelease(userSession: UserSession, message: OwnershipRele
  */
 async function checkCameraPermission(packageName: string, userSession: UserSession, logger: Logger): Promise<boolean> {
   try {
-    const app = await App.findOne({ packageName });
+    const app = appCache.getByPackageName(packageName) || (await App.findOne({ packageName }).lean());
     if (!app) {
       logger.warn({ packageName, userId: userSession.userId }, "App not found when checking camera permissions");
       return false;

@@ -301,6 +301,8 @@ export default function AppWebView() {
               setIsServerConfirmed(false)
               webViewOpacity.value = 0
               loadingOpacity.value = 1
+              // Re-send the start request and poll for confirmation
+              useAppletStatusStore.getState().retryStartApp(packageName as string)
               setRetryTrigger((prev) => prev + 1)
             }}
           />

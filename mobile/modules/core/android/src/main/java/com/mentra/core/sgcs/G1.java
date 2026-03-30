@@ -1520,17 +1520,17 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void startRtmpStream(Map<String, Object> message) {
+    public void startStream(Map<String, Object> message) {
 
     }
 
     @Override
-    public void stopRtmpStream() {
+    public void stopStream() {
 
     }
 
     @Override
-    public void sendRtmpKeepAlive(Map<String, Object> message) {
+    public void sendStreamKeepAlive(Map<String, Object> message) {
 
     }
 

@@ -13,13 +13,37 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// Safety net for unhandled promise rejections.
+// Without this, Bun exits with code 1 on any unhandled rejection,
+// killing all connected users. This logs the error and continues.
+// Individual bugs should still be fixed — this is defense in depth.
+// See: cloud/issues/068-resource-tracker-crash, cloud/issues/070-soniox-timeout-crash
+process.on("unhandledRejection", (reason, _promise) => {
+  console.error("[UNHANDLED REJECTION] Process NOT exiting:", reason);
+  try {
+    // Try to log via pino (may not be initialized yet if this fires early)
+    const { logger } = require("./services/logging/pino-logger");
+    logger.error(
+      { err: reason, feature: "unhandled-rejection" },
+      `Unhandled promise rejection (process NOT exiting): ${reason}`,
+    );
+  } catch {
+    // Pino not ready — console.error above already captured it
+  }
+});
+
+import mongoose from "mongoose";
 import * as mongoConnection from "./connections/mongodb.connection";
 import honoApp from "./hono-app";
 import * as AppUptimeService from "./services/core/app-uptime.service";
+import { appCache } from "./services/core/app-cache.service";
 import { memoryTelemetryService } from "./services/debug/MemoryTelemetryService";
 import { logger as rootLogger } from "./services/logging/pino-logger";
 import { metricsService } from "./services/metrics";
+import { systemVitalsLogger } from "./services/metrics/SystemVitalsLogger";
+import { setShuttingDown } from "./services/shutdown";
 import { udpAudioServer } from "./services/udp/UdpAudioServer";
+import UserSession from "./services/session/UserSession";
 import { handleUpgrade, websocketHandlers } from "./services/websocket/bun-websocket";
 // import generateCoreToken from "./utils/generateCoreToken";
 
@@ -30,8 +54,17 @@ const logger = rootLogger.child({ service: "index" });
 // Initialize MongoDB connection
 mongoConnection
   .init()
-  .then(() => {
+  .then(async () => {
     logger.info("MongoDB connection initialized successfully");
+
+    // Initialize app cache — loads all ~1,314 apps (~2MB) into memory.
+    // Must happen after MongoDB connects and before server accepts connections.
+    // See: cloud/issues/062-mongodb-latency/spec.md (B3)
+    try {
+      await appCache.initialize();
+    } catch (error) {
+      logger.error(error, "App cache initialization failed — hot-path queries will fall back to DB");
+    }
 
     // Log admin emails from environment for debugging
     const adminEmails = process.env.ADMIN_EMAILS || "";
@@ -143,6 +176,9 @@ const _server = Bun.serve({
 // Start metrics service (event loop lag sampling, throughput tracking)
 metricsService.start();
 
+// Start system vitals logger (Golden Signals every 30s)
+systemVitalsLogger.start();
+
 // Start memory telemetry
 memoryTelemetryService.start();
 
@@ -158,6 +194,82 @@ logger.info(`\n
     ☁️☁️☁️      ⚡ Pure Hono + Bun Native ⚡
     ☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️
     ☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️\n`);
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown on SIGTERM/SIGINT
+// Sends WebSocket close frames to all connected clients so phones detect
+// the disconnect immediately (<2s) instead of waiting for ping timeout (30-60s).
+// See: cloud/issues/063-graceful-shutdown/spec.md
+// ---------------------------------------------------------------------------
+
+let isShutdownInProgress = false;
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (isShutdownInProgress) return;
+  isShutdownInProgress = true;
+  setShuttingDown(); // shared flag — health check returns 503, new WS upgrades rejected
+
+  logger.info({ signal }, `${signal} received — starting graceful shutdown`);
+
+  // 1. Close all WebSocket connections with close frames
+  const sessions = UserSession.getAllSessions();
+  let closedGlasses = 0;
+  let closedApps = 0;
+
+  for (const session of sessions) {
+    try {
+      if (session.websocket) {
+        session.websocket.close(1001, "Server shutting down");
+        closedGlasses++;
+      }
+      if (session.appWebsockets) {
+        for (const [, appWs] of session.appWebsockets) {
+          try {
+            appWs.close(1001, "Server shutting down");
+            closedApps++;
+          } catch {
+            // WebSocket might already be closed
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn({ error, userId: session.userId }, "Error closing WebSocket during shutdown");
+    }
+  }
+
+  logger.info(
+    { closedGlasses, closedApps, totalSessions: sessions.length },
+    `Closed ${closedGlasses} glasses + ${closedApps} app WebSockets`,
+  );
+
+  // 2. Stop timers and services
+  try {
+    systemVitalsLogger.stop();
+    appCache.stop();
+    metricsService.stop();
+  } catch {
+    // Timers might already be stopped
+  }
+
+  // 3. Close MongoDB connection
+  try {
+    await mongoose.connection.close();
+    logger.info("MongoDB connection closed");
+  } catch {
+    // Connection might already be closed
+  }
+
+  // Wait 2 seconds for WebSocket close frames to flush to clients before exiting.
+  // Without this delay, process.exit(0) can kill the runtime before Bun sends
+  // the close handshake on the wire, making the shutdown look like a crash.
+  logger.info("Graceful shutdown complete — waiting 2s for close frames to flush");
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  logger.info("Draining complete — exiting");
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // Generate core token for debugging with postman.
 // generateCoreToken

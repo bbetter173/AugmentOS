@@ -26,6 +26,8 @@ import {
 
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import { logger as rootLogger } from "../logging/pino-logger";
+import { operationTimers, connectionChurnTracker } from "../metrics/SystemVitalsLogger";
+import { isShuttingDown } from "../shutdown";
 import { metricsService } from "../metrics";
 import { PosthogService } from "../logging/posthog.service";
 import UserSession from "../session/UserSession";
@@ -57,6 +59,11 @@ const GRACE_PERIOD_CLEANUP_ENABLED = true;
  * Returns true if upgrade was successful, false otherwise.
  */
 export function handleUpgrade(req: Request, server: any): Response | undefined {
+  // A3: Reject new WebSocket upgrades during graceful shutdown
+  if (isShuttingDown()) {
+    return new Response("Server is shutting down", { status: 503 });
+  }
+
   const url = new URL(req.url);
   const path = url.pathname;
 
@@ -89,7 +96,7 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
 
   try {
     const payload = jwt.verify(token, AUGMENTOS_AUTH_JWT_SECRET) as any;
-    const userId = payload.email;
+    const userId = payload.email?.toLowerCase();
 
     if (!userId) {
       logger.warn("Glasses upgrade rejected: no userId in token");
@@ -141,7 +148,7 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
  */
 function handleAppUpgrade(req: Request, server: any, _url: URL): Response | undefined {
   const authHeader = req.headers.get("authorization");
-  const userId = req.headers.get("x-user-id") || "";
+  const userId = (req.headers.get("x-user-id") || "").toLowerCase();
   const sessionId = req.headers.get("x-session-id") || undefined;
   const packageName = req.headers.get("x-package-name") || undefined;
   const apiKey = req.headers.get("x-api-key") || undefined;
@@ -406,6 +413,7 @@ async function handleGlassesConnectionInit(
  * Handle glasses WebSocket message
  */
 async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string | Buffer): Promise<void> {
+  const t0 = performance.now();
   metricsService.incrementClientMessagesIn();
   const { userId } = ws.data;
   const userSession = UserSession.getById(userId);
@@ -414,6 +422,12 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     logger.error({ userId }, "No user session found for glasses message");
     return;
   }
+
+  // Track every message from the client — this is the key metric for proving
+  // client-side disconnects. If lastClientMessageTime is stale at close time,
+  // the CLIENT went silent (not the server).
+  // See: cloud/issues/069-ws-disconnect-observability/spike.md
+  userSession.lastClientMessageTime = Date.now();
 
   try {
     // Handle binary message (audio data)
@@ -438,6 +452,7 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     // Without this, the pong falls through to handleGlassesMessage → default
     // case → relayMessageToApps, causing 1800 debug logs/user/hour in BetterStack.
     if (parsed.type === "pong") {
+      userSession.lastAppLevelPongTime = Date.now();
       return;
     }
 
@@ -452,6 +467,8 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     await userSession.handleGlassesMessage(parsed);
   } catch (error) {
     userSession.logger.error({ error }, "Error processing glasses message");
+  } finally {
+    operationTimers.addTiming("glassesMessage", performance.now() - t0);
   }
 }
 
@@ -492,7 +509,34 @@ function handleGlassesClose(ws: GlassesServerWebSocket, code: number, reason: st
     return;
   }
 
-  userSession.logger.warn({ code, reason }, "Glasses connection closed");
+  // Stash close code/reason on the session so we can log it on reconnect.
+  // This is the evidence trail: if code=1006 and timeSinceLastClientMessage is large,
+  // the CLIENT went dark (network loss, app backgrounded, etc.) — not the server.
+  userSession.lastCloseCode = code;
+  userSession.lastCloseReason = reason;
+
+  const now = Date.now();
+  const sessionDurationSeconds = Math.round((now - userSession.startTime.getTime()) / 1000);
+  const timeSinceLastClientMessage = userSession.lastClientMessageTime ? now - userSession.lastClientMessageTime : null;
+  const timeSinceLastPong = userSession.lastPongTime ? now - (userSession.lastPongTime as number) : null;
+  const timeSinceLastAppPong = userSession.lastAppLevelPongTime ? now - userSession.lastAppLevelPongTime : null;
+
+  userSession.logger.warn(
+    {
+      feature: "ws-close",
+      code,
+      reason: reason || undefined,
+      sessionDurationSeconds,
+      reconnectCount: userSession.reconnectCount,
+      timeSinceLastClientMessage,
+      timeSinceLastPong,
+      timeSinceLastAppPong,
+    },
+    `Glasses connection closed: code=${code}, silent=${timeSinceLastClientMessage}ms, session=${sessionDurationSeconds}s, reconnects=${userSession.reconnectCount}`,
+  );
+
+  // Record disconnect for churn tracking in SystemVitalsLogger
+  connectionChurnTracker.recordDisconnect(code);
 
   // Mark session as disconnected
   userSession.disconnectedAt = new Date();
@@ -581,6 +625,7 @@ async function handleAppOpen(ws: AppServerWebSocket): Promise<void> {
  * Handle app WebSocket message
  */
 async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer): Promise<void> {
+  const t0 = performance.now();
   metricsService.incrementMiniappMessagesIn();
   const { userId, packageName } = ws.data;
 
@@ -766,6 +811,8 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
   } catch (error) {
     logger.error({ error, userId, packageName }, "Error processing app message");
     ws.close(1011, "Internal server error");
+  } finally {
+    operationTimers.addTiming("appMessage", performance.now() - t0);
   }
 }
 

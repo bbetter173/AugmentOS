@@ -14,7 +14,7 @@ import {
   CloudToAppMessageType,
   type ManagedStreamStatus,
   type RestreamDestination,
-  type RtmpStreamStatus,
+  type StreamStatus,
   StreamType,
   type StreamStatusCheckResponse,
   type AudioConfig,
@@ -83,7 +83,7 @@ export interface ExistingStreamInfo {
   };
 }
 
-export type StreamStatusHandler = (status: RtmpStreamStatus) => void;
+export type StreamStatusHandler = (status: StreamStatus) => void;
 
 export interface CameraManagerDeps {
   router: {
@@ -147,7 +147,7 @@ export class CameraManager {
   private _hasPermission = true;
   private isStreaming = false;
   private currentStreamUrl?: string;
-  private currentStreamState?: RtmpStreamStatus;
+  private currentStreamState?: StreamStatus;
   private isManagedStreaming = false;
   private currentManagedStreamId?: string;
   private currentManagedStreamUrls?: ManagedStreamResult;
@@ -160,8 +160,8 @@ export class CameraManager {
       this.deps.messageHandlers.register(CloudToAppMessageType.PHOTO_RESPONSE, (msg: any) =>
         this.handlePhotoResponse(msg),
       ),
-      this.deps.messageHandlers.register(CloudToAppMessageType.RTMP_STREAM_STATUS, (msg: any) =>
-        this.handleRtmpStreamStatus(msg),
+      this.deps.messageHandlers.register(CloudToAppMessageType.STREAM_STATUS, (msg: any) =>
+        this.handleStreamStatus(msg),
       ),
       this.deps.messageHandlers.register(CloudToAppMessageType.MANAGED_STREAM_STATUS, (msg: any) =>
         this.handleManagedStreamStatus(msg),
@@ -239,7 +239,7 @@ export class CameraManager {
 
     this.currentStreamUrl = options.rtmpUrl;
     this.deps.sendMessage({
-      type: AppToCloudMessageType.RTMP_STREAM_REQUEST,
+      type: AppToCloudMessageType.STREAM_REQUEST,
       packageName: this.deps.getPackageName(),
       sessionId: this.deps.getSessionId(),
       rtmpUrl: options.rtmpUrl,
@@ -258,7 +258,7 @@ export class CameraManager {
     }
 
     this.deps.sendMessage({
-      type: AppToCloudMessageType.RTMP_STREAM_STOP,
+      type: AppToCloudMessageType.STREAM_STOP,
       packageName: this.deps.getPackageName(),
       sessionId: this.deps.getSessionId(),
       streamId: this.currentStreamState?.streamId,
@@ -274,17 +274,17 @@ export class CameraManager {
     return this.currentStreamUrl;
   }
 
-  getStreamStatus(): RtmpStreamStatus | undefined {
+  getStreamStatus(): StreamStatus | undefined {
     return this.currentStreamState;
   }
 
   onStreamStatus(handler: StreamStatusHandler): () => void {
-    this.deps.addSubscription(StreamType.RTMP_STREAM_STATUS);
+    this.deps.addSubscription(StreamType.STREAM_STATUS);
     this.events.on("rtmp_stream_status", handler);
 
     return () => {
       this.events.off("rtmp_stream_status", handler);
-      this.deps.removeSubscription(StreamType.RTMP_STREAM_STATUS);
+      this.deps.removeSubscription(StreamType.STREAM_STATUS);
     };
   }
 
@@ -411,7 +411,7 @@ export class CameraManager {
     });
   }
 
-  private handleRtmpStreamStatus(message: RtmpStreamStatus): void {
+  private handleStreamStatus(message: StreamStatus): void {
     this.currentStreamState = {
       ...message,
       timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),

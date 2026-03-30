@@ -1,7 +1,7 @@
 import { Logger } from "pino";
+import { operationTimers } from "../metrics/SystemVitalsLogger";
 
 import { AppToCloudMessageType, DisplayRequest, LayoutType, ViewType } from "@mentra/sdk";
-
 
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import UserSession from "../session/UserSession";
@@ -471,72 +471,78 @@ class DisplayManager {
   }
 
   public handleDisplayRequest(displayRequest: DisplayRequest): boolean {
-    // Always show dashboard immediately
-    if (displayRequest.packageName === SYSTEM_DASHBOARD_PACKAGE_NAME) {
-      return this.sendDisplay(displayRequest);
-    }
+    const t0 = performance.now();
+    try {
+      // Always show dashboard immediately
+      if (displayRequest.packageName === SYSTEM_DASHBOARD_PACKAGE_NAME) {
+        return this.sendDisplay(displayRequest);
+      }
 
-    // During boot, queue display requests instead of blocking
-    if (this.bootingApps.size > 0) {
-      this.logger.info(
-        { packageName: displayRequest.packageName },
-        `[${this.userSession.userId}] 🔄 Queuing display request during boot: ${displayRequest.packageName}`,
-      );
-      const activeDisplay = this.createActiveDisplay(displayRequest);
-      // Store in boot queue, overwriting any previous request from same app
-      this.bootDisplayQueue.set(displayRequest.packageName, activeDisplay);
-      return true; // Return true so Apps know their request was accepted
-    }
-
-    // Handle core app display
-    if (displayRequest.packageName === this.mainApp) {
-      this.logger.info(
-        { packageName: displayRequest.packageName },
-        `[${this.userSession.userId}] 📱 Core app display request: ${displayRequest.packageName}`,
-      );
-      const activeDisplay = this.createActiveDisplay(displayRequest);
-      this.displayState.coreAppDisplay = activeDisplay;
-
-      // Fixed condition: check if a background app (different from the core app) has the lock and is displaying
-      const blockedByBackgroundApp =
-        this.displayState.backgroundLock &&
-        this.displayState.backgroundLock?.packageName !== this.mainApp &&
-        this.displayState.currentDisplay?.displayRequest.packageName === this.displayState.backgroundLock?.packageName;
-
-      if (!blockedByBackgroundApp) {
+      // During boot, queue display requests instead of blocking
+      if (this.bootingApps.size > 0) {
         this.logger.info(
           { packageName: displayRequest.packageName },
-          `[${this.userSession.userId}] ✅ Background not displaying or core app has the lock, showing core app`,
+          `[${this.userSession.userId}] 🔄 Queuing display request during boot: ${displayRequest.packageName}`,
         );
+        const activeDisplay = this.createActiveDisplay(displayRequest);
+        // Store in boot queue, overwriting any previous request from same app
+        this.bootDisplayQueue.set(displayRequest.packageName, activeDisplay);
+        return true; // Return true so Apps know their request was accepted
+      }
+
+      // Handle core app display
+      if (displayRequest.packageName === this.mainApp) {
+        this.logger.info(
+          { packageName: displayRequest.packageName },
+          `[${this.userSession.userId}] 📱 Core app display request: ${displayRequest.packageName}`,
+        );
+        const activeDisplay = this.createActiveDisplay(displayRequest);
+        this.displayState.coreAppDisplay = activeDisplay;
+
+        // Fixed condition: check if a background app (different from the core app) has the lock and is displaying
+        const blockedByBackgroundApp =
+          this.displayState.backgroundLock &&
+          this.displayState.backgroundLock?.packageName !== this.mainApp &&
+          this.displayState.currentDisplay?.displayRequest.packageName ===
+            this.displayState.backgroundLock?.packageName;
+
+        if (!blockedByBackgroundApp) {
+          this.logger.info(
+            { packageName: displayRequest.packageName },
+            `[${this.userSession.userId}] ✅ Background not displaying or core app has the lock, showing core app`,
+          );
+          return this.showDisplay(activeDisplay);
+        }
+
+        this.logger.info(
+          {
+            packageName: displayRequest.packageName,
+            blockingApp: this.displayState.backgroundLock?.packageName,
+          },
+          `[${this.userSession.userId}] ❌ Background app is displaying, core app blocked by ${this.displayState.backgroundLock?.packageName}`,
+        );
+        return false;
+      }
+
+      // Handle background app display
+      const canDisplay = this.canBackgroundAppDisplay(displayRequest.packageName);
+      if (canDisplay) {
+        this.logger.info(
+          { packageName: displayRequest.packageName },
+          `[${this.userSession.userId}] ✅ Background app can display: ${displayRequest.packageName}`,
+        );
+        const activeDisplay = this.createActiveDisplay(displayRequest);
         return this.showDisplay(activeDisplay);
       }
 
       this.logger.info(
-        {
-          packageName: displayRequest.packageName,
-          blockingApp: this.displayState.backgroundLock?.packageName,
-        },
-        `[${this.userSession.userId}] ❌ Background app is displaying, core app blocked by ${this.displayState.backgroundLock?.packageName}`,
+        { packageName: displayRequest.packageName },
+        `[${this.userSession.userId}] ❌ Background app display blocked - no lock: ${displayRequest.packageName}`,
       );
       return false;
+    } finally {
+      operationTimers.addTiming("displayRendering", performance.now() - t0);
     }
-
-    // Handle background app display
-    const canDisplay = this.canBackgroundAppDisplay(displayRequest.packageName);
-    if (canDisplay) {
-      this.logger.info(
-        { packageName: displayRequest.packageName },
-        `[${this.userSession.userId}] ✅ Background app can display: ${displayRequest.packageName}`,
-      );
-      const activeDisplay = this.createActiveDisplay(displayRequest);
-      return this.showDisplay(activeDisplay);
-    }
-
-    this.logger.info(
-      { packageName: displayRequest.packageName },
-      `[${this.userSession.userId}] ❌ Background app display blocked - no lock: ${displayRequest.packageName}`,
-    );
-    return false;
   }
 
   private showDisplay(activeDisplay: ActiveDisplay): boolean {

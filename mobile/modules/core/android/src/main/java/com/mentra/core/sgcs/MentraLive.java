@@ -74,6 +74,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.Random;
 import java.security.SecureRandom;
 import java.io.File;
@@ -241,6 +242,15 @@ public class MentraLive extends SGCManager {
     private int fileReadNotificationCount = 0; // Debug counter for FILE_READ notifications
 
     private final Object connectionLock = new Object();
+
+    // Glasses media volume (K900 cs_getvol / cs_vol, sr_getvol / sr_vol)
+    private static final int GLASSES_MEDIA_VOLUME_TIMEOUT_MS = 2000;
+    private final Object glassesMediaVolumeLock = new Object();
+    private Runnable glassesMediaVolumeTimeoutRunnable;
+    private Consumer<Map<String, Object>> pendingGetGlassesVolumeSuccess;
+    private Consumer<String> pendingGetGlassesVolumeError;
+    private Consumer<Map<String, Object>> pendingSetGlassesVolumeSuccess;
+    private Consumer<String> pendingSetGlassesVolumeError;
 
     private static class BlePhotoTransfer {
         String bleImgId;
@@ -2049,9 +2059,9 @@ public class MentraLive extends SGCManager {
             case "ble_photo_ready":
                 processBlePhotoReady(json);
                 break;
-            case "rtmp_stream_status":
-                // Process RTMP streaming status update from ASG client
-                Bridge.log("LIVE: Received RTMP status update from glasses: " + json.toString());
+            case "stream_status":
+                // Process streaming status update from ASG client
+                Bridge.log("LIVE: Received stream status update from glasses: " + json.toString());
 
                 // Check if this is an error status
                 String status = json.optString("status", "");
@@ -2089,7 +2099,7 @@ public class MentraLive extends SGCManager {
                         String key = keys.next();
                         rtmpMap.put(key, json.get(key));
                     }
-                    Bridge.sendRtmpStreamStatus(rtmpMap);
+                    Bridge.sendStreamStatus(rtmpMap);
                 } catch (JSONException e) {
                     Log.e(TAG, "Error converting RTMP status to Map", e);
                 }
@@ -2888,6 +2898,14 @@ public class MentraLive extends SGCManager {
                 } catch (Exception e) {
                     Log.e(TAG, "Error parsing sr_batv response", e);
                 }
+                break;
+
+            case "sr_getvol":
+                handleSrGetvol(json);
+                break;
+
+            case "sr_vol":
+                handleSrVol(json);
                 break;
 
             case "sr_shut":
@@ -3739,7 +3757,7 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void startRtmpStream(Map<String, Object> message) {
+    public void startStream(Map<String, Object> message) {
         Bridge.log("LIVE: Starting RTMP stream");
 
         try {
@@ -3752,11 +3770,11 @@ public class MentraLive extends SGCManager {
         }
     }
 
-    public void stopRtmpStream() {
+    public void stopStream() {
         Bridge.log("LIVE: Requesting to stop RTMP stream");
         try {
             JSONObject json = new JSONObject();
-            json.put("type", "stop_rtmp_stream");
+            json.put("type", "stop_stream");
 
             sendJson(json, true);
         } catch (JSONException e) {
@@ -3765,7 +3783,7 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void sendRtmpKeepAlive(Map<String, Object> message) {
+    public void sendStreamKeepAlive(Map<String, Object> message) {
         Bridge.log("LIVE: Sending RTMP stream keep alive");
 
         try {
@@ -4657,6 +4675,224 @@ public class MentraLive extends SGCManager {
 
         } catch (JSONException e) {
             Log.e(TAG, "Error creating video command", e);
+        }
+    }
+
+    private JSONObject optK900Body(JSONObject json) {
+        if (json == null || !json.has("B")) {
+            return null;
+        }
+        try {
+            Object b = json.get("B");
+            if (b instanceof JSONObject) {
+                return (JSONObject) b;
+            }
+            if (b instanceof String) {
+                return new JSONObject((String) b);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "optK900Body parse error", e);
+        }
+        return null;
+    }
+
+    private void cancelGlassesMediaVolumeTimeoutLocked() {
+        if (glassesMediaVolumeTimeoutRunnable != null) {
+            handler.removeCallbacks(glassesMediaVolumeTimeoutRunnable);
+            glassesMediaVolumeTimeoutRunnable = null;
+        }
+    }
+
+    private void scheduleGlassesMediaVolumeTimeoutLocked() {
+        cancelGlassesMediaVolumeTimeoutLocked();
+        glassesMediaVolumeTimeoutRunnable =
+                () -> {
+                    Consumer<Map<String, Object>> gOk;
+                    Consumer<String> gErr;
+                    Consumer<Map<String, Object>> sOk;
+                    Consumer<String> sErr;
+                    synchronized (glassesMediaVolumeLock) {
+                        gOk = pendingGetGlassesVolumeSuccess;
+                        gErr = pendingGetGlassesVolumeError;
+                        sOk = pendingSetGlassesVolumeSuccess;
+                        sErr = pendingSetGlassesVolumeError;
+                        pendingGetGlassesVolumeSuccess = null;
+                        pendingGetGlassesVolumeError = null;
+                        pendingSetGlassesVolumeSuccess = null;
+                        pendingSetGlassesVolumeError = null;
+                        cancelGlassesMediaVolumeTimeoutLocked();
+                    }
+                    if (gErr != null) {
+                        handler.post(() -> gErr.accept("glasses_volume_timeout"));
+                    }
+                    if (sErr != null) {
+                        handler.post(() -> sErr.accept("glasses_volume_timeout"));
+                    }
+                };
+        handler.postDelayed(glassesMediaVolumeTimeoutRunnable, GLASSES_MEDIA_VOLUME_TIMEOUT_MS);
+    }
+
+    private boolean sendGlassesMediaVolumeGetCommand() {
+        try {
+            JSONObject cmdObject = new JSONObject();
+            cmdObject.put("C", "cs_getvol");
+            cmdObject.put("V", 1);
+            cmdObject.put("B", "");
+            String jsonStr = cmdObject.toString();
+            byte[] packedData =
+                    K900ProtocolUtils.packDataToK900(
+                            jsonStr.getBytes(StandardCharsets.UTF_8),
+                            K900ProtocolUtils.CMD_TYPE_STRING);
+            Bridge.log("LIVE: AUDIO: Sending cs_getvol command: " + jsonStr);
+            queueData(packedData);
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating cs_getvol", e);
+            return false;
+        }
+    }
+
+    private boolean sendGlassesMediaVolumeSetCommand(int level) {
+        int clamped = Math.max(0, Math.min(15, level));
+        try {
+            JSONObject bData = new JSONObject();
+            bData.put("vol", clamped);
+            JSONObject cmdObject = new JSONObject();
+            cmdObject.put("C", "cs_vol");
+            cmdObject.put("V", 1);
+            cmdObject.put("B", bData.toString());
+            String jsonStr = cmdObject.toString();
+            byte[] packedData =
+                    K900ProtocolUtils.packDataToK900(
+                            jsonStr.getBytes(StandardCharsets.UTF_8),
+                            K900ProtocolUtils.CMD_TYPE_STRING);
+            queueData(packedData);
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating cs_vol", e);
+            return false;
+        }
+    }
+
+    private void handleSrGetvol(JSONObject json) {
+        JSONObject body = optK900Body(json);
+        int vol = body != null ? body.optInt("vol", -1) : -1;
+        int status = json.optInt("S", -1);
+        if (status < 0 && body != null) {
+            status = body.optInt("S", -1);
+        }
+
+        Consumer<Map<String, Object>> ok;
+        Consumer<String> err;
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingGetGlassesVolumeSuccess == null) {
+                Bridge.log(
+                        "LIVE: sr_getvol with no pending request (status="
+                                + status
+                                + ", vol="
+                                + vol
+                                + ")");
+                return;
+            }
+            ok = pendingGetGlassesVolumeSuccess;
+            err = pendingGetGlassesVolumeError;
+            pendingGetGlassesVolumeSuccess = null;
+            pendingGetGlassesVolumeError = null;
+            cancelGlassesMediaVolumeTimeoutLocked();
+        }
+
+        if (vol < 0 || vol > 15) {
+            Bridge.log("LIVE: sr_getvol invalid vol=" + vol);
+            if (err != null) {
+                handler.post(() -> err.accept("glasses_volume_invalid_response"));
+            }
+            return;
+        }
+
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("vol", vol);
+        map.put("statusCode", status);
+        Bridge.log("LIVE: sr_getvol received vol=" + vol + " (0-15), statusCode=" + status);
+        if (ok != null) {
+            handler.post(() -> ok.accept(map));
+        }
+    }
+
+    private void handleSrVol(JSONObject json) {
+        int status = json.optInt("S", -1);
+
+        Consumer<Map<String, Object>> ok;
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingSetGlassesVolumeSuccess == null) {
+                Bridge.log("LIVE: sr_vol with no pending request (status=" + status + ")");
+                return;
+            }
+            ok = pendingSetGlassesVolumeSuccess;
+            pendingSetGlassesVolumeSuccess = null;
+            pendingSetGlassesVolumeError = null;
+            cancelGlassesMediaVolumeTimeoutLocked();
+        }
+
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("statusCode", status);
+        if (ok != null) {
+            handler.post(() -> ok.accept(map));
+        }
+    }
+
+    /**
+     * Read glasses media step volume (0–15) via K900 cs_getvol / sr_getvol.
+     */
+    public void getGlassesMediaVolume(
+            Consumer<Map<String, Object>> onSuccess, Consumer<String> onError) {
+        if (!glassesReady || !getConnectionState().equals(ConnTypes.CONNECTED)) {
+            handler.post(() -> onError.accept("glasses_not_ready"));
+            return;
+        }
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingGetGlassesVolumeSuccess != null || pendingSetGlassesVolumeSuccess != null) {
+                handler.post(() -> onError.accept("glasses_volume_busy"));
+                return;
+            }
+            pendingGetGlassesVolumeSuccess = onSuccess;
+            pendingGetGlassesVolumeError = onError;
+            scheduleGlassesMediaVolumeTimeoutLocked();
+        }
+        if (!sendGlassesMediaVolumeGetCommand()) {
+            synchronized (glassesMediaVolumeLock) {
+                pendingGetGlassesVolumeSuccess = null;
+                pendingGetGlassesVolumeError = null;
+                cancelGlassesMediaVolumeTimeoutLocked();
+            }
+            handler.post(() -> onError.accept("glasses_volume_send_failed"));
+        }
+    }
+
+    /**
+     * Set glasses media step volume (0–15) via K900 cs_vol / sr_vol.
+     */
+    public void setGlassesMediaVolume(
+            int level, Consumer<Map<String, Object>> onSuccess, Consumer<String> onError) {
+        if (!glassesReady || !getConnectionState().equals(ConnTypes.CONNECTED)) {
+            handler.post(() -> onError.accept("glasses_not_ready"));
+            return;
+        }
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingGetGlassesVolumeSuccess != null || pendingSetGlassesVolumeSuccess != null) {
+                handler.post(() -> onError.accept("glasses_volume_busy"));
+                return;
+            }
+            pendingSetGlassesVolumeSuccess = onSuccess;
+            pendingSetGlassesVolumeError = onError;
+            scheduleGlassesMediaVolumeTimeoutLocked();
+        }
+        if (!sendGlassesMediaVolumeSetCommand(level)) {
+            synchronized (glassesMediaVolumeLock) {
+                pendingSetGlassesVolumeSuccess = null;
+                pendingSetGlassesVolumeError = null;
+                cancelGlassesMediaVolumeTimeoutLocked();
+            }
+            handler.post(() -> onError.accept("glasses_volume_send_failed"));
         }
     }
 

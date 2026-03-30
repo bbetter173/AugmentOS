@@ -4,6 +4,7 @@ import com.mentra.asg_client.io.media.core.CircularVideoBufferInternal;
 import com.mentra.asg_client.io.hardware.interfaces.IHardwareManager;
 import com.mentra.asg_client.service.utils.ServiceUtils;
 import com.mentra.asg_client.io.hardware.core.HardwareManagerFactory;
+import com.mentra.asg_client.SysControl;
 
 import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
@@ -659,11 +660,13 @@ public class CameraNeo extends LifecycleService {
                     } else {
                         pendingVideoSettings = null; // Will use defaults
                     }
+                    SysControl.setEisEnable(this, true);
                     setupCameraAndStartRecording(currentVideoId, currentVideoPath);
                     break;
                 case ACTION_STOP_VIDEO_RECORDING:
                     String videoIdToStop = intent.getStringExtra(EXTRA_VIDEO_ID);
                     stopCurrentVideoRecording(videoIdToStop);
+                    SysControl.setEisEnable(this, false);
                     break;
 
                 case ACTION_START_BUFFER:

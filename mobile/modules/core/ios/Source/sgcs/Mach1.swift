@@ -86,11 +86,11 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func sendJson(_: [String: Any]) {}
 
-    func startRtmpStream(_: [String: Any]) {}
+    func startStream(_: [String: Any]) {}
 
-    func stopRtmpStream() {}
+    func stopStream() {}
 
-    func sendRtmpKeepAlive(_: [String: Any]) {}
+    func sendStreamKeepAlive(_: [String: Any]) {}
 
     func startBufferRecording() {}
 
@@ -182,6 +182,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             guard let self else { return }
             Bridge.log("MACH1: batteryLevelListener: \(value)")
             batteryLevel = value
+            GlassesStore.shared.apply("glasses", "batteryLevel", value)
             ready = true
             connected = true
         })

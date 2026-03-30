@@ -490,9 +490,9 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("rtmp_stream_status", (event) => {
-          console.log("MANTLE: Forwarding RTMP stream status to server:", event)
-          socketComms.sendRtmpStreamStatus(event)
+        CoreModule.addListener("stream_status", (event) => {
+          console.log("MANTLE: Forwarding stream status to server:", event)
+          socketComms.sendStreamStatus(event)
         }),
       )
 

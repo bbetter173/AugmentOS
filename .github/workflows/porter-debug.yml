@@ -6,6 +6,14 @@ on:
     branches:
       - cloud/issues-048
       - cloud/issues-048-merge
+      - cloud/issues-044
+      - new-context-soniox
+      - cloud/044-ci-build-audit
+      - hotfix/cloud-observability
+      - hotfix/crash-diagnostics
+      - cloud/062-mongodb-audit
+      - hotfix/graceful-shutdown
+      - hotfix/remove-forced-gc-add-livez
     paths:
       - "cloud/**"
       - ".github/workflows/porter-debug.yml"

@@ -36,10 +36,10 @@ export class SocketBridge {
 
     try {
       this.ws = new WebSocket(`ws://127.0.0.1:${this.port}`)
-      this.ws.binaryType = 'arraybuffer'
+      this.ws.binaryType = "arraybuffer"
 
       this.ws.onopen = () => {
-        console.log('[SocketBridge] Connected')
+        console.log("[SocketBridge] Connected")
         this.reconnectAttempts = 0
         this._connected = true
         this.notifyConnection(true)
@@ -50,14 +50,14 @@ export class SocketBridge {
           for (const handler of this.audioHandlers) {
             handler(event.data)
           }
-        } else if (typeof event.data === 'string') {
+        } else if (typeof event.data === "string") {
           // Text messages can be handled later for control/signaling
-          console.log('[SocketBridge] Text message:', event.data)
+          console.log("[SocketBridge] Text message:", event.data)
         }
       }
 
       this.ws.onclose = () => {
-        console.log('[SocketBridge] Disconnected')
+        console.log("[SocketBridge] Disconnected")
         this._connected = false
         this.notifyConnection(false)
         this.ws = null
@@ -68,10 +68,10 @@ export class SocketBridge {
 
       this.ws.onerror = (err) => {
         // onclose will fire after this, which handles reconnect
-        console.warn('[SocketBridge] Error:', err)
+        console.warn("[SocketBridge] Error:", err)
       }
     } catch (err) {
-      console.error('[SocketBridge] Failed to create WebSocket:', err)
+      console.error("[SocketBridge] Failed to create WebSocket:", err)
       this.scheduleReconnect()
     }
   }
@@ -118,7 +118,7 @@ export class SocketBridge {
 
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.warn('[SocketBridge] Max reconnect attempts reached')
+      console.warn("[SocketBridge] Max reconnect attempts reached")
       return
     }
 
@@ -149,7 +149,7 @@ let socketBridgeInstance: SocketBridge | null = null
 export function getSocketBridge(): SocketBridge {
   if (!socketBridgeInstance) {
     socketBridgeInstance = new SocketBridge()
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       socketBridgeInstance.connect()
     }
   }

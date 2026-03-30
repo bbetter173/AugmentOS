@@ -173,9 +173,7 @@ class UdpManager {
       // Wait initial delay on first attempt to let server register user
       if (!isRetry) {
         // console.log(`UDP: Waiting ${UDP_INITIAL_DELAY_MS}ms before first probe...`)
-        await new Promise<void>((resolve) =>
-          BackgroundTimer.setTimeout(() => resolve(), UDP_INITIAL_DELAY_MS),
-        )
+        await new Promise<void>((resolve) => BackgroundTimer.setTimeout(() => resolve(), UDP_INITIAL_DELAY_MS))
 
         // Re-check WebSocket after delay
         if (!socketComms.isWebSocketConnected()) {

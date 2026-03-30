@@ -1314,16 +1314,16 @@ class G2 : SGCManager() {
         Bridge.log("G2: requestPhoto - not supported (no camera)")
     }
 
-    override fun startRtmpStream(message: MutableMap<String, Any>) {
-        Bridge.log("G2: startRtmpStream - not supported")
+    override fun startStream(message: MutableMap<String, Any>) {
+        Bridge.log("G2: startStream - not supported")
     }
 
-    override fun stopRtmpStream() {
-        Bridge.log("G2: stopRtmpStream - not supported")
+    override fun stopStream() {
+        Bridge.log("G2: stopStream - not supported")
     }
 
-    override fun sendRtmpKeepAlive(message: MutableMap<String, Any>) {
-        Bridge.log("G2: sendRtmpKeepAlive - not supported")
+    override fun sendStreamKeepAlive(message: MutableMap<String, Any>) {
+        Bridge.log("G2: sendStreamKeepAlive - not supported")
     }
 
     override fun startBufferRecording() {

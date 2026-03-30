@@ -604,50 +604,70 @@ export class DashboardManager {
   /**
    * Build the full dashboard Layout.
    *
-   * Structure:
-   *   Row 1: column-split header  →  "◌ $DATE$, $GBATT$" | weather
-   *   Row 2: calendar event (full width — not truncated by column split)
-   *   Rows 3-4: full-width body   →  notifications (may be multi-line) + widget
+   * Two strategies based on display width:
    *
-   * (Renamed from generateMainLayout.)
+   * **Wide displays** (G1, G2, Mentra Display — 576px, 5 lines):
+   *   Row 1: column-split header  →  "◌ $DATE$, $GBATT$" | weather
+   *   Row 2: calendar event (full width)
+   *   Rows 3-5: notifications + widgets
+   *
+   * **Narrow displays** (Z100/Mach1 — 390px, 7 lines):
+   *   Row 1: "◌ $DATE$, $TIME12$, $GBATT$" (full width)
+   *   Row 2: weather (full width — double column is too tight at 390px)
+   *   Row 3: calendar event (full width)
+   *   Rows 4-7: notifications + widgets
+   *
+   * The Z100 has 7 lines vs G1's 5, so using an extra line for weather is
+   * a better tradeoff than cramming it into a tiny right column where
+   * "Partly Cloudy, 72°F" would overflow.
    */
   private generateLayout(): Layout {
     const headerLeft = this.formatHeaderLeft();
-    const weatherRight = this.weatherText ?? "";
+    const weather = this.weatherText ?? "";
+    const calendar = this.calendarText ?? "";
+    const notifications = this.notificationService.getDisplayText();
+    const widget = this.getNextWidget();
 
     // Resolve display profile from the currently connected glasses model.
-    // Different models have different display widths and fonts, so layout
-    // calculations must use the correct profile.
     const model = this.userSession.deviceManager.getModel();
     const profile = getProfileForModel(model);
 
-    // Row 1: manually composed header with pixel-accurate spacing.
-    //
-    // We can't use ColumnComposer here because the left column contains tokens
-    // ($DATE$, $TIME12$, $GBATT$) that are resolved at display time by the
-    // native layer. The server-side pixel width of "$DATE$" (72px) is totally
-    // different from the resolved "3/30" (44px), so ColumnComposer would
-    // compute the wrong number of padding spaces.
-    //
-    // Instead, we use a pre-computed worst-case width for the connected profile
-    // to calculate a fixed right-column start position. This means the weather
-    // column starts at a consistent position regardless of the actual date/time.
-    const composedHeader = weatherRight
-      ? this.composeHeaderRow(headerLeft, weatherRight, profile)
-      : headerLeft;
+    // Threshold: displays narrower than 500px use stacked layout.
+    // G1/G2/Nex = 576px (wide), Z100/Mach1 = 390px (narrow).
+    const useStackedLayout = profile.displayWidthPx < 500;
 
-    // Row 2: calendar event (full width — long titles like
-    // "Mentra Financials + Equity - Overview + Discuss @ 5pm" need the space).
-    const calendarLine = this.calendarText ?? "";
+    let lines: string[];
 
-    // Rows 3-4: notifications + widgets.
-    const notificationLines = this.notificationService.getDisplayText(); // may be empty
-    const widgetLine = this.getNextWidget(); // may be empty
+    if (useStackedLayout) {
+      // Narrow display: each data element gets its own full-width line.
+      // The Z100 has 7 lines, so we have plenty of vertical space.
+      lines = [
+        headerLeft,
+        weather,
+        calendar,
+        notifications,
+        widget,
+      ];
+    } else {
+      // Wide display: header row uses double-column (date/time | weather).
+      // We can't use ColumnComposer because the left column contains tokens
+      // ($DATE$, $TIME12$, $GBATT$) resolved at display time by the native
+      // layer. The server-side pixel width of "$DATE$" (72px) is totally
+      // different from the resolved "3/30" (44px). Instead we use a
+      // pre-computed worst-case width for pixel-accurate spacing.
+      const composedHeader = weather
+        ? this.composeHeaderRow(headerLeft, weather, profile)
+        : headerLeft;
 
-    const bodyParts = [calendarLine, notificationLines, widgetLine].filter((s) => s.trim().length > 0);
-    const body = bodyParts.join("\n");
+      lines = [
+        composedHeader,
+        calendar,
+        notifications,
+        widget,
+      ];
+    }
 
-    const text = body ? `${composedHeader}\n${body}` : composedHeader;
+    const text = lines.filter((s) => s.trim().length > 0).join("\n");
 
     return {
       layoutType: LayoutType.TEXT_WALL,

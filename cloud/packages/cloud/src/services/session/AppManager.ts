@@ -862,9 +862,15 @@ export class AppManager {
       }
 
       // Set up the websocket URL for the App connection
+      // mentraOSWebsocketUrl MUST use /app-ws — v2 SDKs read this field and
+      // connect to whatever URL it contains. /ws/miniapp is the v3 path that
+      // v2 SDKs can't use (CONNECTION_INIT format mismatch, connection timeout).
+      // websocketUrl uses the v3 path for v3 SDKs that read it instead.
+      // augmentOSWebsocketUrl is the legacy alias (deprecated, same as mentraOS).
+      // See: cloud/issues/074 — debug deploy v2 app connection failure
       const websocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/ws/miniapp`;
-      const mentraOSWebsocketUrl = websocketUrl;
-      const augmentOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
+      const mentraOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
+      const augmentOSWebsocketUrl = mentraOSWebsocketUrl;
 
       // Construct the webhook URL from the app's public URL
       const webhookURL = `${app.publicUrl}/webhook`;

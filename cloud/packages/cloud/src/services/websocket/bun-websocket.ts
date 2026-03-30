@@ -26,7 +26,7 @@ import {
 
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import { logger as rootLogger } from "../logging/pino-logger";
-import { operationTimers } from "../metrics/SystemVitalsLogger";
+import { operationTimers, connectionChurnTracker } from "../metrics/SystemVitalsLogger";
 import { isShuttingDown } from "../shutdown";
 import { metricsService } from "../metrics";
 import { PosthogService } from "../logging/posthog.service";
@@ -415,6 +415,12 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     return;
   }
 
+  // Track every message from the client — this is the key metric for proving
+  // client-side disconnects. If lastClientMessageTime is stale at close time,
+  // the CLIENT went silent (not the server).
+  // See: cloud/issues/069-ws-disconnect-observability/spike.md
+  userSession.lastClientMessageTime = Date.now();
+
   try {
     // Handle binary message (audio data)
     if (message instanceof Buffer || message instanceof ArrayBuffer) {
@@ -438,6 +444,7 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     // Without this, the pong falls through to handleGlassesMessage → default
     // case → relayMessageToApps, causing 1800 debug logs/user/hour in BetterStack.
     if (parsed.type === "pong") {
+      userSession.lastAppLevelPongTime = Date.now();
       return;
     }
 
@@ -494,7 +501,34 @@ function handleGlassesClose(ws: GlassesServerWebSocket, code: number, reason: st
     return;
   }
 
-  userSession.logger.warn({ code, reason }, "Glasses connection closed");
+  // Stash close code/reason on the session so we can log it on reconnect.
+  // This is the evidence trail: if code=1006 and timeSinceLastClientMessage is large,
+  // the CLIENT went dark (network loss, app backgrounded, etc.) — not the server.
+  userSession.lastCloseCode = code;
+  userSession.lastCloseReason = reason;
+
+  const now = Date.now();
+  const sessionDurationSeconds = Math.round((now - userSession.startTime.getTime()) / 1000);
+  const timeSinceLastClientMessage = userSession.lastClientMessageTime ? now - userSession.lastClientMessageTime : null;
+  const timeSinceLastPong = userSession.lastPongTime ? now - (userSession.lastPongTime as number) : null;
+  const timeSinceLastAppPong = userSession.lastAppLevelPongTime ? now - userSession.lastAppLevelPongTime : null;
+
+  userSession.logger.warn(
+    {
+      feature: "ws-close",
+      code,
+      reason: reason || undefined,
+      sessionDurationSeconds,
+      reconnectCount: userSession.reconnectCount,
+      timeSinceLastClientMessage,
+      timeSinceLastPong,
+      timeSinceLastAppPong,
+    },
+    `Glasses connection closed: code=${code}, silent=${timeSinceLastClientMessage}ms, session=${sessionDurationSeconds}s, reconnects=${userSession.reconnectCount}`,
+  );
+
+  // Record disconnect for churn tracking in SystemVitalsLogger
+  connectionChurnTracker.recordDisconnect(code);
 
   // Mark session as disconnected
   userSession.disconnectedAt = new Date();

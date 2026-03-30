@@ -13,6 +13,25 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// Safety net for unhandled promise rejections.
+// Without this, Bun exits with code 1 on any unhandled rejection,
+// killing all connected users. This logs the error and continues.
+// Individual bugs should still be fixed — this is defense in depth.
+// See: cloud/issues/068-resource-tracker-crash, cloud/issues/070-soniox-timeout-crash
+process.on("unhandledRejection", (reason, _promise) => {
+  console.error("[UNHANDLED REJECTION] Process NOT exiting:", reason);
+  try {
+    // Try to log via pino (may not be initialized yet if this fires early)
+    const { logger } = require("./services/logging/pino-logger");
+    logger.error(
+      { err: reason, feature: "unhandled-rejection" },
+      `Unhandled promise rejection (process NOT exiting): ${reason}`,
+    );
+  } catch {
+    // Pino not ready — console.error above already captured it
+  }
+});
+
 import mongoose from "mongoose";
 import * as mongoConnection from "./connections/mongodb.connection";
 import honoApp from "./hono-app";

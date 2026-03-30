@@ -18,6 +18,25 @@ services:
       SERVICE_NAME: "cloud"
       RTMP_RELAY_URLS: "rtmp-relay-uscentral.mentra.glass:1935"
       LOG_LEVEL: "info"
+    # Liveness probe — "is the process alive?"
+    # Points to /livez which just returns "ok" with zero computation.
+    # Previously pointed to /health which iterates all sessions, counts
+    # WebSockets, updates gauges, and serializes JSON — too much work for
+    # a "are you alive?" check, especially under load.
+    # See: cloud/issues/057-cloud-observability/spec.md (1d)
+    livenessCheck:
+      enabled: true
+      httpPath: /livez
+      timeoutSeconds: 3
+      initialDelaySeconds: 15
+    # Readiness probe — "can this pod handle traffic?"
+    # Points to /health which returns session count, metrics, and memory info.
+    # If this fails, the pod is removed from the load balancer but NOT killed.
+    readinessCheck:
+      enabled: true
+      httpPath: /health
+      timeoutSeconds: 5
+      initialDelaySeconds: 15
     # Extended timeouts for WebSocket connections (/glasses-ws, /app-ws).
     # Porter sets proxy-send-timeout: 60s by default, which kills idle WS
     # connections because no client→server traffic flows after audio moved to UDP.
@@ -27,6 +46,17 @@ services:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # Prometheus metrics scraping — exposes mentra_user_sessions, mentra_miniapp_sessions,
+    # mentra_event_loop_lag_ms, mentra_udp_packets_received_total, etc. to Porter's
+    # built-in metrics dashboard. The /metrics endpoint is already on port 80.
+    metricsScraping:
+      enabled: true
+      path: /metrics
+      port: 80
+      scrapeIntervalSeconds: 30
+    # Graceful shutdown — give WebSocket close frames time to flush
+    # See: cloud/issues/063-graceful-shutdown/spec.md
+    terminationGracePeriodSeconds: 30
     additionalPorts:
       - port: 8000
         protocol: UDP

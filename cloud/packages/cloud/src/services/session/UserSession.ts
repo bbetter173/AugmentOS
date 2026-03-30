@@ -33,6 +33,7 @@ import CalendarManager from "./CalendarManager";
 import { DashboardManager } from "./dashboard";
 import DeviceManager from "./DeviceManager";
 import { handleAppMessage as appMessageHandler, handleGlassesMessage as glassesMessageHandler } from "./handlers";
+import { clearSubscriptionChangeTimer } from "./handlers/app-message-handler";
 import LocationManager from "./LocationManager";
 import MicrophoneManager from "./MicrophoneManager";
 import PhotoManager from "./PhotoManager";
@@ -439,6 +440,7 @@ export class UserSession {
     if (this.microphoneManager) {
       this.logger.info(`[UserSession:updateWebSocket] Scheduling mic state resync after WebSocket reconnect`);
       setTimeout(() => {
+        if (this.disposed) return;
         if (this.microphoneManager && this.websocket?.readyState === WebSocketReadyState.OPEN) {
           this.logger.info(`[UserSession:updateWebSocket] Forcing mic state resync after WebSocket reconnect`);
           this.microphoneManager.forceResync();
@@ -772,6 +774,11 @@ export class UserSession {
     this.disposed = true;
 
     this.logger.warn(`[UserSession:dispose]: Disposing UserSession: ${this.userId}`);
+
+    // Clear the subscription-change debounce timer for this user. Its closure
+    // captures `userSession`, so leaving it alive would prevent GC of the
+    // disposed UserSession until the timer fires.
+    clearSubscriptionChangeTimer(this.userId);
 
     // Clean up all tracked resources (removes event listeners, clears timers)
     // This must happen BEFORE disposing managers to prevent stale callbacks

@@ -156,6 +156,10 @@ class SonioxTranslationStream implements TranslationStreamInstance {
   }
 
   private async connect(): Promise<void> {
+    if (this.disposed || this.isClosing) {
+      return Promise.reject(new Error("Stream is closed or disposed"));
+    }
+
     return new Promise((resolve, reject) => {
       try {
         // Create WebSocket connection

@@ -30,11 +30,54 @@ import {
   AppToCloudMessage,
   ViewType,
 } from "@mentra/sdk";
-import { ColumnComposer, G1_PROFILE } from "@mentra/display-utils";
+import { G1_PROFILE, TextMeasurer, TextWrapper } from "@mentra/display-utils";
 
 // Internal package name for OS-generated display requests.
 // Matches OS_PACKAGE_NAME in DisplayManager6.1.ts — both must stay in sync.
 const OS_PACKAGE_NAME = "com.mentra.os" as const;
+
+// ---------------------------------------------------------------------------
+// Header layout constants
+// ---------------------------------------------------------------------------
+// Tokens like $DATE$, $TIME12$, $GBATT$ are resolved by the native display
+// layer at render time — the server never sees the real values. This means
+// ColumnComposer cannot measure the left column accurately (it measures the
+// token text, which is much wider than the resolved text).
+//
+// Instead we pre-compute the spacing using a worst-case representative string.
+// The widest possible resolved left column is:
+//   "◌ 09/30, 12:00 AM, 100%" = 228px on G1 (39.6% of 576px)
+//
+// Digit widths: 1 is narrow (8px rendered), all others are 12px.
+// AM is wider than PM (A=14px vs P=12px).
+// Date: MM/DD with no 1s = widest (e.g. 09/30).
+// Time: 12:00 AM = widest 12h. 24h is shorter (no AM/PM suffix).
+// Battery: 100% = widest (3 digits).
+//
+// Future: these become user settings (date format, clock format, etc.)
+// For now they're constants so the settings system is easy to wire up later.
+// See: cloud/issues/074-sdk-v3-merge-and-ship/spike.md
+// ---------------------------------------------------------------------------
+
+/** Date format for the dashboard header. Future: user setting. */
+const DASHBOARD_DATE_FORMAT: "MM/DD" | "DD/MM" | "Mon DD" | "DD Mon" = "MM/DD";
+
+/** Clock format for the dashboard header. Future: user setting. */
+const DASHBOARD_CLOCK_FORMAT: "12h" | "24h" = "12h";
+
+/**
+ * Worst-case representative string for the left header column.
+ * Used ONLY for pixel measurement — the actual display text uses tokens.
+ * Must be updated if DASHBOARD_DATE_FORMAT or DASHBOARD_CLOCK_FORMAT changes.
+ */
+const HEADER_LEFT_MEASUREMENT_TEXT =
+  DASHBOARD_CLOCK_FORMAT === "12h"
+    ? "◌ 09/30, 12:00 AM, 100%"   // 228px — widest 12h
+    : "◌ 09/30, 00:00, 100%";     // 192px — widest 24h
+
+const _headerMeasurer = new TextMeasurer(G1_PROFILE);
+const HEADER_LEFT_MAX_WIDTH_PX = _headerMeasurer.measureText(HEADER_LEFT_MEASUREMENT_TEXT);
+const HEADER_SPACE_WIDTH_PX = _headerMeasurer.measureText(" ");
 import { weatherService } from "../../core/WeatherService";
 import UserSession from "../UserSession";
 import { NotificationService, PhoneNotification } from "./NotificationService";
@@ -524,11 +567,19 @@ export class DashboardManager {
     const headerLeft = this.formatHeaderLeft();
     const weatherRight = this.weatherText ?? "";
 
-    // Row 1: pixel-accurate column-split header via ColumnComposer (1 line only).
-    // Left: time + battery token. Right: weather (always visible when available).
-    const composer = new ColumnComposer(G1_PROFILE, "character-no-hyphen");
+    // Row 1: manually composed header with pixel-accurate spacing.
+    //
+    // We can't use ColumnComposer here because the left column contains tokens
+    // ($DATE$, $TIME12$, $GBATT$) that are resolved at display time by the
+    // native layer. The server-side pixel width of "$DATE$" (72px) is totally
+    // different from the resolved "3/30" (44px), so ColumnComposer would
+    // compute the wrong number of padding spaces.
+    //
+    // Instead, we use a pre-computed worst-case width (HEADER_LEFT_MAX_WIDTH_PX)
+    // to calculate a fixed right-column start position. This means the weather
+    // column starts at a consistent position regardless of the actual date/time.
     const composedHeader = weatherRight
-      ? composer.composeDoubleTextWall(headerLeft, weatherRight, { columnConfig: { maxLines: 1 } }).composedText
+      ? this.composeHeaderRow(headerLeft, weatherRight)
       : headerLeft;
 
     // Row 2: calendar event (full width — long titles like
@@ -563,6 +614,36 @@ export class DashboardManager {
    */
   private formatHeaderLeft(): string {
     return "◌ $DATE$, $TIME12$, $GBATT$";
+  }
+
+  /**
+   * Compose the header row with correct spacing for token-based left text.
+   *
+   * The left column contains tokens ($DATE$, $TIME12$, $GBATT$) resolved by
+   * the native display layer — the server never sees the actual values.
+   * ColumnComposer can't be used here because it would measure the token text
+   * (288px) instead of the resolved text (≤228px), producing wrong spacing.
+   *
+   * Instead we use a fixed gap based on the pre-computed worst-case left width.
+   * The right column (weather) is truncated to the remaining display width.
+   */
+  private composeHeaderRow(leftTokenText: string, rightText: string): string {
+    const displayWidth = G1_PROFILE.displayWidthPx;
+
+    // Fixed gap: ~5% of display separates left and right columns
+    const gapSpaces = Math.max(2, Math.floor(
+      (displayWidth * 0.05) / HEADER_SPACE_WIDTH_PX,
+    ));
+    const gapWidthPx = gapSpaces * HEADER_SPACE_WIDTH_PX;
+
+    // Right column gets everything after the worst-case left + gap
+    const rightMaxPx = displayWidth - HEADER_LEFT_MAX_WIDTH_PX - gapWidthPx;
+
+    // Truncate right text to fit (single line)
+    const wrapper = new TextWrapper(_headerMeasurer, { breakMode: "character-no-hyphen" });
+    const rightLine = wrapper.wrap(rightText, { maxWidthPx: rightMaxPx, maxLines: 1 }).lines[0] || "";
+
+    return `${leftTokenText}${" ".repeat(gapSpaces)}${rightLine}`;
   }
 
   // ---------------------------------------------------------------------------

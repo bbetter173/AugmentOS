@@ -11,6 +11,7 @@ on:
       - hotfix/crash-diagnostics
       - cloud/062-mongodb-audit
       - hotfix/graceful-shutdown
+      - hotfix/remove-forced-gc-add-livez
     paths:
       - "cloud/**"
       - ".github/workflows/porter-debug.yml"

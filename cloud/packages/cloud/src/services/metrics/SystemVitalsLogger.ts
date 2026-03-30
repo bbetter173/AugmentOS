@@ -7,8 +7,13 @@
  * measures the pause duration, and logs the result. This tells us definitively
  * whether GC pauses are contributing to event loop blocking / health check timeouts.
  *
+ * Connection churn tracking (added for issue 069): tracks disconnect/reconnect
+ * rates and close code distribution per 30s window. This is the key evidence
+ * for proving whether disconnects are client-initiated or server-initiated.
+ *
  * See: cloud/issues/057-cloud-observability/observability-spec.md
  * See: cloud/issues/061-crash-investigation/spec.md
+ * See: cloud/issues/069-ws-disconnect-observability/spike.md
  */
 
 import { logger as rootLogger } from "../logging/pino-logger";
@@ -43,6 +48,59 @@ class OperationTimers {
 }
 
 export const operationTimers = new OperationTimers();
+
+/**
+ * Connection churn tracker.
+ * WebSocket handlers call recordDisconnect/recordReconnect on every event.
+ * Every 30 seconds, the vitals logger reads and resets these counters.
+ * This is the definitive evidence for proving client-side vs server-side disconnects.
+ *
+ * See: cloud/issues/069-ws-disconnect-observability/spike.md
+ */
+class ConnectionChurnTracker {
+  private disconnects = 0;
+  private reconnects = 0;
+  private closeCodes: Record<number, number> = {};
+  private totalDowntimeMs = 0;
+  private downtimeSamples = 0;
+
+  /** Called from handleGlassesClose */
+  recordDisconnect(closeCode: number): void {
+    this.disconnects++;
+    this.closeCodes[closeCode] = (this.closeCodes[closeCode] || 0) + 1;
+  }
+
+  /** Called from createOrReconnect */
+  recordReconnect(downtimeMs: number | null): void {
+    this.reconnects++;
+    if (downtimeMs !== null && downtimeMs > 0) {
+      this.totalDowntimeMs += downtimeMs;
+      this.downtimeSamples++;
+    }
+  }
+
+  getAndReset(): {
+    disconnects: number;
+    reconnects: number;
+    closeCodes: Record<number, number>;
+    avgDowntimeMs: number;
+  } {
+    const snapshot = {
+      disconnects: this.disconnects,
+      reconnects: this.reconnects,
+      closeCodes: { ...this.closeCodes },
+      avgDowntimeMs: this.downtimeSamples > 0 ? Math.round(this.totalDowntimeMs / this.downtimeSamples) : 0,
+    };
+    this.disconnects = 0;
+    this.reconnects = 0;
+    this.closeCodes = {};
+    this.totalDowntimeMs = 0;
+    this.downtimeSamples = 0;
+    return snapshot;
+  }
+}
+
+export const connectionChurnTracker = new ConnectionChurnTracker();
 
 class SystemVitalsLogger {
   private vitalsInterval?: NodeJS.Timeout;
@@ -252,6 +310,22 @@ class SystemVitalsLogger {
 
           // Leak indicator
           disposedSessionsPendingGC: memoryLeakDetector.getDisposedPendingGCCount(),
+
+          // Connection churn — the key evidence for client-side vs server-side disconnects.
+          // If disconnects >> reconnects, sessions are being disposed (not surviving grace period).
+          // Close code distribution tells us WHO is killing the connection:
+          //   1006 = abnormal (client went dark / network loss — CLIENT-SIDE)
+          //   1001 = going away (server shutting down — SERVER-SIDE)
+          //   1000 = normal close (clean disconnect — EITHER SIDE)
+          ...(() => {
+            const churn = connectionChurnTracker.getAndReset();
+            return {
+              wsDisconnects: churn.disconnects,
+              wsReconnects: churn.reconnects,
+              wsAvgDowntimeMs: churn.avgDowntimeMs,
+              wsCloseCodeDist: Object.keys(churn.closeCodes).length > 0 ? JSON.stringify(churn.closeCodes) : undefined,
+            };
+          })(),
 
           // Uptime
           uptimeSeconds: Math.round((Date.now() - this.startedAt) / 1000),

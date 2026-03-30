@@ -134,6 +134,19 @@ Table of all changes: component, file, what changes.
 
 What changes, why, code snippets showing before/after.
 
+## Decision Log
+
+| Decision | Alternatives considered | Why we chose this |
+| -------- | ----------------------- | ----------------- |
+
+Every non-obvious implementation decision gets a row. Include things that
+didn't work (build failures, runtime issues, API mismatches) and why the
+approach was changed. If the design evolved during implementation, document
+what changed and why — don't silently overwrite the original decision.
+
+The goal: someone reading this months later should understand not just what
+was built, but what was tried, what failed, and why the final approach won.
+
 ## Testing
 
 How to verify it works. Edge cases to check.
@@ -142,6 +155,14 @@ How to verify it works. Edge cases to check.
 
 Deployment order, backward compatibility notes.
 ```
+
+**Keeping the design doc current:** The design doc is the source of truth for what was actually built. If implementation reveals that the original design doesn't work (a method doesn't exist on a type, a library doesn't support an API, a runtime behavior differs from what we expected), update the design doc:
+
+1. **Update the "after" code** to reflect what was actually shipped
+2. **Add the failed approach to the Decision Log** with why it didn't work
+3. **Don't delete the original thinking** — move it to "Alternatives considered" so future readers understand the journey
+
+The design doc is not a spec (what we plan to do) — it's a record of what we did and why. It should match the code at all times.
 
 ## Writing Style
 
@@ -256,6 +277,45 @@ Docs are **planning artifacts**, not post-implementation documentation.
 
 - `cloud/issues/034-ws-liveness/` — spike → spec → design for WebSocket liveness detection
 
+## Security & Privacy
+
+**This is a public, open-source repository.** Every file committed here is visible to the world. Write docs accordingly.
+
+### Never commit
+
+❌ **Tokens, secrets, API keys, passwords, or credentials** — not even in examples. Use placeholders like `$BETTERSTACK_SOURCE_TOKEN` or `(stored in cloud/.env)` instead. If you need to reference a specific token for context, describe where it lives, never paste the value.
+
+❌ **Personally identifiable information (PII)** — no customer emails, real user IDs, names, phone numbers, or IP addresses in docs. Use anonymized examples: `user@example.com`, `session-abc123`, `10.x.x.x`.
+
+❌ **Internal URLs with embedded credentials** — no database connection strings, no webhook URLs with tokens in the query string.
+
+❌ **Private conversations** — if a team member said something in Slack, a call, or a meeting that provides useful context, paraphrase the technical insight. Don't attribute it or quote it. The docs are for the public repo, not a meeting transcript.
+
+### Always use
+
+✅ **Placeholders for secrets:** `$ENV_VAR_NAME`, `(see cloud/.env)`, `(stored in Porter/Doppler)`
+
+✅ **Anonymized data:** `user@example.com`, `session-12345`, `<redacted>`
+
+✅ **References to where secrets live:** "The BetterStack source token is configured via the `BETTERSTACK_SOURCE_TOKEN` environment variable in Porter."
+
+### Before committing any doc
+
+Ask yourself: **if a stranger reads this file on GitHub, is there anything they could use to access our systems, identify our users, or impersonate a team member?** If yes, redact it.
+
+### For AI agents writing docs
+
+If you are an AI agent (Claude, Codex, Copilot, etc.) generating or editing these docs:
+
+- **Never include real tokens, keys, or credentials** that were shared with you in conversation. The conversation is private; the repo is public.
+- **Never include real customer emails or user IDs** from logs, BetterStack queries, or database output. Anonymize them.
+- **Never attribute statements to specific team members** unless they've explicitly approved it. Paraphrase the technical content.
+- **Always use `$VARIABLE_NAME` or `(stored in <location>)`** when referencing secrets, even if you have the actual value.
+- **Always build locally before pushing** — run the same build command CI uses (`bun run build` in the package directory). Don't push code that hasn't been verified to compile.
+- **Always confirm before making infrastructure changes** — creating BetterStack sources, installing Helm charts, modifying uptime monitors, etc. Ask first, act second.
+
+---
+
 ## Anti-Patterns
 
 ❌ **Skipping the overview** — if readers don't know why the doc exists, they won't read it
@@ -263,7 +323,10 @@ Docs are **planning artifacts**, not post-implementation documentation.
 ❌ **"Living document"** — docs that get stale immediately
 ❌ **Confluence/Notion/Google Docs** — keep it in git with code
 ❌ **No decision log** — leads to the same debates in Slack every week
+❌ **Committing secrets in docs** — tokens, API keys, passwords, connection strings. Use placeholders.
+❌ **Including real PII** — customer emails, user IDs from production logs. Anonymize.
+❌ **Skipping the design doc** — don't go straight from spec to implementation. The design doc is where implementation details get reviewed before code is written.
 
 ---
 
-**Remember**: These docs are for the whole team. Write what you'd want to read when joining the project, debugging at 2am, or trying to understand why something was built a certain way.
+**Remember**: These docs are for the whole team **and the public**. Write what you'd want to read when joining the project, debugging at 2am, or trying to understand why something was built a certain way — but never include anything that could compromise security or privacy if read by a stranger.

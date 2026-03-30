@@ -12,6 +12,7 @@ import { AppI } from "@mentra/sdk";
 import App from "../../models/app.model";
 import { logger as rootLogger } from "../logging/pino-logger";
 import UserSession from "../session/UserSession";
+import { appCache } from "./app-cache.service";
 
 const SERVICE_NAME = "developer.service";
 const logger = rootLogger.child({ service: SERVICE_NAME });
@@ -143,6 +144,7 @@ export async function createApp(
       visibility,
       hashedApiKey,
     });
+    appCache.invalidate(); // fire-and-forget — no await
 
     // Generate JWT
     const jwt = generateAppJwt(app.packageName, apiKey);
@@ -203,6 +205,7 @@ export async function regenerateApiKey(
 
     // Update app with new hashed API key
     await App.findOneAndUpdate({ packageName }, { $set: { hashedApiKey } });
+    appCache.invalidate(); // fire-and-forget — no await
 
     // Generate JWT
     const jwt = generateAppJwt(packageName, apiKey);

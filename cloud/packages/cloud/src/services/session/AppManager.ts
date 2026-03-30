@@ -661,6 +661,13 @@ export class AppManager {
         return new Promise<AppStartResult>((resolve) => {
           // Set up a listener for when the existing attempt completes
           const checkCompletion = () => {
+            // Guard: if the session was disposed while we were polling,
+            // resolve immediately to avoid holding a reference to the dead session.
+            if (this.disposed) {
+              resolve({ success: false, error: { stage: "CONNECTION", message: "Session disposed while waiting" } });
+              return;
+            }
+
             if (!this.pendingConnections.has(packageName)) {
               // Existing attempt completed, check final state
               if (this.userSession.runningApps.has(packageName)) {

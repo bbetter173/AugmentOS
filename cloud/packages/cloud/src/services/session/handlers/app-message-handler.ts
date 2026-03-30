@@ -64,6 +64,21 @@ const subscriptionChangeTimers = new Map<string, NodeJS.Timeout>();
 const SUBSCRIPTION_DEBOUNCE_MS = 500;
 
 /**
+ * Clears any pending subscription-change debounce timer for the given user.
+ *
+ * Must be called from UserSession.dispose() to prevent the timer's closure
+ * from holding a strong reference to the disposed UserSession, which would
+ * keep the entire session object graph alive until the debounce fires.
+ */
+export function clearSubscriptionChangeTimer(userId: string): void {
+  const timer = subscriptionChangeTimers.get(userId);
+  if (timer) {
+    clearTimeout(timer);
+    subscriptionChangeTimers.delete(userId);
+  }
+}
+
+/**
  * Handle incoming app message by routing to appropriate managers
  *
  * @param appWebsocket The app's WebSocket connection

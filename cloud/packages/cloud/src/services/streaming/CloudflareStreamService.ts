@@ -430,7 +430,6 @@ export class CloudflareStreamService {
         {
           userId,
           liveInputId: result.liveInputId,
-          quality: config.quality,
           outputCount: result.outputs?.length || 0,
           result: JSON.stringify(result, null, 2),
         },

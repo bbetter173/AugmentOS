@@ -28,8 +28,6 @@ import org.webrtc.RTCStatsCollectorCallback;
 import org.webrtc.RTCStatsReport;
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
-import org.webrtc.Camera2Capturer;
-import org.webrtc.Camera2Enumerator;
 import org.webrtc.DataChannel;
 import org.webrtc.DefaultVideoDecoderFactory;
 import org.webrtc.DefaultVideoEncoderFactory;
@@ -360,13 +358,7 @@ public class WhipStreamingService extends Service {
   }
 
   private void setupCamera() {
-    Camera2Enumerator enumerator = new Camera2Enumerator(this);
-    String cameraId = selectBackCamera(enumerator);
-    if (cameraId == null) {
-      throw new IllegalStateException("No back-facing camera found");
-    }
-
-    mVideoCapturer = enumerator.createCapturer(cameraId, null);
+    mVideoCapturer = new WhipCameraCapturer();
 
     mSurfaceTextureHelper = SurfaceTextureHelper.create(
         "WhipCaptureThread", mEglBase.getEglBaseContext());
@@ -765,14 +757,6 @@ public class WhipStreamingService extends Service {
   // -----------------------------------------------------------------------
   // Utility
   // -----------------------------------------------------------------------
-
-  private String selectBackCamera(Camera2Enumerator enumerator) {
-    for (String name : enumerator.getDeviceNames()) {
-      if (enumerator.isBackFacing(name)) return name;
-    }
-    String[] names = enumerator.getDeviceNames();
-    return names.length > 0 ? names[0] : null;
-  }
 
   private String buildAbsoluteUrl(String base, String location) {
     try {

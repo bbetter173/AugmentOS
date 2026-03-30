@@ -699,29 +699,33 @@ export class DashboardManager {
    * (288px on G1) instead of the resolved text (≤228px on G1), producing
    * wrong spacing.
    *
-   * Instead we use a fixed gap based on the pre-computed worst-case left width
-   * for the connected glasses profile. Different glasses models have different
-   * display widths and fonts, so the spacing is computed per-profile.
+   * Instead we pad from the worst-case left width to the display midpoint (50%),
+   * so the weather always starts at the second half of the screen. Different
+   * glasses models have different display widths and fonts, so the spacing is
+   * computed per-profile.
    */
   private composeHeaderRow(leftTokenText: string, rightText: string, profile: DisplayProfile): string {
     const displayWidth = profile.displayWidthPx;
     const metrics = getHeaderMetrics(profile);
 
-    // Fixed gap: ~5% of display separates left and right columns
-    const gapSpaces = Math.max(2, Math.floor(
-      (displayWidth * 0.05) / metrics.spaceWidthPx,
-    ));
-    const gapWidthPx = gapSpaces * metrics.spaceWidthPx;
+    // Right column starts at the display midpoint (50%).
+    // The left column (date/time/battery) worst case is ~40% of display,
+    // so padding to 50% gives a consistent "second half" start for weather.
+    const midpointPx = Math.floor(displayWidth * 0.5);
 
-    // Right column gets everything after the worst-case left + gap
-    const rightMaxPx = displayWidth - metrics.leftMaxWidthPx - gapWidthPx;
+    // Pad from worst-case left width to the midpoint
+    const pixelsToPad = Math.max(0, midpointPx - metrics.leftMaxWidthPx);
+    const padSpaces = Math.max(2, Math.floor(pixelsToPad / metrics.spaceWidthPx));
+
+    // Right column gets the second half of the display
+    const rightMaxPx = displayWidth - midpointPx;
 
     // Truncate right text to fit (single line)
     const measurer = new TextMeasurer(profile);
     const wrapper = new TextWrapper(measurer, { breakMode: "character-no-hyphen" });
     const rightLine = wrapper.wrap(rightText, { maxWidthPx: rightMaxPx, maxLines: 1 }).lines[0] || "";
 
-    return `${leftTokenText}${" ".repeat(gapSpaces)}${rightLine}`;
+    return `${leftTokenText}${" ".repeat(padSpaces)}${rightLine}`;
   }
 
   // ---------------------------------------------------------------------------

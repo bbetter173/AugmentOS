@@ -289,9 +289,9 @@ class MentraNex : SGCManager() {
 
     // Camera & Media: Not supported on Nex (No camera)
     override fun requestPhoto(requestId: String, appId: String, size: String, webhookUrl: String?, authToken: String?, compress: String?, flash: Boolean, sound: Boolean) { Bridge.log("Nex: requestPhoto operation not supported") }
-    override fun startRtmpStream(message: MutableMap<String, Any>) { Bridge.log("Nex: startRtmpStream operation not supported") }
-    override fun stopRtmpStream() { Bridge.log("Nex: stopRtmpStream operation not supported") }
-    override fun sendRtmpKeepAlive(message: MutableMap<String, Any>) { Bridge.log("Nex: sendRtmpKeepAlive operation not supported") }
+    override fun startStream(message: MutableMap<String, Any>) { Bridge.log("Nex: startStream operation not supported") }
+    override fun stopStream() { Bridge.log("Nex: stopStream operation not supported") }
+    override fun sendStreamKeepAlive(message: MutableMap<String, Any>) { Bridge.log("Nex: sendStreamKeepAlive operation not supported") }
     override fun startBufferRecording() { Bridge.log("Nex: startBufferRecording operation not supported") }
     override fun stopBufferRecording() { Bridge.log("Nex: stopBufferRecording operation not supported") }
     override fun saveBufferVideo(requestId: String, durationSeconds: Int) { Bridge.log("Nex: saveBufferVideo operation not supported") }

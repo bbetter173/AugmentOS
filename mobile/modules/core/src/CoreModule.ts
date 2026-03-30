@@ -73,10 +73,10 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   startVideoRecording(requestId: string, save: boolean, flash: boolean, sound: boolean): Promise<void>
   stopVideoRecording(requestId: string): Promise<void>
 
-  // RTMP Stream Commands
-  startRtmpStream(params: Record<string, any>): Promise<void>
-  stopRtmpStream(): Promise<void>
-  keepRtmpStreamAlive(params: Record<string, any>): Promise<void>
+  // Stream Commands
+  startStream(params: Record<string, any>): Promise<void>
+  stopStream(): Promise<void>
+  keepStreamAlive(params: Record<string, any>): Promise<void>
 
   // Microphone Commands
   setMicState(sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean): Promise<void>

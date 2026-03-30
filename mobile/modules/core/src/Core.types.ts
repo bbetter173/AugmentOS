@@ -194,8 +194,8 @@ export type MicLc3Event = {
   lc3: ArrayBuffer
 }
 
-export type RtmpStreamStatusEvent = {
-  type: "rtmp_stream_status"
+export type StreamStatusEvent = {
+  type: "stream_status"
   [key: string]: any
 }
 
@@ -276,7 +276,7 @@ export type CoreModuleEvents = {
   ws_bin: (event: WsBinEvent) => void
   mic_pcm: (event: MicPcmEvent) => void
   mic_lc3: (event: MicLc3Event) => void
-  rtmp_stream_status: (event: RtmpStreamStatusEvent) => void
+  stream_status: (event: StreamStatusEvent) => void
   keep_alive_ack: (event: KeepAliveAckEvent) => void
   mtk_update_complete: (event: MtkUpdateCompleteEvent) => void
   ota_update_available: (event: OtaUpdateAvailableEvent) => void

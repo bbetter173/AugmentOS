@@ -2059,9 +2059,9 @@ public class MentraLive extends SGCManager {
             case "ble_photo_ready":
                 processBlePhotoReady(json);
                 break;
-            case "rtmp_stream_status":
-                // Process RTMP streaming status update from ASG client
-                Bridge.log("LIVE: Received RTMP status update from glasses: " + json.toString());
+            case "stream_status":
+                // Process streaming status update from ASG client
+                Bridge.log("LIVE: Received stream status update from glasses: " + json.toString());
 
                 // Check if this is an error status
                 String status = json.optString("status", "");
@@ -2099,7 +2099,7 @@ public class MentraLive extends SGCManager {
                         String key = keys.next();
                         rtmpMap.put(key, json.get(key));
                     }
-                    Bridge.sendRtmpStreamStatus(rtmpMap);
+                    Bridge.sendStreamStatus(rtmpMap);
                 } catch (JSONException e) {
                     Log.e(TAG, "Error converting RTMP status to Map", e);
                 }
@@ -3757,7 +3757,7 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void startRtmpStream(Map<String, Object> message) {
+    public void startStream(Map<String, Object> message) {
         Bridge.log("LIVE: Starting RTMP stream");
 
         try {
@@ -3770,11 +3770,11 @@ public class MentraLive extends SGCManager {
         }
     }
 
-    public void stopRtmpStream() {
+    public void stopStream() {
         Bridge.log("LIVE: Requesting to stop RTMP stream");
         try {
             JSONObject json = new JSONObject();
-            json.put("type", "stop_rtmp_stream");
+            json.put("type", "stop_stream");
 
             sendJson(json, true);
         } catch (JSONException e) {
@@ -3783,7 +3783,7 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void sendRtmpKeepAlive(Map<String, Object> message) {
+    public void sendStreamKeepAlive(Map<String, Object> message) {
         Bridge.log("LIVE: Sending RTMP stream keep alive");
 
         try {

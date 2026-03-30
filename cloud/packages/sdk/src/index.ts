@@ -18,7 +18,7 @@ export * from "./utils/animation-utils";
 
 // Export cloud-to-app type guards and runtime exports
 export {
-  // Type guards (excluding isPhotoResponse and isRtmpStreamStatus which conflict)
+  // Type guards (excluding isPhotoResponse and isStreamStatus which conflict)
   isAppConnectionAck,
   isAppConnectionError,
   isAppStopped,
@@ -36,7 +36,7 @@ export {
   // that should be used when dealing with CloudToAppMessage types
   isPhotoResponse as isPhotoResponseFromCloud,
   isRgbLedControlResponse as isRgbLedControlResponseFromCloud,
-  isRtmpStreamStatus as isRtmpStreamStatusFromCloud,
+  isStreamStatus as isStreamStatusFromCloud,
 } from "./types";
 
 // Export cloud-to-app types (type-only exports)
@@ -141,7 +141,7 @@ export type {
 // or they become unusable as values (TS1362). The `export *` at the top of
 // this file already exports them correctly; these explicit exports are kept
 // here as documentation but as value exports.
-export { PhotoErrorCode, PhotoStage, RtmpStreamStatus, KeepAliveAck } from "./types/messages/glasses-to-cloud";
+export { PhotoErrorCode, PhotoStage, StreamStatus, KeepAliveAck } from "./types/messages/glasses-to-cloud";
 
 // From messages/cloud-to-glasses.ts
 export type {
@@ -156,9 +156,9 @@ export type {
   RgbLedControlToGlasses,
   CameraFovSetToGlasses,
   SettingsUpdate,
-  StartRtmpStream,
-  StopRtmpStream,
-  KeepRtmpStreamAlive,
+  StartStream,
+  StopStream,
+  KeepStreamAlive,
   LedColor,
 } from "./types/messages/cloud-to-glasses";
 
@@ -166,8 +166,8 @@ export type {
 export type {
   AppConnectionInit,
   AppSubscriptionUpdate,
-  RtmpStreamRequest,
-  RtmpStreamStopRequest,
+  StreamRequest,
+  StreamStopRequest,
   AppToCloudMessage,
   PhotoRequest,
   RgbLedControlRequest,
@@ -196,7 +196,7 @@ export {
   isStopApp,
   isPhotoResponse as isPhotoResponseFromGlasses,
   isRgbLedControlResponse as isRgbLedControlResponseFromGlasses,
-  isRtmpStreamStatus as isRtmpStreamStatusFromGlasses,
+  isStreamStatus as isStreamStatusFromGlasses,
   isKeepAliveAck,
   isPhoneNotificationDismissed,
 } from "./types/messages/glasses-to-cloud";
@@ -207,9 +207,9 @@ export {
   isAppStateChange,
   isPhotoRequest,
   isSettingsUpdate as isSettingsUpdateToGlasses,
-  isStartRtmpStream,
-  isStopRtmpStream,
-  isKeepRtmpStreamAlive,
+  isStartStream,
+  isStopStream,
+  isKeepStreamAlive,
   isRgbLedControl,
 } from "./types/messages/cloud-to-glasses";
 
@@ -217,8 +217,8 @@ export {
   isAppConnectionInit,
   isAppSubscriptionUpdate,
   isDisplayRequest,
-  isRtmpStreamRequest,
-  isRtmpStreamStopRequest,
+  isStreamRequest,
+  isStreamStopRequest,
   isPhotoRequest as isPhotoRequestFromApp,
   isRgbLedControlRequest,
   isCameraFovSetRequest,

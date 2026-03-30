@@ -49,7 +49,7 @@ class CoreModule : Module() {
             "ws_bin",
             "mic_pcm",
             "mic_lc3",
-            "rtmp_stream_status",
+            "stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
@@ -241,16 +241,16 @@ class CoreModule : Module() {
             coreManager?.stopVideoRecording(requestId)
         }
 
-        // MARK: - RTMP Stream Commands
+        // MARK: - Stream Commands
 
-        AsyncFunction("startRtmpStream") { params: Map<String, Any> ->
-            coreManager?.startRtmpStream(params.toMutableMap())
+        AsyncFunction("startStream") { params: Map<String, Any> ->
+            coreManager?.startStream(params.toMutableMap())
         }
 
-        AsyncFunction("stopRtmpStream") { coreManager?.stopRtmpStream() }
+        AsyncFunction("stopStream") { coreManager?.stopStream() }
 
-        AsyncFunction("keepRtmpStreamAlive") { params: Map<String, Any> ->
-            coreManager?.keepRtmpStreamAlive(params.toMutableMap())
+        AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
+            coreManager?.keepStreamAlive(params.toMutableMap())
         }
 
         // MARK: - Microphone Commands

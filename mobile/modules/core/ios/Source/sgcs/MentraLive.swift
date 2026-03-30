@@ -1297,21 +1297,21 @@ class MentraLive: NSObject, SGCManager {
         sendJson(json, wakeUp: true)
     }
 
-    func startRtmpStream(_ message: [String: Any]) {
-        Bridge.log("Starting RTMP stream")
+    func startStream(_ message: [String: Any]) {
+        Bridge.log("Starting stream")
         var json = message
         json.removeValue(forKey: "timestamp")
         sendJson(json, wakeUp: true)
     }
 
-    func stopRtmpStream() {
-        Bridge.log("Stopping RTMP stream")
-        let json: [String: Any] = ["type": "stop_rtmp_stream"]
+    func stopStream() {
+        Bridge.log("Stopping stream")
+        let json: [String: Any] = ["type": "stop_stream"]
         sendJson(json, wakeUp: true)
     }
 
-    func sendRtmpKeepAlive(_ message: [String: Any]) {
-        Bridge.log("Sending RTMP keep alive")
+    func sendStreamKeepAlive(_ message: [String: Any]) {
+        Bridge.log("Sending stream keep alive")
         sendJson(message)
     }
 
@@ -1763,7 +1763,7 @@ class MentraLive: NSObject, SGCManager {
         case "wifi_scan_result":
             handleWifiScanResult(json)
 
-        case "rtmp_stream_status":
+        case "stream_status":
             emitRtmpStreamStatus(json)
 
         case "gallery_status":
@@ -3414,7 +3414,7 @@ class MentraLive: NSObject, SGCManager {
     }
 
     private func emitRtmpStreamStatus(_ json: [String: Any]) {
-        Bridge.sendTypedMessage("rtmp_stream_status", body: json)
+        Bridge.sendTypedMessage("stream_status", body: json)
     }
 
     private func emitButtonPress(buttonId: String, pressType: String, timestamp: Int64) {

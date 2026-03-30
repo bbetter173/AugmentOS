@@ -1580,6 +1580,10 @@ public class G1 extends SGCManager {
     }
 
     @Override
+    public void sendCameraFovSetting() {
+    }
+
+    @Override
     public void sendButtonMaxRecordingTime() {
 
     }

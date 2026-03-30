@@ -217,6 +217,25 @@ export interface AudioStreamEnd extends BaseMessage {
 }
 
 /**
+ * ROI crop position for camera FOV control
+ */
+export type CameraRoiPosition = "center" | "top" | "bottom";
+
+/**
+ * Camera FOV set request from App
+ */
+export interface CameraFovSetRequest extends BaseMessage {
+  type: AppToCloudMessageType.CAMERA_FOV_SET;
+  packageName: string;
+  sessionId: string;
+  requestId: string;
+  /** Field of view in degrees (82-118). 118 means no crop (full sensor). */
+  fov: number;
+  /** ROI crop position. Ignored when fov is 118. Defaults to "center". */
+  roiPosition: CameraRoiPosition;
+}
+
+/**
  * WiFi setup request from App
  */
 export interface RequestWifiSetup extends BaseMessage {
@@ -248,6 +267,7 @@ export type AppToCloudMessage =
   | DisplayRequest
   | PhotoRequest
   | RgbLedControlRequest
+  | CameraFovSetRequest
   | AudioPlayRequest
   | AudioStopRequest
   | AudioStreamStart
@@ -312,6 +332,13 @@ export function isPhotoRequest(message: AppToCloudMessage): message is PhotoRequ
  */
 export function isRgbLedControlRequest(message: AppToCloudMessage): message is RgbLedControlRequest {
   return message.type === AppToCloudMessageType.RGB_LED_CONTROL;
+}
+
+/**
+ * Type guard to check if a message is a camera FOV set request
+ */
+export function isCameraFovSetRequest(message: AppToCloudMessage): message is CameraFovSetRequest {
+  return message.type === AppToCloudMessageType.CAMERA_FOV_SET;
 }
 
 /**

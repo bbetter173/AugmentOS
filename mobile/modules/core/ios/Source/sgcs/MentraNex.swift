@@ -21,8 +21,8 @@ extension Data {
 @MainActor
 @objc(MentraNexSGC)
 class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SGCManager {
-    func sendIncidentId(_ incidentId: String) {}
-    
+    func sendIncidentId(_: String) {}
+
     func sendJson(_: [String: Any], wakeUp _: Bool, requireAck _: Bool) {}
 
     func setMicEnabled(_: Bool) {}
@@ -58,6 +58,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
     func sendButtonCameraLedSetting() {}
 
+    func sendCameraFovSetting() {}
+
     func setBrightness(_: Int, autoMode _: Bool) {}
 
     func sendDoubleTextWall(_: String, _: String) {}
@@ -68,7 +70,9 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
 
     func showDashboard() {}
 
-    func setDashboardPosition(_: Int, _: Int) {}
+    func setDashboardPosition(_ height: Int, _: Int) {
+        updateGlassesDisplayHeight(height)
+    }
 
     func setHeadUpAngle(_: Int) {}
 

@@ -29,6 +29,7 @@ import {
   StreamStatusCheckResponse,
   PermissionType,
   RgbLedControlRequest,
+  CameraFovSetRequest,
   OwnershipReleaseMessage,
   AppStateChange,
 } from "@mentra/sdk";
@@ -98,6 +99,11 @@ export async function handleAppMessage(
       // RGB LED control
       case AppToCloudMessageType.RGB_LED_CONTROL:
         await handleRgbLedControl(appWebsocket, userSession, message as RgbLedControlRequest, logger);
+        break;
+
+      // Camera FOV/ROI control
+      case AppToCloudMessageType.CAMERA_FOV_SET:
+        await handleCameraFovSet(appWebsocket, userSession, message as CameraFovSetRequest, logger);
         break;
 
       // RTMP streaming
@@ -297,6 +303,68 @@ async function handleRgbLedControl(
       appWebsocket,
       AppErrorCode.INTERNAL_ERROR,
       (e as Error).message || "Failed to forward RGB LED control request",
+      logger,
+    );
+  }
+}
+
+/**
+ * Handle camera FOV set request
+ */
+async function handleCameraFovSet(
+  appWebsocket: IWebSocket,
+  userSession: UserSession,
+  message: CameraFovSetRequest,
+  logger: Logger,
+): Promise<void> {
+  try {
+    const hasCameraPermission = await checkCameraPermission(message.packageName, userSession, logger);
+    if (!hasCameraPermission) {
+      logger.warn({ packageName: message.packageName }, "Camera FOV set denied: no CAMERA permission");
+      sendError(appWebsocket, AppErrorCode.PERMISSION_DENIED, "Camera permission required to set FOV", logger);
+      return;
+    }
+
+    // Validate FOV and ROI values before forwarding to glasses
+    const SUPPORTED_FOV = [82, 92, 102, 118];
+    const { fov, roiPosition } = message;
+    if (!SUPPORTED_FOV.includes(fov) || roiPosition < 0 || roiPosition > 2) {
+      logger.warn({ fov, roiPosition, packageName: message.packageName }, "Invalid camera FOV/ROI values");
+      sendError(
+        appWebsocket,
+        AppErrorCode.MALFORMED_MESSAGE,
+        `Invalid FOV/ROI: fov must be one of [${SUPPORTED_FOV.join(", ")}], roiPosition must be 0-2`,
+        logger,
+      );
+      return;
+    }
+
+    const glassesFovRequest = {
+      type: CloudToGlassesMessageType.CAMERA_FOV_SET,
+      sessionId: userSession.sessionId,
+      requestId: message.requestId,
+      appId: message.packageName,
+      fov: message.fov,
+      roiPosition: message.roiPosition,
+      timestamp: new Date(),
+    };
+
+    if (userSession.websocket && userSession.websocket.readyState === WebSocketReadyState.OPEN) {
+      userSession.websocket.send(JSON.stringify(glassesFovRequest));
+      metricsService.incrementClientMessagesOut();
+      logger.info(
+        { requestId: message.requestId, fov: message.fov, roiPosition: message.roiPosition },
+        "🔭 Camera FOV set request forwarded to mobile",
+      );
+    } else {
+      sendError(appWebsocket, AppErrorCode.INTERNAL_ERROR, "Glasses not connected", logger);
+    }
+  } catch (e) {
+    logger.error({ e, packageName: message.packageName }, "Error forwarding camera FOV set request");
+    sendError(
+      appWebsocket,
+      AppErrorCode.INTERNAL_ERROR,
+      (e as Error).message || "Failed to forward camera FOV set request",
       logger,
     );
   }

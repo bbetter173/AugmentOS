@@ -92,6 +92,10 @@ class Simulated : SGCManager() {
         Bridge.log("sendButtonCameraLedSetting")
     }
 
+    override fun sendCameraFovSetting() {
+        Bridge.log("sendCameraFovSetting")
+    }
+
     // Display Control
     override fun setBrightness(level: Int, autoMode: Boolean) {
         Bridge.log("setBrightness")

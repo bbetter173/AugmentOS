@@ -118,9 +118,21 @@ class CoreManager {
         get() = GlassesStore.store.get("core", "bypass_vad") as? Boolean ?: true
         set(value) = GlassesStore.apply("core", "bypass_vad", value)
 
-    private var enforceLocalTranscription: Boolean
-        get() = GlassesStore.store.get("core", "enforce_local_transcription") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "enforce_local_transcription", value)
+    private var offlineCaptionsRunning: Boolean
+        get() = GlassesStore.store.get("core", "offline_captions_running") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "offline_captions_running", value)
+
+    private var shouldSendPcm: Boolean
+        get() = GlassesStore.store.get("core", "should_send_pcm") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "should_send_pcm", value)
+
+    private var shouldSendLc3: Boolean
+        get() = GlassesStore.store.get("core", "should_send_lc3") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "should_send_lc3", value)
+
+    private var shouldSendTranscript: Boolean
+        get() = GlassesStore.store.get("core", "should_send_transcript") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "should_send_transcript", value)
 
     private var metricSystem: Boolean
         get() = GlassesStore.store.get("core", "metric_system") as? Boolean ?: false
@@ -131,11 +143,11 @@ class CoreManager {
         set(value) = GlassesStore.apply("core", "contextual_dashboard", value)
 
     private var dashboardHeight: Int
-        get() = GlassesStore.store.get("core", "dashboard_height") as? Int ?: 4
+        get() = (GlassesStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
         set(value) = GlassesStore.apply("core", "dashboard_height", value)
 
     private var dashboardDepth: Int
-        get() = GlassesStore.store.get("core", "dashboard_depth") as? Int ?: 5
+        get() = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 5
         set(value) = GlassesStore.apply("core", "dashboard_depth", value)
 
     private var galleryMode: Boolean
@@ -143,14 +155,6 @@ class CoreManager {
         set(value) = GlassesStore.apply("core", "gallery_mode", value)
 
     // state:
-    private var shouldSendPcmData: Boolean
-        get() = GlassesStore.store.get("core", "shouldSendPcmData") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "shouldSendPcmData", value)
-
-    private var shouldSendTranscript: Boolean
-        get() = GlassesStore.store.get("core", "shouldSendTranscript") as? Boolean ?: false
-        set(value) = GlassesStore.apply("core", "shouldSendTranscript", value)
-
     private var searching: Boolean
         get() = GlassesStore.store.get("core", "searching") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "searching", value)
@@ -170,6 +174,10 @@ class CoreManager {
     private var shouldSendBootingMessage: Boolean
         get() = GlassesStore.store.get("core", "shouldSendBootingMessage") as? Boolean ?: true
         set(value) = GlassesStore.apply("core", "shouldSendBootingMessage", value)
+
+    // Guard against duplicate ready callbacks firing back-to-back.
+    private var lastReadyHandledAtMs: Long = 0L
+    private var lastReadyHandledKey: String = ""
 
     private var systemMicUnavailable: Boolean
         get() = GlassesStore.store.get("core", "systemMicUnavailable") as? Boolean ?: false
@@ -209,6 +217,7 @@ class CoreManager {
     // Frame size is configurable: 20 bytes (16kbps), 40 bytes (32kbps), 60 bytes (48kbps)
     private var lc3EncoderPtr: Long = 0
     private var lc3DecoderPtr: Long = 0
+    private val lc3Lock = Any()
     // Audio output format - defaults to LC3 for bandwidth savings
     private var audioOutputFormat: AudioOutputFormat = AudioOutputFormat.LC3
 
@@ -545,36 +554,36 @@ class CoreManager {
         }
     }
 
-    /**
-     * Send audio data to cloud via Bridge. Encodes to LC3 if audioOutputFormat is LC3, otherwise
-     * sends raw PCM. All audio destined for cloud should go through this function.
-     */
-    private fun sendMicData(pcmData: ByteArray) {
-        when (audioOutputFormat) {
-            AudioOutputFormat.LC3 -> {
-                if (lc3EncoderPtr == 0L) {
-                    Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
-                    return
-                }
-                val lc3FrameSize =
-                        (GlassesStore.store.get("core", "lc3_frame_size") as Number).toInt()
-                val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
-                if (lc3Data == null || lc3Data.isEmpty()) {
-                    Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
-                    return
-                }
-                Bridge.sendMicData(lc3Data)
+    private fun convertAndSendMicLc3(pcmData: ByteArray) {
+        synchronized(lc3Lock) {
+            if (lc3EncoderPtr == 0L) {
+                Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
+                return
             }
-            AudioOutputFormat.PCM -> {
-                Bridge.sendMicData(pcmData)
+            val lc3FrameSize =
+                    (GlassesStore.store.get("core", "lc3_frame_size") as Number).toInt()
+            val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
+            if (lc3Data == null || lc3Data.isEmpty()) {
+                Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
+                return
             }
+            Bridge.sendMicLc3(lc3Data)
+        }
+    } 
+
+    private fun handleSendingPcm(pcmData: ByteArray) {
+        if (shouldSendPcm) {
+            Bridge.sendMicPcm(pcmData)
+        }
+        if (shouldSendLc3) {
+            convertAndSendMicLc3(pcmData)
         }
     }
 
     private fun emptyVadBuffer() {
         while (vadBuffer.isNotEmpty()) {
             val chunk = vadBuffer.removeAt(0)
-            sendMicData(chunk) // Uses our encoder, not Bridge directly
+            handleSendingPcm(chunk) // Uses our encoder, not Bridge directly
         }
     }
 
@@ -592,30 +601,31 @@ class CoreManager {
      * phone→cloud encoding.
      */
     fun handleGlassesMicData(rawLC3Data: ByteArray, frameSize: Int = 40) {
-        if (lc3DecoderPtr == 0L) {
-            Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
-            return
-        }
-
-        try {
-            // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
-            val pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)
-            if (pcmData != null && pcmData.isNotEmpty()) {
-                // Re-encode to canonical LC3 via handlePcm
-                handlePcm(pcmData)
-            } else {
-                Bridge.log("MAN: LC3 decode returned empty data")
+        val pcmData: ByteArray?
+        synchronized(lc3Lock) {
+            if (lc3DecoderPtr == 0L) {
+                Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
+                return
             }
-        } catch (e: Exception) {
-            Bridge.log("MAN: Failed to decode glasses LC3: ${e.message}")
+
+            try {
+                // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
+                pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)
+            } catch (e: Exception) {
+                Bridge.log("MAN: Failed to decode glasses LC3: ${e.message}")
+                return
+            }
+        }
+        if (pcmData != null && pcmData.isNotEmpty()) {
+            // Re-encode to canonical LC3 via handlePcm (outside lock to avoid deadlock)
+            handlePcm(pcmData)
+        } else {
+            Bridge.log("MAN: LC3 decode returned empty data")
         }
     }
 
     fun handlePcm(pcmData: ByteArray) {
-        // Send audio to cloud if needed (encoding handled by sendMicData)
-        if (shouldSendPcmData) {
-            sendMicData(pcmData)
-        }
+        handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
         if (shouldSendTranscript) {
@@ -624,7 +634,31 @@ class CoreManager {
     }
 
     // turns a single mic on and turns off all other mics:
+    private var isUpdatingMicState = false
+    private var pendingMicStateUpdate = false
+
     private fun updateMicState() {
+        // Guard against re-entrant calls from onRouteChange callbacks
+        if (isUpdatingMicState) {
+            pendingMicStateUpdate = true
+            return
+        }
+        isUpdatingMicState = true
+        pendingMicStateUpdate = false
+
+        try {
+            updateMicStateInternal()
+        } finally {
+            isUpdatingMicState = false
+            // If a re-entrant call was requested, run it now
+            if (pendingMicStateUpdate) {
+                pendingMicStateUpdate = false
+                updateMicState()
+            }
+        }
+    }
+
+    private fun updateMicStateInternal() {
         // go through the micRanking and find the first mic that is available:
         var micUsed: String = ""
 
@@ -901,7 +935,7 @@ class CoreManager {
     fun onInterruption(began: Boolean) {
         Bridge.log("MAN: Interruption: $began")
         systemMicUnavailable = began
-        setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+        updateMicState()
     }
 
     // MARK: - Auxiliary Commands
@@ -953,10 +987,22 @@ class CoreManager {
             return
         }
 
+        val readyKey = "${sgc?.type}:${deviceName}"
+        val now = System.currentTimeMillis()
+        if (readyKey == lastReadyHandledKey && now - lastReadyHandledAtMs < 2000) {
+            Bridge.log("MAN: handleDeviceReady() duplicate suppressed for $readyKey")
+            return
+        }
+        lastReadyHandledKey = readyKey
+        lastReadyHandledAtMs = now
+
         Bridge.log("MAN: handleDeviceReady() ${sgc?.type}")
         pendingWearable = ""
         defaultWearable = sgc?.type ?: ""
         searching = false
+
+        // Apply dashboard position before any boot text so content doesn't jump.
+        sgc?.setDashboardPosition(dashboardHeight, dashboardDepth)
 
         // Show welcome message on first connect for all display glasses
         if (shouldSendBootingMessage) {
@@ -1156,7 +1202,9 @@ class CoreManager {
     }
 
     fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {
-        Bridge.log("MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound")
+        Bridge.log(
+                "MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound"
+        )
         sgc?.startVideoRecording(requestId, save, flash, sound)
     }
 
@@ -1165,20 +1213,11 @@ class CoreManager {
         sgc?.stopVideoRecording(requestId)
     }
 
-    fun setMicState(sendPcm: Boolean, sendTranscript: Boolean, bypassVadForPCM: Boolean) {
-        // If offline captions are running locally, always keep transcript on
-        val offlineCaptionsRunning = GlassesStore.store.get("core", "offline_captions_running") as? Boolean ?: false
-        val effectiveSendTranscript = sendTranscript || offlineCaptionsRunning
-
-        Bridge.log("MAN: MIC: setMicState($sendPcm, $effectiveSendTranscript, $bypassVadForPCM)" +
-            if (offlineCaptionsRunning && !sendTranscript) " (offline captions forced transcript on)" else "")
-
-        shouldSendPcmData = sendPcm
-        shouldSendTranscript = effectiveSendTranscript
-        bypassVad = bypassVadForPCM
-
+    fun setMicState() {
+        val willSendPcm = shouldSendPcm || shouldSendLc3
+        val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        micEnabled = willSendPcm || willSendTranscript
         vadBuffer.clear()
-        micEnabled = shouldSendPcmData || shouldSendTranscript
         updateMicState()
     }
 
@@ -1266,9 +1305,8 @@ class CoreManager {
         sgc?.disconnect()
         sgc = null // Clear the SGC reference after disconnect
         searching = false
-        shouldSendPcmData = false
-        shouldSendTranscript = false
-        setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+        micEnabled = false
+        updateMicState()
         shouldSendBootingMessage = true // Reset for next first connect
         GlassesStore.apply("glasses", "fullyBooted", false)
         GlassesStore.apply("glasses", "connected", false)
@@ -1313,14 +1351,17 @@ class CoreManager {
         transcriber?.shutdown()
         transcriber = null
 
-        // Clean up LC3 encoder/decoder
-        if (lc3EncoderPtr != 0L) {
-            Lc3Cpp.freeEncoder(lc3EncoderPtr)
-            lc3EncoderPtr = 0
-        }
-        if (lc3DecoderPtr != 0L) {
-            Lc3Cpp.freeDecoder(lc3DecoderPtr)
-            lc3DecoderPtr = 0
+        // Clean up LC3 encoder/decoder (synchronized to prevent use-after-free
+        // if the recording thread is mid-encode/decode)
+        synchronized(lc3Lock) {
+            if (lc3EncoderPtr != 0L) {
+                Lc3Cpp.freeEncoder(lc3EncoderPtr)
+                lc3EncoderPtr = 0
+            }
+            if (lc3DecoderPtr != 0L) {
+                Lc3Cpp.freeDecoder(lc3DecoderPtr)
+                lc3DecoderPtr = 0
+            }
         }
     }
 }

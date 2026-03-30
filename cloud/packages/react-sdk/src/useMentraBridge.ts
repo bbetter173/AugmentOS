@@ -1,10 +1,26 @@
 // react-sdk/src/useMentraBridge.ts
 
+export interface CapsuleMenuRect {
+  /** Distance from the top of the webview content area in px */
+  top: number;
+  /** Distance from the right edge of the screen in px */
+  right: number;
+  /** Bottom edge (top + height) in px */
+  bottom: number;
+  /** Left edge in px */
+  left: number;
+  /** Width of the capsule menu in px */
+  width: number;
+  /** Height of the capsule menu in px */
+  height: number;
+}
+
 declare global {
   interface Window {
     MentraOS?: {
       platform: string;
       capabilities: string[];
+      capsuleMenu: CapsuleMenuRect | null;
     };
     ReactNativeWebView?: {
       postMessage: (message: string) => void;
@@ -277,4 +293,55 @@ export function useMentraBridge() {
     copyToClipboard,
     download,
   };
+}
+
+/**
+ * Get the bounding rect of the capsule menu (the floating menu/close pill
+ * in the top-right corner of miniapp webviews).
+ *
+ * Returns null when not running inside MentraOS or when the capsule menu
+ * is not present (e.g. non-app-switcher UI mode).
+ *
+ * Similar to WeChat's `wx.getMenuButtonBoundingClientRect()`.
+ *
+ * @example
+ * ```ts
+ * import { getCapsuleMenuRect } from '@mentra/react';
+ *
+ * const rect = getCapsuleMenuRect();
+ * if (rect) {
+ *   console.log(`Capsule is at top=${rect.top}, right=${rect.right}`);
+ * }
+ * ```
+ */
+export function getCapsuleMenuRect(): CapsuleMenuRect | null {
+  return window.MentraOS?.capsuleMenu ?? null;
+}
+
+/**
+ * React hook that provides the capsule menu rect and a convenience
+ * `safeAreaTop` value — the minimum top padding needed so your content
+ * doesn't overlap the capsule menu.
+ *
+ * Outside MentraOS, `rect` is null and `safeAreaTop` is 0, so your
+ * app renders normally with no extra padding.
+ *
+ * @example
+ * ```tsx
+ * import { useCapsuleMenu } from '@mentra/react';
+ *
+ * function MyApp() {
+ *   const { safeAreaTop } = useCapsuleMenu();
+ *   return (
+ *     <div style={{ paddingTop: safeAreaTop }}>
+ *       Your content here
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+export function useCapsuleMenu(): { rect: CapsuleMenuRect | null; safeAreaTop: number } {
+  const rect = getCapsuleMenuRect();
+  const safeAreaTop = rect ? rect.bottom + 8 : 0;
+  return { rect, safeAreaTop };
 }

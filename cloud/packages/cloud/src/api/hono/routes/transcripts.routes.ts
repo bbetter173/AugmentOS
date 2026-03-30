@@ -41,7 +41,7 @@ async function getTranscripts(c: AppContext) {
   try {
     const appSessionId = c.req.param("appSessionId");
     if (!appSessionId) {
-      return c.json({ error: "appSessionId is required" }, 400);
+      return c.json({ error: "Missing required parameter: appSessionId" }, 400);
     }
     const duration = c.req.query("duration");
     const startTime = c.req.query("startTime");

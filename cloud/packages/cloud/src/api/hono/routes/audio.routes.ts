@@ -147,9 +147,11 @@ async function streamRelay(c: AppContext) {
 async function getAudio(c: AppContext) {
   try {
     const userId = c.req.param("userId");
+
     if (!userId) {
-      return c.json({ error: "userId is required" }, 400);
+      return c.json({ error: "Missing userId" }, 400);
     }
+
     const userSession = UserSession.getById(userId);
 
     if (!userSession) {

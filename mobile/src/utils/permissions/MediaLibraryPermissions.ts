@@ -71,8 +71,9 @@ export class MediaLibraryPermissions {
   }
 
   /**
-   * Save a file to the device's camera roll/photo library
-   * On Android 10+, this works without any permission
+   * Save a file to the photo library in a glasses-specific location (MentraOS album on iOS;
+   * Pictures/MentraOS or Movies/MentraOS on Android 10+).
+   * On Android 10+, this works without any permission.
    *
    * IMPORTANT: This method sets the DATE_TAKEN (Android) or creation date (iOS)
    * metadata to the original capture time, so gallery apps show the correct date.

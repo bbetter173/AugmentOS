@@ -82,7 +82,7 @@ public class RtmpStreamingService extends Service {
     private Surface mSurface;
 
     // Default values (used when SDK doesn't specify config)
-    private static final int DEFAULT_SURFACE_WIDTH = 1280;  // 16:9 aspect ratio for proper video streaming
+    private static final int DEFAULT_SURFACE_WIDTH = 960;  // 4:3 aspect ratio to match native camera sensor
     private static final int DEFAULT_SURFACE_HEIGHT = 720;  // HD resolution (720p)
     private static final int DEFAULT_START_BITRATE = 2000000; //2,000,000 => 800,000
 

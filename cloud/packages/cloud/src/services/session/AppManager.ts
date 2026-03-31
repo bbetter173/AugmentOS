@@ -157,7 +157,14 @@ export class AppManager {
     }
 
     if (!session) {
+      // Pass the legacy sessionId format (userId-packageName) so that v2 SDKs
+      // can parse it in CONNECTION_INIT to recover the userId. The 048 branch
+      // changed AppSession to default to randomUUID(), which breaks v2 apps
+      // because the cloud parses sessionId.split("-")[0] to find the UserSession.
+      // See: cloud/issues/074 — debug deploy v2 app connection failure
+      const legacySessionId = `${this.userSession.userId}-${packageName}`;
       session = new AppSession({
+        sessionId: legacySessionId,
         packageName,
         logger: this.logger,
         onGracePeriodExpired: async (appSession) => {

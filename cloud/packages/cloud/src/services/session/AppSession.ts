@@ -626,15 +626,20 @@ export class AppSession {
     const now = Date.now();
     const timeSinceReconnect = now - this._lastReconnectAt;
 
-    // Check for empty subscription update during reconnect grace window
-    if (newSubscriptions.length === 0 && timeSinceReconnect <= SUBSCRIPTION_GRACE_MS) {
+    // Check for empty subscription update during reconnect grace window.
+    // v3 apps skip this — they use explicit subscription reconciliation via
+    // RECONNECT_ACK (cloud sends its subscriptions, SDK compares and updates).
+    // The grace window is only needed for v2 apps where the SDK sends an empty
+    // SUBSCRIPTION_UPDATE before onSession() registers handlers.
+    // See: cloud/issues/048-sdk-v3 reconnection architecture spike
+    if (!this.isV3 && newSubscriptions.length === 0 && timeSinceReconnect <= SUBSCRIPTION_GRACE_MS) {
       this.logger.warn(
         { timeSinceReconnect, graceMs: SUBSCRIPTION_GRACE_MS },
-        "Ignoring empty subscription update within reconnect grace window",
+        "Ignoring empty subscription update within reconnect grace window (v2 legacy)",
       );
       return {
         applied: false,
-        reason: "Empty subscription ignored during grace window",
+        reason: "Empty subscription ignored during grace window (v2 legacy)",
       };
     }
 

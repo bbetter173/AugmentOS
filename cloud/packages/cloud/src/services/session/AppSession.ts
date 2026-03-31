@@ -41,7 +41,8 @@ export type LocationRate =
 export enum AppConnectionState {
   CONNECTING = "connecting", // Webhook sent, waiting for app to connect
   RUNNING = "running", // Active WebSocket connection
-  GRACE_PERIOD = "grace_period", // Disconnected, waiting for SDK reconnection (5s)
+  TRANSPORT_DOWN = "transport_down", // v3 only: WebSocket died, session alive, subscriptions preserved, 5s timer
+  GRACE_PERIOD = "grace_period", // v2 only: Disconnected, waiting for SDK reconnection (5s)
   DORMANT = "dormant", // Grace expired, user not connected, waiting for user to return
   RESURRECTING = "resurrecting", // System actively restarting app
   STOPPING = "stopping", // User/system initiated stop in progress
@@ -109,6 +110,11 @@ export class AppSession {
   public readonly sessionId: string;
   public readonly packageName: string;
   private readonly logger: Logger;
+
+  // ===== SDK Version =====
+  // Set from CONNECTION_INIT or RECONNECT. Used to decide v3 (TRANSPORT_DOWN)
+  // vs legacy (GRACE_PERIOD) behavior on disconnect. null = legacy/v2.
+  private _sdkVersion: string | null = null;
 
   // ===== WebSocket Connection =====
   private _webSocket: IWebSocket | null = null;
@@ -206,6 +212,31 @@ export class AppSession {
     return this._subscriptions;
   }
 
+  /** Whether this app is using the v3 SDK (supports RECONNECT protocol) */
+  get isV3(): boolean {
+    if (!this._sdkVersion) return false;
+    const major = parseInt(this._sdkVersion.split(".")[0] ?? "", 10);
+    return Number.isFinite(major) && major >= 3;
+  }
+
+  /** Get the SDK version string (null for v2/legacy) */
+  get sdkVersion(): string | null {
+    return this._sdkVersion;
+  }
+
+  /** Set the SDK version (called from handleAppInit when CONNECTION_INIT includes sdkVersion) */
+  setSdkVersion(version: string | undefined): void {
+    if (version) {
+      this._sdkVersion = version;
+      this.logger.debug({ sdkVersion: version }, "SDK version set");
+    }
+  }
+
+  /** Whether this app is in TRANSPORT_DOWN state (v3 only) */
+  get isTransportDown(): boolean {
+    return this._state === AppConnectionState.TRANSPORT_DOWN;
+  }
+
   get locationRate(): LocationRate | null {
     return this._locationRate;
   }
@@ -219,7 +250,7 @@ export class AppSession {
   }
 
   get isInGracePeriod(): boolean {
-    return this._state === AppConnectionState.GRACE_PERIOD;
+    return this._state === AppConnectionState.GRACE_PERIOD || this._state === AppConnectionState.TRANSPORT_DOWN;
   }
 
   get isStopped(): boolean {
@@ -301,6 +332,11 @@ export class AppSession {
         { previousState: this._state },
         "✅ SDK reconnected during grace period - resurrection avoided!",
       );
+    } else if (this._state === AppConnectionState.TRANSPORT_DOWN) {
+      this.logger.info(
+        { previousState: this._state },
+        "✅ v3 SDK reconnected during TRANSPORT_DOWN - subscriptions preserved, instant resume!",
+      );
     } else if (this._state === AppConnectionState.DORMANT) {
       this.logger.info(
         { previousState: this._state },
@@ -372,7 +408,7 @@ export class AppSession {
    * Handle WebSocket disconnection
    */
   handleDisconnect(code: number, reason: string): void {
-    this.logger.info({ code, reason }, "App disconnected");
+    this.logger.info({ code, reason, sdkVersion: this._sdkVersion }, "App disconnected");
 
     this._disconnectedAt = new Date();
 
@@ -406,7 +442,20 @@ export class AppSession {
       return;
     }
 
-    // Start grace period for potential reconnection
+    // v3 SDK: enter TRANSPORT_DOWN — keep subscriptions alive, wait for RECONNECT.
+    // The transport broke but the app server is still running with state in memory.
+    // Don't destroy anything — the SDK will RECONNECT within milliseconds.
+    // If it doesn't reconnect within the grace period, we fall through to resurrection.
+    // See: cloud/issues/048-sdk-v3 reconnection architecture spike
+    if (this.isV3) {
+      this.logger.info("v3 SDK: entering TRANSPORT_DOWN — subscriptions preserved, waiting for RECONNECT");
+      this.setState(AppConnectionState.TRANSPORT_DOWN);
+      this.startGracePeriod();
+      return;
+    }
+
+    // v2 SDK (legacy): enter GRACE_PERIOD — same timer, but subscriptions may
+    // be cleared during resurrection if SDK doesn't reconnect in time.
     this.logger.info("Starting grace period for reconnection");
     this.setState(AppConnectionState.GRACE_PERIOD);
     this.startGracePeriod();
@@ -530,8 +579,15 @@ export class AppSession {
     this.graceTimer = setTimeout(async () => {
       this.logger.info("Grace period expired");
 
-      if (this._state === AppConnectionState.GRACE_PERIOD && !this._ownershipReleased) {
-        // No reconnect, no ownership release - trigger resurrection
+      const isWaitingForReconnect =
+        (this._state === AppConnectionState.GRACE_PERIOD ||
+          this._state === AppConnectionState.TRANSPORT_DOWN) &&
+        !this._ownershipReleased;
+
+      if (isWaitingForReconnect) {
+        // No reconnect, no ownership release - trigger resurrection.
+        // For v3 (TRANSPORT_DOWN): AppManager will preserve subscriptions.
+        // For v2 (GRACE_PERIOD): AppManager will stop+start (clears subscriptions).
         this.setState(AppConnectionState.RESURRECTING);
         try {
           await this.onGracePeriodExpired(this);

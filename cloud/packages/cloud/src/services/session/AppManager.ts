@@ -90,6 +90,7 @@ interface AppMessageResult {
 
 interface AppAttachOptions {
   ackType?: CloudToAppMessageType.CONNECTION_ACK | CloudToAppMessageType.RECONNECT_ACK;
+  sdkVersion?: string;
 }
 
 export class AppManager {
@@ -307,8 +308,42 @@ export class AppManager {
       return;
     }
 
-    // User is connected - attempt resurrection
-    this.logger.info({ packageName }, `[AppManager] Grace period expired, attempting resurrection`);
+    // v3 SDK: preserve AppSession with all subscriptions — just send webhook.
+    // The app server is probably still alive (SDK crashed or network died).
+    // When it reconnects, it finds the existing AppSession waiting with all
+    // subscriptions intact. Data resumes instantly after RECONNECT_ACK.
+    // See: cloud/issues/048-sdk-v3 reconnection architecture spike
+    if (appSession.isV3) {
+      this.logger.info(
+        { packageName, sdkVersion: appSession.sdkVersion },
+        `[AppManager] v3 grace period expired — preserving subscriptions, sending webhook for resurrection`,
+      );
+      appSession.markResurrecting();
+
+      try {
+        const result = await this.startApp(packageName);
+        if (!result.success) {
+          this.logger.error(
+            { packageName, error: result.error },
+            `[AppManager] v3 resurrection webhook failed for ${packageName}: ${result.error?.message}`,
+          );
+          appSession.markStopped();
+          if (this.userSession.websocket && this.userSession.websocket.readyState === WebSocketReadyState.OPEN) {
+            this.userSession.websocket.send(
+              JSON.stringify({ type: "app_stopped", packageName, timestamp: new Date() }),
+            );
+          }
+        }
+      } catch (error) {
+        this.logger.error(error, `[AppManager] v3 resurrection failed for ${packageName}`);
+        appSession.markStopped();
+      }
+      return;
+    }
+
+    // v2 SDK (legacy): stop and restart — this destroys the AppSession and
+    // clears subscriptions. The SDK must re-register handlers in onSession().
+    this.logger.info({ packageName }, `[AppManager] Grace period expired, attempting resurrection (v2 legacy)`);
 
     try {
       // Stop and restart the app (resurrection)
@@ -1217,6 +1252,7 @@ export class AppManager {
 
     await this.attachAppSocket(packageName, ws, {
       ackType: CloudToAppMessageType.RECONNECT_ACK,
+      sdkVersion: reconnectMessage.sdkVersion,
     });
   }
 
@@ -1336,6 +1372,7 @@ export class AppManager {
 
       await this.attachAppSocket(packageName, ws, {
         ackType: CloudToAppMessageType.CONNECTION_ACK,
+        sdkVersion: initMessage.sdkVersion,
       });
 
       // Resolve pending connection if it exists
@@ -1707,6 +1744,12 @@ export class AppManager {
       this.logger.warn({ packageName }, `[AppManager] Cannot attach app socket - AppManager disposed`);
       ws.close(1008, "Session ended");
       return;
+    }
+
+    // Set SDK version before handleConnect so the disconnect handler
+    // knows whether to use TRANSPORT_DOWN (v3) or GRACE_PERIOD (v2).
+    if (options.sdkVersion) {
+      connectedAppSession.setSdkVersion(options.sdkVersion);
     }
 
     connectedAppSession.handleConnect(ws);

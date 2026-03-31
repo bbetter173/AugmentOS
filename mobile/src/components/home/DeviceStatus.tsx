@@ -1,14 +1,14 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
 import CoreModule, {GlassesNotReadyEvent} from "core"
 import {useState, useEffect} from "react"
-import {ActivityIndicator, Image, Linking, TouchableOpacity, View, ViewStyle} from "react-native"
+import {ActivityIndicator, Image, TouchableOpacity, View, ViewStyle} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
 import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {useGlassesStore} from "@/stores/glasses"
+import {isGlassesLinkLayerBusy, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
 import {checkConnectivityRequirementsUI} from "@/utils/PermissionsUtils"
@@ -30,15 +30,13 @@ const getBatteryIcon = (batteryLevel: number): string => {
 }
 
 export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
-  const {themed, theme} = useAppTheme()
+  const {theme} = useAppTheme()
   const {push} = useNavigationHistory()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false)
-  const [autoBrightness, setAutoBrightness] = useSetting(SETTINGS.auto_brightness.key)
-  const [brightness, setBrightness] = useSetting(SETTINGS.brightness.key)
-  const [showSimulatedGlasses, setShowSimulatedGlasses] = useState(false)
   const glassesConnected = useGlassesStore((state) => state.connected)
   const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
+  const glassesConnectionState = useGlassesStore((state) => state.connectionState)
   const glassesStyle = useGlassesStore((state) => state.style)
   const color = useGlassesStore((state) => state.color)
   const caseRemoved = useGlassesStore((state) => state.caseRemoved)
@@ -47,7 +45,6 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
   const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const wifiSsid = useGlassesStore((state) => state.wifiSsid)
   const searching = useCoreStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
@@ -67,6 +64,19 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
       setShowGlassesBooting(false)
     }
   }, [glassesFullyBooted, glassesConnected])
+
+  const [wasSearching, setWasSearching] = useState(false)
+  useEffect(() => {
+    if (searching) {
+      setWasSearching(true)
+      return undefined
+    }
+    if (wasSearching) {
+      const timer = setTimeout(() => setWasSearching(false), 500)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [searching, wasSearching])
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
     return <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.background}} />
@@ -95,8 +105,10 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
     await CoreModule.connectDefault()
   }
 
+  const nativeLinkBusy = isGlassesLinkLayerBusy(glassesConnectionState)
+
   const handleConnectOrDisconnect = async () => {
-    if (searching) {
+    if (searching || nativeLinkBusy) {
       await CoreModule.disconnect()
       setIsCheckingConnectivity(false)
       setWasSearching(false)
@@ -123,33 +135,13 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
     return image
   }
 
-  // Delay clearing search state to prevent a flash of "Connect" button
-  // when searching ends but connected/fullyBooted haven't updated yet
-  const [wasSearching, setWasSearching] = useState(false)
-  useEffect(() => {
-    if (searching) {
-      setWasSearching(true)
-    } else if (wasSearching) {
-      const timer = setTimeout(() => setWasSearching(false), 500)
-      return () => clearTimeout(timer)
-    }
-  }, [searching])
-
-  let isSearching = searching || isCheckingConnectivity || wasSearching
+  let isSearching = searching || isCheckingConnectivity || wasSearching || nativeLinkBusy
   let connectingText = translate("home:connectingGlasses")
   // Only show booting message when we've received a glasses_not_ready event
   if (showGlassesBooting) {
     connectingText = "Glasses are booting..."
-  }
-
-  const handleGetSupport = () => {
-    showAlert(translate("home:getSupport"), translate("home:getSupportMessage"), [
-      {text: translate("common:cancel"), style: "cancel"},
-      {
-        text: translate("common:continue"),
-        onPress: () => Linking.openURL("https://mentraglass.com/contact"),
-      },
-    ])
+  } else if (nativeLinkBusy && !searching) {
+    connectingText = translate("glasses:glassesAreReconnecting")
   }
 
   const features = getModelCapabilities(defaultWearable)
@@ -191,11 +183,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
                   onPress={handleConnectOrDisconnect}>
                   <View className="flex-row items-center gap-2 flex-1">
                     <ActivityIndicator size="small" color={theme.colors.foreground} />
-                    <Text
-                      className="text-secondary-foreground"
-                      style={{fontSize: 14}}
-                      text={translate("common:cancel")}
-                    />
+                    <Text className="text-secondary-foreground" style={{fontSize: 14}} text={connectingText} />
                   </View>
                 </Button>
               )}

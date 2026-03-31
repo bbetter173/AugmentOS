@@ -1040,50 +1040,137 @@ function cmdHelp() {
   console.log(`
 bstack — BetterStack CLI for MentraCloud SRE
 
-Investigation commands (new):
+═══════════════════════════════════════════════════════════════════════════
+HOW IT WORKS (for humans and AI agents)
+═══════════════════════════════════════════════════════════════════════════
+
+This CLI sends ClickHouse SQL queries to BetterStack's HTTP API at:
+  ${SQL_ENDPOINT}
+
+Logs are stored in two places with different tradeoffs:
+  HOT storage  — last ~2-5 minutes only, fast (<1s queries)
+    Prod:  remote(t373499_mentracloud_prod_logs)
+    Dev:   remote(t373499_augmentos_logs)
+  COLD storage — full history, slower (3-5s queries), needs _row_type = 1
+    Prod:  s3Cluster(primary, t373499_mentracloud_prod_s3)
+    Dev:   s3Cluster(primary, t373499_augmentos_s3)
+
+The CLI auto-selects hot vs cold based on --duration:
+  ≤5 min  → hot table (fast, recent data only)
+  >5 min  → cold/S3 table (slow, full history, adds WHERE _row_type = 1)
+If you get zero rows for a query you expect data for, the duration might
+be too short for cold storage or too long for hot storage.
+
+Log fields are in a JSON blob called 'raw'. To extract fields use:
+  JSONExtractString(raw, 'level')    → "error", "warn", "info", "debug"
+  JSONExtractString(raw, 'message')  → the log message
+  JSONExtractString(raw, 'service')  → "AppManager", "UserSession", etc.
+  JSONExtractString(raw, 'region')   → "us-central", "france", etc.
+  JSONExtractString(raw, 'feature')  → "system-vitals", "gc-probe", etc.
+  JSONExtractString(raw, 'userId')   → user email
+  JSONExtractFloat(raw, 'rssMB')     → RSS memory in MB
+  JSONExtractInt(raw, 'activeSessions') → session count
+Do NOT use json.field dot notation — it doesn't work on these tables.
+
+Credentials are loaded in this order:
+  1. Environment variables (BETTERSTACK_USERNAME, BETTERSTACK_PASSWORD, etc.)
+  2. Auto-load from Doppler: doppler secrets get --project mentra-sre --config dev
+     (runs automatically if env vars are missing and doppler CLI is installed)
+SRE credentials live in Doppler project "mentra-sre" (NOT "mentraos-cloud").
+Cloud runtime secrets (MONGO_URL, etc.) are in "mentraos-cloud" — don't mix them.
+
+The admin API (for 'session' command) hits the cloud's /api/admin/memory/now
+endpoint with a Bearer JWT. The JWT is MENTRA_ADMIN_JWT from mentra-sre.
+
+Health checks hit each region's /health endpoint directly (no BetterStack):
+${Object.entries(REGIONS)
+  .map(([id, r]) => `  ${id.padEnd(12)} → ${r.healthUrl}`)
+  .join("\n")}
+
+If a command isn't doing what you need, use 'bstack sql' to run raw
+ClickHouse SQL directly. The patterns above show exactly how to query.
+
+═══════════════════════════════════════════════════════════════════════════
+COMMANDS
+═══════════════════════════════════════════════════════════════════════════
+
+Investigation:
   bstack logs <user|keyword>                 Search logs by user or keyword
-    --level error,warn                       Filter by log level
-    --duration 1h                            How far back to search (default: 15m)
-    --region france                          Filter by region
-    --service AppManager                     Filter by service
-    --env dev                                Search dev/debug source (default: prod)
-  bstack errors --region <r>                 Top errors by count
-    --duration 4h                            Time window (default: 4h)
-  bstack leaks --region <r>                  Memory leak detection
-    --duration 12h                           Time window (default: 12h)
-  bstack session <userId> --host <hostname>  Live session inspection via admin API
+    --level error,warn                         Filters: JSONExtractString(raw, 'level') IN (...)
+    --duration 1h                              How far back (default: 15m). Controls hot vs cold table.
+    --region france                            Filters: JSONExtractString(raw, 'region') = '...'
+    --service AppManager                       Filters: JSONExtractString(raw, 'service') = '...'
+    --env dev                                  Search dev/debug source instead of prod (default: prod)
+    Internally: SELECT dt, level, message, service FROM <table> WHERE raw LIKE '%<query>%' ...
 
-Diagnostics commands:
-  bstack health                              Quick health check across all regions
-  bstack diagnostics --region <r>            Full diagnostics (GC, gaps, MongoDB, budget)
-  bstack crash-timeline --region <r>         What happened before the last crash
-  bstack memory --region <r> [--duration 1h] Memory trend over time
-  bstack gc --region <r> [--duration 1h]     GC probe analysis
-  bstack gaps --region <r> [--duration 1h]   Event loop gap analysis
-  bstack budget --region <r>                 Operation budget (CPU consumers)
-  bstack slow-queries --region <r>           MongoDB slow query breakdown
-  bstack cache --region <r>                  App cache status
+  bstack errors --region <r>                 Top errors grouped by service + message
+    --duration 4h                              Time window (default: 4h)
+    Internally: GROUP BY service, message ORDER BY count() DESC
 
-Infrastructure commands:
-  bstack incidents [--limit 10]              Recent uptime incidents
-  bstack sources                             List all BetterStack sources/collectors
-  bstack sql "SELECT ..."                    Raw ClickHouse SQL query
-  bstack runbook <name>                      Open a runbook
+  bstack leaks --region <r>                  Memory leak detection — 3 queries:
+    --duration 12h                             Time window (default: 12h)
+    1. disposedSessionsPendingGC trend (from system-vitals, grouped by hour)
+       Should be 0. If climbing, sessions are stuck in memory after dispose().
+    2. GC probe trend (from gc-probe). avg_freed_mb should be > 0.
+       If GC frees 0MB consistently, objects are reachable but shouldn't be.
+    3. MemoryLeakDetector events — "Potential leak" = disposed but not GC'd
+       within 60s. "Object finalized by GC" = eventually collected (ok).
+
+  bstack session <userId> --host <hostname>  Hits GET /api/admin/memory/now on the host,
+    finds the user's session, shows running apps, subscriptions, mic state.
+    Requires MENTRA_ADMIN_JWT. Host must be the actual cloud hostname.
+
+Diagnostics:
+  bstack health                              Fetches /health from ALL regions in parallel.
+    Shows: sessions, uptime, RSS, heap, event loop lag.
+    Also fetches BetterStack uptime monitors if API_TOKEN is set.
+
+  bstack diagnostics --region <r>            Runs 5 queries: GC probes, event loop gaps,
+    MongoDB slow queries, operation budget, app cache. All from system-vitals/gc-probe/etc.
+
+  bstack crash-timeline --region <r>         Shows interleaved system-vitals, gc-probe,
+    event-loop-gap, and slow-query events to reconstruct what happened before a crash.
+
+  bstack memory --region <r> [--duration 1h] RSS/heap/external/arraybuf trend over time.
+    Calculates growth rate and estimates time to 1GB.
+
+  bstack gc --region <r> [--duration 1h]     GC probe durations and freed MB.
+    Warns if max GC > 100ms (contributing to event loop blocking).
+
+  bstack gaps --region <r> [--duration 1h]   Event loop gaps (>1s freezes).
+    Zero gaps = healthy. Any gaps = something blocking (GC, MongoDB, etc.).
+
+  bstack budget --region <r>                 Per-operation CPU time breakdown.
+    Shows audio processing, app messages, display rendering, MongoDB, etc.
+    Budget > 50% = event loop is CPU-bound. < 20% = healthy headroom.
+
+  bstack slow-queries --region <r>           MongoDB queries > 100ms, grouped by
+    collection + operation. Shows count, avg/max duration, total blocking time.
+
+  bstack cache --region <r>                  App cache refresh stats (count, timing).
+
+Infrastructure:
+  bstack incidents [--limit 10]              Fetches from BetterStack Uptime API.
+    Requires BETTERSTACK_API_TOKEN. Shows start time, cause, resolution.
+
+  bstack sources                             Lists all BetterStack log sources, collectors,
+    dashboards, and uptime monitors with their IDs and table names.
+
+  bstack sql "SELECT ..."                    Runs raw ClickHouse SQL. Append FORMAT JSON
+    automatically. Use this when no built-in command covers your query.
+
+  bstack runbook <name>                      Prints a runbook from cloud/tools/bstack/runbooks/.
+    Runbooks contain step-by-step investigation procedures with example queries.
 
 Regions: ${getAllRegions().join(", ")}
+Cluster IDs: ${Object.entries(REGIONS)
+    .map(([id, r]) => `${id}=${r.clusterId}`)
+    .join(", ")}
 
-Credentials:
-  Auto-loaded from Doppler (mentra-sre project) if available.
-  Or set manually:
-    BETTERSTACK_USERNAME    ClickHouse HTTP API username
-    BETTERSTACK_PASSWORD    ClickHouse HTTP API password
-    BETTERSTACK_API_TOKEN   Management API token (for uptime/incidents)
-    MENTRA_ADMIN_JWT        Admin API token (for session inspection)
-
-📖 Runbooks:
-  bstack runbook pod-crash           What to do when a pod crashes
-  bstack runbook weekly-error-audit  Weekly error audit process
-  bstack runbook client-disconnect   Investigate client disconnection patterns
+📖 Runbooks (run 'bstack runbook <name>' to read):
+  pod-crash            What to do when a pod crashes (exit codes, heap analysis, timer audit)
+  weekly-error-audit   Weekly error audit process (top errors, log volume, churn, memory)
+  client-disconnect    Investigate client disconnection patterns (ws-close, ws-reconnect)
 `)
 }
 

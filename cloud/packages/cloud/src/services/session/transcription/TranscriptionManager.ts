@@ -947,38 +947,31 @@ export class TranscriptionManager {
    */
   public getMemoryStats(): MemoryOwnerStat[] {
     const stats: MemoryOwnerStat[] = [];
+    const hasEnglishLanguageHistory = this.transcriptHistory.languageSegments.has("en-US");
 
     for (const [language, segments] of this.transcriptHistory.languageSegments.entries()) {
       stats.push({
         owner: `transcription.history.${language}`,
         scope: "session",
         itemCount: segments.length,
-        estimatedBytes: sumEstimatedBytes(segments, (segment) => {
-          return (
-            estimateStringBytes(segment.text) +
-            estimateStringBytes(segment.resultId) +
-            estimateStringBytes(segment.speakerId) +
-            64
-          );
-        }),
+        estimatedBytes: estimateTranscriptSegmentBytes(segments),
         metadata: { language },
       });
     }
 
-    if (this.transcriptHistory.segments.length > 0 && !this.transcriptHistory.languageSegments.has("en-US")) {
+    if (this.transcriptHistory.segments.length > 0) {
       stats.push({
         owner: "transcription.history.legacy",
         scope: "session",
         itemCount: this.transcriptHistory.segments.length,
-        estimatedBytes: sumEstimatedBytes(this.transcriptHistory.segments, (segment) => {
-          return (
-            estimateStringBytes(segment.text) +
-            estimateStringBytes(segment.resultId) +
-            estimateStringBytes(segment.speakerId) +
-            64
-          );
-        }),
-        metadata: { language: "en-US" },
+        estimatedBytes: hasEnglishLanguageHistory
+          ? estimateTranscriptReferenceBytes(this.transcriptHistory.segments.length)
+          : estimateTranscriptSegmentBytes(this.transcriptHistory.segments),
+        metadata: {
+          language: "en-US",
+          mirroredOwner: hasEnglishLanguageHistory ? "transcription.history.en-US" : null,
+          referenceOnly: hasEnglishLanguageHistory,
+        },
       });
     }
 
@@ -2366,4 +2359,20 @@ export class TranscriptionManager {
       this.logger.error({ error }, "Error during TranscriptionManager cleanup");
     }
   }
+}
+
+function estimateTranscriptSegmentBytes(segments: TranscriptSegment[]): number {
+  return sumEstimatedBytes(segments, (segment) => {
+    return (
+      estimateStringBytes(segment.text) +
+      estimateStringBytes(segment.resultId) +
+      estimateStringBytes(segment.speakerId) +
+      64
+    );
+  });
+}
+
+function estimateTranscriptReferenceBytes(segmentCount: number): number {
+  if (segmentCount <= 0) return 0;
+  return 64 + segmentCount * 16;
 }

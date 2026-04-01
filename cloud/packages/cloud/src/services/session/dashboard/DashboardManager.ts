@@ -20,10 +20,16 @@ import {
   ViewType,
   DisplayRequest,
   AppToCloudMessage,
+  BitmapAnimation,
+  BitmapView,
+  DashboardCard,
+  DoubleTextWall,
+  ReferenceCard,
+  TextWall,
 } from "@mentra/sdk";
 
 import { MemoryOwnerStat } from "../../metrics/memory-census";
-import { estimateJsonBytes, estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
+import { estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../../core/app.service";
 import { WebSocketReadyState } from "../../websocket/types";
 import UserSession from "../UserSession";
@@ -922,13 +928,45 @@ export class DashboardManager {
       scope: "session",
       itemCount: contentMap.size,
       estimatedBytes: sumEstimatedBytes(contentMap.values(), (item) => {
-        const contentBytes =
-          typeof item.content === "string" ? estimateStringBytes(item.content) : estimateJsonBytes(item.content);
+        const contentBytes = this.estimateContentBytes(item.content);
         return estimateStringBytes(item.packageName) + contentBytes + 32;
       }),
       metadata: {
         rotationIndex: owner === "dashboard.main-content" ? this.mainContentRotationIndex : null,
       },
     };
+  }
+
+  private estimateContentBytes(content: string | Layout): number {
+    if (typeof content === "string") {
+      return estimateStringBytes(content);
+    }
+
+    switch (content.layoutType) {
+      case LayoutType.TEXT_WALL:
+        return estimateStringBytes((content as TextWall).text);
+      case LayoutType.DOUBLE_TEXT_WALL:
+        return (
+          estimateStringBytes((content as DoubleTextWall).topText) +
+          estimateStringBytes((content as DoubleTextWall).bottomText)
+        );
+      case LayoutType.DASHBOARD_CARD:
+        return (
+          estimateStringBytes((content as DashboardCard).leftText) +
+          estimateStringBytes((content as DashboardCard).rightText)
+        );
+      case LayoutType.REFERENCE_CARD:
+        return (
+          estimateStringBytes((content as ReferenceCard).title) + estimateStringBytes((content as ReferenceCard).text)
+        );
+      case LayoutType.BITMAP_VIEW:
+        return estimateStringBytes((content as BitmapView).data);
+      case LayoutType.BITMAP_ANIMATION:
+        return sumEstimatedBytes((content as BitmapAnimation).frames, (frame) => estimateStringBytes(frame)) + 16;
+      case LayoutType.CLEAR_VIEW:
+        return 0;
+      default:
+        return 0;
+    }
   }
 }

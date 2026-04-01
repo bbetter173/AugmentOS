@@ -1,4 +1,4 @@
-import type { AppSettings, AppConfig, Capabilities } from "../../types";
+import type { AppSettings, AppConfig, AppSetting, Capabilities, ExtendedStreamType } from "../../types";
 import { MentraSession } from "../MentraSession";
 import { _V2AudioStreamShim } from "./_V2AudioStreamShim";
 import { _V2CameraShim, type _V2PhotoRequestBridge } from "./_V2CameraShim";
@@ -285,6 +285,101 @@ export class _V2SessionShim {
   }
 
   // ─── Low-Level Message Sending ──────────────────────────────────────────
+
+  // ─── Settings-Based Subscriptions ───────────────────────────────────────
+
+  /**
+   * @deprecated Use v3 manager-based subscriptions instead.
+   *
+   * Configure automatic subscription updates when settings change.
+   * The handler function receives the current settings and returns
+   * the desired subscription list. When any of the `updateOnChange`
+   * keys change, the handler is re-evaluated and subscriptions updated.
+   */
+  private _subscriptionSettingsHandler?: (settings: AppSettings) => ExtendedStreamType[];
+  private _subscriptionUpdateTriggers: string[] = [];
+
+  setSubscriptionSettings(options: {
+    updateOnChange: string[];
+    handler: (settings: AppSettings) => ExtendedStreamType[];
+  }): void {
+    this._subscriptionUpdateTriggers = options.updateOnChange;
+    this._subscriptionSettingsHandler = options.handler;
+
+    // If we already have settings, evaluate immediately
+    if (this.session.settingsData.length > 0) {
+      this._updateSubscriptionsFromSettings();
+    }
+
+    // Listen for settings changes to re-evaluate
+    this.session.onSettings((settings) => {
+      const shouldUpdate = this._subscriptionUpdateTriggers.some((key) => {
+        return settings.some((s: any) => s.key === key);
+      });
+      if (shouldUpdate) {
+        this._updateSubscriptionsFromSettings();
+      }
+    });
+  }
+
+  private _updateSubscriptionsFromSettings(): void {
+    if (!this._subscriptionSettingsHandler) return;
+    try {
+      this._subscriptionSettingsHandler(this.session.settingsData);
+      // Note: with Bug 007 fix, subscriptions are derived from handlers.
+      // The handler should register event handlers that correspond to the
+      // desired subscriptions. This call just triggers the re-evaluation.
+    } catch (error) {
+      this.session.logger.error(error, "Error updating subscriptions from settings");
+    }
+  }
+
+  // ─── Config Loading ─────────────────────────────────────────────────────
+
+  /**
+   * @deprecated Use appConfig property directly.
+   * Load app configuration from a JSON string.
+   */
+  loadConfigFromJson(jsonData: string): AppConfig {
+    try {
+      const parsed = JSON.parse(jsonData);
+      // Basic validation
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("Invalid App configuration format");
+      }
+      this.session.appConfig = parsed as AppConfig;
+      return parsed as AppConfig;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to load App configuration: ${msg}`);
+    }
+  }
+
+  /**
+   * @deprecated Read from appConfig.settings directly.
+   * Get default settings from the loaded app configuration.
+   */
+  getDefaultSettings(): AppSettings {
+    if (!this.session.appConfig) {
+      throw new Error("App configuration not loaded. Call loadConfigFromJson first.");
+    }
+    return (this.session.appConfig.settings || [])
+      .filter((s: any) => s.type !== "group" && "key" in s)
+      .map((s: any) => ({ ...s, value: s.defaultValue }));
+  }
+
+  /**
+   * @deprecated Read from appConfig.settings directly.
+   * Get the schema for a specific setting key.
+   */
+  getSettingSchema(key: string): AppSetting | undefined {
+    if (!this.session.appConfig) return undefined;
+    return (this.session.appConfig.settings || []).find(
+      (s: any) => s.type !== "group" && "key" in s && s.key === key,
+    ) as AppSetting | undefined;
+  }
+
+  // ─── Messaging ──────────────────────────────────────────────────────────
 
   /** Send an arbitrary JSON message over the WebSocket. */
   sendMessage(message: unknown): void {

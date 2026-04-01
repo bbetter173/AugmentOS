@@ -427,7 +427,7 @@ const en = {
     automaticSync: "Automatic Sync",
     saveToCameraRoll: "Save to Camera Roll",
     storageInfo: "Storage Info",
-    glassesAreReconnecting: "Glasses are reconnecting...",
+    glassesAreReconnecting: "Reconnecting...",
     glassesAreReconnectingMessage: "Make sure your glasses are turned on.",
     // Gallery sync WiFi explanation
     connectToGlassesTitle: "Connect to Glasses",

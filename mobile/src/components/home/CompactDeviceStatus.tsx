@@ -186,6 +186,8 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
           style={{
             flexDirection: "row",
             gap: theme.spacing.s2,
+            alignItems: "stretch",
+            minWidth: 0,
           }}>
           {!isSearching ? (
             <>
@@ -200,12 +202,29 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
               <Button
                 flex
                 compact
-                LeftAccessory={() => (
-                  <ActivityIndicator size="small" color={theme.colors.primary_foreground} style={{marginRight: 8}} />
-                )}
-                text={connectingText}
-                // tx="home:connectingGlasses"
-              />
+                flexContainer
+                preset="alternate"
+                style={{minWidth: 0, overflow: "visible"}}
+                textAlignment="left">
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    width: "100%",
+                    minWidth: 0,
+                    alignSelf: "stretch",
+                  }}>
+                  <ActivityIndicator size="small" color={theme.colors.primary_foreground} style={{flexShrink: 0}} />
+                  <View style={{flex: 1, minWidth: 0, justifyContent: "center"}}>
+                    <Text
+                      style={{fontSize: 14, color: theme.colors.secondary_foreground}}
+                      numberOfLines={2}
+                      text={connectingText}
+                    />
+                  </View>
+                </View>
+              </Button>
             </>
           )}
         </View>

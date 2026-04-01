@@ -109,6 +109,8 @@ class SystemVitalsLogger {
   private gapDetectorInterval?: NodeJS.Timeout;
   private lastGapTick: number = Date.now();
   private startedAt: number = Date.now();
+  private previousOwnerBytes = new Map<string, number>();
+  private memoryOwnerWarnCooldown = new Map<string, number>();
 
   start(): void {
     if (this.vitalsInterval) return;
@@ -230,6 +232,38 @@ class SystemVitalsLogger {
     }
   }
 
+  private maybeLogMemoryOwnerGrowth(
+    owner: string,
+    estimatedBytes: number,
+    deltaBytes: number,
+    userId: string | undefined,
+  ): void {
+    const OWNER_WARN_COOLDOWN_MS = 10 * 60 * 1000;
+    const now = Date.now();
+    const lastWarnAt = this.memoryOwnerWarnCooldown.get(owner) ?? 0;
+
+    if (estimatedBytes <= 25 * 1024 * 1024 && deltaBytes <= 2 * 1024 * 1024) {
+      return;
+    }
+
+    if (now - lastWarnAt < OWNER_WARN_COOLDOWN_MS) {
+      return;
+    }
+
+    this.memoryOwnerWarnCooldown.set(owner, now);
+
+    logger.warn(
+      {
+        feature: "memory-owner-growth",
+        owner,
+        estimatedBytes,
+        deltaBytes,
+        userId,
+      },
+      `Memory owner growth: ${owner} +${Math.round(deltaBytes / 1048576)}MB`,
+    );
+  }
+
   private logVitals(): void {
     try {
       const memUsage = process.memoryUsage();
@@ -241,6 +275,13 @@ class SystemVitalsLogger {
       let totalTranslationStreams = 0;
       let glassesWebSockets = 0;
       let micActiveCount = 0;
+      const ownerTotals = new Map<string, { estimatedBytes: number; itemCount: number }>();
+      const ownerLargestSession = new Map<string, { userId: string; estimatedBytes: number }>();
+      const topSessionCandidates: Array<{
+        userId: string;
+        estimatedBytes: number;
+        topOwners: Array<{ owner: string; estimatedBytes: number }>;
+      }> = [];
 
       for (const session of sessions) {
         totalAppWebsockets += session.appWebsockets?.size || 0;
@@ -273,6 +314,37 @@ class SystemVitalsLogger {
         } catch {
           // Swallow — property access failed, counts stay at 0
         }
+
+        try {
+          const census = session.getMemoryCensus();
+          const sortedOwners = [...census.owners].sort((a, b) => b.estimatedBytes - a.estimatedBytes);
+
+          topSessionCandidates.push({
+            userId: session.userId,
+            estimatedBytes: census.estimatedBytes,
+            topOwners: sortedOwners.slice(0, 3).map((owner) => ({
+              owner: owner.owner,
+              estimatedBytes: owner.estimatedBytes,
+            })),
+          });
+
+          for (const owner of census.owners) {
+            const current = ownerTotals.get(owner.owner) ?? { estimatedBytes: 0, itemCount: 0 };
+            current.estimatedBytes += owner.estimatedBytes;
+            current.itemCount += owner.itemCount;
+            ownerTotals.set(owner.owner, current);
+
+            const existingLargest = ownerLargestSession.get(owner.owner);
+            if (!existingLargest || owner.estimatedBytes > existingLargest.estimatedBytes) {
+              ownerLargestSession.set(owner.owner, {
+                userId: session.userId,
+                estimatedBytes: owner.estimatedBytes,
+              });
+            }
+          }
+        } catch (err) {
+          logger.error({ err, userId: session.userId }, "Failed to collect session memory census");
+        }
       }
 
       // Total connection count: glasses WS + app WS + Soniox streams + translation streams
@@ -281,6 +353,36 @@ class SystemVitalsLogger {
 
       const operationSnapshot = operationTimers.getAndReset();
       const totalOperationMs = Object.values(operationSnapshot).reduce((a, b) => a + b, 0);
+      const sortedOwners = [...ownerTotals.entries()]
+        .map(([owner, stats]) => ({
+          owner,
+          estimatedBytes: stats.estimatedBytes,
+          itemCount: stats.itemCount,
+        }))
+        .sort((a, b) => b.estimatedBytes - a.estimatedBytes);
+      const sortedOwnerDeltas = [...ownerTotals.entries()]
+        .map(([owner, stats]) => ({
+          owner,
+          estimatedBytes: stats.estimatedBytes,
+          deltaBytes: stats.estimatedBytes - (this.previousOwnerBytes.get(owner) ?? 0),
+          itemCount: stats.itemCount,
+        }))
+        .filter((owner) => owner.deltaBytes > 0)
+        .sort((a, b) => b.deltaBytes - a.deltaBytes);
+      const topSessions = topSessionCandidates.sort((a, b) => b.estimatedBytes - a.estimatedBytes).slice(0, 10);
+
+      for (const owner of sortedOwnerDeltas.slice(0, 10)) {
+        this.maybeLogMemoryOwnerGrowth(
+          owner.owner,
+          owner.estimatedBytes,
+          owner.deltaBytes,
+          ownerLargestSession.get(owner.owner)?.userId,
+        );
+      }
+
+      this.previousOwnerBytes = new Map(
+        Array.from(ownerTotals.entries(), ([owner, stats]) => [owner, stats.estimatedBytes] as const),
+      );
 
       logger.info(
         {
@@ -311,6 +413,21 @@ class SystemVitalsLogger {
 
           // Leak indicator
           disposedSessionsPendingGC: memoryLeakDetector.getDisposedPendingGCCount(),
+
+          // Code ownership census — which managers/structures actually own retained memory.
+          // This is the missing layer between heap shape ("Objects are growing")
+          // and root cause ("transcription.history.en-US owns the growth").
+          memoryEstimatedSessionBytes: sortedOwners.reduce((sum, owner) => sum + owner.estimatedBytes, 0),
+          memoryOwnerCount: ownerTotals.size,
+          memoryTopOwners: JSON.stringify(sortedOwners.slice(0, 10)),
+          memoryTopOwnerDeltas: JSON.stringify(
+            sortedOwnerDeltas.slice(0, 10).map((owner) => ({
+              owner: owner.owner,
+              deltaBytes: owner.deltaBytes,
+              estimatedBytes: owner.estimatedBytes,
+            })),
+          ),
+          memoryTopSessions: JSON.stringify(topSessions),
 
           // Heap object breakdown — shows WHAT is in the heap, not just how much.
           // Before this, we only had heapUsedMB (a single number). Now we see

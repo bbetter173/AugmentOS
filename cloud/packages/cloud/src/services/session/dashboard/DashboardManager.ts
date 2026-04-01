@@ -22,6 +22,8 @@ import {
   AppToCloudMessage,
 } from "@mentra/sdk";
 
+import { MemoryOwnerStat } from "../../metrics/memory-census";
+import { estimateJsonBytes, estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
 import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../../core/app.service";
 import { WebSocketReadyState } from "../../websocket/types";
 import UserSession from "../UserSession";
@@ -874,6 +876,28 @@ export class DashboardManager {
     return this.alwaysOnEnabled;
   }
 
+  public getMemoryStats(): MemoryOwnerStat[] {
+    return [
+      this.buildContentStat("dashboard.main-content", this.mainContent),
+      this.buildContentStat("dashboard.expanded-content", this.expandedContent),
+      this.buildContentStat("dashboard.always-on-content", this.alwaysOnContent),
+      {
+        owner: "dashboard.system-content",
+        scope: "session",
+        itemCount: Object.values(this.systemContent).filter(Boolean).length,
+        estimatedBytes:
+          estimateStringBytes(this.systemContent.topLeft) +
+          estimateStringBytes(this.systemContent.topRight) +
+          estimateStringBytes(this.systemContent.bottomLeft) +
+          estimateStringBytes(this.systemContent.bottomRight),
+        metadata: {
+          currentMode: this.currentMode,
+          alwaysOnEnabled: this.alwaysOnEnabled,
+        },
+      },
+    ];
+  }
+
   /**
    * Clean up resources when shutting down
    */
@@ -890,5 +914,21 @@ export class DashboardManager {
     this.alwaysOnContent.clear();
 
     this.logger.info({}, "Dashboard Manager disposed");
+  }
+
+  private buildContentStat(owner: string, contentMap: Map<string, AppContent>): MemoryOwnerStat {
+    return {
+      owner,
+      scope: "session",
+      itemCount: contentMap.size,
+      estimatedBytes: sumEstimatedBytes(contentMap.values(), (item) => {
+        const contentBytes =
+          typeof item.content === "string" ? estimateStringBytes(item.content) : estimateJsonBytes(item.content);
+        return estimateStringBytes(item.packageName) + contentBytes + 32;
+      }),
+      metadata: {
+        rotationIndex: owner === "dashboard.main-content" ? this.mainContentRotationIndex : null,
+      },
+    };
   }
 }

@@ -502,5 +502,97 @@ class CoreModule : Module() {
             true
         }
 
+        // MARK: - Test/Debug Commands (E2E Testing)
+
+        AsyncFunction("injectTestAudioFromFile") { filePath: String ->
+            try {
+                val file = java.io.File(filePath)
+                if (!file.exists()) {
+                    return@AsyncFunction mapOf("success" to false, "error" to "File not found: $filePath")
+                }
+
+                val wavData = java.io.FileInputStream(file).use { it.readBytes() }
+                if (wavData.size < 44) {
+                    return@AsyncFunction mapOf("success" to false, "error" to "Invalid WAV file: too small")
+                }
+
+                val riff = String(wavData.sliceArray(0..3))
+                val wave = String(wavData.sliceArray(8..11))
+                if (riff != "RIFF" || wave != "WAVE") {
+                    return@AsyncFunction mapOf("success" to false, "error" to "Invalid WAV file: not a valid WAV format")
+                }
+
+                val byteBuffer = java.nio.ByteBuffer.wrap(wavData).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                val numChannels = byteBuffer.getShort(22).toInt()
+                val sampleRate = byteBuffer.getInt(24)
+                val bitsPerSample = byteBuffer.getShort(34).toInt()
+
+                android.util.Log.d("CoreModule", "WAV: channels=$numChannels, sampleRate=$sampleRate, bits=$bitsPerSample")
+
+                if (sampleRate != 16000) {
+                    android.util.Log.w("CoreModule", "WAV sample rate is $sampleRate, expected 16000. Audio will be injected as-is.")
+                }
+                if (numChannels != 1) {
+                    android.util.Log.w("CoreModule", "WAV has $numChannels channels, expected 1 (mono). Using first channel only.")
+                }
+                if (bitsPerSample != 16) {
+                    return@AsyncFunction mapOf("success" to false, "error" to "Unsupported bits per sample: $bitsPerSample (need 16)")
+                }
+
+                var dataOffset = 12
+                while (dataOffset < wavData.size - 8) {
+                    val chunkId = String(wavData.sliceArray(dataOffset until dataOffset + 4))
+                    val chunkSize = byteBuffer.getInt(dataOffset + 4)
+                    if (chunkId == "data") {
+                        dataOffset += 8
+                        break
+                    }
+                    dataOffset += 8 + chunkSize
+                }
+
+                val pcmData = wavData.sliceArray(dataOffset until wavData.size)
+                val monoChunkSize = 640
+                val rawChunkSize = monoChunkSize * numChannels
+                val chunkDelayMs = 20L
+
+                Thread {
+                    var offset = 0
+                    var chunkCount = 0
+                    while (offset < pcmData.size) {
+                        val end = minOf(offset + rawChunkSize, pcmData.size)
+                        val chunk = pcmData.sliceArray(offset until end)
+
+                        val monoChunk = if (numChannels == 2) {
+                            val mono = ByteArray(chunk.size / 2)
+                            var monoIdx = 0
+                            var stereoIdx = 0
+                            while (stereoIdx < chunk.size - 3 && monoIdx < mono.size - 1) {
+                                mono[monoIdx] = chunk[stereoIdx]
+                                mono[monoIdx + 1] = chunk[stereoIdx + 1]
+                                monoIdx += 2
+                                stereoIdx += 4
+                            }
+                            mono.sliceArray(0 until monoIdx)
+                        } else {
+                            chunk
+                        }
+
+                        if (monoChunk.isNotEmpty()) {
+                            coreManager?.handlePcm(monoChunk)
+                            chunkCount++
+                        }
+                        offset = end
+                        Thread.sleep(chunkDelayMs)
+                    }
+                    android.util.Log.d("CoreModule", "Test audio injection complete: $chunkCount chunks sent")
+                }.start()
+
+                mapOf("success" to true, "pcmBytes" to pcmData.size, "durationMs" to (pcmData.size / 32))
+            } catch (e: Exception) {
+                android.util.Log.e("CoreModule", "Error injecting test audio: ${e.message}", e)
+                mapOf("success" to false, "error" to e.message)
+            }
+        }
+
     }
 }

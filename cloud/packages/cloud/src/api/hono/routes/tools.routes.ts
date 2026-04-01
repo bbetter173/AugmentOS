@@ -36,6 +36,16 @@ async function triggerTool(c: AppContext) {
   try {
     const packageName = c.req.param("packageName");
 
+    if (!packageName) {
+      return c.json(
+        {
+          error: true,
+          message: "Missing required parameter: packageName",
+        },
+        400,
+      );
+    }
+
     logger.debug({ packageName }, "Triggering tool for package");
 
     const payload = (await c.req.json().catch(() => ({}))) as ToolCall;

@@ -47,6 +47,10 @@ async function getTranscripts(c: AppContext) {
 
     logger.debug({ appSessionId, language }, `Fetching transcripts for session`);
 
+    if (!appSessionId) {
+      return c.json({ error: "Missing required parameter: appSessionId" }, 400);
+    }
+
     // Validate that at least one time parameter is provided
     if (!duration && !startTime && !endTime) {
       return c.json({ error: "duration, startTime, or endTime is required" }, 400);

@@ -315,6 +315,10 @@ async function getAppDetail(c: AppContext) {
   try {
     const packageName = c.req.param("packageName");
 
+    if (!packageName) {
+      return c.json({ error: "Missing required parameter: packageName" }, 400);
+    }
+
     const appDoc = await App.findOne({ packageName }).lean();
 
     if (!appDoc) {
@@ -355,6 +359,14 @@ async function approveApp(c: AppContext) {
     const adminEmail = c.get("email");
     const body = await c.req.json().catch(() => ({}));
     const { notes } = body as { notes?: string };
+
+    if (!packageName) {
+      return c.json({ error: "Missing required parameter: packageName" }, 400);
+    }
+
+    if (!adminEmail) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
 
     const appDoc = await App.findOne({ packageName });
 
@@ -419,6 +431,14 @@ async function rejectApp(c: AppContext) {
     const adminEmail = c.get("email");
     const body = await c.req.json().catch(() => ({}));
     const { notes } = body as { notes?: string };
+
+    if (!packageName) {
+      return c.json({ error: "Missing required parameter: packageName" }, 400);
+    }
+
+    if (!adminEmail) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
 
     if (!notes) {
       return c.json({ error: "Rejection notes are required" }, 400);

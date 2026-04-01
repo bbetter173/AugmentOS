@@ -295,6 +295,11 @@ async function searchApps(c: AppContext) {
 async function getAppByPackage(c: AppContext) {
   try {
     const packageName = c.req.param("packageName");
+
+    if (!packageName) {
+      return c.json({ success: false, message: "Missing required parameter: packageName" }, 400);
+    }
+
     const app = await appService.getApp(packageName);
 
     if (!app) {
@@ -330,6 +335,10 @@ async function startApp(c: AppContext) {
   const packageName = c.req.param("packageName");
   const userSession = c.get("userSession");
   const email = c.get("email");
+
+  if (!packageName) {
+    return c.json({ success: false, message: "Missing required parameter: packageName" }, 400);
+  }
 
   if (!userSession) {
     return c.json({ success: false, message: "No active session found" }, 401);
@@ -373,6 +382,10 @@ async function stopApp(c: AppContext) {
   const packageName = c.req.param("packageName");
   const userSession = c.get("userSession");
   const email = c.get("email");
+
+  if (!packageName) {
+    return c.json({ success: false, message: "Missing required parameter: packageName" }, 400);
+  }
 
   if (!userSession) {
     return c.json({ success: false, message: "No active session found" }, 401);

@@ -50,11 +50,13 @@ export default function InitScreen() {
   const [isUsingCustomUrl, setIsUsingCustomUrl] = useState(false)
   const [canSkipUpdate, setCanSkipUpdate] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isBlockedByVersion, setIsBlockedByVersion] = useState(false)
   // Zustand store hooks
   const [backendUrl, setBackendUrl] = useSetting(SETTINGS.backend_url.key)
   const [onboardingCompleted, _setOnboardingCompleted] = useSetting(SETTINGS.onboarding_completed.key)
   const [defaultWearable, _setDefaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [superMode] = useSetting(SETTINGS.super_mode.key)
+  const [cachedRequiredVersion, setCachedRequiredVersion] = useSetting(SETTINGS.cached_required_version.key)
 
   // Helper Functions
   const getLocalVersion = (): string | null => {
@@ -162,6 +164,19 @@ export default function InitScreen() {
     const res = await restComms.getMinimumClientVersion()
     if (res.is_error()) {
       console.error("Failed to fetch cloud version:", res.error)
+
+      // Even offline, check cached required version to block outdated apps
+      if (cachedRequiredVersion && semver.lt(localVer, cachedRequiredVersion)) {
+        console.log(`INIT: Offline but app is below cached required version (${localVer} < ${cachedRequiredVersion})`)
+        setLocalVersion(localVer)
+        setCloudVersion(cachedRequiredVersion)
+        setCanSkipUpdate(false)
+        setIsBlockedByVersion(true)
+        setState("outdated")
+        setIsRetrying(false)
+        return
+      }
+
       setState("connection")
       setIsRetrying(false)
       return
@@ -169,10 +184,17 @@ export default function InitScreen() {
 
     const {required, recommended} = res.value
     console.log(`INIT: Version check: local=${localVer}, required=${required}, recommended=${recommended}`)
+
+    // Cache the required version for offline enforcement
+    if (required && required !== cachedRequiredVersion) {
+      setCachedRequiredVersion(required)
+    }
+
     if (semver.lt(localVer, recommended)) {
       setLocalVersion(localVer)
       setCloudVersion(recommended)
       setCanSkipUpdate(!semver.lt(localVer, required))
+      setIsBlockedByVersion(semver.lt(localVer, required))
       setState("outdated")
       setIsRetrying(false)
       return
@@ -211,34 +233,36 @@ export default function InitScreen() {
         return {
           icon: "account-alert",
           iconColor: theme.colors.destructive,
-          title: "Authentication Error",
-          description: "Unable to authenticate. Please sign in again.",
+          title: translate("versionCheck:authErrorTitle"),
+          description: translate("versionCheck:authErrorDescription"),
         }
 
       case "connection":
         return {
           icon: "wifi-off",
           iconColor: theme.colors.destructive,
-          title: "Connection Error",
+          title: translate("versionCheck:connectionErrorTitle"),
           description: isUsingCustomUrl
-            ? "Could not connect to the custom server. Please try using the default server or check your connection."
-            : "Could not connect to the server. Please check your connection and try again.",
+            ? translate("versionCheck:connectionErrorCustomUrl")
+            : translate("versionCheck:connectionErrorDescription"),
         }
 
       case "outdated":
         return {
           icon: "update",
           iconColor: theme.colors.destructive,
-          title: "Update Required",
-          description: "MentraOS is outdated. Please update to continue using the application.",
+          title: translate(canSkipUpdate ? "versionCheck:updateAvailableTitle" : "versionCheck:updateRequiredTitle"),
+          description: translate(
+            canSkipUpdate ? "versionCheck:updateAvailableDescription" : "versionCheck:updateRequiredDescription",
+          ),
         }
 
       default:
         return {
           icon: "check-circle",
           iconColor: theme.colors.primary,
-          title: "Up to Date",
-          description: "MentraOS is up to date. Returning to home...",
+          title: translate("versionCheck:upToDateTitle"),
+          description: translate("versionCheck:upToDateDescription"),
         }
     }
   }
@@ -298,19 +322,18 @@ export default function InitScreen() {
           )}
 
           <View className="w-full items-center pb-8 gap-8">
-            {state === "connection" ||
-              (state === "auth" && (
-                <Button
-                  flexContainer
-                  onPress={() => checkCloudVersion(true)}
-                  className="w-full"
-                  text={isRetrying ? translate("versionCheck:retrying") : translate("versionCheck:retryConnection")}
-                  disabled={isRetrying}
-                  LeftAccessory={
-                    isRetrying ? () => <ActivityIndicator size="small" color={theme.colors.foreground} /> : undefined
-                  }
-                />
-              ))}
+            {(state === "connection" || state === "auth") && (
+              <Button
+                flexContainer
+                onPress={() => checkCloudVersion(true)}
+                className="w-full"
+                text={isRetrying ? translate("versionCheck:retrying") : translate("versionCheck:retryConnection")}
+                disabled={isRetrying}
+                LeftAccessory={
+                  isRetrying ? () => <ActivityIndicator size="small" color={theme.colors.foreground} /> : undefined
+                }
+              />
+            )}
 
             {state === "outdated" && (
               <Button
@@ -318,7 +341,7 @@ export default function InitScreen() {
                 preset="primary"
                 onPress={handleUpdate}
                 disabled={isUpdating}
-                tx="versionCheck:update"
+                tx={canSkipUpdate ? "versionCheck:update" : "versionCheck:updateRequiredButton"}
               />
             )}
 
@@ -336,7 +359,8 @@ export default function InitScreen() {
               />
             )}
 
-            {(state === "connection" || state == "auth" || (state === "outdated" && canSkipUpdate)) && (
+            {(((state === "connection" || state === "auth") && !isBlockedByVersion) ||
+              (state === "outdated" && canSkipUpdate)) && (
               <Button
                 flex
                 flexContainer

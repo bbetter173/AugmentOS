@@ -215,6 +215,10 @@ public class WhipCameraCapturer implements VideoCapturer {
       // manipulation.  The WebRTC encoder / receiver handles the rotation from
       // mFrameRotation, matching how RTMP/SRT use orientationHint metadata.
       mSurfaceTextureHelper.startListening(frame -> {
+        // Retain the buffer before wrapping in a new VideoFrame — the new frame's
+        // release() will decrement the refcount, and SurfaceTextureHelper will also
+        // release the original frame.  Without retain() this double-release crashes.
+        frame.getBuffer().retain();
         VideoFrame rotatedFrame = new VideoFrame(
             frame.getBuffer(), mFrameRotation, frame.getTimestampNs());
         mObserver.onFrameCaptured(rotatedFrame);

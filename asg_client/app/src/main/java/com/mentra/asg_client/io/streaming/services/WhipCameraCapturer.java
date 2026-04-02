@@ -65,6 +65,7 @@ public class WhipCameraCapturer implements VideoCapturer {
   private int mSensorOrientation;
   private int mFrameRotation;
   private boolean mIsFrontCamera;
+  private boolean mLoggedFrameSize = false;
 
   @Override
   public void initialize(SurfaceTextureHelper surfaceTextureHelper, Context context,
@@ -220,6 +221,13 @@ public class WhipCameraCapturer implements VideoCapturer {
       // it works correctly at any aspect ratio (including 16:9).
       mSurfaceTextureHelper.startListening(frame -> {
         TextureBufferImpl texBuffer = (TextureBufferImpl) frame.getBuffer();
+
+        if (!mLoggedFrameSize) {
+          mLoggedFrameSize = true;
+          Log.i(TAG, "DIAG: First frame buffer size: " + texBuffer.getWidth() + "x"
+              + texBuffer.getHeight() + " (requested: " + mWidth + "x" + mHeight
+              + ", sensor orientation: " + mSensorOrientation + ")");
+        }
 
         Matrix transformMatrix = new Matrix();
         transformMatrix.preTranslate(0.5f, 0.5f);

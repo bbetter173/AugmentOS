@@ -128,9 +128,9 @@ Interpretation:
 - **21:23:06 UTC** — `ws-close`, code `1006`, `silent=1231ms`, session `5s`
 - **21:23:11 UTC** — `ws-reconnect`, downtime `5295ms`
 - **21:23:16 UTC** — `ws-close`, code `1006`, `silent=812ms`, session `15s`
-- **21:24:16 UTC** — `ws-dispose`, `lastClose=1006`, `silent=60815ms`
 - **21:22:56 - 21:23:00 UTC** — repeated `No active session found`
 - **21:23:02 - 21:23:03 UTC** — repeated `Ignoring empty subscription update within reconnect grace window`
+- **21:24:16 UTC** — `ws-dispose`, `lastClose=1006`, `silent=60815ms`
 
 Interpretation:
 

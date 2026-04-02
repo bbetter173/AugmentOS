@@ -179,13 +179,24 @@ export class MemoryTelemetryService {
     const micEnabled = (session.microphoneManager as any).isEnabled?.() ?? false;
     const keepAliveActive = Boolean((session.microphoneManager as any)["keepAliveTimer"]);
 
-    const census =
-      typeof (session as any).getMemoryCensus === "function"
-        ? (session as any).getMemoryCensus()
-        : {
-            estimatedBytes: 0,
-            owners: [],
-          };
+    let census: SessionMemoryStats["memory"] = {
+      estimatedBytes: 0,
+      owners: [],
+    };
+    try {
+      if (typeof (session as any).getMemoryCensus === "function") {
+        census = (session as any).getMemoryCensus();
+      }
+    } catch (error) {
+      this.logger.error(
+        {
+          error,
+          userId: session.userId,
+          sessionId: session.sessionId,
+        },
+        "Failed to collect session memory census",
+      );
+    }
 
     return {
       userId: session.userId,

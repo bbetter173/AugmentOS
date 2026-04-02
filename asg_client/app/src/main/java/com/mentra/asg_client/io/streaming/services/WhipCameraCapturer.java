@@ -2,6 +2,7 @@ package com.mentra.asg_client.io.streaming.services;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Matrix;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -18,6 +19,7 @@ import androidx.annotation.NonNull;
 
 import org.webrtc.CapturerObserver;
 import org.webrtc.SurfaceTextureHelper;
+import org.webrtc.TextureBufferImpl;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoFrame;
 
@@ -108,10 +110,12 @@ public class WhipCameraCapturer implements VideoCapturer {
       mIsFrontCamera = false;
     }
 
-    // Let the WebRTC stack handle rotation via metadata (like RTMP/SRT use
-    // MediaRecorder.setOrientationHint). This avoids GPU-level pixel rotation
-    // which causes aspect-ratio stretching at non-square resolutions (e.g. 16:9).
-    mFrameRotation = mSensorOrientation;
+    // Frame rotation = 0 for fixed-landscape devices like glasses.
+    // WebRTC's rotation field causes the stack to transpose dimensions (unlike
+    // RTMP's orientationHint which is just metadata). We handle rotation via
+    // GPU texture transform instead, which rotates content in-place without
+    // changing buffer dimensions.
+    mFrameRotation = 0;
 
     Log.d(TAG, "Sensor orientation: " + mSensorOrientation
         + ", isFront: " + mIsFrontCamera + ", frame rotation: " + mFrameRotation);
@@ -211,18 +215,27 @@ public class WhipCameraCapturer implements VideoCapturer {
 
       mCaptureSession.setRepeatingRequest(builder.build(), null, mCameraHandler);
 
-      // Pass frames through with rotation metadata only — no GPU-level pixel
-      // manipulation.  The WebRTC encoder / receiver handles the rotation from
-      // mFrameRotation, matching how RTMP/SRT use orientationHint metadata.
+      // Apply GPU-level texture rotation to correct for sensor orientation.
+      // This rotates content in-place without changing buffer dimensions, so
+      // it works correctly at any aspect ratio (including 16:9).
       mSurfaceTextureHelper.startListening(frame -> {
-        // Retain the buffer before wrapping in a new VideoFrame — the new frame's
-        // release() will decrement the refcount, and SurfaceTextureHelper will also
-        // release the original frame.  Without retain() this double-release crashes.
-        frame.getBuffer().retain();
-        VideoFrame rotatedFrame = new VideoFrame(
-            frame.getBuffer(), mFrameRotation, frame.getTimestampNs());
-        mObserver.onFrameCaptured(rotatedFrame);
-        rotatedFrame.release();
+        TextureBufferImpl texBuffer = (TextureBufferImpl) frame.getBuffer();
+
+        Matrix transformMatrix = new Matrix();
+        transformMatrix.preTranslate(0.5f, 0.5f);
+        if (mIsFrontCamera) {
+          transformMatrix.preScale(-1f, 1f);
+        }
+        transformMatrix.preRotate(-mSensorOrientation);
+        transformMatrix.preTranslate(-0.5f, -0.5f);
+
+        TextureBufferImpl modifiedBuffer = texBuffer.applyTransformMatrix(
+            transformMatrix, texBuffer.getWidth(), texBuffer.getHeight());
+
+        VideoFrame modifiedFrame = new VideoFrame(
+            modifiedBuffer, mFrameRotation, frame.getTimestampNs());
+        mObserver.onFrameCaptured(modifiedFrame);
+        modifiedFrame.release();
       });
 
       mObserver.onCapturerStarted(true);

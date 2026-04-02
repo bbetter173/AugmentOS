@@ -282,6 +282,14 @@ export default function InitScreen() {
     }
   }, [authLoading, isNavigationReady])
 
+  // Clear cached required version when backend URL changes so a stricter
+  // server's requirement doesn't block access to a different backend.
+  useEffect(() => {
+    if (cachedRequiredVersion) {
+      setCachedRequiredVersion("")
+    }
+  }, [backendUrl])
+
   useEffect(() => {
     setAnimation("fade")
   }, [])

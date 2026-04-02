@@ -253,6 +253,13 @@ public class WhipStreamingService extends Service {
     if (CameraNeo.isCameraInUse()) {
       Log.e(TAG, "Cannot start WHIP stream - camera is busy with photo/video capture");
       notifyError("camera_busy");
+      // If we were reconnecting, reset state so we don't get stuck in RECONNECTING
+      if (mIsReconnecting) {
+        mIsReconnecting = false;
+        mReconnectAttempts = 0;
+        resetState();
+        notifyStopped();
+      }
       return;
     }
 
@@ -979,7 +986,7 @@ public class WhipStreamingService extends Service {
   public static boolean resetStreamTimeout(String streamId) {
     if (sInstance == null) return false;
     boolean matches = streamId != null && streamId.equals(sInstance.mCurrentStreamId);
-    if (matches || sInstance.mStreamState == StreamState.STREAMING) {
+    if (matches) {
       sInstance.scheduleStreamTimeout(streamId);
       // Re-acquire wake lock on keep-alive
       WakeLockManager.acquireFullWakeLockAndBringToForeground(

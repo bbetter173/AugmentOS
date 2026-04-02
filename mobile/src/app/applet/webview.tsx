@@ -38,13 +38,21 @@ export default function AppWebView() {
   // Track whether the WebView has back navigation history
   const [webViewCanGoBack, setWebViewCanGoBack] = useState(false)
 
+  // Allow back to exit if route params are invalid (no X button on that screen)
+  const hasValidParams =
+    typeof webviewURL === "string" && typeof appName === "string" && typeof packageName === "string"
+
   // Back press handler: navigate within WebView if possible, otherwise do nothing.
   // Users must press X to exit the miniapp.
   const handleWebViewBack = useCallback(() => {
+    if (!hasValidParams) {
+      goBack()
+      return
+    }
     if (webViewCanGoBack && webViewRef.current) {
       webViewRef.current.goBack()
     }
-  }, [webViewCanGoBack])
+  }, [webViewCanGoBack, hasValidParams, goBack])
 
   // Prevent iOS swipe-back gesture and intercept Android back button.
   // Back navigates within the WebView; only X exits the miniapp.
@@ -69,7 +77,7 @@ export default function AppWebView() {
     opacity: loadingOpacity.value,
   }))
 
-  if (typeof webviewURL !== "string" || typeof appName !== "string" || typeof packageName !== "string") {
+  if (!hasValidParams) {
     return <Text>Missing required parameters</Text>
   }
 

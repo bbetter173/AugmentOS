@@ -927,9 +927,8 @@ public class MentraLive extends SGCManager {
             @Override
             public void run() {
                 if (!isConnected && !isConnecting && !isKilled) {
-                    // Prefer saved MAC (same as manual connect). savedDeviceName is the RN device id
-                    // (e.g. Mentra_Live_D977), which never equals the BLE advertised name (XyBLE_*, etc.),
-                    // so name-only reconnect scans could never find the glasses.
+                    // Prefer saved MAC for direct GATT connect (faster and more reliable than scanning).
+                    // Falls back to name-based scan if no address is saved.
                     String lastDeviceAddress = (String) GlassesStore.INSTANCE.get("core", "device_address");
                     if (lastDeviceAddress != null && !lastDeviceAddress.isEmpty() && bluetoothAdapter != null) {
                         try {
@@ -994,6 +993,10 @@ public class MentraLive extends SGCManager {
                     isConnected = true;
                     connectedDevice = gatt.getDevice();
                     GlassesStore.INSTANCE.apply("glasses", "bluetoothName", connectedDevice.getName());
+                    // Persist MAC so reconnection can use direct GATT instead of scanning
+                    if (connectedDevice.getAddress() != null) {
+                        GlassesStore.INSTANCE.apply("core", "device_address", connectedDevice.getAddress());
+                    }
 
                     // Save the connected device name for future reconnections
                     // no longer needed as we now save it immediately in connectToDevice()

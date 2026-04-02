@@ -590,12 +590,14 @@ extension MentraLive: CBCentralManagerDelegate {
         isConnecting = false
         connectedPeripheral = peripheral
 
-        // Save device name for future reconnection
+        // Save device name and address for future reconnection
         if let name = peripheral.name {
             UserDefaults.standard.set(name, forKey: PREFS_DEVICE_NAME)
             Bridge.log("Saved device name for future reconnection: \(name)")
             GlassesStore.shared.apply("glasses", "bluetoothName", name)
         }
+        // Persist peripheral UUID so CoreManager can sync it to RN settings
+        GlassesStore.shared.apply("core", "device_address", peripheral.identifier.uuidString)
 
         // Audio Pairing: Setup Bluetooth audio after BLE connection
         if let deviceName = peripheral.name {
@@ -642,6 +644,7 @@ extension MentraLive: CBCentralManagerDelegate {
 
         stopConnectionTimeout()
         isConnecting = false
+        connectedPeripheral = nil
         updateConnectionState(ConnTypes.DISCONNECTED)
 
         if !isKilled {

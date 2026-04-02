@@ -13,7 +13,8 @@ import {Spacer} from "@/components/ui/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {isGlassesLinkLayerBusy, useGlassesStore} from "@/stores/glasses"
+import {useGlassesStore} from "@/stores/glasses"
+import {useSearchingState} from "@/hooks/useSearchingState"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
@@ -76,18 +77,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
     }
   }, [glassesFullyBooted, glassesConnected])
 
-  const [wasSearching, setWasSearching] = useState(false)
-  useEffect(() => {
-    if (searching) {
-      setWasSearching(true)
-      return undefined
-    }
-    if (wasSearching) {
-      const timer = setTimeout(() => setWasSearching(false), 500)
-      return () => clearTimeout(timer)
-    }
-    return undefined
-  }, [searching, wasSearching])
+  const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnectionState)
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
     return <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.background}} />
@@ -116,12 +106,11 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
     await CoreModule.connectDefault()
   }
 
-  const nativeLinkBusy = isGlassesLinkLayerBusy(glassesConnectionState)
-
   const handleConnectOrDisconnect = async () => {
     if (searching || nativeLinkBusy) {
       await CoreModule.disconnect()
       setIsCheckingConnectivity(false)
+      resetSearching()
     } else {
       await connectGlasses()
     }

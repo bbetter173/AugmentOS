@@ -151,6 +151,13 @@ public class StreamCommandHandler implements ICommandHandler {
             switch (protocol) {
                 case RTMP: {
                     RtmpStreamConfig config = RtmpStreamConfig.fromJson(videoJson, audioJson);
+                    if (isResolutionTooHigh(config.getVideoWidth(), config.getVideoHeight())) {
+                        Log.w(TAG, "Rejecting RTMP stream request that exceeds supported camera output: "
+                                + config.getVideoWidth() + "x" + config.getVideoHeight());
+                        streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
+                                "Resolution too high");
+                        return false;
+                    }
                     Log.d(TAG, "Starting RTMP stream to: " + streamUrl);
                     RtmpStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     RtmpStreamingService.setStateManager(stateManager);
@@ -158,6 +165,13 @@ public class StreamCommandHandler implements ICommandHandler {
                 }
                 case SRT: {
                     RtmpStreamConfig config = RtmpStreamConfig.fromJson(videoJson, audioJson);
+                    if (isResolutionTooHigh(config.getVideoWidth(), config.getVideoHeight())) {
+                        Log.w(TAG, "Rejecting SRT stream request that exceeds supported camera output: "
+                                + config.getVideoWidth() + "x" + config.getVideoHeight());
+                        streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
+                                "Resolution too high");
+                        return false;
+                    }
                     Log.d(TAG, "Starting SRT stream to: " + streamUrl);
                     SrtStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     SrtStreamingService.setStateManager(stateManager);
@@ -165,7 +179,7 @@ public class StreamCommandHandler implements ICommandHandler {
                 }
                 case WHIP: {
                     WhipStreamConfig config = WhipStreamConfig.fromJson(videoJson, audioJson);
-                    if (isWhipResolutionTooHigh(config)) {
+                    if (isResolutionTooHigh(config.getVideoWidth(), config.getVideoHeight())) {
                         Log.w(TAG, "Rejecting WHIP stream request that exceeds supported camera output: "
                                 + config.getVideoWidth() + "x" + config.getVideoHeight());
                         streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
@@ -187,14 +201,13 @@ public class StreamCommandHandler implements ICommandHandler {
         }
     }
 
-    private boolean isWhipResolutionTooHigh(WhipStreamConfig config) {
+    private boolean isResolutionTooHigh(int width, int height) {
         try {
             WhipCameraFormatSelector.SelectionResult selection =
-                    WhipCameraFormatSelector.selectCaptureSize(context, config.getVideoWidth(),
-                            config.getVideoHeight());
+                    WhipCameraFormatSelector.selectCaptureSize(context, width, height);
             return selection != null && selection.hasSupportedSizes() && selection.requiresUpscale();
         } catch (Exception e) {
-            Log.w(TAG, "Unable to validate WHIP resolution; allowing request", e);
+            Log.w(TAG, "Unable to validate requested stream resolution; allowing request", e);
             return false;
         }
     }

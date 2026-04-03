@@ -8,7 +8,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {
   ClientAppletInterface,
-  getLastOpenTime,
+  sortAppsByLastOpenTime,
   useActiveApps,
   useActiveBackgroundApps,
   useActiveForegroundApp,
@@ -48,26 +48,14 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
   const [androidBlur] = useSetting(SETTINGS.android_blur.key)
 
   useEffect(() => {
-    const sortApps = async () => {
-      let list = [...backgroundApps]
-      if (foregroundApp) {
-        list.push(foregroundApp)
-      }
-      const timestamps = await Promise.all(
-        list.map(async (app) => ({
-          app,
-          time: await getLastOpenTime(app.packageName),
-        })),
-      )
-      const sortedApps = timestamps
-        .sort((a, b) => {
-          if (a.time.is_error() || b.time.is_error()) return 0
-          return a.time.value - b.time.value
-        })
-        .map((entry) => entry.app)
-      setAppsList(sortedApps)
+    let cancelled = false
+    const list = foregroundApp ? [...backgroundApps, foregroundApp] : [...backgroundApps]
+    sortAppsByLastOpenTime(list).then((sorted) => {
+      if (!cancelled) setAppsList(sorted)
+    })
+    return () => {
+      cancelled = true
     }
-    sortApps()
   }, [backgroundApps, foregroundApp])
 
   const panGesture = Gesture.Pan()

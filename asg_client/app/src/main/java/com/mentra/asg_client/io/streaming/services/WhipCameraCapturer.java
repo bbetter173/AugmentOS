@@ -80,6 +80,8 @@ public class WhipCameraCapturer implements VideoCapturer {
   private int mCropWidth;
   private int mCropHeight;
   private int mSensorOrientation;
+  private boolean mUseFixedDeviceRotation;
+  private int mFallbackDeviceRotation;
   private boolean mIsFrontCamera;
   private boolean mLoggedFrameSize = false;
 
@@ -127,6 +129,7 @@ public class WhipCameraCapturer implements VideoCapturer {
       Size normalizedCaptureSize = normalizeLandscapeSize(captureSize);
       mCaptureWidth = normalizedCaptureSize.getWidth();
       mCaptureHeight = normalizedCaptureSize.getHeight();
+      initializeDeviceRotationState();
       updateOutputCrop();
       mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
       initialFrameRotation = getFrameOrientation();
@@ -138,6 +141,7 @@ public class WhipCameraCapturer implements VideoCapturer {
       mCameraSurfaceHeight = height;
       mCaptureWidth = width;
       mCaptureHeight = height;
+      initializeDeviceRotationState();
       updateOutputCrop();
       mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
       initialFrameRotation = 0;
@@ -381,15 +385,20 @@ public class WhipCameraCapturer implements VideoCapturer {
     return (mSensorOrientation + deviceOrientation) % 360;
   }
 
+  private void initializeDeviceRotationState() {
+    mUseFixedDeviceRotation = ServiceUtils.isK900Device(mContext);
+    mFallbackDeviceRotation = ServiceUtils.determineDefaultRotationForDevice(mContext);
+  }
+
   private int getDeviceOrientationDegrees() {
-    if (ServiceUtils.isK900Device(mContext)) {
-      return ServiceUtils.determineDefaultRotationForDevice(mContext);
+    if (mUseFixedDeviceRotation) {
+      return mFallbackDeviceRotation;
     }
 
     WindowManager windowManager =
         (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
     if (windowManager == null) {
-      return ServiceUtils.determineDefaultRotationForDevice(mContext);
+      return mFallbackDeviceRotation;
     }
 
     Display display = null;
@@ -402,7 +411,7 @@ public class WhipCameraCapturer implements VideoCapturer {
       display = fallbackDisplay;
     }
     if (display == null) {
-      return ServiceUtils.determineDefaultRotationForDevice(mContext);
+      return mFallbackDeviceRotation;
     }
 
     switch (display.getRotation()) {

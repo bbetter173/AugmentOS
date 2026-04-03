@@ -10,7 +10,6 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -109,54 +108,45 @@ public class WhipCameraCapturer implements VideoCapturer {
     CameraManager cameraManager =
         (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
 
-    String cameraId = selectBackCamera(cameraManager);
-    if (cameraId == null) {
-      Log.e(TAG, "No back-facing camera found");
-      mObserver.onCapturerStarted(false);
-      return;
-    }
-
     int initialFrameRotation;
     try {
+      String cameraId = WhipCameraFormatSelector.selectBackCamera(cameraManager);
+      if (cameraId == null) {
+        Log.e(TAG, "No back-facing camera found");
+        mObserver.onCapturerStarted(false);
+        return;
+      }
+
       CameraCharacteristics chars = cameraManager.getCameraCharacteristics(cameraId);
       Integer sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
       mSensorOrientation = sensorOrientation != null ? sensorOrientation : 90;
       Integer facing = chars.get(CameraCharacteristics.LENS_FACING);
       mIsFrontCamera = facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT;
-      Size captureSize = chooseCaptureSize(chars, width, height);
+      WhipCameraFormatSelector.SelectionResult selection =
+          WhipCameraFormatSelector.selectCaptureSize(chars, width, height);
+      Size captureSize = selection.getRawCaptureSize();
       mCameraSurfaceWidth = captureSize.getWidth();
       mCameraSurfaceHeight = captureSize.getHeight();
-      Size normalizedCaptureSize = normalizeLandscapeSize(captureSize);
+      Size normalizedCaptureSize = selection.getNormalizedCaptureSize();
       mCaptureWidth = normalizedCaptureSize.getWidth();
       mCaptureHeight = normalizedCaptureSize.getHeight();
       initializeDeviceRotationState();
       updateOutputCrop();
       mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
       initialFrameRotation = getFrameOrientation();
-    } catch (CameraAccessException e) {
-      Log.w(TAG, "Failed to get camera characteristics", e);
-      mSensorOrientation = 90;
-      mIsFrontCamera = false;
-      mCameraSurfaceWidth = width;
-      mCameraSurfaceHeight = height;
-      mCaptureWidth = width;
-      mCaptureHeight = height;
-      initializeDeviceRotationState();
-      updateOutputCrop();
-      mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
-      initialFrameRotation = 0;
-    }
 
-    Log.d(TAG, "Requested capture: " + mWidth + "x" + mHeight
-        + ", selected camera size: " + mCameraSurfaceWidth + "x" + mCameraSurfaceHeight
-        + ", normalized capture size: " + mCaptureWidth + "x" + mCaptureHeight
-        + ", crop window: " + mCropWidth + "x" + mCropHeight + " @ (" + mCropX + ", " + mCropY
-        + ")"
-        + ", sensor orientation: " + mSensorOrientation
-        + ", isFront: " + mIsFrontCamera
-        + ", frame rotation: " + initialFrameRotation);
+      if (selection.hasSupportedSizes()) {
+        Log.d(TAG, "Available SurfaceTexture sizes: "
+            + Arrays.toString(selection.getAvailableOutputSizes()));
+        if (selection.getTransformPenalty() == 1) {
+          Log.d(TAG, "Selected camera size " + mCameraSurfaceWidth + "x" + mCameraSurfaceHeight
+              + " will be cropped and downscaled to " + width + "x" + height);
+        } else if (selection.getTransformPenalty() == 2) {
+          Log.w(TAG, "Selected camera size " + mCameraSurfaceWidth + "x" + mCameraSurfaceHeight
+              + " cannot reach requested " + width + "x" + height + " without upscaling");
+        }
+      }
 
-    try {
       cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
@@ -181,9 +171,29 @@ public class WhipCameraCapturer implements VideoCapturer {
         }
       }, mCameraHandler);
     } catch (CameraAccessException e) {
-      Log.e(TAG, "Failed to open camera", e);
+      mSensorOrientation = 90;
+      mIsFrontCamera = false;
+      mCameraSurfaceWidth = width;
+      mCameraSurfaceHeight = height;
+      mCaptureWidth = width;
+      mCaptureHeight = height;
+      initializeDeviceRotationState();
+      updateOutputCrop();
+      mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
+      initialFrameRotation = 0;
+      Log.e(TAG, "Failed to configure or open camera", e);
       mObserver.onCapturerStarted(false);
+      return;
     }
+
+    Log.d(TAG, "Requested capture: " + mWidth + "x" + mHeight
+        + ", selected camera size: " + mCameraSurfaceWidth + "x" + mCameraSurfaceHeight
+        + ", normalized capture size: " + mCaptureWidth + "x" + mCaptureHeight
+        + ", crop window: " + mCropWidth + "x" + mCropHeight + " @ (" + mCropX + ", " + mCropY
+        + ")"
+        + ", sensor orientation: " + mSensorOrientation
+        + ", isFront: " + mIsFrontCamera
+        + ", frame rotation: " + initialFrameRotation);
   }
 
   private void createCaptureSession() {
@@ -348,24 +358,6 @@ public class WhipCameraCapturer implements VideoCapturer {
     return false;
   }
 
-  private String selectBackCamera(CameraManager cameraManager) {
-    try {
-      for (String id : cameraManager.getCameraIdList()) {
-        CameraCharacteristics chars = cameraManager.getCameraCharacteristics(id);
-        Integer facing = chars.get(CameraCharacteristics.LENS_FACING);
-        if (facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
-          return id;
-        }
-      }
-      // Fallback: return first available camera
-      String[] ids = cameraManager.getCameraIdList();
-      return ids.length > 0 ? ids[0] : null;
-    } catch (CameraAccessException e) {
-      Log.e(TAG, "Failed to enumerate cameras", e);
-      return null;
-    }
-  }
-
   private Matrix createTextureTransformMatrix() {
     Matrix transformMatrix = new Matrix();
     transformMatrix.preTranslate(0.5f, 0.5f);
@@ -425,70 +417,6 @@ public class WhipCameraCapturer implements VideoCapturer {
       default:
         return 0;
     }
-  }
-
-  private Size chooseCaptureSize(CameraCharacteristics characteristics, int requestedWidth,
-      int requestedHeight) {
-    StreamConfigurationMap configurationMap =
-        characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-    if (configurationMap == null) {
-      Log.w(TAG, "No stream configuration map; using requested size "
-          + requestedWidth + "x" + requestedHeight);
-      return new Size(requestedWidth, requestedHeight);
-    }
-
-    Size[] outputSizes = configurationMap.getOutputSizes(SurfaceTexture.class);
-    if (outputSizes == null || outputSizes.length == 0) {
-      Log.w(TAG, "No SurfaceTexture output sizes; using requested size "
-          + requestedWidth + "x" + requestedHeight);
-      return new Size(requestedWidth, requestedHeight);
-    }
-
-    Size requestedSize = normalizeLandscapeSize(new Size(requestedWidth, requestedHeight));
-    Size bestRawSize = outputSizes[0];
-    Size bestSize = normalizeLandscapeSize(bestRawSize);
-    int bestTransformPenalty = Integer.MAX_VALUE;
-    long bestSourceArea = Long.MAX_VALUE;
-    long bestCropAreaDelta = Long.MAX_VALUE;
-
-    for (Size rawSize : outputSizes) {
-      Size candidate = normalizeLandscapeSize(rawSize);
-      Size croppedSize = getCenterCropSize(candidate.getWidth(), candidate.getHeight(),
-          requestedSize.getWidth(), requestedSize.getHeight());
-      boolean meetsRequestedSize = croppedSize.getWidth() >= requestedSize.getWidth()
-          && croppedSize.getHeight() >= requestedSize.getHeight();
-      boolean exactOutput = croppedSize.getWidth() == requestedSize.getWidth()
-          && croppedSize.getHeight() == requestedSize.getHeight();
-      int transformPenalty = exactOutput ? 0 : meetsRequestedSize ? 1 : 2;
-      long candidateArea = (long) candidate.getWidth() * candidate.getHeight();
-      long cropArea = (long) croppedSize.getWidth() * croppedSize.getHeight();
-      long cropAreaDelta = Math.abs(cropArea
-          - ((long) requestedSize.getWidth() * requestedSize.getHeight()));
-
-      boolean isBetter = transformPenalty < bestTransformPenalty
-          || (transformPenalty == bestTransformPenalty && candidateArea < bestSourceArea)
-          || (transformPenalty == bestTransformPenalty && candidateArea == bestSourceArea
-              && cropAreaDelta < bestCropAreaDelta);
-
-      if (isBetter) {
-        bestRawSize = rawSize;
-        bestSize = candidate;
-        bestTransformPenalty = transformPenalty;
-        bestSourceArea = candidateArea;
-        bestCropAreaDelta = cropAreaDelta;
-      }
-    }
-
-    Log.d(TAG, "Available SurfaceTexture sizes: " + Arrays.toString(outputSizes));
-    if (bestTransformPenalty == 1) {
-      Log.d(TAG, "Selected camera size " + bestRawSize.getWidth() + "x" + bestRawSize.getHeight()
-          + " will be cropped and downscaled to " + requestedWidth + "x" + requestedHeight);
-    } else if (bestTransformPenalty == 2) {
-      Log.w(TAG, "Selected camera size " + bestRawSize.getWidth() + "x" + bestRawSize.getHeight()
-          + " cannot reach requested " + requestedWidth + "x" + requestedHeight
-          + " without upscaling");
-    }
-    return bestRawSize;
   }
 
   private void updateOutputCrop() {

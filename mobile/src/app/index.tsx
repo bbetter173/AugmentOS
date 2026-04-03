@@ -3,7 +3,7 @@ import {useState, useEffect} from "react"
 import {View, ActivityIndicator, Platform, Linking} from "react-native"
 import semver from "semver"
 
-import {Button, Icon, Screen, Text} from "@/components/ignite"
+import {Button, Header, Icon, Screen, Text} from "@/components/ignite"
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {useAuth} from "@/contexts/AuthContext"
 import {useDeeplink} from "@/contexts/DeeplinkContext"
@@ -307,46 +307,32 @@ export default function InitScreen() {
   const statusConfig = getStatusConfig()
 
   return (
-    <Screen
-      preset="fixed"
-      backgroundColor={theme.colors.primary_foreground}
-      safeAreaEdges={["top", "bottom"]}>
-      {/* Logo */}
-      <View style={{alignSelf: "center", marginTop: theme.spacing.s8, marginBottom: theme.spacing.s4}}>
-        <MentraLogoStandalone width={100} height={48} />
-      </View>
+    <Screen preset="fixed" safeAreaEdges={["bottom"]}>
+      <Header RightActionComponent={<MentraLogoStandalone />} />
 
       {/* Content */}
-      <View className="flex-1 items-center justify-center px-8">
+      <View className="flex-1 items-center justify-center px-6">
         <Icon name={statusConfig.icon as any} size={64} color={statusConfig.iconColor} />
         <View className="h-6" />
-        <Text
-          className="font-semibold text-center"
-          style={{fontSize: 28, lineHeight: 34, color: theme.colors.secondary_foreground}}
-          text={statusConfig.title}
-        />
-        <View className="h-3" />
-        <Text
-          className="text-center"
-          style={{fontSize: 16, lineHeight: 24, color: theme.colors.textDim}}
-          text={statusConfig.description}
-        />
+        <Text text={statusConfig.title} className="font-semibold text-xl text-center" />
+        <View className="h-2" />
+        <Text text={statusConfig.description} className="text-sm text-center" style={{color: theme.colors.textDim}} />
 
         {/* Version info — only visible in super mode */}
         {state === "outdated" && superMode && localVersion && cloudVersion && (
           <>
             <View className="h-4" />
             <Text
-              className="text-center"
-              style={{fontSize: 13, color: theme.colors.textDim}}
               text={`v${localVersion} → v${cloudVersion}`}
+              className="text-xs text-center"
+              style={{color: theme.colors.textDim}}
             />
           </>
         )}
       </View>
 
       {/* Buttons */}
-      <View style={{paddingHorizontal: theme.spacing.s6, gap: 12, paddingBottom: theme.spacing.s4}}>
+      <View className="gap-3">
         {(state === "connection" || state === "auth") && (
           <Button
             flexContainer
@@ -384,12 +370,7 @@ export default function InitScreen() {
 
         {(((state === "connection" || state === "auth") && !isBlockedByVersion) ||
           (state === "outdated" && canSkipUpdate)) && (
-          <Button
-            flexContainer
-            preset="secondary"
-            onPress={navigateToDestination}
-            tx="versionCheck:continueAnyway"
-          />
+          <Button flexContainer preset="secondary" onPress={navigateToDestination} tx="versionCheck:continueAnyway" />
         )}
       </View>
     </Screen>

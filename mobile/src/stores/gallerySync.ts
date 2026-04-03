@@ -78,6 +78,7 @@ interface GallerySyncState extends GallerySyncInfo {
   onFileProcessing: (fileName: string) => void
   onFileProcessed: (fileName: string) => void
   updateFileInQueue: (fileName: string, updatedFile: PhotoInfo) => void
+  removeFilesFromQueue: (fileNames: string[]) => void
 
   // Processing queue tracking
   processingFiles: Set<string>
@@ -143,7 +144,7 @@ export const useGallerySyncStore = create<GallerySyncState>()(
       set({
         syncState: "syncing",
         // C4: Strip thumbnail_data (base64) from store to prevent OOM
-        queue: files.map(({thumbnail_data, ...rest}) => rest),
+        queue: files.map(({thumbnail_data: _thumbnailData, ...rest}) => rest),
         queueIndex: 0,
         totalFiles: files.length,
         completedFiles: 0,
@@ -248,6 +249,27 @@ export const useGallerySyncStore = create<GallerySyncState>()(
       set({queue: updatedQueue})
     },
 
+    removeFilesFromQueue: (fileNames: string[]) => {
+      if (fileNames.length === 0) return
+
+      const filesToRemove = new Set(fileNames)
+      const state = get()
+      const filteredQueue = state.queue.filter((file) => !filesToRemove.has(file.name))
+      const removedCount = state.queue.length - filteredQueue.length
+
+      if (removedCount === 0) return
+
+      set({
+        queue: filteredQueue,
+        totalFiles: Math.max(0, state.totalFiles - removedCount),
+        completedFiles: Math.min(state.completedFiles, Math.max(0, filteredQueue.length)),
+        queueIndex: Math.min(state.queueIndex, Math.max(0, filteredQueue.length)),
+        failedFiles: state.failedFiles.filter((fileName) => !filesToRemove.has(fileName)),
+        processingFiles: new Set(Array.from(state.processingFiles).filter((fileName) => !filesToRemove.has(fileName))),
+        currentFile: state.currentFile && filesToRemove.has(state.currentFile) ? null : state.currentFile,
+      })
+    },
+
     // Hotspot management
     setHotspotInfo: (info: HotspotInfo | null) => set({hotspotInfo: info}),
 
@@ -282,7 +304,7 @@ export const useGallerySyncStore = create<GallerySyncState>()(
     setQueue: (files: PhotoInfo[], startIndex: number = 0) =>
       set({
         // C4: Strip thumbnail_data (base64) from store to prevent OOM
-        queue: files.map(({thumbnail_data, ...rest}) => rest),
+        queue: files.map(({thumbnail_data: _thumbnailData, ...rest}) => rest),
         queueIndex: startIndex,
         totalFiles: files.length,
         completedFiles: startIndex,

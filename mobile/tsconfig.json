@@ -23,8 +23,7 @@
       "@plugins/*": ["./plugins/*"],
       "@mentra/display-utils": ["../cloud/packages/display-utils/src"]
     },
-    "types": ["node", "react", "react-native", "jest"],
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "types": ["node", "react", "jest"]
   },
   "extends": "expo/tsconfig.base",
   "ts-node": {

@@ -50,6 +50,11 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
               host: "apps.mentra.glass",
               pathPrefix: "/package/",
             },
+            {
+              scheme: "https",
+              host: "apps.mentraglass.com",
+              pathPrefix: "/package/",
+            },
           ],
           category: ["DEFAULT", "BROWSABLE"],
         },
@@ -62,7 +67,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       buildNumber: "154",
       bundleIdentifier: "com.mentra.mentra",
       googleServicesFile: "./GoogleService-Info.plist",
-      associatedDomains: ["applinks:apps.mentra.glass"],
+      associatedDomains: ["applinks:apps.mentra.glass", "applinks:apps.mentraglass.com"],
       infoPlist: {
         NSCameraUsageDescription: "This app needs access to your camera to capture images.",
         NSMicrophoneUsageDescription:

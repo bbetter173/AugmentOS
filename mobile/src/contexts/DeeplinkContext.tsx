@@ -6,6 +6,7 @@ import {Platform} from "react-native"
 // import {Linking} from "react-native"
 // import {useAuth} from "@/contexts/AuthContext"
 import {NavObject, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useAppletStatusStore} from "@/stores/applets"
 import mentraAuth from "@/utils/auth/authClient"
 import {BackgroundTimer} from "@/utils/timers"
 
@@ -118,6 +119,31 @@ const deepLinkRoutes: DeepLinkRoute[] = [
     requiresAuth: true,
   },
 
+  // Smart start: activates the app if installed, otherwise shows the store page
+  {
+    pattern: "/package/:packageName/start",
+    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+      const {packageName, preloaded, authed} = params
+      if (!preloaded || !authed) {
+        // Cold start or not authenticated — use pending route mechanism
+        navObject.setPendingRoute(`/package/${packageName}/start`)
+        navObject.replace(`/`)
+        return
+      }
+      const applet = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
+      if (applet) {
+        // Navigate to home first so startApplet's navigation logic works
+        navObject.replaceAll("/home")
+        setTimeout(() => {
+          useAppletStatusStore.getState().startApplet(applet)
+        }, 300)
+      } else {
+        navObject.replace(`/store?packageName=${packageName}`)
+      }
+    },
+    requiresAuth: true,
+  },
+
   // Store routes
   {
     pattern: "/store",
@@ -132,11 +158,11 @@ const deepLinkRoutes: DeepLinkRoute[] = [
     handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
       const {packageName, preloaded, authed} = params
       if (preloaded && authed) {
-        // we've already loaded the app, so we can just navigate there directly
+        // App is already running and initialized — navigate directly
         navObject.replace(`/store?packageName=${packageName}`)
         return
       }
-      // we probably need to login first:
+      // Cold start or not authenticated — let index.tsx init handle it via pending route
       navObject.setPendingRoute(`/store?packageName=${packageName}`)
       navObject.replace(`/`)
     },
@@ -343,14 +369,6 @@ const deepLinkRoutes: DeepLinkRoute[] = [
 
   // Universal app link routes (for apps.mentra.glass)
   {
-    pattern: "/package/:packageName",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      const {packageName} = params
-      navObject.push(`/store?packageName=${packageName}`)
-    },
-    requiresAuth: true,
-  },
-  {
     pattern: "/apps/:packageName",
     handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
       const {packageName} = params
@@ -476,9 +494,19 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
 
   const processUrl = async (url: string, initial: boolean = false) => {
     try {
-      // Add delay to ensure Root Layout is mounted
+      // For initial URLs (cold start), set the pending route BEFORE the delay.
+      // This prevents a race condition where index.tsx init completes during the
+      // delay and calls navigateToDestination() before the pending route is set,
+      // causing it to navigate to /home instead of the deep link target.
       if (initial) {
+        setPendingRoute(url)
         await new Promise((resolve) => setTimeout(resolve, 1000))
+        // If index.tsx already consumed and re-processed the pending route
+        // during the delay, don't double-process it
+        if (getPendingRoute() !== url) {
+          console.log("[DEEPLINK] Pending route was consumed during delay, skipping")
+          return
+        }
       }
 
       console.log("[LOGIN DEBUG] Deep link received:", url)

@@ -42,6 +42,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
   const [androidBlur] = useSetting(SETTINGS.android_blur.key)
 
   useEffect(() => {
+    let isCancelled = false
     const sortApps = async () => {
       let list = [...backgroundApps]
       if (foregroundApp) {
@@ -59,9 +60,14 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
           return a.time.value - b.time.value
         })
         .map((entry) => entry.app)
-      setAppsList(sortedList)
+      if (!isCancelled) {
+        setAppsList(sortedList)
+      }
     }
     sortApps()
+    return () => {
+      isCancelled = true
+    }
   }, [backgroundApps, foregroundApp])
 
   const panGesture = Gesture.Pan()

@@ -4,6 +4,7 @@ import {View, ActivityIndicator, Platform, Linking} from "react-native"
 import semver from "semver"
 
 import {Button, Icon, Screen, Text} from "@/components/ignite"
+import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {useAuth} from "@/contexts/AuthContext"
 import {useDeeplink} from "@/contexts/DeeplinkContext"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -306,80 +307,90 @@ export default function InitScreen() {
   const statusConfig = getStatusConfig()
 
   return (
-    <Screen preset="fixed" safeAreaEdges={["bottom"]}>
-      <View className="flex-1 p-6">
-        <View className="flex-1 items-center justify-center pt-8">
-          <View className="mb-8">
-            <Icon name={statusConfig.icon as any} size={80} color={statusConfig.iconColor} />
-          </View>
+    <Screen
+      preset="fixed"
+      backgroundColor={theme.colors.primary_foreground}
+      safeAreaEdges={["top", "bottom"]}>
+      {/* Logo */}
+      <View style={{alignSelf: "center", marginTop: theme.spacing.s8, marginBottom: theme.spacing.s4}}>
+        <MentraLogoStandalone width={100} height={48} />
+      </View>
 
-          <Text className="text-2xl font-bold text-center mb-4">{statusConfig.title}</Text>
-          <Text className="text-sm text-center mb-4 line-height-6 px-6 text-muted-foreground">
-            {statusConfig.description}
-          </Text>
+      {/* Content */}
+      <View className="flex-1 items-center justify-center px-8">
+        <Icon name={statusConfig.icon as any} size={64} color={statusConfig.iconColor} />
+        <View className="h-6" />
+        <Text
+          className="font-semibold text-center"
+          style={{fontSize: 28, lineHeight: 34, color: theme.colors.secondary_foreground}}
+          text={statusConfig.title}
+        />
+        <View className="h-3" />
+        <Text
+          className="text-center"
+          style={{fontSize: 16, lineHeight: 24, color: theme.colors.textDim}}
+          text={statusConfig.description}
+        />
 
-          {state === "outdated" && (
-            <>
-              {localVersion && (
-                <Text className="text-sm text-center mb-2 text-muted-foreground">Local: v{localVersion}</Text>
-              )}
-              {cloudVersion && (
-                <Text className="text-sm text-center mb-2 text-muted-foreground">Latest: v{cloudVersion}</Text>
-              )}
-            </>
-          )}
+        {/* Version info — only visible in super mode */}
+        {state === "outdated" && superMode && localVersion && cloudVersion && (
+          <>
+            <View className="h-4" />
+            <Text
+              className="text-center"
+              style={{fontSize: 13, color: theme.colors.textDim}}
+              text={`v${localVersion} → v${cloudVersion}`}
+            />
+          </>
+        )}
+      </View>
 
-          <View className="w-full items-center pb-8 gap-8">
-            {(state === "connection" || state === "auth") && (
-              <Button
-                flexContainer
-                onPress={() => checkCloudVersion(true)}
-                className="w-full"
-                text={isRetrying ? translate("versionCheck:retrying") : translate("versionCheck:retryConnection")}
-                disabled={isRetrying}
-                LeftAccessory={
-                  isRetrying ? () => <ActivityIndicator size="small" color={theme.colors.foreground} /> : undefined
-                }
-              />
-            )}
+      {/* Buttons */}
+      <View style={{paddingHorizontal: theme.spacing.s6, gap: 12, paddingBottom: theme.spacing.s4}}>
+        {(state === "connection" || state === "auth") && (
+          <Button
+            flexContainer
+            onPress={() => checkCloudVersion(true)}
+            text={isRetrying ? translate("versionCheck:retrying") : translate("versionCheck:retryConnection")}
+            disabled={isRetrying}
+            LeftAccessory={
+              isRetrying ? () => <ActivityIndicator size="small" color={theme.colors.foreground} /> : undefined
+            }
+          />
+        )}
 
-            {state === "outdated" && (
-              <Button
-                flexContainer
-                preset="primary"
-                onPress={handleUpdate}
-                disabled={isUpdating}
-                tx={canSkipUpdate ? "versionCheck:update" : "versionCheck:updateRequiredButton"}
-              />
-            )}
+        {state === "outdated" && (
+          <Button
+            flexContainer
+            preset="primary"
+            onPress={handleUpdate}
+            disabled={isUpdating}
+            tx={canSkipUpdate ? "versionCheck:update" : "versionCheck:updateRequiredButton"}
+          />
+        )}
 
-            {(state === "connection" || state === "auth") && isUsingCustomUrl && (
-              <Button
-                flexContainer
-                onPress={handleResetUrl}
-                className="w-full"
-                tx={isRetrying ? "versionCheck:resetting" : "versionCheck:resetUrl"}
-                preset="secondary"
-                disabled={isRetrying}
-                LeftAccessory={
-                  isRetrying ? () => <ActivityIndicator size="small" color={theme.colors.foreground} /> : undefined
-                }
-              />
-            )}
+        {(state === "connection" || state === "auth") && isUsingCustomUrl && (
+          <Button
+            flexContainer
+            onPress={handleResetUrl}
+            tx={isRetrying ? "versionCheck:resetting" : "versionCheck:resetUrl"}
+            preset="secondary"
+            disabled={isRetrying}
+            LeftAccessory={
+              isRetrying ? () => <ActivityIndicator size="small" color={theme.colors.foreground} /> : undefined
+            }
+          />
+        )}
 
-            {(((state === "connection" || state === "auth") && !isBlockedByVersion) ||
-              (state === "outdated" && canSkipUpdate)) && (
-              <Button
-                flex
-                flexContainer
-                preset="warning"
-                RightAccessory={() => <Icon name="arrow-right" size={24} color={theme.colors.text} />}
-                onPress={navigateToDestination}
-                tx="versionCheck:continueAnyway"
-              />
-            )}
-          </View>
-        </View>
+        {(((state === "connection" || state === "auth") && !isBlockedByVersion) ||
+          (state === "outdated" && canSkipUpdate)) && (
+          <Button
+            flexContainer
+            preset="secondary"
+            onPress={navigateToDestination}
+            tx="versionCheck:continueAnyway"
+          />
+        )}
       </View>
     </Screen>
   )

@@ -28,7 +28,7 @@ interface StatusConfig {
 }
 
 // Constants
-const APP_STORE_URL = "https://mentra.glass/os"
+const APP_STORE_URL = "https://apps.apple.com/app/id6747363193"
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.mentra.mentra"
 const NAVIGATION_DELAY = 300
 const DEEPLINK_DELAY = 1000
@@ -317,7 +317,11 @@ export default function InitScreen() {
 
       {/* Content */}
       <View className="flex-1 items-center justify-center px-6">
-        <Icon name={statusConfig.icon as any} size={64} color={statusConfig.iconColor} />
+        {state === "outdated" ? (
+          <MentraLogoStandalone width={100} height={48} />
+        ) : (
+          <Icon name={statusConfig.icon as any} size={64} color={statusConfig.iconColor} />
+        )}
         <View className="h-6" />
         <Text text={statusConfig.title} className="font-semibold text-xl text-center" />
         <View className="h-2" />

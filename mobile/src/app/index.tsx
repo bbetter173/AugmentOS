@@ -1,5 +1,5 @@
 import {useRootNavigationState} from "expo-router"
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 import {View, ActivityIndicator, Platform, Linking} from "react-native"
 import semver from "semver"
 
@@ -285,9 +285,14 @@ export default function InitScreen() {
 
   // Clear cached required version when backend URL changes so a stricter
   // server's requirement doesn't block access to a different backend.
+  // Skip the initial mount so the cached value is preserved for offline enforcement.
+  const backendUrlRef = useRef(backendUrl)
   useEffect(() => {
-    if (cachedRequiredVersion) {
-      setCachedRequiredVersion("")
+    if (backendUrlRef.current !== backendUrl) {
+      backendUrlRef.current = backendUrl
+      if (cachedRequiredVersion) {
+        setCachedRequiredVersion("")
+      }
     }
   }, [backendUrl])
 

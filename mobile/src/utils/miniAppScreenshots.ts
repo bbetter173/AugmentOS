@@ -1,8 +1,10 @@
-import {RefObject, useCallback} from "react"
+import {useFocusEffect} from "@react-navigation/native"
+import {useNavigation} from "expo-router"
+import {RefObject, useCallback, useRef} from "react"
 import {Platform, View} from "react-native"
 import {captureRef} from "react-native-view-shot"
 
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppletStatusStore} from "@/stores/applets"
 
 export async function captureAndSaveMiniAppScreenshot(
@@ -28,25 +30,87 @@ export function useMiniAppScreenshotBackHandler(
   viewShotRef: RefObject<View | null>,
   resolvePackageName: () => string | null | undefined,
 ) {
-  const {goBack} = useNavigationHistory()
+  const navigation = useNavigation()
+  const {goBack, incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
+  const isExitingRef = useRef(false)
+  const allowNextBeforeRemoveRef = useRef(false)
 
   const saveScreenshot = useCallback(async () => {
     await captureAndSaveMiniAppScreenshot(viewShotRef, resolvePackageName())
   }, [resolvePackageName, viewShotRef])
 
-  const goBackWithScreenshot = useCallback(async () => {
-    await saveScreenshot()
-    goBack()
-  }, [goBack, saveScreenshot])
-
-  focusEffectPreventBack(() => {
-    void (async () => {
-      await saveScreenshot()
-      if (Platform.OS === "android") {
-        goBack()
+  const runExitFlow = useCallback(
+    async (resumeNavigation: () => void) => {
+      if (isExitingRef.current) {
+        return
       }
-    })()
-  }, true)
+
+      isExitingRef.current = true
+
+      try {
+        await saveScreenshot()
+        allowNextBeforeRemoveRef.current = true
+        resumeNavigation()
+      } catch (_error) {
+        isExitingRef.current = false
+        allowNextBeforeRemoveRef.current = false
+      }
+    },
+    [saveScreenshot],
+  )
+
+  const goBackWithScreenshot = useCallback(async () => {
+    await runExitFlow(() => {
+      goBack()
+    })
+  }, [goBack, runExitFlow])
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "ios") {
+        return undefined
+      }
+
+      const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
+        if (allowNextBeforeRemoveRef.current) {
+          allowNextBeforeRemoveRef.current = false
+          return
+        }
+
+        event.preventDefault()
+
+        void runExitFlow(() => {
+          const action = event.data?.action
+          if (action) {
+            navigation.dispatch(action)
+            return
+          }
+          goBack()
+        })
+      })
+
+      return unsubscribe
+    }, [goBack, navigation, runExitFlow]),
+  )
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") {
+        return undefined
+      }
+
+      incPreventBack()
+      setAndroidBackFn(() => {
+        void runExitFlow(() => {
+          goBack()
+        })
+      })
+
+      return () => {
+        decPreventBack()
+      }
+    }, [decPreventBack, goBack, incPreventBack, runExitFlow, setAndroidBackFn]),
+  )
 
   return {
     saveScreenshot,

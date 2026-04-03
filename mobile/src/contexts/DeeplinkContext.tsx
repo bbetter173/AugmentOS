@@ -5,7 +5,7 @@ import {Platform} from "react-native"
 
 // import {Linking} from "react-native"
 // import {useAuth} from "@/contexts/AuthContext"
-import {NavObject, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/NavigationHistoryContext"
 import {useAppletStatusStore} from "@/stores/applets"
 import mentraAuth from "@/utils/auth/authClient"
 import {BackgroundTimer} from "@/utils/timers"
@@ -122,21 +122,28 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Smart start: activates the app if installed, otherwise shows the store page
   {
     pattern: "/package/:packageName/start",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
       const {packageName, preloaded, authed} = params
       if (!preloaded || !authed) {
         // Cold start or not authenticated — use pending route mechanism
-        navObject.setPendingRoute(`/package/${packageName}/start`)
+        navObject.setPendingRoute(url)
         navObject.replace(`/`)
         return
       }
+      // Ensure applet list is up-to-date (may be empty after cold start)
+      await useAppletStatusStore.getState().refreshApplets()
       const applet = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
       if (applet) {
-        // Navigate to home first so startApplet's navigation logic works
+        // Navigate to home, then poll until the route has settled before starting
         navObject.replaceAll("/home")
-        setTimeout(() => {
-          useAppletStatusStore.getState().startApplet(applet)
-        }, 300)
+        const tryStart = (attempts: number) => {
+          if (getCurrentRoute() === "/home") {
+            useAppletStatusStore.getState().startApplet(applet)
+          } else if (attempts > 0) {
+            setTimeout(() => tryStart(attempts - 1), 100)
+          }
+        }
+        setTimeout(() => tryStart(10), 100)
       } else {
         navObject.replace(`/store?packageName=${packageName}`)
       }
@@ -162,8 +169,8 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         navObject.replace(`/store?packageName=${packageName}`)
         return
       }
-      // Cold start or not authenticated — let index.tsx init handle it via pending route
-      navObject.setPendingRoute(`/store?packageName=${packageName}`)
+      // Cold start or not authenticated — store raw URL so processUrl re-matches it after init
+      navObject.setPendingRoute(url)
       navObject.replace(`/`)
     },
     requiresAuth: true,

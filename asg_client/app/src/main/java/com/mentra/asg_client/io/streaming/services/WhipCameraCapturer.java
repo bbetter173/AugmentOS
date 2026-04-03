@@ -11,11 +11,13 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Range;
 import android.util.Size;
+import android.view.Display;
 import android.view.Surface;
 import android.view.WindowManager;
 
@@ -69,6 +71,8 @@ public class WhipCameraCapturer implements VideoCapturer {
   private int mWidth;
   private int mHeight;
   private int mFps;
+  private int mCameraSurfaceWidth;
+  private int mCameraSurfaceHeight;
   private int mCaptureWidth;
   private int mCaptureHeight;
   private int mCropX;
@@ -76,7 +80,6 @@ public class WhipCameraCapturer implements VideoCapturer {
   private int mCropWidth;
   private int mCropHeight;
   private int mSensorOrientation;
-  private int mFrameRotation;
   private boolean mIsFrontCamera;
   private boolean mLoggedFrameSize = false;
 
@@ -101,8 +104,6 @@ public class WhipCameraCapturer implements VideoCapturer {
     mCameraThread.getLooper().getThread().setPriority(Thread.MIN_PRIORITY);
     mCameraHandler = new Handler(mCameraThread.getLooper());
 
-    mSurfaceTextureHelper.setTextureSize(width, height);
-
     CameraManager cameraManager =
         (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
 
@@ -113,6 +114,7 @@ public class WhipCameraCapturer implements VideoCapturer {
       return;
     }
 
+    int initialFrameRotation;
     try {
       CameraCharacteristics chars = cameraManager.getCameraCharacteristics(cameraId);
       Integer sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION);
@@ -120,29 +122,35 @@ public class WhipCameraCapturer implements VideoCapturer {
       Integer facing = chars.get(CameraCharacteristics.LENS_FACING);
       mIsFrontCamera = facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT;
       Size captureSize = chooseCaptureSize(chars, width, height);
-      mCaptureWidth = captureSize.getWidth();
-      mCaptureHeight = captureSize.getHeight();
+      mCameraSurfaceWidth = captureSize.getWidth();
+      mCameraSurfaceHeight = captureSize.getHeight();
+      Size normalizedCaptureSize = normalizeLandscapeSize(captureSize);
+      mCaptureWidth = normalizedCaptureSize.getWidth();
+      mCaptureHeight = normalizedCaptureSize.getHeight();
       updateOutputCrop();
-      mSurfaceTextureHelper.setTextureSize(mCaptureWidth, mCaptureHeight);
-      mFrameRotation = getFrameOrientation();
+      mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
+      initialFrameRotation = getFrameOrientation();
     } catch (CameraAccessException e) {
       Log.w(TAG, "Failed to get camera characteristics", e);
       mSensorOrientation = 90;
       mIsFrontCamera = false;
+      mCameraSurfaceWidth = width;
+      mCameraSurfaceHeight = height;
       mCaptureWidth = width;
       mCaptureHeight = height;
       updateOutputCrop();
-      mSurfaceTextureHelper.setTextureSize(mCaptureWidth, mCaptureHeight);
-      mFrameRotation = 0;
+      mSurfaceTextureHelper.setTextureSize(mCameraSurfaceWidth, mCameraSurfaceHeight);
+      initialFrameRotation = 0;
     }
 
     Log.d(TAG, "Requested capture: " + mWidth + "x" + mHeight
-        + ", selected camera size: " + mCaptureWidth + "x" + mCaptureHeight
+        + ", selected camera size: " + mCameraSurfaceWidth + "x" + mCameraSurfaceHeight
+        + ", normalized capture size: " + mCaptureWidth + "x" + mCaptureHeight
         + ", crop window: " + mCropWidth + "x" + mCropHeight + " @ (" + mCropX + ", " + mCropY
         + ")"
         + ", sensor orientation: " + mSensorOrientation
         + ", isFront: " + mIsFrontCamera
-        + ", frame rotation: " + mFrameRotation);
+        + ", frame rotation: " + initialFrameRotation);
 
     try {
       cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
@@ -244,16 +252,18 @@ public class WhipCameraCapturer implements VideoCapturer {
       // 2. Preserve frame rotation metadata so downstream width/height handling stays correct.
       mSurfaceTextureHelper.startListening(frame -> {
         TextureBufferImpl texBuffer = (TextureBufferImpl) frame.getBuffer();
+        int frameRotation = getFrameOrientation();
 
         if (!mLoggedFrameSize) {
           mLoggedFrameSize = true;
           Log.i(TAG, "DIAG: First frame buffer size: " + texBuffer.getWidth() + "x"
               + texBuffer.getHeight() + " (requested: " + mWidth + "x" + mHeight
-              + ", selected camera size: " + mCaptureWidth + "x" + mCaptureHeight
+              + ", selected camera size: " + mCameraSurfaceWidth + "x" + mCameraSurfaceHeight
+              + ", normalized capture size: " + mCaptureWidth + "x" + mCaptureHeight
               + ", crop window: " + mCropWidth + "x" + mCropHeight + " @ (" + mCropX + ", "
               + mCropY + ")"
               + ", sensor orientation: " + mSensorOrientation
-              + ", frame rotation: " + mFrameRotation + ")");
+              + ", frame rotation: " + frameRotation + ")");
         }
 
         TextureBufferImpl modifiedBuffer = texBuffer.applyTransformMatrix(
@@ -264,7 +274,7 @@ public class WhipCameraCapturer implements VideoCapturer {
         }
 
         VideoFrame modifiedFrame = new VideoFrame(
-            outputBuffer, mFrameRotation, frame.getTimestampNs());
+            outputBuffer, frameRotation, frame.getTimestampNs());
         mObserver.onFrameCaptured(modifiedFrame);
         modifiedFrame.release();
       });
@@ -382,7 +392,20 @@ public class WhipCameraCapturer implements VideoCapturer {
       return ServiceUtils.determineDefaultRotationForDevice(mContext);
     }
 
-    switch (windowManager.getDefaultDisplay().getRotation()) {
+    Display display = null;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      display = mContext.getDisplay();
+    }
+    if (display == null) {
+      @SuppressWarnings("deprecation")
+      Display fallbackDisplay = windowManager.getDefaultDisplay();
+      display = fallbackDisplay;
+    }
+    if (display == null) {
+      return ServiceUtils.determineDefaultRotationForDevice(mContext);
+    }
+
+    switch (display.getRotation()) {
       case Surface.ROTATION_90:
         return 90;
       case Surface.ROTATION_180:
@@ -413,7 +436,8 @@ public class WhipCameraCapturer implements VideoCapturer {
     }
 
     Size requestedSize = normalizeLandscapeSize(new Size(requestedWidth, requestedHeight));
-    Size bestSize = normalizeLandscapeSize(outputSizes[0]);
+    Size bestRawSize = outputSizes[0];
+    Size bestSize = normalizeLandscapeSize(bestRawSize);
     int bestTransformPenalty = Integer.MAX_VALUE;
     long bestSourceArea = Long.MAX_VALUE;
     long bestCropAreaDelta = Long.MAX_VALUE;
@@ -438,6 +462,7 @@ public class WhipCameraCapturer implements VideoCapturer {
               && cropAreaDelta < bestCropAreaDelta);
 
       if (isBetter) {
+        bestRawSize = rawSize;
         bestSize = candidate;
         bestTransformPenalty = transformPenalty;
         bestSourceArea = candidateArea;
@@ -447,14 +472,14 @@ public class WhipCameraCapturer implements VideoCapturer {
 
     Log.d(TAG, "Available SurfaceTexture sizes: " + Arrays.toString(outputSizes));
     if (bestTransformPenalty == 1) {
-      Log.d(TAG, "Selected camera size " + bestSize.getWidth() + "x" + bestSize.getHeight()
+      Log.d(TAG, "Selected camera size " + bestRawSize.getWidth() + "x" + bestRawSize.getHeight()
           + " will be cropped and downscaled to " + requestedWidth + "x" + requestedHeight);
     } else if (bestTransformPenalty == 2) {
-      Log.w(TAG, "Selected camera size " + bestSize.getWidth() + "x" + bestSize.getHeight()
+      Log.w(TAG, "Selected camera size " + bestRawSize.getWidth() + "x" + bestRawSize.getHeight()
           + " cannot reach requested " + requestedWidth + "x" + requestedHeight
           + " without upscaling");
     }
-    return bestSize;
+    return bestRawSize;
   }
 
   private void updateOutputCrop() {

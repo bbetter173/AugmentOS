@@ -528,9 +528,9 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
             <Text
               className="text-foreground text-center mt-1 text-[12px] shrink"
               style={{
-                textShadowColor: "rgba(0,0,0,0.5)",
+                textShadowColor: "rgba(0,0,0,0.08)",
                 textShadowOffset: {width: 0, height: 0},
-                textShadowRadius: 6,
+                textShadowRadius: 30,
               }}
               numberOfLines={2}
               ellipsizeMode="tail"

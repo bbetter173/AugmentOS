@@ -44,7 +44,7 @@ export default function AppWebView() {
 
   const {setForceGestureEnabled} = useNavigationHistory()
 
-  // Back press handler for CapsuleMenu/Header buttons and Android back button
+  // Back press handler for CapsuleMenu/Header buttons and Android back button.
   const handleWebViewBack = useCallback(() => {
     if (!hasValidParams) {
       goBack()

@@ -536,19 +536,18 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
   const {incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
   const navigation = useNavigation()
 
-  // hook into the back button on ios:
+  // hook into the back button on ios (skip if iosDontPreventBack — let native gesture handle it):
   if (Platform.OS === "ios") {
     useFocusEffect(
       useCallback(() => {
+        if (iosDontPreventBack) return  // No listener needed; native gesture handles back
         const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-          // Fires when back gesture starts or back button is pressed
-          // console.log("navigating back")
           backFn?.()
         })
         return () => {
           unsubscribe()
         }
-      }, [backFn]),
+      }, [backFn, iosDontPreventBack]),
     )
   }
 

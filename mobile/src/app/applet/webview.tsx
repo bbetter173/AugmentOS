@@ -42,8 +42,7 @@ export default function AppWebView() {
   const hasValidParams =
     typeof webviewURL === "string" && typeof appName === "string" && typeof packageName === "string"
 
-  // Back press handler: navigate within WebView if possible, otherwise do nothing.
-  // Users must press X to exit the miniapp.
+  // Back press handler: navigate within WebView if possible, otherwise exit miniapp.
   const handleWebViewBack = useCallback(() => {
     if (!hasValidParams) {
       goBack()
@@ -51,12 +50,16 @@ export default function AppWebView() {
     }
     if (webViewCanGoBack && webViewRef.current) {
       webViewRef.current.goBack()
+    } else {
+      goBack()
     }
   }, [webViewCanGoBack, hasValidParams, goBack])
 
-  // Prevent iOS swipe-back gesture and intercept Android back button.
-  // Back navigates within the WebView; only X exits the miniapp.
-  focusEffectPreventBack(handleWebViewBack)
+  // iOS: Don't block the native swipe-back gesture. allowsBackForwardNavigationGestures
+  // on the WebView handles in-webview back navigation natively. When the webview has
+  // no history, the gesture falls through to React Navigation which exits the miniapp.
+  // Android: Intercept the hardware back button and route it through handleWebViewBack.
+  focusEffectPreventBack(handleWebViewBack, true /* iosDontPreventBack */)
 
   // Two conditions for showing the webview content:
   // 1. WebView HTML has loaded (onLoadEnd fired)
@@ -417,6 +420,7 @@ export default function AppWebView() {
                 scalesPageToFit={false}
                 scrollEnabled={true}
                 bounces={false}
+                allowsBackForwardNavigationGestures={true}
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"

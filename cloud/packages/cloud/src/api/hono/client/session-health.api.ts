@@ -35,10 +35,10 @@ app.get("/", clientAuth, checkSessionHealth);
  * - Otherwise → 503 { error: "NO_ACTIVE_SESSION_OR_WEBSOCK ET" }
  */
 async function checkSessionHealth(c: AppContext) {
-  const email = c.get("email");
+  const email = c.get("email") ?? "";
   const reqLogger = c.get("logger") || logger;
 
-  const userSession = UserSession.getById(email);
+  const userSession = email ? UserSession.getById(email) : undefined;
 
   const hasSession = !!userSession;
   const hasOpenWebSocket =

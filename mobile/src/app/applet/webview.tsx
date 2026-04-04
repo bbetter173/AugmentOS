@@ -420,7 +420,7 @@ export default function AppWebView() {
                 scalesPageToFit={false}
                 scrollEnabled={true}
                 bounces={false}
-                allowsBackForwardNavigationGestures={true}
+                allowsBackForwardNavigationGestures={webViewCanGoBack}
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"

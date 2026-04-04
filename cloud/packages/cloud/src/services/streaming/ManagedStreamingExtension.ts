@@ -185,6 +185,14 @@ export class ManagedStreamingExtension {
         restreamDestinations: useWebRTC ? undefined : restreamDestinations,
       });
 
+      // In SRT/restream mode, clear webrtcUrl — Cloudflare always returns a WHEP endpoint
+      // but it won't work when the ingest is SRT, not WHIP. Without this, the frontend
+      // would try WebRTC playback and get 409 errors from Cloudflare.
+      if (!useWebRTC) {
+        liveInput.webrtcUrl = undefined;
+        liveInput.webrtcPublishUrl = undefined;
+      }
+
       this.logger.info(
         {
           userId,

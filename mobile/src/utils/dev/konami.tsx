@@ -15,7 +15,6 @@ const MAX_CODE_LENGTH = Math.max(KONAMI_CODE.length, MINI_CODE.length, SUPER_COD
 type KonamiContextType = {
   enabled: boolean
   setEnabled: (enabled: boolean) => void
-  setSwipeRightHandler: (handler: (() => void) | null) => void
 }
 
 const KonamiContext = createContext<KonamiContextType | null>(null)
@@ -32,12 +31,7 @@ export function KonamiCodeProvider({children}: {children: React.ReactNode}) {
   const [enabled, setEnabled] = useState(true)
   const [sequence, setSequence] = useState<Direction[]>([])
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const swipeRightHandlerRef = useRef<(() => void) | null>(null)
   const {goHomeAndPush} = useNavigationHistory()
-
-  const setSwipeRightHandler = (handler: (() => void) | null) => {
-    swipeRightHandlerRef.current = handler
-  }
 
   useEffect(() => {
     if (!enabled) return
@@ -69,12 +63,6 @@ export function KonamiCodeProvider({children}: {children: React.ReactNode}) {
 
   const addDirection = (direction: Direction) => {
     console.log("KONAMI: Swipe detected:", direction)
-
-    // If a swipe-right handler is registered (e.g., webview back), call it
-    if (direction === "right" && swipeRightHandlerRef.current) {
-      swipeRightHandlerRef.current()
-      return // Don't add to konami sequence
-    }
 
     setSequence((prev) => {
       const newSequence = [...prev, direction]
@@ -141,7 +129,7 @@ export function KonamiCodeProvider({children}: {children: React.ReactNode}) {
   const composedGesture = Gesture.Simultaneous(Gesture.Race(flingUp, flingDown, flingLeft, flingRight))
 
   return (
-    <KonamiContext.Provider value={{enabled, setEnabled, setSwipeRightHandler}}>
+    <KonamiContext.Provider value={{enabled, setEnabled}}>
       {enabled ? (
         <GestureDetector gesture={composedGesture}>
           <View style={{flex: 1}}>{children}</View>

@@ -16,7 +16,6 @@ import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useKonamiCode} from "@/utils/dev/konami"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName} = useLocalSearchParams()
@@ -43,7 +42,9 @@ export default function AppWebView() {
   const hasValidParams =
     typeof webviewURL === "string" && typeof appName === "string" && typeof packageName === "string"
 
-  // Back press handler: navigate within WebView if possible, otherwise exit miniapp.
+  const {setForceGestureEnabled} = useNavigationHistory()
+
+  // Back press handler for CapsuleMenu/Header buttons and Android back button
   const handleWebViewBack = useCallback(() => {
     if (!hasValidParams) {
       goBack()
@@ -56,25 +57,26 @@ export default function AppWebView() {
     }
   }, [webViewCanGoBack, hasValidParams, goBack])
 
-  // Block native back gesture/button — route through handleWebViewBack instead.
-  // iOS in-webview swipe-back is handled by allowsBackForwardNavigationGestures on the WebView.
+  // Block native back gesture/button — route through handleWebViewBack for Android.
   focusEffectPreventBack(handleWebViewBack)
 
-  // Register swipe-right handler for exiting miniapp from page 0.
-  // When webview has no history, a right swipe (detected by Konami gesture system) exits the miniapp.
-  const {setSwipeRightHandler} = useKonamiCode()
-
+  // Dynamically toggle gesture handling based on webview navigation state:
+  // - Page 0 (no history): disable WebView's gesture, force-enable React Navigation's
+  //   native swipe-back so user can exit miniapp with the real iOS animation.
+  // - Has history: enable WebView's gesture for in-webview navigation,
+  //   React Navigation's gesture stays blocked by focusEffectPreventBack.
   useEffect(() => {
     if (!webViewCanGoBack) {
-      setSwipeRightHandler(() => {
-        goBack()
-      })
+      // Page 0: force React Navigation gesture on, WebView gesture off
+      setForceGestureEnabled(true)
     } else {
-      setSwipeRightHandler(null)
+      // Has history: let focusEffectPreventBack handle it (gesture disabled),
+      // WebView's allowsBackForwardNavigationGestures handles in-webview swipe
+      setForceGestureEnabled(false)
     }
 
-    return () => setSwipeRightHandler(null)
-  }, [webViewCanGoBack, goBack, setSwipeRightHandler])
+    return () => setForceGestureEnabled(false)
+  }, [webViewCanGoBack, setForceGestureEnabled])
 
   // Two conditions for showing the webview content:
   // 1. WebView HTML has loaded (onLoadEnd fired)
@@ -435,7 +437,7 @@ export default function AppWebView() {
                 scalesPageToFit={false}
                 scrollEnabled={true}
                 bounces={false}
-                allowsBackForwardNavigationGestures={true}
+                allowsBackForwardNavigationGestures={webViewCanGoBack}
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"

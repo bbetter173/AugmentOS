@@ -55,11 +55,10 @@ export default function AppWebView() {
     }
   }, [webViewCanGoBack, hasValidParams, goBack])
 
-  // iOS: Don't block the native swipe-back gesture. allowsBackForwardNavigationGestures
-  // on the WebView handles in-webview back navigation natively. When the webview has
-  // no history, the gesture falls through to React Navigation which exits the miniapp.
-  // Android: Intercept the hardware back button and route it through handleWebViewBack.
-  focusEffectPreventBack(handleWebViewBack, true /* iosDontPreventBack */)
+  // Block native back gesture/button — route through handleWebViewBack instead.
+  // iOS in-webview swipe-back is handled by allowsBackForwardNavigationGestures on the WebView.
+  // Exiting the miniapp from page 0 uses the X button or header chevron.
+  focusEffectPreventBack(handleWebViewBack)
 
   // Two conditions for showing the webview content:
   // 1. WebView HTML has loaded (onLoadEnd fired)
@@ -420,7 +419,7 @@ export default function AppWebView() {
                 scalesPageToFit={false}
                 scrollEnabled={true}
                 bounces={false}
-                allowsBackForwardNavigationGestures={webViewCanGoBack}
+                allowsBackForwardNavigationGestures={true}
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"

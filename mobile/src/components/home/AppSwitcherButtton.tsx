@@ -6,7 +6,7 @@ import {Icon, Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {ClientAppletInterface, useActiveApps, useActiveBackgroundApps, useActiveForegroundApp} from "@/stores/applets"
+import {ClientAppletInterface, getLastOpenTime, useActiveApps, useActiveBackgroundApps, useActiveForegroundApp} from "@/stores/applets"
 import {RefObject, useEffect, useRef, useState} from "react"
 import {scheduleOnRN} from "react-native-worklets"
 import {BlurView} from "expo-blur"
@@ -42,11 +42,32 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
   const [androidBlur] = useSetting(SETTINGS.android_blur.key)
 
   useEffect(() => {
-    let list = [...backgroundApps]
-    if (foregroundApp) {
-      list.push(foregroundApp)
+    let isCancelled = false
+    const sortApps = async () => {
+      let list = [...backgroundApps]
+      if (foregroundApp) {
+        list.push(foregroundApp)
+      }
+      const timestamps = await Promise.all(
+        list.map(async (app) => ({
+          app,
+          time: await getLastOpenTime(app.packageName),
+        })),
+      )
+      const sortedList = timestamps
+        .sort((a, b) => {
+          if (a.time.is_error() || b.time.is_error()) return 0
+          return a.time.value - b.time.value
+        })
+        .map((entry) => entry.app)
+      if (!isCancelled) {
+        setAppsList(sortedList)
+      }
     }
-    setAppsList(list)
+    sortApps()
+    return () => {
+      isCancelled = true
+    }
   }, [backgroundApps, foregroundApp])
 
   const panGesture = Gesture.Pan()

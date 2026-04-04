@@ -138,29 +138,25 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
     return (
       <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
         <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2">
-          <View className="w-[42%] max-w-40 shrink-0 self-start justify-center h-full">
+          <View className="flex-1 self-start justify-center h-full">
             <Image
               source={getCurrentGlassesImage()}
-              className="w-full h-28 self-start"
+              className="w-full max-w-40 h-28 self-start"
               style={{resizeMode: "contain"}}
             />
           </View>
 
-          <View className="flex-1 min-w-0 justify-center">
-            <View className={`flex-col gap-3 flex-1 justify-center ${isSearching ? "items-stretch" : "items-end"}`}>
-              <View className="flex-row items-center gap-2 self-end max-w-full">
+          <View className="w-1/2">
+            <View className="items-end flex-col gap-3 justify-center flex-1">
+              <View className="flex-row items-center gap-3">
                 <Icon name="bluetooth-off" size={18} color={theme.colors.foreground} />
-                <Text
-                  className="font-semibold text-secondary-foreground text-end shrink"
-                  numberOfLines={1}
-                  text={defaultWearable}
-                />
+                <Text className="font-semibold text-secondary-foreground text-end self-end" text={defaultWearable} />
               </View>
               {!isSearching && (
                 <Button
                   flex
                   compact
-                  className="max-h-10 self-end w-full max-w-[280px]"
+                  className="max-h-10"
                   tx="home:connectGlasses"
                   preset="primary"
                   onPress={connectGlasses}
@@ -168,22 +164,18 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
               )}
               {isSearching && (
                 <Button
+                  flex
                   compact
-                  flexContainer
-                  className="min-h-10 min-w-0 w-full max-h-[44px] py-2 px-3"
+                  className="w-[80%] max-h-10 items-center justify-center"
                   preset="alternate"
                   onPress={handleConnectOrDisconnect}>
-                  {/* Button inner wrapper uses alignItems:center — without self-stretch the row gets zero width and flex-1 Text disappears */}
-                  <View className="flex-row items-center gap-2 w-full min-w-0 self-stretch">
-                    <ActivityIndicator size="small" color={theme.colors.foreground} style={{flexShrink: 0}} />
-                    <View className="flex-1 min-w-0 justify-center">
-                      <Text
-                        className="text-sm leading-tight"
-                        numberOfLines={2}
-                        style={{color: theme.colors.secondary_foreground}}
-                        text={connectingText}
-                      />
-                    </View>
+                  <View className="flex-row items-center gap-2 flex-1">
+                    <ActivityIndicator size="small" color={theme.colors.foreground} />
+                    <Text
+                      className="text-secondary-foreground"
+                      style={{fontSize: 14}}
+                      text={translate("common:cancel")}
+                    />
                   </View>
                 </Button>
               )}

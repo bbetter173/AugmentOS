@@ -103,7 +103,7 @@ export const SETTINGS: Record<string, Setting> = {
       if (process.env.EXPO_PUBLIC_DEPLOYMENT_REGION === "china") {
         return "https://api.mentraglass.cn:443"
       }
-      return "https://api.mentra.glass"
+      return "https://api.mentraglass.com"
     },
     // If env var is set, always use it (on every boot)
     override: () => process.env.EXPO_PUBLIC_BACKEND_URL_OVERRIDE,

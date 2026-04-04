@@ -136,34 +136,28 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   {
     pattern: "/package/:packageName/start",
     handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+      
       const {packageName, preloaded, authed} = params
-      if (!preloaded || !authed) {
-        // Cold start or not authenticated — use pending route mechanism
-        navObject.setPendingRoute(url)
-        navObject.replace(`/`)
-        return
-      }
-      // Deep links can fire while the app is still in the background state.
-      await waitForActive()
-      // Ensure applet list is up-to-date (may be empty after cold start)
-      await useAppletStatusStore.getState().refreshApplets()
-      const applet = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
-      if (applet) {
-        // Navigate to home, then poll until the route has settled before starting
+      if (preloaded && authed) {
+        // Deep links can fire while the app is still in the background state.
+        // Navigation calls made before the app is active get lost, so wait first.
+        await waitForActive()
+        // Reset stack to home, then push store on top so back always goes home.
         navObject.replaceAll("/home")
-        const tryStart = (attempts: number) => {
-          if (getCurrentRoute() === "/home") {
-            useAppletStatusStore.getState().startApplet(applet)
-          } else if (attempts > 0) {
-            setTimeout(() => tryStart(attempts - 1), 100)
-          }
+        await useAppletStatusStore.getState().refreshApplets()
+        const applet = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
+        console.log("[DEEPLINK] Smart start for package:", packageName, "applet found:", !!applet)
+        if (applet) {
+          setTimeout(() => useAppletStatusStore.getState().startApplet(applet), 150)
+          return;
+        } else {
+          setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
+          return
         }
-        setTimeout(() => tryStart(10), 100)
-      } else {
-        // Not installed — reset to home, then push store so back goes home
-        navObject.replaceAll("/home")
-        setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
       }
+      // Cold start or not authenticated — store raw URL so processUrl re-matches it after init
+      navObject.setPendingRoute(url)
+      navObject.replace(`/`)
     },
     requiresAuth: true,
   },
@@ -520,8 +514,25 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
     return params
   }
 
+  let lastProcessedUrl: string | null = null
+  let lastProcessedTime = 0
+
   const processUrl = async (url: string, initial: boolean = false) => {
     try {
+      // Deduplicate — iOS can fire the same universal link event multiple times,
+      // and on cold start both getInitialURL and addEventListener fire for the
+      // same URL. Initial calls skip the check but claim the URL so that the
+      // duplicate addEventListener call is blocked. The index.tsx re-processing
+      // call happens >2s later (1s initial delay + init time + 1s DEEPLINK_DELAY)
+      // so it naturally falls outside the dedup window.
+      const now = Date.now()
+      if (!initial && url === lastProcessedUrl && now - lastProcessedTime < 3000) {
+        console.log("[DEEPLINK] Ignoring duplicate URL:", url)
+        return
+      }
+      lastProcessedUrl = url
+      lastProcessedTime = now
+
       // For initial URLs (cold start), set the pending route BEFORE the delay.
       // This prevents a race condition where index.tsx init completes during the
       // delay and calls navigateToDestination() before the pending route is set,

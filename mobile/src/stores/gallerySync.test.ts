@@ -31,5 +31,24 @@ describe("gallerySync store", () => {
     expect(nextState.queue.map((file) => file.name)).toEqual(["first.jpg", "third.jpg"])
     expect(nextState.totalFiles).toBe(2)
     expect(nextState.completedFiles).toBe(2)
+    expect(nextState.queueIndex).toBe(2)
+    expect(nextState.currentFile).toBeNull()
+  })
+
+  it("updates queue progress exactly when removing a completed item before the current file", () => {
+    const store = useGallerySyncStore.getState()
+    const files = [createPhoto("first.jpg"), createPhoto("second.jpg"), createPhoto("third.jpg")]
+
+    store.setSyncing(files)
+    store.onFileComplete("first.jpg")
+    useGallerySyncStore.getState().removeFilesFromQueue(["first.jpg"])
+
+    const nextState = useGallerySyncStore.getState()
+
+    expect(nextState.queue.map((file) => file.name)).toEqual(["second.jpg", "third.jpg"])
+    expect(nextState.totalFiles).toBe(2)
+    expect(nextState.completedFiles).toBe(0)
+    expect(nextState.queueIndex).toBe(0)
+    expect(nextState.currentFile).toBe("second.jpg")
   })
 })

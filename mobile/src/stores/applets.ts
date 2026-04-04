@@ -152,6 +152,21 @@ export const getLastOpenTime = (packageName: string): AsyncResult<number, Error>
   })
 }
 
+export const sortAppsByLastOpenTime = async <T extends {packageName: string}>(apps: T[]): Promise<T[]> => {
+  const timestamps = await Promise.all(
+    apps.map(async (app) => ({
+      app,
+      time: await getLastOpenTime(app.packageName),
+    })),
+  )
+  return timestamps
+    .sort((a, b) => {
+      if (a.time.is_error() || b.time.is_error()) return 0
+      return a.time.value - b.time.value
+    })
+    .map((entry) => entry.app)
+}
+
 export type OrderMap = Record<string, number>
 const APP_ORDER_KEY = "foreground_apps_order"
 export const saveAppsOrder = (orderMap: OrderMap) => {
@@ -972,7 +987,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     }))
   },
 
-  setInstalledLmas: (installedLmas: ClientAppletInterface[]) => {
+  setInstalledLmas: (_installedLmas: ClientAppletInterface[]) => {
     // set({localMiniApps: installedLmas})
   },
 }))

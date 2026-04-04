@@ -6,7 +6,13 @@ import {Icon, Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {ClientAppletInterface, getLastOpenTime, useActiveApps, useActiveBackgroundApps, useActiveForegroundApp} from "@/stores/applets"
+import {
+  ClientAppletInterface,
+  sortAppsByLastOpenTime,
+  useActiveApps,
+  useActiveBackgroundApps,
+  useActiveForegroundApp,
+} from "@/stores/applets"
 import {RefObject, useEffect, useRef, useState} from "react"
 import {scheduleOnRN} from "react-native-worklets"
 import {BlurView} from "expo-blur"
@@ -42,31 +48,13 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
   const [androidBlur] = useSetting(SETTINGS.android_blur.key)
 
   useEffect(() => {
-    let isCancelled = false
-    const sortApps = async () => {
-      let list = [...backgroundApps]
-      if (foregroundApp) {
-        list.push(foregroundApp)
-      }
-      const timestamps = await Promise.all(
-        list.map(async (app) => ({
-          app,
-          time: await getLastOpenTime(app.packageName),
-        })),
-      )
-      const sortedList = timestamps
-        .sort((a, b) => {
-          if (a.time.is_error() || b.time.is_error()) return 0
-          return a.time.value - b.time.value
-        })
-        .map((entry) => entry.app)
-      if (!isCancelled) {
-        setAppsList(sortedList)
-      }
-    }
-    sortApps()
+    let cancelled = false
+    const list = foregroundApp ? [...backgroundApps, foregroundApp] : [...backgroundApps]
+    sortAppsByLastOpenTime(list).then((sorted) => {
+      if (!cancelled) setAppsList(sorted)
+    })
     return () => {
-      isCancelled = true
+      cancelled = true
     }
   }, [backgroundApps, foregroundApp])
 
@@ -98,7 +86,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
         }
       }
     })
-    .onEnd((event) => {
+    .onEnd((_event) => {
       const swipeDistance = Math.abs(translateY.value)
       // const normalizedVelocity = event.velocityY / (SWIPE_DISTANCE_THRESHOLD * SWIPE_DISTANCE_MULTIPLIER)
       // const velocity = event.velocityY / 100

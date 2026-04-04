@@ -259,7 +259,7 @@ export default function BackendUrl() {
         <View style={themed($buttonColumn)}>
           <Button
             tx="developer:global"
-            onPress={() => setCustomUrlInput("https://api.mentra.glass:443")}
+            onPress={() => setCustomUrlInput("https://api.mentraglass.com:443")}
             compact
             flex
             flexContainer={false}

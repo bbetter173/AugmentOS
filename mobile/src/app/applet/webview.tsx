@@ -16,6 +16,7 @@ import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useKonamiCode} from "@/utils/dev/konami"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName} = useLocalSearchParams()
@@ -57,8 +58,23 @@ export default function AppWebView() {
 
   // Block native back gesture/button — route through handleWebViewBack instead.
   // iOS in-webview swipe-back is handled by allowsBackForwardNavigationGestures on the WebView.
-  // Exiting the miniapp from page 0 uses the X button or header chevron.
   focusEffectPreventBack(handleWebViewBack)
+
+  // Register swipe-right handler for exiting miniapp from page 0.
+  // When webview has no history, a right swipe (detected by Konami gesture system) exits the miniapp.
+  const {setSwipeRightHandler} = useKonamiCode()
+
+  useEffect(() => {
+    if (!webViewCanGoBack) {
+      setSwipeRightHandler(() => {
+        goBack()
+      })
+    } else {
+      setSwipeRightHandler(null)
+    }
+
+    return () => setSwipeRightHandler(null)
+  }, [webViewCanGoBack, goBack, setSwipeRightHandler])
 
   // Two conditions for showing the webview content:
   // 1. WebView HTML has loaded (onLoadEnd fired)

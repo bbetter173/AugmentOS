@@ -98,6 +98,8 @@ export default function InitScreen() {
     const pendingRoute = getPendingRoute()
     if (pendingRoute) {
       setPendingRoute(null)
+      // Navigate to home first so the deep link screen has a proper back destination
+      clearHistoryAndGoHome({transition: "fade"})
       setTimeout(() => processUrl(pendingRoute), DEEPLINK_DELAY)
       return
     }

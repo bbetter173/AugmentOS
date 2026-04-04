@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking"
 import * as WebBrowser from "expo-web-browser"
 import {FC, ReactNode, createContext, useContext, useEffect} from "react"
-import {Platform} from "react-native"
+import {AppState, Platform} from "react-native"
 
 // import {Linking} from "react-native"
 // import {useAuth} from "@/contexts/AuthContext"
@@ -9,6 +9,19 @@ import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/Navig
 import {useAppletStatusStore} from "@/stores/applets"
 import mentraAuth from "@/utils/auth/authClient"
 import {BackgroundTimer} from "@/utils/timers"
+
+/** Returns immediately if the app is already active, otherwise waits for it. */
+const waitForActive = (): Promise<void> => {
+  if (AppState.currentState === "active") return Promise.resolve()
+  return new Promise((resolve) => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        sub.remove()
+        resolve()
+      }
+    })
+  })
+}
 
 export interface DeepLinkRoute {
   pattern: string
@@ -130,6 +143,8 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         navObject.replace(`/`)
         return
       }
+      // Deep links can fire while the app is still in the background state.
+      await waitForActive()
       // Ensure applet list is up-to-date (may be empty after cold start)
       await useAppletStatusStore.getState().refreshApplets()
       const applet = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
@@ -145,7 +160,9 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         }
         setTimeout(() => tryStart(10), 100)
       } else {
-        navObject.replace(`/store?packageName=${packageName}`)
+        // Not installed — reset to home, then push store so back goes home
+        navObject.replaceAll("/home")
+        setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
       }
     },
     requiresAuth: true,
@@ -162,11 +179,15 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   },
   {
     pattern: "/package/:packageName",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
       const {packageName, preloaded, authed} = params
       if (preloaded && authed) {
-        // App is already running and initialized — navigate directly
-        navObject.replace(`/store?packageName=${packageName}`)
+        // Deep links can fire while the app is still in the background state.
+        // Navigation calls made before the app is active get lost, so wait first.
+        await waitForActive()
+        // Reset stack to home, then push store on top so back always goes home.
+        navObject.replaceAll("/home")
+        setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
         return
       }
       // Cold start or not authenticated — store raw URL so processUrl re-matches it after init

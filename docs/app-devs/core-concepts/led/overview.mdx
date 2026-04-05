@@ -25,7 +25,7 @@ class LEDApp extends AppServer {
   protected async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
     // Always check LED capabilities first
     if (!session.capabilities?.hasLight) {
-      session.layouts.showTextWall("No LED support on this device");
+      session.display.showTextWall("No LED support on this device");
       return;
     }
 
@@ -102,9 +102,9 @@ await session.led.turnOff();
 ```typescript
 if (!session.capabilities?.hasLight) {
   // Use display instead
-  session.layouts.showTextWall("📱 Notification");
+  session.display.showTextWall("📱 Notification");
   // Or audio feedback
-  await session.audio.speak("Notification received");
+  await session.speaker.speak("Notification received");
 }
 ```
 

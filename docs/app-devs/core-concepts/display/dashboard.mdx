@@ -4,18 +4,18 @@ description: "Persistent status display for glanceable information"
 icon: "gauge"
 ---
 
-The dashboard provides persistent UI that appears when users look up. Use it for status updates and notifications that don't require full attention.
+The dashboard is a persistent view that appears when the user looks up. It's separate from your app's main display. Use it for status information, time, weather, notifications, or anything the user wants to glance at quickly.
 
 ## Basic Usage
 
 ```typescript
-session.dashboard.content.writeToMain('New message received');
+session.dashboard.showText("New message received");
 ```
 
 With title and content:
 
 ```typescript
-session.dashboard.content.writeToMain('App Status\nConnected and running');
+session.dashboard.showText("App Status\nConnected and running");
 ```
 
 ## Dashboard Modes
@@ -23,7 +23,7 @@ session.dashboard.content.writeToMain('App Status\nConnected and running');
 ### Main Mode (Default)
 
 ```typescript
-session.dashboard.content.writeToMain('Status: Active');
+session.dashboard.showText("Status: Active");
 ```
 
 ### Expanded Mode
@@ -31,13 +31,13 @@ session.dashboard.content.writeToMain('Status: Active');
 More detailed information:
 
 ```typescript
-session.dashboard.content.writeToExpanded('Detailed status information here');
+session.dashboard.showText("Detailed status information here");
 ```
 
 ## Clearing Dashboard
 
 ```typescript
-session.dashboard.content.writeToMain('');
+session.dashboard.clear();
 ```
 
 ## Best Practices

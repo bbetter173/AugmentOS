@@ -250,14 +250,28 @@ export class ManagedStreamingExtension {
         "🚀 Streaming via WebRTC (WHIP) — app will receive webrtcUrl for low-latency WHEP playback",
       );
     } else {
-      if (!liveInput.srtUrl) {
-        throw new Error("No SRT ingest URL available from Cloudflare");
+      // Twitter/Periscope breaks with SRT→RTMP restreaming, so fall back to RTMP ingest when any destination is pscp.tv
+      const hasPscp = restreamDestinations?.some((d) => d.url.includes("pscp.tv"));
+
+      if (hasPscp) {
+        if (!liveInput.rtmpUrl) {
+          throw new Error("No RTMP ingest URL available from Cloudflare");
+        }
+        ingestUrl = liveInput.rtmpUrl;
+        this.logger.info(
+          { userId, packageName, protocol: "RTMP", restreamCount: restreamDestinations?.length || 0 },
+          "🚀 Streaming via RTMP — pscp.tv destination detected, using RTMP ingest for compatibility",
+        );
+      } else {
+        if (!liveInput.srtUrl) {
+          throw new Error("No SRT ingest URL available from Cloudflare");
+        }
+        ingestUrl = liveInput.srtUrl;
+        this.logger.info(
+          { userId, packageName, protocol: "SRT", restreamCount: restreamDestinations?.length || 0 },
+          "🚀 Streaming via SRT — app will receive hlsUrl/dashUrl for HLS/DASH playback (restream destinations active)",
+        );
       }
-      ingestUrl = liveInput.srtUrl;
-      this.logger.info(
-        { userId, packageName, protocol: "SRT", restreamCount: restreamDestinations?.length || 0 },
-        "🚀 Streaming via SRT — app will receive hlsUrl/dashUrl for HLS/DASH playback (restream destinations active)",
-      );
     }
 
     const startMessage: StartStream = {

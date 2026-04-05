@@ -14,6 +14,7 @@ import {
 } from "react-native"
 import {KeyboardAwareScrollView} from "react-native-keyboard-controller"
 
+import {useSafeAreaInsets} from "react-native-safe-area-context"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {$styles} from "@/theme"
 import {ExtendedEdge, useSafeAreaInsetsStyle} from "@/utils/useSafeAreaInsetsStyle"
@@ -43,6 +44,11 @@ interface BaseScreenProps {
    * Override the default edges for the safe area.
    */
   safeAreaEdges?: ExtendedEdge[]
+  /**
+   * Skip the automatic Android 3-button nav bar bottom inset.
+   * Use when a parent (e.g. tab bar) already handles bottom spacing.
+   */
+  skipAndroidNavBarInset?: boolean
   /**
    * Background color
    */
@@ -248,6 +254,7 @@ export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
     KeyboardAvoidingViewProps,
     keyboardOffset = 0,
     safeAreaEdges,
+    skipAndroidNavBarInset,
     StatusBarProps,
     statusBarStyle,
     ref,
@@ -255,8 +262,14 @@ export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
   } = props
 
   let $containerInsets = useSafeAreaInsetsStyle(safeAreaEdges, "padding")
-  // const [debugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
-  // console.log("$containerInsets", $containerInsets)
+
+  // On Android 3-button nav, always apply bottom inset so content isn't hidden behind the nav bar.
+  // Gesture nav reports ~0 bottom inset so this is a no-op there. iOS is unaffected.
+  // Skip when parent (e.g. tab bar) already handles bottom spacing.
+  const rawInsets = useSafeAreaInsets()
+  if (Platform.OS === "android" && rawInsets.bottom > 0 && !skipAndroidNavBarInset) {
+    $containerInsets = {...$containerInsets, paddingBottom: rawInsets.bottom}
+  }
 
   return (
     // separate view for screenshots:

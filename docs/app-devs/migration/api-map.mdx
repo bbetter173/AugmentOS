@@ -64,7 +64,7 @@ Use this page to find the v3 equivalent of any v2 API. Press Ctrl+F (or Cmd+F) a
 
 | v2 | v3 | Notes |
 |----|-----|-------|
-| `session.audio.play(url)` | `session.speaker.play(url)` | Same signature. |
+| `session.audio.playAudio({ audioUrl })` | `session.speaker.play({ url })` | Options object with `url` field instead of `audioUrl`. |
 | `session.audio.speak(text)` | `session.speaker.speak(text)` | Same signature. |
 | `session.audio.createStream()` | `session.speaker.createStream()` | Same signature. Returns AudioOutputStream. |
 | `session.audio.stop()` | `session.speaker.stop()` | Same signature. |

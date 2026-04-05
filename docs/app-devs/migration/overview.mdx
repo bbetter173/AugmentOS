@@ -228,11 +228,11 @@ Audio output (playing sounds, TTS) moved to `session.speaker`:
 
 ```typescript
 // v2
-session.audio.play("https://example.com/sound.mp3");
+session.audio.playAudio({ audioUrl: "https://example.com/sound.mp3" });
 session.audio.speak("Hello world");
 
 // v3
-session.speaker.play("https://example.com/sound.mp3");
+session.speaker.play({ url: "https://example.com/sound.mp3" });
 session.speaker.speak("Hello world");
 ```
 

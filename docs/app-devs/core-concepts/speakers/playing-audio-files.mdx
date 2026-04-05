@@ -8,7 +8,7 @@ Use `session.speaker.play()` to play audio files from a URL. The audio is stream
 ## Basic Usage
 
 ```typescript
-session.speaker.play("https://example.com/sound.mp3");
+session.speaker.play({ url: "https://example.com/sound.mp3" });
 ```
 
 ## Supported Formats
@@ -31,7 +31,7 @@ session.transcription.on((data) => {
 
   if (text.includes("take photo")) {
     session.camera.takePhoto();
-    session.speaker.play("https://example.com/shutter.mp3");
+    session.speaker.play({ url: "https://example.com/shutter.mp3" });
   }
 });
 ```
@@ -40,7 +40,7 @@ session.transcription.on((data) => {
 
 ```typescript
 session.phone.notifications.on((notification) => {
-  session.speaker.play("https://example.com/notification.mp3");
+  session.speaker.play({ url: "https://example.com/notification.mp3" });
   session.display.showText(`${notification.app}: ${notification.title}`);
 });
 ```
@@ -48,7 +48,7 @@ session.phone.notifications.on((notification) => {
 ### Background music or ambient audio
 
 ```typescript
-session.speaker.play("https://example.com/ambient.mp3");
+session.speaker.play({ url: "https://example.com/ambient.mp3" });
 ```
 
 ## Audio Streaming
@@ -78,10 +78,10 @@ This is used for conversational AI integrations (Gemini Live, OpenAI Realtime) w
 
 ```typescript
 // v2
-session.audio.play("https://example.com/sound.mp3");
+session.audio.playAudio({ audioUrl: "https://example.com/sound.mp3" });
 
 // v3
-session.speaker.play("https://example.com/sound.mp3");
+session.speaker.play({ url: "https://example.com/sound.mp3" });
 ```
 
 Same method, just on `session.speaker` instead of `session.audio`. See the [Migration Guide](/app-devs/migration/overview) for the full list of changes.

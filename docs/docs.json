@@ -71,6 +71,7 @@
                   "app-devs/core-concepts/microphone/audio-chunks"
                 ]
               },
+              "app-devs/core-concepts/translation",
               {
                 "group": "Speakers",
                 "icon": "volume",
@@ -98,6 +99,7 @@
                 ]
               },
               "app-devs/core-concepts/permissions",
+              "app-devs/core-concepts/storage",
               "app-devs/core-concepts/simple-storage",
               "app-devs/core-concepts/led/overview",
               "app-devs/core-concepts/location",

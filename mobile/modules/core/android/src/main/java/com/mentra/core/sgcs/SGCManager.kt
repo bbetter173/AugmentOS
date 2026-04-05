@@ -61,6 +61,9 @@ abstract class SGCManager {
         setDashboardPosition(height, depth)
     }
 
+    // Dashboard Menu (default no-op — only G2 supports this)
+    open fun setDashboardMenu(items: List<Map<String, Any>>) {}
+
     // Device Control
     abstract fun setHeadUpAngle(angle: Int)
     abstract fun getBatteryStatus()

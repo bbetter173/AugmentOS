@@ -148,34 +148,31 @@ Sessions are isolated per user. Each user who starts your app gets their own `Me
 Here's a minimal MentraOS app:
 
 ```typescript
-import { AppServer, AppSession } from '@mentraos/sdk';
+import { MiniAppServer, type MentraSession } from "@mentra/sdk";
 
-class HelloGlasses extends AppServer {
-  protected async onSession(session: AppSession, sessionId: string, userId: string) {
-    // Show greeting
-    session.layouts.showTextWall('Hello from MentraOS!');
-
-    // Listen for voice input
-    session.events.onTranscription((data) => {
-      if (data.isFinal) {
-        session.layouts.showTextWall(`You said: ${data.text}`);
-      }
-    });
-  }
-
-  protected async onStop(sessionId: string, userId: string, reason: string) {
-    console.log(`Session ${sessionId} ended: ${reason}`);
-  }
-}
-
-// Start server
-const server = new HelloGlasses({
-  packageName: 'com.example.helloglasses',
+const app = new MiniAppServer({
+  packageName: "com.example.helloglasses",
   apiKey: process.env.MENTRAOS_API_KEY!,
-  port: 3000
+  port: 3000,
 });
 
-server.start();
+app.onSession((session: MentraSession) => {
+  // Show greeting
+  session.display.showTextWall("Hello from MentraOS!");
+
+  // Listen for voice input
+  session.transcription.on((data) => {
+    if (data.isFinal) {
+      session.display.showTextWall(`You said: ${data.text}`);
+    }
+  });
+
+  session.onStopped((reason) => {
+    console.log(`Session ended: ${reason}`);
+  });
+});
+
+await app.start();
 ```
 
 This app greets the user and echoes back their voice input. Simple, but it demonstrates the complete lifecycle.

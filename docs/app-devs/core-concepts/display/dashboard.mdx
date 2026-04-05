@@ -71,7 +71,7 @@ MentraOS automatically throttles display updates to 1 every 300ms to prevent dis
 
 ```typescript
 // You can update frequently - cloud handles throttling
-session.events.onTranscription((data) => {
+session.transcription.on((data) => {
   if (data.isFinal) {
     session.dashboard.content.writeToMain(`Message: ${data.text}`);
   }
@@ -83,17 +83,17 @@ session.events.onTranscription((data) => {
 ### Status Updates
 
 ```typescript
-session.events.onTranscription(async (data) => {
+session.transcription.on(async (data) => {
   if (data.isFinal) {
     // Show user input
-    session.layouts.showTextWall(data.text);
+    session.display.showTextWall(data.text);
     
     // Update dashboard with status
     session.dashboard.content.writeToMain('Processing...');
     
     // Process and show result
     const response = await processInput(data.text);
-    session.layouts.showTextWall(response);
+    session.display.showTextWall(response);
     
     // Clear dashboard
     session.dashboard.content.writeToMain('');
@@ -106,12 +106,12 @@ session.events.onTranscription(async (data) => {
 ```typescript
 let messageCount = 0;
 
-session.events.onTranscription((data) => {
+session.transcription.on((data) => {
   if (data.isFinal) {
     messageCount++;
     
     // Update main display
-    session.layouts.showTextWall(data.text);
+    session.display.showTextWall(data.text);
     
     // Show count in dashboard
     session.dashboard.content.writeToMain(`Messages: ${messageCount}`);
@@ -150,7 +150,7 @@ function stopRecording(session: AppSession) {
 ```typescript
 let notificationCount = 0;
 
-session.events.onPhoneNotification((data) => {
+session.phone.notifications.on((data) => {
   if (['Messages', 'Email'].includes(data.app)) {
     notificationCount++;
     session.dashboard.content.writeToMain(`${notificationCount} notifications`);

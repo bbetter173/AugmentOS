@@ -83,9 +83,9 @@ session.permissions.onUpdate((permissions) => {
 
 ```typescript
 // These require MICROPHONE permission:
-session.events.onTranscription((data) => {});
-session.events.onAudioChunk((data) => {});
-session.events.onVAD((data) => {});
+session.transcription.on((data) => {});
+session.mic.onChunk((data) => {});
+session.mic.onVoiceActivity((data) => {});
 ```
 
 ### LOCATION
@@ -108,15 +108,15 @@ await session.camera.startLocalLivestream({ streamUrl: 'srt://...' });
 
 ```typescript
 // These require READ_NOTIFICATIONS permission:
-session.events.onPhoneNotification((data) => {});
-session.events.onNotificationDismissed((data) => {});
+session.phone.notifications.on((data) => {});
+session.phone.notifications.onDismissed((data) => {});
 ```
 
 ### CALENDAR
 
 ```typescript
 // Requires CALENDAR permission:
-session.events.on(StreamType.CALENDAR_EVENT, (data) => {});
+session.phone.calendar.on(, (data) => {});
 ```
 
 ## Runtime Behavior

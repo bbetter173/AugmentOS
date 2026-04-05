@@ -580,8 +580,8 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
       return
     }
 
-    // Handle offline apps - navigate directly to React Native route
-    if (applet.offline && applet.offlineRoute) {
+    // Handle apps with custom routes (offline or online with offlineRoute override)
+    if (applet.offlineRoute) {
       saveLastOpenTime(applet.packageName)
       push(applet.offlineRoute, {transition: "fade"})
     } else if (applet.webviewUrl && applet.healthy) {

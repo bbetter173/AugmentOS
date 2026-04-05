@@ -785,7 +785,6 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     for (const applet of applets) {
       if (applet.packageName === notifyPackageName) {
         // On Android, route to notification settings instead of generic webview settings
-        applet.offline = true
         applet.offlineRoute = "/miniapps/settings/notifications"
       }
     }
@@ -871,11 +870,10 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       const currentRoute = getCurrentRoute()
       if (currentRoute === "/home") {
         saveLastOpenTime(applet.packageName)
-        if (applet.offline) {
-          const offlineRoute = applet.offlineRoute
-          if (offlineRoute) {
-            push(offlineRoute, {transition: "zoom"})
-          }
+        if (applet.offlineRoute) {
+          push(applet.offlineRoute, {transition: "zoom"})
+        } else if (applet.offline) {
+          // offline app with no route - nothing to navigate to
         } else if (applet.local) {
           push("/applet/local", {
             packageName: applet.packageName,

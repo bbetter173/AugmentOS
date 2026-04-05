@@ -46,11 +46,17 @@
             ]
           },
           {
+            "group": "Migrating to v3",
+            "icon": "arrow-up-right-dots",
+            "pages": ["app-devs/migration/overview"]
+          },
+          {
             "group": "Core Concepts",
             "icon": "brain",
             "pages": [
               "app-devs/core-concepts/app-lifecycle-overview",
               "app-devs/core-concepts/app-server",
+              "app-devs/core-concepts/session",
               "app-devs/core-concepts/app-session/app-session",
               {
                 "group": "Display",

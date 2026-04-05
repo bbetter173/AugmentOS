@@ -52,6 +52,8 @@ interface NavigationHistoryContextType {
   setAndroidBackFn: (fn: () => void) => void
   setAnimation: (animation: StackAnimationTypes) => void
   animation: StackAnimationTypes
+  forceGestureEnabled: boolean
+  setForceGestureEnabled: (value: boolean) => void
   getCurrentParams: () => any | null
   getCurrentRoute: () => string | null
 }
@@ -74,6 +76,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     androidBackFnRef.current = fn
   }
   const [animation, setAnimation] = useState<StackAnimationTypes>("simple_push")
+  const [forceGestureEnabled, setForceGestureEnabled] = useState(false)
   // const rootNavigation = useNavigationContainerRef()
 
   useEffect(() => {
@@ -515,6 +518,8 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
         setAndroidBackFn,
         setAnimation,
         animation,
+        forceGestureEnabled,
+        setForceGestureEnabled,
         getCurrentRoute,
         getCurrentParams,
       }}>
@@ -533,22 +538,25 @@ export function useNavigationHistory() {
 
 // screens that call this function will prevent the back button from being pressed:
 export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?: boolean) => {
-  const {incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
+  const {incPreventBack, decPreventBack, setAndroidBackFn, forceGestureEnabled} = useNavigationHistory()
   const navigation = useNavigation()
 
-  // hook into the back button on ios:
+  // hook into the back button on ios (skip if iosDontPreventBack — let native gesture handle it):
   if (Platform.OS === "ios") {
     useFocusEffect(
       useCallback(() => {
+        if (iosDontPreventBack) return  // No listener needed; native gesture handles back
         const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-          // Fires when back gesture starts or back button is pressed
-          // console.log("navigating back")
-          backFn?.()
+          // If forceGestureEnabled is active, the native gesture is handling the removal.
+          // Don't call backFn to avoid a double goBack().
+          if (!forceGestureEnabled) {
+            backFn?.()
+          }
         })
         return () => {
           unsubscribe()
         }
-      }, [backFn]),
+      }, [backFn, iosDontPreventBack, forceGestureEnabled]),
     )
   }
 

@@ -5,6 +5,7 @@ import android.util.Log;
 
 import com.mentra.asg_client.io.streaming.config.RtmpStreamConfig;
 import com.mentra.asg_client.io.streaming.config.WhipStreamConfig;
+import com.mentra.asg_client.io.streaming.services.WhipCameraFormatSelector;
 import com.mentra.asg_client.io.streaming.services.RtmpStreamingService;
 import com.mentra.asg_client.io.streaming.services.SrtStreamingService;
 import com.mentra.asg_client.io.streaming.services.WhipStreamingService;
@@ -164,8 +165,16 @@ public class StreamCommandHandler implements ICommandHandler {
                 }
                 case WHIP: {
                     WhipStreamConfig config = WhipStreamConfig.fromJson(videoJson, audioJson);
+                    if (isResolutionTooHigh(config.getVideoWidth(), config.getVideoHeight())) {
+                        Log.w(TAG, "Rejecting WHIP stream request that exceeds supported camera output: "
+                                + config.getVideoWidth() + "x" + config.getVideoHeight());
+                        streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
+                                "Resolution too high");
+                        return false;
+                    }
                     Log.d(TAG, "Starting WHIP stream to: " + streamUrl);
                     WhipStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
+                    WhipStreamingService.setStateManager(stateManager);
                     break;
                 }
             }
@@ -174,6 +183,17 @@ public class StreamCommandHandler implements ICommandHandler {
         } catch (Exception e) {
             Log.e(TAG, "Error handling start stream command", e);
             streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR, e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isResolutionTooHigh(int width, int height) {
+        try {
+            WhipCameraFormatSelector.SelectionResult selection =
+                    WhipCameraFormatSelector.selectCaptureSize(context, width, height);
+            return selection != null && selection.hasSupportedSizes() && selection.requiresUpscale();
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to validate requested stream resolution; allowing request", e);
             return false;
         }
     }
@@ -271,9 +291,12 @@ public class StreamCommandHandler implements ICommandHandler {
                 }
             }
 
-            if (WhipStreamingService.isStreaming()) {
-                streamingManager.sendKeepAliveAck(streamId, ackId);
-                return true;
+            if (WhipStreamingService.isStreaming() || WhipStreamingService.isReconnecting()) {
+                boolean valid = WhipStreamingService.resetStreamTimeout(streamId);
+                if (valid || WhipStreamingService.isStreaming()) {
+                    streamingManager.sendKeepAliveAck(streamId, ackId);
+                    return true;
+                }
             }
 
             Log.w(TAG, "Keep-alive for unknown stream, not currently streaming: " + streamId);

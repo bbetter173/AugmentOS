@@ -4,6 +4,28 @@ description: "Control what device data your app can access"
 icon: "lock"
 ---
 
+In v3, you can query and observe your app's permissions at runtime using `session.permissions`.
+
+## Checking Permissions at Runtime
+
+```typescript
+// Check a single permission
+const canUseCamera = session.permissions.has("camera");
+
+// Get all permissions
+const all = session.permissions.getAll();
+```
+
+Subscribe to permission changes (e.g. if the user revokes a permission while your app is running):
+
+```typescript
+session.permissions.onUpdate((permissions) => {
+  if (!permissions.includes("microphone")) {
+    session.display.showTextWall("Microphone permission removed");
+  }
+});
+```
+
 ## Available Permissions
 
 | Permission | Unlocks | Required For |
@@ -18,10 +40,10 @@ icon: "lock"
 
 ## How Permissions Work
 
-1. **Declare in Developer Console** - Set required permissions for your app
-2. **User approval** - Users see and approve permissions when installing
-3. **Automatic enforcement** - Cloud blocks access to features without permission
-4. **No code needed** - Just declare permissions, SDK handles the rest
+1. **Declare in Developer Console** — Set required permissions for your app
+2. **User approval** — Users see and approve permissions when installing
+3. **Automatic enforcement** — Cloud blocks access to features without permission
+4. **Runtime query (v3)** — Use `session.permissions.has()` to check at runtime
 
 ## Setting Permissions
 

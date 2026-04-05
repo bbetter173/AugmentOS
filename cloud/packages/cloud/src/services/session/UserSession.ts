@@ -18,6 +18,7 @@ import {
 import { ResourceTracker } from "../../utils/resource-tracker";
 import appService from "../core/app.service";
 import { memoryLeakDetector } from "../debug/MemoryLeakDetector";
+import { connectionChurnTracker } from "../metrics/SystemVitalsLogger";
 import DisplayManager from "../layout/DisplayManager6.1";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { PosthogService } from "../logging/posthog.service";
@@ -32,6 +33,7 @@ import CalendarManager from "./CalendarManager";
 import { DashboardManager } from "./dashboard";
 import DeviceManager from "./DeviceManager";
 import { handleAppMessage as appMessageHandler, handleGlassesMessage as glassesMessageHandler } from "./handlers";
+import { clearSubscriptionChangeTimer } from "./handlers/app-message-handler";
 import LocationManager from "./LocationManager";
 import MicrophoneManager from "./MicrophoneManager";
 import PhotoManager from "./PhotoManager";
@@ -55,6 +57,14 @@ export class UserSession {
   public readonly userId: string;
   public readonly startTime: Date; // = new Date();
   public disconnectedAt: Date | null = null;
+
+  // Connection churn tracking — proves whether disconnects are client-side or server-side
+  // See: cloud/issues/069-ws-disconnect-observability/spike.md
+  public reconnectCount = 0;
+  public lastCloseCode?: number;
+  public lastCloseReason?: string;
+  public lastClientMessageTime?: number; // Updated on every message FROM the client
+  public lastAppLevelPongTime?: number; // Updated when client responds to our app-level ping
 
   // Logging
   public readonly logger: Logger;
@@ -138,7 +148,7 @@ export class UserSession {
   private appLevelPingInterval?: NodeJS.Timeout;
   private appLevelPingCount = 0; // Counter for targeted debug logging
   private pongHandler?: () => void; // Stored for cleanup
-  private lastPongTime?: number;
+  public lastPongTime?: number;
   private pongTimeoutTimer?: NodeJS.Timeout;
   private readonly PONG_TIMEOUT_MS = 30000; // 30 seconds - 3x heartbeat interval
 
@@ -434,6 +444,7 @@ export class UserSession {
     if (this.microphoneManager) {
       this.logger.info(`[UserSession:updateWebSocket] Scheduling mic state resync after WebSocket reconnect`);
       setTimeout(() => {
+        if (this.disposed) return;
         if (this.microphoneManager && this.websocket?.readyState === WebSocketReadyState.OPEN) {
           this.logger.info(`[UserSession:updateWebSocket] Forcing mic state resync after WebSocket reconnect`);
           this.microphoneManager.forceResync();
@@ -476,9 +487,42 @@ export class UserSession {
   ): Promise<{ userSession: UserSession; reconnection: boolean }> {
     const existingSession = UserSession.getById(userId);
     if (existingSession) {
-      existingSession.logger.info(
-        `[UserSession:createOrReconnect] Existing session found for ${userId}, updating WebSocket`,
-      );
+      // Only log reconnect metrics if the session was actually disconnected.
+      // If disconnectedAt is null, this is a WebSocket upgrade (new socket arriving
+      // before old one closed) — not a true disconnect/reconnect cycle.
+      if (existingSession.disconnectedAt) {
+        const downtimeMs = Date.now() - existingSession.disconnectedAt.getTime();
+        const sessionAgeSeconds = Math.round((Date.now() - existingSession.startTime.getTime()) / 1000);
+        const now = Date.now();
+
+        existingSession.reconnectCount++;
+
+        existingSession.logger.info(
+          {
+            feature: "ws-reconnect",
+            reconnectCount: existingSession.reconnectCount,
+            downtimeMs,
+            sessionAgeSeconds,
+            lastCloseCode: existingSession.lastCloseCode,
+            lastCloseReason: existingSession.lastCloseReason || undefined,
+            timeSinceLastClientMessage: existingSession.lastClientMessageTime
+              ? now - existingSession.lastClientMessageTime
+              : null,
+            timeSinceLastPong: existingSession.lastPongTime ? now - (existingSession.lastPongTime as number) : null,
+            timeSinceLastAppPong: existingSession.lastAppLevelPongTime
+              ? now - existingSession.lastAppLevelPongTime
+              : null,
+          },
+          `Glasses reconnect #${existingSession.reconnectCount}: downtime=${downtimeMs}ms, lastClose=${existingSession.lastCloseCode}`,
+        );
+
+        // Record reconnect for churn tracking in SystemVitalsLogger
+        connectionChurnTracker.recordReconnect(downtimeMs);
+      } else {
+        existingSession.logger.info(
+          `[UserSession:createOrReconnect] WebSocket upgrade for ${userId} (session was not disconnected)`,
+        );
+      }
 
       // Update WS and restart heartbeat
       existingSession.updateWebSocket(ws);
@@ -735,6 +779,17 @@ export class UserSession {
 
     this.logger.warn(`[UserSession:dispose]: Disposing UserSession: ${this.userId}`);
 
+    // Clear the subscription-change debounce timer for this user. Its closure
+    // captures `userSession`, so leaving it alive would prevent GC of the
+    // disposed UserSession until the timer fires.
+    // Only clear if this is still the active session for this userId — during
+    // reconnect races, a stale session's dispose must not cancel the newer
+    // session's pending subscription-change timer. The timer map is keyed by
+    // userId, so a blind clear would affect whichever session currently owns it.
+    if (UserSession.sessions.get(this.userId) === this || !UserSession.sessions.has(this.userId)) {
+      clearSubscriptionChangeTimer(this.userId);
+    }
+
     // Clean up all tracked resources (removes event listeners, clears timers)
     // This must happen BEFORE disposing managers to prevent stale callbacks
     this.resources.dispose();
@@ -742,7 +797,22 @@ export class UserSession {
     // Log to posthog disconnected duration.
     const now = new Date();
     const duration = now.getTime() - this.startTime.getTime();
-    this.logger.info({ duration }, `User session ${this.userId} disconnected. Connected for ${duration}ms`);
+    const sessionDurationSeconds = Math.round(duration / 1000);
+    const nowMs = now.getTime();
+    this.logger.info(
+      {
+        feature: "ws-dispose",
+        duration,
+        sessionDurationSeconds,
+        reconnectCount: this.reconnectCount,
+        lastCloseCode: this.lastCloseCode,
+        lastCloseReason: this.lastCloseReason || undefined,
+        timeSinceLastClientMessage: this.lastClientMessageTime ? nowMs - this.lastClientMessageTime : null,
+        timeSinceLastAppPong: this.lastAppLevelPongTime ? nowMs - this.lastAppLevelPongTime : null,
+        disposalReason: this.disconnectedAt ? "grace_period_timeout" : "explicit_disposal",
+      },
+      `Session disposed: duration=${sessionDurationSeconds}s, reconnects=${this.reconnectCount}, lastClose=${this.lastCloseCode}, silent=${this.lastClientMessageTime ? nowMs - this.lastClientMessageTime : "?"}ms`,
+    );
     try {
       await PosthogService.trackEvent("disconnected", this.userId, {
         duration: duration,
@@ -771,6 +841,13 @@ export class UserSession {
     if (this.managedStreamingExtension) this.managedStreamingExtension.dispose();
     if (this.appAudioStreamManager) this.appAudioStreamManager.dispose();
 
+    // These 4 were previously missing from dispose. Each now has a proper
+    // dispose() that clears internal state (Maps, Sets, promises, snapshots).
+    if (this.calendarManager) this.calendarManager.dispose();
+    if (this.deviceManager) this.deviceManager.dispose();
+    if (this.userSettingsManager) this.userSettingsManager.dispose();
+    if (this.streamRegistry) this.streamRegistry.dispose();
+
     // Persist location to DB cold cache and clean up
     if (this.locationManager) await this.locationManager.dispose();
 
@@ -795,18 +872,23 @@ export class UserSession {
     // Dispose UDP audio manager
     if (this.udpAudioManager) this.udpAudioManager.dispose();
 
-    // Remove from static session map
-    UserSession.sessions.delete(this.userId);
+    // Only delete from map if this session is still the registered one.
+    // A stale session's dispose() must not delete a newer session's entry.
+    if (UserSession.sessions.get(this.userId) === this) {
+      UserSession.sessions.delete(this.userId);
+    }
 
-    this.logger.info(
-      {
-        disposalReason: this.disconnectedAt ? "grace_period_timeout" : "explicit_disposal",
-      },
-      `🗑️ Session disposed and removed from storage for ${this.userId}`,
-    );
+    this.logger.info(`🗑️ Session disposed and removed from storage for ${this.userId}`);
 
     // Mark disposed for leak detection
     memoryLeakDetector.markDisposed(`UserSession:${this.userId}`);
+
+    // gc-after-disconnect REMOVED — confirmed wasteful:
+    // 31 calls/hour on US Central, 2,242ms total event loop blocking, freed 0 bytes
+    // every single time. The gc-probe in SystemVitalsLogger provides the same
+    // diagnostic data on a fixed 60s schedule without being triggered by user behavior.
+    // See: cloud/issues/066-ws-disconnect-churn/spec.md (A7)
+    // See: cloud/issues/067-heap-growth-investigation/spike.md
   }
 
   /**

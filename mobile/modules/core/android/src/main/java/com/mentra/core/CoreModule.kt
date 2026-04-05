@@ -33,6 +33,8 @@ class CoreModule : Module() {
             "compatible_glasses_search_stop",
             "heartbeat_sent",
             "heartbeat_received",
+            "send_command_to_ble",
+            "receive_command_from_ble",
             "swipe_volume_status",
             "switch_status",
             "rgb_led_control_response",
@@ -45,12 +47,16 @@ class CoreModule : Module() {
             "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
-            "mic_data",
-            "rtmp_stream_status",
+            "mic_pcm",
+            "mic_lc3",
+            "stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
+            "send_command_to_ble",
+            "receive_command_from_ble",
         )
 
         OnCreate {
@@ -235,16 +241,16 @@ class CoreModule : Module() {
             coreManager?.stopVideoRecording(requestId)
         }
 
-        // MARK: - RTMP Stream Commands
+        // MARK: - Stream Commands
 
-        AsyncFunction("startRtmpStream") { params: Map<String, Any> ->
-            coreManager?.startRtmpStream(params.toMutableMap())
+        AsyncFunction("startStream") { params: Map<String, Any> ->
+            coreManager?.startStream(params.toMutableMap())
         }
 
-        AsyncFunction("stopRtmpStream") { coreManager?.stopRtmpStream() }
+        AsyncFunction("stopStream") { coreManager?.stopStream() }
 
-        AsyncFunction("keepRtmpStreamAlive") { params: Map<String, Any> ->
-            coreManager?.keepRtmpStreamAlive(params.toMutableMap())
+        AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
+            coreManager?.keepStreamAlive(params.toMutableMap())
         }
 
         // MARK: - Microphone Commands
@@ -253,7 +259,7 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            coreManager?.setMicState(sendPcmData, sendTranscript, bypassVad)
+            coreManager?.setMicState()
         }
 
         AsyncFunction("restartTranscriber") { coreManager?.restartTranscriber() }
@@ -265,6 +271,16 @@ class CoreModule : Module() {
             // This is used to suspend LC3 mic during audio playback to avoid MCU overload
             val context = appContext.reactContext ?: return@AsyncFunction
             com.mentra.core.utils.PhoneAudioMonitor.getInstance(context).setOwnAppAudioPlaying(playing)
+        }
+
+        AsyncFunction("getGlassesMediaVolume") {
+            val cm = coreManager ?: throw IllegalStateException("core_manager_null")
+            cm.getGlassesMediaVolumeBlocking()
+        }
+
+        AsyncFunction("setGlassesMediaVolume") { level: Int ->
+            val cm = coreManager ?: throw IllegalStateException("core_manager_null")
+            cm.setGlassesMediaVolumeBlocking(level)
         }
 
         // MARK: - RGB LED Control
@@ -320,6 +336,12 @@ class CoreModule : Module() {
 
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
+        }
+
+        // MARK: - Beta Build Detection (TestFlight on iOS; TODO: Google Play Beta on Android)
+
+        AsyncFunction("isBetaBuild") {
+            false
         }
 
         // MARK: - Android-specific Commands

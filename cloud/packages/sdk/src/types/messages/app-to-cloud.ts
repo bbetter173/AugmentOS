@@ -75,12 +75,12 @@ export interface RgbLedControlRequest extends BaseMessage {
 // Video, Audio and Stream configuration interfaces are imported from '../rtmp-stream'
 
 /**
- * RTMP stream request from App
+ * Stream request from App (supports RTMP, SRT, WHIP)
  */
-export interface RtmpStreamRequest extends BaseMessage {
-  type: AppToCloudMessageType.RTMP_STREAM_REQUEST;
+export interface StreamRequest extends BaseMessage {
+  type: AppToCloudMessageType.STREAM_REQUEST;
   packageName: string;
-  rtmpUrl: string;
+  streamUrl: string;
   video?: VideoConfig;
   audio?: AudioConfig;
   stream?: StreamConfig;
@@ -89,10 +89,10 @@ export interface RtmpStreamRequest extends BaseMessage {
 }
 
 /**
- * RTMP stream stop request from App
+ * Stream stop request from App
  */
-export interface RtmpStreamStopRequest extends BaseMessage {
-  type: AppToCloudMessageType.RTMP_STREAM_STOP;
+export interface StreamStopRequest extends BaseMessage {
+  type: AppToCloudMessageType.STREAM_STOP;
   packageName: string;
   streamId?: string; // Optional stream ID to specify which stream to stop
 }
@@ -117,8 +117,9 @@ export interface RestreamDestination {
 }
 
 /**
- * Managed RTMP stream request from App
- * The cloud handles the RTMP endpoint and returns HLS/DASH URLs
+ * Managed stream request from App.
+ * By default, managed streams use WebRTC (WHIP ingest → WHEP playback) for low latency.
+ * If restreamDestinations are provided, falls back to SRT ingest with HLS/DASH playback.
  */
 export interface ManagedStreamRequest extends BaseMessage {
   type: AppToCloudMessageType.MANAGED_STREAM_REQUEST;
@@ -128,7 +129,8 @@ export interface ManagedStreamRequest extends BaseMessage {
   video?: VideoConfig;
   audio?: AudioConfig;
   stream?: StreamConfig;
-  /** Optional RTMP destinations to re-stream to (YouTube, Twitch, etc) */
+  /** Optional RTMP destinations to re-stream to (YouTube, Twitch, etc).
+   *  When present, stream uses SRT ingest + HLS/DASH playback instead of WebRTC. */
   restreamDestinations?: RestreamDestination[];
   /** Controls stream start/stop sounds. Defaults to true if omitted. */
   sound?: boolean;
@@ -217,6 +219,25 @@ export interface AudioStreamEnd extends BaseMessage {
 }
 
 /**
+ * ROI crop position for camera FOV control
+ */
+export type CameraRoiPosition = "center" | "top" | "bottom";
+
+/**
+ * Camera FOV set request from App
+ */
+export interface CameraFovSetRequest extends BaseMessage {
+  type: AppToCloudMessageType.CAMERA_FOV_SET;
+  packageName: string;
+  sessionId: string;
+  requestId: string;
+  /** Field of view in degrees (82-118). 118 means no crop (full sensor). */
+  fov: number;
+  /** ROI crop position. Ignored when fov is 118. Defaults to "center". */
+  roiPosition: CameraRoiPosition;
+}
+
+/**
  * WiFi setup request from App
  */
 export interface RequestWifiSetup extends BaseMessage {
@@ -248,12 +269,13 @@ export type AppToCloudMessage =
   | DisplayRequest
   | PhotoRequest
   | RgbLedControlRequest
+  | CameraFovSetRequest
   | AudioPlayRequest
   | AudioStopRequest
   | AudioStreamStart
   | AudioStreamEnd
-  | RtmpStreamRequest
-  | RtmpStreamStopRequest
+  | StreamRequest
+  | StreamStopRequest
   | ManagedStreamRequest
   | ManagedStreamStopRequest
   | StreamStatusCheckRequest
@@ -312,6 +334,13 @@ export function isPhotoRequest(message: AppToCloudMessage): message is PhotoRequ
  */
 export function isRgbLedControlRequest(message: AppToCloudMessage): message is RgbLedControlRequest {
   return message.type === AppToCloudMessageType.RGB_LED_CONTROL;
+}
+
+/**
+ * Type guard to check if a message is a camera FOV set request
+ */
+export function isCameraFovSetRequest(message: AppToCloudMessage): message is CameraFovSetRequest {
+  return message.type === AppToCloudMessageType.CAMERA_FOV_SET;
 }
 
 /**
@@ -428,17 +457,17 @@ export interface AppRoomLeave extends BaseMessage {
 }
 
 /**
- * Type guard to check if a message is an RTMP stream request
+ * Type guard to check if a message is a stream request
  */
-export function isRtmpStreamRequest(message: AppToCloudMessage): message is RtmpStreamRequest {
-  return message.type === AppToCloudMessageType.RTMP_STREAM_REQUEST;
+export function isStreamRequest(message: AppToCloudMessage): message is StreamRequest {
+  return message.type === AppToCloudMessageType.STREAM_REQUEST;
 }
 
 /**
- * Type guard to check if a message is an RTMP stream stop request
+ * Type guard to check if a message is a stream stop request
  */
-export function isRtmpStreamStopRequest(message: AppToCloudMessage): message is RtmpStreamStopRequest {
-  return message.type === AppToCloudMessageType.RTMP_STREAM_STOP;
+export function isStreamStopRequest(message: AppToCloudMessage): message is StreamStopRequest {
+  return message.type === AppToCloudMessageType.STREAM_STOP;
 }
 
 /**

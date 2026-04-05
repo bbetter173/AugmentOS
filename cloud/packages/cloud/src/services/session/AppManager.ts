@@ -23,8 +23,9 @@ import {
 
 // import subscriptionService from "./subscription.service";
 import App from "../../models/app.model";
+import { appCache } from "../core/app-cache.service";
 import { User } from "../../models/user.model";
-import appService from "../core/app.service";
+import appService, { DEPRECATED_APPS } from "../core/app.service";
 import * as developerService from "../core/developer.service";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { metricsService } from "../metrics";
@@ -44,7 +45,7 @@ const CLOUD_PUBLIC_HOST_NAME = process.env.CLOUD_PUBLIC_HOST_NAME; // e.g., "pro
 const CLOUD_LOCAL_HOST_NAME = process.env.CLOUD_LOCAL_HOST_NAME; // e.g., "localhost:8002" | "cloud" | "cloud-debug-cloud.default.svc.cluster.local:80"
 const AUGMENTOS_AUTH_JWT_SECRET = process.env.AUGMENTOS_AUTH_JWT_SECRET;
 
-const APP_SESSION_TIMEOUT_MS = 5000; // 5 seconds
+const APP_SESSION_TIMEOUT_MS = 6000; // 6 seconds
 
 // Note: Connection states are now managed by AppSession (AppSessionState)
 // The old AppConnectionState enum has been removed in Phase 4b
@@ -89,7 +90,18 @@ interface AppMessageResult {
 
 interface AppAttachOptions {
   ackType?: CloudToAppMessageType.CONNECTION_ACK | CloudToAppMessageType.RECONNECT_ACK;
+  sdkVersion?: string;
 }
+
+// ── Hot-path allocation reduction ──────────────────────────────────────────────
+// Pre-allocated, frozen result objects for sendMessageToApp to avoid per-call
+// heap allocations on the hot path.  Reduces GC pressure / heap fragmentation
+// on Bun/JSC where short-lived objects are especially costly.
+const SEND_SUCCESS: Readonly<AppMessageResult> = Object.freeze({ sent: true, resurrectionTriggered: false });
+const SEND_FAIL_STOPPING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is being stopped" });
+const SEND_FAIL_GRACE: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "Connection lost, waiting for reconnection" });
+const SEND_FAIL_RESURRECTING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is restarting" });
+const SEND_FAIL_CONNECTING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is still connecting" });
 
 export class AppManager {
   private userSession: UserSession;
@@ -156,7 +168,14 @@ export class AppManager {
     }
 
     if (!session) {
+      // Pass the legacy sessionId format (userId-packageName) so that v2 SDKs
+      // can parse it in CONNECTION_INIT to recover the userId. The 048 branch
+      // changed AppSession to default to randomUUID(), which breaks v2 apps
+      // because the cloud parses sessionId.split("-")[0] to find the UserSession.
+      // See: cloud/issues/074 — debug deploy v2 app connection failure
+      const legacySessionId = `${this.userSession.userId}-${packageName}`;
       session = new AppSession({
+        sessionId: legacySessionId,
         packageName,
         logger: this.logger,
         onGracePeriodExpired: async (appSession) => {
@@ -299,8 +318,42 @@ export class AppManager {
       return;
     }
 
-    // User is connected - attempt resurrection
-    this.logger.info({ packageName }, `[AppManager] Grace period expired, attempting resurrection`);
+    // v3 SDK: preserve AppSession with all subscriptions — just send webhook.
+    // The app server is probably still alive (SDK crashed or network died).
+    // When it reconnects, it finds the existing AppSession waiting with all
+    // subscriptions intact. Data resumes instantly after RECONNECT_ACK.
+    // See: cloud/issues/048-sdk-v3 reconnection architecture spike
+    if (appSession.isV3) {
+      this.logger.info(
+        { packageName, sdkVersion: appSession.sdkVersion },
+        `[AppManager] v3 grace period expired — preserving subscriptions, sending webhook for resurrection`,
+      );
+      appSession.markResurrecting();
+
+      try {
+        const result = await this.startApp(packageName);
+        if (!result.success) {
+          this.logger.error(
+            { packageName, error: result.error },
+            `[AppManager] v3 resurrection webhook failed for ${packageName}: ${result.error?.message}`,
+          );
+          appSession.markStopped();
+          if (this.userSession.websocket && this.userSession.websocket.readyState === WebSocketReadyState.OPEN) {
+            this.userSession.websocket.send(
+              JSON.stringify({ type: "app_stopped", packageName, timestamp: new Date() }),
+            );
+          }
+        }
+      } catch (error) {
+        this.logger.error(error, `[AppManager] v3 resurrection failed for ${packageName}`);
+        appSession.markStopped();
+      }
+      return;
+    }
+
+    // v2 SDK (legacy): stop and restart — this destroys the AppSession and
+    // clears subscriptions. The SDK must re-register handlers in onSession().
+    this.logger.info({ packageName }, `[AppManager] Grace period expired, attempting resurrection (v2 legacy)`);
 
     try {
       // Stop and restart the app (resurrection)
@@ -545,6 +598,16 @@ export class AppManager {
    */
   async startApp(packageName: string): Promise<AppStartResult> {
     const logger = this.logger.child({ packageName });
+
+    // Block deprecated apps from being started.
+    if (DEPRECATED_APPS.includes(packageName)) {
+      logger.info({ packageName }, `Blocked deprecated app ${packageName} from starting`);
+      return {
+        success: false,
+        error: { stage: "WEBHOOK", message: `App ${packageName} is deprecated and can no longer be started` },
+      };
+    }
+
     logger.info(
       {
         packageName,
@@ -614,10 +677,14 @@ export class AppManager {
       logger.debug(`App ${packageName} is a standard app, checking for running foreground apps`);
       // Check if any other foreground app is running
       const runningAppsPackageNames = Array.from(this.userSession.runningApps.keys());
-      const runningForegroundApps = await App.find({
-        packageName: { $in: runningAppsPackageNames },
-        appType: AppType.STANDARD,
-      });
+      const cachedApps = appCache.getByPackageNames(runningAppsPackageNames);
+      const runningForegroundApps = (
+        cachedApps.length === runningAppsPackageNames.length
+          ? cachedApps
+          : await App.find({
+              packageName: { $in: runningAppsPackageNames },
+            }).lean()
+      ).filter((a: any) => a.appType === AppType.STANDARD);
       logger.debug(
         { runningAppsPackageNames, runningForegroundApps },
         `Running foreground apps: ${JSON.stringify(runningForegroundApps)}`,
@@ -651,6 +718,13 @@ export class AppManager {
         return new Promise<AppStartResult>((resolve) => {
           // Set up a listener for when the existing attempt completes
           const checkCompletion = () => {
+            // Guard: if the session was disposed while we were polling,
+            // resolve immediately to avoid holding a reference to the dead session.
+            if (this.disposed) {
+              resolve({ success: false, error: { stage: "CONNECTION", message: "Session disposed while waiting" } });
+              return;
+            }
+
             if (!this.pendingConnections.has(packageName)) {
               // Existing attempt completed, check final state
               if (this.userSession.runningApps.has(packageName)) {
@@ -840,9 +914,15 @@ export class AppManager {
       }
 
       // Set up the websocket URL for the App connection
+      // mentraOSWebsocketUrl MUST use /app-ws — v2 SDKs read this field and
+      // connect to whatever URL it contains. /ws/miniapp is the v3 path that
+      // v2 SDKs can't use (CONNECTION_INIT format mismatch, connection timeout).
+      // websocketUrl uses the v3 path for v3 SDKs that read it instead.
+      // augmentOSWebsocketUrl is the legacy alias (deprecated, same as mentraOS).
+      // See: cloud/issues/074 — debug deploy v2 app connection failure
       const websocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/ws/miniapp`;
-      const mentraOSWebsocketUrl = websocketUrl;
-      const augmentOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
+      const mentraOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
+      const augmentOSWebsocketUrl = mentraOSWebsocketUrl;
 
       // Construct the webhook URL from the app's public URL
       const webhookURL = `${app.publicUrl}/webhook`;
@@ -1182,6 +1262,7 @@ export class AppManager {
 
     await this.attachAppSocket(packageName, ws, {
       ackType: CloudToAppMessageType.RECONNECT_ACK,
+      sdkVersion: reconnectMessage.sdkVersion,
     });
   }
 
@@ -1194,6 +1275,28 @@ export class AppManager {
   async handleAppInit(ws: IWebSocket, initMessage: AppConnectionInit): Promise<void> {
     try {
       const { packageName, apiKey } = initMessage;
+
+      // Reject deprecated apps immediately.
+      if (DEPRECATED_APPS.includes(packageName)) {
+        this.logger.info(
+          { packageName, userId: this.userSession.userId },
+          `Rejected connection from deprecated app ${packageName}`,
+        );
+        try {
+          ws.send(
+            JSON.stringify({
+              type: CloudToAppMessageType.CONNECTION_ERROR,
+              code: "APP_DEPRECATED",
+              message: `App ${packageName} is deprecated and no longer accepted`,
+              timestamp: new Date(),
+            }),
+          );
+        } catch (sendError) {
+          this.logger.error(sendError, `Error sending deprecation error to App ${packageName}:`);
+        }
+        ws.close(1008, "App deprecated");
+        return;
+      }
 
       // Validate the API key
       const isValidApiKey = await developerService.validateApiKey(packageName, apiKey, this.userSession);
@@ -1279,6 +1382,7 @@ export class AppManager {
 
       await this.attachAppSocket(packageName, ws, {
         ackType: CloudToAppMessageType.CONNECTION_ACK,
+        sdkVersion: initMessage.sdkVersion,
       });
 
       // Resolve pending connection if it exists
@@ -1440,7 +1544,25 @@ export class AppManager {
     try {
       // Fetch previously running apps from database
       const user = await User.findOrCreateUser(this.userSession.userId);
-      const previouslyRunningApps = user.runningApps;
+      const allPreviouslyRunning = user.runningApps;
+
+      // Filter out deprecated apps and clean them from the DB.
+      const deprecatedFound = allPreviouslyRunning.filter((pkg) => DEPRECATED_APPS.includes(pkg));
+      const previouslyRunningApps = allPreviouslyRunning.filter((pkg) => !DEPRECATED_APPS.includes(pkg));
+
+      if (deprecatedFound.length > 0) {
+        logger.info(
+          { deprecatedFound, userId: this.userSession.userId },
+          `Removing ${deprecatedFound.length} deprecated app(s) from user's runningApps`,
+        );
+        for (const pkg of deprecatedFound) {
+          try {
+            await user.removeRunningApp(pkg);
+          } catch (err) {
+            logger.warn({ err, packageName: pkg }, `Failed to remove deprecated app from DB`);
+          }
+        }
+      }
 
       if (previouslyRunningApps.length === 0) {
         logger.debug(`No previously running apps for ${this.userSession.userId}`);
@@ -1634,6 +1756,12 @@ export class AppManager {
       return;
     }
 
+    // Set SDK version before handleConnect so the disconnect handler
+    // knows whether to use TRANSPORT_DOWN (v3) or GRACE_PERIOD (v2).
+    if (options.sdkVersion) {
+      connectedAppSession.setSdkVersion(options.sdkVersion);
+    }
+
     connectedAppSession.handleConnect(ws);
     const sessionId = connectedAppSession.sessionId;
 
@@ -1720,27 +1848,15 @@ export class AppManager {
       const appState = this.getAppConnectionState(packageName);
 
       if (appState === AppSessionState.STOPPING) {
-        return {
-          sent: false,
-          resurrectionTriggered: false,
-          error: "App is being stopped",
-        };
+        return SEND_FAIL_STOPPING;
       }
 
       if (appState === AppSessionState.GRACE_PERIOD) {
-        return {
-          sent: false,
-          resurrectionTriggered: false,
-          error: "Connection lost, waiting for reconnection",
-        };
+        return SEND_FAIL_GRACE;
       }
 
       if (appState === AppSessionState.RESURRECTING) {
-        return {
-          sent: false,
-          resurrectionTriggered: false,
-          error: "App is restarting",
-        };
+        return SEND_FAIL_RESURRECTING;
       }
 
       // Get WebSocket from AppSession (Phase 4d)
@@ -1749,19 +1865,17 @@ export class AppManager {
 
       // If connection is connecting, then we can't send messages yet.
       if (websocket && websocket.readyState === WebSocketReadyState.CONNECTING) {
-        this.logger.warn(
-          {
-            userId: this.userSession.userId,
-            packageName,
-            service: "AppManager",
-          },
-          `App ${packageName} is still connecting, cannot send message yet`,
-        );
-        return {
-          sent: false,
-          resurrectionTriggered: false,
-          error: "App is still connecting",
-        };
+        if (this.logger.isLevelEnabled('debug')) {
+          this.logger.warn(
+            {
+              userId: this.userSession.userId,
+              packageName,
+              service: "AppManager",
+            },
+            `App ${packageName} is still connecting, cannot send message yet`,
+          );
+        }
+        return SEND_FAIL_CONNECTING;
       }
 
       // Check if websocket exists and is ready
@@ -1778,7 +1892,7 @@ export class AppManager {
             `[AppManager:sendMessageToApp]: Message sent to App ${packageName} for user ${this.userSession.userId}`,
           );
 
-          return { sent: true, resurrectionTriggered: false };
+          return SEND_SUCCESS;
         } catch (sendError) {
           const logger = this.logger.child({ packageName });
           const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
@@ -1800,11 +1914,9 @@ export class AppManager {
 
       // manually trigger handleAppConnectionClosed, which will handle the grace period and resurrection logic.
       await this.handleAppConnectionClosed(packageName, 1069, "Connection not available for messaging");
-      return {
-        sent: false,
-        resurrectionTriggered: true,
-        error: "Connection not available for messaging",
-      };
+      // NOTE: This path returns a fresh object because resurrectionTriggered is true
+      // and the error string is unique to this code-path – not worth a frozen constant.
+      return { sent: false, resurrectionTriggered: true, error: "Connection not available for messaging" };
     } catch (error) {
       const logger = this.logger.child({ packageName });
       const errorMessage = error instanceof Error ? error.message : String(error);

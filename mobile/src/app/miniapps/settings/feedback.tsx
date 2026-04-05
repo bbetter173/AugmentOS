@@ -3,24 +3,25 @@ import NetInfo from "@react-native-community/netinfo"
 import Constants from "expo-constants"
 import * as ImagePicker from "expo-image-picker"
 import * as Location from "expo-location"
-import {useState, useEffect} from "react"
+import {useState, useEffect, useCallback, useRef} from "react"
 import {Image, Platform, Pressable, ScrollView, TextInput, View, Linking, ActivityIndicator} from "react-native"
 
-import {Button, Header, Screen, Text} from "@/components/ignite"
+import {Button, Header, Icon, Screen, Text} from "@/components/ignite"
 import {RadioGroup, RatingButtons, StarRating} from "@/components/ui"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {logBuffer} from "@/utils/dev/logging"
 import restComms from "@/services/RestComms"
-import {useAppletStatusStore} from "@/stores/applets"
+import {feedbackPackageName, settingsPackageName, useAppletStatusStore} from "@/stores/applets"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 import mentraAuth from "@/utils/auth/authClient"
+import {useMiniAppScreenshotBackHandler} from "@/utils/miniAppScreenshots"
 
 export default function FeedbackPage() {
-  const [email, setEmail] = useState("")
+  const [savedContactEmail, setSavedContactEmail] = useSetting(SETTINGS.contact_email.key)
+  const [email, setEmail] = useState((savedContactEmail as string) || "")
   const [feedbackType, setFeedbackType] = useState<"bug" | "feature">("bug")
   const [expectedBehavior, setExpectedBehavior] = useState("")
   const [actualBehavior, setActualBehavior] = useState("")
@@ -32,10 +33,22 @@ export default function FeedbackPage() {
 
   const MAX_SCREENSHOTS = 5
 
-  const {goBack} = useNavigationHistory()
   const {theme} = useAppTheme()
   const apps = useAppletStatusStore((state) => state.apps)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
+  const viewShotRef = useRef<View>(null)
+
+  const resolveScreenshotPackageName = useCallback(() => {
+    if (apps.some((app) => app.packageName === feedbackPackageName && app.running)) {
+      return feedbackPackageName
+    }
+    if (apps.some((app) => app.packageName === settingsPackageName && app.running)) {
+      return settingsPackageName
+    }
+    return null
+  }, [apps])
+
+  const {goBackWithScreenshot} = useMiniAppScreenshotBackHandler(viewShotRef, resolveScreenshotPackageName)
 
   // Glasses info for bug reports
   const glassesConnected = useGlassesStore((state) => state.connected)
@@ -99,6 +112,11 @@ export default function FeedbackPage() {
 
   const handleSubmitFeedback = async () => {
     setIsSubmitting(true)
+
+    // Persist the contact email for next time
+    if (isApplePrivateRelay && email.trim()) {
+      setSavedContactEmail(email.trim())
+    }
 
     // Check if user rated 4-5 stars on feature request
     const shouldPromptAppRating = feedbackType === "feature" && experienceRating !== null && experienceRating >= 4
@@ -255,7 +273,7 @@ export default function FeedbackPage() {
           {
             text: translate("common:ok"),
             onPress: () => {
-              goBack()
+              void goBackWithScreenshot()
             },
           },
         ])
@@ -300,7 +318,7 @@ export default function FeedbackPage() {
           {
             text: translate("common:ok"),
             onPress: () => {
-              goBack()
+              void goBackWithScreenshot()
             },
           },
         ])
@@ -323,7 +341,7 @@ export default function FeedbackPage() {
       {
         text: translate("common:ok"),
         onPress: () => {
-          goBack()
+          void goBackWithScreenshot()
 
           // If user rated highly, prompt for app store rating after a delay
           if (shouldPromptAppRating) {
@@ -349,6 +367,10 @@ export default function FeedbackPage() {
   }
 
   const isFormValid = (): boolean => {
+    // Require email for Apple private relay users
+    if (isApplePrivateRelay && !email.trim().includes("@")) {
+      return false
+    }
     if (feedbackType === "bug") {
       return !!((expectedBehavior.trim() || actualBehavior.trim()) && severityRating !== null)
     } else {
@@ -357,28 +379,19 @@ export default function FeedbackPage() {
   }
 
   return (
-    <Screen preset="fixed">
-      <Header title={translate("feedback:giveFeedback")} leftIcon="chevron-left" onLeftPress={goBack} />
+    <Screen preset="fixed" ref={viewShotRef}>
+      <Header
+        title={translate("feedback:giveFeedback")}
+        leftIcon="chevron-left"
+        onLeftPress={() => {
+          void goBackWithScreenshot()
+        }}
+      />
       <ScrollView
         className="pt-6 -mx-6 px-6"
         contentContainerClassName="flex-grow pb-12"
         keyboardShouldPersistTaps="handled">
         <View className="gap-6">
-          {isApplePrivateRelay && (
-            <View>
-              <Text className="text-sm font-semibold text-foreground mb-2">{translate("feedback:emailOptional")}</Text>
-              <TextInput
-                className="bg-background border border-border rounded-xl p-4 text-base text-foreground"
-                value={email}
-                onChangeText={setEmail}
-                placeholder={translate("feedback:email")}
-                placeholderTextColor={theme.colors.muted_foreground}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-          )}
-
           <View>
             <Text className="text-sm font-semibold text-foreground mb-2">{translate("feedback:type")}</Text>
             <RadioGroup
@@ -390,6 +403,32 @@ export default function FeedbackPage() {
               onValueChange={(value) => setFeedbackType(value as "bug" | "feature")}
             />
           </View>
+
+          {isApplePrivateRelay && (
+            <View>
+              <View className="flex-row items-center mb-2 gap-1.5">
+                <Text className="text-sm font-semibold text-foreground">{translate("feedback:emailOptional")}</Text>
+                <Pressable
+                  hitSlop={10}
+                  onPress={() =>
+                    showAlert(translate("feedback:emailOptional"), translate("feedback:emailInfoMessage"), [
+                      {text: translate("common:ok")},
+                    ])
+                  }>
+                  <Icon name="info-circle" size={16} color={theme.colors.muted_foreground} />
+                </Pressable>
+              </View>
+              <TextInput
+                className="bg-background border border-border rounded-xl p-4 text-base text-foreground"
+                value={email}
+                onChangeText={setEmail}
+                placeholder={translate("feedback:email")}
+                placeholderTextColor={theme.colors.muted_foreground}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          )}
 
           {feedbackType === "bug" ? (
             <>

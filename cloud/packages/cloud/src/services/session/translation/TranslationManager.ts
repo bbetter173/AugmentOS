@@ -58,6 +58,24 @@ export class TranslationManager {
   // Health Monitoring
   private healthCheckInterval?: NodeJS.Timeout;
 
+  // Disposal flag
+  private disposed = false;
+  private pendingTimers = new Set<NodeJS.Timeout>();
+
+  /**
+   * Pre-allocated DataStream template for relayDataToApps hot path.
+   * Mutated in-place to avoid per-message heap allocation, reducing GC pressure
+   * and heap fragmentation on Bun/JSC.
+   */
+  private _relayTimestamp: Date = new Date();
+  private _relayDataStream: DataStream = {
+    type: CloudToAppMessageType.DATA_STREAM,
+    sessionId: "",
+    streamType: "" as ExtendedStreamType,
+    data: null as any,
+    timestamp: this._relayTimestamp,
+  };
+
   constructor(
     private userSession: UserSession,
     private config: TranslationConfig = DEFAULT_TRANSLATION_CONFIG,
@@ -398,6 +416,12 @@ export class TranslationManager {
    * Dispose of the manager and cleanup resources
    */
   async dispose(): Promise<void> {
+    this.disposed = true;
+    // Clear all pending retry timers to release references to this manager
+    for (const timer of this.pendingTimers) {
+      clearTimeout(timer);
+    }
+    this.pendingTimers.clear();
     this.logger.info("Disposing TranslationManager");
 
     // Stop health monitoring
@@ -697,19 +721,18 @@ export class TranslationManager {
       );
 
       // Send to each app using AppManager
+      // Hot-path: mutate pre-allocated _relayDataStream instead of allocating a new
+      // object per message to reduce heap fragmentation on Bun/JSC.
       for (const packageName of subscribedApps) {
         const appSessionId = this.userSession.getAppSessionId(packageName);
 
-        const dataStream: DataStream = {
-          type: CloudToAppMessageType.DATA_STREAM,
-          sessionId: appSessionId,
-          streamType: subscription,
-          data,
-          timestamp: new Date(),
-        };
+        this._relayDataStream.sessionId = appSessionId;
+        this._relayDataStream.streamType = subscription;
+        this._relayDataStream.data = data;
+        this._relayTimestamp.setTime(Date.now());
 
         try {
-          const result = await this.userSession.appManager.sendMessageToApp(packageName, dataStream);
+          const result = await this.userSession.appManager.sendMessageToApp(packageName, this._relayDataStream);
 
           if (!result.sent) {
             this.logger.warn(
@@ -949,7 +972,9 @@ export class TranslationManager {
       "Scheduling translation stream retry",
     );
 
-    setTimeout(async () => {
+    const retryTimer = setTimeout(async () => {
+      this.pendingTimers.delete(retryTimer);
+      if (this.disposed) return;
       try {
         await this.startStream(subscription);
         this.streamRetryAttempts.delete(subscription); // Success
@@ -957,6 +982,7 @@ export class TranslationManager {
         this.logger.warn({ subscription, attempt, error }, "Translation stream retry failed");
       }
     }, delay);
+    this.pendingTimers.add(retryTimer);
   }
 
   private async waitForStreamReady(stream: TranslationStreamInstance, timeoutMs: number): Promise<void> {

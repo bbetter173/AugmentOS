@@ -68,6 +68,22 @@ export class TranscriptionManager {
   private DEPLOYMENT_REGION: string = process.env.DEPLOYMENT_REGION || "global";
   private IS_CHINA: boolean = this.DEPLOYMENT_REGION === "china";
 
+  // Disposal State
+  private disposed = false;
+  private pendingTimers = new Set<NodeJS.Timeout>();
+
+  // Hot-path allocation reduction: pre-allocated DataStream template to avoid
+  // per-message heap allocations in relayDataToApps, reducing GC pressure
+  // and heap fragmentation on Bun/JSC.
+  private _relayTimestamp: Date = new Date();
+  private _relayDataStream: DataStream = {
+    type: CloudToAppMessageType.DATA_STREAM,
+    sessionId: "",
+    streamType: "" as ExtendedStreamType,
+    data: null as any,
+    timestamp: this._relayTimestamp,
+  };
+
   // Health Monitoring
   private healthCheckInterval?: NodeJS.Timeout;
 
@@ -845,6 +861,12 @@ export class TranscriptionManager {
    * Dispose of the manager and cleanup resources
    */
   async dispose(): Promise<void> {
+    this.disposed = true;
+    // Clear all pending reconnect/retry timers to release references to this manager
+    for (const timer of this.pendingTimers) {
+      clearTimeout(timer);
+    }
+    this.pendingTimers.clear();
     this.logger.info("Disposing TranscriptionManager");
 
     // Stop health monitoring
@@ -1469,7 +1491,10 @@ export class TranscriptionManager {
   private scheduleStreamReconnect(subscription: ExtendedStreamType, delayMs: number = 1000): void {
     this.logger.info({ subscription, delayMs }, "Scheduling stream reconnect after provider disconnect");
 
-    setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      this.pendingTimers.delete(timer);
+      if (this.disposed) return;
+
       // Double-check subscription is still active
       if (!this.activeSubscriptions.has(subscription)) {
         this.logger.debug({ subscription }, "Subscription no longer active - skipping reconnect");
@@ -1495,6 +1520,7 @@ export class TranscriptionManager {
         // next subscription update handle it to avoid potential infinite loops
       }
     }, delayMs);
+    this.pendingTimers.add(timer);
   }
 
   private scheduleStreamRetry(subscription: ExtendedStreamType, attempt: number, lastError?: Error): void {
@@ -1548,7 +1574,10 @@ export class TranscriptionManager {
       "Scheduling stream retry",
     );
 
-    setTimeout(async () => {
+    const retryTimer = setTimeout(async () => {
+      this.pendingTimers.delete(retryTimer);
+      if (this.disposed) return;
+
       try {
         await this.startStream(subscription);
         this.streamRetryAttempts.delete(subscription); // Success
@@ -1559,6 +1588,7 @@ export class TranscriptionManager {
         this.logger.warn({ subscription, attempt, error }, "Stream retry failed");
       }
     }, delay);
+    this.pendingTimers.add(retryTimer);
   }
 
   private isRetryableError(error: Error): boolean {
@@ -1904,17 +1934,16 @@ export class TranscriptionManager {
           ? this.findAppTranscriptionSubscription(packageName, data.transcribeLanguage)
           : null;
 
-        const dataStream: DataStream = {
-          type: CloudToAppMessageType.DATA_STREAM,
-          sessionId: appSessionId,
-          streamType: (appSubscription || effectiveSubscription) as ExtendedStreamType,
-          data,
-          timestamp: new Date(),
-        };
+        // Hot-path allocation reduction: mutate pre-allocated template instead of
+        // creating a new object per message to reduce heap fragmentation on Bun/JSC.
+        this._relayDataStream.sessionId = appSessionId;
+        this._relayDataStream.streamType = (appSubscription || effectiveSubscription) as ExtendedStreamType;
+        this._relayDataStream.data = data;
+        this._relayTimestamp.setTime(Date.now());
 
         try {
           // USE APP MANAGER instead of direct WebSocket (restores resurrection)
-          const result = await this.userSession.appManager.sendMessageToApp(packageName, dataStream);
+          const result = await this.userSession.appManager.sendMessageToApp(packageName, this._relayDataStream);
 
           if (!result.sent) {
             this.logger.warn(
@@ -1947,7 +1976,6 @@ export class TranscriptionManager {
         }
       }
 
-      // Enhanced debug logging to show transcription content and provider
       this.logger.debug(
         {
           subscription,

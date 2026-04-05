@@ -141,6 +141,46 @@
   ---break--- */
 @custom-variant dark (&:is(.dark *));
 
+/* Tailwind v4 theme mapping - maps CSS variables to Tailwind utility classes
+   Required for shared UI components (login, auth modals) to resolve classes
+   like bg-background, border-input, text-foreground, etc. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
 /* Safe area utilities for mobile devices with notches */
 @layer utilities {
   .pb-safe {
@@ -224,6 +264,21 @@
 
   /* Backward compatibility alias (typo fix) */
   --primaary-foreground: #1f1f1f;
+
+  /* Shared UI component variables (used by login/auth components) */
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --popover: #171717;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --secondary: #262626;
+  --muted: #262626;
+  --accent: #22c55e;
+  --accent-foreground: #fafafa;
+  --destructive: #e24a24;
+  --destructive-foreground: #e24a24;
+  --ring: #525252;
+  --radius: 0.625rem;
 }
 
 :root[data-theme="light"] {
@@ -270,11 +325,25 @@
   --primaary-foreground: #f5f5f5;
 
   /* Special Cases FINAL */
-
   --caption-btn-slider: #2e610b;
   --x-btn-slider: #0a0a0a;
   --streamer-btn-slider: #0a0a0a;
   --merge-btn-slider: #8f2995;
+
+  /* Shared UI component variables (used by login/auth components) */
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --secondary: #f5f5f5;
+  --muted: #f5f5f5;
+  --accent: #242454;
+  --accent-foreground: #fafafa;
+  --destructive: #e24a24;
+  --destructive-foreground: #e24a24;
+  --ring: #e5e5e5;
+  --radius: 0.625rem;
 }
 
 /* Theme-aware search input */

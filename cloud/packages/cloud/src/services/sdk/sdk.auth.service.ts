@@ -47,10 +47,7 @@ export function hashApiKey(apiKey: string): string {
 function safeEqualHex(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(a, "utf8"),
-      Buffer.from(b, "utf8"),
-    );
+    return crypto.timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
   } catch {
     // Fallback (shouldn't hit due to length guard)
     return a === b;
@@ -99,14 +96,24 @@ export function invalidateCache(packageName?: string): void {
 }
 
 /**
- * Fetch the hashedApiKey for an App from the DB.
+ * Clear the entire SDK auth cache.
+ * Called from app-cache invalidation to ensure stale credentials are not retained.
  */
-async function fetchHashedKeyFromDb(
-  packageName: string,
-): Promise<string | undefined> {
-  const app = (await App.findOne({ packageName })
-    .select("packageName hashedApiKey")
-    .lean()) as Pick<AppI, "packageName" | "hashedApiKey"> | null;
+export function clearSdkAuthCache(): void {
+  cache.clear();
+  logger.debug("SDK auth cache: cleared all entries (via clearSdkAuthCache)");
+}
+
+/**
+ * Fetch the hashedApiKey for an App from the DB.
+ * Always queries the database directly — credential validation must never
+ * rely on a cache that could serve stale hashed keys.
+ */
+async function fetchHashedKeyFromDb(packageName: string): Promise<string | undefined> {
+  const app = (await App.findOne({ packageName }).select("packageName hashedApiKey").lean()) as Pick<
+    AppI,
+    "packageName" | "hashedApiKey"
+  > | null;
 
   if (!app) {
     logger.warn({ packageName }, "App not found while validating API key");
@@ -127,15 +134,9 @@ async function fetchHashedKeyFromDb(
  * 3) If mismatch or cache miss => fetch hashedApiKey from DB (refresh cache).
  * 4) Compare again with DB value => final result.
  */
-export async function validateApiKey(
-  packageName: string,
-  apiKey: string,
-): Promise<boolean> {
+export async function validateApiKey(packageName: string, apiKey: string): Promise<boolean> {
   if (!packageName || !apiKey) {
-    logger.debug(
-      { packageName, hasApiKey: !!apiKey },
-      "Missing packageName or apiKey",
-    );
+    logger.debug({ packageName, hasApiKey: !!apiKey }, "Missing packageName or apiKey");
     return false;
   }
 

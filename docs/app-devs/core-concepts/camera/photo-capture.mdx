@@ -68,7 +68,7 @@ All photos maintain a 4:3 aspect ratio. BLE photos are encoded as AVIF (with JPE
 The photo is returned as a `Buffer` object. Here are common ways to use it:
 
 ```typescript
-private async processPhoto(session: AppSession): Promise<void> {
+private async processPhoto(session: MentraSession): Promise<void> {
   try {
     const photo = await session.camera.requestPhoto();
 
@@ -100,5 +100,5 @@ private async uploadPhotoToAPI(buffer: Buffer, mimeType: string): Promise<void> 
 ## See Also
 
 - [Camera API Reference](/app-devs/reference/managers/camera) - Complete API documentation
-- [RTMP Streaming Guide](/app-devs/core-concepts/camera/rtmp-streaming) - Live video streaming
+- [Video Streaming Guide](/app-devs/core-concepts/camera/streaming) - Live video streaming
 - [Permissions Guide](/app-devs/core-concepts/permissions) - Setting up camera permissions

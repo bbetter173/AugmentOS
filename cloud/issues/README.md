@@ -26,6 +26,20 @@ spike.md → spec.md → design.md
 
 Not every issue needs all three. A small bug fix might just need a spec. A complex investigation might produce a spike that concludes "do nothing." Use judgment — but when in doubt, write more rather than less.
 
+### Process Rules
+
+**The stages are sequential. Do not skip ahead.**
+
+1. **Don't write a spec until the spike is complete.** A spike is complete when the investigation is finished, the root cause is confirmed with evidence (logs, code traces, reproduction), and the findings are reviewed and agreed upon. Speculation and "potential causes" mean the spike isn't done yet — keep investigating.
+
+2. **Don't write a design doc until the spec is agreed on.** The spec defines *what* we're going to do. The design doc defines *how*. If the *what* changes, the *how* is wasted work.
+
+3. **Don't write docs while still investigating.** If you're still running queries, reading code, or testing hypotheses, you're not ready to write. Finish the investigation first, then write the spike with confirmed findings. A spike full of "possibly," "likely," and "needs investigation" is not a spike — it's notes.
+
+4. **A spike with unconfirmed root cause is incomplete.** If you can't point to the exact code path, the exact log line, or the exact sequence of events that causes the bug, the spike isn't done. Go back and investigate more.
+
+5. **AI agents: do not preemptively write specs or design docs.** When asked to investigate an issue, produce ONLY a spike. When asked to spec a solution, produce ONLY a spec (and only if the spike is complete). When asked to design the implementation, produce ONLY a design doc (and only if the spec is agreed on). Do not bundle all three in one pass.
+
 Each feature gets a folder: `cloud/issues/{number}-{feature-name}/`
 
 Example: `cloud/issues/034-ws-liveness/` (matches branch `cloud/ws-liveness-detection`)
@@ -265,11 +279,15 @@ But also: **Dense and useful > long and fluffy**
 
 Before implementation:
 
-1. Investigate (spike)
-2. Specify (spec)
-3. Design (design)
-4. Review together
-5. **Then** start coding
+1. Investigate (spike) — complete the investigation, confirm root cause with evidence
+2. **Review spike together** — agree on findings before proceeding
+3. Specify (spec) — define the solution, only after spike is agreed
+4. **Review spec together** — agree on approach before designing
+5. Design (design) — plan the implementation, only after spec is agreed
+6. **Review design together** — agree on implementation before coding
+7. **Then** start coding
+
+Each review is a gate. Do not proceed to the next stage until the current one is agreed upon. This prevents wasted work from building on unconfirmed assumptions.
 
 Docs are **planning artifacts**, not post-implementation documentation.
 
@@ -326,6 +344,9 @@ If you are an AI agent (Claude, Codex, Copilot, etc.) generating or editing thes
 ❌ **Committing secrets in docs** — tokens, API keys, passwords, connection strings. Use placeholders.
 ❌ **Including real PII** — customer emails, user IDs from production logs. Anonymize.
 ❌ **Skipping the design doc** — don't go straight from spec to implementation. The design doc is where implementation details get reviewed before code is written.
+❌ **Writing specs before the spike is done** — if the root cause isn't confirmed, the spec is built on assumptions. Investigate first.
+❌ **Writing design docs before the spec is agreed** — if the approach changes, the design is wasted work.
+❌ **Bundling spike + spec + design in one pass** — each stage needs review before the next. Rushing through all three produces docs built on unverified assumptions.
 
 ---
 

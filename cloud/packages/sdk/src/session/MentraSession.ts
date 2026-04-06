@@ -311,6 +311,14 @@ export class MentraSession {
       this._router.messageHandlers.register(CloudToAppMessageType.APP_STOPPED, (message) => {
         const reason = message.reason ?? "unknown";
         this.logger.info({ reason }, "MentraSession received app_stopped");
+
+        // Tell _ConnectionManager NOT to reconnect. The cloud explicitly stopped
+        // this session (user closed the app from the phone). Without this, the
+        // subsequent WebSocket close triggers scheduleReconnect() because
+        // explicitDisconnect is false (the SDK didn't initiate the close).
+        // See: cloud/issues/088 — "app keeps restarting after user stops it"
+        this._lifecycleManager.disconnect();
+
         this.emit("stopped", reason);
       }),
     );

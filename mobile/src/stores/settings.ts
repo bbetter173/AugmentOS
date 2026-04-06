@@ -103,7 +103,7 @@ export const SETTINGS: Record<string, Setting> = {
       if (process.env.EXPO_PUBLIC_DEPLOYMENT_REGION === "china") {
         return "https://api.mentraglass.cn:443"
       }
-      return "https://api.mentra.glass"
+      return "https://api.mentraglass.com"
     },
     // If env var is set, always use it (on every boot)
     override: () => process.env.EXPO_PUBLIC_BACKEND_URL_OVERRIDE,
@@ -523,6 +523,14 @@ export const SETTINGS: Record<string, Setting> = {
     defaultValue: () => [],
     writable: true,
     saveOnServer: true,
+    persist: true,
+  },
+  // Cached required version from server - used to enforce updates even when offline
+  cached_required_version: {
+    key: "cached_required_version",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
     persist: true,
   },
   // OTA update dismissal - stores the version code user dismissed (not persisted so resets on app restart)

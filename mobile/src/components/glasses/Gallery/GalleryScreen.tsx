@@ -70,7 +70,11 @@ interface GalleryItem {
   isOnServer?: boolean
 }
 
-export function GalleryScreen() {
+interface GalleryScreenProps {
+  onExit?: () => void
+}
+
+export function GalleryScreen({onExit}: GalleryScreenProps) {
   const {goBack, push} = useNavigationHistory()
   const {theme, themed} = useAppTheme()
   const insets = useSaferAreaInsets()
@@ -1150,7 +1154,7 @@ export function GalleryScreen() {
       <Header
         title={isSelectionMode ? "" : "Glasses Gallery"}
         leftIcon={isSelectionMode ? undefined : "chevron-left"}
-        onLeftPress={isSelectionMode ? undefined : () => goBack()}
+        onLeftPress={isSelectionMode ? undefined : () => (onExit ? onExit() : goBack())}
         safeAreaEdges={[]}
         LeftActionComponent={
           isSelectionMode ? (

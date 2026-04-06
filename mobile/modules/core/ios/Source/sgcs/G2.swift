@@ -52,11 +52,14 @@ private enum G2BLE {
 
 /// Service IDs from service_id_def.proto
 private enum ServiceID: UInt8 {
+    case dashboard = 1 // 0x01 - UI_BACKGROUND_DASHBOARD_APP_ID
     case menu = 3 // 0x03 - UI_FOREGROUND_MEUN_ID (typo is intentional — matches Even's proto)
     case evenAI = 7 // 0x07 - UI_FOREGROUND_EVEN_AI_ID
     case g2Setting = 9 // 0x09 - UI_SETTING_APP_ID
+    case gestureCtrl = 13 // 0x0D - gesture_ctrl lifecycle signals
     case onboarding = 16 // 0x10 - UI_ONBOARDING_APP_ID
     case deviceSettings = 128 // 0x80 - UX_DEVICE_SETTINGS_APP_ID
+    case evenHubCtrl = 129 // 0x81 - EvenHub CTRL channel (init/registration)
     case evenHub = 224 // 0xE0 - UI_BACKGROUND_EVENHUB_APP_ID
 }
 
@@ -381,27 +384,31 @@ private enum EvenHubProto {
     }
 
     /// Build an evenhub_main_msg_ctx wrapper
-    static func evenHubMessage(cmd: EvenHubCmd, subFieldNumber: Int, subMessage: Data) -> Data {
+    /// appId: optional menu item appId to associate the page with (enables cmdId=17 selection events)
+    static func evenHubMessage(cmd: EvenHubCmd, subFieldNumber: Int, subMessage: Data, magicRandom: Int32 = 0, appId: Int32? = nil) -> Data {
         var w = ProtobufWriter()
         w.writeInt32Field(1, cmd.rawValue) // Cmd (field 1, enum)
-        // MagicRandom will be set by the send layer (field 2)
+        w.writeInt32Field(2, magicRandom) // MagicRandom (field 2)
         w.writeMessageField(subFieldNumber, subMessage) // the actual command payload
+        if let appId = appId {
+            w.writeInt32Field(5, appId) // Associate page with a menu item appId
+        }
         return w.data
     }
 
     /// Convenience builders for full evenhub messages
-    static func createPageMessage(textContainers: [Data] = [], imageContainers: [Data] = []) -> Data {
+    static func createPageMessage(textContainers: [Data] = [], imageContainers: [Data] = [], magicRandom: Int32 = 0, appId: Int32? = nil) -> Data {
         let total = Int32(textContainers.count + imageContainers.count)
         let createMsg = createStartupPageContainer(
             containerTotalNum: total,
             textContainers: textContainers,
             imageContainers: imageContainers
         )
-        return evenHubMessage(cmd: .createStartupPage, subFieldNumber: 3, subMessage: createMsg)
+        return evenHubMessage(cmd: .createStartupPage, subFieldNumber: 3, subMessage: createMsg, magicRandom: magicRandom, appId: appId)
     }
 
     // RebuildPageContainer: same structure as CreateStartUpPageContainer, but cmd=7, field 7
-    static func rebuildPageMessage(textContainers: [Data] = [], imageContainers: [Data] = [])
+    static func rebuildPageMessage(textContainers: [Data] = [], imageContainers: [Data] = [], magicRandom: Int32 = 0, appId: Int32? = nil)
         -> Data
     {
         let total = Int32(textContainers.count + imageContainers.count)
@@ -410,7 +417,7 @@ private enum EvenHubProto {
             textContainers: textContainers,
             imageContainers: imageContainers
         )
-        return evenHubMessage(cmd: .rebuildPage, subFieldNumber: 7, subMessage: rebuildMsg)
+        return evenHubMessage(cmd: .rebuildPage, subFieldNumber: 7, subMessage: rebuildMsg, magicRandom: magicRandom, appId: appId)
     }
 
     static func updateImageRawDataMessage(
@@ -444,14 +451,14 @@ private enum EvenHubProto {
         return evenHubMessage(cmd: .shutdownPage, subFieldNumber: 11, subMessage: shutdownMsg)
     }
 
-    static func heartbeatMessage() -> Data {
+    static func heartbeatMessage(magicRandom: Int32 = 0) -> Data {
         let hbMsg = heartbeatPacket()
-        return evenHubMessage(cmd: .heartbeat, subFieldNumber: 14, subMessage: hbMsg)
+        return evenHubMessage(cmd: .heartbeat, subFieldNumber: 14, subMessage: hbMsg, magicRandom: magicRandom)
     }
 
-    static func audioControlMessage(enable: Bool) -> Data {
+    static func audioControlMessage(enable: Bool, magicRandom: Int32 = 0) -> Data {
         let audioMsg = audioCtrCmd(enable: enable)
-        return evenHubMessage(cmd: .audioControl, subFieldNumber: 18, subMessage: audioMsg)
+        return evenHubMessage(cmd: .audioControl, subFieldNumber: 18, subMessage: audioMsg, magicRandom: magicRandom)
     }
 }
 
@@ -684,16 +691,18 @@ private enum MenuProto {
     static let MIN_MENU_SIZE = 5
     static let MAX_MENU_SIZE = 10
     static let MAX_NAME_LENGTH = 15 // 17 char limit minus 2 for running indicator prefix
-    /// Placeholder appIds for padding slots (unique per slot in case firmware requires it)
-    static let PLACEHOLDER_APP_IDS: [Int32] = [99999, 99998, 99997, 99996, 99995]
+    /// Placeholder appIds for padding slots (in valid Even range, unique per slot)
+    static let PLACEHOLDER_APP_IDS: [Int32] = [10535, 10536, 10537, 10538, 10539]
 
-    /// Deterministic hash of packageName → numeric appId in range 10000–99999
+    /// Deterministic hash of packageName → numeric appId in range 10029–10534
+    /// Even's third-party appIds are all in the 10029–10539 range
     static func packageNameToAppId(_ packageName: String) -> Int32 {
         var hash: Int32 = 0
         for char in packageName.unicodeScalars {
             hash = ((hash &<< 5) &- hash) &+ Int32(char.value)
         }
-        return 10000 + (abs(hash) % 90000)
+        // 506 values: 10029–10534 (reserve 10535–10539 for placeholders)
+        return 10029 + (abs(hash) % 506)
     }
 
     /// meun_main_msg_ctx with APP_SEND_MENU_INFO command
@@ -709,6 +718,7 @@ private enum MenuProto {
         }
 
         var wireItems: [WireItem] = []
+
         for item in items.prefix(MAX_MENU_SIZE) {
             let appId = packageNameToAppId(item.packageName)
             appIdMap[appId] = item.packageName
@@ -849,7 +859,7 @@ private class G2SendManager {
 private class G2ReceiveManager {
     private var partials: [String: (Data, UInt8)] = [:] // key -> (accumulated payload, lastSerialNum)
 
-    func handlePacket(_ rawData: Data) -> (serviceId: UInt8, payload: Data)? {
+    func handlePacket(_ rawData: Data, sourceKey: String = "") -> (serviceId: UInt8, payload: Data)? {
         guard rawData.count >= 8 else { return nil }
         guard rawData[0] == G2BLE.HEADER_BYTE else { return nil }
 
@@ -871,7 +881,8 @@ private class G2ReceiveManager {
         let payload = rawData[8 ..< payloadEnd]
 
         let syncId = rawData[2]
-        let key = "\(serviceId)-\(syncId)"
+        // Key partials by source peripheral too — left and right glasses have independent syncId counters
+        let key = "\(sourceKey)-\(serviceId)-\(syncId)"
 
         if serialNum > 1 {
             guard var existing = partials[key] else { return nil }
@@ -1053,6 +1064,9 @@ class G2: NSObject, SGCManager {
     private var menuAppIdToPackageName: [Int32: String] = [:]
     /// Dashboard menu items (stored for re-send on connect)
     private var dashboardMenuItems: [MenuProto.MenuItem] = []
+    /// Current appId to associate EvenHub pages with (enables menu selection events)
+    /// Set to the first menu item's appId so glasses know our page belongs to the menu
+    private var activeMenuAppId: Int32?
 
     /// Published state
     @Published var batteryLevel: Int = -1 {
@@ -1147,6 +1161,33 @@ class G2: NSObject, SGCManager {
         sendToGlasses(packets)
     }
 
+    private func sendGestureCtrlCommand(_ payload: Data) {
+        let packets = sendManager.buildPackets(
+            serviceId: ServiceID.gestureCtrl.rawValue,
+            payload: payload,
+            reserveFlag: true
+        )
+        sendToGlasses(packets)
+    }
+
+    private func sendEvenHubCtrlCommand(_ payload: Data) {
+        let packets = sendManager.buildPackets(
+            serviceId: ServiceID.evenHubCtrl.rawValue,
+            payload: payload,
+            reserveFlag: true
+        )
+        sendToGlasses(packets)
+    }
+
+    private func sendDashboardCommand(_ payload: Data) {
+        let packets = sendManager.buildPackets(
+            serviceId: ServiceID.dashboard.rawValue,
+            payload: payload,
+            reserveFlag: true
+        )
+        sendToGlasses(packets)
+    }
+
     // MARK: - Authentication Sequence
 
     private func runAuthSequence() {
@@ -1197,6 +1238,113 @@ class G2: NSObject, SGCManager {
                         )
                         self.sendEvenAICommand(heyEvenOff)
                         Bridge.log("G2: Disabled Hey Even wakeword")
+
+                        // Replicate Even app's full init sequence for menu selection support:
+
+                        // 0. Universe settings (g2_setting cmd=1 field3 with field9=universe settings)
+                        // Even app's bytes: 4a 0a 08 00 10 00 18 01 20 00 28 01
+                        // = field 9 (universe), {1:0, 2:0, 3:1, 4:0, 5:1}
+                        var univW = ProtobufWriter()
+                        univW.writeInt32Field(1, 1) // DeviceReceiveInfo
+                        univW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        univW.writeMessageField(3, Data([
+                            0x4A, 0x0A, // field 9, length 10
+                            0x08, 0x00, // unitFormat=0
+                            0x10, 0x00, // distanceUnit=0
+                            0x18, 0x01, // timeFormat=1
+                            0x20, 0x00, // dateFormat=0
+                            0x28, 0x01, // temperatureUnit=1
+                        ]))
+                        self.sendG2SettingCommand(univW.data)
+
+                        // 1. gesture_ctrl init (field1=0, field2=magicRandom)
+                        var gestureInitW = ProtobufWriter()
+                        gestureInitW.writeInt32Field(1, 0)
+                        gestureInitW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        self.sendGestureCtrlCommand(gestureInitW.data)
+
+                        // 2. ui_setting_app (0x0C) — query (cmd=2, field4={settingInfoType=1, autoBrightnessLevel=0})
+                        var uiSettW = ProtobufWriter()
+                        uiSettW.writeInt32Field(1, 2) // cmd = DeviceReceiveRequest
+                        uiSettW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        uiSettW.writeMessageField(4, Data([0x08, 0x01, 0x10, 0x00])) // {1:1, 2:0}
+                        self.sendToGlasses(self.sendManager.buildPackets(
+                            serviceId: 0x0C, payload: uiSettW.data, reserveFlag: true
+                        ))
+
+                        // 3. teleprompter (0x10) — config (cmd=1, field3={1:4})
+                        var teleW = ProtobufWriter()
+                        teleW.writeInt32Field(1, 1)
+                        teleW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        teleW.writeMessageField(3, Data([0x08, 0x04])) // {1:4}
+                        self.sendToGlasses(self.sendManager.buildPackets(
+                            serviceId: 0x10, payload: teleW.data, reserveFlag: true
+                        ))
+
+                        // 4. EvenHub CTRL on service 0x81 (cmd=1, empty field3)
+                        var ehCtrlW = ProtobufWriter()
+                        ehCtrlW.writeInt32Field(1, 1)
+                        ehCtrlW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        ehCtrlW.writeMessageField(3, Data())
+                        self.sendEvenHubCtrlCommand(ehCtrlW.data)
+
+                        // 5. calendar (0x04) — config
+                        var calW = ProtobufWriter()
+                        calW.writeInt32Field(1, 1)
+                        calW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        calW.writeMessageField(3, Data([0x08, 0x01, 0x10, 0x01, 0x18, 0x05, 0x28, 0x01]))
+                        self.sendToGlasses(self.sendManager.buildPackets(
+                            serviceId: 0x04, payload: calW.data, reserveFlag: true
+                        ))
+
+                        // 6. Dashboard init (0x01) — display settings
+                        var dashDisplayW = ProtobufWriter()
+                        dashDisplayW.writeInt32Field(1, 4) // displayMode
+                        dashDisplayW.writeInt32Field(2, 3) // statusDisplayCount
+                        dashDisplayW.writeMessageField(3, Data([1, 2, 3])) // statusDisplayOrder
+                        dashDisplayW.writeInt32Field(4, 4) // widgetDisplayCount
+                        dashDisplayW.writeMessageField(5, Data([1, 3, 2, 2])) // widgetDisplayOrder
+                        dashDisplayW.writeInt32Field(6, 1) // halfDayFormat
+                        dashDisplayW.writeInt32Field(7, 1) // temperatureUnit
+
+                        var dashRecvW = ProtobufWriter()
+                        dashRecvW.writeMessageField(2, dashDisplayW.data)
+
+                        var dashPkgW = ProtobufWriter()
+                        dashPkgW.writeInt32Field(1, 2) // Dashboard_Receive
+                        dashPkgW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        dashPkgW.writeMessageField(4, dashRecvW.data)
+                        self.sendDashboardCommand(dashPkgW.data)
+
+                        // 7. Dashboard REQUEST_NEWS_INFO (cmd=5, field7={1:1})
+                        var dashNewsReqW = ProtobufWriter()
+                        dashNewsReqW.writeInt32Field(1, 5) // REQUEST_NEWS_INFO
+                        dashNewsReqW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        dashNewsReqW.writeMessageField(7, Data([0x08, 0x01])) // {1:1}
+                        self.sendDashboardCommand(dashNewsReqW.data)
+
+                        // 8. Gesture control list via g2_setting
+                        var gestListW = ProtobufWriter()
+                        gestListW.writeInt32Field(1, 1) // DeviceReceiveInfo
+                        gestListW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        // field 3 with field 10 (gestureControlList): 3 items, all app_unable
+                        let gestureCtrlPayload = Data([
+                            0x52, 0x18, // field 10, length 24
+                            0x0A, 0x06, 0x08, 0x00, 0x10, 0x00, 0x18, 0x00, // item 1
+                            0x0A, 0x06, 0x08, 0x00, 0x10, 0x01, 0x18, 0x00, // item 2
+                            0x0A, 0x06, 0x08, 0x00, 0x10, 0x02, 0x18, 0x00, // item 3
+                        ])
+                        gestListW.writeMessageField(3, gestureCtrlPayload)
+                        self.sendG2SettingCommand(gestListW.data)
+
+                        // 9. Dashboard APP_REQUEST_NEWS_INFO (cmd=7, field9={1:1})
+                        var dashAppNewsW = ProtobufWriter()
+                        dashAppNewsW.writeInt32Field(1, 7) // APP_REQUEST_NEWS_INFO
+                        dashAppNewsW.writeInt32Field(2, self.sendManager.nextMagicRandom())
+                        dashAppNewsW.writeMessageField(9, Data([0x08, 0x01])) // {1:1}
+                        self.sendDashboardCommand(dashAppNewsW.data)
+
+                        Bridge.log("G2: Sent full Even-compatible init sequence")
                     }
 
                     // Start heartbeats after auth
@@ -1409,11 +1557,11 @@ class G2: NSObject, SGCManager {
         let msg: Data
         if !startupPageCreated {
             Bridge.log("G2: displayBitmap() - creating startup page with image container")
-            msg = EvenHubProto.createPageMessage(imageContainers: [imageContainer])
+            msg = EvenHubProto.createPageMessage(imageContainers: [imageContainer], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
             startupPageCreated = true
         } else {
             Bridge.log("G2: displayBitmap() - rebuilding page with image container")
-            msg = EvenHubProto.rebuildPageMessage(imageContainers: [imageContainer])
+            msg = EvenHubProto.rebuildPageMessage(imageContainers: [imageContainer], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
         }
         sendEvenHubCommand(msg)
         pageCreated = true
@@ -1467,12 +1615,12 @@ class G2: NSObject, SGCManager {
         if !startupPageCreated {
             msg = EvenHubProto.createPageMessage(imageContainers: [
                 container1, container2, container3, container4,
-            ])
+            ], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
             startupPageCreated = true
         } else {
             msg = EvenHubProto.rebuildPageMessage(imageContainers: [
                 container1, container2, container3, container4,
-            ])
+            ], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
         }
         sendEvenHubCommand(msg)
         pageCreated = true
@@ -1622,11 +1770,11 @@ class G2: NSObject, SGCManager {
         let msg: Data
         if !startupPageCreated {
             Bridge.log("G2: displayBitmap() - creating startup page with image container")
-            msg = EvenHubProto.createPageMessage(imageContainers: [imageContainer])
+            msg = EvenHubProto.createPageMessage(imageContainers: [imageContainer], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
             startupPageCreated = true
         } else {
             Bridge.log("G2: displayBitmap() - rebuilding page with image container")
-            msg = EvenHubProto.rebuildPageMessage(imageContainers: [imageContainer])
+            msg = EvenHubProto.rebuildPageMessage(imageContainers: [imageContainer], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
         }
         sendEvenHubCommand(msg)
         pageCreated = true
@@ -1929,11 +2077,11 @@ class G2: NSObject, SGCManager {
         let msg: Data
         if !startupPageCreated {
             Bridge.log("G2: createPageWithText - using createPageMessage (first time)")
-            msg = EvenHubProto.createPageMessage(textContainers: [tc])
+            msg = EvenHubProto.createPageMessage(textContainers: [tc], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
             startupPageCreated = true
         } else {
             Bridge.log("G2: createPageWithText - using rebuildPageMessage")
-            msg = EvenHubProto.rebuildPageMessage(textContainers: [tc])
+            msg = EvenHubProto.rebuildPageMessage(textContainers: [tc], magicRandom: sendManager.nextMagicRandom(), appId: activeMenuAppId)
         }
         sendEvenHubCommand(msg)
         pageCreated = true
@@ -2086,6 +2234,7 @@ class G2: NSObject, SGCManager {
             items: menuItems
         )
         menuAppIdToPackageName = appIdMap
+        activeMenuAppId = appIdMap.keys.sorted().first
         sendMenuCommand(msg)
     }
 
@@ -2317,8 +2466,10 @@ class G2: NSObject, SGCManager {
 
     // MARK: - Incoming Data Handling
 
-    private func handleNotifyData(_ data: Data, from _: CBPeripheral) {
-        guard let result = receiveManager.handlePacket(data) else { return }
+    private func handleNotifyData(_ data: Data, from peripheral: CBPeripheral) {
+        // Distinguish left vs right peripheral so multi-packet reassembly doesn't collide
+        let sourceKey = peripheral === leftPeripheral ? "L" : "R"
+        guard let result = receiveManager.handlePacket(data, sourceKey: sourceKey) else { return }
 
         // Route based on service ID
         switch result.serviceId {
@@ -2330,8 +2481,12 @@ class G2: NSObject, SGCManager {
             handleG2SettingResponse(result.payload)
         case ServiceID.menu.rawValue:
             handleMenuResponse(result.payload)
-        case 13: // gesture_ctrl (0x0D) — foreground lifecycle signals
+        case ServiceID.dashboard.rawValue:
+            handleDashboardResponse(result.payload)
+        case ServiceID.gestureCtrl.rawValue:
             handleGestureCtrl(result.payload)
+        case ServiceID.evenHubCtrl.rawValue:
+            handleEvenHubCtrlResponse(result.payload)
         default:
             Bridge.log(
                 "G2: Unhandled service \(result.serviceId) (\(result.payload.count) bytes): \(result.payload.prefix(32).map { String(format: "%02X", $0) }.joined())"
@@ -2351,7 +2506,7 @@ class G2: NSObject, SGCManager {
             return
         }
 
-        Bridge.log("G2: EvenHub incoming cmd=\(cmdValue), fields=\(Array(fields.keys).sorted())")
+        // Bridge.log("G2: EvenHub incoming cmd=\(cmdValue), fields=\(Array(fields.keys).sorted())")
 
         if cmdValue == EvenHubResponseCmd.osNotifyEventToApp.rawValue {
             // Touch/gesture event from glasses
@@ -2377,9 +2532,9 @@ class G2: NSObject, SGCManager {
             }
         } else {
             // Log unhandled EvenHub commands (helps debug menu selection and stock dashboard interactions)
-            Bridge.log(
-                "G2: EvenHub response cmd=\(cmdValue), \(payload.count) bytes, fields=\(Array(fields.keys).sorted())"
-            )
+            // Bridge.log(
+            //     "G2: EvenHub response cmd=\(cmdValue), \(payload.count) bytes, fields=\(Array(fields.keys).sorted())"
+            // )
 
             // Parse error codes from responses
             // field 4 = StartupResCmd, field 6 = ImgResCmd, field 8 = RebuildResCmd, field 10 = TextResCmd
@@ -2453,8 +2608,8 @@ class G2: NSObject, SGCManager {
                         }
                     }
 
-                    // System exit: glasses killed our EvenHub page (user selected another app from long-press menu)
-                    // Reset page state so next display call re-creates the page, then force re-create immediately
+                    // System exit: glasses killed our EvenHub page (user opened menu or another app)
+                    // Reset page state and re-create the page to reclaim EvenHub focus
                     if eventType == .systemExit || eventType == .abnormalExit {
                         let savedText = currentTextContent
                         let savedBitmap = currentBitmapBase64
@@ -2596,48 +2751,47 @@ class G2: NSObject, SGCManager {
         }
     }
 
-    private func handleMenuResponse(_ payload: Data) {
-        // meun_main_msg_ctx: field 1 = Cmd, field 2 = MagicRandom, field 4 = ResponseMenuInfo
+    private func handleMenuResponse(_: Data) {
+        // meun_main_msg_ctx response from glasses (ack of our menu send)
+        // (informational only)
+    }
+
+    private func handleDashboardResponse(_ payload: Data) {
         var reader = ProtobufReader(payload)
         let fields = reader.parseFields()
         let cmd = fields[1] as? Int32 ?? -1
-        Bridge.log("G2: Menu response cmd=\(cmd), fields=\(Array(fields.keys).sorted())")
+        let magicRandom = fields[2] as? Int32 ?? 0
 
-        // Check if this is actually a selection event sent on the menu service
-        // Parse all fields for debugging
-        for (key, value) in fields.sorted(by: { $0.key < $1.key }) {
-            if let data = value as? Data {
-                var subReader = ProtobufReader(data)
-                let subFields = subReader.parseFields()
-                Bridge.log("G2: Menu response field\(key) subfields=\(subFields)")
-            } else {
-                Bridge.log("G2: Menu response field\(key) = \(value)")
-            }
+        // Parse field 6 (DashboardSendToApp) if present
+        var packageId: Int32 = 0
+        if let f6 = fields[6] as? Data {
+            var subReader = ProtobufReader(f6)
+            let sub = subReader.parseFields()
+            packageId = sub[1] as? Int32 ?? 0
+        }
+
+        // cmd=3 is APP_Respond — glasses sending us info, we should respond with cmd=4 (APP_RECEIVE)
+        // AppRespondToDashboard: field1=packageId, field2=flag (0=success)
+        if cmd == 3 {
+            var appRespW = ProtobufWriter()
+            appRespW.writeInt32Field(1, packageId) // packageId
+            appRespW.writeInt32Field(2, 0) // flag = APP_RECEIVED_SUCCESS
+
+            var pkgW = ProtobufWriter()
+            pkgW.writeInt32Field(1, 4) // commandId = APP_RECEIVE
+            pkgW.writeInt32Field(2, magicRandom)
+            pkgW.writeMessageField(5, appRespW.data) // field5 = appRespond
+            sendDashboardCommand(pkgW.data)
         }
     }
 
-    private func handleGestureCtrl(_ payload: Data) {
-        // gesture_ctrl (service 0x0D): field 1 = dashboard state, field 3 = foreground info
-        var reader = ProtobufReader(payload)
-        let fields = reader.parseFields()
+    private func handleEvenHubCtrlResponse(_: Data) {
+        // EvenHub CTRL channel response (informational only)
+    }
 
-        var foregroundServiceId: Int32 = -1
-        if let field3Data = fields[3] as? Data {
-            var subReader = ProtobufReader(field3Data)
-            let subFields = subReader.parseFields()
-            foregroundServiceId = subFields[1] as? Int32 ?? -1
-        }
-
-        // Map known foreground service IDs
-        let foregroundName: String
-        switch foregroundServiceId {
-        case -1: foregroundName = "exited"
-        case 224: foregroundName = "EvenHub"
-        case 4094: foregroundName = "menu_overlay"
-        default: foregroundName = "service(\(foregroundServiceId))"
-        }
-
-        Bridge.log("G2: gesture_ctrl — foreground=\(foregroundName)")
+    private func handleGestureCtrl(_: Data) {
+        // gesture_ctrl (service 0x0D): foreground lifecycle signals from glasses
+        // (informational only — log if needed for debugging)
     }
 
     private func parseDeviceSendToApp(_ data: Data) {

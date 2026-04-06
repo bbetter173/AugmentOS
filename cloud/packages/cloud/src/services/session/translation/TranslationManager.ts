@@ -724,7 +724,7 @@ export class TranslationManager {
       // Hot-path: mutate pre-allocated _relayDataStream instead of allocating a new
       // object per message to reduce heap fragmentation on Bun/JSC.
       for (const packageName of subscribedApps) {
-        const appSessionId = `${this.userSession.sessionId}-${packageName}`;
+        const appSessionId = this.userSession.getAppSessionId(packageName);
 
         this._relayDataStream.sessionId = appSessionId;
         this._relayDataStream.streamType = subscription;

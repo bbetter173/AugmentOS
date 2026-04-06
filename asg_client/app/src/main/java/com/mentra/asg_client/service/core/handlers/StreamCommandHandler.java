@@ -205,14 +205,17 @@ public class StreamCommandHandler implements ICommandHandler {
         try {
             if (RtmpStreamingService.isStreaming() || RtmpStreamingService.isReconnecting()) {
                 RtmpStreamingService.stopStreaming(context);
+                SysControl.setEisEnable(context, true);
                 streamingManager.sendStreamStatusResponse(true, ServiceConstants.STATUS_STOPPING, null);
                 return true;
             } else if (SrtStreamingService.isStreaming() || SrtStreamingService.isReconnecting()) {
                 SrtStreamingService.stopStreaming(context);
+                SysControl.setEisEnable(context, true);
                 streamingManager.sendStreamStatusResponse(true, ServiceConstants.STATUS_STOPPING, null);
                 return true;
             } else if (WhipStreamingService.isStreaming() || WhipStreamingService.isReconnecting()) {
                 WhipStreamingService.stopStreaming(context);
+                SysControl.setEisEnable(context, true);
                 streamingManager.sendStreamStatusResponse(true, ServiceConstants.STATUS_STOPPING, null);
                 return true;
             } else {

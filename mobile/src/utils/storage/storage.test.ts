@@ -1,4 +1,4 @@
-import {storage} from "./storage"
+import {storage} from "@/utils/storage/storage"
 
 const VALUE_OBJECT = {x: 1}
 

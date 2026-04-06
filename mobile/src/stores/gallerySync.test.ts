@@ -1,6 +1,5 @@
 import {PhotoInfo} from "@/types/asg"
-
-import {useGallerySyncStore} from "./gallerySync"
+import {useGallerySyncStore} from "@/stores/gallerySync"
 
 const createPhoto = (name: string): PhotoInfo => ({
   name,
@@ -50,5 +49,23 @@ describe("gallerySync store", () => {
     expect(nextState.completedFiles).toBe(0)
     expect(nextState.queueIndex).toBe(0)
     expect(nextState.currentFile).toBe("second.jpg")
+  })
+
+  it("does not decrement completedFiles when removing a failed file before queueIndex", () => {
+    const store = useGallerySyncStore.getState()
+    const files = [createPhoto("first.jpg"), createPhoto("second.jpg"), createPhoto("third.jpg")]
+
+    store.setSyncing(files)
+    store.onFileComplete("first.jpg")
+    store.onFileFailed("second.jpg")
+    useGallerySyncStore.getState().removeFilesFromQueue(["second.jpg"])
+
+    const nextState = useGallerySyncStore.getState()
+
+    expect(nextState.queue.map((file) => file.name)).toEqual(["first.jpg", "third.jpg"])
+    expect(nextState.completedFiles).toBe(1)
+    expect(nextState.queueIndex).toBe(1)
+    expect(nextState.failedFiles).toEqual([])
+    expect(nextState.currentFile).toBe("third.jpg")
   })
 })

@@ -3,20 +3,25 @@ import {setBuildEnv} from "./set-build-env.mjs"
 await setBuildEnv()
 
 async function ensureAndroidSdkConfigured() {
-  const sdkPathCandidates = [
-    process.env.ANDROID_HOME,
-    process.env.ANDROID_SDK_ROOT,
+  const envVars = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
+  const defaultPaths = [
     `${process.env.HOME}/Library/Android/sdk`,
     `${process.env.HOME}/Android/Sdk`,
     "/opt/android-sdk",
+  ]
+  const sdkPathCandidates = [
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    ...defaultPaths,
   ].filter(Boolean)
 
   const sdkPath = sdkPathCandidates.find((candidate) => fs.existsSync(candidate))
 
   if (!sdkPath) {
     console.error("Android SDK not found.")
-    console.error("Set ANDROID_HOME or ANDROID_SDK_ROOT, or install the SDK in one of these locations:")
-    sdkPathCandidates.forEach((candidate) => console.error(`  ${candidate}`))
+    console.error(`Set one of these environment variables: ${envVars.join(", ")}`)
+    console.error("Or install the SDK in one of these locations:")
+    defaultPaths.forEach((candidate) => console.error(`  ${candidate}`))
     process.exit(1)
   }
 
@@ -27,9 +32,9 @@ async function ensureAndroidSdkConfigured() {
 }
 
 // prebuild android:
-await $({stdio: "inherit"})`bun expo prebuild --platform android`
-
 await ensureAndroidSdkConfigured()
+
+await $({stdio: "inherit"})`bun expo prebuild --platform android`
 
 // Get connected devices with details
 const adbOutput = await $`adb devices -l`

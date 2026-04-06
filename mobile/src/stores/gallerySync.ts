@@ -254,9 +254,14 @@ export const useGallerySyncStore = create<GallerySyncState>()(
 
       const filesToRemove = new Set(fileNames)
       const state = get()
-      const removedBeforeQueueIndex = state.queue
+      const failedFilesSet = new Set(state.failedFiles)
+      const filesBeforeQueueIndex = state.queue
         .slice(0, state.queueIndex)
-        .filter((file) => filesToRemove.has(file.name)).length
+        .filter((file) => filesToRemove.has(file.name))
+      const removedBeforeQueueIndex = filesBeforeQueueIndex.length
+      const removedCompletedBeforeQueueIndex = filesBeforeQueueIndex.filter(
+        (file) => !failedFilesSet.has(file.name),
+      ).length
       const filteredQueue = state.queue.filter((file) => !filesToRemove.has(file.name))
       const removedCount = state.queue.length - filteredQueue.length
 
@@ -268,7 +273,7 @@ export const useGallerySyncStore = create<GallerySyncState>()(
       set({
         queue: filteredQueue,
         totalFiles: state.totalFiles - removedCount,
-        completedFiles: state.completedFiles - removedBeforeQueueIndex,
+        completedFiles: Math.max(0, state.completedFiles - removedCompletedBeforeQueueIndex),
         queueIndex: nextQueueIndex,
         failedFiles: state.failedFiles.filter((fileName) => !filesToRemove.has(fileName)),
         processingFiles: new Set(Array.from(state.processingFiles).filter((fileName) => !filesToRemove.has(fileName))),

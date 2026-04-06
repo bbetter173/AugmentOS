@@ -36,13 +36,13 @@ async function ensureFullXcodeSelected() {
   }
 }
 
+await ensureFullXcodeSelected()
+
 // prebuild ios:
 await $({stdio: "inherit"})`bun expo prebuild --platform ios`
 
 // copy .env to ios/.xcode.env.local:
 await $({stdio: "inherit"})`cp .env ios/.xcode.env.local`
-
-await ensureFullXcodeSelected()
 
 // Get connected iOS devices via devicectl
 const tmpFile = `/tmp/devicectl-${Date.now()}.json`

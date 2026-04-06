@@ -1461,8 +1461,10 @@ class G2: NSObject, SGCManager {
 
         if !pageCreated || !pageHasTextContainer {
             // Need to create/rebuild page with a text container
+            Bridge.log("G2: sendTextWall() - creating page with text container")
             createPageWithText(text)
         } else {
+            Bridge.log("G2: sendTextWall() - updating text container")
             updateText(text)
         }
     }
@@ -2506,7 +2508,7 @@ class G2: NSObject, SGCManager {
             return
         }
 
-        // Bridge.log("G2: EvenHub incoming cmd=\(cmdValue), fields=\(Array(fields.keys).sorted())")
+        Bridge.log("G2: EvenHub incoming cmd=\(cmdValue), fields=\(Array(fields.keys).sorted())")
 
         if cmdValue == EvenHubResponseCmd.osNotifyEventToApp.rawValue {
             // Touch/gesture event from glasses
@@ -2547,7 +2549,7 @@ class G2: NSObject, SGCManager {
                         // Bridge.log("G2: EvenHub response field\(resField) errorCode=\(errorCode)")
                         if errorCode == 9 {
                             Bridge.log(
-                                "G2: Glasses shutdown our EvenHub page — resetting page state"
+                                "G2: WARN: Glasses shutdown our EvenHub page — resetting page state"
                             )
                             startupPageCreated = false
                             pageCreated = false
@@ -2564,7 +2566,7 @@ class G2: NSObject, SGCManager {
 
             // If glasses sent a shutdown (cmd=9/10), our page is gone — reset state
             if cmdValue == 9 || cmdValue == 10 {
-                Bridge.log("G2: Glasses shutdown our EvenHub page — resetting page state")
+                Bridge.log("G2: ERROR: Glasses shutdown our EvenHub page — resetting page state")
                 startupPageCreated = false
                 pageCreated = false
                 pageHasTextContainer = false
@@ -2621,7 +2623,7 @@ class G2: NSObject, SGCManager {
                         currentBitmapBase64 = ""
                         // Force re-create the page to reclaim EvenHub focus
                         Task {
-                            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms for glasses to finish transition
+                            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1000ms for glasses to finish transition
                             if !savedBitmap.isEmpty {
                                 await self.displayBitmap(base64ImageData: savedBitmap)
                             } else {
@@ -2751,12 +2753,14 @@ class G2: NSObject, SGCManager {
         }
     }
 
-    private func handleMenuResponse(_: Data) {
+    private func handleMenuResponse(_ data: Data) {
         // meun_main_msg_ctx response from glasses (ack of our menu send)
         // (informational only)
+        Bridge.log("G2: menu response: \(data.prefix(32).map { String(format: "%02X", $0) }.joined())")
     }
 
     private func handleDashboardResponse(_ payload: Data) {
+        Bridge.log("G2: dashboard response: \(payload.prefix(32).map { String(format: "%02X", $0) }.joined())")
         var reader = ProtobufReader(payload)
         let fields = reader.parseFields()
         let cmd = fields[1] as? Int32 ?? -1
@@ -2785,13 +2789,17 @@ class G2: NSObject, SGCManager {
         }
     }
 
-    private func handleEvenHubCtrlResponse(_: Data) {
+    private func handleEvenHubCtrlResponse(_ data: Data) {
         // EvenHub CTRL channel response (informational only)
+        Bridge.log("G2: evenHubCtrl response: \(data.prefix(8).map { String(format: "%02X", $0) }.joined())")
     }
 
-    private func handleGestureCtrl(_: Data) {
+    private func handleGestureCtrl(_ data: Data) {
         // gesture_ctrl (service 0x0D): foreground lifecycle signals from glasses
         // (informational only — log if needed for debugging)
+        // log first few bytes of the response:
+        Bridge.log("G2: gesture_ctrl response: \(data.prefix(8).map { String(format: "%02X", $0) }.joined())")
+        // Bridge.log("G2: gesture_ctrl response:")
     }
 
     private func parseDeviceSendToApp(_ data: Data) {

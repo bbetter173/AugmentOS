@@ -695,6 +695,10 @@ class SocketComms {
     // console.log(`SOCKET: msg: ${type}`)
 
     switch (type) {
+      case "ping":
+        // this.handle_ping(msg)
+        break
+        
       case "connection_ack":
         this.handle_connection_ack(msg)
         break

@@ -4,6 +4,7 @@
  */
 
 import {getModelCapabilities} from "@/../../cloud/packages/types/src"
+import {MaterialCommunityIcons} from "@expo/vector-icons"
 import LinearGradient from "expo-linear-gradient"
 import {useFocusEffect} from "expo-router"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -28,7 +29,6 @@ import {MediaViewer} from "@/components/glasses/Gallery/MediaViewer"
 import {PhotoImage} from "@/components/glasses/Gallery/PhotoImage"
 import {ProgressRing} from "@/components/glasses/Gallery/ProgressRing"
 import {Header, Icon, Text} from "@/components/ignite"
-import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
@@ -520,18 +520,29 @@ export function GalleryScreen({onExit}: GalleryScreenProps) {
             const localPhotos = photosToDelete
 
             let deleteErrors: string[] = []
+            const deletedPhotoNames: string[] = []
 
             // Delete local photos
             if (localPhotos.length > 0) {
               for (const photoName of localPhotos) {
                 try {
-                  await localStorageService.deleteDownloadedFile(photoName)
+                  const deleted = await localStorageService.deleteDownloadedFile(photoName)
+                  if (deleted) {
+                    deletedPhotoNames.push(photoName)
+                  } else {
+                    deleteErrors.push(`Failed to delete ${photoName} from local storage`)
+                  }
                 } catch (err) {
                   console.error(`Error deleting local photo ${photoName}:`, err)
                   deleteErrors.push(`Failed to delete ${photoName} from local storage`)
                 }
               }
               console.log(`[GalleryScreen] Deleted ${localPhotos.length} photos from local storage`)
+            }
+
+            if (deletedPhotoNames.length > 0) {
+              setDownloadedPhotos((prev) => prev.filter((photo) => !deletedPhotoNames.includes(photo.name)))
+              useGallerySyncStore.getState().removeFilesFromQueue(deletedPhotoNames)
             }
 
             // Refresh gallery
@@ -1511,22 +1522,6 @@ const $unselectedCheckbox: ThemedStyle<ViewStyle> = ({spacing}) => ({
   backgroundColor: "rgba(0, 0, 0, 0.3)",
   borderRadius: 20,
   padding: 2,
-})
-
-const $deleteButton: ThemedStyle<ViewStyle> = ({colors}) => ({
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: colors.primary_foreground,
-  padding: 8,
-  borderRadius: 32,
-  gap: 6,
-})
-
-const $deleteButtonText: ThemedStyle<TextStyle> = ({colors}) => ({
-  color: colors.text,
-  fontSize: 16,
-  lineHeight: 24,
-  fontWeight: "600",
 })
 
 const $selectionHeader: ThemedStyle<ViewStyle> = ({colors}) => ({

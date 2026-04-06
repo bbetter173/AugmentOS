@@ -2,38 +2,7 @@
 import {setBuildEnv} from "./set-build-env.mjs"
 await setBuildEnv()
 
-async function ensureAndroidSdkConfigured() {
-  const envVars = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
-  const defaultPaths = [
-    `${process.env.HOME}/Library/Android/sdk`,
-    `${process.env.HOME}/Android/Sdk`,
-    "/opt/android-sdk",
-  ]
-  const sdkPathCandidates = [
-    process.env.ANDROID_HOME,
-    process.env.ANDROID_SDK_ROOT,
-    ...defaultPaths,
-  ].filter(Boolean)
-
-  const sdkPath = sdkPathCandidates.find((candidate) => fs.existsSync(candidate))
-
-  if (!sdkPath) {
-    console.error("Android SDK not found.")
-    console.error(`Set one of these environment variables: ${envVars.join(", ")}`)
-    console.error("Or install the SDK in one of these locations:")
-    defaultPaths.forEach((candidate) => console.error(`  ${candidate}`))
-    process.exit(1)
-  }
-
-  const localPropertiesPath = "./android/local.properties"
-  const escapedSdkPath = sdkPath.replace(/\\/g, "\\\\").replace(/:/g, "\\:")
-  await fs.writeFile(localPropertiesPath, `sdk.dir=${escapedSdkPath}\n`)
-  console.log(`Configured Android SDK: ${sdkPath}`)
-}
-
 // prebuild android:
-await ensureAndroidSdkConfigured()
-
 await $({stdio: "inherit"})`bun expo prebuild --platform android`
 
 // Get connected devices with details

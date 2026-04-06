@@ -1,19 +1,21 @@
 import {useLocalSearchParams} from "expo-router"
-import {useRef, useState, useEffect} from "react"
-import {Platform, View} from "react-native"
+import {useRef, useState, useEffect, useCallback} from "react"
+import {Dimensions, Platform, View} from "react-native"
 import {WebView} from "react-native-webview"
 import Animated, {useSharedValue, useAnimatedStyle, withTiming} from "react-native-reanimated"
 
 import {Header, Screen, Text} from "@/components/ignite"
 import MiniappErrorScreen from "@/components/miniapps/MiniappErrorScreen"
 import LoadingOverlay from "@/components/ui/LoadingOverlay"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import restComms from "@/services/RestComms"
 import miniComms from "@/services/MiniComms"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {useAppletStatusStore} from "@/stores/applets"
-import {MiniAppDualButtonHeader} from "@/components/miniapps/DualButton"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
+import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
+import {useAppTheme} from "@/contexts/ThemeContext"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName} = useLocalSearchParams()
@@ -27,9 +29,54 @@ export default function AppWebView() {
   const {goBack, push} = useNavigationHistory()
   const viewShotRef = useRef(null)
   const [appSwitcherUi] = useSetting(SETTINGS.app_switcher_ui.key)
+  const insets = useSaferAreaInsets()
+  const {theme} = useAppTheme()
 
   // Track if the server-side app start failed
   const [appStartFailed, setAppStartFailed] = useState(false)
+
+  // Track whether the WebView has back navigation history
+  const [webViewCanGoBack, setWebViewCanGoBack] = useState(false)
+
+  // Allow back to exit if route params are invalid (no X button on that screen)
+  const hasValidParams =
+    typeof webviewURL === "string" && typeof appName === "string" && typeof packageName === "string"
+
+  const {setForceGestureEnabled} = useNavigationHistory()
+
+  // Back press handler for CapsuleMenu/Header buttons and Android back button.
+  const handleWebViewBack = useCallback(() => {
+    if (!hasValidParams) {
+      goBack()
+      return
+    }
+    if (webViewCanGoBack && webViewRef.current) {
+      webViewRef.current.goBack()
+    } else {
+      goBack()
+    }
+  }, [webViewCanGoBack, hasValidParams, goBack])
+
+  // Block native back gesture/button — route through handleWebViewBack for Android.
+  focusEffectPreventBack(handleWebViewBack)
+
+  // Dynamically toggle gesture handling based on webview navigation state:
+  // - Page 0 (no history): disable WebView's gesture, force-enable React Navigation's
+  //   native swipe-back so user can exit miniapp with the real iOS animation.
+  // - Has history: enable WebView's gesture for in-webview navigation,
+  //   React Navigation's gesture stays blocked by focusEffectPreventBack.
+  useEffect(() => {
+    if (!webViewCanGoBack) {
+      // Page 0: force React Navigation gesture on, WebView gesture off
+      setForceGestureEnabled(true)
+    } else {
+      // Has history: let focusEffectPreventBack handle it (gesture disabled),
+      // WebView's allowsBackForwardNavigationGestures handles in-webview swipe
+      setForceGestureEnabled(false)
+    }
+
+    return () => setForceGestureEnabled(false)
+  }, [webViewCanGoBack, setForceGestureEnabled])
 
   // Two conditions for showing the webview content:
   // 1. WebView HTML has loaded (onLoadEnd fired)
@@ -50,7 +97,7 @@ export default function AppWebView() {
     opacity: loadingOpacity.value,
   }))
 
-  if (typeof webviewURL !== "string" || typeof appName !== "string" || typeof packageName !== "string") {
+  if (!hasValidParams) {
     return <Text>Missing required parameters</Text>
   }
 
@@ -276,106 +323,145 @@ export default function AppWebView() {
 
   if (showError) {
     return (
+      <>
+        {appSwitcherUi && <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onBackPress={handleWebViewBack} />}
+        <Screen preset="fixed" safeAreaEdges={[appSwitcherUi && "top"]} className="px-0">
+          {!appSwitcherUi && (
+            <View className="px-6">
+              <Header
+              leftIcon="chevron-left"
+              onLeftPress={() => {
+                if (webViewCanGoBack && webViewRef.current) {
+                  webViewRef.current.goBack()
+                } else {
+                  goBack()
+                }
+              }}
+              title={appName}
+            />
+            </View>
+          )}
+          <MiniappErrorScreen
+            packageName={packageName}
+            appName={appName}
+            message={errorMessage}
+            onRetry={() => {
+              setAppStartFailed(false)
+              setHasError(false)
+              setTokenError(null)
+              setFinalUrl(null)
+              setIsWebViewLoaded(false)
+              setIsServerConfirmed(false)
+              webViewOpacity.value = 0
+              loadingOpacity.value = 1
+              // Re-send the start request and poll for confirmation
+              useAppletStatusStore.getState().retryStartApp(packageName as string)
+              setRetryTrigger((prev) => prev + 1)
+            }}
+          />
+        </Screen>
+      </>
+    )
+  }
+
+  // Capsule menu bounding rect relative to the webview content area.
+  // CapsuleButton: h-7.5 (30px), width ~73px (px-2 + two 24px buttons + gap + divider)
+  // Positioned at right-2 (8px) with top = theme.spacing.s2 (8px) relative to webview.
+  const capsuleMenuHeight = 30
+  const capsuleMenuWidth = 73
+  const capsuleMenuRight = theme.spacing.s2
+  const capsuleMenuTop = theme.spacing.s2
+  const screenWidth = Dimensions.get("window").width
+  const capsuleMenuRect = appSwitcherUi
+    ? {
+        top: capsuleMenuTop,
+        right: capsuleMenuRight,
+        bottom: capsuleMenuTop + capsuleMenuHeight,
+        left: screenWidth - capsuleMenuRight - capsuleMenuWidth,
+        width: capsuleMenuWidth,
+        height: capsuleMenuHeight,
+      }
+    : null
+
+  return (
+    <>
+      {appSwitcherUi && <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onBackPress={handleWebViewBack} />}
       <Screen
         preset="fixed"
-        safeAreaEdges={[appSwitcherUi && "top"]}
-        className="px-0">
-        {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
+        // safeAreaEdges={[appSwitcherUi && "top"]}
+        style={{paddingTop: appSwitcherUi ? insets.top : 0}}
+        KeyboardAvoidingViewProps={{enabled: true}}
+        className="px-0"
+        ref={viewShotRef}>
+        {/* {appSwitcherUi && <View style={{height: insets.top}} />} */}
         {!appSwitcherUi && (
           <View className="px-6">
             <Header
               leftIcon="chevron-left"
-              onLeftPress={() => goBack()}
+              onLeftPress={() => {
+                if (webViewCanGoBack && webViewRef.current) {
+                  webViewRef.current.goBack()
+                } else {
+                  goBack()
+                }
+              }}
               title={appName}
+              rightIcon="settings"
+              onRightPress={() => {
+                push("/applet/settings", {
+                  packageName: packageName as string,
+                  appName: appName as string,
+                  fromWebView: "true",
+                })
+              }}
             />
           </View>
         )}
-        <MiniappErrorScreen
-          packageName={packageName}
-          appName={appName}
-          message={errorMessage}
-          onRetry={() => {
-            setAppStartFailed(false)
-            setHasError(false)
-            setTokenError(null)
-            setFinalUrl(null)
-            setIsWebViewLoaded(false)
-            setIsServerConfirmed(false)
-            webViewOpacity.value = 0
-            loadingOpacity.value = 1
-            setRetryTrigger((prev) => prev + 1)
-          }}
-        />
-      </Screen>
-    )
-  }
-
-  return (
-    <Screen
-      preset="fixed"
-      safeAreaEdges={[appSwitcherUi && "top"]}
-      KeyboardAvoidingViewProps={{enabled: true}}
-      className="px-0"
-      ref={viewShotRef}>
-      {appSwitcherUi && <MiniAppDualButtonHeader packageName={packageName} viewShotRef={viewShotRef} />}
-      {!appSwitcherUi && (
-        <View className="px-6">
-          <Header
-            leftIcon="chevron-left"
-            onLeftPress={() => goBack()}
-            title={appName}
-            rightIcon="settings"
-            onRightPress={() => {
-              push("/applet/settings", {
-                packageName: packageName as string,
-                appName: appName as string,
-                fromWebView: "true",
-              })
-            }}
-          />
-        </View>
-      )}
-      <View className="flex-1">
-        {renderLoadingOverlay()}
-        {finalUrl && (
-          <Animated.View className="flex-1" style={[webViewAnimatedStyle]}>
-            <WebView
-              ref={webViewRef}
-              source={{uri: finalUrl}}
-              style={{flex: 1}}
-              onLoadStart={handleLoadStart}
-              onLoadEnd={handleLoadEnd}
-              onError={handleError}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={false}
-              allowsInlineMediaPlayback={true}
-              mediaPlaybackRequiresUserAction={false}
-              scalesPageToFit={false}
-              scrollEnabled={true}
-              bounces={false}
-              automaticallyAdjustContentInsets={false}
-              contentInsetAdjustmentBehavior="never"
-              injectedJavaScriptBeforeContentLoaded={`
+        <View className="flex-1">
+          {renderLoadingOverlay()}
+          {finalUrl && (
+            <Animated.View className="flex-1" style={[webViewAnimatedStyle]}>
+              <WebView
+                ref={webViewRef}
+                source={{uri: finalUrl}}
+                style={{flex: 1}}
+                onLoadStart={handleLoadStart}
+                onLoadEnd={handleLoadEnd}
+                onError={handleError}
+                onMessage={handleWebViewMessage}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                startInLoadingState={false}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
+                scalesPageToFit={false}
+                scrollEnabled={true}
+                bounces={false}
+                allowsBackForwardNavigationGestures={true}
+                onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
+                automaticallyAdjustContentInsets={false}
+                contentInsetAdjustmentBehavior="never"
+                injectedJavaScriptBeforeContentLoaded={`
                   window.MentraOS = {
                     platform: '${Platform.OS}',
                     capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
+                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : "null"},
                   };
                   window.receiveNativeMessage = window.receiveNativeMessage || function() {};
                   true;
                 `}
-              injectedJavaScript={`
+                injectedJavaScript={`
                   const meta = document.createElement('meta');
                   meta.setAttribute('name', 'viewport');
                   meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
                   document.getElementsByTagName('head')[0].appendChild(meta);
                   true;
                 `}
-            />
-          </Animated.View>
-        )}
-      </View>
-    </Screen>
+              />
+            </Animated.View>
+          )}
+        </View>
+      </Screen>
+    </>
   )
 }

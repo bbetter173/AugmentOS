@@ -26,7 +26,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: "com.mentra.mentra",
       googleServicesFile: "./google-services.json",
-      versionCode: 127,
+      versionCode: 157,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",
@@ -50,6 +50,11 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
               host: "apps.mentra.glass",
               pathPrefix: "/package/",
             },
+            {
+              scheme: "https",
+              host: "apps.mentraglass.com",
+              pathPrefix: "/package/",
+            },
           ],
           category: ["DEFAULT", "BROWSABLE"],
         },
@@ -59,10 +64,10 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       icon: "./assets/app-icons/ic_launcher.png",
       supportsTablet: false,
       requireFullScreen: true,
-      buildNumber: "127",
+      buildNumber: "156",
       bundleIdentifier: "com.mentra.mentra",
       googleServicesFile: "./GoogleService-Info.plist",
-      associatedDomains: ["applinks:apps.mentra.glass"],
+      associatedDomains: ["applinks:apps.mentra.glass", "applinks:apps.mentraglass.com"],
       infoPlist: {
         NSCameraUsageDescription: "This app needs access to your camera to capture images.",
         NSMicrophoneUsageDescription:
@@ -239,13 +244,6 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
         },
       ],
       "expo-web-browser",
-      [
-        "expo-speech-transcriber",
-        {
-          speechRecognitionPermission: "We need speech recognition to transcribe your recordings",
-          microphonePermission: "We need microphone access to record audio for transcription",
-        },
-      ],
     ],
     experiments: {
       tsconfigPaths: true,

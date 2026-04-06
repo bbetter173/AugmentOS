@@ -1785,6 +1785,13 @@ export class AppManager {
     metricsService.incrementMiniappMessagesOut();
     this.userSession.deviceManager.sendFullStateSnapshot(ws);
 
+    // Issue 087: Clear dedup cache and deliver active stream state.
+    // When an app reconnects, its previous lastSentStatus entries block
+    // delivery of managed_stream_status. Clear them so the new connection
+    // gets the stream state it needs.
+    this.userSession.managedStreamingExtension.clearLastSentStatus(packageName);
+    this.deliverActiveStreamState(packageName, ws);
+
     try {
       await user.addRunningApp(packageName);
     } catch (error) {
@@ -1930,6 +1937,79 @@ export class AppManager {
         resurrectionTriggered: false,
         error: errorMessage,
       };
+    }
+  }
+
+  /**
+   * If the user has active streams, send their current state to the
+   * newly-connected app. This allows the app to resume control of
+   * streams that survived a disconnect/restart.
+   *
+   * Sends existing message types (managed_stream_status / stream_status)
+   * so every SDK version handles it without changes.
+   *
+   * See: cloud/issues/085-orphaned-stream-cleanup
+   * See: cloud/issues/087-managed-stream-status-not-delivered-on-reconnect
+   */
+  private deliverActiveStreamState(packageName: string, ws: IWebSocket): void {
+    try {
+      // Check managed streams (Cloudflare relay)
+      const managedState = this.userSession.managedStreamingExtension
+        .getUserStreamState(this.userSession.userId);
+
+      if (managedState && managedState.type === "managed") {
+        const previewUrl = `https://iframe.videodelivery.net/${managedState.cfLiveInputId}?autoplay=true&muted=true&controls=true`;
+
+        const statusMessage = {
+          type: CloudToAppMessageType.MANAGED_STREAM_STATUS,
+          status: "active",
+          streamId: managedState.streamId,
+          hlsUrl: managedState.hlsUrl,
+          dashUrl: managedState.dashUrl,
+          webrtcUrl: managedState.webrtcUrl,
+          previewUrl: previewUrl,
+          activeViewers: managedState.activeViewers.size,
+          resumed: true,
+          timestamp: new Date(),
+        };
+
+        ws.send(JSON.stringify(statusMessage));
+        metricsService.incrementMiniappMessagesOut();
+
+        this.logger.info(
+          { packageName, streamId: managedState.streamId, type: "managed" },
+          "Delivered active managed stream state to reconnected app",
+        );
+      }
+
+      // Check unmanaged/direct streams
+      const unmanagedInfo = this.userSession.unmanagedStreamingExtension
+        .getActiveStreamInfo();
+
+      if (unmanagedInfo && unmanagedInfo.packageName === packageName) {
+        const statusMessage = {
+          type: "rtmp_stream_status" as any,
+          status: unmanagedInfo.status || "active",
+          streamId: unmanagedInfo.streamId,
+          streamUrl: unmanagedInfo.streamUrl,
+          resumed: true,
+          timestamp: new Date(),
+        };
+
+        ws.send(JSON.stringify(statusMessage));
+        metricsService.incrementMiniappMessagesOut();
+
+        this.logger.info(
+          { packageName, streamId: unmanagedInfo.streamId, type: "direct" },
+          "Delivered active direct stream state to reconnected app",
+        );
+      }
+    } catch (error) {
+      // Non-fatal — the app can still call checkExistingStream() manually.
+      this.logger.warn(
+        error,
+        "Failed to deliver active stream state (non-fatal)",
+      );
     }
   }
 

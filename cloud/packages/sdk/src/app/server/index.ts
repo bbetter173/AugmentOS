@@ -164,6 +164,8 @@ export class AppServer extends Hono<{ Variables: AuthVariables }> {
   private activeSessions = new Map<string, AppSession>();
   /** Map of active user sessions by userId */
   private activeSessionsByUserId = new Map<string, AppSession>();
+  /** Guards against running cleanup twice (double Ctrl-C, SIGINT+SIGTERM, etc.) */
+  private _cleanupPromise: Promise<void> | null = null;
   /**
    * Pending photo requests by requestId - owned by AppServer for HTTP endpoint access.
    * This is the single source of truth for pending photo requests.
@@ -402,8 +404,11 @@ export class AppServer extends Hono<{ Variables: AuthVariables }> {
    * Gracefully shuts down the server and cleans up all sessions.
    */
   public async stop(): Promise<void> {
+    // Prevent double-cleanup from concurrent signals or multiple stop() calls
+    if (this._cleanupPromise) return this._cleanupPromise;
     this.logger.info("Shutting down...");
-    await this.cleanup();
+    this._cleanupPromise = this.cleanup();
+    return this._cleanupPromise;
   }
 
   /**
@@ -892,11 +897,35 @@ export class AppServer extends Hono<{ Variables: AuthVariables }> {
 
   /**
    * Setup Shutdown Handlers
-   * Registers process signal handlers for graceful shutdown.
+   *
+   * First SIGINT/SIGTERM  → graceful shutdown (drain sessions, close WebSockets).
+   * Second SIGINT/SIGTERM → force-exit immediately (`process.exit(1)`).
+   * Safety net            → force-exit after 3 s if cleanup hangs.
+   *
+   * See: cloud/issues/086-sdk-fast-shutdown
    */
   private setupShutdown(): void {
-    process.on("SIGTERM", () => this.stop());
-    process.on("SIGINT", () => this.stop());
+    let shutdownRequested = false;
+
+    const shutdown = () => {
+      if (shutdownRequested) {
+        // Second signal → force-exit right now
+        process.exit(1);
+      }
+      shutdownRequested = true;
+
+      // Safety-net: if cleanup takes longer than 3 s, force-exit.
+      const forceExit = setTimeout(() => {
+        this.logger.warn("Shutdown timed out after 3 s — force exiting");
+        process.exit(1);
+      }, 3_000);
+      forceExit.unref(); // don't keep the event loop alive just for this timer
+
+      this.stop().finally(() => process.exit(0));
+    };
+
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
   }
 
   /**

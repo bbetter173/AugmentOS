@@ -46,19 +46,24 @@ export default function AppWebView() {
 
   // Back press handler for CapsuleMenu/Header buttons and Android back button.
   const handleWebViewBack = useCallback(() => {
+    console.log("WEBVIEW: handleWebViewBack() called")
     if (!hasValidParams) {
-      goBack()
+      if (Platform.OS === "android") {
+        goBack()
+      }
       return
     }
     if (webViewCanGoBack && webViewRef.current) {
       webViewRef.current.goBack()
     } else {
-      goBack()
+      if (Platform.OS === "android") {
+        goBack()
+      }
     }
   }, [webViewCanGoBack, hasValidParams, goBack])
 
   // Block native back gesture/button — route through handleWebViewBack for Android.
-  focusEffectPreventBack(handleWebViewBack)
+  focusEffectPreventBack(handleWebViewBack, false)
 
   // Dynamically toggle gesture handling based on webview navigation state:
   // - Page 0 (no history): disable WebView's gesture, force-enable React Navigation's
@@ -261,13 +266,13 @@ export default function AppWebView() {
     setTokenError(friendlyMessage)
   }
 
-  const screenshotComponent = () => {
-    const screenshot = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)?.screenshot
-    if (screenshot) {
-      return <Image source={{uri: screenshot}} style={{flex: 1, resizeMode: "cover"}} blurRadius={10} />
-    }
-    return null
-  }
+  // const screenshotComponent = () => {
+  //   const screenshot = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)?.screenshot
+  //   if (screenshot) {
+  //     return <Image source={{uri: screenshot}} style={{flex: 1, resizeMode: "cover"}} blurRadius={10} />
+  //   }
+  //   return null
+  // }
 
   const renderLoadingOverlay = () => {
     const app = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
@@ -324,21 +329,23 @@ export default function AppWebView() {
   if (showError) {
     return (
       <>
-        {appSwitcherUi && <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onBackPress={handleWebViewBack} />}
+        {appSwitcherUi && (
+          <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onBackPress={handleWebViewBack} />
+        )}
         <Screen preset="fixed" safeAreaEdges={[appSwitcherUi && "top"]} className="px-0">
           {!appSwitcherUi && (
             <View className="px-6">
               <Header
-              leftIcon="chevron-left"
-              onLeftPress={() => {
-                if (webViewCanGoBack && webViewRef.current) {
-                  webViewRef.current.goBack()
-                } else {
-                  goBack()
-                }
-              }}
-              title={appName}
-            />
+                leftIcon="chevron-left"
+                onLeftPress={() => {
+                  if (webViewCanGoBack && webViewRef.current) {
+                    webViewRef.current.goBack()
+                  } else {
+                    goBack()
+                  }
+                }}
+                title={appName}
+              />
             </View>
           )}
           <MiniappErrorScreen
@@ -385,38 +392,44 @@ export default function AppWebView() {
 
   return (
     <>
-      {appSwitcherUi && <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onBackPress={handleWebViewBack} />}
+      {appSwitcherUi && (
+        <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onBackPress={handleWebViewBack} />
+      )}
       <Screen
         preset="fixed"
-        // safeAreaEdges={[appSwitcherUi && "top"]}
-        style={{paddingTop: appSwitcherUi ? insets.top : 0}}
+        safeAreaEdges={["top"]}
         KeyboardAvoidingViewProps={{enabled: true}}
         className="px-0"
         ref={viewShotRef}>
-        {/* {appSwitcherUi && <View style={{height: insets.top}} />} */}
-        {!appSwitcherUi && (
-          <View className="px-6">
-            <Header
-              leftIcon="chevron-left"
-              onLeftPress={() => {
-                if (webViewCanGoBack && webViewRef.current) {
-                  webViewRef.current.goBack()
-                } else {
-                  goBack()
-                }
-              }}
-              title={appName}
-              rightIcon="settings"
-              onRightPress={() => {
-                push("/applet/settings", {
-                  packageName: packageName as string,
-                  appName: appName as string,
-                  fromWebView: "true",
-                })
-              }}
-            />
+        {/* rainbow bars for debugging insets / screenshots */}
+        {/* <View className="flex-1 absolute inset-0 z-10">
+          <View className="flex-col">
+            <View className="w-full h-2 bg-red-500" />
+            <View className="w-full h-2 bg-green-500" />
+            <View className="w-full h-2 bg-blue-500" />
+            <View className="w-full h-2 bg-yellow-500" />
+            <View className="w-full h-2 bg-purple-500" />
+            <View className="w-full h-2 bg-orange-500" />
+            <View className="w-full h-2 bg-pink-500" />
+            <View className="w-full h-2 bg-gray-500" />
+            <View className="w-full h-2 bg-teal-500" />
+            <View className="w-full h-2 bg-indigo-500" />
           </View>
-        )}
+        </View>
+        <View className="absolute bottom-0 left-0 right-0 z-10">
+          <View className="flex-col">
+            <View className="w-full h-2 bg-yellow-500" />
+            <View className="w-full h-2 bg-purple-500" />
+            <View className="w-full h-2 bg-orange-500" />
+            <View className="w-full h-2 bg-pink-500" />
+            <View className="w-full h-2 bg-gray-500" />
+            <View className="w-full h-2 bg-teal-500" />
+            <View className="w-full h-2 bg-indigo-500" />
+            <View className="w-full h-2 bg-blue-500" />
+            <View className="w-full h-2 bg-green-500" />
+            <View className="w-full h-2 bg-red-500" />
+          </View>
+        </View> */}
         <View className="flex-1">
           {renderLoadingOverlay()}
           {finalUrl && (

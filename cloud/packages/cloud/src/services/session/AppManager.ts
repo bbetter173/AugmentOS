@@ -98,10 +98,26 @@ interface AppAttachOptions {
 // heap allocations on the hot path.  Reduces GC pressure / heap fragmentation
 // on Bun/JSC where short-lived objects are especially costly.
 const SEND_SUCCESS: Readonly<AppMessageResult> = Object.freeze({ sent: true, resurrectionTriggered: false });
-const SEND_FAIL_STOPPING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is being stopped" });
-const SEND_FAIL_GRACE: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "Connection lost, waiting for reconnection" });
-const SEND_FAIL_RESURRECTING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is restarting" });
-const SEND_FAIL_CONNECTING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is still connecting" });
+const SEND_FAIL_STOPPING: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "App is being stopped",
+});
+const SEND_FAIL_GRACE: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "Connection lost, waiting for reconnection",
+});
+const SEND_FAIL_RESURRECTING: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "App is restarting",
+});
+const SEND_FAIL_CONNECTING: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "App is still connecting",
+});
 
 export class AppManager {
   private userSession: UserSession;
@@ -1872,7 +1888,7 @@ export class AppManager {
 
       // If connection is connecting, then we can't send messages yet.
       if (websocket && websocket.readyState === WebSocketReadyState.CONNECTING) {
-        if (this.logger.isLevelEnabled('debug')) {
+        if (this.logger.isLevelEnabled("debug")) {
           this.logger.warn(
             {
               userId: this.userSession.userId,
@@ -1954,8 +1970,7 @@ export class AppManager {
   private deliverActiveStreamState(packageName: string, ws: IWebSocket): void {
     try {
       // Check managed streams (Cloudflare relay)
-      const managedState = this.userSession.managedStreamingExtension
-        .getUserStreamState(this.userSession.userId);
+      const managedState = this.userSession.managedStreamingExtension.getUserStreamState(this.userSession.userId);
 
       if (managedState && managedState.type === "managed") {
         const previewUrl = `https://iframe.videodelivery.net/${managedState.cfLiveInputId}?autoplay=true&muted=true&controls=true`;
@@ -1983,8 +1998,7 @@ export class AppManager {
       }
 
       // Check unmanaged/direct streams
-      const unmanagedInfo = this.userSession.unmanagedStreamingExtension
-        .getActiveStreamInfo();
+      const unmanagedInfo = this.userSession.unmanagedStreamingExtension.getActiveStreamInfo();
 
       if (unmanagedInfo && unmanagedInfo.packageName === packageName) {
         const statusMessage = {
@@ -2006,10 +2020,7 @@ export class AppManager {
       }
     } catch (error) {
       // Non-fatal — the app can still call checkExistingStream() manually.
-      this.logger.warn(
-        error,
-        "Failed to deliver active stream state (non-fatal)",
-      );
+      this.logger.warn(error, "Failed to deliver active stream state (non-fatal)");
     }
   }
 

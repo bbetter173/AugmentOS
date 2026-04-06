@@ -30,15 +30,15 @@ Not every issue needs all three. A small bug fix might just need a spec. A compl
 
 **The stages are sequential. Do not skip ahead.**
 
-1. **Don't write a spec until the spike is complete.** A spike is complete when the investigation is finished, the root cause is confirmed with evidence (logs, code traces, reproduction), and the findings are reviewed and agreed upon. Speculation and "potential causes" mean the spike isn't done yet — keep investigating.
+1. **Investigate and discuss before writing anything.** The investigation happens in conversation — reading code, querying logs, tracing flows, forming hypotheses, testing them. All findings should be discussed, iterated on, and agreed upon in chat before any doc is written. The spike is the *consolidation* of that shared understanding, not the place where understanding is developed.
 
-2. **Don't write a design doc until the spec is agreed on.** The spec defines *what* we're going to do. The design doc defines *how*. If the *what* changes, the *how* is wasted work.
+2. **Don't write a spike until the investigation is complete and aligned.** A spike captures confirmed findings that both parties understand and agree on. If you're still speculating ("possibly," "likely," "needs investigation"), you're not ready to write — keep investigating in chat. The spike should feel like writing down what you already know, not figuring it out as you go.
 
-3. **Don't write docs while still investigating.** If you're still running queries, reading code, or testing hypotheses, you're not ready to write. Finish the investigation first, then write the spike with confirmed findings. A spike full of "possibly," "likely," and "needs investigation" is not a spike — it's notes.
+3. **Don't write a spec until the spike is written and reviewed.** The spec defines *what* we're going to do. It should reference the spike's findings. If the findings change, the spec is wasted work.
 
-4. **A spike with unconfirmed root cause is incomplete.** If you can't point to the exact code path, the exact log line, or the exact sequence of events that causes the bug, the spike isn't done. Go back and investigate more.
+4. **Don't write a design doc until the spec is agreed on.** The design doc defines *how* we're going to implement the spec. If the *what* changes, the *how* is wasted work.
 
-5. **AI agents: do not preemptively write specs or design docs.** When asked to investigate an issue, produce ONLY a spike. When asked to spec a solution, produce ONLY a spec (and only if the spike is complete). When asked to design the implementation, produce ONLY a design doc (and only if the spec is agreed on). Do not bundle all three in one pass.
+5. **AI agents: investigate in chat, write docs only when asked.** When asked to investigate an issue, do the research — read code, query logs, trace flows, explain findings in conversation. Do NOT immediately produce a spike document. Wait until the investigation is discussed, aligned, and the human says to write it up. Same for specs and design docs — discuss first, write when asked. Never bundle spike + spec + design in one pass.
 
 Each feature gets a folder: `cloud/issues/{number}-{feature-name}/`
 
@@ -279,15 +279,18 @@ But also: **Dense and useful > long and fluffy**
 
 Before implementation:
 
-1. Investigate (spike) — complete the investigation, confirm root cause with evidence
-2. **Review spike together** — agree on findings before proceeding
-3. Specify (spec) — define the solution, only after spike is agreed
-4. **Review spec together** — agree on approach before designing
-5. Design (design) — plan the implementation, only after spec is agreed
-6. **Review design together** — agree on implementation before coding
-7. **Then** start coding
+1. Investigate in conversation — read code, query logs, trace flows, discuss findings
+2. **Align on understanding** — both parties agree on root cause and findings
+3. Write spike — consolidate the agreed findings into a document
+4. **Review spike** — confirm it captures the investigation accurately
+5. Discuss solution approach — explore options in conversation
+6. Write spec — consolidate the agreed approach into a document
+7. **Review spec** — confirm the approach before designing
+8. Write design doc — plan the implementation
+9. **Review design** — confirm before coding
+10. **Then** start coding
 
-Each review is a gate. Do not proceed to the next stage until the current one is agreed upon. This prevents wasted work from building on unconfirmed assumptions.
+The key: investigation and discussion happen in conversation. Documents are the *output* of that discussion, not the medium for it. Don't write to think — think first, then write to record.
 
 Docs are **planning artifacts**, not post-implementation documentation.
 
@@ -344,9 +347,11 @@ If you are an AI agent (Claude, Codex, Copilot, etc.) generating or editing thes
 ❌ **Committing secrets in docs** — tokens, API keys, passwords, connection strings. Use placeholders.
 ❌ **Including real PII** — customer emails, user IDs from production logs. Anonymize.
 ❌ **Skipping the design doc** — don't go straight from spec to implementation. The design doc is where implementation details get reviewed before code is written.
-❌ **Writing specs before the spike is done** — if the root cause isn't confirmed, the spec is built on assumptions. Investigate first.
+❌ **Writing docs while still investigating** — investigate in conversation first. Documents consolidate agreed findings, they don't develop them.
+❌ **Writing specs before the spike is reviewed** — if the findings change, the spec is wasted work.
 ❌ **Writing design docs before the spec is agreed** — if the approach changes, the design is wasted work.
-❌ **Bundling spike + spec + design in one pass** — each stage needs review before the next. Rushing through all three produces docs built on unverified assumptions.
+❌ **Bundling spike + spec + design in one pass** — each stage needs discussion and agreement before the next. Rushing through all three produces docs built on unverified assumptions.
+❌ **AI agents writing docs preemptively** — investigate and explain in chat. Only write the document when the human says the understanding is aligned and asks for it.
 
 ---
 

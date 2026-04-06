@@ -46,7 +46,6 @@ export default function AppWebView() {
 
   // Back press handler for CapsuleMenu/Header buttons and Android back button.
   const handleWebViewBack = useCallback(() => {
-    console.log("WEBVIEW: handleWebViewBack() called")
     if (!hasValidParams) {
       if (Platform.OS === "android") {
         goBack()

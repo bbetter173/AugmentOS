@@ -66,21 +66,21 @@ for both fresh connections and resurrections.
 **Current code (line ~1785):**
 
 ```typescript
-ws.send(JSON.stringify(ackMessage));
-metricsService.incrementMiniappMessagesOut();
-this.userSession.deviceManager.sendFullStateSnapshot(ws);
+ws.send(JSON.stringify(ackMessage))
+metricsService.incrementMiniappMessagesOut()
+this.userSession.deviceManager.sendFullStateSnapshot(ws)
 ```
 
 **New code:**
 
 ```typescript
-ws.send(JSON.stringify(ackMessage));
-metricsService.incrementMiniappMessagesOut();
-this.userSession.deviceManager.sendFullStateSnapshot(ws);
+ws.send(JSON.stringify(ackMessage))
+metricsService.incrementMiniappMessagesOut()
+this.userSession.deviceManager.sendFullStateSnapshot(ws)
 
 // Deliver active stream state to the app (issue 085).
 // This enables stream adoption after app restart/resurrection.
-this.deliverActiveStreamState(packageName, ws);
+this.deliverActiveStreamState(packageName, ws)
 ```
 
 ### The new method
@@ -177,10 +177,10 @@ cascades into a reconnection storm. Instead:
 if (connectedAppSession.transportState === "down") {
   // App is temporarily disconnected — queue or drop, do NOT trigger disconnect.
   this.logger.debug(
-    { packageName, streamId },
+    {packageName, streamId},
     "Skipping stream status relay — app transport is down (will deliver on reconnect)",
-  );
-  return;
+  )
+  return
 }
 ```
 
@@ -235,11 +235,11 @@ private async stopStreamsForApp(packageName: string): Promise<void> {
 
 ### Message types
 
-| What we send | v2 SDK (published) | v3 SDK (hono experimental) | v3 SDK (current branch) |
-|---|---|---|---|
-| `managed_stream_status` | ✅ `onManagedStreamStatus()` handler | ✅ same handler | ✅ `onStreamStatus()` handler |
-| `rtmp_stream_status` | ✅ registered handler | ⚠️ may not handle (see below) | ✅ registered handler |
-| `stream_status` | ✅ `onStreamStatus()` handler | ✅ same handler | ✅ `onStreamStatus()` handler |
+| What we send            | v2 SDK (published)                   | v3 SDK (hono experimental)    | v3 SDK (current branch)       |
+| ----------------------- | ------------------------------------ | ----------------------------- | ----------------------------- |
+| `managed_stream_status` | ✅ `onManagedStreamStatus()` handler | ✅ same handler               | ✅ `onStreamStatus()` handler |
+| `rtmp_stream_status`    | ✅ registered handler                | ⚠️ may not handle (see below) | ✅ registered handler         |
+| `stream_status`         | ✅ `onStreamStatus()` handler        | ✅ same handler               | ✅ `onStreamStatus()` handler |
 
 The `resumed: true` field is new but ignored by old SDKs (unknown fields are
 silently dropped by JSON parsing).
@@ -322,20 +322,20 @@ populate the state through the normal `onStreamStatus` path.
 
 ## Files to Change
 
-| File | Change |
-|------|--------|
+| File                                                      | Change                                                           |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
 | `cloud/packages/cloud/src/services/session/AppManager.ts` | Add `deliverActiveStreamState()`, call it in `attachAppSocket()` |
-| `cloud/packages/cloud/src/services/session/AppManager.ts` | Guard status relay for TRANSPORT_DOWN apps |
-| `cloud/packages/cloud/src/services/session/AppManager.ts` | Stop streams on explicit app stop |
+| `cloud/packages/cloud/src/services/session/AppManager.ts` | Guard status relay for TRANSPORT_DOWN apps                       |
+| `cloud/packages/cloud/src/services/session/AppManager.ts` | Stop streams on explicit app stop                                |
 
 ## Files NOT Changed
 
-| File | Why |
-|------|-----|
-| SDK (`packages/sdk/`) | Not required — existing message handlers work |
-| ASG Client (glasses app) | Can't touch — separate release cycle |
+| File                     | Why                                                                     |
+| ------------------------ | ----------------------------------------------------------------------- |
+| SDK (`packages/sdk/`)    | Not required — existing message handlers work                           |
+| ASG Client (glasses app) | Can't touch — separate release cycle                                    |
 | Message type definitions | No new types — using existing `managed_stream_status` / `stream_status` |
-| stream-test app | Already handles adoption — the `checkExistingStream()` fallback stays |
+| stream-test app          | Already handles adoption — the `checkExistingStream()` fallback stays   |
 
 ## Sequence Diagram
 

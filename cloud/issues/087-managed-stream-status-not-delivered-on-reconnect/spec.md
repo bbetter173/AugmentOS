@@ -28,7 +28,7 @@ The only recovery is restarting the glasses.
 2. App disconnects (Ctrl+C, crash)      → cloud keeps stream alive (correct)
 3. App reconnects                       → new WebSocket, same UserSession
 4. App sends MANAGED_STREAM_REQUEST     → cloud finds existing stream
-5. Cloud calls sendManagedStreamStatus() 
+5. Cloud calls sendManagedStreamStatus()
    → dedup cache: "I already sent this"  → SKIPS sending
 6. SDK waits for managed_stream_status  → never arrives → 30s timeout
 7. User sees: "Managed stream request timeout"
@@ -54,8 +54,8 @@ status**.
 `sendManagedStreamStatus()`, around line 1120:
 
 ```typescript
-const statusKey = `${streamId}:${packageName}`;
-const lastStatus = this.lastSentStatus.get(statusKey);
+const statusKey = `${streamId}:${packageName}`
+const lastStatus = this.lastSentStatus.get(statusKey)
 
 if (lastStatus) {
   const isDuplicate =
@@ -64,11 +64,11 @@ if (lastStatus) {
     lastStatus.dashUrl === statusMessage.dashUrl &&
     lastStatus.webrtcUrl === statusMessage.webrtcUrl &&
     lastStatus.message === statusMessage.message &&
-    JSON.stringify(lastStatus.outputs) === JSON.stringify(statusMessage.outputs);
+    JSON.stringify(lastStatus.outputs) === JSON.stringify(statusMessage.outputs)
 
   if (isDuplicate) {
-    this.logger.debug("Skipping duplicate managed stream status");
-    return;  // ← SDK never gets the message, promise times out
+    this.logger.debug("Skipping duplicate managed stream status")
+    return // ← SDK never gets the message, promise times out
   }
 }
 ```
@@ -126,15 +126,15 @@ so that subsequent `sendManagedStreamStatus()` calls are not suppressed.
 ```typescript
 // In AppManager.attachAppSocket(), after sending CONNECTION_ACK:
 
-ws.send(JSON.stringify(ackMessage));
-metricsService.incrementMiniappMessagesOut();
-this.userSession.deviceManager.sendFullStateSnapshot(ws);
+ws.send(JSON.stringify(ackMessage))
+metricsService.incrementMiniappMessagesOut()
+this.userSession.deviceManager.sendFullStateSnapshot(ws)
 
 // Clear dedup cache for this app — new connection, new slate.
 // Without this, sendManagedStreamStatus() skips delivery because
 // lastSentStatus still has the entry from the previous connection.
 // See: cloud/issues/087
-this.userSession.managedStreamingExtension.clearLastSentStatus(packageName);
+this.userSession.managedStreamingExtension.clearLastSentStatus(packageName)
 ```
 
 **New method on `ManagedStreamingExtension`:**
@@ -170,7 +170,7 @@ about them.
 ```typescript
 // In AppManager.attachAppSocket(), after clearing dedup cache:
 
-this.deliverActiveStreamState(packageName, ws);
+this.deliverActiveStreamState(packageName, ws)
 ```
 
 See the full `deliverActiveStreamState()` implementation in the
@@ -193,11 +193,8 @@ the message instead of triggering `handleAppConnectionClosed`.
 
 ```typescript
 if (appSession.transportState === "down") {
-  this.logger.debug(
-    { packageName, streamId },
-    "Skipping stream status relay — app transport is down"
-  );
-  return;
+  this.logger.debug({packageName, streamId}, "Skipping stream status relay — app transport is down")
+  return
 }
 ```
 
@@ -209,21 +206,21 @@ the status when it reconnects.
 
 ## Files to Change
 
-| File | Change | Risk |
-|------|--------|------|
-| `ManagedStreamingExtension.ts` | Add `clearLastSentStatus(packageName)` method | Low — new method, no existing behavior changed |
-| `AppManager.ts` → `attachAppSocket()` | Call `clearLastSentStatus()` after `CONNECTION_ACK` | Low — additive, runs after existing code |
-| `AppManager.ts` → `attachAppSocket()` | Call `deliverActiveStreamState()` (from 085 spec) | Low — sends existing message types |
-| `AppManager.ts` or relay path | Guard status relay for `TRANSPORT_DOWN` | Low — changes error to silent drop |
+| File                                  | Change                                              | Risk                                           |
+| ------------------------------------- | --------------------------------------------------- | ---------------------------------------------- |
+| `ManagedStreamingExtension.ts`        | Add `clearLastSentStatus(packageName)` method       | Low — new method, no existing behavior changed |
+| `AppManager.ts` → `attachAppSocket()` | Call `clearLastSentStatus()` after `CONNECTION_ACK` | Low — additive, runs after existing code       |
+| `AppManager.ts` → `attachAppSocket()` | Call `deliverActiveStreamState()` (from 085 spec)   | Low — sends existing message types             |
+| `AppManager.ts` or relay path         | Guard status relay for `TRANSPORT_DOWN`             | Low — changes error to silent drop             |
 
 ## Files NOT Changed
 
-| File | Why |
-|------|-----|
-| SDK (`packages/sdk/`) | Existing handlers already process `managed_stream_status` |
-| Message type definitions | No new types — using existing `managed_stream_status` / `stream_status` |
-| ASG client (glasses) | Out of scope — separate release cycle |
-| `sendManagedStreamStatus()` dedup logic | Preserved as-is — the cache is useful during a connection's lifetime |
+| File                                    | Why                                                                     |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| SDK (`packages/sdk/`)                   | Existing handlers already process `managed_stream_status`               |
+| Message type definitions                | No new types — using existing `managed_stream_status` / `stream_status` |
+| ASG client (glasses)                    | Out of scope — separate release cycle                                   |
+| `sendManagedStreamStatus()` dedup logic | Preserved as-is — the cache is useful during a connection's lifetime    |
 
 ---
 
@@ -243,6 +240,7 @@ that fixes the bug without introducing new problems.
 ## Why Not Fix It in the SDK Instead?
 
 The SDK could work around this by:
+
 - Listening for `websocket_error` and rejecting the pending promise
 - Calling `checkExistingStream()` before `startStream()`
 - Retrying `startStream()` on timeout
@@ -287,12 +285,12 @@ redundant (but harmless) once this cloud fix ships.
 
 ### 4. Edge cases
 
-| Case | Expected |
-|------|----------|
-| App reconnects, no active stream | No extra messages, normal behavior |
-| App reconnects, stream died during disconnect | Status delivered with stale URLs, WHEP returns 409, player shows error and gives up (already handled in WHEPClient retry limit) |
-| Two apps streaming for same user | Each gets their own stream state |
-| App sends MANAGED_STREAM_REQUEST while already receiving proactive delivery | Dedup cache (now populated by proactive delivery) correctly deduplicates, no double message |
+| Case                                                                        | Expected                                                                                                                        |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| App reconnects, no active stream                                            | No extra messages, normal behavior                                                                                              |
+| App reconnects, stream died during disconnect                               | Status delivered with stale URLs, WHEP returns 409, player shows error and gives up (already handled in WHEPClient retry limit) |
+| Two apps streaming for same user                                            | Each gets their own stream state                                                                                                |
+| App sends MANAGED_STREAM_REQUEST while already receiving proactive delivery | Dedup cache (now populated by proactive delivery) correctly deduplicates, no double message                                     |
 
 ---
 

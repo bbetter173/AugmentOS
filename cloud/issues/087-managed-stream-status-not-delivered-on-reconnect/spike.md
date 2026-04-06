@@ -131,8 +131,8 @@ duplicate managed stream status" and returns without sending.
 
 ```typescript
 // Line ~1120
-const statusKey = `${streamId}:${packageName}`;
-const lastStatus = this.lastSentStatus.get(statusKey);
+const statusKey = `${streamId}:${packageName}`
+const lastStatus = this.lastSentStatus.get(statusKey)
 
 if (lastStatus) {
   const isDuplicate =
@@ -141,12 +141,11 @@ if (lastStatus) {
     lastStatus.dashUrl === statusMessage.dashUrl &&
     lastStatus.webrtcUrl === statusMessage.webrtcUrl &&
     lastStatus.message === statusMessage.message &&
-    JSON.stringify(lastStatus.outputs) === JSON.stringify(statusMessage.outputs);
+    JSON.stringify(lastStatus.outputs) === JSON.stringify(statusMessage.outputs)
 
   if (isDuplicate) {
-    this.logger.debug({ packageName, status, streamId },
-      "Skipping duplicate managed stream status");
-    return;  // ← Bug: SDK is waiting for this message
+    this.logger.debug({packageName, status, streamId}, "Skipping duplicate managed stream status")
+    return // ← Bug: SDK is waiting for this message
   }
 }
 ```
@@ -200,11 +199,11 @@ bug (no SRT health watchdog) but is out of scope for this issue.
 
 ## Impact
 
-| Scenario | Impact |
-|----------|--------|
-| Developer restarts app during managed stream | Stream hangs, 30s timeout, must restart glasses |
-| `bun --watch` auto-restart during stream | Same — every save while streaming is broken |
-| Production app server restart/deploy | Stream survives but app can't resume control |
+| Scenario                                               | Impact                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------ |
+| Developer restarts app during managed stream           | Stream hangs, 30s timeout, must restart glasses              |
+| `bun --watch` auto-restart during stream               | Same — every save while streaming is broken                  |
+| Production app server restart/deploy                   | Stream survives but app can't resume control                 |
 | User stops app from phone, opens a streaming app again | May hit stale dedup cache if same Cloudflare input is reused |
 
 This makes managed streaming unusable during development and fragile in production.
@@ -213,12 +212,12 @@ This makes managed streaming unusable during development and fragile in producti
 
 ## Related Issues
 
-| Issue | Relationship |
-|-------|-------------|
+| Issue                             | Relationship                                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **085** — Orphaned stream cleanup | Parent issue. The dedup bug blocks the "deliver stream state on reconnect" fix designed in the 085 spec. |
-| **084** — App not running race | Compounds the problem. Even if dedup is fixed, `isAppRunning()` may reject the first message. |
-| **086** — SDK fast shutdown | Mitigates developer pain (fast Ctrl+C) but doesn't fix the stream lifecycle. |
-| **083** — Unified streaming API | Where the bugs were originally discovered. |
+| **084** — App not running race    | Compounds the problem. Even if dedup is fixed, `isAppRunning()` may reject the first message.            |
+| **086** — SDK fast shutdown       | Mitigates developer pain (fast Ctrl+C) but doesn't fix the stream lifecycle.                             |
+| **083** — Unified streaming API   | Where the bugs were originally discovered.                                                               |
 
 ---
 

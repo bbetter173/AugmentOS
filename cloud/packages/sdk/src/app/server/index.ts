@@ -898,34 +898,42 @@ export class AppServer extends Hono<{ Variables: AuthVariables }> {
   /**
    * Setup Shutdown Handlers
    *
-   * First SIGINT/SIGTERM  → graceful shutdown (drain sessions, close WebSockets).
-   * Second SIGINT/SIGTERM → force-exit immediately (`process.exit(1)`).
-   * Safety net            → force-exit after 3 s if cleanup hangs.
+   * Both SIGINT (Ctrl+C) and SIGTERM (Kubernetes) → fast exit.
+   *
+   * We never release ownership on shutdown (cloud will resurrect), so
+   * there is nothing useful to clean up. The only thing worth doing is
+   * a best-effort SimpleStorage flush, which we fire-and-forget.
+   *
+   * process.exit() does NOT work reliably under `bun --watch` — it
+   * intercepts the call. Instead we remove all JS signal handlers and
+   * re-raise the signal so the OS default handler terminates us.
    *
    * See: cloud/issues/086-sdk-fast-shutdown
    */
   private setupShutdown(): void {
-    let shutdownRequested = false;
+    const die = (signal: "SIGINT" | "SIGTERM") => {
+      this.logger.info("Shutting down...");
 
-    const shutdown = () => {
-      if (shutdownRequested) {
-        // Second signal → force-exit right now
-        process.exit(1);
+      // Best-effort flush of SimpleStorage (fire-and-forget, don't await).
+      for (const [, session] of this.activeSessions) {
+        try {
+          (session as any).simpleStorage?.flush?.()?.catch?.(() => {});
+        } catch {
+          // ignore
+        }
       }
-      shutdownRequested = true;
 
-      // Safety-net: if cleanup takes longer than 3 s, force-exit.
-      const forceExit = setTimeout(() => {
-        this.logger.warn("Shutdown timed out after 3 s — force exiting");
-        process.exit(1);
-      }, 3_000);
-      forceExit.unref(); // don't keep the event loop alive just for this timer
+      // Remove ALL handlers for BOTH signals so the re-raised signal
+      // hits the OS default handler and actually kills the process.
+      process.removeAllListeners("SIGINT");
+      process.removeAllListeners("SIGTERM");
 
-      this.stop().finally(() => process.exit(0));
+      // Re-raise the original signal. OS kills us immediately.
+      process.kill(process.pid, signal);
     };
 
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
+    process.on("SIGINT", () => die("SIGINT"));
+    process.on("SIGTERM", () => die("SIGTERM"));
   }
 
   /**

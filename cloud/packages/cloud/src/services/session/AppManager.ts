@@ -1802,11 +1802,13 @@ export class AppManager {
     this.userSession.deviceManager.sendFullStateSnapshot(ws);
 
     // Issue 087: Clear dedup cache and deliver active stream state.
-    // When an app reconnects, its previous lastSentStatus entries block
-    // delivery of managed_stream_status. Clear them so the new connection
-    // gets the stream state it needs.
-    this.userSession.managedStreamingExtension.clearLastSentStatus(packageName);
-    this.deliverActiveStreamState(packageName, ws);
+    // Issue 090: Only for v3 apps. v2 apps don't expect unsolicited
+    // managed_stream_status on connect — it sets isManagedStreaming=true
+    // on the v2 SDK from stale data, blocking all new startManagedStream() calls.
+    if (connectedAppSession.isV3) {
+      this.userSession.managedStreamingExtension.clearLastSentStatus(packageName);
+      this.deliverActiveStreamState(packageName, ws);
+    }
 
     try {
       await user.addRunningApp(packageName);

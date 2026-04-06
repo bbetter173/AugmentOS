@@ -334,6 +334,15 @@ export class CameraManager {
         sessionId: this.deps.getSessionId(),
         timestamp: new Date(),
       });
+
+      // Issue 091: Clear local state immediately. Don't wait for the cloud
+      // to respond with managed_stream_status: "stopped" — the cloud may
+      // not respond if the stream was already cleaned up (keep-alive timeout,
+      // glasses battery death, etc.). Without this, isManagedStreaming stays
+      // true and the next startStream() throws "Already streaming."
+      this.isManagedStreaming = false;
+      this.currentManagedStreamId = undefined;
+      this.currentManagedStreamUrls = undefined;
     }
   }
 
@@ -341,12 +350,21 @@ export class CameraManager {
    * Subscribe to stream status updates (works for both managed and direct).
    */
   onStreamStatus(handler: StreamStatusHandler): () => void {
+    // Subscribe to BOTH direct and managed stream status events.
+    // Issue 091: the "unified" onStreamStatus was only wired to direct
+    // stream events. Managed stream events (stopped, error, active from
+    // Cloudflare keep-alive timeout, battery death, etc.) went to a
+    // separate "managed_stream_status" event that this handler never heard.
     this.deps.addSubscription(StreamType.STREAM_STATUS);
+    this.deps.addSubscription(StreamType.MANAGED_STREAM_STATUS);
     this.events.on("stream_status", handler);
+    this.events.on("managed_stream_status", handler);
 
     return () => {
       this.events.off("stream_status", handler);
+      this.events.off("managed_stream_status", handler);
       this.deps.removeSubscription(StreamType.STREAM_STATUS);
+      this.deps.removeSubscription(StreamType.MANAGED_STREAM_STATUS);
     };
   }
 

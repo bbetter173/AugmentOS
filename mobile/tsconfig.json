@@ -23,7 +23,8 @@
       "@plugins/*": ["./plugins/*"],
       "@mentra/display-utils": ["../cloud/packages/display-utils/src"]
     },
-    "types": ["node", "react", "jest"]
+    "types": ["node", "react", "jest"],
+    "ignoreDeprecations": "6.0"
   },
   "extends": "expo/tsconfig.base",
   "ts-node": {

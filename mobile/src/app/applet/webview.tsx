@@ -42,8 +42,9 @@ export default function AppWebView() {
   const hasValidParams =
     typeof webviewURL === "string" && typeof appName === "string" && typeof packageName === "string"
 
-  // Back press handler: navigate within WebView if possible, otherwise do nothing.
-  // Users must press X to exit the miniapp.
+  const {setForceGestureEnabled} = useNavigationHistory()
+
+  // Back press handler for CapsuleMenu/Header buttons and Android back button.
   const handleWebViewBack = useCallback(() => {
     if (!hasValidParams) {
       goBack()
@@ -51,12 +52,31 @@ export default function AppWebView() {
     }
     if (webViewCanGoBack && webViewRef.current) {
       webViewRef.current.goBack()
+    } else {
+      goBack()
     }
   }, [webViewCanGoBack, hasValidParams, goBack])
 
-  // Prevent iOS swipe-back gesture and intercept Android back button.
-  // Back navigates within the WebView; only X exits the miniapp.
+  // Block native back gesture/button — route through handleWebViewBack for Android.
   focusEffectPreventBack(handleWebViewBack)
+
+  // Dynamically toggle gesture handling based on webview navigation state:
+  // - Page 0 (no history): disable WebView's gesture, force-enable React Navigation's
+  //   native swipe-back so user can exit miniapp with the real iOS animation.
+  // - Has history: enable WebView's gesture for in-webview navigation,
+  //   React Navigation's gesture stays blocked by focusEffectPreventBack.
+  useEffect(() => {
+    if (!webViewCanGoBack) {
+      // Page 0: force React Navigation gesture on, WebView gesture off
+      setForceGestureEnabled(true)
+    } else {
+      // Has history: let focusEffectPreventBack handle it (gesture disabled),
+      // WebView's allowsBackForwardNavigationGestures handles in-webview swipe
+      setForceGestureEnabled(false)
+    }
+
+    return () => setForceGestureEnabled(false)
+  }, [webViewCanGoBack, setForceGestureEnabled])
 
   // Two conditions for showing the webview content:
   // 1. WebView HTML has loaded (onLoadEnd fired)
@@ -417,6 +437,7 @@ export default function AppWebView() {
                 scalesPageToFit={false}
                 scrollEnabled={true}
                 bounces={false}
+                allowsBackForwardNavigationGestures={true}
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"

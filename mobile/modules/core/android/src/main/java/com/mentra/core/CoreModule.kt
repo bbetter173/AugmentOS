@@ -145,6 +145,10 @@ class CoreModule : Module() {
 
         AsyncFunction("ping") { coreManager?.ping() }
 
+        AsyncFunction("dbg1") { coreManager?.dbg1() }
+
+        AsyncFunction("dbg2") { coreManager?.dbg2() }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { incidentId: String ->

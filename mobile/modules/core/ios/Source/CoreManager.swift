@@ -1092,6 +1092,14 @@ struct ViewState {
         sgc?.ping()
     }
 
+    func dbg1() {
+        sgc?.dbg1()
+    }
+
+    func dbg2() {
+        sgc?.dbg2()
+    }
+
     func startStream(_ message: [String: Any]) {
         Bridge.log("MAN: startStream: \(message)")
         sgc?.startStream(message)

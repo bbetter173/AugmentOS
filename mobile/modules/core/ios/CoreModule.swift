@@ -172,6 +172,18 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("dbg1") {
+            await MainActor.run {
+                CoreManager.shared.dbg1()
+            }
+        }
+
+        AsyncFunction("dbg2") {
+            await MainActor.run {
+                CoreManager.shared.dbg2()
+            }
+        }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { (incidentId: String) in

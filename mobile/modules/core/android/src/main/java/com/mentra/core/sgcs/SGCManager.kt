@@ -89,7 +89,9 @@ abstract class SGCManager {
     abstract fun getConnectedBluetoothName(): String
     abstract fun cleanup()
     abstract fun ping()
-    
+    abstract fun dbg1()
+    abstract fun dbg2()
+
     // Network Management
     abstract fun requestWifiScan()
     abstract fun sendWifiCredentials(ssid: String, password: String)

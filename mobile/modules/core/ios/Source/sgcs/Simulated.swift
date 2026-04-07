@@ -227,6 +227,9 @@ class Simulated: SGCManager {
         Bridge.log("ping")
     }
 
+    func dbg1() {}
+    func dbg2() {}
+
     // MARK: - Network Management
 
     func requestWifiScan() {

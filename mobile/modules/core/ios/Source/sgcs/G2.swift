@@ -2195,6 +2195,9 @@ class G2: NSObject, SGCManager {
         sendEvenHubHeartbeat()
     }
 
+    func dbg1() {}
+    func dbg2() {}
+
     // MARK: - SGCManager: Device Control
 
     func setHeadUpAngle(_ angle: Int) {

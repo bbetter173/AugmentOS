@@ -1,4 +1,5 @@
 import {ScrollView, View} from "react-native"
+import CoreModule from "core"
 
 import {Header, Screen} from "@/components/ignite"
 import ToggleSetting from "@/components/settings/ToggleSetting"
@@ -48,6 +49,11 @@ export default function SuperSettingsScreen() {
               value={appSwitcherUi}
               onValueChange={(value) => setAppSwitcherUi(value)}
             />
+          </Group>
+
+          <Group title="Debug">
+            <RouteButton label="dbg1()" onPress={() => CoreModule.dbg1()} />
+            <RouteButton label="dbg2()" onPress={() => CoreModule.dbg2()} />
           </Group>
 
           <Group title="Mini Apps">

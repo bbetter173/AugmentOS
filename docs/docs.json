@@ -46,18 +46,12 @@
             ]
           },
           {
-            "group": "Migrating to v3",
-            "icon": "arrow-up-right-dots",
-            "pages": ["app-devs/migration/overview", "app-devs/migration/api-map"]
-          },
-          {
-            "group": "Core Concepts",
+            "group": "v3 (SDK 3.x)",
             "icon": "brain",
             "pages": [
               "app-devs/core-concepts/app-lifecycle-overview",
               "app-devs/core-concepts/app-server",
               "app-devs/core-concepts/session",
-              "app-devs/core-concepts/app-session/app-session",
               {
                 "group": "Display",
                 "icon": "display",
@@ -112,14 +106,20 @@
                   "app-devs/core-concepts/hardware-capabilities/camera-glasses",
                   "app-devs/core-concepts/hardware-capabilities/device-capabilities"
                 ]
+              },
+              {
+                "group": "Migrating from v2",
+                "icon": "arrow-up-right-dots",
+                "pages": ["app-devs/migration/overview", "app-devs/migration/api-map"]
               }
             ]
           },
           {
-            "group": "SDK Reference",
-            "icon": "code",
+            "group": "v2 (Legacy)",
+            "icon": "clock-rotate-left",
             "pages": [
               "app-devs/reference/index",
+              "app-devs/core-concepts/app-session/app-session",
               "app-devs/reference/app-server",
               "app-devs/reference/app-session",
               {

@@ -145,9 +145,14 @@ class CoreModule : Module() {
 
         AsyncFunction("ping") { coreManager?.ping() }
 
-        AsyncFunction("dbg1") { coreManager?.dbg1() }
-
-        AsyncFunction("dbg2") { coreManager?.dbg2() }
+        AsyncFunction("dbg1") {
+            coreManager?.dbg1()
+            coreManager?.sgc?.dbg1()
+        }
+        AsyncFunction("dbg2") {
+            coreManager?.dbg2()
+            coreManager?.sgc?.dbg2()
+        }
 
         // MARK: - Incident Reporting
 

@@ -175,12 +175,14 @@ public class CoreModule: Module {
         AsyncFunction("dbg1") {
             await MainActor.run {
                 CoreManager.shared.dbg1()
+                CoreManager.shared.sgc?.dbg1()
             }
         }
 
         AsyncFunction("dbg2") {
             await MainActor.run {
                 CoreManager.shared.dbg2()
+                CoreManager.shared.sgc?.dbg2()
             }
         }
 

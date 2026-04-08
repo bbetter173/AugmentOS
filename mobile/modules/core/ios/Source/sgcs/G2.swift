@@ -2939,20 +2939,20 @@ class G2: NSObject, SGCManager {
                 deviceModel: DeviceTypes.G2, gestureName: gestureName,
                 timestamp: timestamp
             )
-            Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
+            // Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
 
             if eventType == .doubleClick {
                 // Bridge.log("G2: Double click detected")
-                // // trigger dashboard:
-                // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+                // trigger dashboard:
+                let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                 // toggle head up:
-                // GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
-                // if isHeadUp {
-                //     // clear the display after a delay:
-                //     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                //         self.clearDisplay()
-                //     }
-                // }
+                GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
+                if isHeadUp {
+                    // clear the display after a delay:
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.clearDisplay()
+                    }
+                }
                 // sendDashboardCommand(DashboardCommand.trigger)
 
                 // toggle head up:

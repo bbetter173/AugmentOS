@@ -127,7 +127,12 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
   let composedGesture = Gesture.Exclusive(panGesture, tapGesture)
 
   // const bottomPadding = insets.bottom + theme.spacing.s4
-  const bottomPadding = insets.bottom
+  let bottomPadding = insets.bottom
+  if (Platform.OS === "android") {
+    bottomPadding += theme.spacing.s6
+  }
+  // const bottomPadding = theme.spacing.s6
+  // const bottomPadding = 0
 
   const renderBackground = () => {
     // return (

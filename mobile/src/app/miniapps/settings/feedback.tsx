@@ -379,7 +379,7 @@ export default function FeedbackPage() {
   }
 
   return (
-    <Screen preset="fixed" ref={viewShotRef}>
+    <Screen preset="fixed" ref={viewShotRef} safeAreaEdges={["bottom"]}>
       <Header
         title={translate("feedback:giveFeedback")}
         leftIcon="chevron-left"

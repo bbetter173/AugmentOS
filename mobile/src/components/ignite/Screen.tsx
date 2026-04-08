@@ -263,14 +263,6 @@ export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
 
   let $containerInsets = useSafeAreaInsetsStyle(safeAreaEdges, "padding")
 
-  // On Android 3-button nav, always apply bottom inset so content isn't hidden behind the nav bar.
-  // Gesture nav reports ~0 bottom inset so this is a no-op there. iOS is unaffected.
-  // Skip when parent (e.g. tab bar) already handles bottom spacing.
-  const rawInsets = useSaferAreaInsets()
-  if (Platform.OS === "android" && rawInsets.bottom > 0 && !skipAndroidNavBarInset) {
-    $containerInsets = {...$containerInsets, paddingBottom: rawInsets.bottom}
-  }
-
   return (
     // separate view for screenshots:
     <View className="flex-1" style={[{...$containerInsets}, {backgroundColor: backgroundColor || colors.background}]}>

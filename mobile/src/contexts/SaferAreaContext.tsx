@@ -34,7 +34,7 @@ export function SaferAreaProvider({children}: SaferAreaProviderProps) {
     }
 
     if (insets.bottom) {
-      overrides.bottom += theme.spacing.s6
+      // overrides.bottom += theme.spacing.s6
     } else {
       overrides.bottom = theme.spacing.s6
     }

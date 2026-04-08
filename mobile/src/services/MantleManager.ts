@@ -399,17 +399,17 @@ class MantleManager {
       // G2 dashboard menu: user selected a miniapp from the glasses swipe menu
       // G2.swift resolves the numeric appId → packageName before sending this event
       this.subs.push(
-        CoreModule.addListener("glasses_menu_miniapp_selected", (event) => {
+        CoreModule.addListener("miniapp_selected", (event) => {
           const packageName = event.packageName as string
           if (!packageName) return
           const applet = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
           if (!applet) return
           // Toggle: if already running, stop it; otherwise start it
           if (applet.running) {
-            console.log(`MANTLE: glasses_menu_miniapp_selected — stopping ${packageName}`)
+            console.log(`MANTLE: miniapp_selected — stopping ${packageName}`)
             useAppletStatusStore.getState().stopApplet(packageName)
           } else {
-            console.log(`MANTLE: glasses_menu_miniapp_selected — starting ${packageName}`)
+            console.log(`MANTLE: miniapp_selected — starting ${packageName}`)
             useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
           }
         }),

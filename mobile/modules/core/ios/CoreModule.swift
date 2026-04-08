@@ -44,7 +44,8 @@ public class CoreModule: Module {
             "ota_update_available",
             "ota_progress",
             "send_command_to_ble",
-            "receive_command_from_ble"
+            "receive_command_from_ble",
+            "miniapp_selected",
         )
 
         OnCreate {

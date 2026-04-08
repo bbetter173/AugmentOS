@@ -31,35 +31,35 @@ This spike was produced by diffing every v2 module against its v3 replacement, c
 - **v2:** `camera.ts` L315-345 sends `CAMERA_FOV_SET` with `fov` (82-118 degrees) and `roiPosition` ("center" | "top" | "bottom").
 - **v3:** No equivalent on `CameraManager`.
 - **Wire protocol:** `AppToCloudMessageType.CAMERA_FOV_SET` is still defined and the cloud handles it.
-- **Verdict:** Likely oversight. Real hardware control with no v3 surface.
+- **Decision:** Needs a redesign. The original implementation was rushed. Track as a separate issue and design a proper API later. Do not just copy the v2 method over.
 
 #### 3. LED blink/multi-cycle patterns dropped
 
 - **v2:** `turnOn({ color, ontime, offtime, count })` and `blink(color, ontime, offtime, count)` allowed repeated on/off cycles.
 - **v3:** `setColor(color, durationMs)` hardcodes `offtime: 0` and `count: 1`. No way to blink.
 - **Wire protocol:** `RgbLedControlRequest` still supports `offtime` and `count`.
-- **Verdict:** Likely oversight. Blink is commonly used for notifications and status feedback.
+- **Decision:** Accidental regression. Restore blink capability. The wire protocol supports it, the v3 API just needs to expose `offtime` and `count` parameters.
 
 #### 4. Custom photo webhook URL and auth token dropped
 
 - **v2:** `PhotoRequestOptions` included `customWebhookUrl` and `authToken` to redirect photo uploads to a custom endpoint.
 - **v3:** `PhotoOptions` only has `size`, `compression`, `saveToGallery`, `sound`, `timeout`.
 - **Wire protocol:** The `PHOTO_REQUEST` message type still supports these fields.
-- **Verdict:** Likely oversight. Custom photo delivery is a real use case.
+- **Decision:** Intentionally removed for now. May revisit later if there is developer demand.
 
 #### 5. Dashboard mode change events dropped
 
 - **v2:** `events.onDashboardModeChange(handler)` fires when the glasses enter/exit dashboard mode.
 - **v3:** `DashboardManager` only has `showText()` and `clear()`. No event subscription.
 - **Wire protocol:** Cloud still sends `dashboard_mode_change` messages.
-- **Verdict:** Likely oversight. Apps that adapt behavior based on dashboard visibility lose this.
+- **Decision:** Intentional removal. The dashboard mode system was never fully built out. Not a regression.
 
 #### 6. Permission error/denied events dropped
 
 - **v2:** `events.onPermissionError(handler)` and `events.onPermissionDenied(handler)` fire when the cloud rejects subscriptions due to missing permissions.
 - **v3:** `PermissionsManager` has `onUpdate()` for permission changes but no error/denial events.
 - **Wire protocol:** Cloud still sends `permission_error` and `permission_denied` messages.
-- **Verdict:** Likely oversight. Apps cannot detect runtime permission rejections.
+- **Decision:** Accidental regression. Restore these events on `PermissionsManager`.
 
 #### 7. Phone battery events never sent by any client
 
@@ -68,7 +68,7 @@ This spike was produced by diffing every v2 module against its v3 replacement, c
 - **ASG client:** Zero references to phone battery in the Android client.
 - **Mobile app:** Never sends this event.
 - **Impact:** `phone.battery` and `phone.onBatteryUpdate()` are typed ghosts. No data ever arrives.
-- **Verdict:** Not a regression (never worked). Should be documented as "not yet implemented" or removed from the API surface.
+- **Decision:** Remove from the API surface. This was unintentionally included. No client sends it.
 
 ### Low Priority (convenience methods, rarely used features)
 
@@ -166,12 +166,26 @@ This spike was produced by diffing every v2 module against its v3 replacement, c
 | Actively wrong doc pages | 5 |
 | Doc pages needing fixes | 10 |
 
+## Decisions
+
+| Item | Decision |
+|------|----------|
+| PCM16 encoding bug | Fix (high priority) |
+| Camera FOV/ROI | Separate issue, redesign later |
+| LED blink | Accidental regression, restore |
+| Custom photo webhook | Intentionally removed for now |
+| Dashboard mode events | Intentional removal (never fully built) |
+| Permission error/denied events | Accidental regression, restore |
+| Phone battery | Remove from API surface (never worked, unintentional inclusion) |
+| App-to-app communication | Defer to v3.1 or later |
+
 ## Next Steps
 
 1. Fix the PCM16 encoding bug (high priority, broken audio for Gemini/OpenAI integrations)
-2. Decide which medium-priority regressions to restore before shipping alpha to developers
-3. Create the 3 missing doc pages (device, phone, time)
-4. Rewrite the 5 wrong doc pages
-5. Apply targeted fixes to the 10 partial-issue pages
-6. Document phone battery as "not yet implemented" or remove from API surface
-7. Decide on app-to-app communication: defer to v3.1 or drop permanently
+2. Restore LED blink capability (add `offtime`/`count` params to `setColor` or add `blink()` method)
+3. Restore permission error/denied events on `PermissionsManager`
+4. Remove phone battery from the API surface (comment out or remove `phone.battery` and `phone.onBatteryUpdate()`)
+5. Create separate issue for camera FOV/ROI redesign
+6. Create the 3 missing doc pages (device, phone, time)
+7. Rewrite the 5 wrong doc pages
+8. Apply targeted fixes to the 10 partial-issue pages

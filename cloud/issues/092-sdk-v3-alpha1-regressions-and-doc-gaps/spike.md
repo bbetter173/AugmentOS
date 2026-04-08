@@ -83,7 +83,7 @@ This spike was produced by diffing every v2 module against its v3 replacement, c
 - **v2:** `discoverAppUsers()`, `broadcastToAppUsers()`, `sendDirectMessage()`, `joinAppRoom()`, `leaveAppRoom()`, `onAppMessage()`, `onAppUserJoined()`, `onAppUserLeft()`, `onAppRoomUpdated()`.
 - **v3:** No equivalent. The entire subsystem is gone.
 - **Wire protocol:** Cloud still handles these message types.
-- **Verdict:** Likely intentional deferral. Rarely used. Could become a future `CommunicationManager`.
+- **Decision:** Intentionally removed. This feature never worked properly and was never used by any published app. Not coming back.
 
 #### 10. `onSettingChange(key, handler)` granular setting monitoring dropped
 
@@ -177,7 +177,7 @@ This spike was produced by diffing every v2 module against its v3 replacement, c
 | Dashboard mode events | Intentional removal (never fully built) |
 | Permission error/denied events | Accidental regression, restore |
 | Phone battery | Remove from API surface (never worked, unintentional inclusion) |
-| App-to-app communication | Defer to v3.1 or later |
+| App-to-app communication | Intentionally removed (never worked, never used) |
 
 ## Next Steps
 

@@ -1718,10 +1718,10 @@ class G2: NSObject, SGCManager {
         // Bridge.log("G2: sendTextWall(\(text.prefix(50))...)")
 
         // ignore events while the dashboard is open:
-        let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
-        if isHeadUp {
-            return
-        }
+        // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+        // if isHeadUp {
+        //     return
+        // }
 
         if text.isEmpty {
             clearDisplay()
@@ -2939,7 +2939,7 @@ class G2: NSObject, SGCManager {
                 deviceModel: DeviceTypes.G2, gestureName: gestureName,
                 timestamp: timestamp
             )
-            // Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
+            Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
 
             if eventType == .doubleClick {
                 // Bridge.log("G2: Double click detected")
@@ -2948,6 +2948,7 @@ class G2: NSObject, SGCManager {
                 // toggle head up:
                 GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
                 if isHeadUp {
+                    Bridge.log("G2: going back to home, clearing display")
                     // clear the display after a delay:
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.clearDisplay()
@@ -3174,6 +3175,12 @@ class G2: NSObject, SGCManager {
         //     // send the current state to the glasses
         //     CoreManager.shared.sendCurrentState()
         // }
+
+        // if we got 08011097012200 that means we selected a menu item:
+        if data == Data([0x08, 0x01, 0x10, 0x97, 0x01, 0x22, 0x00]) {
+            Bridge.log("G2: menu item selected, clearing display")
+            clearDisplay()
+        }
     }
 
     private func parseDeviceSendToApp(_ data: Data) {

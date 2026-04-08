@@ -2929,10 +2929,9 @@ class G2: NSObject, SGCManager {
                 Bridge.log("G2: unknown event type: \(sysFields)")
                 return
             }
-            Bridge.log("G2: SysEvent → \(eventType)")
 
             guard let gestureName = mapEventTypeToGesture(eventType) else {
-                Bridge.log("G2: no gesture mapping for \(eventType)")
+                Bridge.log("G2: no gesture mapping for \(eventType) \(sysFields)")
                 return
             }
 
@@ -2943,7 +2942,7 @@ class G2: NSObject, SGCManager {
             Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
 
             if eventType == .doubleClick {
-                Bridge.log("G2: Double click detected")
+                // Bridge.log("G2: Double click detected")
                 // // trigger dashboard:
                 // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                 // toggle head up:
@@ -2961,21 +2960,20 @@ class G2: NSObject, SGCManager {
                 // runDashboardSequence()
             }
 
-            if eventType == .foregroundEnter {
-                Bridge.log("G2: Foreground enter detected")
-            }
+            // if eventType == .foregroundEnter {
+            //     Bridge.log("G2: Foreground enter detected")
+            // }
 
-            if eventType == .click {
-                Bridge.log("G2: Click detected")
-            }
+            // if eventType == .click {
+            //     Bridge.log("G2: Click detected")
+            // }
 
             // System exit: glasses killed our EvenHub page (user opened menu or another app)
             // Reset page state and re-create the page to reclaim EvenHub focus
             if eventType == .systemExit || eventType == .abnormalExit {
                 let savedText = currentTextContent
                 let savedBitmap = currentBitmapBase64
-                Bridge.log(
-                    "G2: System exit detected")
+                // Bridge.log("G2: System exit detected")
                 startupPageCreated = false
                 pageCreated = false
                 pageHasTextContainer = false

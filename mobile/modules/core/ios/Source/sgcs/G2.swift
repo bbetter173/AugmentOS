@@ -1023,7 +1023,7 @@ class G2: NSObject, SGCManager {
         set {
             _ready = newValue
             if !newValue {
-                batteryLevel = -1
+                GlassesStore.shared.apply("glasses", "batteryLevel", -1)
             }
         }
     }
@@ -1084,7 +1084,6 @@ class G2: NSObject, SGCManager {
     private let receiveManager = G2ReceiveManager()
     private var heartbeatTimer: Timer?
     private var devSettingsHeartbeatTimer: Timer?
-    private var micEnabled_: Bool = false
     private var startupPageCreated: Bool = false  // createStartUpPageContainer can only be called once
     private var pageCreated: Bool = false
     private var pageHasTextContainer: Bool = false  // tracks if current page has a text container
@@ -1103,17 +1102,6 @@ class G2: NSObject, SGCManager {
     /// Set to the first menu item's appId so glasses know our page belongs to the menu
     private var activeMenuAppId: Int32?
 
-    /// Published state
-    @Published var batteryLevel: Int = -1 {
-        didSet {
-            if batteryLevel != oldValue && batteryLevel >= 0 {
-                GlassesStore.shared.apply("glasses", "batteryLevel", batteryLevel)
-                Bridge.sendBatteryStatus(level: batteryLevel, charging: isCharging)
-            }
-        }
-    }
-
-    private var isCharging: Bool = false
     @Published var aiListening: Bool = false
 
     static let _bluetoothQueue = DispatchQueue(label: "BluetoothG2", qos: .userInitiated)
@@ -1709,7 +1697,7 @@ class G2: NSObject, SGCManager {
     private func requestDeviceInfo() {
         let msg = G2SettingProto.requestInfo(magicRandom: sendManager.nextMagicRandom())
         sendG2SettingCommand(msg)
-        Bridge.log("G2: Requested device info (battery/version)")
+        // Bridge.log("G2: Requested device info (battery/version)")
     }
 
     // MARK: - SGCManager: Display Control
@@ -2391,7 +2379,6 @@ class G2: NSObject, SGCManager {
 
     func setMicEnabled(_ enabled: Bool) {
         Bridge.log("G2: setMicEnabled(\(enabled))")
-        micEnabled_ = enabled
         GlassesStore.shared.apply("glasses", "micEnabled", enabled)
 
         let msg = EvenHubProto.audioControlMessage(enable: enabled)
@@ -2801,9 +2788,9 @@ class G2: NSObject, SGCManager {
         // Distinguish left vs right peripheral so multi-packet reassembly doesn't collide
         let sourceKey = peripheral === leftPeripheral ? "L" : "R"
         guard let result = receiveManager.handlePacket(data, sourceKey: sourceKey) else { return }
-        Bridge.log(
-            "G2: handleNotifyData() - serviceId=\(result.serviceId), payload=\(result.payload.count) bytes"
-        )
+        // Bridge.log(
+        //     "G2: handleNotifyData() - serviceId=\(result.serviceId), payload=\(result.payload.count) bytes"
+        // )
 
         // Route based on service ID
         switch result.serviceId {
@@ -3079,15 +3066,16 @@ class G2: NSObject, SGCManager {
         if let battery = fields[12] as? Int32 {
             let level = Int(battery)
             if level >= 0 && level <= 100 {
-                Bridge.log("G2: Battery level: \(level)%")
-                batteryLevel = level
+                // Bridge.log("G2: Battery level: \(level)%")
+                GlassesStore.shared.apply("glasses", "batteryLevel", level)
             }
         }
 
         // Charging status
         if let charging = fields[13] as? Int32 {
-            isCharging = charging != 0
-            Bridge.log("G2: Charging: \(isCharging)")
+            let isCharging = charging != 0
+            GlassesStore.shared.apply("glasses", "charging", isCharging)
+            // Bridge.log("G2: Charging: \(isCharging)")
             // Re-send battery status with updated charging info
             if batteryLevel >= 0 {
                 Bridge.sendBatteryStatus(level: batteryLevel, charging: isCharging)
@@ -3098,13 +3086,13 @@ class G2: NSObject, SGCManager {
         if let leftVer = fields[5] as? Data,
             let leftVersion = String(data: leftVer, encoding: .utf8)
         {
-            Bridge.log("G2: Left firmware: \(leftVersion)")
+            // Bridge.log("G2: Left firmware: \(leftVersion)")
             GlassesStore.shared.apply("glasses", "leftFirmwareVersion", leftVersion)
         }
         if let rightVer = fields[6] as? Data,
             let rightVersion = String(data: rightVer, encoding: .utf8)
         {
-            Bridge.log("G2: Right firmware: \(rightVersion)")
+            // Bridge.log("G2: Right firmware: \(rightVersion)")
             GlassesStore.shared.apply("glasses", "rightFirmwareVersion", rightVersion)
             // Use right version as the main version
             GlassesStore.shared.apply("glasses", "fwVersion", rightVersion)
@@ -3165,16 +3153,21 @@ class G2: NSObject, SGCManager {
             "G2: gesture_ctrl response: \(data.prefix(8).map { String(format: "%02X", $0) }.joined())"
         )
         // Bridge.log("G2: gesture_ctrl response:")
-        // if we got 08011A00 that means we closed the dashboard:
-        // if data == Data([0x08, 0x01, 0x1A, 0x00]) {
-        //     Bridge.log("G2: gesture_ctrl response: dashboard closed")
-        //     // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
 
-        //     // toggle head up:
-        //     GlassesStore.shared.apply("glasses", "headUp", false)
-        //     // send the current state to the glasses
-        //     CoreManager.shared.sendCurrentState()
-        // }
+        // if we got 08011A00 that means we closed the dashboard, which means the mic is probably dead,
+        // so we need to revive it:
+        if data == Data([0x08, 0x01, 0x1A, 0x00]) {
+            // re-send mic on / update mic state:
+            GlassesStore.shared.apply("glasses", "micEnabled", false)
+            CoreManager.shared.updateMicState()  // should set the mic back on if it should be on
+            //     Bridge.log("G2: gesture_ctrl response: dashboard closed")
+            //     // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+
+            //     // toggle head up:
+            //     GlassesStore.shared.apply("glasses", "headUp", false)
+            //     // send the current state to the glasses
+            //     CoreManager.shared.sendCurrentState()
+        }
 
         // if we got 08011097012200 that means we selected a menu item:
         if data == Data([0x08, 0x01, 0x10, 0x97, 0x01, 0x22, 0x00]) {

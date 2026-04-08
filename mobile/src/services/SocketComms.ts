@@ -696,9 +696,9 @@ class SocketComms {
 
     switch (type) {
       case "ping":
-        // this.handle_ping(msg)
+        // do nothing
         break
-        
+
       case "connection_ack":
         this.handle_connection_ack(msg)
         break

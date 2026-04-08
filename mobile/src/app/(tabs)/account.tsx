@@ -24,7 +24,7 @@ export default function AccountPage() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
 
   return (
-    <Screen preset="fixed" skipAndroidNavBarInset>
+    <Screen preset="fixed">
       <Header leftTx="settings:title" RightActionComponent={<MentraLogoStandalone />} />
 
       <ScrollView style={themed($styles.scrollView)} contentInsetAdjustmentBehavior="automatic">

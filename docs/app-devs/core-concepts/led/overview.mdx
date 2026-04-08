@@ -19,27 +19,25 @@ For complete method documentation, examples, and advanced usage patterns, see th
 ## Quick Start
 
 ```typescript
-import { AppServer, AppSession } from "@mentra/sdk";
+import { MiniAppServer, type MentraSession } from "@mentra/sdk";
 
-class LEDApp extends AppServer {
-  protected async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
-    // Always check LED capabilities first
-    if (!session.capabilities?.hasLight) {
-      session.layouts.showTextWall("No LED support on this device");
-      return;
-    }
+const app = new MiniAppServer({ packageName: "com.example.led", apiKey: process.env.API_KEY!, port: 3000 });
 
-    // Basic LED control
-    await session.led.turnOn({ color: 'red', ontime: 2000 });
-
-    // LED patterns
-    await session.led.blink('green', 500, 500, 3);
-    await session.led.solid('white', 5000);
-
-    // Turn off LEDs
-    await session.led.turnOff();
+app.onSession((session: MentraSession) => {
+  // Always check LED capabilities first
+  if (!session.capabilities?.hasLight) {
+    session.display.showTextWall("No LED support on this device");
+    return;
   }
-}
+
+  // Set LED color
+  session.led.setColor("red", 2000);
+
+  // Turn off LEDs
+  session.led.off();
+});
+
+await app.start();
 ```
 
 ---
@@ -102,9 +100,9 @@ await session.led.turnOff();
 ```typescript
 if (!session.capabilities?.hasLight) {
   // Use display instead
-  session.layouts.showTextWall("📱 Notification");
+  session.display.showTextWall("📱 Notification");
   // Or audio feedback
-  await session.audio.speak("Notification received");
+  await session.speaker.speak("Notification received");
 }
 ```
 

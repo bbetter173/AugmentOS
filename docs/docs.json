@@ -46,11 +46,17 @@
             ]
           },
           {
+            "group": "Migrating to v3",
+            "icon": "arrow-up-right-dots",
+            "pages": ["app-devs/migration/overview", "app-devs/migration/api-map"]
+          },
+          {
             "group": "Core Concepts",
             "icon": "brain",
             "pages": [
               "app-devs/core-concepts/app-lifecycle-overview",
               "app-devs/core-concepts/app-server",
+              "app-devs/core-concepts/session",
               "app-devs/core-concepts/app-session/app-session",
               {
                 "group": "Display",
@@ -65,6 +71,7 @@
                   "app-devs/core-concepts/microphone/audio-chunks"
                 ]
               },
+              "app-devs/core-concepts/translation",
               {
                 "group": "Speakers",
                 "icon": "volume",
@@ -92,6 +99,7 @@
                 ]
               },
               "app-devs/core-concepts/permissions",
+              "app-devs/core-concepts/storage",
               "app-devs/core-concepts/simple-storage",
               "app-devs/core-concepts/led/overview",
               "app-devs/core-concepts/location",

@@ -70,6 +70,47 @@ const all = await session.storage.getAll();
 // { "key1": "value1", "key2": "value2", ... }
 ```
 
+### clear
+
+Remove all stored data for this app and user.
+
+```typescript
+await session.storage.clear();
+```
+
+### keys
+
+Get all stored keys. Returns `Promise<string[]>`.
+
+```typescript
+const allKeys = await session.storage.keys();
+// ["username", "settings", "launchCount"]
+```
+
+### has
+
+Check if a key exists. Returns `Promise<boolean>`.
+
+```typescript
+const exists = await session.storage.has("username");
+```
+
+### setMultiple
+
+Batch set multiple key-value pairs. Takes a `Record<string, any>`.
+
+```typescript
+await session.storage.setMultiple({ username: "Alice", theme: "dark", fontSize: "14" });
+```
+
+### flush
+
+Force-flush any pending writes to the server.
+
+```typescript
+await session.storage.flush();
+```
+
 ## Common Patterns
 
 ### User preferences

@@ -3,7 +3,7 @@ title: "Audio Chunks & Mic Input"
 description: "Access raw audio from the microphone and detect voice activity."
 ---
 
-Use `session.mic` to receive raw audio chunks from the glasses microphone and detect when the user is speaking. This is separate from transcription — subscribing to `session.mic` gives you raw audio data, not text.
+Use `session.mic` to receive raw audio chunks from the glasses microphone and detect when the user is speaking. This is separate from transcription - subscribing to `session.mic` gives you raw audio data, not text.
 
 ## Audio Chunks
 
@@ -11,8 +11,8 @@ Receive raw PCM audio data from the microphone:
 
 ```typescript
 const cleanup = session.mic.onChunk((chunk) => {
-  // chunk.arrayBuffer — raw PCM audio data
-  // chunk.sampleRate  — sample rate (typically 16000 Hz)
+  // chunk.arrayBuffer - raw PCM audio data
+  // chunk.sampleRate  - sample rate (typically 16000 Hz)
   const buffer = chunk.arrayBuffer;
   const sampleRate = chunk.sampleRate || 16000;
 });

@@ -61,6 +61,12 @@ export type LocationAccuracy =
 /** Callback signature for location subscribers. */
 export type LocationHandler = (location: LocationData) => void;
 
+/** Location configuration options. */
+export interface LocationConfig {
+  /** Accuracy level for location updates. Default: "standard". */
+  accuracy?: LocationAccuracy;
+}
+
 // ─── Internal Types ─────────────────────────────────────────────────────────
 
 /**
@@ -206,6 +212,15 @@ export class LocationManager {
    */
   private _hasPermission = true;
 
+  /** User-provided configuration (accuracy, etc.). */
+  private _config: LocationConfig = {};
+
+  /** Pending one-shot poll requests awaiting a correlated response. */
+  private pendingPolls = new Map<
+    string,
+    { resolve: (data: LocationData) => void; reject: (error: Error) => void; timeoutId: ReturnType<typeof setTimeout> }
+  >();
+
   /** Cleanup for the internal location_update message handler. */
   private locationUpdateCleanup: (() => void) | null = null;
 
@@ -214,12 +229,29 @@ export class LocationManager {
 
     // Register a router handler for "location_update" stream type so we always
     // cache the latest position, even if no `onUpdate()` listener is active.
+    // Also resolve any pending one-shot polls matched by correlationId.
     this.locationUpdateCleanup = this.deps.router.on(LOCATION_UPDATE, (_streamType, data, _message) => {
       this.cacheLocation(data);
+      this.resolvePendingPoll(data);
     });
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────
+
+  /**
+   * Configure location settings.
+   *
+   * Sets the accuracy level for subsequent `onUpdate()` subscriptions
+   * and `requestUpdate()` calls.
+   *
+   * @example
+   * ```ts
+   * session.location.configure({ accuracy: "high" });
+   * ```
+   */
+  configure(config: LocationConfig): void {
+    this._config = { ...this._config, ...config };
+  }
 
   /**
    * Subscribe to continuous location updates.
@@ -229,12 +261,14 @@ export class LocationManager {
    * independent subscriptions are supported — each returns its own
    * cleanup function.
    *
+   * Uses the accuracy level set via {@link configure}. Defaults to `"standard"`.
+   *
    * @param handler - Called each time a location update arrives.
-   * @param accuracy - Desired accuracy tier. Defaults to `"standard"`.
    * @returns A cleanup function that removes this specific subscription.
    *
    * @example
    * ```ts
+   * session.location.configure({ accuracy: "high" });
    * const stop = session.location.onUpdate((loc) => {
    *   console.log(`${loc.lat}, ${loc.lng}`);
    * });
@@ -243,14 +277,17 @@ export class LocationManager {
    * stop();
    * ```
    */
-  onUpdate(handler: LocationHandler, accuracy?: LocationAccuracy): () => void {
+  onUpdate(handler: LocationHandler): () => void {
     const streamKey = LOCATION_STREAM;
+
+    const accuracy = this._config.accuracy ?? "standard";
 
     // Register on the router for location_stream events
     const routerCleanup = this.deps.router.on(streamKey, (_streamType, data, _message) => {
       try {
         const location = normalise(data);
         this.cacheLocation(data);
+        this.resolvePendingPoll(data);
         handler(location);
       } catch (err) {
         this.deps.logger.error("[LocationManager] Error in onUpdate handler:", err);
@@ -262,6 +299,7 @@ export class LocationManager {
       try {
         const location = normalise(data);
         this.cacheLocation(data);
+        this.resolvePendingPoll(data);
         handler(location);
       } catch (err) {
         this.deps.logger.error("[LocationManager] Error in onUpdate handler (location_update):", err);
@@ -277,7 +315,7 @@ export class LocationManager {
     if (this.streamRefCount === 1) {
       // Add subscription with accuracy rate — v2 uses LocationStreamRequest format
       this.deps.addSubscription(streamKey);
-      this.deps.logger.debug({ accuracy: accuracy ?? "standard" }, `[LocationManager] Subscribed to "${streamKey}".`);
+      this.deps.logger.debug({ accuracy }, `[LocationManager] Subscribed to "${streamKey}".`);
     }
 
     // Return composite cleanup
@@ -301,33 +339,52 @@ export class LocationManager {
   /**
    * Request a single location update (one-shot poll).
    *
-   * Sends a `location_poll_request` message to the cloud. The response
-   * will arrive as a `location_update` DATA_STREAM event and will be
-   * delivered to any active `onUpdate()` listeners as well as updating
-   * the cached position.
+   * Sends a `location_poll_request` message to the cloud and returns a
+   * Promise that resolves with the {@link LocationData} when the correlated
+   * response arrives. The response will also be delivered to any active
+   * `onUpdate()` listeners and will update the cached position.
    *
-   * @param accuracy - Desired accuracy tier for the poll. Defaults to `"standard"`.
+   * Uses the accuracy level set via {@link configure}. Defaults to `"standard"`.
+   *
+   * @returns A promise that resolves with the location data from the poll.
+   * @throws If the poll times out (default: 15 seconds).
    *
    * @example
    * ```ts
-   * session.location.requestUpdate();
-   * // The next onUpdate() callback will fire with the fresh position.
+   * session.location.configure({ accuracy: "high" });
+   * const loc = await session.location.requestUpdate();
+   * console.log(`${loc.lat}, ${loc.lng}`);
    * ```
    */
-  requestUpdate(accuracy?: LocationAccuracy): void {
+  requestUpdate(): Promise<LocationData> {
     const correlationId = generateCorrelationId();
+    const accuracy = this._config.accuracy ?? "standard";
 
-    const message = {
-      type: AppToCloudMessageType.LOCATION_POLL_REQUEST,
-      correlationId,
-      packageName: this.deps.getPackageName(),
-      sessionId: this.deps.getSessionId(),
-      accuracy: accuracy ?? "standard",
-    };
+    return new Promise<LocationData>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.pendingPolls.delete(correlationId);
+        reject(new Error(`Location poll timed out after ${POLL_TIMEOUT_MS}ms (correlationId: ${correlationId})`));
+      }, POLL_TIMEOUT_MS);
 
-    this.deps.sendMessage(message);
+      this.pendingPolls.set(correlationId, { resolve, reject, timeoutId });
 
-    this.deps.logger.debug({ correlationId, accuracy: message.accuracy }, "📍 Location poll request sent");
+      const message = {
+        type: AppToCloudMessageType.LOCATION_POLL_REQUEST,
+        correlationId,
+        packageName: this.deps.getPackageName(),
+        sessionId: this.deps.getSessionId(),
+        accuracy,
+      };
+
+      try {
+        this.deps.sendMessage(message);
+        this.deps.logger.debug({ correlationId, accuracy }, "📍 Location poll request sent");
+      } catch (err) {
+        clearTimeout(timeoutId);
+        this.pendingPolls.delete(correlationId);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
   }
 
   /**
@@ -355,6 +412,13 @@ export class LocationManager {
       this.deps.removeSubscription(LOCATION_STREAM);
     }
     this.streamRefCount = 0;
+
+    // Reject and clean up any pending polls
+    for (const [id, pending] of this.pendingPolls) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(new Error("LocationManager stopped while poll was pending"));
+      this.pendingPolls.delete(id);
+    }
 
     this.deps.logger.debug("[LocationManager] All subscriptions stopped.");
   }
@@ -402,6 +466,21 @@ export class LocationManager {
   // ─── Internal ───────────────────────────────────────────────────────────
 
   /**
+   * Check if incoming data matches a pending one-shot poll and resolve it.
+   */
+  private resolvePendingPoll(raw: any): void {
+    const correlationId: string | undefined = raw?.correlationId;
+    if (!correlationId) return;
+
+    const pending = this.pendingPolls.get(correlationId);
+    if (!pending) return;
+
+    clearTimeout(pending.timeoutId);
+    this.pendingPolls.delete(correlationId);
+    pending.resolve(normalise(raw));
+  }
+
+  /**
    * Update cached location values from raw incoming data.
    */
   private cacheLocation(raw: any): void {
@@ -445,6 +524,7 @@ export class LocationManager {
     this._lng = null;
     this._accuracy = null;
     this._timestamp = null;
+    this._config = {};
 
     this.deps.logger.debug("[LocationManager] Destroyed.");
   }

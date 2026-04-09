@@ -24,7 +24,7 @@ session.display.showTextWall(
 );
 ```
 
-Live captions pattern — update the display as the user speaks:
+Live captions pattern - update the display as the user speaks:
 
 ```typescript
 session.transcription.on((data) => {
@@ -101,12 +101,12 @@ Display content can target different views on the glasses:
 ```typescript
 import { ViewType } from "@mentra/sdk";
 
-// Main view — what the user normally sees
+// Main view - what the user normally sees
 session.display.showTextWall("Main content", {
   view: ViewType.MAIN,
 });
 
-// Dashboard view — shown when the user looks up
+// Dashboard view - shown when the user looks up
 session.display.showTextWall("Dashboard content", {
   view: ViewType.DASHBOARD,
 });
@@ -145,10 +145,10 @@ See [Hardware Capabilities](/app-devs/core-concepts/hardware-capabilities/overvi
 **Keep text concise.** Glasses displays are small. Short messages are easier to read at a glance.
 
 ```typescript
-// Good — scannable
-session.display.showTextWall("Meeting in 5 min — Room A");
+// Good - scannable
+session.display.showTextWall("Meeting in 5 min - Room A");
 
-// Avoid — too much text for a glance
+// Avoid - too much text for a glance
 session.display.showTextWall(
   "You have an upcoming meeting scheduled in approximately 5 minutes. " +
   "The meeting will take place in Conference Room A on the second floor."

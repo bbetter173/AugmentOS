@@ -55,6 +55,10 @@ export interface PermissionsManagerDeps {
     warn(...args: any[]): void;
     error(...args: any[]): void;
   };
+  /** MessageHandlerRegistry — register for top-level message types. */
+  messageHandlers: {
+    register(type: string, handler: (msg: any) => void): () => void;
+  };
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -103,8 +107,12 @@ export class PermissionsManager {
   /** Logger instance. */
   private logger: PermissionsManagerDeps["logger"];
 
+  /** Message handler registry for cloud message subscriptions. */
+  private messageHandlers: PermissionsManagerDeps["messageHandlers"];
+
   constructor(deps: PermissionsManagerDeps) {
     this.logger = deps.logger;
+    this.messageHandlers = deps.messageHandlers;
     this.permissions = createDefaultPermissions();
   }
 
@@ -172,6 +180,56 @@ export class PermissionsManager {
     return () => {
       this.listeners.delete(handler);
     };
+  }
+
+  /**
+   * Listen for permission error events from the cloud.
+   * Fires when a bulk subscription is rejected due to missing permissions.
+   *
+   * @param handler - Callback invoked with the error details
+   * @returns Cleanup function that removes the listener
+   *
+   * @example
+   * ```ts
+   * const cleanup = permissions.onPermissionError((err) => {
+   *   console.error("Permission error:", err.message, err.deniedPermissions);
+   * });
+   * ```
+   */
+  onPermissionError(handler: (error: { message: string; deniedPermissions?: string[] }) => void): () => void {
+    const cleanup = this.messageHandlers.register("permission_error", (msg: any) => {
+      try {
+        handler({ message: msg.message ?? "Permission error", deniedPermissions: msg.deniedPermissions });
+      } catch (err) {
+        this.logger.error("[PermissionsManager] Error in onPermissionError handler:", err);
+      }
+    });
+    return cleanup;
+  }
+
+  /**
+   * Listen for permission denied events from the cloud.
+   * Fires when an individual stream subscription is rejected.
+   *
+   * @param handler - Callback invoked with the denial details
+   * @returns Cleanup function that removes the listener
+   *
+   * @example
+   * ```ts
+   * const cleanup = permissions.onPermissionDenied((err) => {
+   *   console.warn("Denied:", err.permission, err.streamType);
+   * });
+   * ```
+   */
+  onPermissionDenied(handler: (error: { message: string; permission?: string; streamType?: string }) => void): () => void {
+    const cleanup = this.messageHandlers.register("permission_denied", (msg: any) => {
+      try {
+        handler({ message: msg.message ?? "Permission denied", permission: msg.permission, streamType: msg.streamType });
+      } catch (err) {
+        this.logger.error("[PermissionsManager] Error in onPermissionDenied handler:", err);
+      }
+    });
+    return cleanup;
   }
 
   // ─── Internal (called by MentraSession) ─────────────────────────────────

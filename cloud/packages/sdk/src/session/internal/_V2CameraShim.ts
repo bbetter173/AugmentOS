@@ -68,9 +68,7 @@ export class _V2CameraShim {
     return this.session.camera.takePhoto(options);
   }
 
-  onPhotoTaken(handler: (photo: any) => void): () => void {
-    return this.session.camera.onPhotoTaken(handler);
-  }
+
 
   async requestPhoto(options?: _V2PhotoRequestOptions): Promise<LegacyPhotoData> {
     const bridge = this.config.photoRequestBridge;

@@ -5,7 +5,7 @@ description: "Everything you need to know to update your MentraOS app from v2 to
 
 Your existing v2 app **still works after updating**. SDK v3 ships with a compatibility layer that keeps the old API functional. You'll see deprecation warnings in the console, but nothing breaks.
 
-This guide walks you through updating to the new API at your own pace. You can migrate one piece at a time — there's no need to rewrite everything at once.
+This guide walks you through updating to the new API at your own pace. You can migrate one piece at a time - there's no need to rewrite everything at once.
 
 ## TL;DR
 
@@ -20,7 +20,7 @@ This guide walks you through updating to the new API at your own pace. You can m
 Instead of subclassing `AppServer` and overriding `onSession`, you create a `MiniAppServer` instance and register callbacks. This is simpler, works better with TypeScript inference, and matches how most modern frameworks handle lifecycle hooks.
 
 **Session managers replace `session.events.*`.**
-Instead of one big `events` bag where everything is accessed via string-based method names, each capability is now its own manager on the session object. `session.events.onTranscription(handler)` becomes `session.transcription.on(handler)`. This gives you autocomplete, type safety, and discoverability — you can explore `session.` and see everything available.
+Instead of one big `events` bag where everything is accessed via string-based method names, each capability is now its own manager on the session object. `session.events.onTranscription(handler)` becomes `session.transcription.on(handler)`. This gives you autocomplete, type safety, and discoverability - you can explore `session.` and see everything available.
 
 **Some things were renamed** to be clearer:
 - `session.layouts` → `session.display`
@@ -28,12 +28,12 @@ Instead of one big `events` bag where everything is accessed via string-based me
 - `session.simpleStorage` → `session.storage`
 
 **Some things are new** and didn't exist in v2:
-- `session.mic` — raw audio input and voice activity detection
-- `session.device` — unified hardware state, events, WiFi, and capabilities
-- `session.phone` — notifications, calendar, and phone battery
-- `session.permissions` — query and observe app permissions
-- `session.time` — timezone-aware time utilities
-- `session.translation` — real-time translation (was deferred to v3.1, pulled into v3.0)
+- `session.mic` - raw audio input and voice activity detection
+- `session.device` - unified hardware state, events, WiFi, and capabilities
+- `session.phone` - notifications, calendar, and phone battery
+- `session.permissions` - query and observe app permissions
+- `session.time` - timezone-aware time utilities
+- `session.translation` - real-time translation (was deferred to v3.1, pulled into v3.0)
 
 ## Step 1: AppServer → MiniAppServer
 
@@ -89,11 +89,11 @@ await app.start();
 
 Key differences:
 - No class, no inheritance. Just create an instance and register callbacks.
-- `onSession` receives a `MentraSession` (not `AppSession`). No separate `sessionId` and `userId` args — they're on the session object as `session.sessionId` and `session.userId`.
+- `onSession` receives a `MentraSession` (not `AppSession`). No separate `sessionId` and `userId` args - they're on the session object as `session.sessionId` and `session.userId`.
 - `onStop` receives the session and a reason string.
 - `app.start()` returns a Promise. Use `await` or `.then()`.
 
-**Custom Hono routes** work the same as before — `MiniAppServer` extends the Hono app, so you can call `app.get()`, `app.post()`, `app.use()`, etc. directly:
+**Custom Hono routes** work the same as before - `MiniAppServer` extends the Hono app, so you can call `app.get()`, `app.post()`, `app.use()`, etc. directly:
 
 ```typescript
 app.get("/api/health", (c) => c.json({ ok: true }));
@@ -118,7 +118,7 @@ session.transcription.on((data) => { ... });
 You can also subscribe to a specific language:
 
 ```typescript
-// v3 only — subscribe to English transcriptions
+// v3 only - subscribe to English transcriptions
 const cleanup = session.transcription.forLanguage("en", (data) => { ... });
 
 // Call cleanup() to unsubscribe
@@ -308,13 +308,13 @@ The old names are still exported as aliases during the v3.0 transition period.
 
 These things work exactly the same in v3:
 
-- **Wire protocol** — WebSocket messages, subscription strings, all unchanged
-- **Cloud behavior** — The cloud handles v2 and v3 apps identically
-- **Webhook format** — Same `/webhook` endpoint, same payload. `MiniAppServer` mounts both old and new paths.
-- **Settings and capabilities** — Same data, just accessed through managers
-- **Camera** — Same API surface, accessed via `session.camera`
-- **LED** — Same API, accessed via `session.led`
-- **Webviews** — Same webview system, `@mentra/react` works the same
+- **Wire protocol** - WebSocket messages, subscription strings, all unchanged
+- **Cloud behavior** - The cloud handles v2 and v3 apps identically
+- **Webhook format** - Same `/webhook` endpoint, same payload. `MiniAppServer` mounts both old and new paths.
+- **Settings and capabilities** - Same data, just accessed through managers
+- **Camera** - Same API surface, accessed via `session.camera`
+- **LED** - Same API, accessed via `session.led`
+- **Webviews** - Same webview system, `@mentra/react` works the same
 
 ## New Features in v3
 
@@ -428,7 +428,7 @@ No. Your v2 app works on v3 without changes. Migrate when you're ready.
 v3.1, which will be at least 8 weeks after v3.0 ships. We'll announce with advance warning.
 
 **Can I use v3 and v2 patterns in the same app?**
-Yes. During the transition, you can mix old and new patterns. For example, use `MiniAppServer` with `session.events.onTranscription()` — it works.
+Yes. During the transition, you can mix old and new patterns. For example, use `MiniAppServer` with `session.events.onTranscription()` - it works.
 
 **What about my Express middleware?**
 Express was removed. `MiniAppServer` uses Hono. If you had custom Express middleware, rewrite it as Hono middleware. See the [Hono documentation](https://hono.dev/docs/guides/middleware) for the equivalent patterns.

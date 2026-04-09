@@ -102,11 +102,11 @@ In v3, sessions can also reconnect after a brief transport blip without ending:
 ```typescript
 app.onSession((session) => {
   session.onReconnected(() => {
-    // Connection restored — subscriptions still active
+    // Connection restored - subscriptions still active
   });
 
   session.onStopped((reason) => {
-    // Session truly ended — clean up per-user state
+    // Session truly ended - clean up per-user state
   });
 });
 ```
@@ -132,10 +132,10 @@ Sessions are isolated per user. Each user who starts your app gets their own `Me
   <Card title="MiniAppServer" icon="server" href="/app-devs/core-concepts/app-server">
     The entry point for your app
   </Card>
-  <Card title="Learn About AppSession" icon="plug" href="/app-devs/core-concepts/app-session/app-session">
+  <Card title="Learn About MentraSession" icon="plug" href="/app-devs/core-concepts/session">
     Work with individual user sessions
   </Card>
-  <Card title="Handle Events" icon="bolt" href="/app-devs/core-concepts/app-session/events-and-data">
+  <Card title="Handle Events" icon="bolt" href="/app-devs/core-concepts/session">
     Subscribe to real-time data from glasses
   </Card>
   <Card title="Set Permissions" icon="lock" href="/app-devs/core-concepts/permissions">

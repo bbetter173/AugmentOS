@@ -73,6 +73,16 @@ app.onSession((session) => {
 });
 ```
 
+### Stop location updates
+
+Stop all location tracking and clean up resources:
+
+```typescript
+session.location.stop();
+```
+
+This unsubscribes all `onUpdate` listeners and stops GPS polling. You can call `onUpdate()` again later to resume.
+
 ### Location-aware content
 
 ```typescript

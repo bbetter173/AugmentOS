@@ -70,6 +70,47 @@ const all = await session.storage.getAll();
 // { "key1": "value1", "key2": "value2", ... }
 ```
 
+### clear
+
+Remove all stored data for this app and user.
+
+```typescript
+await session.storage.clear();
+```
+
+### keys
+
+Get all stored keys. Returns `Promise<string[]>`.
+
+```typescript
+const allKeys = await session.storage.keys();
+// ["username", "settings", "launchCount"]
+```
+
+### has
+
+Check if a key exists. Returns `Promise<boolean>`.
+
+```typescript
+const exists = await session.storage.has("username");
+```
+
+### setMultiple
+
+Batch set multiple key-value pairs. Takes a `Record<string, any>`.
+
+```typescript
+await session.storage.setMultiple({ username: "Alice", theme: "dark", fontSize: "14" });
+```
+
+### flush
+
+Force-flush any pending writes to the server.
+
+```typescript
+await session.storage.flush();
+```
+
 ## Common Patterns
 
 ### User preferences
@@ -124,7 +165,7 @@ session.display.showTextWall(`You've opened this app ${count} times`);
 
 Storage is per-app, per-user. Each user of your app has their own isolated storage. Data stored for one user is not visible to other users.
 
-Storage is backed by the cloud — it's not local to the glasses or phone. This means it works across devices if the user switches phones.
+Storage is backed by the cloud - it's not local to the glasses or phone. This means it works across devices if the user switches phones.
 
 ## Migrating from v2
 

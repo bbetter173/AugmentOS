@@ -186,6 +186,40 @@ const PLAY_RESPONSE_TIMEOUT_MS = 60_000;
  * Internal implementation of the AudioOutputStream interface.
  * Manages the binary frame protocol and lifecycle messages.
  */
+/**
+ * Minimal interface for an MP3 encoder (compatible with lamejs).
+ */
+interface Mp3Encoder {
+  encodeBuffer(samples: Int16Array): Int32Array | Uint8Array;
+  flush(): Int32Array | Uint8Array;
+}
+
+/**
+ * Create an MP3 encoder for PCM to MP3 conversion.
+ * Used by Gemini Live / OpenAI Realtime which output raw PCM.
+ * lamejs is a regular SDK dependency.
+ *
+ * lamejs has broken CJS modules that reference globals (MPEGMode, Lame,
+ * BitStream) only defined when loaded via the concatenated bundle. Bun
+ * resolves to src/js/index.js which skips them. We inject manually.
+ */
+function createMp3Encoder(channels: number, sampleRate: number, bitrate: number): Mp3Encoder {
+  (globalThis as any).MPEGMode ??= require("lamejs/src/js/MPEGMode.js");
+  (globalThis as any).Lame ??= require("lamejs/src/js/Lame.js");
+  (globalThis as any).BitStream ??= require("lamejs/src/js/BitStream.js");
+
+  const lamejs = require("lamejs");
+  const Encoder = lamejs.Mp3Encoder ?? lamejs.default?.Mp3Encoder;
+  return new Encoder(channels, sampleRate, bitrate) as Mp3Encoder;
+}
+
+/** Convert any typed array or ArrayBuffer to Int16Array for PCM encoding. */
+function toInt16Array(data: Uint8Array | ArrayBuffer): Int16Array {
+  if (data instanceof Int16Array) return data;
+  const buffer = data instanceof ArrayBuffer ? data : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  return new Int16Array(buffer);
+}
+
 class AudioOutputStreamImpl implements AudioOutputStream {
   public readonly id: string;
 
@@ -197,6 +231,9 @@ class AudioOutputStreamImpl implements AudioOutputStream {
   >;
   private stateChangeHandlers: Array<(state: AudioOutputStreamState) => void> = [];
   private streamUrl: string | null = null;
+
+  /** MP3 encoder for PCM16 format. Null when format is "mp3" (pass-through). */
+  private encoder: Mp3Encoder | null = null;
 
   constructor(streamId: string, deps: ManagerDeps, opts: StreamOptions = {}) {
     this.id = streamId;
@@ -228,6 +265,12 @@ class AudioOutputStreamImpl implements AudioOutputStream {
   async open(): Promise<void> {
     if (this._state !== "created") {
       throw new Error(`Cannot open stream in state "${this._state}"`);
+    }
+
+    // Initialize MP3 encoder for PCM16 format. The phone expects MP3 bytes,
+    // so raw PCM must be encoded before sending over the wire.
+    if (this.options.format === "pcm16") {
+      this.encoder = createMp3Encoder(this.options.channels, this.options.sampleRate, this.options.bitrate);
     }
 
     // Send AUDIO_STREAM_START to the cloud
@@ -271,7 +314,16 @@ class AudioOutputStreamImpl implements AudioOutputStream {
 
     if (chunk.length === 0) return;
 
-    this.sendBinaryFrame(chunk);
+    if (this.options.format === "pcm16" && this.encoder) {
+      // Encode PCM to MP3 before sending. The phone expects MP3 bytes.
+      const pcm = toInt16Array(chunk);
+      const encoded = this.encoder.encodeBuffer(pcm);
+      if (encoded.length === 0) return; // Encoder is buffering, no complete frame yet
+      this.sendBinaryFrame(new Uint8Array(encoded));
+    } else {
+      // MP3 pass-through
+      this.sendBinaryFrame(chunk);
+    }
   }
 
   async end(): Promise<void> {

@@ -308,9 +308,22 @@ The entire subsystem (`discoverAppUsers`, `broadcastToAppUsers`, `sendDirectMess
 
 The v2 `setFov()` implementation was rushed. Do not copy it to v3. Track as a separate issue and design a proper API. See issue 092 spike.
 
-### LED blink -- accidental regression, restore
+### LED blink -- accidental regression, restore via extended `setColor()`
 
 `blink()` / multi-cycle patterns dropped from v3. The wire protocol supports `offtime` and `count`. Restore this capability.
+
+**Decision:** Extend `setColor()` with an overloaded second argument instead of adding a separate `blink()` method. One method, progressive complexity:
+
+```typescript
+// Simple (current behavior, backward compatible)
+session.led.setColor("green");
+session.led.setColor("red", 2000);
+
+// Blink (new, optional params)
+session.led.setColor("red", { onTime: 500, offTime: 500, count: 3 });
+```
+
+Second argument is either a `number` (duration in ms) or an options object `{ onTime, offTime, count }`. No separate `blink()` method. The simple case stays simple. The blink case is discoverable through the same method. Both cases use the same underlying `RGB_LED_CONTROL` wire message.
 
 ### Permission error/denied events -- accidental regression, restore
 
@@ -383,7 +396,7 @@ These are specific issues found while manually reviewing the published docs:
 
 ## Open Questions
 
-1. **LED blink restoration:** Should we add `offtime` and `count` as optional params to `setColor()`, or add a separate `blink()` method back? Needs a small API design spike.
+None remaining. All decisions made.
 
 ## Related Issues
 

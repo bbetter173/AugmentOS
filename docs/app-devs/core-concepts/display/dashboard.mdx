@@ -61,6 +61,10 @@ Show a simple status message when the session starts, then clear it when you are
 ```typescript
 app.onSession((session: MentraSession) => {
   session.dashboard.showText("Listening...");
+
+  session.onStop(() => {
+    session.dashboard.clear();
+  });
 });
 ```
 

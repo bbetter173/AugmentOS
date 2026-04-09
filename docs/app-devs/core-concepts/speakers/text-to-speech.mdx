@@ -45,11 +45,18 @@ app.onSession(async (session) => {
     session.logger.info(`Stream state: ${state}`);
   });
 
-  // Write audio data as it arrives
-  stream.write(audioChunk);
+  // Fetch audio from a TTS API and stream it in real time
+  const response = await fetch("https://api.example.com/tts", {
+    method: "POST",
+    body: "Hello",
+  });
+
+  for await (const chunk of response.body) {
+    stream.write(new Uint8Array(chunk));
+  }
 
   // Signal that no more data is coming
-  stream.end();
+  await stream.end();
 });
 ```
 

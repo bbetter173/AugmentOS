@@ -39,7 +39,7 @@ Subscribe to incoming phone notifications with `session.phone.notifications.on()
 app.onSession((session: MentraSession) => {
   const cleanup = session.phone.notifications.on((notification) => {
     session.logger.info("Notification from:", notification.app);
-    session.display.showTextWall(`${notification.title}\n${notification.body}`);
+    session.display.showTextWall(`${notification.title}\n${notification.content}`);
   });
 
   // Stop listening when done
@@ -55,7 +55,7 @@ The callback receives a notification object with these fields:
 |-------|------|-------------|
 | `app` | `string` | Name of the app that sent the notification |
 | `title` | `string` | Notification title |
-| `body` | `string` | Notification body text |
+| `content` | `string` | Notification body text |
 
 ### Listening for dismissed notifications
 
@@ -90,7 +90,7 @@ Subscribe to calendar events from the user's phone:
 ```typescript
 app.onSession((session: MentraSession) => {
   const cleanup = session.phone.calendar.on((event) => {
-    session.display.showTextWall(`${event.title} at ${event.startTime}`);
+    session.display.showTextWall(`${event.title} at ${event.dtStart}`);
   });
 
   session.onStopped(() => {
@@ -139,7 +139,7 @@ app.onSession((session: MentraSession) => {
   session.phone.notifications.on((notification) => {
     // Only show Slack notifications
     if (notification.app.toLowerCase().includes("slack")) {
-      session.display.showTextWall(`Slack: ${notification.title}\n${notification.body}`);
+      session.display.showTextWall(`Slack: ${notification.title}\n${notification.content}`);
     }
   });
 });

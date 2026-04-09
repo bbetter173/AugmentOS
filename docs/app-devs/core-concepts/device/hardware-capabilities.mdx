@@ -31,9 +31,9 @@ app.onSession((session: MentraSession) => {
     session.display.showTextWall("Welcome!");
   }
 
-  // Always works on all glasses
+  // Transcription works on all glasses (mic can be on phone)
   session.transcription.on((data) => {
-    session.display.showText(data.text);
+    session.logger.info("Transcription:", data.text);
   });
 });
 
@@ -72,6 +72,9 @@ interface Capabilities {
   light: LightCapabilities | null;
 
   hasWifi: boolean;
+
+  hasPower?: boolean;
+  power?: PowerCapabilities;
 }
 ```
 
@@ -230,7 +233,7 @@ Capabilities may be `null` if the connection handshake has not completed. Always
 app.onSession((session: MentraSession) => {
   // Safe: uses optional chaining
   if (session.device.capabilities?.hasCamera) {
-    session.camera.requestPhoto();
+    session.camera.takePhoto();
   }
 
   // Unsafe: will throw if capabilities is null
@@ -290,11 +293,11 @@ app.onSession((session: MentraSession) => {
 ```typescript
 // Good
 if (session.device.capabilities?.hasCamera) {
-  session.camera.requestPhoto();
+  session.camera.takePhoto();
 }
 
 // Bad: may fail silently or throw
-session.camera.requestPhoto();
+session.camera.takePhoto();
 ```
 
 **Provide fallbacks.** If your app needs to display information, fall back to audio when no display is available.

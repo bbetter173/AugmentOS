@@ -129,7 +129,7 @@ const stop2 = session.device.onTouchEvent("double_tap", (event) => {
 
 | Field | Type | Description |
 |---|---|---|
-| `event.gesture` | `string` | Gesture name (e.g. `"single_tap"`, `"double_tap"`, `"swipe_forward"`, `"swipe_backward"`) |
+| `event.gesture` | `string` | Gesture name (e.g. `"single_tap"`, `"double_tap"`, `"forward_swipe"`, `"backward_swipe"`) |
 | `event.model` | `string` | Device model that produced the event |
 | `event.timestamp` | `Date \| string` | When the gesture occurred |
 
@@ -141,8 +141,8 @@ Subscribe to multiple gesture types at once. Returns a single cleanup function t
 const stop = session.device.subscribeToGestures([
   "single_tap",
   "double_tap",
-  "swipe_forward",
-  "swipe_backward",
+  "forward_swipe",
+  "backward_swipe",
 ]);
 
 // Unsubscribe from all at once
@@ -158,9 +158,6 @@ Listen for battery change events. This also updates the reactive `state.batteryL
 ```typescript
 const stop = session.device.onBatteryUpdate((event) => {
   console.log(`Battery: ${event.level}%, charging: ${event.charging}`);
-  if (event.timeRemaining !== undefined) {
-    console.log(`Time remaining: ${event.timeRemaining} min`);
-  }
 });
 ```
 
@@ -168,7 +165,6 @@ const stop = session.device.onBatteryUpdate((event) => {
 |---|---|---|
 | `event.level` | `number` | Battery level, 0 to 100 |
 | `event.charging` | `boolean` | Whether the glasses are charging |
-| `event.timeRemaining` | `number \| undefined` | Estimated minutes remaining (if available) |
 
 ### `onVpsCoordinates(handler)`
 
@@ -193,7 +189,7 @@ if (caps?.camera?.photo) {
 
 ### `onCapabilitiesChange(handler)`
 
-Subscribe to capability changes. Fires on initial connection and whenever capabilities are updated.
+Subscribe to capability changes. Fires only when capabilities are updated after the initial connection (not on initial subscribe).
 
 ```typescript
 const stop = session.device.onCapabilitiesChange((caps) => {
@@ -250,15 +246,15 @@ app.onSession((session) => {
   session.device.subscribeToGestures([
     "single_tap",
     "double_tap",
-    "swipe_forward",
-    "swipe_backward",
+    "forward_swipe",
+    "backward_swipe",
   ]);
 
   session.device.onTouchEvent("single_tap", () => {
     session.display.showTextWall("Tapped!");
   });
 
-  session.device.onTouchEvent("swipe_forward", () => {
+  session.device.onTouchEvent("forward_swipe", () => {
     session.display.showTextWall("Swiped forward");
   });
 

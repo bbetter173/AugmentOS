@@ -1,9 +1,9 @@
-# Docs 3.0.0-alpha.1 Audit: Decisions and Findings
+# API and Docs 3.0.0-alpha.1 Audit
 
 ## Overview
 
-**What this doc covers:** Every issue, decision, and correction found while reviewing the v3 SDK documentation. This is the living record of what we found and what we decided, so nothing gets lost between chat sessions.
-**Why this doc exists:** We audited every docs page against the actual SDK source code and found problems ranging from wrong method names to missing pages to confusing config options. This doc tracks each finding and the decision made.
+**What this doc covers:** Every issue, decision, and correction found while reviewing the v3 SDK API surface and documentation. This is the living record of what we found and what we decided, so nothing gets lost between chat sessions. Covers both API design problems and documentation problems since the docs can't be right if the API isn't right first.
+**Why this doc exists:** We audited every docs page against the actual SDK source code and found problems ranging from wrong method names to missing pages to confusing config options to API design issues. This doc tracks each finding and the decision made.
 **Who should read this:** Anyone working on the v3 docs or SDK API surface.
 
 ## Config Option Decisions
@@ -76,6 +76,87 @@ The `react-webviews.mdx` prerequisites mention "different domain that allows COR
 
 **Decision:** Remove all Express-era assumptions from v3 pages. The v3 architecture is: one Bun process, one URL, serves both the webview (via Bun fullstack HTML routes) and the API (via Hono fetch fallback). The only place Express should appear is in "Migrating from v2" sections.
 
+### Location API -- add `configure()`, make `requestUpdate()` return a Promise
+
+The current `requestUpdate(accuracy?)` does two things in one call: sets accuracy AND requests an update. The accuracy parameter on `onUpdate(handler, accuracy?)` also mixes subscribing with config. This is inconsistent with the `configure()` pattern used by transcription and translation.
+
+**Decision:**
+- Add `session.location.configure({ accuracy })` to set accuracy separately
+- `onUpdate(handler)` subscribes to continuous updates (no accuracy param, uses configured value)
+- `requestUpdate()` returns `Promise<LocationData>` instead of void (the correlationId mechanism already supports this)
+- Cached getters (`lat`, `lng`, `accuracy`, `timestamp`) remain as pure reads, null until first update
+- No auto-subscribe magic on cached property access (would cause hidden battery drain)
+- Docs clearly state: "lat, lng, accuracy, and timestamp are null until you subscribe via `onUpdate()` or request via `requestUpdate()`"
+
+The `configure()` pattern is now consistent across three managers:
+- `session.transcription.configure({ languageHints, vocabulary, diarization })`
+- `session.location.configure({ accuracy })`
+- Principle: whenever a manager has settings that affect how data is processed or delivered, use `.configure()`. It is separate from subscribing to events.
+
+Full proposed location API:
+```typescript
+session.location.configure({ accuracy: "high" });
+
+// Continuous updates
+const stop = session.location.onUpdate((location) => {
+  session.logger.info(location.lat, location.lng);
+});
+stop(); // unsubscribe
+
+// One-shot (returns a Promise)
+const location = await session.location.requestUpdate();
+
+// Cached values (null until first update)
+session.location.lat       // number | null
+session.location.lng       // number | null
+session.location.accuracy  // number | null
+session.location.timestamp // number | null
+
+// Permission check
+session.location.hasPermission // boolean
+
+// Tear down
+session.location.stop();
+```
+
+### `onPhotoTaken` -- remove
+
+`onPhotoTaken(handler)` listens for externally-triggered photo events (hardware button press on glasses, not initiated by `takePhoto()`). The name is confusing because it sounds like the callback for `takePhoto()` completing, which it is not. `takePhoto()` returns a Promise.
+
+**Decision:** Remove. If the user presses the hardware button and takes a photo without the app asking, we do not need to handle that. The app takes photos with `takePhoto()` and gets the result from the Promise. Simple. Deprecate `onPhotoTaken` in the SDK and do not document it.
+
+### Translation manager -- confirmed using Soniox, has `configure` equivalent via `fromTo`/`to`
+
+The cloud's TranslationManager already uses Soniox's unified transcription+translation API (with Alibaba as a fallback for China). It is NOT stale or deprecated.
+
+Soniox translation supports two modes:
+- **One-way:** translate all speech into a single target language (`target_language: "fr"`)
+- **Two-way:** translate back and forth between two languages (`language_a: "ja", language_b: "ko"`)
+
+Our v3 SDK's `session.translation` maps to this:
+- `translation.to(target, handler)` maps to one-way
+- `translation.fromTo(source, target, handler)` maps to two-way
+- `translation.on(handler)` is a catch-all for any active translation
+
+The language pair configuration is implicit in the `to()`/`fromTo()` call, not in a separate `configure()`. This is acceptable because unlike transcription (where language hints are optional config that doesn't change the subscription), translation's language pair IS the subscription. You can't translate without specifying the target. So `to("fr", handler)` is both the subscription and the configuration in one call. No separate `configure()` needed.
+
+`language_hints` is a Soniox transcription concept, not translation. Translation uses `target_language` or `language_a`/`language_b`. Our SDK correctly does not expose `languageHints` on the translation manager.
+
+### v2 (Legacy) sidebar section -- clean up
+
+The v2 sidebar section is messy:
+- Some items have icons, some don't
+- Some are postfixed with "(v2)", some aren't
+- "MentraOS SDK Reference" is the first item but it's unclear what it is
+- "Dashboard API", "Token Utilities", "Utilities" are miscellaneous items that aren't clearly v2 or v3
+
+**Decision:**
+- Every item in the v2 section should be prefixed with "v2:" not postfixed with "(v2)"
+- Every item should have an icon for visual consistency
+- The section header "v2 (Legacy)" is correct
+- Items that are truly version-agnostic (Token Utilities, Utilities) should either move to a separate "Reference" section or stay in v2 with a clear label
+- The whole section should feel like "here is the old stuff, it's organized but clearly marked as legacy"
+
 ## Sidebar Structure Decisions
 
 ### App Lifecycle Overview -- moved to Getting Started
@@ -146,7 +227,7 @@ No more visual imbalance. Device gets a glasses icon. Every manager entry has an
 | 4 hw/ pages | Remove from sidebar (content folded into Device) | Done (sidebar updated) |
 | Simple Storage | Moved to v2 Legacy | Done (sidebar updated) |
 
-## Documentation Tone Rules
+## Documentation Tone and Style Rules
 
 - No em-dashes. Use commas, periods, or "or" instead.
 - Bun is required. No npm. No Node. Developers use Bun.
@@ -157,6 +238,53 @@ No more visual imbalance. Device gets a glasses icon. Every manager entry has an
 - No `AppSession` type. Only `MentraSession`.
 - Import pattern: `import { MiniAppServer, type MentraSession } from "@mentra/sdk"`
 - Every manager page follows: what it is, quick example, full API, common patterns.
+
+### Variable naming in examples
+
+Do not abbreviate variable names in documentation examples. Developers skim code. They should never have to look up where a variable was defined or guess what an abbreviation means.
+
+**Bad:**
+```typescript
+const caps = session.device.capabilities;
+if (caps?.hasCamera) { ... }
+```
+
+**Good:**
+```typescript
+if (session.device.capabilities?.hasCamera) { ... }
+```
+
+Or if a variable is truly needed:
+```typescript
+const capabilities = session.device.capabilities;
+if (capabilities?.hasCamera) { ... }
+```
+
+`caps` means nothing to someone skimming. `capabilities` is self-documenting. Prefer inlining (`session.device.capabilities`) over intermediate variables when the expression is used once or twice.
+
+This applies everywhere: no `opts`, `cfg`, `ctx`, `msg`, `evt`, `val`, `el`, `idx`, `buf`. Spell it out.
+
+### Don't use `session.display` in camera examples
+
+Mentra Live has a camera but no display. Any camera example that calls `session.display.showTextWall()` is demonstrating code that won't work on the only glasses that have a camera. Use `session.logger.info()` instead, or send the data to the webview.
+
+**Bad:**
+```typescript
+const stream = await session.camera.startStream();
+session.display.showTextWall(`Live!\n${stream.webrtcUrl}`);
+```
+
+**Good:**
+```typescript
+const stream = await session.camera.startStream();
+session.logger.info("Stream live:", stream.webrtcUrl);
+```
+
+The same principle applies to any example: don't use a manager that the target device might not support unless you check capabilities first.
+
+### "Always works on all glasses" claims
+
+Do not claim code "always works on all glasses" if the example uses a manager that requires hardware (display, camera, speaker, etc.). The only things that truly work on all glasses are: transcription (mic can be on phone), logger, storage, permissions, time.
 
 ## API Surface Decisions
 
@@ -192,6 +320,39 @@ The v2 `setFov()` implementation was rushed. Do not copy it to v3. Track as a se
 
 The v3 `AudioOutputStreamImpl.write()` passes raw PCM through without encoding to MP3. The v2 version encoded via lamejs. The type signature promises PCM support but the implementation does not deliver. Fix before developers use audio streaming with Gemini/OpenAI.
 
+### `onPhotoTaken` -- remove from SDK
+
+Deprecate and do not document. See config decisions section above for rationale.
+
+## Camera Docs Findings
+
+### `camera/photo-capture.mdx` -- all v2
+
+Uses `requestPhoto()` throughout. v3 method is `takePhoto()`. No `onPhotoTaken()` documented (though see the open question about whether to document it at all). No migration section. Needs full rewrite.
+
+### `camera/streaming.mdx` -- mostly v3 but bad examples
+
+The API calls are correct (`startStream`, `stopStream`, `onStreamStatus`). But the "Complete Example" at the bottom uses `session.display.showTextWall()` four times on a camera device that has no display. Should use `session.logger.info()` or send to webview. Also missing `checkExistingStream()` documentation.
+
+### `camera/README.mdx` -- all v2
+
+Uses `requestPhoto()`, `startLivestream()`, `startLocalLivestream()`. All v2 method names. Needs full rewrite as a camera overview linking to the two sub-pages.
+
+### Display URL on glasses is nonsensical
+
+The streaming example shows `session.display.showTextWall(`Live!\n${stream.webrtcUrl}`)`. Even if the glasses had a display, showing a URL on AR glasses makes no sense. The user can't click it or copy it. This should send the URL to the webview where the user can actually use it, or just log it.
+
+## Dashboard Findings
+
+The entire `display/dashboard.mdx` page is mostly v2 fiction. Dashboard "modes" are not a concept in v3. The v2 methods `content.writeToMain()`, `content.writeToExpanded()`, `onModeChange()` do not exist on the v3 `DashboardManager`. The v3 API is two methods: `session.dashboard.showText()` and `session.dashboard.clear()`. Full rewrite needed.
+
+## Permissions Findings
+
+The permissions page has v2 code in the LOCATION and CAMERA sections:
+- LOCATION: `session.location.subscribeToStream()` and `session.location.getLatestLocation()` should be `session.location.onUpdate()` and `session.location.requestUpdate()`
+- CAMERA: `session.camera.requestPhoto()` and `session.camera.startLocalLivestream()` should be `session.camera.takePhoto()` and `session.camera.startStream()`
+- CALENDAR: syntax error with extra comma: `session.phone.calendar.on(, (data) => {})`
+
 ## Stale Docs Findings
 
 These are specific issues found while manually reviewing the published docs:
@@ -219,6 +380,10 @@ These are specific issues found while manually reviewing the published docs:
 - Every `npm install` should be `bun add`
 - Every `yarn add` should be removed
 - No Express patterns outside of "Migrating from v2" sections
+
+## Open Questions
+
+1. **LED blink restoration:** Should we add `offtime` and `count` as optional params to `setColor()`, or add a separate `blink()` method back? Needs a small API design spike.
 
 ## Related Issues
 

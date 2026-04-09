@@ -398,6 +398,32 @@ These are specific issues found while manually reviewing the published docs:
 
 None remaining. All decisions made.
 
+## SDK Code Changes Required
+
+These are code changes to the SDK itself (not docs) that were decided during this audit. Track implementation status here.
+
+| # | File | Change | Priority | Status |
+|---|------|--------|----------|--------|
+| 1 | `LedManager.ts` | Extend `setColor()` second arg: accept `{ onTime, offTime, count }` options object in addition to `number` | Medium | Not started |
+| 2 | `DeviceManager.ts` | Add `onTouchEvent(gestures: string[], handler)` array overload. Deprecate `subscribeToGestures()`. | Medium | Not started |
+| 3 | `CameraManager.ts` | Deprecate `onPhotoTaken()`. Mark as deprecated, do not remove yet (v2 compat). | Low | Not started |
+| 4 | `LocationManager.ts` | Add `configure({ accuracy })`. Make `requestUpdate()` return `Promise<LocationData>`. Remove accuracy param from `onUpdate()`. | Medium | Not started |
+| 5 | `SpeakerManager.ts` | Fix PCM16 encoding bug. `write()` must encode PCM to MP3 via lamejs when `format: "pcm16"`. Port encoding logic from v2 `AudioOutputStream`. | **High** | Not started |
+| 6 | `PhoneManager.ts` | Remove `battery` getter and `onBatteryUpdate()`. Never implemented by any client. | Low | Not started |
+| 7 | `PermissionsManager.ts` | Restore `onPermissionError(handler)` and `onPermissionDenied(handler)` events. Register handlers for cloud `permission_error` and `permission_denied` messages. | Medium | Not started |
+| 8 | `app/server/index.ts` | Deprecate `verbose` config option (map to `logLevel: "debug"` internally). Change `logLevel` default from `"info"` to `"warn"`. Remove `verbose` from docs. | Low | Not started |
+| 9 | `MentraSession.ts` | Remove `onPhotoTaken` registration from core handlers. | Low | Not started |
+| 10 | `_V2SessionShim.ts` | Keep `onPhotoTaken` in v2 compat shim (deprecated but functional for v2 apps). | Low | Not started |
+
+### Priority order
+
+1. **PCM16 encoding bug** (#5) -- broken audio for Gemini/OpenAI integrations. Ship-blocking.
+2. **LED blink** (#1) -- accidental regression, developers expect it.
+3. **Location configure/requestUpdate** (#4) -- API design cleanup for consistency.
+4. **onTouchEvent array overload** (#2) -- API design cleanup.
+5. **Permission events** (#7) -- accidental regression.
+6. Everything else is low priority cleanup.
+
 ## Related Issues
 
 | Issue | Relationship |

@@ -40,10 +40,10 @@ session.permissions.onUpdate((permissions) => {
 
 ## How Permissions Work
 
-1. **Declare in Developer Console** — Set required permissions for your app
-2. **User approval** — Users see and approve permissions when installing
-3. **Automatic enforcement** — Cloud blocks access to features without permission
-4. **Runtime query (v3)** — Use `session.permissions.has()` to check at runtime
+1. **Declare in Developer Console** - Set required permissions for your app
+2. **User approval** - Users see and approve permissions when installing
+3. **Automatic enforcement** - Cloud blocks access to features without permission
+4. **Runtime query (v3)** - Use `session.permissions.has()` to check at runtime
 
 ## Setting Permissions
 
@@ -92,16 +92,16 @@ session.mic.onVoiceActivity((data) => {});
 
 ```typescript
 // These require LOCATION permission:
-session.location.subscribeToStream({ accuracy: 'high' }, (data) => {});
-const location = await session.location.getLatestLocation();
+session.location.onUpdate((data) => { session.logger.info(data.lat, data.lng); });
+session.location.requestUpdate();
 ```
 
 ### CAMERA
 
 ```typescript
 // These require CAMERA permission:
-const photo = await session.camera.requestPhoto();
-await session.camera.startLocalLivestream({ streamUrl: 'srt://...' });
+const photo = await session.camera.takePhoto();
+await session.camera.startStream({ direct: 'srt://...' });
 ```
 
 ### READ_NOTIFICATIONS
@@ -116,7 +116,7 @@ session.phone.notifications.onDismissed((data) => {});
 
 ```typescript
 // Requires CALENDAR permission:
-session.phone.calendar.on(, (data) => {});
+session.phone.calendar.on((data) => {});
 ```
 
 ## Runtime Behavior

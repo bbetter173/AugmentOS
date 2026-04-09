@@ -4,7 +4,7 @@ description: "Stream live video from smart glasses using SRT, RTMP, or WebRTC"
 icon: "video"
 ---
 
-Stream live video from the glasses camera using `session.camera.startStream()`. One method, three modes — managed relay (default), relay with restreaming, or direct to your own server.
+Stream live video from the glasses camera using `session.camera.startStream()`. One method, three modes - managed relay (default), relay with restreaming, or direct to your own server.
 
 ## Quick Start
 
@@ -220,6 +220,65 @@ await session.camera.startStream({ sound: false });
 
 The LED flash is always on during streaming and cannot be disabled (hardware privacy indicator).
 
+## Checking for Existing Streams
+
+If your app crashes or a session disconnects unexpectedly, the glasses may still have an active stream running. Use `checkExistingStream()` to detect and adopt orphaned streams from previous sessions.
+
+```typescript
+const existing = await session.camera.checkExistingStream();
+
+if (existing.hasActiveStream) {
+  session.logger.info("Found existing stream:", existing.streamInfo.streamId);
+  session.logger.info("Status:", existing.streamInfo.status);
+
+  // Access viewer URLs if it's a managed stream
+  if (existing.streamInfo.hlsUrl) {
+    session.logger.info("HLS:", existing.streamInfo.hlsUrl);
+  }
+  if (existing.streamInfo.webrtcUrl) {
+    session.logger.info("WebRTC:", existing.streamInfo.webrtcUrl);
+  }
+}
+```
+
+### Return type
+
+`checkExistingStream()` returns `Promise<ExistingStreamInfo>`:
+
+```typescript
+interface ExistingStreamInfo {
+  hasActiveStream: boolean;
+  streamInfo?: {
+    type: "managed" | "direct";
+    streamId: string;
+    status: string;
+    hlsUrl?: string;
+    dashUrl?: string;
+    webrtcUrl?: string;
+    previewUrl?: string;
+    thumbnailUrl?: string;
+  };
+}
+```
+
+### Typical usage at session start
+
+```typescript
+app.onSession(async (session: MentraSession) => {
+  const existing = await session.camera.checkExistingStream();
+
+  if (existing.hasActiveStream) {
+    session.logger.info("Adopting existing stream:", existing.streamInfo.streamId);
+    // Reuse the stream instead of starting a new one
+  } else {
+    const stream = await session.camera.startStream();
+    session.logger.info("Started new stream:", stream.streamId);
+  }
+});
+```
+
+---
+
 ## Complete Example
 
 ```typescript
@@ -232,17 +291,17 @@ const app = new MiniAppServer({
 });
 
 app.onSession(async (session: MentraSession) => {
-  session.display.showTextWall("Starting stream...");
+  session.logger.info("Starting stream...");
 
   session.camera.onStreamStatus((status) => {
-    session.display.showTextWall(`Stream: ${status.status}`);
+    session.logger.info(`Stream: ${status.status}`);
   });
 
   try {
     const stream = await session.camera.startStream();
-    session.display.showTextWall(`Live!\n${stream.webrtcUrl}`);
+    session.logger.info(`Live! ${stream.webrtcUrl}`);
   } catch (error) {
-    session.display.showTextWall(`Error: ${error}`);
+    session.logger.info(`Error: ${error}`);
   }
 
   session.onStopped(async () => {
@@ -256,13 +315,13 @@ await app.start();
 ## Migrating from v2
 
 ```typescript
-// v2 — two separate methods
+// v2 - two separate methods
 await session.camera.startLocalLivestream({ streamUrl: "srt://..." });
 await session.camera.stopLocalLivestream();
 const urls = await session.camera.startLivestream({ restreamDestinations: [...] });
 await session.camera.stopLivestream();
 
-// v3 — one method with modes
+// v3 - one method with modes
 await session.camera.startStream({ direct: "srt://..." });
 await session.camera.stopStream();
 const urls = await session.camera.startStream({ destinations: [...] });

@@ -95,21 +95,11 @@ export interface AppServerConfig {
   appInstructions?: string;
 
   /**
-   * Enable verbose SDK logging. Shows all internal SDK messages in the terminal
-   * (WebSocket lifecycle, subscription updates, message routing, etc.).
-   * Useful for debugging connection and streaming issues.
-   *
-   * Can also be enabled with the MENTRA_VERBOSE=true environment variable.
-   * This config option takes priority over the env var.
-   */
-  verbose?: boolean;
-
-  /**
    * SDK log level. Controls which log messages appear in the terminal.
    * - 'error': Only errors
-   * - 'warn': Errors and warnings
-   * - 'info': Normal operation (default)
-   * - 'debug': Everything including SDK internals (implies verbose)
+   * - 'warn': Errors and warnings (default)
+   * - 'info': Normal operation
+   * - 'debug': Everything including SDK internals
    *
    * Can also be set with the MENTRA_LOG_LEVEL environment variable.
    * This config option takes priority over the env var.
@@ -197,16 +187,12 @@ export class AppServer extends Hono<{ Variables: AuthVariables }> {
 
     // Apply config-level log settings to environment before logger creation.
     // Config takes priority over env vars.
-    if (config.verbose !== undefined) {
-      process.env.MENTRA_VERBOSE = config.verbose ? "true" : "false";
-    }
     if (config.logLevel !== undefined) {
       process.env.MENTRA_LOG_LEVEL = config.logLevel;
     }
 
     this.logger = createLogger({
-      verbose: config.verbose,
-      logLevel: config.logLevel as any,
+      logLevel: (config.logLevel ?? "warn") as any,
     }).child({
       app: this.config.packageName,
       packageName: this.config.packageName,

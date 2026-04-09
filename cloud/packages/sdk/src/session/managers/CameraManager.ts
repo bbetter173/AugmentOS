@@ -259,24 +259,6 @@ export class CameraManager {
     });
   }
 
-  onPhotoTaken(handler: (photo: PhotoData) => void): () => void {
-    const streamKey = StreamType.PHOTO_TAKEN;
-    this.deps.addSubscription(streamKey);
-
-    const routerCleanup = this.deps.router.on(streamKey, (_streamType, data) => {
-      try {
-        handler(normalisePhotoData(data));
-      } catch (err) {
-        this.deps.logger.error("[CameraManager] Error in onPhotoTaken handler:", err);
-      }
-    });
-
-    return () => {
-      routerCleanup();
-      this.deps.removeSubscription(streamKey);
-    };
-  }
-
   // ── Unified streaming API ────────────────────────────────────────────────
 
   /**
@@ -702,14 +684,4 @@ export class CameraManager {
     this.currentManagedStreamUrls = undefined;
     this.isManagedStreaming = false;
   }
-}
-
-function normalisePhotoData(raw: any): PhotoData {
-  return {
-    url: raw.photoUrl ?? raw.url ?? "",
-    width: raw.width ?? 0,
-    height: raw.height ?? 0,
-    timestamp: raw.timestamp ? new Date(raw.timestamp).getTime() : Date.now(),
-    savedToGallery: raw.savedToGallery ?? false,
-  };
 }

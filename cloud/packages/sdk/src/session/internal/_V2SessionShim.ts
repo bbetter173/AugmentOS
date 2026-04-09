@@ -209,13 +209,6 @@ export class _V2SessionShim {
     return this.events.on(event as any, handler);
   }
 
-  // ─── Gesture Subscription ───────────────────────────────────────────────
-
-  /** @deprecated Use session.device.subscribeToGestures() */
-  subscribeToGestures(gestures: string[]): () => void {
-    return this.session.device.subscribeToGestures(gestures);
-  }
-
   // ─── Connection State ───────────────────────────────────────────────────
 
   /** @deprecated Use session.device.state.connected.onChange() */
@@ -277,11 +270,6 @@ export class _V2SessionShim {
   /** @deprecated Use session.device.onVpsCoordinates() */
   onVpsCoordinates(handler: (data: any) => void): () => void {
     return this.events.onVpsCoordinates(handler);
-  }
-
-  /** @deprecated Use session.camera.onPhotoTaken() */
-  onPhotoTaken(handler: (data: any) => void): () => void {
-    return this.events.onPhotoTaken(handler);
   }
 
   // ─── Low-Level Message Sending ──────────────────────────────────────────

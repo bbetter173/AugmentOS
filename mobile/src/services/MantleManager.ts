@@ -223,7 +223,7 @@ class MantleManager {
     // forward core status changes to the zustand core store:
     this.subs.push(
       CoreModule.addListener("core_status", (changed: Partial<CoreStatus>) => {
-        console.log("MANTLE: Core status changed", changed)
+        // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
     )

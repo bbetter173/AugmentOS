@@ -1044,6 +1044,8 @@ class G2: NSObject, SGCManager {
 
     /// Device search
     var DEVICE_SEARCH_ID = "NOT_SET"
+    // map device names to serial numbers:
+    private var deviceNameToSerialNumber: [String: String] = [:]
 
     /// Stored UUIDs for background reconnection
     private var leftGlassUUID: UUID? {
@@ -2651,9 +2653,10 @@ class G2: NSObject, SGCManager {
         let devices = getConnectedDevices()
         Bridge.log("G2: connnectedDevices.count: (\(devices.count))")
         for device in devices {
-            if let name = device.name {
+            if let name = device.name, let serialNumber = deviceNameToSerialNumber[name] {
                 Bridge.log("G2: Connected to device: \(name)")
-                if name.contains("_L_") && name.contains(DEVICE_SEARCH_ID) {
+
+                if name.contains("_L_") && serialNumber.contains(DEVICE_SEARCH_ID) {
                     leftPeripheral = device
                     device.delegate = self
                     device.discoverServices([G2BLE.SERVICE_UUID])
@@ -2664,7 +2667,7 @@ class G2: NSObject, SGCManager {
                             CBConnectPeripheralOptionNotifyOnDisconnectionKey: true,
                         ]
                     )
-                } else if name.contains("_R_") && name.contains(DEVICE_SEARCH_ID) {
+                } else if name.contains("_R_") && serialNumber.contains(DEVICE_SEARCH_ID) {
                     rightPeripheral = device
                     device.delegate = self
                     device.discoverServices([G2BLE.SERVICE_UUID])
@@ -2677,7 +2680,7 @@ class G2: NSObject, SGCManager {
                     )
                 }
                 // we can't emit the serial number here unfortunately:
-                // emitDiscoveredDevice(name)
+                emitDiscoveredDevice(serialNumber)
             }
         }
 
@@ -3261,6 +3264,7 @@ extension G2: CBCentralManagerDelegate {
             }
             // sn = "S200LACA040040"
             Bridge.log("G2: Discovered: \(name) (SN: \(serialNumber))")
+            self.deviceNameToSerialNumber[name] = serialNumber
             // GlassesStore.shared.apply("glasses", "signalStrength", RSSI.intValue)
 
             // Always emit discovered device to frontend
@@ -3270,7 +3274,7 @@ extension G2: CBCentralManagerDelegate {
             guard self.DEVICE_SEARCH_ID != "NOT_SET" else { return }
 
             // Only connect to devices matching our search ID
-            guard name.contains(self.DEVICE_SEARCH_ID) else { return }
+            guard serialNumber.contains(self.DEVICE_SEARCH_ID) else { return }
 
             if name.contains("_L_") {
                 if self.leftPeripheral == nil {

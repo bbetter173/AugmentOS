@@ -91,6 +91,16 @@ function generateRequestId(): string {
  * session.led.off();
  * ```
  */
+/** Options for LED blink patterns. */
+export interface LedBlinkOptions {
+  /** How long the LED stays on per cycle (ms). */
+  onTime: number;
+  /** How long the LED stays off between cycles (ms). */
+  offTime: number;
+  /** Number of on/off cycles. */
+  count: number;
+}
+
 export class LedManager {
   private readonly deps: LedManagerDeps;
 
@@ -104,11 +114,14 @@ export class LedManager {
    * Set the LED to a specific colour.
    *
    * Sends an `rgb_led_control` message with `action: "on"` to the cloud.
-   * The LED will remain on for `onTimeMs` milliseconds (defaults to 1000ms)
-   * then turn off automatically on the device.
+   *
+   * Three calling styles:
+   * - `setColor(color)` - on for 1000ms (default)
+   * - `setColor(color, durationMs)` - on for the specified duration
+   * - `setColor(color, { onTime, offTime, count })` - blink pattern
    *
    * @param color - LED colour name. One of `"red"`, `"green"`, `"blue"`, `"orange"`, `"white"`.
-   * @param onTimeMs - Duration in milliseconds the LED stays on. Defaults to `1000`.
+   * @param durationOrOptions - Duration in ms, or an options object for blink patterns.
    *
    * @example
    * ```ts
@@ -117,10 +130,29 @@ export class LedManager {
    *
    * // White LED for the default 1s
    * session.led.setColor("white");
+   *
+   * // Blink green 3 times (500ms on, 500ms off)
+   * session.led.setColor("green", { onTime: 500, offTime: 500, count: 3 });
    * ```
    */
-  setColor(color: string, onTimeMs?: number): void {
+  setColor(color: string, durationOrOptions?: number | LedBlinkOptions): void {
     const requestId = generateRequestId();
+
+    let ontime: number;
+    let offtime: number;
+    let count: number;
+
+    if (typeof durationOrOptions === "object" && durationOrOptions !== null) {
+      // Blink pattern: { onTime, offTime, count }
+      ontime = durationOrOptions.onTime;
+      offtime = durationOrOptions.offTime;
+      count = durationOrOptions.count;
+    } else {
+      // Simple duration (number or undefined)
+      ontime = durationOrOptions ?? 1000;
+      offtime = 0;
+      count = 1;
+    }
 
     const message = {
       type: AppToCloudMessageType.RGB_LED_CONTROL,
@@ -130,14 +162,14 @@ export class LedManager {
       timestamp: new Date(),
       action: "on" as const,
       color: color as LedColor,
-      ontime: onTimeMs ?? 1000,
-      offtime: 0,
-      count: 1,
+      ontime,
+      offtime,
+      count,
     };
 
     this.deps.sendMessage(message);
 
-    this.deps.logger.debug({ requestId, color, ontime: message.ontime }, "💡 LED setColor request sent");
+    this.deps.logger.debug({ requestId, color, ontime, offtime, count }, "💡 LED setColor request sent");
   }
 
   /**

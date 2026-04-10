@@ -6,7 +6,6 @@
  *
  * - **notifications** — Phone notification events and dismissals
  * - **calendar** — Calendar event stream
- * - **battery** — Phone battery level tracking
  *
  * Each sub-manager exposes a `hasPermission` getter that delegates to
  * the {@link PermissionsManager}, giving callers a convenient way to
@@ -19,12 +18,6 @@
  *
  * @example
  * ```ts
- * // Phone battery
- * console.log("Phone battery:", phone.battery);
- * phone.onBatteryUpdate((e) => {
- *   console.log("Phone battery:", e.level, "%");
- * });
- *
  * // Notifications (with permission check)
  * if (phone.notifications.hasPermission) {
  *   phone.notifications.on((n) => {
@@ -105,17 +98,7 @@ export interface CalendarEventData {
   [key: string]: any;
 }
 
-/**
- * Phone battery update event.
- */
-export interface PhoneBatteryEvent {
-  /** Battery level 0–100. */
-  level: number;
-  /** Whether the phone is currently charging. */
-  charging: boolean;
-  /** Estimated minutes remaining (if available). */
-  timeRemaining?: number;
-}
+
 
 // ─── Dependency Types ───────────────────────────────────────────────────────
 
@@ -438,8 +421,7 @@ export class CalendarSubManager {
 /**
  * Manages all phone-related data streams for a MentraSession.
  *
- * Exposes sub-managers for notifications and calendar, plus direct
- * battery-level tracking. Created by MentraSession and exposed as
+ * Exposes sub-managers for notifications and calendar. Created by MentraSession and exposed as
  * `session.phone`.
  */
 export class PhoneManager {
@@ -457,9 +439,6 @@ export class PhoneManager {
   private permissions: PermissionsManager;
   private tracker: StreamHandlerTracker;
 
-  /** Cached phone battery level (null until the first update is received). */
-  private _battery: number | null = null;
-
   constructor(deps: PhoneManagerDeps) {
     this.deps = deps;
     this.permissions = deps.permissions;
@@ -472,67 +451,6 @@ export class PhoneManager {
     this.calendar = new CalendarSubManager(this.permissions, this.tracker, deps.logger);
   }
 
-  // ─── Battery ──────────────────────────────────────────────────────────
-
-  /**
-   * The last-known phone battery level (0–100), or `null` if no update
-   * has been received yet.
-   *
-   * This is a synchronous cached read — subscribe via {@link onBatteryUpdate}
-   * to react to changes.
-   *
-   * @example
-   * ```ts
-   * const level = phone.battery;
-   * if (level !== null && level < 20) {
-   *   console.warn("Phone battery low:", level, "%");
-   * }
-   * ```
-   */
-  get battery(): number | null {
-    return this._battery;
-  }
-
-  /**
-   * Listen for phone battery update events.
-   *
-   * Also updates the cached {@link battery} value on every event.
-   *
-   * @param handler - Called with {@link PhoneBatteryEvent} on each update
-   * @returns Cleanup function to remove the handler
-   *
-   * @example
-   * ```ts
-   * const stop = phone.onBatteryUpdate((e) => {
-   *   console.log("Phone battery:", e.level, "%", e.charging ? "(charging)" : "");
-   * });
-   *
-   * // Later:
-   * stop();
-   * ```
-   */
-  onBatteryUpdate(handler: (event: PhoneBatteryEvent) => void): () => void {
-    return this.tracker.add(StreamType.PHONE_BATTERY_UPDATE, (_streamType, data) => {
-      // Cache the battery level from every incoming event
-      const level = data.level ?? data.batteryLevel ?? data.battery_level;
-      if (level !== undefined) {
-        this._battery = level;
-      }
-
-      try {
-        handler({
-          level: level ?? 0,
-          charging: data.charging ?? false,
-          timeRemaining: data.timeRemaining ?? data.time_remaining,
-        });
-      } catch (err) {
-        this.deps.logger.error(
-          `PhoneManager: Error in battery handler: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    });
-  }
-
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   /**
@@ -543,7 +461,6 @@ export class PhoneManager {
    */
   destroy(): void {
     this.tracker.destroyAll();
-    this._battery = null;
     this.deps.logger.debug("PhoneManager: Destroyed.");
   }
 }

@@ -55,10 +55,10 @@ While the user is speaking, you receive **interim** results that update in real 
 ```typescript
 session.transcription.on((data) => {
   if (data.isFinal) {
-    // Sentence complete — safe to process, save, or act on
+    // Sentence complete - safe to process, save, or act on
     session.display.showTextWall(data.text);
   } else {
-    // Still speaking — text may change as more audio arrives
+    // Still speaking - text may change as more audio arrives
     session.display.showTextWall(`${data.text}...`);
   }
 });
@@ -180,7 +180,7 @@ app.onSession((session: MentraSession) => {
     session.display.showTextWall(data.text);
   });
 
-  session.display.showTextWall("Captions ready — start speaking");
+  session.display.showTextWall("Captions ready - start speaking");
 });
 
 await app.start();

@@ -428,7 +428,7 @@ const en = {
     gallerySettings: "Gallery Settings",
     saveToLibrary: "Save to Camera Roll",
     saveToLibraryDescription:
-      "Automatically save synced photos and videos to the MentraOS album (iOS) or MentraOS folder in Photos (Android) when syncing",
+      "Automatically save synced photos and videos to your camera roll",
     deleteAllPhotos: "Delete All Photos",
     deleteAllPhotosDescription: "Remove all photos from device storage (camera roll photos are not affected)",
     galleryStats: "Gallery Statistics",

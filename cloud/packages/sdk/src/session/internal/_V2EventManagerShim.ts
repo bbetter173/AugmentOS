@@ -85,9 +85,7 @@ export class _V2EventManagerShim {
     return this.session.device.onVpsCoordinates(handler);
   }
 
-  onPhotoTaken(handler: (data: any) => void): () => void {
-    return this.session.camera.onPhotoTaken(handler);
-  }
+
 
   onAudioChunk(handler: (data: any) => void): () => void {
     return this.session.mic.onChunk((chunk) => {
@@ -149,8 +147,7 @@ export class _V2EventManagerShim {
         return this.onPhoneNotificationDismissed(handler);
       case "vps_coordinates":
         return this.onVpsCoordinates(handler);
-      case "photo_taken":
-        return this.onPhotoTaken(handler);
+
       default:
         return () => {};
     }

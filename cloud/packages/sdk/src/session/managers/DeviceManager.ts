@@ -342,10 +342,24 @@ export class DeviceManager {
    */
   onTouchEvent(handler: (event: TouchEventData) => void): () => void;
   onTouchEvent(gesture: string, handler: (event: TouchEventData) => void): () => void;
+  onTouchEvent(gestures: string[], handler: (event: TouchEventData) => void): () => void;
   onTouchEvent(
-    gestureOrHandler: string | ((event: TouchEventData) => void),
+    gestureOrHandler: string | string[] | ((event: TouchEventData) => void),
     handler?: (event: TouchEventData) => void,
   ): () => void {
+    if (Array.isArray(gestureOrHandler)) {
+      // Subscribe to multiple gestures, single cleanup
+      const gestures = gestureOrHandler as string[];
+      const cleanups: Array<() => void> = [];
+      for (const gesture of gestures) {
+        const gestureStream = `${StreamType.TOUCH_EVENT}:${gesture}`;
+        cleanups.push(this.addStreamHandler(gestureStream, (_st, data) => {
+          handler!(normaliseTouchEvent(data));
+        }));
+      }
+      return () => { for (const fn of cleanups) fn(); };
+    }
+
     if (typeof gestureOrHandler === "function") {
       // Subscribe to all touch events
       return this.addStreamHandler(StreamType.TOUCH_EVENT, (_st, data) => {
@@ -361,42 +375,7 @@ export class DeviceManager {
     });
   }
 
-  /**
-   * Subscribe to multiple touch gestures at once.
-   *
-   * Registers a handler for each gesture and returns a single cleanup
-   * function that removes all of them.
-   *
-   * @param gestures - Array of gesture names (e.g. `["double_tap", "forward_swipe"]`)
-   * @returns Cleanup function that removes all gesture subscriptions
-   *
-   * @example
-   * ```ts
-   * const stop = device.subscribeToGestures(["single_tap", "double_tap", "forward_swipe"]);
-   * // Later:
-   * stop();
-   * ```
-   */
-  subscribeToGestures(gestures: string[]): () => void {
-    const cleanupFns: Array<() => void> = [];
 
-    for (const gesture of gestures) {
-      const gestureStream = `${StreamType.TOUCH_EVENT}:${gesture}`;
-
-      // Register a no-op handler to establish the subscription.
-      // The actual events will be delivered via onTouchEvent handlers.
-      const cleanup = this.addStreamHandler(gestureStream, () => {
-        // Subscription placeholder — events routed via prefix match
-      });
-      cleanupFns.push(cleanup);
-    }
-
-    return () => {
-      for (const fn of cleanupFns) {
-        fn();
-      }
-    };
-  }
 
   /**
    * Listen for glasses battery update events.

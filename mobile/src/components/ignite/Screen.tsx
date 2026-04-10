@@ -267,6 +267,7 @@ export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
   // on some screens, we need some extra bottom padding on android so buttons look nice:
   const insets = useSaferAreaInsets()
   if (Platform.OS === "android" && extraAndroidInsets) {
+    // this additional s6 padding is intentional and is what the extraAndroidInsets prop is for
     $containerInsets = {...$containerInsets, paddingBottom: insets.bottom + theme.spacing.s6}
   }
 

@@ -1160,8 +1160,6 @@ export function GalleryScreen() {
     <>
       <Header
         title={isSelectionMode ? "" : "Glasses Gallery"}
-        leftIcon={isSelectionMode ? undefined : "chevron-left"}
-        onLeftPress={isSelectionMode ? undefined : goBack}
         safeAreaEdges={[]}
         LeftActionComponent={
           isSelectionMode ? (
@@ -1171,7 +1169,11 @@ export function GalleryScreen() {
                 <Text style={themed($selectionCountText)}>{selectedPhotos.size}</Text>
               </View>
             </TouchableOpacity>
-          ) : undefined
+          ) : (
+            <TouchableOpacity onPress={() => push("/asg/gallery-settings")} style={themed($settingsButton)}>
+              <Icon name="settings" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+          )
         }
         RightActionComponent={
           isSelectionMode ? (
@@ -1197,11 +1199,7 @@ export function GalleryScreen() {
                 <MaterialCommunityIcons name="share-variant" size={22} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity onPress={() => push("/asg/gallery-settings")} style={themed($settingsButton)}>
-              <Icon name="settings" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          )
+          ) : undefined
         }
       />
       <View style={themed($screenContainer)}>

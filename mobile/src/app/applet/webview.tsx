@@ -396,7 +396,7 @@ export default function AppWebView() {
       )}
       <Screen
         preset="fixed"
-        safeAreaEdges={["top", "bottom"]}
+        safeAreaEdges={Platform.OS === "android" ? ["top", "bottom"] : ["top"]}
         KeyboardAvoidingViewProps={{enabled: true}}
         className="px-0"
         ref={viewShotRef}>

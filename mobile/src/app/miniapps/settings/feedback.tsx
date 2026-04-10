@@ -318,7 +318,7 @@ export default function FeedbackPage() {
           {
             text: translate("common:ok"),
             onPress: () => {
-              void goBackWithScreenshot()
+              void goBack()
             },
           },
         ])
@@ -341,7 +341,7 @@ export default function FeedbackPage() {
       {
         text: translate("common:ok"),
         onPress: () => {
-          void goBackWithScreenshot()
+          void goBack()
 
           // If user rated highly, prompt for app store rating after a delay
           if (shouldPromptAppRating) {

@@ -401,7 +401,7 @@ export default function AppWebView() {
         className="px-0"
         ref={viewShotRef}>
         {/* rainbow bars for debugging insets / screenshots */}
-        <View className="flex-1 absolute inset-0 z-10">
+        {/* <View className="flex-1 absolute inset-0 z-10">
           <View className="flex-col">
             <View className="w-full h-2 bg-red-500" />
             <View className="w-full h-2 bg-green-500" />
@@ -428,7 +428,7 @@ export default function AppWebView() {
             <View className="w-full h-2 bg-green-500" />
             <View className="w-full h-2 bg-red-500" />
           </View>
-        </View>
+        </View> */}
         <View className="flex-1">
           {renderLoadingOverlay()}
           {finalUrl && (

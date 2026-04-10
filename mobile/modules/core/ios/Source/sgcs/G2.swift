@@ -2401,7 +2401,7 @@ class G2: NSObject, SGCManager {
 
     func connectById(_ id: String) {
         Bridge.log("G2: connectById(\(id))")
-        DEVICE_SEARCH_ID = "_" + id + "_"
+        DEVICE_SEARCH_ID = id
         startScan()
     }
 
@@ -3272,6 +3272,8 @@ extension G2: CBCentralManagerDelegate {
 
             // If scan-only mode (no search ID set), don't auto-connect
             guard self.DEVICE_SEARCH_ID != "NOT_SET" else { return }
+
+            // Bridge.log("G2: SN: \(serialNumber), DEVICE_SEARCH_ID: \(self.DEVICE_SEARCH_ID) name: \(name)")
 
             // Only connect to devices matching our search ID
             guard serialNumber.contains(self.DEVICE_SEARCH_ID) else { return }

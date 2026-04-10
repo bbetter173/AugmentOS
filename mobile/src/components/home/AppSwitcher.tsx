@@ -178,7 +178,7 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
         style={[
           {
             width: CARD_WIDTH - 4, // idk why we need this -4, but it's more work than it's worth to figure out
-            height: CARD_HEIGHT,
+            height: 0,
             position: "absolute",
             left: 0,
             // zIndex: index,// ensure the cards are on top of each other

@@ -190,7 +190,7 @@ Expected:
 - Connect the Android phone over USB.
 - Open MentraOS on the phone.
 - Start the captions mini app.
-- Open the `Simulated glasses` mirror view or pair actual glasses with a display.
+- GO back to the home using `Simulated glasses`. The mirror view should stay visible.
 - Keep the phone awake.
 
 ### 3. Start the live dashboard monitor

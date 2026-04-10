@@ -630,7 +630,7 @@ class CoreManager {
         handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
-        if (shouldSendTranscript) {
+        if (shouldSendTranscript || offlineCaptionsRunning) {
             transcriber?.acceptAudio(pcmData)
         }
     }

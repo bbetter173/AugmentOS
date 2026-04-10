@@ -2715,18 +2715,18 @@ class G2: NSObject, SGCManager {
         // Validate the cached peripherals match the device the user selected
         let leftName = left.name ?? ""
         let rightName = right.name ?? ""
-        if !leftName.isEmpty && !leftName.contains(DEVICE_SEARCH_ID) {
-            Bridge.log(
-                "G2: connectByUUID - cached left '\(leftName)' doesn't match search ID '\(DEVICE_SEARCH_ID)', skipping"
-            )
-            return false
-        }
-        if !rightName.isEmpty && !rightName.contains(DEVICE_SEARCH_ID) {
-            Bridge.log(
-                "G2: connectByUUID - cached right '\(rightName)' doesn't match search ID '\(DEVICE_SEARCH_ID)', skipping"
-            )
-            return false
-        }
+        // if !leftName.isEmpty && !leftName.contains(DEVICE_SEARCH_ID) {
+        //     Bridge.log(
+        //         "G2: connectByUUID - cached left '\(leftName)' doesn't match search ID '\(DEVICE_SEARCH_ID)', skipping"
+        //     )
+        //     return false
+        // }
+        // if !rightName.isEmpty && !rightName.contains(DEVICE_SEARCH_ID) {
+        //     Bridge.log(
+        //         "G2: connectByUUID - cached right '\(rightName)' doesn't match search ID '\(DEVICE_SEARCH_ID)', skipping"
+        //     )
+        //     return false
+        // }
 
         Bridge.log("G2: connectByUUID - left: \(leftName), right: \(rightName)")
 
@@ -2844,6 +2844,10 @@ class G2: NSObject, SGCManager {
                     if let packageName = menuAppIdToPackageName[appId] {
                         Bridge.log("G2: Menu miniapp selected — \(packageName)")
                         Bridge.sendMiniappSelected(packageName: packageName)
+                        // clear the display after a delay:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.clearDisplay()
+                        }
                     } else {
                         Bridge.log(
                             "G2: Menu selection ignored — placeholder or unknown appId=\(appId)")
@@ -3157,10 +3161,10 @@ class G2: NSObject, SGCManager {
         // if we got 08011A00 that means we closed the dashboard, which means the mic is probably dead,
         // so we need to revive it:
         if data == Data([0x08, 0x01, 0x1A, 0x00]) {
+            Bridge.log("G2: gesture_ctrl response: dashboard closed")
             // re-send mic on / update mic state:
             GlassesStore.shared.apply("glasses", "micEnabled", false)
             CoreManager.shared.updateMicState()  // should set the mic back on if it should be on
-            //     Bridge.log("G2: gesture_ctrl response: dashboard closed")
             //     // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
 
             //     // toggle head up:
@@ -3170,10 +3174,10 @@ class G2: NSObject, SGCManager {
         }
 
         // if we got 08011097012200 that means we selected a menu item:
-        if data == Data([0x08, 0x01, 0x10, 0x97, 0x01, 0x22, 0x00]) {
-            Bridge.log("G2: menu item selected, clearing display")
-            clearDisplay()
-        }
+        // if data == Data([0x08, 0x01, 0x10, 0x97, 0x01, 0x22, 0x00]) {
+        //     Bridge.log("G2: menu item selected, clearing display")
+        //     clearDisplay()
+        // }
     }
 
     private func parseDeviceSendToApp(_ data: Data) {
@@ -3204,6 +3208,20 @@ class G2: NSObject, SGCManager {
 
 // MARK: - CBCentralManagerDelegate
 
+func extractSN(from data: Data) -> String? {
+    // Android uses startSubIndex=7, byteLength=21 on the FULL scan record
+    // iOS manufacturerData is just the manufacturer-specific payload,
+    // so the offset may differ. You'll need to log the raw bytes and find
+    // where the SN string starts.
+
+    // Skip "ER" prefix (2 bytes), read 14 bytes of SN
+    let snData = data[2..<16]
+    let sn = String(data: snData, encoding: .ascii)?
+        .replacingOccurrences(
+            of: "[\\x00-\\x1F\\x7F]", with: "", options: .regularExpression)
+    return sn
+}
+
 extension G2: CBCentralManagerDelegate {
     nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
         let state = central.state
@@ -3229,15 +3247,23 @@ extension G2: CBCentralManagerDelegate {
 
         // G2 glasses have "Even" prefix and "G2" in name, with _L_ or _R_ for side
         guard name.contains("G2") else { return }
+        guard let mfgData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
+            mfgData.count >= 16
+        else { return }
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
 
-            Bridge.log("G2: Discovered: \(name) (RSSI: \(RSSI))")
+            guard let serialNumber = extractSN(from: mfgData) else {
+                Bridge.log("G2: Could not extract SN from manufacturer data")
+                return
+            }
+            // sn = "S200LACA040040"
+            Bridge.log("G2: Discovered: \(name) (SN: \(serialNumber))")
             // GlassesStore.shared.apply("glasses", "signalStrength", RSSI.intValue)
 
             // Always emit discovered device to frontend
-            self.emitDiscoveredDevice(name, RSSI.intValue)
+            self.emitDiscoveredDevice(serialNumber, RSSI.intValue)
 
             // If scan-only mode (no search ID set), don't auto-connect
             guard self.DEVICE_SEARCH_ID != "NOT_SET" else { return }
@@ -3246,26 +3272,18 @@ extension G2: CBCentralManagerDelegate {
             guard name.contains(self.DEVICE_SEARCH_ID) else { return }
 
             if name.contains("_L_") {
-                // // hard coded conflict resolution for my g2 (for now):
-                // if !name.contains("_4935") {
-                //     return
-                // }
                 if self.leftPeripheral == nil {
                     self.leftPeripheral = peripheral
                     peripheral.delegate = self
                     central.connect(peripheral, options: nil)
-                    Bridge.log("G2: Connecting to LEFT: \(name)")
+                    // Bridge.log("G2: Connecting to LEFT: \(name)")
                 }
             } else if name.contains("_R_") {
-                // // hard coded conflict resolution for my g2 (for now):
-                // if !name.contains("_BCEF") {
-                //     return
-                // }
                 if self.rightPeripheral == nil {
                     self.rightPeripheral = peripheral
                     peripheral.delegate = self
                     central.connect(peripheral, options: nil)
-                    Bridge.log("G2: Connecting to RIGHT: \(name)")
+                    // Bridge.log("G2: Connecting to RIGHT: \(name)")
                 }
             }
 

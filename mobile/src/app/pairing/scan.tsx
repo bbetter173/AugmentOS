@@ -143,9 +143,6 @@ export default function SelectGlassesBluetoothScreen() {
                   .filter((r) => r.deviceName !== "NOTREQUIREDSKIP")
                   .map((res: DeviceSearchResult, index: number) => {
                     let text = `${deviceModel} - ${filterDeviceName(res.deviceName)}`
-                    if (devMode && res.signalStrength) {
-                      text += ` - ${res.signalStrength}`
-                    }
 
                     return (
                       <TouchableOpacity

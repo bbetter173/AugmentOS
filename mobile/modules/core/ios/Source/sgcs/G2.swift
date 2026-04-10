@@ -2676,7 +2676,8 @@ class G2: NSObject, SGCManager {
                         ]
                     )
                 }
-                emitDiscoveredDevice(name)
+                // we can't emit the serial number here unfortunately:
+                // emitDiscoveredDevice(name)
             }
         }
 
@@ -2760,13 +2761,13 @@ class G2: NSObject, SGCManager {
         return devices
     }
 
-    private func emitDiscoveredDevice(_ name: String, _ signalStrength: Int = -1) {
+    private func emitDiscoveredDevice(_ serialNumber: String) {
         // Extract the numeric ID from name like "Even G2_32_R_3FFA6D" -> "32"
-        guard let idNumber = extractIdNumber(name) else {
-            Bridge.log("G2: Could not extract ID from: \(name)")
-            return
-        }
-        Bridge.sendDiscoveredDevice(DeviceTypes.G2, "\(idNumber)", signalStrength)
+        // guard let idNumber = extractIdNumber(name) else {
+        //     Bridge.log("G2: Could not extract ID from: \(name)")
+        //     return
+        // }
+        Bridge.sendDiscoveredDevice(DeviceTypes.G2, serialNumber)
     }
 
     private func extractIdNumber(_ name: String) -> Int? {
@@ -3263,7 +3264,7 @@ extension G2: CBCentralManagerDelegate {
             // GlassesStore.shared.apply("glasses", "signalStrength", RSSI.intValue)
 
             // Always emit discovered device to frontend
-            self.emitDiscoveredDevice(serialNumber, RSSI.intValue)
+            self.emitDiscoveredDevice(serialNumber)
 
             // If scan-only mode (no search ID set), don't auto-connect
             guard self.DEVICE_SEARCH_ID != "NOT_SET" else { return }

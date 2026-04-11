@@ -16,7 +16,6 @@ import {
   GlassesToCloudMessageType,
 } from "@mentra/sdk";
 
-import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { PosthogService } from "../logging/posthog.service";
 import UserSession from "../session/UserSession";
@@ -98,6 +97,19 @@ export class GlassesWebSocketService {
           // Parse text message
           const message = JSON.parse(data.toString()) as GlassesToCloudMessage;
 
+          // Application-level ping/pong for client liveness detection.
+          // Respond immediately — don't log, don't relay, don't touch session state.
+          if ((message as any).type === "ping") {
+            ws.send(JSON.stringify({ type: "pong" }));
+            return;
+          }
+
+          // Client pong (response to legacy server ping). Consume silently.
+          if ((message as any).type === "pong") {
+            userSession.lastAppLevelPongTime = Date.now();
+            return;
+          }
+
           if (message.type === GlassesToCloudMessageType.CONNECTION_INIT) {
             // Handle connection initialization message
             const connectionInitMessage = message as ConnectionInit;
@@ -171,15 +183,7 @@ export class GlassesWebSocketService {
    */
   private async handleConnectionInit(userSession: UserSession, reconnection: boolean): Promise<void> {
     if (!reconnection) {
-      // Start all the apps that the user has running.
-      try {
-        // Start the dashboard app, but let's not add to the user's running apps since it's a system app.
-        // honestly there should be no annyomous users so if it's an anonymous user we should just not start the dashboard
-        await userSession.appManager.startApp(SYSTEM_DASHBOARD_PACKAGE_NAME);
-      } catch (error) {
-        userSession.logger.error({ error }, `Error starting dashboard app`);
-      }
-
+      // Dashboard is now a cloud-internal service (DashboardManager) — no mini app to start.
       // Start all the apps that the user has running.
       try {
         await userSession.appManager.startPreviouslyRunningApps();

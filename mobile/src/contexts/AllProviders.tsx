@@ -24,6 +24,7 @@ import {KonamiCodeProvider} from "@/utils/dev/konami"
 import ConnectionOverlayProvider from "@/contexts/ConnectionOverlayContext"
 import {SaferAreaProvider, useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import {getAnimation, JsStack, NativeJsStack, woltScreenOptions} from "@/components/navigation/JsStack"
+import CoreStatusBar from "@/components/dev/CoreStatusBar"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
@@ -142,9 +143,21 @@ export const AllProviders = withWrappers(
       </>
     )
   },
+  (props) => {
+    const [debugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
+    if (!debugCoreStatusBarEnabled) {
+      return <>{props.children}</>
+    }
+    return (
+      <>
+        <CoreStatusBar />
+        {props.children}
+      </>
+    )
+  },
   ConnectionOverlayProvider,
   (props) => {
-    const {preventBack, animation} = useNavigationHistory()
+    const {preventBack, animation, forceGestureEnabled} = useNavigationHistory()
 
     const convertToNativeAnimation = (animation: string) => {
       if (animation === "zoom") {
@@ -159,7 +172,7 @@ export const AllProviders = withWrappers(
         <Stack
           screenOptions={{
             headerShown: false,
-            gestureEnabled: !preventBack,
+            gestureEnabled: forceGestureEnabled || !preventBack,
             gestureDirection: "horizontal",
             animation: convertToNativeAnimation(animation) as any,
             // animation: "default",

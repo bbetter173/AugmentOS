@@ -147,9 +147,23 @@ done
 
 echo ""
 
-# Step 6: Launch the app
+# Step 6: Set as default home launcher
+echo "=== Setting as Default Launcher ==="
+echo ""
+# Clear any stale chooser-cached preferences for both packages so the
+# "which launcher?" popup doesn't reappear.
+adb shell pm clear-package-preferred-activities "$STOCK_PKG" 2>/dev/null || true
+adb shell pm clear-package-preferred-activities "$DEV_PKG" 2>/dev/null || true
+adb shell cmd package set-home-activity --user 0 "$DEV_PKG/com.mentra.asg_client.MainActivity" 2>/dev/null || true
+# Force the resolver to re-evaluate HOME so the new default takes effect now.
+adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null || true
+echo "Default launcher set."
+
+echo ""
+
+# Step 7: Launch the app
 echo "=== Launching App ==="
-adb shell am start -n "$DEV_PKG/.MainActivity" 2>/dev/null || true
+adb shell am start -n "$DEV_PKG/com.mentra.asg_client.MainActivity" 2>/dev/null || true
 
 echo ""
 echo "=== Setup Complete ==="

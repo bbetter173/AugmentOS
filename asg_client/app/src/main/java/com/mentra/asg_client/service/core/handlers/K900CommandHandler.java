@@ -458,20 +458,36 @@ public class K900CommandHandler {
      */
     public void requestBesLogs(String incidentId, Context context,
                                IConfigurationManager configManager) {
+        requestBesLogs(incidentId, context, configManager, null);
+    }
+
+    /**
+     * @param relayFirmwareJson if non-null, assembled BES logs are passed to this consumer as
+     *                          glasses_firmware JSON instead of HTTP upload
+     */
+    public void requestBesLogs(String incidentId, Context context,
+                               IConfigurationManager configManager,
+                               java.util.function.Consumer<String> relayFirmwareJson) {
         Log.i(TAG, "📋 Requesting BES logs (mh_logs) for incident: " + incidentId);
 
         if (serviceManager == null || serviceManager.getBluetoothManager() == null) {
             Log.w(TAG, "⚠️ BluetoothManager unavailable — cannot request BES logs");
+            if (relayFirmwareJson != null) {
+                relayFirmwareJson.accept(BesLogManager.buildFirmwareUploadJson(""));
+            }
             return;
         }
 
         if (!serviceManager.getBluetoothManager().isConnected()) {
             Log.w(TAG, "⚠️ UART not connected — cannot request BES logs");
+            if (relayFirmwareJson != null) {
+                relayFirmwareJson.accept(BesLogManager.buildFirmwareUploadJson(""));
+            }
             return;
         }
 
         // Replace any stale session from a previous request
-        mBesLogSession = new BesLogManager(incidentId, context, configManager);
+        mBesLogSession = new BesLogManager(incidentId, context, configManager, relayFirmwareJson);
 
         try {
             JSONObject k900Command = new JSONObject();
@@ -491,10 +507,16 @@ public class K900CommandHandler {
             } else {
                 Log.e(TAG, "❌ Failed to send mh_logs");
                 mBesLogSession = null;
+                if (relayFirmwareJson != null) {
+                    relayFirmwareJson.accept(BesLogManager.buildFirmwareUploadJson(""));
+                }
             }
         } catch (JSONException e) {
             Log.e(TAG, "💥 Error building mh_logs command", e);
             mBesLogSession = null;
+            if (relayFirmwareJson != null) {
+                relayFirmwareJson.accept(BesLogManager.buildFirmwareUploadJson(""));
+            }
         }
     }
 

@@ -147,8 +147,8 @@ class CoreModule : Module() {
 
         // MARK: - Incident Reporting
 
-        AsyncFunction("sendIncidentId") { incidentId: String ->
-            coreManager?.sendIncidentId(incidentId)
+        AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
+            coreManager?.sendIncidentId(incidentId, apiBaseUrl)
         }
 
         // MARK: - WiFi Commands

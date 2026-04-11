@@ -32,8 +32,9 @@ import GlassView from "@/components/ui/GlassView"
 import {hapticBuzz} from "@/utils/utils"
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get("window")
-const CARD_WIDTH = SCREEN_WIDTH * 0.67
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.67
+const CARD_SCALE = 0.67
+const CARD_WIDTH = SCREEN_WIDTH * CARD_SCALE
+const CARD_HEIGHT = SCREEN_HEIGHT * CARD_SCALE
 const CARD_SPACING = 0
 const DISMISS_THRESHOLD = -180
 const VELOCITY_THRESHOLD = -800
@@ -168,7 +169,7 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
 
   // debug sort order:
   // console.log("packageName", app.packageName, "index", index)
-  const _insets = useSaferAreaInsets()
+  // const insets = useSafierAreaInsets()
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -176,10 +177,8 @@ function AppCardItem({app, index, count, translateX, onDismiss, onSelect}: AppCa
         className="items-start"
         style={[
           {
-            width: CARD_WIDTH,
-            // height: CARD_HEIGHT + (12 * 4) - (insets.top * 1/0.67), // - 16,
+            width: CARD_WIDTH - 4, // idk why we need this -4, but it's more work than it's worth to figure out
             height: CARD_HEIGHT,
-            // zIndex: -index,// to reverse stack order
             position: "absolute",
             left: 0,
             // zIndex: index,// ensure the cards are on top of each other

@@ -14,10 +14,10 @@ import {
 } from "react-native"
 import {KeyboardAwareScrollView} from "react-native-keyboard-controller"
 
-import {useSafeAreaInsets} from "react-native-safe-area-context"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {$styles} from "@/theme"
 import {ExtendedEdge, useSafeAreaInsetsStyle} from "@/utils/useSafeAreaInsetsStyle"
+import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 
 export const DEFAULT_BOTTOM_OFFSET = 50
 
@@ -48,7 +48,7 @@ interface BaseScreenProps {
    * Skip the automatic Android 3-button nav bar bottom inset.
    * Use when a parent (e.g. tab bar) already handles bottom spacing.
    */
-  skipAndroidNavBarInset?: boolean
+  extraAndroidInsets?: boolean
   /**
    * Background color
    */
@@ -254,21 +254,22 @@ export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
     KeyboardAvoidingViewProps,
     keyboardOffset = 0,
     safeAreaEdges,
-    skipAndroidNavBarInset,
+    extraAndroidInsets,
     StatusBarProps,
     statusBarStyle,
     ref,
     className,
   } = props
+  const {theme} = useAppTheme()
 
   let $containerInsets = useSafeAreaInsetsStyle(safeAreaEdges, "padding")
 
-  // On Android 3-button nav, always apply bottom inset so content isn't hidden behind the nav bar.
-  // Gesture nav reports ~0 bottom inset so this is a no-op there. iOS is unaffected.
-  // Skip when parent (e.g. tab bar) already handles bottom spacing.
-  const rawInsets = useSafeAreaInsets()
-  if (Platform.OS === "android" && rawInsets.bottom > 0 && !skipAndroidNavBarInset) {
-    $containerInsets = {...$containerInsets, paddingBottom: rawInsets.bottom}
+  // on some screens, we need some extra bottom padding on android so buttons look nice:
+  // SaferAreaContext already inflates insets.bottom to s6 when the real inset is 0
+  // (3-button nav), so we just use insets.bottom directly to avoid double-padding.
+  const insets = useSaferAreaInsets()
+  if (Platform.OS === "android" && extraAndroidInsets) {
+    $containerInsets = {...$containerInsets, paddingBottom: insets.bottom}
   }
 
   return (

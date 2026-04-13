@@ -6,7 +6,7 @@ import * as Location from "expo-location"
 import {useState, useEffect, useCallback, useRef} from "react"
 import {Image, Platform, Pressable, ScrollView, TextInput, View, Linking, ActivityIndicator} from "react-native"
 
-import {Button, Header, Icon, Screen, Text} from "@/components/ignite"
+import {Button, Icon, Screen, Text} from "@/components/ignite"
 import {RadioGroup, RatingButtons, StarRating} from "@/components/ui"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
@@ -293,9 +293,9 @@ export default function FeedbackPage() {
         }
       }
 
-      // Trigger glasses to upload their own logs directly over WiFi (fire-and-forget)
+      // Trigger glasses log upload (WiFi direct, or BLE relay to phone when offline)
       if (glassesConnected) {
-        CoreModule.sendIncidentId(incidentId)
+        CoreModule.sendIncidentId(incidentId, phoneBackendUrl)
       }
 
       // Upload screenshots if any

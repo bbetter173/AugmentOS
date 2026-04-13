@@ -1103,6 +1103,7 @@ class G2: NSObject, SGCManager {
     /// Current appId to associate EvenHub pages with (enables menu selection events)
     /// Set to the first menu item's appId so glasses know our page belongs to the menu
     private var activeMenuAppId: Int32?
+    private var lastClickTimestamp: Int64?
 
     @Published var aiListening: Bool = false
 
@@ -2919,7 +2920,12 @@ class G2: NSObject, SGCManager {
                 if clickType == 2 {
                     eventType = OsEventType.click
                 }
+                if clickType == 3 {
+                    eventType = OsEventType.click
+                }
             }
+            Bridge.log("G2: sysFields: \(sysFields)")
+
             guard let eventType = eventType else {
                 Bridge.log("G2: unknown event type: \(sysFields)")
                 return
@@ -2937,6 +2943,12 @@ class G2: NSObject, SGCManager {
             Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
 
             if eventType == .doubleClick {
+                // did we JUST get a double click? if so, ignore it:
+                if lastClickTimestamp != nil && timestamp - lastClickTimestamp! < 100 {
+                    Bridge.log("G2: Double click ignored (too soon)")
+                    return
+                }
+                lastClickTimestamp = timestamp
                 // Bridge.log("G2: Double click detected")
                 // trigger dashboard:
                 let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false

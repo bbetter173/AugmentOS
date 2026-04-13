@@ -19,6 +19,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -2294,6 +2295,30 @@ public class G1 extends SGCManager {
             displayBitmapImage(bmpBytes);
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
+        }
+    }
+
+    /**
+     * Convert arbitrary image data (PNG/JPEG bytes) to G1-compatible 1-bit BMP format.
+     * Mirrors G2.convertToG2Bmp() for local miniapp bitmap display support.
+     *
+     * @param imageData Raw image bytes (PNG, JPEG, etc.)
+     * @return 1-bit BMP byte array, or null on failure
+     */
+    public byte[] convertToG1Bmp(byte[] imageData) {
+        try {
+            Bitmap bmp = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+            if (bmp == null) {
+                Bridge.log("G1: convertToG1Bmp - could not decode image data");
+                return null;
+            }
+            byte[] bmpBytes = convertBitmapTo1BitBmpBytes(bmp, false);
+            bmp.recycle();
+            Bridge.log("G1: convertToG1Bmp - produced " + bmpBytes.length + " byte BMP");
+            return bmpBytes;
+        } catch (Exception e) {
+            Log.e(TAG, "G1: convertToG1Bmp error: " + e.getMessage());
+            return null;
         }
     }
 

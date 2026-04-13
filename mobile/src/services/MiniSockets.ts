@@ -1,7 +1,11 @@
+import { AppState } from "react-native"
 import TcpSocket from "react-native-tcp-socket"
 
 const MINISOCKET_PORT = 8765
 const WS_GUID = "258EAFA5-E914-47DA-95CA-5AB9DC85B11C"
+
+/** Callback for incoming text messages from browser miniapps. */
+export type MiniSocketTextHandler = (clientId: number, text: string) => void
 
 // Minimal WebSocket frame builder for binary data
 function encodeWsFrame(data: Buffer, opcode: number = 0x02): Buffer {
@@ -90,8 +94,18 @@ class MiniSockets {
   private clients: Map<number, WsClient> = new Map()
   private clientIdCounter = 0
   private running = false
+  private textHandler: MiniSocketTextHandler | null = null
+  private appStateSubscription: any = null
 
   private constructor() {}
+
+  /**
+   * Register a handler for incoming text messages from browser clients.
+   * LocalMiniappRuntime calls this to receive miniapp envelope messages.
+   */
+  public onTextMessage(handler: MiniSocketTextHandler): void {
+    this.textHandler = handler
+  }
 
   public static getInstance(): MiniSockets {
     if (!MiniSockets.instance) {
@@ -134,12 +148,27 @@ class MiniSockets {
       console.log(`MINISOCKET: Server listening on ws://127.0.0.1:${MINISOCKET_PORT}`)
     })
 
+    // Handle app background/foreground lifecycle
+    this.appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        // iOS may suspend the socket; stop to free resources
+        this.stop()
+      } else if (nextState === 'active' && !this.running) {
+        // Restart on foreground return
+        this.start()
+      }
+    })
+
     this.server.on("error", (err) => {
       console.error("MINISOCKET: Server error:", err.message)
     })
   }
 
   public stop() {
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove()
+      this.appStateSubscription = null
+    }
     this.running = false
     for (const [id, client] of this.clients) {
       try {
@@ -189,6 +218,39 @@ class MiniSockets {
         console.error(`MINISOCKET: Error sending message to client ${id}:`, err.message)
         this.removeClient(id)
       }
+    }
+  }
+
+  /**
+   * Send a JSON message to a specific connected WebSocket client by ID.
+   * Used by LocalMiniappRuntime to route per-miniapp responses.
+   */
+  public sendToClient(clientId: number, message: object): boolean {
+    const client = this.clients.get(clientId)
+    if (!client || !client.upgraded) return false
+    try {
+      client.socket.write(encodeWsTextFrame(JSON.stringify(message)))
+      return true
+    } catch (err: any) {
+      console.error(`MINISOCKET: Error sending to client ${clientId}:`, err.message)
+      this.removeClient(clientId)
+      return false
+    }
+  }
+
+  /**
+   * Send a raw string to a specific client (for pre-serialized envelopes).
+   */
+  public sendRawToClient(clientId: number, raw: string): boolean {
+    const client = this.clients.get(clientId)
+    if (!client || !client.upgraded) return false
+    try {
+      client.socket.write(encodeWsTextFrame(raw))
+      return true
+    } catch (err: any) {
+      console.error(`MINISOCKET: Error sending raw to client ${clientId}:`, err.message)
+      this.removeClient(clientId)
+      return false
     }
   }
 
@@ -355,7 +417,11 @@ class MiniSockets {
         case 0x01: // text
           try {
             const text = frame.payload.toString("utf-8")
-            console.log(`MINISOCKET: Text from client ${clientId}:`, text)
+            if (this.textHandler) {
+              this.textHandler(clientId, text)
+            } else {
+              console.log(`MINISOCKET: Text from client ${clientId} (no handler):`, text.slice(0, 100))
+            }
           } catch {}
           break
         case 0x02: // binary

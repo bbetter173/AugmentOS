@@ -1791,6 +1791,103 @@ extension G1 {
         return list
     }
 
+    // MARK: - Bitmap Conversion
+
+    /// Convert arbitrary image data (PNG/JPEG) to G1-compatible 1-bit BMP format.
+    /// Mirrors G2.convertToG2Bmp() for local miniapp bitmap display support.
+    /// G1 uses 1-bit monochrome BMP at 640x400 (576x135 active area).
+    func convertToG1Bmp(_ imageData: Data, width: Int = 576, height: Int = 135) -> Data? {
+        guard let image = UIImage(data: imageData), let cgImage = image.cgImage else {
+            Bridge.log("G1: convertToG1Bmp - could not decode image")
+            return nil
+        }
+
+        let srcWidth = cgImage.width
+        let srcHeight = cgImage.height
+
+        // Scale to fit within target dimensions, maintaining aspect ratio
+        let scale = min(Double(width) / Double(srcWidth), Double(height) / Double(srcHeight))
+        let scaledW = Int(Double(srcWidth) * scale)
+        let scaledH = Int(Double(srcHeight) * scale)
+        let offsetX = (width - scaledW) / 2
+        let offsetY = (height - scaledH) / 2
+
+        Bridge.log("G1: convertToG1Bmp - input \(srcWidth)x\(srcHeight) -> scaled \(scaledW)x\(scaledH) in \(width)x\(height)")
+
+        // Render to 8-bit grayscale
+        guard let ctx = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else {
+            Bridge.log("G1: convertToG1Bmp - failed to create CGContext")
+            return nil
+        }
+
+        ctx.setFillColor(gray: 0, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        ctx.draw(cgImage, in: CGRect(x: offsetX, y: offsetY, width: scaledW, height: scaledH))
+
+        guard let renderedImage = ctx.makeImage(),
+              let pixels = renderedImage.dataProvider?.data as Data? else {
+            Bridge.log("G1: convertToG1Bmp - failed to get pixel data")
+            return nil
+        }
+
+        // Convert grayscale pixels to 1-bit BMP
+        let rowBytes = ((width + 31) / 32) * 4 // BMP rows are DWORD-aligned
+        let pixelDataSize = rowBytes * height
+        let headerSize = 62 // 14 file header + 40 DIB header + 8 color table
+
+        var bmp = Data()
+
+        // BMP File Header (14 bytes)
+        let fileSize = UInt32(headerSize + pixelDataSize)
+        bmp.append(contentsOf: [0x42, 0x4D]) // "BM"
+        bmp.append(contentsOf: withUnsafeBytes(of: fileSize.littleEndian) { Array($0) })
+        bmp.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // reserved
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt32(headerSize).littleEndian) { Array($0) })
+
+        // DIB Header (BITMAPINFOHEADER, 40 bytes)
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt32(40).littleEndian) { Array($0) })
+        bmp.append(contentsOf: withUnsafeBytes(of: Int32(width).littleEndian) { Array($0) })
+        bmp.append(contentsOf: withUnsafeBytes(of: Int32(height).littleEndian) { Array($0) })
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) }) // planes
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) }) // bpp
+        bmp.append(contentsOf: [UInt8](repeating: 0, count: 4)) // compression = BI_RGB
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt32(pixelDataSize).littleEndian) { Array($0) })
+        bmp.append(contentsOf: withUnsafeBytes(of: Int32(3780).littleEndian) { Array($0) }) // X ppm
+        bmp.append(contentsOf: withUnsafeBytes(of: Int32(3780).littleEndian) { Array($0) }) // Y ppm
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt32(2).littleEndian) { Array($0) }) // colors used
+        bmp.append(contentsOf: withUnsafeBytes(of: UInt32(2).littleEndian) { Array($0) }) // important colors
+
+        // Color table: index 0 = black, index 1 = white
+        bmp.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // black
+        bmp.append(contentsOf: [0xFF, 0xFF, 0xFF, 0x00]) // white
+
+        // Pixel data (bottom-up row order for BMP)
+        for row in (0..<height).reversed() {
+            var rowData = [UInt8](repeating: 0, count: rowBytes)
+            for col in 0..<width {
+                let pixelIndex = row * width + col
+                let gray = pixels[pixelIndex]
+                if gray >= 128 {
+                    let byteIndex = col / 8
+                    let bitIndex = 7 - (col % 8)
+                    rowData[byteIndex] |= UInt8(1 << bitIndex)
+                }
+            }
+            bmp.append(contentsOf: rowData)
+        }
+
+        Bridge.log("G1: convertToG1Bmp - produced \(bmp.count) byte BMP")
+        return bmp
+    }
+
     // MARK: - Enhanced BMP Display Methods
 
     func displayBitmap(base64ImageData: String) async -> Bool {

@@ -1,0 +1,78 @@
+{
+  "name": "@mentra/miniapp",
+  "version": "0.1.0",
+  "description": "SDK for building MentraOS local miniapps (browser/WebView)",
+  "author": "Mentra Labs",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": {
+        "import": "./src/index.ts",
+        "types": "./src/index.ts"
+      },
+      "default": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
+    },
+    "./react": {
+      "development": {
+        "import": "./src/react/index.ts",
+        "types": "./src/react/index.ts"
+      },
+      "default": {
+        "import": "./dist/react/index.js",
+        "types": "./dist/react/index.d.ts"
+      }
+    },
+    "./protocol": {
+      "development": {
+        "import": "./src/protocol.ts",
+        "types": "./src/protocol.ts"
+      },
+      "default": {
+        "import": "./dist/protocol.js",
+        "types": "./dist/protocol.d.ts"
+      }
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist tsconfig.tsbuildinfo && bun x tsc -p tsconfig.json",
+    "dev": "bun x tsc --watch",
+    "typecheck": "bun x tsc --noEmit",
+    "test": "bun test",
+    "prepare": "bun run build"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@mentra/types": "1.0.0-beta.2",
+    "eventemitter3": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "react": "^19.1.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "mentra",
+    "mentraos",
+    "miniapp",
+    "smart-glasses"
+  ]
+}

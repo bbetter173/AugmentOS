@@ -1,0 +1,7 @@
+{
+  "packageName": "com.mentra.example",
+  "version": "1.0.0",
+  "name": "Live Captions",
+  "description": "Live transcription displayed on glasses in real time. Demonstrates @mentra/miniapp SDK: transcription events, text wall display, TTS, and button events.",
+  "permissions": ["MICROPHONE"]
+}

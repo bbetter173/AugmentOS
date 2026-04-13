@@ -1,94 +1,58 @@
+import {useEffect} from "react"
 import {useLocalSearchParams} from "expo-router"
-import {useRef, useState, useEffect} from "react"
-import {View, StyleSheet} from "react-native"
-import Animated, {useSharedValue, useAnimatedStyle, withTiming, runOnJS} from "react-native-reanimated"
-import {Screen, Text} from "@/components/ignite"
-import LoadingOverlay from "@/components/ui/LoadingOverlay"
-import {useAppletStatusStore} from "@/stores/applets"
-import {Image} from "expo-image"
-import composer from "@/services/Composer"
-import LocalMiniApp from "@/components/home/LocalMiniApp"
-import {scheduleOnRN} from "react-native-worklets"
+import {Platform, View} from "react-native"
+import {Text} from "@/components/ignite"
+import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useRef} from "react"
+import composer from "@/services/Composer"
 
 export default function LocalMiniAppPage() {
-  const {appName, packageName, version} = useLocalSearchParams()
+  const {appName, packageName, version, devUrl} = useLocalSearchParams<{
+    appName: string
+    packageName: string
+    version?: string
+    devUrl?: string
+  }>()
   const viewShotRef = useRef<View>(null)
-  // const [html, setHtml] = useState<string | null>(null)
-  // const [showLoadingOverlay, setShowLoadingOverlay] = useState(true)
-  // const {push} = useNavigationHistory()
+  const {goBack} = useNavigationHistory()
 
-  // const contentOpacity = useSharedValue(0)
-  // const loadingOpacity = useSharedValue(1)
+  useEffect(() => {
+    if (!packageName) return
 
-  // const contentAnimatedStyle = useAnimatedStyle(() => ({
-  //   opacity: contentOpacity.value,
-  // }))
+    if (devUrl) {
+      const injectedJS = `window.MentraOS = {packageName: ${JSON.stringify(packageName)}, platform: '${Platform.OS}', miniappDeveloperMode: true}; true;`
+      miniappHost.mountDev(packageName, devUrl, injectedJS)
+    } else if (version) {
+      const bundleDir = composer.getBundleDir(packageName, version)
+      const bundleUri = `file://${bundleDir}/index.html`
+      const injectedJS = `window.MentraOS = {packageName: ${JSON.stringify(packageName)}, platform: '${Platform.OS}'}; true;`
+      miniappHost.mount(packageName, bundleUri, injectedJS)
+    }
 
-  // const loadingAnimatedStyle = useAnimatedStyle(() => ({
-  //   opacity: loadingOpacity.value,
-  // }))
+    miniappHost.setForeground(packageName)
 
-  // if (typeof appName !== "string" || typeof packageName !== "string") {
-  //   return <Text>Missing required parameters</Text>
-  // }
+    return () => {
+      // Background on navigate away, don't unmount — keep it alive
+      miniappHost.setBackground(packageName)
+    }
+  }, [packageName, version, devUrl])
 
-  // useEffect(() => {
-  //   const loadHtml = async () => {
-  //     const htmlRes = composer.getLocalMiniAppHtml(packageName, version as string)
-  //     if (htmlRes.is_ok()) {
-  //       setHtml(htmlRes.value)
-  //     } else {
-  //       console.error("LOCAL: Error getting local mini app html", htmlRes.error)
-  //       setHtml("<div>Error loading local mini app</div>")
-  //     }
+  const handleClose = () => {
+    if (packageName) {
+      miniappHost.unmount(packageName)
+    }
+    goBack()
+  }
 
-  //     // Fade in content, fade out loading
-  //     contentOpacity.value = withTiming(1, {duration: 200})
-  //     loadingOpacity.value = withTiming(0, {duration: 600}, (finished) => {
-  //       if (finished) {
-  //         scheduleOnRN(() => setShowLoadingOverlay(false))
-  //       }
-  //     })
-  //   }
-  //   loadHtml()
-  // }, [packageName, version])
-
-  // const getScreenshot = () => {
-  //   const screenshot = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)?.screenshot
-  //   if (screenshot) {
-  //     return <Image source={{uri: screenshot}} style={StyleSheet.absoluteFill} />
-  //   }
-  //   return null
-  // }
+  if (!packageName) {
+    return <Text>Missing required parameters</Text>
+  }
 
   return (
-    <Screen preset="fixed" safeAreaEdges={["top"]} KeyboardAvoidingViewProps={{enabled: true}} ref={viewShotRef}>
-      {/* <MiniAppCapsuleMenu
-        packageName={packageName}
-        viewShotRef={viewShotRef}
-        onEllipsisPress={() => {
-          push("/applet/settings", {
-            packageName: packageName as string,
-            appName: appName as string,
-            fromWebView: "true",
-          })
-        }}
-      />
-      <View className="flex-1 -mx-6">
-        {showLoadingOverlay && (
-          <Animated.View style={[StyleSheet.absoluteFill, loadingAnimatedStyle, {zIndex: 1}]} pointerEvents="none">
-            {getScreenshot() || <LoadingOverlay />}
-          </Animated.View>
-        )}
-        <Animated.View style={[{flex: 1}, contentAnimatedStyle]}>
-          {html && <LocalMiniApp html={html} packageName={packageName} />}
-        </Animated.View>
-      </View> */}
-      <Text>
-        Local Mini App: {appName} {packageName} {version}
-      </Text>
-    </Screen>
+    <View style={{flex: 1}}>
+      <MiniAppCapsuleMenu packageName={packageName} viewShotRef={viewShotRef} onMinusPress={handleClose} />
+    </View>
   )
 }

@@ -39,6 +39,8 @@ export interface ClientAppletInterface extends AppletInterface {
   version?: string
   needsPcm?: boolean
   needsTranscript?: boolean
+  devUrl?: string
+  isMiniappDev?: boolean
 }
 
 interface AppStatusState {
@@ -555,7 +557,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       name: translate("miniApps:lmaInstaller"),
       type: "standard",
       offline: true,
-      offlineRoute: "/miniapps/dev/mini-app-installer",
+      offlineRoute: "/miniapps/settings/miniapp-developer",
       local: false,
       webviewUrl: "",
       permissions: [],
@@ -874,6 +876,14 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
           push(applet.offlineRoute, {transition: "zoom"})
         } else if (applet.offline) {
           // offline app with no route - nothing to navigate to
+        } else if (applet.isMiniappDev && applet.devUrl) {
+          // Dev miniapps loaded from developer's laptop via QR scan
+          push("/applet/local", {
+            packageName: applet.packageName,
+            devUrl: applet.devUrl,
+            appName: applet.name,
+            transition: "zoom",
+          })
         } else if (applet.local) {
           push("/applet/local", {
             packageName: applet.packageName,

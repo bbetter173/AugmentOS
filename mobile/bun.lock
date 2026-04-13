@@ -16,6 +16,7 @@
         "@livekit/react-native-expo-plugin": "^1.0.1",
         "@livekit/react-native-webrtc": "^137.0.2",
         "@mentra/display-utils": "file:../cloud/packages/display-utils",
+        "@mentra/miniapp": "file:../sdk/miniapp",
         "@react-native-community/netinfo": "11.5.2",
         "@react-native-community/slider": "5.1.2",
         "@react-native-firebase/analytics": "^23.8.6",
@@ -728,6 +729,10 @@
     "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@137.0.2", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4", "event-target-shim": "6.0.2" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-0aXYATcBraOMDTteKzmfH5ICNHw8xFyMPHmhKg14+94fAGZ2hGjdHZUSkzL14+e508W486aIAmbXipuSQCCJgA=="],
 
     "@mentra/display-utils": ["@mentra/display-utils@file:../cloud/packages/display-utils", { "devDependencies": { "opentype.js": "^1.3.4", "typescript": "^5.0.0" } }],
+
+    "@mentra/miniapp": ["@mentra/miniapp@file:../sdk/miniapp", { "dependencies": { "@mentra/types": "1.0.0-beta.2", "eventemitter3": "^5.0.1" }, "devDependencies": { "@types/react": "^19.1.6", "react": "^19.1.0", "typescript": "^5.0.0" }, "peerDependencies": { "react": ">=18.0.0" }, "optionalPeers": ["react"] }],
+
+    "@mentra/types": ["@mentra/types@1.0.0-beta.2", "", {}, "sha512-yn0H7oYId8TSOGlSDmstds4nnmZbXyDncFy3FC1h4dWpDx6o4BmBehAJd2Otp9gr1bWwIL0yEp6JK60I8TBUGw=="],
 
     "@nicolo-ribaudo/chokidar-2": ["@nicolo-ribaudo/chokidar-2@2.1.8-no-fsevents.3", "", {}, "sha512-s88O1aVtXftvp5bCPB7WnmXc5IwOZZ7YPuwNPt+GtOOXpPvad1LfbmjYv+qII7zP6RU2QGnqve27dnLycEnyEQ=="],
 
@@ -2930,6 +2935,8 @@
     "@livekit/react-native-webrtc/debug": ["debug@4.3.4", "", { "dependencies": { "ms": "2.1.2" } }, "sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ=="],
 
     "@mentra/display-utils/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@mentra/miniapp/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@radix-ui/react-collection/@radix-ui/react-slot": ["@radix-ui/react-slot@1.2.3", "", { "dependencies": { "@radix-ui/react-compose-refs": "1.1.2" }, "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-aeNmHnBxbi2St0au6VBVC7JXFlhLlOnvIIlePNniyUNAClzmtAUEY8/pBiK3iHjufOlwA+c20/8jngo7xcrg8A=="],
 

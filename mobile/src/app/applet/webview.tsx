@@ -18,12 +18,13 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 
 export default function AppWebView() {
-  const {webviewURL, appName, packageName} = useLocalSearchParams()
+  const {webviewURL, appName, packageName, isLocal: isLocalParam} = useLocalSearchParams()
+  const isLocal = isLocalParam === "true"
   const [hasError, setHasError] = useState(false)
   const webViewRef = useRef<WebView>(null)
 
   const [finalUrl, setFinalUrl] = useState<string | null>(null)
-  const [isLoadingToken, setIsLoadingToken] = useState(true)
+  const [isLoadingToken, setIsLoadingToken] = useState(!isLocal)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [retryTrigger, setRetryTrigger] = useState(0)
   const {goBack, push} = useNavigationHistory()
@@ -86,7 +87,8 @@ export default function AppWebView() {
   // 1. WebView HTML has loaded (onLoadEnd fired)
   const [isWebViewLoaded, setIsWebViewLoaded] = useState(false)
   // 2. Server confirmed the app is running (loading=false, running=true in store)
-  const [isServerConfirmed, setIsServerConfirmed] = useState(false)
+  //    Local miniapps skip the server handshake, so they are confirmed immediately.
+  const [isServerConfirmed, setIsServerConfirmed] = useState(isLocal)
   // Splash screen stays up until BOTH are true
   const isWebViewReady = isWebViewLoaded && isServerConfirmed
 
@@ -109,7 +111,10 @@ export default function AppWebView() {
   // startApplet() sets loading=true, then refreshApplets() (at ~2s) fetches
   // the real state from the server which sets loading=false.
   // If running=false after server confirms, the app failed to start.
+  // Local miniapps skip this entirely — they don't need server confirmation.
   useEffect(() => {
+    if (isLocal) return
+
     // Check the current state immediately (covers re-opening an already-running app)
     const checkApplet = (state: {apps: Array<{packageName: string; loading: boolean; running: boolean}>}) => {
       const applet = state.apps.find((a) => a.packageName === packageName)
@@ -129,7 +134,7 @@ export default function AppWebView() {
     // Also subscribe to future changes
     const unsub = useAppletStatusStore.subscribe(checkApplet)
     return unsub
-  }, [packageName])
+  }, [packageName, isLocal])
 
   // Fade in webview once both conditions are met
   useEffect(() => {
@@ -140,6 +145,17 @@ export default function AppWebView() {
   }, [isWebViewReady])
 
   useEffect(() => {
+    // Local miniapps don't need token generation — use the URL directly.
+    if (isLocal) {
+      if (webviewURL) {
+        setFinalUrl(webviewURL as string)
+        console.log(`WEBVIEW: local miniapp URL: ${webviewURL}`)
+      } else {
+        setTokenError("Webview URL is missing.")
+      }
+      return
+    }
+
     const generateTokenAndSetUrl = async () => {
       console.log("WEBVIEW: generateTokenAndSetUrl()")
       setIsLoadingToken(true)
@@ -198,7 +214,7 @@ export default function AppWebView() {
     }
 
     generateTokenAndSetUrl()
-  }, [packageName, webviewURL, appName, retryTrigger])
+  }, [packageName, webviewURL, appName, retryTrigger, isLocal])
 
   // Register with MiniComms for bridge messaging
   useEffect(() => {
@@ -216,8 +232,9 @@ export default function AppWebView() {
   }, [packageName])
 
   const handleWebViewMessage = (event: any) => {
-    const data = event.nativeEvent.data
-    miniComms.handleRawMessageFromMiniApp(packageName, data)
+    // Cloud app webviews don't send miniapp SDK envelopes.
+    // Local miniapp WebViews are routed through MiniappHost → LocalMiniappRuntime.
+    const _data = event.nativeEvent.data
   }
 
   const handleLoadStart = () => {
@@ -453,7 +470,20 @@ export default function AppWebView() {
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"
-                injectedJavaScriptBeforeContentLoaded={`
+                injectedJavaScriptBeforeContentLoaded={
+                  isLocal
+                    ? `
+                  window.MentraOS = {
+                    packageName: ${JSON.stringify(packageName)},
+                    platform: '${Platform.OS}',
+                    capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
+                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : "null"},
+                    miniappLocal: true,
+                  };
+                  window.receiveNativeMessage = window.receiveNativeMessage || function() {};
+                  true;
+                `
+                    : `
                   window.MentraOS = {
                     platform: '${Platform.OS}',
                     capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
@@ -461,7 +491,8 @@ export default function AppWebView() {
                   };
                   window.receiveNativeMessage = window.receiveNativeMessage || function() {};
                   true;
-                `}
+                `
+                }
                 injectedJavaScript={`
                   const meta = document.createElement('meta');
                   meta.setAttribute('name', 'viewport');

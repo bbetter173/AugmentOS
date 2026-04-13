@@ -221,6 +221,46 @@ export class R2StorageService {
       .toLowerCase();
   }
 
+  async uploadMiniappPhoto({
+    photo,
+    userId,
+    requestId,
+    mimeType,
+  }: {
+    photo: Buffer;
+    userId: string;
+    requestId: string;
+    mimeType: string;
+  }): Promise<{ url: string; imageId: string }> {
+    const timestamp = Date.now();
+    const ext = mimeType === "image/png" ? "png" : "jpg";
+    const objectKey = `miniapp_photos/${userId}/${requestId}-${timestamp}.${ext}`;
+
+    const putCommand = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: objectKey,
+      Body: photo,
+      ContentType: mimeType,
+      Metadata: {
+        userid: userId,
+        requestid: requestId,
+        uploadedat: new Date().toISOString(),
+      },
+    });
+
+    await this.s3Client.send(putCommand);
+
+    this.logger.info(
+      { objectKey, fileSize: photo.length, mimeType },
+      "Miniapp photo uploaded to R2",
+    );
+
+    return {
+      url: this.constructPublicUrl(objectKey),
+      imageId: objectKey,
+    };
+  }
+
   private constructPublicUrl(objectKey: string): string {
     // Construct URL: https://mentra-store-cdn.mentraglass.com/mini_app_assets/...
     // publicUrlBase = https://mentra-store-cdn.mentraglass.com

@@ -3,7 +3,9 @@ import CoreModule from "core"
 import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import displayProcessor from "@/services/DisplayProcessor"
+import localMiniappRuntime from "@/services/LocalMiniappRuntime"
 import mantle from "@/services/MantleManager"
+import micStateCoordinator from "@/services/MicStateCoordinator"
 import udp from "@/services/UdpManager"
 import ws from "@/services/WebSocketManager"
 import {useAppletStatusStore} from "@/stores/applets"
@@ -235,6 +237,20 @@ class SocketComms {
     ws.sendText(JSON.stringify(payload))
   }
 
+  /** Send an arbitrary message over the phone↔cloud WebSocket. */
+  public sendMessage(msg: object) {
+    ws.sendText(JSON.stringify(msg))
+  }
+
+  public updatePhoneSubscriptions(subscriptions: string[]) {
+    const msg = {
+      type: "phone_subscription_update",
+      subscriptions,
+      timestamp: new Date().toISOString(),
+    }
+    ws.sendText(JSON.stringify(msg))
+  }
+
   public sendSwitchStatus(switchType: number, switchValue: number, timestamp: number) {
     const payload = {
       type: "switch_status",
@@ -451,11 +467,11 @@ class SocketComms {
       }
     }
 
-    CoreModule.update("core", {
-      // should_send_pcm: shouldSendPcmData,
-      should_send_lc3: shouldSendPcmData, // online apps always want lc3
-      should_send_transcript: shouldSendTranscript,
-      bypass_vad: bypassVad,
+    micStateCoordinator.setCloudRequirements({
+      pcm: !!shouldSendPcmData,
+      lc3: !!shouldSendPcmData, // online apps always want lc3
+      transcript: !!shouldSendTranscript,
+      bypass_vad: !!bypassVad,
     })
   }
 
@@ -797,6 +813,19 @@ class SocketComms {
 
       case "udp_ping_ack":
         this.handle_udp_ping_ack(msg)
+        break
+
+      case "data_stream": {
+        const streamType = msg.streamType
+        localMiniappRuntime.forwardEvent(streamType, msg.data)
+        break
+      }
+
+      case "phone_photo_ready":
+      case "phone_stream_status":
+      case "phone_managed_stream_status":
+        // Forward Phase 5 messages to LocalMiniappRuntime
+        localMiniappRuntime.handleCloudMessage(msg)
         break
 
       default:

@@ -1,8 +1,9 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
-import {View} from "react-native"
+import {Platform, View} from "react-native"
+import {WebView} from "react-native-webview"
 import {useLocalMiniApps} from "@/stores/applets"
-import LocalMiniApp from "@/components/home/LocalMiniApp"
 import composer from "@/services/Composer"
+import localMiniappRuntime from "@/services/LocalMiniappRuntime"
 import {usePathname} from "expo-router"
 import {Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -62,15 +63,34 @@ const LmaContainer = memo(
     if (!enabled) {
       return null
     }
+
+    const handleWebViewMessage = (event: any) => {
+      const data = event.nativeEvent.data
+      localMiniappRuntime.handleRawMessage(packageName, data)
+    }
+
     return (
       <View
         className={
           isActive ? "absolute inset-0 z-10" : "absolute left-0 top-0 w-[100px] h-[100px] overflow-hidden z-[1]"
-          // isActive ? "absolute inset-0 z-10" : "absolute left-0 w-[100px] h-[100px] overflow-hidden z-[1]"
         }
         style={!isActive ? {bottom: index * 12} : undefined}
         pointerEvents={isActive ? "auto" : "none"}>
-        <LocalMiniApp html={html} packageName={packageName} />
+        <WebView
+          source={{html}}
+          style={{flex: 1}}
+          onMessage={handleWebViewMessage}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={true}
+          injectedJavaScriptBeforeContentLoaded={`
+            window.MentraOS = {
+              packageName: ${JSON.stringify(packageName)},
+              platform: '${Platform.OS}',
+            };
+            true;
+          `}
+        />
       </View>
     )
   },

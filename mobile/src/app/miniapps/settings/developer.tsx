@@ -138,6 +138,14 @@ export default function DeveloperSettingsScreen() {
             />
           </Group>
 
+          <Group title="Miniapp Development">
+            <RouteButton
+              label="Miniapp Developer"
+              subtitle="Load miniapps from dev server via QR code"
+              onPress={() => push("/miniapps/settings/miniapp-developer")}
+            />
+          </Group>
+
           <Group title="Misc">
             <RouteButton label="Test Mini App" subtitle="Test the Mini App" onPress={() => push("/test/mini-app")} />
 

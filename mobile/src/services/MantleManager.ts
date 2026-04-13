@@ -5,6 +5,10 @@ import * as TaskManager from "expo-task-manager"
 import {shallow} from "zustand/shallow"
 
 import livekit from "@/services/Livekit"
+import localMiniappRuntime from "@/services/LocalMiniappRuntime"
+import micStateCoordinator from "@/services/MicStateCoordinator"
+import miniSockets from "@/services/MiniSockets"
+import composer from "@/services/Composer"
 import {migrate} from "@/services/Migrations"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
@@ -126,14 +130,36 @@ class MantleManager {
     Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME)
     this.transcriptProcessor.clear()
 
+    localMiniappRuntime.cleanup()
+    micStateCoordinator.cleanup()
+    miniSockets.stop()
+
     livekit.disconnect()
     socketComms.cleanup()
     restComms.goodbye()
   }
 
-  private initServices() {
+  private async initServices() {
     socketComms.connectWebsocket()
     gallerySyncService.initialize()
+
+    // Initialize Composer (scans Paths.document/lmas/ and populates appletStatusStore)
+    await composer.initialize()
+
+    // Initialize local miniapp runtime
+    localMiniappRuntime.initialize()
+
+    // Start MiniSockets conditionally (only if user has local miniapps)
+    const localApps = await composer.getLocalApplets()
+    if (localApps.length > 0) {
+      miniSockets.start()
+      miniSockets.onTextMessage((clientId, text) => {
+        // For MiniSocket clients, we need to identify the packageName from the CONNECT message.
+        // For now, route through LocalMiniappRuntime with a placeholder.
+        // The actual packageName binding happens in the CONNECT handler.
+        localMiniappRuntime.handleRawMessage(`__minisocket_${clientId}`, text)
+      })
+    }
   }
 
   private async setupPeriodicTasks() {
@@ -229,6 +255,7 @@ class MantleManager {
       CoreModule.addListener("glasses_status", (changed) => {
         // console.log("MANTLE: Glasses status changed", changed)
         useGlassesStore.getState().setGlassesInfo(changed)
+        localMiniappRuntime.forwardEvent('glasses_connection_state', changed)
       }),
     )
 
@@ -304,6 +331,7 @@ class MantleManager {
         CoreModule.addListener("button_press", (event) => {
           console.log("MANTLE: BUTTON_PRESS event received:", event)
           this.handle_button_press(event)
+          localMiniappRuntime.forwardEvent('button_press', event)
         }),
       )
 
@@ -317,6 +345,7 @@ class MantleManager {
             gesture_name: gestureName,
             timestamp,
           })
+          localMiniappRuntime.forwardEvent('touch_event', event)
         }),
       )
 
@@ -391,6 +420,25 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("head_up", (event) => {
           mantle.handle_head_up(event.up)
+          localMiniappRuntime.forwardEvent('head_up', event)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("glasses_battery_update", (event) => {
+          localMiniappRuntime.forwardEvent('glasses_battery_update', event)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("vad", (event) => {
+          localMiniappRuntime.forwardEvent('VAD', event)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("audio_chunk", (event) => {
+          localMiniappRuntime.forwardEvent('audio_chunk', event)
         }),
       )
 

@@ -1,0 +1,17 @@
+{
+  "name": "{{packageName}}",
+  "private": true,
+  "scripts": {
+    "dev": "mentra-miniapp dev",
+    "build": "bun build ./index.html --outdir=./dist --target=browser",
+    "pack": "mentra-miniapp pack"
+  },
+  "dependencies": {
+    "@mentra/miniapp": "^0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@mentra/miniapp-cli": "^0.1.0"
+  }
+}

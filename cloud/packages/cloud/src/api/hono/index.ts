@@ -12,6 +12,7 @@ export {
   feedbackApi,
   incidentLogsApi,
   locationApi,
+  miniappPhotoApi,
   minVersionApi,
   notificationsApi,
   photoApi,

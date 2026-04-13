@@ -180,31 +180,54 @@ class Composer {
 
   // read local storage to find which mini apps are installed and running
   // if any mini app needs online or offlline transcriptions, we need to feed them the necessary data
-  private async initialize() {
-    // update the applets store with the installed mini apps:
-    // useAppletStatusStore.getState().setInstalledLmas(this.installedLmas)
-    // useAppletStatusStore.getState().refreshApplets()
-
+  public async initialize() {
+    // Scan Paths.document/lmas/ and populate appletStatusStore with installed miniapps.
+    // Called explicitly from MantleManager.init() on every app launch.
+    try {
+      const applets = await this.getLocalApplets()
+      console.log(`COMPOSER: initialize() found ${applets.length} installed miniapps`)
+    } catch (error) {
+      console.error("COMPOSER: initialize() error:", error)
+    }
   }
 
-  public async fanOutPcm(bytes: Uint8Array) {
-    // let offlineCaptionsRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
-    // let offlineTranslationRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_translation_running.key)
-    // if (offlineCaptionsRunning) {
-    //   // send the pcm to the offline transcription service
-    // }
-
-
-    // TODO: fan out the PCM to the mini apps that request it
+  /**
+   * Returns the on-disk path for a given miniapp bundle version.
+   */
+  public getBundleDir(packageName: string, version: string): string {
+    return `${Paths.document.uri}/lmas/${packageName}/${version}`
   }
 
-  public async fanOutPcm(bytes: Uint8Array) {
-    // let offlineCaptionsRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
-    // let offlineTranslationRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_translation_running.key)
-    // if (offlineCaptionsRunning) {
-    //   // send the pcm to the offline transcription service
-    // }
-    // TODO: fan out the PCM to the mini apps that request it
+  /**
+   * Read and parse the miniapp manifest (miniapp.json with app.json fallback)
+   * from a given bundle directory.
+   */
+  public getMiniappManifest(packageName: string, version: string): any {
+    const bundleDir = new Directory(Paths.document, "lmas", packageName, version)
+    try {
+      const miniappJsonFile = new File(bundleDir, "miniapp.json")
+      if (miniappJsonFile.exists) {
+        return JSON.parse(miniappJsonFile.textSync())
+      }
+    } catch (e) {
+      console.warn("COMPOSER: Error reading miniapp.json, trying app.json fallback", e)
+    }
+    try {
+      const appJsonFile = new File(bundleDir, "app.json")
+      if (appJsonFile.exists) {
+        return JSON.parse(appJsonFile.textSync())
+      }
+    } catch (e) {
+      console.warn("COMPOSER: Error reading app.json fallback", e)
+    }
+    return null
+  }
+
+  /**
+   * Alias for installMiniApp — download and install a miniapp bundle from a URL.
+   */
+  public installFromUrl(url: string): AsyncResult<void, Error> {
+    return this.installMiniApp(url)
   }
 
   // download the mini app from the url and unzip it to the app's cache directory/lma/<packageName>
@@ -217,15 +240,24 @@ class Composer {
     })
   }
 
-  public uninstallMiniApp(packageName: string, version: string): AsyncResult<void, Error> {
+  public uninstallMiniApp(packageName: string, version?: string): AsyncResult<void, Error> {
     return Res.try_async(async () => {
-      const lmaDir = new Directory(Paths.document, "lmas", packageName, version)
-      lmaDir.delete()
-      console.log("COMPOSER: Uninstalled mini app")
-      // when uninstalling a version, if we have no versions left, delete the package directory:
-      const packageDir = new Directory(Paths.document, "lmas", packageName)
-      if (packageDir.list().length === 0) {
-        packageDir.delete()
+      if (version) {
+        const lmaDir = new Directory(Paths.document, "lmas", packageName, version)
+        lmaDir.delete()
+        console.log("COMPOSER: Uninstalled mini app version", version)
+        // when uninstalling a version, if we have no versions left, delete the package directory:
+        const packageDir = new Directory(Paths.document, "lmas", packageName)
+        if (packageDir.exists && packageDir.list().length === 0) {
+          packageDir.delete()
+        }
+      } else {
+        // No version specified — remove all versions (entire package directory)
+        const packageDir = new Directory(Paths.document, "lmas", packageName)
+        if (packageDir.exists) {
+          packageDir.delete()
+        }
+        console.log("COMPOSER: Uninstalled all versions of mini app", packageName)
       }
       this.refreshNeeded = true
       await useAppletStatusStore.getState().refreshApplets()
@@ -325,6 +357,26 @@ class Composer {
       for (const lmaInfo of installedLmasInfo) {
         let versionString = await this.getActiveAppletVersion(lmaInfo.packageName)
         let versionInfo = lmaInfo.versions[versionString]
+
+        // Read permissions from miniapp.json (with app.json fallback)
+        let permissions: any[] = []
+        try {
+          const miniappJsonFile = new File(new Directory(Paths.document, "lmas", lmaInfo.packageName, versionString), "miniapp.json")
+          if (miniappJsonFile.exists) {
+            const manifest = JSON.parse(miniappJsonFile.textSync())
+            permissions = (manifest.permissions || []).map((type: string) => ({type, required: true}))
+          }
+        } catch (e) {
+          // Fall back to app.json
+          try {
+            const appJsonFile = new File(new Directory(Paths.document, "lmas", lmaInfo.packageName, versionString), "app.json")
+            if (appJsonFile.exists) {
+              const appJson = JSON.parse(appJsonFile.textSync())
+              permissions = (appJson.permissions || []).map((type: string) => ({type, required: true}))
+            }
+          } catch {}
+        }
+
         lmas.push({
           packageName: lmaInfo.packageName,
           version: versionString,
@@ -339,7 +391,7 @@ class Composer {
           webviewUrl: "",
           logoUrl: versionInfo.logoUrl,
           type: "standard",
-          permissions: [],
+          permissions,
           hardwareRequirements: [],
           onStart: () => saveLocalAppRunningState(lmaInfo.packageName, true),
           onStop: () => saveLocalAppRunningState(lmaInfo.packageName, false),

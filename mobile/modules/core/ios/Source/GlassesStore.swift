@@ -141,6 +141,7 @@ class GlassesStore {
                 }
                 // we shouldn't call store.set in this function as this is only intended for side-effects, not driving state updates
             }
+
         case ("glasses", "controllerFullyBooted"):
             if let ready = value as? Bool {
                 if ready {
@@ -165,6 +166,7 @@ class GlassesStore {
 
         case ("core", "auth_token"):
             if let token = value as? String {
+                _ = token
                 // CoreManager.shared.sgc?.sendAuthToken(token)
             }
 
@@ -174,7 +176,7 @@ class GlassesStore {
             Task {
                 CoreManager.shared.sgc?.setBrightness(b, autoMode: auto)
                 CoreManager.shared.sgc?.sendTextWall("Set brightness to \(b)%")
-                try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds
+                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
                 CoreManager.shared.sgc?.clearDisplay()
             }
 
@@ -188,7 +190,7 @@ class GlassesStore {
                     CoreManager.shared.sgc?.sendTextWall(
                         auto ? "Enabled auto brightness" : "Disabled auto brightness"
                     )
-                    try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds
+                    try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
                     CoreManager.shared.sgc?.clearDisplay()
                 }
             }
@@ -232,7 +234,7 @@ class GlassesStore {
             CoreManager.shared.sgc?.sendCameraFovSetting()
 
         case ("core", "button_video_width"), ("core", "button_video_height"),
-            ("core", "button_video_fps"):
+             ("core", "button_video_fps"):
             CoreManager.shared.sgc?.sendButtonVideoRecordingSettings()
 
         case ("core", "preferred_mic"):

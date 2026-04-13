@@ -1672,7 +1672,7 @@ class MentraLive: NSObject, SGCManager {
 
             // Debug: Log the raw data
             let hexDump = data.prefix(64).map { String(format: "%02X ", $0) }.joined()
-            Bridge.log("📦 Raw file packet data length=\(data.count), first 64 bytes: \(hexDump)")
+            // Bridge.log("📦 Raw file packet data length=\(data.count), first 64 bytes: \(hexDump)")
 
             // The data IS the file packet - it starts with ## and contains the full file packet structure
             if let packetInfo = K900ProtocolUtils.extractFilePacket(data) {
@@ -2704,6 +2704,8 @@ class MentraLive: NSObject, SGCManager {
             return
         }
 
+        if bleImgId.hasPrefix("B") || bleImgId.hasPrefix("L") {}
+
         if var photoTransfer = blePhotoTransfers[bleImgId] {
             // This is a BLE photo transfer
             Bridge.log("📦 BLE photo transfer packet for requestId: \(photoTransfer.requestId)")
@@ -2939,12 +2941,16 @@ class MentraLive: NSObject, SGCManager {
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             let ok: Bool
+            let statusCode: Int?
             if error != nil {
                 ok = false
+                statusCode = nil
             } else if let http = response as? HTTPURLResponse {
                 ok = (200 ..< 300).contains(http.statusCode)
+                statusCode = http.statusCode
             } else {
                 ok = false
+                statusCode = nil
             }
             DispatchQueue.main.async {
                 if ok {

@@ -52,42 +52,19 @@ public class AuthTokenCommandHandler implements ICommandHandler {
      */
     private boolean handleAuthToken(JSONObject data) {
         try {
-            final boolean hasCoreTokenField = data.has("coreToken");
             String coreToken = data.optString("coreToken", "");
-            if (!hasCoreTokenField) {
-                Log.e(TAG, "AUTH_TOKEN_SAVE_FAILED reason=missing_coreToken_field payload=" + data);
+            if (coreToken.isEmpty()) {
+                Log.e(TAG, "Received empty coreToken");
                 communicationManager.sendTokenStatusResponse(false);
                 return false;
             }
 
-            if (coreToken.trim().isEmpty()) {
-                Log.e(TAG, "AUTH_TOKEN_SAVE_FAILED reason=empty_coreToken_value");
-                communicationManager.sendTokenStatusResponse(false);
-                return false;
-            }
-
-            Log.d(TAG, "Received coreToken from AugmentOS Core (length=" + coreToken.length() + ")");
+            Log.d(TAG, "Received coreToken from AugmentOS Core");
             boolean success = configurationManager.saveCoreToken(coreToken);
-            String persistedToken = configurationManager.getCoreToken();
-            boolean persistedMatches = persistedToken != null && persistedToken.equals(coreToken.trim());
-
-            if (success && persistedMatches) {
-                Log.i(TAG, "AUTH_TOKEN_SAVE_SUCCESS length=" + coreToken.length());
-            } else if (!success) {
-                Log.e(TAG, "AUTH_TOKEN_SAVE_FAILED reason=configuration_manager_save_returned_false");
-            } else {
-                int persistedLength = persistedToken == null ? -1 : persistedToken.length();
-                Log.e(
-                    TAG,
-                    "AUTH_TOKEN_SAVE_FAILED reason=persisted_value_mismatch expectedLength="
-                        + coreToken.trim().length() + " persistedLength=" + persistedLength
-                );
-            }
-
-            communicationManager.sendTokenStatusResponse(success && persistedMatches);
-            return success && persistedMatches;
+            communicationManager.sendTokenStatusResponse(success);
+            return success;
         } catch (Exception e) {
-            Log.e(TAG, "AUTH_TOKEN_SAVE_FAILED reason=exception_during_handle", e);
+            Log.e(TAG, "Error handling auth token command", e);
             communicationManager.sendTokenStatusResponse(false);
             return false;
         }

@@ -2013,8 +2013,8 @@ public class MentraLive extends SGCManager {
                 for (int i = 0; i < Math.min(data.length, 64); i++) {
                     hexDump.append(String.format("%02X ", data[i]));
                 }
-                Bridge.log("LIVE: Thread-" + threadId + ": 📦 Raw file packet data length=" + data.length +
-                      ", first 64 bytes: " + hexDump.toString());
+                // Bridge.log("LIVE: Thread-" + threadId + ": 📦 Raw file packet data length=" + data.length +
+                //       ", first 64 bytes: " + hexDump.toString());
 
                 // The data IS the file packet - it starts with ## and contains the full file packet structure
                 K900ProtocolUtils.FilePacketInfo packetInfo = K900ProtocolUtils.extractFilePacket(data);

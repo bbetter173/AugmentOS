@@ -57,6 +57,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
   const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
   const wifiSsid = useGlassesStore((state) => state.wifiSsid)
+  const wifiStatusKnown = useGlassesStore((state) => state.wifiStatusKnown)
   const searching = useCoreStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
@@ -324,7 +325,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
                   <View className="flex-row items-center gap-1">
                     <Icon name={wifiConnected ? "wifi" : "wifi-off"} size={16} color={theme.colors.text} />
                     <Text className="text-sm font-semibold text-secondary-foreground" numberOfLines={1}>
-                      {wifiConnected ? wifiSsid || "Connected" : "Disconnected"}
+                      {!wifiStatusKnown ? "Loading..." : wifiConnected ? wifiSsid || "Connected" : "Disconnected"}
                     </Text>
                   </View>
                 }

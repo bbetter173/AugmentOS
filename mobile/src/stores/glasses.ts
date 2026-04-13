@@ -9,6 +9,7 @@ export function isGlassesLinkLayerBusy(connectionState: string | undefined): boo
 }
 
 interface GlassesState extends GlassesStatus {
+  wifiStatusKnown: boolean
   setGlassesInfo: (info: Partial<GlassesStatus>) => void
   setBatteryInfo: (batteryLevel: number, charging: boolean, caseBatteryLevel: number, caseCharging: boolean) => void
   setWifiInfo: (connected: boolean, ssid: string) => void
@@ -41,6 +42,7 @@ export const getGlasesInfoPartial = (state: GlassesStatus) => {
 
 interface GlassesStore extends GlassesStatus {
   mtkUpdatedThisSession: boolean
+  wifiStatusKnown: boolean
 }
 
 const initialState: GlassesStore = {
@@ -69,6 +71,7 @@ const initialState: GlassesStore = {
   wifiConnected: false,
   wifiSsid: "",
   wifiLocalIp: "",
+  wifiStatusKnown: false,
   // battery info
   batteryLevel: -1,
   charging: false,
@@ -99,7 +102,15 @@ export const useGlassesStore = create<GlassesState>()(
 
     setGlassesInfo: (info) =>
       set((state) => {
-        const next = {...state, ...info}
+        const hasWifiInfoUpdate =
+          Object.prototype.hasOwnProperty.call(info, "wifiConnected") ||
+          Object.prototype.hasOwnProperty.call(info, "wifiSsid") ||
+          Object.prototype.hasOwnProperty.call(info, "wifiLocalIp")
+        const next = {
+          ...state,
+          ...info,
+          ...(hasWifiInfoUpdate ? {wifiStatusKnown: true} : {}),
+        }
         // When glasses disconnect, reset all glasses state to initial values
         // This prevents stale device info, firmware versions, battery, wifi, etc. from persisting
         // console.log("GLASSES: setGlassesInfo called with: next.connected =", next.connected)
@@ -121,6 +132,7 @@ export const useGlassesStore = create<GlassesState>()(
       set({
         wifiConnected: connected,
         wifiSsid: ssid,
+        wifiStatusKnown: true,
       }),
 
     setHotspotInfo: (enabled: boolean, ssid: string, password: string, ip: string) =>

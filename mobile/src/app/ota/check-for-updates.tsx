@@ -13,11 +13,11 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BackgroundTimer} from "@/utils/timers"
 
-type CheckState = "checking" | "update_available" | "no_update" | "error"
+type CheckState = "checking" | "update_available" | "no_update" | "error" | "wifi_error"
 
 export default function OtaCheckForUpdatesScreen() {
   const {theme} = useAppTheme()
-  const {replace, clearHistoryAndGoHome} = useNavigationHistory()
+  const {push, replace, clearHistoryAndGoHome} = useNavigationHistory()
   const currentBuildNumber = useGlassesStore((state) => state.buildNumber)
   const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
   const besFwVersion = useGlassesStore((state) => state.besFwVersion)
@@ -25,6 +25,7 @@ export default function OtaCheckForUpdatesScreen() {
   const deviceName = defaultWearable || "Glasses"
   const glassesConnected = useGlassesStore((state) => state.connected)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
+  const wifiStatusKnown = useGlassesStore((state) => state.wifiStatusKnown)
   const [onboardingLiveCompleted] = useSetting(SETTINGS.onboarding_live_completed.key)
 
   const [superMode] = useSetting(SETTINGS.super_mode.key)
@@ -78,13 +79,17 @@ export default function OtaCheckForUpdatesScreen() {
           return
         }
         if (!wifiConnected) {
-          console.log("OTA: WiFi not connected - showing error state")
+          if (!wifiStatusKnown) {
+            console.log("OTA: Waiting for glasses WiFi status before gating update start")
+            return
+          }
+          console.log("OTA: Glasses WiFi not connected - showing wifi error state")
           if (versionInfoTimeoutRef.current) {
             BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
             versionInfoTimeoutRef.current = null
           }
           hasInitiatedCheckRef.current = true
-          setCheckState("error")
+          setCheckState("wifi_error")
           return
         }
       }
@@ -198,7 +203,7 @@ export default function OtaCheckForUpdatesScreen() {
         versionInfoTimeoutRef.current = null
       }
     }
-  }, [checkKey, currentBuildNumber, glassesConnected, wifiConnected])
+  }, [checkKey, currentBuildNumber, glassesConnected, wifiConnected, wifiStatusKnown])
 
   // Navigate to next step based on onboarding status
   const handleContinue = () => {
@@ -219,6 +224,13 @@ export default function OtaCheckForUpdatesScreen() {
     console.log("OTA: handleRetry()")
     setCheckState("checking")
     setAvailableUpdates([])
+    if (versionInfoTimeoutRef.current) {
+      BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
+      versionInfoTimeoutRef.current = null
+    }
+    waitStartTimeRef.current = null
+    hasInitiatedCheckRef.current = false
+    checkCompletedRef.current = false
     setCheckKey((k) => k + 1)
   }
 
@@ -241,6 +253,10 @@ export default function OtaCheckForUpdatesScreen() {
     )
     store.setOtaProgress(null)
     replace("/ota/progress")
+  }
+
+  const handleChangeWifi = () => {
+    push("/wifi/scan")
   }
 
   const renderContent = () => {
@@ -284,10 +300,35 @@ export default function OtaCheckForUpdatesScreen() {
             <Text text={updateText} className="text-base text-center" style={{color: theme.colors.textDim}} />
             <View className="h-4" />
             <Text tx="ota:updateDescription" className="text-sm text-center" style={{color: theme.colors.textDim}} />
+            {!wifiStatusKnown && (
+              <>
+                <View className="h-4" />
+                <Text
+                  text="Checking glasses WiFi status..."
+                  className="text-sm text-center"
+                  style={{color: theme.colors.textDim}}
+                />
+              </>
+            )}
+            {wifiStatusKnown && !wifiConnected && (
+              <>
+                <View className="h-4" />
+                <Text
+                  text="Glasses WiFi is disconnected. Reconnect WiFi to proceed."
+                  className="text-sm text-center"
+                  style={{color: theme.colors.error}}
+                />
+              </>
+            )}
           </View>
 
           <View className="gap-3">
-            <Button preset="primary" tx="ota:updateNow" onPress={handleUpdateNow} />
+            <Button
+              preset="primary"
+              tx="ota:updateNow"
+              onPress={handleUpdateNow}
+              disabled={!wifiStatusKnown || !wifiConnected}
+            />
             {!isUpdateRequired && <Button preset="secondary" tx="ota:updateLater" onPress={handleContinue} />}
             {__DEV__ && isUpdateRequired && (
               <Button preset="secondary" text="Skip (dev only)" onPress={handleContinue} />
@@ -316,11 +357,36 @@ export default function OtaCheckForUpdatesScreen() {
       )
     }
 
+    // WiFi error state - glasses WiFi disconnected
+    if (checkState === "wifi_error") {
+      return (
+        <>
+          <View className="flex-1 items-center justify-center px-6">
+            <Icon name="wifi-off" size={64} color={theme.colors.error} />
+            <View className="h-6" />
+            <Text text="Glasses WiFi Disconnected" className="font-semibold text-xl text-center" />
+            <View className="h-2" />
+            <Text
+              text="Your glasses need a WiFi connection to check for updates. Please ensure the glasses are connected to WiFi and try again."
+              className="text-sm text-center"
+              style={{color: theme.colors.textDim}}
+            />
+          </View>
+
+          <View className="gap-3">
+            <Button preset="primary" text="Change WiFi" flexContainer onPress={handleChangeWifi} />
+            <Button preset="secondary" text="Retry" flexContainer onPress={handleRetry} />
+            {__DEV__ && <Button preset="secondary" text="Skip (dev only)" onPress={handleContinue} />}
+          </View>
+        </>
+      )
+    }
+
     // Error state - retry only, no skip (except dev mode)
     return (
       <>
         <View className="flex-1 items-center justify-center px-6">
-          <Icon name="warning" size={64} color={theme.colors.error} />
+          <Icon name="alert-triangle" size={64} color={theme.colors.error} />
           <View className="h-6" />
           <Text tx="ota:checkFailed" className="font-semibold text-xl text-center" />
           <View className="h-2" />

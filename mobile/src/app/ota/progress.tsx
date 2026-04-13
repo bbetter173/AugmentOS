@@ -51,6 +51,7 @@ export default function OtaProgressScreen() {
   const otaUpdateAvailable = useGlassesStore((state) => state.otaUpdateAvailable)
   const glassesConnected = useGlassesStore((state) => state.connected)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
+  const wifiStatusKnown = useGlassesStore((state) => state.wifiStatusKnown)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
   const besFwVersion = useGlassesStore((state) => state.besFwVersion)
   const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
@@ -626,6 +627,10 @@ export default function OtaProgressScreen() {
       }, RETRY_INTERVAL_MS) as unknown as number
       // if after 30 seconds we have received progress, but the progress is still 0, (detect if we're stuck at 0%):
       stuckTimeoutRef.current = setTimeout(() => {
+        const currentState = progressStateRef.current
+        if (currentState !== "starting" && currentState !== "downloading") {
+          return
+        }
         const latestProgress = latestOtaProgressRef.current?.progress ?? 0
         if (latestProgress === 0) {
           // cancel the retry timeout
@@ -839,7 +844,7 @@ export default function OtaProgressScreen() {
 
   // Watch for WiFi disconnection during active download/install
   useEffect(() => {
-    if (!wifiConnected && (progressState === "downloading" || progressState === "starting")) {
+    if (wifiStatusKnown && !wifiConnected && (progressState === "downloading" || progressState === "starting")) {
       console.log("OTA: WiFi disconnected during download - showing WiFi disconnected state")
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
@@ -848,10 +853,14 @@ export default function OtaProgressScreen() {
         clearTimeout(postReconnectDelayRef.current)
         postReconnectDelayRef.current = null
       }
+      if (stuckTimeoutRef.current) {
+        clearTimeout(stuckTimeoutRef.current)
+        stuckTimeoutRef.current = null
+      }
       waitingForReconnectRef.current = false
       setProgressState("wifi_disconnected")
     }
-  }, [wifiConnected, progressState])
+  }, [wifiConnected, progressState, wifiStatusKnown])
 
   // Track completion timeout to allow cleanup
   const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -1062,6 +1071,29 @@ export default function OtaProgressScreen() {
     }
     lastProcessedProgressSignatureRef.current = progressSignature
 
+    // Ignore only the known stale-first-event signature after retry:
+    // step 1 expects APK, but we briefly receive firmware download STARTED.
+    if (
+      currentUpdateIndex === 0 &&
+      expectedStep === "apk" &&
+      (currentUpdate === "mtk" || currentUpdate === "bes") &&
+      stage === "download" &&
+      status === "STARTED"
+    ) {
+      console.log(
+        "OTA_TRACK: skip_reason=stale_firmware_start_before_apk",
+        JSON.stringify({
+          expectedStep,
+          received: currentUpdate,
+          stage,
+          status,
+          currentUpdateIndex,
+          sequence: [...sequence],
+        }),
+      )
+      return
+    }
+
     // During install phase, only process events for the step we're currently tracking.
     // During download phase, accept ALL events (unified download progress).
     // Always allow FINISHED through so we don't drop completion when index/expectedStep race.
@@ -1159,7 +1191,7 @@ export default function OtaProgressScreen() {
           setProgressState("failed")
         }, MTK_INSTALL_TIMEOUT_MS)
       } else if (stage === "download") {
-        if (!wifiConnected) {
+        if (wifiStatusKnown && !wifiConnected) {
           console.log(
             "OTA_TRACK: state_transition",
             JSON.stringify({from: progressStateRef.current, to: "wifi_disconnected", reason: "download_but_wifi_off"}),

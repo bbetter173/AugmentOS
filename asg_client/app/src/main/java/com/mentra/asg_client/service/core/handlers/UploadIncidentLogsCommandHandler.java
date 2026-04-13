@@ -124,10 +124,16 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
             String coreToken = mConfigurationManager.getCoreToken();
             if (coreToken == null || coreToken.isEmpty()) {
                 Log.e(TAG, "No coreToken available — cannot upload incident logs");
+                triggerBleFallback(incidentId, "http_missing_core_token");
                 return;
             }
 
             String baseUrl = ServerConfigUtil.getServerBaseUrl(mContext);
+            if (baseUrl == null || baseUrl.trim().isEmpty()) {
+                Log.e(TAG, "No server base URL available — cannot upload incident logs");
+                triggerBleFallback(incidentId, "http_missing_base_url");
+                return;
+            }
             String url = baseUrl + "/api/incidents/" + incidentId + "/logs";
 
             JSONArray logs = GlassesLogBuffer.getRecentLogs(MAX_LOG_LINES);

@@ -113,6 +113,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     func ping() {}
     func dbg1() {}
     func dbg2() {}
+    func connectController(_ mac: String) {}
 
     var type: String = DeviceTypes.MACH1
     var hasMic: Bool = false

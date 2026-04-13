@@ -903,6 +903,7 @@ class MentraLive: NSObject, SGCManager {
         keepAwake()
     }
 
+    func connectController(_ mac: String) {}
     func dbg1() {}
     func dbg2() {}
 

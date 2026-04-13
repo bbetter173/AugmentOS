@@ -104,6 +104,7 @@ private enum G2SettingCommandId: Int32 {
 private enum DevCfgCommandId: Int32 {
     case authentication = 4
     case pipeRoleChange = 5
+    case ringConnectInfo = 6
     case timeSync = 128
     case baseConnHeartBeat = 14
 }
@@ -540,6 +541,28 @@ private enum DevSettingsProto {
         var hbW = ProtobufWriter()
         _ = hbW  // empty
         w.writeMessageField(13, hbW.data)  // baseHeartBeat (field 13)
+        return w.data
+    }
+
+    /// DevCfgDataPackage with RING_CONNECT_INFO command
+    /// Tells the glasses to connect/disconnect to a ring by MAC address.
+    /// RingInfo: field 1 = connectRing (bool), field 2 = ringMac (bytes), field 3 = ringName (bytes)
+    static func ringConnectInfo(
+        magicRandom: Int32, connect: Bool, ringMac: Data, ringName: String = ""
+    ) -> Data {
+        var w = ProtobufWriter()
+        w.writeInt32Field(1, DevCfgCommandId.ringConnectInfo.rawValue)  // commandId = RING_CONNECT_INFO (6)
+        w.writeInt32Field(2, magicRandom)
+
+        // RingInfo sub-message (field 5 in DevCfgDataPackage)
+        var ringW = ProtobufWriter()
+        ringW.writeBoolField(1, connect)  // connectRing
+        ringW.writeBytesField(2, ringMac)  // ringMac (6 bytes)
+        if !ringName.isEmpty {
+            ringW.writeBytesField(3, Data(ringName.utf8))  // ringName
+        }
+
+        w.writeMessageField(5, ringW.data)  // ringInfo (field 5)
         return w.data
     }
 }
@@ -2468,42 +2491,95 @@ class G2: NSObject, SGCManager {
         sendEvenHubHeartbeat()
     }
 
+    func connectController(_ mac: String) {
+        Bridge.log("G2: connectController(\(mac))")
+        guard ready else {
+            Bridge.log("G2: connectController - not ready, ignoring")
+            return
+        }
+
+        // Parse "AA:BB:CC:DD:EE:FF" into 6-byte Data
+        let hexParts = mac.split(separator: ":").compactMap { UInt8($0, radix: 16) }
+        guard hexParts.count == 6 else {
+            Bridge.log("G2: connectController - invalid MAC format: \(mac)")
+            return
+        }
+        let macData = Data(hexParts)
+
+        let msg = DevSettingsProto.ringConnectInfo(
+            magicRandom: sendManager.nextMagicRandom(),
+            connect: true,
+            ringMac: macData
+        )
+        sendDevSettingsCommand(msg)
+        Bridge.log("G2: Sent RING_CONNECT_INFO for MAC \(mac)")
+    }
+
+    func disconnectController(mac: String) {
+
+        guard ready else {
+            Bridge.log("G2: disconnectController - not ready, ignoring")
+            return
+        }
+
+        // Parse "AA:BB:CC:DD:EE:FF" into 6-byte Data
+        let hexParts = mac.split(separator: ":").compactMap { UInt8($0, radix: 16) }
+        guard hexParts.count == 6 else {
+            Bridge.log("G2: disconnectController - invalid MAC format: \(mac)")
+            return
+        }
+        let macData = Data(hexParts)
+
+        let msg = DevSettingsProto.ringConnectInfo(
+            magicRandom: sendManager.nextMagicRandom(),
+            connect: false,
+            ringMac: macData
+        )
+        sendDevSettingsCommand(msg)
+        Bridge.log("G2: Sent RING_CONNECT_INFO for MAC \(mac)")
+    }
+
     func dbg1() {
         Bridge.log("G2: dbg1()")
 
-        // send a shutdown message
-        let msg = EvenHubProto.shutdownMessage()
-        sendEvenHubCommand(msg)
-        pageCreated = false
-        currentTextContent = ""
+        // // send a shutdown message
+        // let msg = EvenHubProto.shutdownMessage()
+        // sendEvenHubCommand(msg)
+        // pageCreated = false
+        // currentTextContent = ""
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self = self else { return }
-            // self.sendShutdown()
-            // runAuthSequence()
-            runDashboardSequence()
-        }
+        // DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+        //     guard let self = self else { return }
+        //     // self.sendShutdown()
+        //     // runAuthSequence()
+        //     runDashboardSequence()
+        // }
+
+        connectController("1B:08:26:8E:0E:E6")
     }
     func dbg2() {
 
         Bridge.log("G2: dbg2()")
+
+        disconnectController("1B:08:26:8E:0E:E6")
+
         // createPageWithText("test1")
 
-        let tc = EvenHubProto.textContainerProperty(
-            x: 0, y: 0, width: 576, height: 288,
-            borderWidth: 0, borderColor: 0, borderRadius: 0,
-            paddingLength: 4, containerID: textContainerID,
-            containerName: "text-main2", isEventCapture: true,
-            content: "test-dbg1"
-        )
+        // let tc = EvenHubProto.textContainerProperty(
+        //     x: 0, y: 0, width: 576, height: 288,
+        //     borderWidth: 0, borderColor: 0, borderRadius: 0,
+        //     paddingLength: 4, containerID: textContainerID,
+        //     containerName: "text-main2", isEventCapture: true,
+        //     content: "test-dbg1"
+        // )
 
-        let msg: Data
-        Bridge.log("G2: dbg2 - sending createPageMessage()")
-        msg = EvenHubProto.createPageMessage(
-            textContainers: [tc], magicRandom: sendManager.nextMagicRandom(),
-            appId: nil)
+        // let msg: Data
+        // Bridge.log("G2: dbg2 - sending createPageMessage()")
+        // msg = EvenHubProto.createPageMessage(
+        //     textContainers: [tc], magicRandom: sendManager.nextMagicRandom(),
+        //     appId: nil)
 
-        sendEvenHubCommand(msg)
+        // sendEvenHubCommand(msg)
 
         // // update the text
         // Bridge.log("G2: sendTextWall() - updating text container")
@@ -2924,7 +3000,8 @@ class G2: NSObject, SGCManager {
                     eventType = OsEventType.click
                 }
             }
-            Bridge.log("G2: sysFields: \(sysFields)")
+
+            // Bridge.log("G2: sysFields: \(sysFields)")
 
             guard let eventType = eventType else {
                 Bridge.log("G2: unknown event type: \(sysFields)")
@@ -3050,14 +3127,19 @@ class G2: NSObject, SGCManager {
         }
     }
 
-    private func handleDevSettingsResponse(_: Data) {
+    private func handleDevSettingsResponse(_ data: Data) {
         // DevSettings responses (auth acks, heartbeat acks) — mostly informational
+        Bridge.log(
+            "G2: DevSettings response: \(data.prefix(32).map { String(format: "%02X", $0) }.joined())"
+        )
     }
 
     private func handleG2SettingResponse(_ payload: Data) {
         // Parse G2SettingPackage: field 1=commandId, field 4=DeviceReceiveRequestFromAPP (response), field 5=DeviceSendInfoToAPP
         var reader = ProtobufReader(payload)
         let fields = reader.parseFields()
+
+        Bridge.log("G2: G2Setting response: \(fields)")
 
         guard let cmdValue = fields[1] as? Int32 else { return }
 
@@ -3170,7 +3252,7 @@ class G2: NSObject, SGCManager {
         // (informational only — log if needed for debugging)
         // log first few bytes of the response:
         Bridge.log(
-            "G2: gesture_ctrl response: \(data.prefix(8).map { String(format: "%02X", $0) }.joined())"
+            "G2: gesture_ctrl response: \(data.map { String(format: "%02X", $0) }.joined())"
         )
         // Bridge.log("G2: gesture_ctrl response:")
 
@@ -3187,6 +3269,8 @@ class G2: NSObject, SGCManager {
             //     GlassesStore.shared.apply("glasses", "headUp", false)
             //     // send the current state to the glasses
             //     CoreManager.shared.sendCurrentState()
+            // clear the display:
+            clearDisplay()
         }
 
         // if we got 08011097012200 that means we selected a menu item:

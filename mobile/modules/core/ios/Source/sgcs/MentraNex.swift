@@ -129,6 +129,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
     func cleanup() {}
 
     func ping() {}
+    func connectController(_ mac: String) {}
     func dbg1() {}
     func dbg2() {}
 

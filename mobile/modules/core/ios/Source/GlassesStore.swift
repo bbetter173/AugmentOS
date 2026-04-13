@@ -46,6 +46,7 @@ class GlassesStore {
         store.set("glasses", "hotspotGatewayIp", "")
         store.set("glasses", "bluetoothName", "")
         store.set("glasses", "controllerConnected", false)
+        store.set("glasses", "controllerMacAddress", "")
         store.set("glasses", "signalStrength", -1)
         store.set("glasses", "ringSignalStrength", -1)
 
@@ -148,6 +149,12 @@ class GlassesStore {
                 } else {
                     CoreManager.shared.handleControllerDisconnected()
                 }
+            }
+
+        case ("glasses", "controllerMacAddress"):
+            if let mac = value as? String {
+                Bridge.log("STORE: Glasses controllerMacAddress changed to \(mac)")
+                // CoreManager.shared.sgc?.sendRingConnectInfo(mac)
             }
 
         case ("glasses", "headUp"):

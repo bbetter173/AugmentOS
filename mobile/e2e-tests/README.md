@@ -11,7 +11,6 @@ The current production path for this harness is:
 
 ## Layout
 
-- `scripts/live_monitor.py`: older dashboard based on repeated fixture injection
 - `scripts/live_word_monitor.py`: current live dashboard and monitor
 - `scripts/serve_monitor_history.py`: serves previously captured monitor history
 - `results/`: NDJSON, cache, and monitor outputs
@@ -97,7 +96,7 @@ The phone must be able to open the captions mini app and render the `Simulated g
 ```bash
 cd /path/to/MentraOS/mobile/e2e-test
 python3 scripts/live_word_monitor.py \
-  --output-dir results/live-word-monitor \
+  --output-dir results \
   --port 8765
 ```
 
@@ -200,7 +199,7 @@ From the MentraOS repo:
 ```bash
 cd mobile/e2e-tests
 python3 scripts/live_word_monitor.py \
-  --output-dir results/live-word-monitor \
+  --output-dir results \
   --port 8765
 ```
 
@@ -211,8 +210,8 @@ Open:
 Notes:
 
 - this script does **not** hot reload; restart it after code changes
-- it writes cache and monitor output under `results/live-word-monitor`
-- if startup fails because cached utterance history is on an old schema, remove or migrate `results/live-word-monitor/utterance_reports.ndjson`
+- it writes cache and monitor output under `results`
+- if startup fails because cached utterance history is on an old schema, remove or migrate `results/utterance_reports.ndjson`
 
 ### 4. Optional: expose the dashboard publicly
 
@@ -242,7 +241,7 @@ If the monitor looks stale:
 pkill -f 'mobile/e2e-test/scripts/live_word_monitor.py'
 cd mobile/e2e-test
 python3 scripts/live_word_monitor.py \
-  --output-dir results/live-word-monitor \
+  --output-dir results \
   --port 8765
 ```
 

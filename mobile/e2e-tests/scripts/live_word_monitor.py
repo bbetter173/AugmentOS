@@ -3,6 +3,7 @@ import argparse
 import collections
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -15,7 +16,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from live_monitor import extract_visible_transcript_lines, normalize_text, run_maestro_hierarchy, tokenize, trim_history, write_ndjson
+
+# FIXME: THe maestro data retrieval method is to be removed (2s latency), the html ids have not been committed to the repo.
+SIMULATED_GLASSES_TEXT = "Simulated glasses"
+MIRROR_ROOT_RESOURCE_ID = "glasses-mirror-root"
+MIRROR_TEXT_WALL_RESOURCE_ID = "glasses-mirror-text-wall"
+MIRROR_LINE_RESOURCE_ID_PREFIX = "glasses-mirror-line-"
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,6 +52,109 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
+
+def normalize_text(value: str) -> str:
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9\s]", " ", value)
+    value = re.sub(r"\s+", " ", value)
+    return value.strip()
+
+
+def tokenize(value: str) -> list[str]:
+    return [token for token in normalize_text(value).split() if token]
+
+
+def parse_hierarchy_output(raw_output: str) -> dict[str, Any]:
+    json_start = raw_output.find("{")
+    if json_start == -1:
+        raise ValueError("Maestro hierarchy output did not contain JSON")
+    return json.loads(raw_output[json_start:])
+
+
+def find_parent_of_text(node: dict[str, Any], target: str) -> dict[str, Any] | None:
+    children = node.get("children") or []
+    for child in children:
+        attributes = child.get("attributes") or {}
+        if attributes.get("text") == target:
+            return node
+    for child in children:
+        found = find_parent_of_text(child, target)
+        if found:
+            return found
+    return None
+
+
+def find_first_by_resource_id(node: dict[str, Any], resource_id: str) -> dict[str, Any] | None:
+    attributes = node.get("attributes") or {}
+    if attributes.get("resource-id") == resource_id:
+        return node
+
+    for child in node.get("children") or []:
+        found = find_first_by_resource_id(child, resource_id)
+        if found:
+            return found
+    return None
+
+
+def extract_visible_transcript_lines(hierarchy: dict[str, Any]) -> tuple[bool, list[str]]:
+    mirror_root = find_first_by_resource_id(hierarchy, MIRROR_ROOT_RESOURCE_ID)
+    text_wall = find_first_by_resource_id(hierarchy, MIRROR_TEXT_WALL_RESOURCE_ID)
+    if mirror_root and text_wall:
+        indexed_lines: list[tuple[int, str]] = []
+        for child in text_wall.get("children") or []:
+            attributes = child.get("attributes") or {}
+            resource_id = attributes.get("resource-id") or ""
+            if not resource_id.startswith(MIRROR_LINE_RESOURCE_ID_PREFIX):
+                continue
+
+            text = (attributes.get("text") or "").strip()
+            if not text:
+                continue
+
+            try:
+                index = int(resource_id.removeprefix(MIRROR_LINE_RESOURCE_ID_PREFIX))
+            except ValueError:
+                continue
+            indexed_lines.append((index, text))
+
+        indexed_lines.sort(key=lambda item: item[0])
+        return True, [text for _, text in indexed_lines]
+
+    parent = find_parent_of_text(hierarchy, SIMULATED_GLASSES_TEXT)
+    if not parent:
+        return False, []
+
+    lines: list[str] = []
+    for child in parent.get("children") or []:
+        attributes = child.get("attributes") or {}
+        text = (attributes.get("text") or "").strip()
+        if not text or text == SIMULATED_GLASSES_TEXT:
+            continue
+        lines.append(text)
+    return True, lines
+
+
+def run_maestro_hierarchy(device: str | None) -> dict[str, Any]:
+    env = os.environ.copy()
+    env["JAVA_HOME"] = "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+    env["PATH"] = f'{env["JAVA_HOME"]}/bin:/opt/homebrew/bin:' + env["PATH"]
+    cmd = ["maestro"]
+    if device:
+        cmd.extend(["--device", device])
+    cmd.extend(["hierarchy", "--no-ansi"])
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
+    return parse_hierarchy_output(result.stdout)
+
+
+def write_ndjson(path: Path, record: dict[str, Any]) -> None:
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=True) + "\n")
+
+
+def trim_history(items: list[Any], max_items: int) -> list[Any]:
+    if len(items) <= max_items:
+        return items
+    return items[-max_items:]
 
 @dataclass
 class WordState:
@@ -379,7 +488,7 @@ def download_audio(cache_dir: Path, row_idx: int, audio_url: str) -> Path:
     return destination
 
 
-def play_audio_locally(audio_file: Path) -> subprocess.Popen[str]:
+def play_audio_locally(audio_file: Path) -> subprocess.Popen[bytes]:
     return subprocess.Popen(["afplay", str(audio_file)])
 
 
@@ -389,7 +498,7 @@ class MonitorWorker:
         self.state = state
         self.cursor = cursor
         self.stop_event = threading.Event()
-        self.playback_process: subprocess.Popen[str] | None = None
+        self.playback_process: subprocess.Popen[bytes] | None = None
         self.next_start_ts_ms = int(time.time() * 1000)
         self.audio_cache_dir = state.output_dir / "audio-cache"
         self.prefetch_queue: collections.deque[PreparedRow] = collections.deque()

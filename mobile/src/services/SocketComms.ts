@@ -75,6 +75,7 @@ class SocketComms {
     this.coreToken = coreToken
     this.userid = userid
     useSettingsStore.getState().setSetting(SETTINGS.core_token.key, coreToken)
+    useSettingsStore.getState().setSetting(SETTINGS.auth_token.key, coreToken, false)
     // this.connectWebsocket()
   }
 

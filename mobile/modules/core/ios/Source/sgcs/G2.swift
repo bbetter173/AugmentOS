@@ -2515,7 +2515,7 @@ class G2: NSObject, SGCManager {
         Bridge.log("G2: Sent RING_CONNECT_INFO for MAC \(mac)")
     }
 
-    func disconnectController(mac: String) {
+    func disconnectController(_ mac: String) {
 
         guard ready else {
             Bridge.log("G2: disconnectController - not ready, ignoring")
@@ -2536,7 +2536,7 @@ class G2: NSObject, SGCManager {
             ringMac: macData
         )
         sendDevSettingsCommand(msg)
-        Bridge.log("G2: Sent RING_CONNECT_INFO for MAC \(mac)")
+        Bridge.log("G2: Sent RING_DISCONNECT_INFO for MAC \(mac)")
     }
 
     func dbg1() {
@@ -2913,6 +2913,12 @@ class G2: NSObject, SGCManager {
         if cmdValue == EvenHubResponseCmd.osNotifyEventToApp.rawValue {
             // Touch/gesture event from glasses
             guard let devEventData = fields[13] as? Data else { return }
+            let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
+            if lastClickTimestamp != nil && timestamp - lastClickTimestamp! < 100 {
+                // Bridge.log("G2: Double click ignored (too soon)")
+                return
+            }
+            lastClickTimestamp = timestamp
             handleTouchEvent(devEventData)
         } else if cmdValue == 17 {
             // Miniapp selection from glasses dashboard menu (cmdId=17)
@@ -2985,6 +2991,8 @@ class G2: NSObject, SGCManager {
 
         let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
 
+        // Bridge.log("G2: handleTouchEvent: \(fields)")
+
         // SysEvent (field 3) - system-level gestures
         if let sysData = fields[3] as? Data {
             var sysReader = ProtobufReader(sysData)
@@ -3017,22 +3025,15 @@ class G2: NSObject, SGCManager {
                 deviceModel: DeviceTypes.G2, gestureName: gestureName,
                 timestamp: timestamp
             )
-            Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
+            // Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
 
             if eventType == .doubleClick {
-                // did we JUST get a double click? if so, ignore it:
-                if lastClickTimestamp != nil && timestamp - lastClickTimestamp! < 100 {
-                    Bridge.log("G2: Double click ignored (too soon)")
-                    return
-                }
-                lastClickTimestamp = timestamp
-                // Bridge.log("G2: Double click detected")
                 // trigger dashboard:
                 let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                 // toggle head up:
                 GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
                 if isHeadUp {
-                    Bridge.log("G2: going back to home, clearing display")
+                    // Bridge.log("G2: going back to home, clearing display")
                     // clear the display after a delay:
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.clearDisplay()
@@ -3128,10 +3129,99 @@ class G2: NSObject, SGCManager {
     }
 
     private func handleDevSettingsResponse(_ data: Data) {
+
         // DevSettings responses (auth acks, heartbeat acks) — mostly informational
+
+        var reader = ProtobufReader(data)
+        let fields = reader.parseFields()
+
+        let cmdValue = fields[1] as? Int32 ?? -1
+
+        // if the data is just a heartbeat, ignore it:
+        if let cmdValue = fields[1] as? Int32,
+            cmdValue == DevCfgCommandId.baseConnHeartBeat.rawValue
+        {
+            return
+        }
+        // Bridge.log("G2: DevSettings response cmdValue=\(cmdValue)")
+
         Bridge.log(
-            "G2: DevSettings response: \(data.prefix(32).map { String(format: "%02X", $0) }.joined())"
+            "G2: DevSettings response: \(data.prefix(32).map { String(format: "%02X", $0) }.joined(separator: ":"))"
         )
+
+        // RING_CONNECT_INFO response (cmd 6)
+        if cmdValue == DevCfgCommandId.ringConnectInfo.rawValue {
+
+            // let connStat = fields[4] as? Int32 ?? -1
+            // // if it's 3c or 3d that's disconnected:
+            // if connStat == 0x3c || connStat == 0x3d {
+            //     Bridge.log("G2: Ring disconnected")
+            //     GlassesStore.shared.apply("glasses", "controllerConnected", false)
+            //     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+            //     GlassesStore.shared.apply("glasses", "controllerSearching", true)
+            // }
+
+            // Bridge.log("G2: Ring connection status: connStat=\(connStat)")
+
+            // Bridge.log("G2: RingConnectInfo: \(fields)")
+            if let ringData = fields[5] as? Data {  // field 5 = ringInfo
+                var ringReader = ProtobufReader(ringData)
+                let ringFields = ringReader.parseFields()
+
+                Bridge.log("G2: RingInfo: \(ringFields)")
+
+                if ringFields[1] as? Int32 ?? 0 == 1 {
+                    Bridge.log("G2: Ring maybe connected?")
+                }
+
+                //     let connected = ringFields[1] as? Int32 ?? 0  // connectRing
+                //     let connRet = ringFields[4] as? Int32 ?? -1  // connRet: 0 = success
+
+                //     if connected != 0 && connRet == 0 {
+                //         // Bridge.log("G2: Ring connected to glasses")
+                //         // GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                //         // GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
+                //         // GlassesStore.shared.apply("glasses", "controllerSearching", false)
+                //     } else {
+                //         // Bridge.log("G2: Ring not connected to glasses (connRet=\(connRet))")
+                //         // GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                //     }
+
+                //     // Optional: read MAC back
+                //     if let macData = ringFields[2] as? Data, macData.count >= 6 {
+                //         let mac = macData.prefix(6).map { String(format: "%02X", $0) }.joined(
+                //             separator: ":")
+                //         Bridge.log("G2: Ring MAC from glasses: \(mac)")
+                //     }
+            }
+
+            // if the data ends in 2016 that's a disconnect:
+            // if data.suffix(4) == Data([0x20, 0x16]) {
+            //     Bridge.log("G2: Ring disconnected")
+            //     GlassesStore.shared.apply("glasses", "controllerConnected", false)
+            //     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+            //     GlassesStore.shared.apply("glasses", "controllerSearching", true)
+            // }
+
+            if let ringData = fields[5] as? Data {  // field 5 = ringInfo
+                var ringReader = ProtobufReader(ringData)
+                let ringFields = ringReader.parseFields()
+                let connRet = ringFields[4] as? Int32 ?? -1  // field 4 = connRet
+                // let connected = (connRet == 0)
+                Bridge.log(
+                    "G2: Ring connection status: connRet=\(connRet) → \(connected ? "hadBound" : "unBind")"
+                )
+
+                if connRet == 22 {
+                    Bridge.log("G2: Ring disconnected")
+                    GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                    GlassesStore.shared.apply("glasses", "controllerSearching", true)
+                }
+                // // GlassesStore.shared.apply("glasses", "ringConnectedToGlasses", connected)
+
+            }
+        }
     }
 
     private func handleG2SettingResponse(_ payload: Data) {
@@ -3251,9 +3341,9 @@ class G2: NSObject, SGCManager {
         // gesture_ctrl (service 0x0D): foreground lifecycle signals from glasses
         // (informational only — log if needed for debugging)
         // log first few bytes of the response:
-        Bridge.log(
-            "G2: gesture_ctrl response: \(data.map { String(format: "%02X", $0) }.joined())"
-        )
+        // Bridge.log(
+        //     "G2: gesture_ctrl response: \(data.map { String(format: "%02X", $0) }.joined())"
+        // )
         // Bridge.log("G2: gesture_ctrl response:")
 
         // if we got 08011A00 that means we closed the dashboard, which means the mic is probably dead,
@@ -3269,8 +3359,8 @@ class G2: NSObject, SGCManager {
             //     GlassesStore.shared.apply("glasses", "headUp", false)
             //     // send the current state to the glasses
             //     CoreManager.shared.sendCurrentState()
-            // clear the display:
-            clearDisplay()
+            // reset the text container (different from clearDisplay())
+            sendTextWall(" ")
         }
 
         // if we got 08011097012200 that means we selected a menu item:

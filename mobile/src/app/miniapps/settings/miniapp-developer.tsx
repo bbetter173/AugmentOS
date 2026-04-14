@@ -1,11 +1,11 @@
-import {useState, useEffect} from 'react'
-import {View, TextInput, TouchableOpacity, FlatList, Alert, Platform} from 'react-native'
-import {useRouter} from 'expo-router'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import {useState, useEffect} from "react"
+import {View, TextInput, TouchableOpacity, FlatList, Alert} from "react-native"
 
-import {Text} from '@/components/ignite'
+import {Text} from "@/components/ignite"
+import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {storage} from "@/utils/storage/storage"
 
-const RECENT_KEY = 'miniapp_dev_recent'
+const RECENT_KEY = "miniapp_dev_recent"
 const MAX_RECENT = 5
 
 interface RecentDevApp {
@@ -16,8 +16,8 @@ interface RecentDevApp {
 }
 
 export default function MiniappDeveloper() {
-  const router = useRouter()
-  const [url, setUrl] = useState('')
+  const {push} = useNavigationHistory()
+  const [url, setUrl] = useState("")
   const [recent, setRecent] = useState<RecentDevApp[]>([])
 
   useEffect(() => {
@@ -25,19 +25,19 @@ export default function MiniappDeveloper() {
   }, [])
 
   const loadRecent = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(RECENT_KEY)
-      if (stored) setRecent(JSON.parse(stored))
-    } catch {}
+    const result = storage.load<RecentDevApp[]>(RECENT_KEY)
+    if (result.is_ok()) {
+      setRecent(result.value)
+    }
   }
 
   const saveRecent = async (items: RecentDevApp[]) => {
     setRecent(items)
-    await AsyncStorage.setItem(RECENT_KEY, JSON.stringify(items))
+    storage.save(RECENT_KEY, items)
   }
 
   const handleScanQR = () => {
-    router.push('/miniapps/settings/miniapp-developer-scanner')
+    push("/miniapps/settings/miniapp-developer-scanner")
   }
 
   const handleLoadUrl = async () => {
@@ -47,62 +47,55 @@ export default function MiniappDeveloper() {
       const res = await fetch(`${url.trim()}/miniapp.json`)
       const manifest = await res.json()
       const entry: RecentDevApp = {
-        packageName: manifest.packageName || 'com.dev.unknown',
-        name: manifest.name || 'Dev Miniapp',
+        packageName: manifest.packageName || "com.dev.unknown",
+        name: manifest.name || "Dev Miniapp",
         url: url.trim(),
         timestamp: Date.now(),
       }
-      const updated = [entry, ...recent.filter(r => r.url !== entry.url)].slice(0, MAX_RECENT)
+      const updated = [entry, ...recent.filter((r) => r.url !== entry.url)].slice(0, MAX_RECENT)
       await saveRecent(updated)
       launchDevMiniapp(entry)
-    } catch (error) {
-      Alert.alert('Error', `Could not fetch miniapp.json from ${url.trim()}`)
+    } catch {
+      Alert.alert("Error", `Could not fetch miniapp.json from ${url.trim()}`)
     }
   }
 
   const launchDevMiniapp = (entry: RecentDevApp) => {
-    router.push({
-      pathname: '/applet/local',
-      params: {
-        packageName: entry.packageName,
-        devUrl: entry.url,
-        appName: entry.name,
-      },
+    push("/applet/local", {
+      packageName: entry.packageName,
+      devUrl: entry.url,
+      appName: entry.name,
     })
   }
 
   return (
-    <View style={{flex: 1, padding: 16, backgroundColor: '#111'}}>
-      <Text style={{fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 16}}>
-        Miniapp Developer
-      </Text>
+    <View style={{flex: 1, padding: 16, backgroundColor: "#111"}}>
+      <Text style={{fontSize: 20, fontWeight: "bold", color: "#fff", marginBottom: 16}}>Miniapp Developer</Text>
 
       <TouchableOpacity
         onPress={handleScanQR}
-        style={{backgroundColor: '#333', padding: 16, borderRadius: 8, marginBottom: 12, alignItems: 'center'}}
-      >
-        <Text style={{color: '#0f0', fontSize: 16}}>Scan QR from Dev Server</Text>
+        style={{backgroundColor: "#333", padding: 16, borderRadius: 8, marginBottom: 12, alignItems: "center"}}>
+        <Text style={{color: "#0f0", fontSize: 16}}>Scan QR from Dev Server</Text>
       </TouchableOpacity>
 
-      <View style={{flexDirection: 'row', marginBottom: 16}}>
+      <View style={{flexDirection: "row", marginBottom: 16}}>
         <TextInput
           value={url}
           onChangeText={setUrl}
           placeholder="http://192.168.1.50:3000"
           placeholderTextColor="#666"
-          style={{flex: 1, backgroundColor: '#222', color: '#fff', padding: 12, borderRadius: 8, marginRight: 8}}
+          style={{flex: 1, backgroundColor: "#222", color: "#fff", padding: 12, borderRadius: 8, marginRight: 8}}
         />
         <TouchableOpacity
           onPress={handleLoadUrl}
-          style={{backgroundColor: '#336', padding: 12, borderRadius: 8, justifyContent: 'center'}}
-        >
-          <Text style={{color: '#fff'}}>Load</Text>
+          style={{backgroundColor: "#336", padding: 12, borderRadius: 8, justifyContent: "center"}}>
+          <Text style={{color: "#fff"}}>Load</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={{color: '#888', fontSize: 14, marginBottom: 8}}>Recent Dev Miniapps</Text>
+      <Text style={{color: "#888", fontSize: 14, marginBottom: 8}}>Recent Dev Miniapps</Text>
       {recent.length === 0 ? (
-        <Text style={{color: '#555', textAlign: 'center', marginTop: 20}}>No recent dev miniapps</Text>
+        <Text style={{color: "#555", textAlign: "center", marginTop: 20}}>No recent dev miniapps</Text>
       ) : (
         <FlatList
           data={recent}
@@ -110,11 +103,10 @@ export default function MiniappDeveloper() {
           renderItem={({item}) => (
             <TouchableOpacity
               onPress={() => launchDevMiniapp(item)}
-              style={{backgroundColor: '#222', padding: 12, borderRadius: 8, marginBottom: 8}}
-            >
-              <Text style={{color: '#fff', fontWeight: 'bold'}}>{item.name} [dev]</Text>
-              <Text style={{color: '#888', fontSize: 12}}>{item.url}</Text>
-              <Text style={{color: '#555', fontSize: 10}}>{item.packageName}</Text>
+              style={{backgroundColor: "#222", padding: 12, borderRadius: 8, marginBottom: 8}}>
+              <Text style={{color: "#fff", fontWeight: "bold"}}>{item.name} [dev]</Text>
+              <Text style={{color: "#888", fontSize: 12}}>{item.url}</Text>
+              <Text style={{color: "#555", fontSize: 10}}>{item.packageName}</Text>
             </TouchableOpacity>
           )}
         />

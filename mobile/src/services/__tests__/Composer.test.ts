@@ -1,18 +1,20 @@
-/// <reference types="bun-types" />
-import { describe, expect, test } from "bun:test"
-
 // Test the miniapp.json schema validation logic
 // (extracted from Composer since full Composer requires expo-file-system)
 
 const ALLOWED_PERMISSIONS = [
-  "MICROPHONE", "CAMERA", "CALENDAR", "LOCATION",
-  "BACKGROUND_LOCATION", "READ_NOTIFICATIONS", "POST_NOTIFICATIONS",
+  "MICROPHONE",
+  "CAMERA",
+  "CALENDAR",
+  "LOCATION",
+  "BACKGROUND_LOCATION",
+  "READ_NOTIFICATIONS",
+  "POST_NOTIFICATIONS",
 ] as const
 
-function validateMiniappManifest(manifest: unknown): { valid: boolean; errors: string[] } {
+function validateMiniappManifest(manifest: unknown): {valid: boolean; errors: string[]} {
   const errors: string[] = []
   if (!manifest || typeof manifest !== "object") {
-    return { valid: false, errors: ["Manifest must be a non-null object"] }
+    return {valid: false, errors: ["Manifest must be a non-null object"]}
   }
   const m = manifest as Record<string, unknown>
   if (!m.packageName || typeof m.packageName !== "string") errors.push("packageName is required (string)")
@@ -29,7 +31,7 @@ function validateMiniappManifest(manifest: unknown): { valid: boolean; errors: s
       }
     }
   }
-  return { valid: errors.length === 0, errors }
+  return {valid: errors.length === 0, errors}
 }
 
 describe("miniapp.json validation", () => {
@@ -45,18 +47,18 @@ describe("miniapp.json validation", () => {
   })
 
   test("missing packageName fails", () => {
-    const result = validateMiniappManifest({ version: "1.0.0", name: "Test" })
+    const result = validateMiniappManifest({version: "1.0.0", name: "Test"})
     expect(result.valid).toBe(false)
     expect(result.errors).toContain("packageName is required (string)")
   })
 
   test("missing version fails", () => {
-    const result = validateMiniappManifest({ packageName: "com.test", name: "Test" })
+    const result = validateMiniappManifest({packageName: "com.test", name: "Test"})
     expect(result.valid).toBe(false)
   })
 
   test("missing name fails", () => {
-    const result = validateMiniappManifest({ packageName: "com.test", version: "1.0.0" })
+    const result = validateMiniappManifest({packageName: "com.test", version: "1.0.0"})
     expect(result.valid).toBe(false)
   })
 
@@ -68,7 +70,7 @@ describe("miniapp.json validation", () => {
       permissions: ["MICROPHONE", "INVALID_PERM"],
     })
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes("INVALID_PERM"))).toBe(true)
+    expect(result.errors.some((e) => e.includes("INVALID_PERM"))).toBe(true)
   })
 
   test("ALL permission rejected (internal only)", () => {

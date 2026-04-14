@@ -66,7 +66,7 @@ bun android
 Then iterate on code with
 
 ```bash
-bun start -—clear
+bun start --clear
 ```
 
 For iOS on Mac, follow the **iOS** section below (Xcode, CocoaPods).

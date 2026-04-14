@@ -47,12 +47,10 @@ class RestComms {
 
     // Sync to native GlassesStore (and persist to SharedPreferences in CoreModule when bridge runs)
     const value = token ?? ""
-    const updateResult = CoreModule.update("core", {auth_token: value})
-    const persistAuthTokenResult = useSettingsStore.getState().setSetting(SETTINGS.auth_token.key, value, false)
+    const updateResult = CoreModule.update("core", {core_token: value})
     if (updateResult != null && typeof (updateResult as Promise<void>).then === "function") {
       ;(updateResult as Promise<void>).catch(() => {})
     }
-    void persistAuthTokenResult
 
     if (token) {
       console.log(`${this.TAG}: Core token set, emitting CORE_TOKEN_SET event`)

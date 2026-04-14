@@ -91,7 +91,7 @@ class GlassesStore {
         store.set("core", "preferred_mic", "auto")
         store.set("core", "lc3_frame_size", 60)
         store.set("core", "auth_email", "")
-        store.set("core", "auth_token", "")
+        store.set("core", "core_token", "")
         store.set("core", "should_send_pcm", false)
         store.set("core", "should_send_lc3", false)
         store.set("core", "should_send_transcript", false)
@@ -164,7 +164,7 @@ class GlassesStore {
                 // CoreManager.shared.sgc?.sendAuthEmail(email)
             }
 
-        case ("core", "auth_token"):
+        case ("core", "core_token"):
             if let token = value as? String {
                 _ = token
                 // CoreManager.shared.sgc?.sendAuthToken(token)

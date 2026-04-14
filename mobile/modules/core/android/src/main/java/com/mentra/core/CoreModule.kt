@@ -91,12 +91,12 @@ class CoreModule : Module() {
 
         Function("update") { category: String, values: Map<String, Any> ->
             values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
-            // Persist auth_token to SharedPreferences so MentraLive.getCoreToken() finds it
+            // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
             if (category == "core") {
-                values["auth_token"]?.let { token ->
+                values["core_token"]?.let { token ->
                     val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("CoreModule", "update(core) auth_token received, len=$len")
+                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
                     if (token is String && token.isNotEmpty()) {
                         val ctx = appContext.reactContext ?: appContext.currentActivity
                         ctx?.let {

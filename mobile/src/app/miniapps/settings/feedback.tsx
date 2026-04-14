@@ -249,7 +249,7 @@ export default function FeedbackPage() {
 
       // Get settings but filter out sensitive keys (tokens, credentials)
       const settingsState = useSettingsStore.getState()
-      const SENSITIVE_KEYS = ["core_token", "auth_token", "auth_email"]
+      const SENSITIVE_KEYS = ["core_token", "auth_email"]
       const filteredSettings = Object.fromEntries(
         Object.entries(settingsState.settings || {}).filter(([key]) => !SENSITIVE_KEYS.includes(key)),
       )

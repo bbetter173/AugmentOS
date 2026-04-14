@@ -6023,7 +6023,7 @@ public class MentraLive extends SGCManager {
      * SharedPreferences for backward compatibility.
      */
     private String getCoreToken() {
-        Object fromStore = GlassesStore.INSTANCE.get("core", "auth_token");
+        Object fromStore = GlassesStore.INSTANCE.get("core", "core_token");
         if (fromStore instanceof String) {
             String token = (String) fromStore;
             if (token != null && !token.isEmpty()) {

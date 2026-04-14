@@ -2912,7 +2912,7 @@ class MentraLive: NSObject, SGCManager {
     private func uploadBleIncidentLogRelay(
         relay: BleIncidentLogRelayEntry, fileName: String, data: Data
     ) {
-        let token = GlassesStore.shared.get("core", "auth_token") as? String ?? ""
+        let token = GlassesStore.shared.get("core", "core_token") as? String ?? ""
         guard !token.isEmpty else {
             sendTransferCompleteConfirmation(fileName: fileName, success: false)
             if let existing = bleIncidentLogRelays[relay.fileBaseKey] {
@@ -3110,7 +3110,7 @@ class MentraLive: NSObject, SGCManager {
     private func sendCoreTokenToAsgClient() {
         Bridge.log("Preparing to send coreToken to ASG client")
 
-        let coreToken = GlassesStore.shared.get("core", "auth_token") as? String ?? ""
+        let coreToken = GlassesStore.shared.get("core", "core_token") as? String ?? ""
         if coreToken.isEmpty {
             Bridge.log("LIVE: No coreToken available to send to ASG client")
             return

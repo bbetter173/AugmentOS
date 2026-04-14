@@ -563,6 +563,16 @@ extension R1: CBCentralManagerDelegate {
 
             guard let name = peripheral.name, let mac = self.ringMacAddressMap[name] else {
                 Bridge.log("R1: No MAC stored in map found for \(peripheral.name ?? "ring")")
+                // stop the scan, disconnect, remove the uuid, and try again as we need the mac address to connect:
+                self.disconnect()
+                self.ringUUID = nil
+                // we are still searching!:
+                GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                GlassesStore.shared.apply("glasses", "controllerSearching", true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.startScan()
+                }
                 return
             }
 

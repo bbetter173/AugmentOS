@@ -153,8 +153,11 @@ class GlassesStore {
 
         case ("glasses", "controllerMacAddress"):
             if let mac = value as? String {
-                Bridge.log("STORE: Glasses controllerMacAddress changed to \(mac)")
-                // CoreManager.shared.sgc?.sendRingConnectInfo(mac)
+                Task {
+                    // give the glasses some extra time to finish booting:
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    await CoreManager.shared.sgc?.connectController(mac)
+                }
             }
 
         case ("glasses", "headUp"):

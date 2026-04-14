@@ -2554,14 +2554,29 @@ class G2: NSObject, SGCManager {
         //     // runAuthSequence()
         //     runDashboardSequence()
         // }
+        let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
 
-        connectController("1B:08:26:8E:0E:E6")
+        guard !mac.isEmpty else {
+            Bridge.log("G2: dbg1 - no MAC address found")
+            return
+        }
+
+        // connectController("1B:08:26:8E:0E:E6")
+        connectController(mac)
     }
     func dbg2() {
 
         Bridge.log("G2: dbg2()")
 
-        disconnectController("1B:08:26:8E:0E:E6")
+        let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
+
+        guard !mac.isEmpty else {
+            Bridge.log("G2: dbg2 - no MAC address found")
+            return
+        }
+
+        // disconnectController("1B:08:26:8E:0E:E6")
+        disconnectController(mac)
 
         // createPageWithText("test1")
 
@@ -3128,6 +3143,15 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    private func reconnectController() {
+        let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
+        guard !mac.isEmpty else {
+            Bridge.log("G2: reconnectController - no MAC address found")
+            return
+        }
+        connectController(mac)
+    }
+
     private func handleDevSettingsResponse(_ data: Data) {
 
         // DevSettings responses (auth acks, heartbeat acks) — mostly informational
@@ -3168,34 +3192,23 @@ class G2: NSObject, SGCManager {
                 var ringReader = ProtobufReader(ringData)
                 let ringFields = ringReader.parseFields()
 
-                Bridge.log("G2: RingInfo: \(ringFields)")
+                // Bridge.log("G2: RingInfo: \(ringFields)")
 
                 if ringFields[1] as? Int32 ?? 0 == 1 {
                     Bridge.log("G2: Ring maybe connected?")
+                    GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
+
                 }
 
-                //     let connected = ringFields[1] as? Int32 ?? 0  // connectRing
-                //     let connRet = ringFields[4] as? Int32 ?? -1  // connRet: 0 = success
-
-                //     if connected != 0 && connRet == 0 {
-                //         // Bridge.log("G2: Ring connected to glasses")
-                //         // GlassesStore.shared.apply("glasses", "controllerConnected", true)
-                //         // GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
-                //         // GlassesStore.shared.apply("glasses", "controllerSearching", false)
-                //     } else {
-                //         // Bridge.log("G2: Ring not connected to glasses (connRet=\(connRet))")
-                //         // GlassesStore.shared.apply("glasses", "controllerConnected", false)
-                //     }
-
-                //     // Optional: read MAC back
-                //     if let macData = ringFields[2] as? Data, macData.count >= 6 {
-                //         let mac = macData.prefix(6).map { String(format: "%02X", $0) }.joined(
-                //             separator: ":")
-                //         Bridge.log("G2: Ring MAC from glasses: \(mac)")
-                //     }
+                if ringFields[4] as? Int32 ?? 0 == 62 {
+                    Bridge.log("G2: Ring maybe reconnected?")
+                    GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
+                }
             }
 
-            // if the data ends in 2016 that's a disconnect:
+            // if the data ends in 2016 that's a disconnect?:
             // if data.suffix(4) == Data([0x20, 0x16]) {
             //     Bridge.log("G2: Ring disconnected")
             //     GlassesStore.shared.apply("glasses", "controllerConnected", false)
@@ -3206,17 +3219,25 @@ class G2: NSObject, SGCManager {
             if let ringData = fields[5] as? Data {  // field 5 = ringInfo
                 var ringReader = ProtobufReader(ringData)
                 let ringFields = ringReader.parseFields()
-                let connRet = ringFields[4] as? Int32 ?? -1  // field 4 = connRet
-                // let connected = (connRet == 0)
+                let connStatus = ringFields[4] as? Int32 ?? -1  // field 4 = connStatus
                 Bridge.log(
-                    "G2: Ring connection status: connRet=\(connRet) → \(connected ? "hadBound" : "unBind")"
+                    "G2: Ring connection status: connStatus?=\(connStatus))"
                 )
 
-                if connRet == 22 {
+                if connStatus == 22 {
                     Bridge.log("G2: Ring disconnected")
                     GlassesStore.shared.apply("glasses", "controllerConnected", false)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
                     GlassesStore.shared.apply("glasses", "controllerSearching", true)
+                    reconnectController()
+                }
+
+                if connStatus == 8 {
+                    Bridge.log("G2: Ring maybe disconnected?")
+                    GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                    GlassesStore.shared.apply("glasses", "controllerSearching", true)
+                    reconnectController()
                 }
                 // // GlassesStore.shared.apply("glasses", "ringConnectedToGlasses", connected)
 
@@ -3229,7 +3250,7 @@ class G2: NSObject, SGCManager {
         var reader = ProtobufReader(payload)
         let fields = reader.parseFields()
 
-        Bridge.log("G2: G2Setting response: \(fields)")
+        // Bridge.log("G2: G2Setting response: \(fields)")
 
         guard let cmdValue = fields[1] as? Int32 else { return }
 
@@ -3253,6 +3274,8 @@ class G2: NSObject, SGCManager {
         //   12 = battery (int32), 13 = chargingStatus (int32)
         var reader = ProtobufReader(data)
         let fields = reader.parseFields()
+
+        // Bridge.log("G2: DeviceRequestResponse: \(fields)")
 
         // Battery
         if let battery = fields[12] as? Int32 {

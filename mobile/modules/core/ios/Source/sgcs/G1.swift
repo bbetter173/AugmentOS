@@ -331,7 +331,8 @@ class G1: NSObject, SGCManager {
     func ping() {}
     func dbg1() {}
     func dbg2() {}
-    func connectController(_ mac: String) {}
+    func connectController() {}
+    func disconnectController() {}
 
     func requestVersionInfo() {
         Bridge.log("G1: requestVersionInfo - not supported on G1")

@@ -229,7 +229,8 @@ class Simulated: SGCManager {
 
     func dbg1() {}
     func dbg2() {}
-    func connectController(_ mac: String) {}
+    func connectController() {}
+    func disconnectController() {}
 
     // MARK: - Network Management
 

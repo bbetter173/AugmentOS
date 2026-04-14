@@ -96,12 +96,12 @@ class R1: NSObject, ControllerManager {
     private var notifySubscriptionCount = 0
     private var initSequenceRun = false
 
-    // maps peripheral.name to 6-byte ring MAC address:
-    private var ringMacAddressMap: [String: Data] = [:]
 
     // Device search
     var DEVICE_SEARCH_ID = "NOT_SET"
 
+    // persisted state for ease of reconnection / background connection:
+    // we could store these elsewhere to be like other settings / state, but in practice they will only ever be set and used here
     // Stored UUID for background reconnection
     private var ringUUID: UUID? {
         get { UserDefaults.standard.string(forKey: "r1_ringUUID").flatMap { UUID(uuidString: $0) } }
@@ -113,7 +113,14 @@ class R1: NSObject, ControllerManager {
             }
         }
     }
-
+    // maps peripheral.name to 6-byte ring MAC address:
+    private var ringMacAddressMap: [String: Data] {
+        get {
+            UserDefaults.standard.dictionary(forKey: "r1_ringMacAddressMap") as? [String: Data]
+                ?? [:]
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "r1_ringMacAddressMap") }
+    }
     private var ringMacAddress: String? {
         get { UserDefaults.standard.string(forKey: "r1_ringMacAddress") }
         set { UserDefaults.standard.set(newValue, forKey: "r1_ringMacAddress") }
@@ -256,19 +263,21 @@ class R1: NSObject, ControllerManager {
             GlassesStore.shared.apply("core", "controller_device_name", id)
         }
 
+        // TODO: uncomment
         guard let mac = ringMacAddress else {
             Bridge.log("R1: No ring MAC address found")
             return
         }
-
-        // Store ring MAC address for glasses-ring connection (RING_CONNECT_INFO)
-        // let macHex = mac.map { String(format: "%02X", $0) }.joined(separator: ":")
-        // self.ringMacAddress = mac.map { String(format: "%02X", $0) }.joined(separator: ":")
         GlassesStore.shared.apply("glasses", "controllerMacAddress", mac)
-        Bridge.log("R1: Stored ring MAC: \(mac)")
 
         GlassesStore.shared.apply("glasses", "controllerConnected", true)
         GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
+
+        // after a second, connect the glasses to the controller if needed:
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            await CoreManager.shared.sgc?.connectController()
+        }
 
         startHeartbeat()
     }
@@ -515,7 +524,9 @@ extension R1: CBCentralManagerDelegate {
             guard let self = self else { return }
             guard self.matchesNameFilter(name) else { return }
 
-            Bridge.log("R1: Discovered: \(name ?? "?") (RSSI: \(RSSI)) mfgData: \(mfgData?.map { String(format: "%02X", $0) }.joined(separator: " ") ?? "none")")
+            Bridge.log(
+                "R1: Discovered: \(name ?? "?") (RSSI: \(RSSI)) mfgData: \(mfgData?.map { String(format: "%02X", $0) }.joined(separator: " ") ?? "none")"
+            )
 
             // Extract ring MAC from manufacturer data if available and store to a map name:mac
             if let mfgData = mfgData {

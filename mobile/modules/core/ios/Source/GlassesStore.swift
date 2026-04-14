@@ -47,6 +47,8 @@ class GlassesStore {
         store.set("glasses", "bluetoothName", "")
         store.set("glasses", "controllerConnected", false)
         store.set("glasses", "controllerMacAddress", "")
+        store.set("glasses", "controllerBatteryLevel", -1)
+        store.set("glasses", "controllerSignalStrength", -1)
         store.set("glasses", "signalStrength", -1)
         store.set("glasses", "ringSignalStrength", -1)
 
@@ -156,7 +158,7 @@ class GlassesStore {
                 Task {
                     // give the glasses some extra time to finish booting:
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    await CoreManager.shared.sgc?.connectController(mac)
+                    await CoreManager.shared.sgc?.connectController()
                 }
             }
 

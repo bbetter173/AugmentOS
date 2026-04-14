@@ -1431,6 +1431,10 @@ class G2: NSObject, SGCManager {
 
                         GlassesStore.shared.apply("glasses", "connected", true)
                         GlassesStore.shared.apply("glasses", "fullyBooted", true)
+                        
+
+                        // connnect a controller if we have one:
+                        self.connectController()
 
                         // Query version + battery info from glasses
                         self.requestDeviceInfo()
@@ -2491,10 +2495,14 @@ class G2: NSObject, SGCManager {
         sendEvenHubHeartbeat()
     }
 
-    func connectController(_ mac: String) {
-        Bridge.log("G2: connectController(\(mac))")
+    func connectController() {
         guard ready else {
             Bridge.log("G2: connectController - not ready, ignoring")
+            return
+        }
+
+        guard let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String else {
+            Bridge.log("G2: connectController - no MAC address found")
             return
         }
 
@@ -2515,10 +2523,15 @@ class G2: NSObject, SGCManager {
         Bridge.log("G2: Sent RING_CONNECT_INFO for MAC \(mac)")
     }
 
-    func disconnectController(_ mac: String) {
+    func disconnectController() {
 
         guard ready else {
             Bridge.log("G2: disconnectController - not ready, ignoring")
+            return
+        }
+
+        guard let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String else {
+            Bridge.log("G2: disconnectController - no MAC address found")
             return
         }
 
@@ -2536,6 +2549,10 @@ class G2: NSObject, SGCManager {
             ringMac: macData
         )
         sendDevSettingsCommand(msg)
+
+        GlassesStore.shared.apply("glasses", "controllerMacAddress", "")
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
         Bridge.log("G2: Sent RING_DISCONNECT_INFO for MAC \(mac)")
     }
 
@@ -2554,29 +2571,13 @@ class G2: NSObject, SGCManager {
         //     // runAuthSequence()
         //     runDashboardSequence()
         // }
-        let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
-
-        guard !mac.isEmpty else {
-            Bridge.log("G2: dbg1 - no MAC address found")
-            return
-        }
 
         // connectController("1B:08:26:8E:0E:E6")
-        connectController(mac)
+        connectController()
     }
     func dbg2() {
 
         Bridge.log("G2: dbg2()")
-
-        let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
-
-        guard !mac.isEmpty else {
-            Bridge.log("G2: dbg2 - no MAC address found")
-            return
-        }
-
-        // disconnectController("1B:08:26:8E:0E:E6")
-        disconnectController(mac)
 
         // createPageWithText("test1")
 
@@ -3149,7 +3150,7 @@ class G2: NSObject, SGCManager {
             Bridge.log("G2: reconnectController - no MAC address found")
             return
         }
-        connectController(mac)
+        connectController()
     }
 
     private func handleDevSettingsResponse(_ data: Data) {
@@ -3196,14 +3197,14 @@ class G2: NSObject, SGCManager {
 
                 if ringFields[1] as? Int32 ?? 0 == 1 {
                     Bridge.log("G2: Ring maybe connected?")
-                    GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", true)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
 
                 }
 
                 if ringFields[4] as? Int32 ?? 0 == 62 {
                     Bridge.log("G2: Ring maybe reconnected?")
-                    GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", true)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
                 }
             }
@@ -3226,7 +3227,7 @@ class G2: NSObject, SGCManager {
 
                 if connStatus == 22 {
                     Bridge.log("G2: Ring disconnected")
-                    GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", false)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
                     GlassesStore.shared.apply("glasses", "controllerSearching", true)
                     reconnectController()
@@ -3234,7 +3235,7 @@ class G2: NSObject, SGCManager {
 
                 if connStatus == 8 {
                     Bridge.log("G2: Ring maybe disconnected?")
-                    GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", false)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
                     GlassesStore.shared.apply("glasses", "controllerSearching", true)
                     reconnectController()

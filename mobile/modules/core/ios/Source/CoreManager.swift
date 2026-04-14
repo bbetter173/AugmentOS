@@ -1095,6 +1095,8 @@ struct ViewState {
     }
 
     func dbg1() {
+        sgc?.disconnectController()
+        connectDefaultController()
     }
 
     func dbg2() {
@@ -1376,7 +1378,8 @@ struct ViewState {
 
     func disconnectController() {
         searchingController = false
-        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        // disconnect the controller from the glasses if applicable:
+        sgc?.disconnectController()
         controller?.disconnect()
         controller = nil  // Clear the controller reference after disconnect
     }

@@ -361,6 +361,7 @@ export interface GlassesStatus {
   // ring info
   controllerConnected: boolean
   controllerFullyBooted: boolean
+  controllerMacAddress: string
   controllerBatteryLevel: number
   controllerSignalStrength: number
 }

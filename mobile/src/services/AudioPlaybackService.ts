@@ -125,14 +125,14 @@ class AudioPlaybackService {
       return
     }
 
-    this.glassesVolumeRestoreLevel = null
-
     try {
       console.log(`AUDIO: Restoring glasses media volume to ${restoreLevel}`)
       await CoreModule.setGlassesMediaVolume(restoreLevel)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.warn(`AUDIO: Failed to restore glasses volume to ${restoreLevel}:`, msg)
+    } finally {
+      this.glassesVolumeRestoreLevel = null
     }
   }
 

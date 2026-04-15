@@ -382,6 +382,13 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  glasses_menu_apps: {
+    key: "glasses_menu_apps",
+    defaultValue: () => null,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   // button settings
   button_mode: {key: "button_mode", defaultValue: () => "photo", writable: true, saveOnServer: true, persist: true},
   button_photo_size: {
@@ -523,6 +530,14 @@ export const SETTINGS: Record<string, Setting> = {
     defaultValue: () => [],
     writable: true,
     saveOnServer: true,
+    persist: true,
+  },
+  // Cached required version from server - used to enforce updates even when offline
+  cached_required_version: {
+    key: "cached_required_version",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
     persist: true,
   },
   // OTA update dismissal - stores the version code user dismissed (not persisted so resets on app restart)

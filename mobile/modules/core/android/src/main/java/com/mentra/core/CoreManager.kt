@@ -630,7 +630,7 @@ class CoreManager {
         handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
-        if (shouldSendTranscript) {
+        if (shouldSendTranscript || offlineCaptionsRunning) {
             transcriber?.acceptAudio(pcmData)
         }
     }
@@ -1036,6 +1036,7 @@ class CoreManager {
         // save the default_wearable now that we're connected:
         Bridge.saveSetting("default_wearable", defaultWearable)
         Bridge.saveSetting("device_name", deviceName)
+        Bridge.saveSetting("device_address", deviceAddress)
     }
 
     private fun handleG1Ready() {
@@ -1110,6 +1111,14 @@ class CoreManager {
 
     fun ping() {
         sgc?.ping()
+    }
+
+    fun dbg1() {
+        sgc?.dbg1()
+    }
+
+    fun dbg2() {
+        sgc?.dbg2()
     }
 
     fun startStream(message: MutableMap<String, Any>) {
@@ -1380,8 +1389,10 @@ class CoreManager {
         // Clear state
         defaultWearable = ""
         deviceName = ""
+        deviceAddress = ""
         Bridge.saveSetting("default_wearable", "")
         Bridge.saveSetting("device_name", "")
+        Bridge.saveSetting("device_address", "")
     }
 
     fun findCompatibleDevices(deviceModel: String) {

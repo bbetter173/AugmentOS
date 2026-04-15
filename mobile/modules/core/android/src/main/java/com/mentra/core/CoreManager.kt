@@ -974,7 +974,7 @@ class CoreManager {
             // sgc = FrameManager()
         }
         // update device model:
-        GlassesStore.shared.apply("glasses", "deviceModel", sgc.type)
+        GlassesStore.shared.apply("glasses", "deviceModel", sgc?.type ?: "")
     }
 
     fun restartTranscriber() {

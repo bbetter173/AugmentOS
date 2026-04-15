@@ -84,7 +84,7 @@ export function MiniAppCapsuleMenu({
         RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
       })
       let amountToChop = insets.top * PixelRatio.get()
-
+      amountToChop = 0
       const context = ImageManipulator.ImageManipulator.manipulate(uri)
       context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
       const imageRef = await context.renderAsync()
@@ -93,7 +93,15 @@ export function MiniAppCapsuleMenu({
         compress: 0.1,
       })
 
-      await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      if (Platform.OS === "ios") {
+        await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      } else {
+        // android is weird and the crop doesn't work properly:
+        await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
+      }
+
+      // await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
     } catch (e) {
       console.warn("screenshot failed:", e)
     }
@@ -103,10 +111,31 @@ export function MiniAppCapsuleMenu({
     }
   }
 
+  // focusEffectPreventBack(
+  //   onBackPress
+  //     ? () => {
+  //         onBackPress()
+  //       }
+  //     : () => {
+  //         // Defer screenshot capture so it doesn't block the navigation animation
+  //         // InteractionManager.runAfterInteractions(() => {
+  //         //   let shouldGoBack = Platform.OS === "android"
+  //         //   handleExit(shouldGoBack)
+  //         // })
+  //         let shouldGoBack = Platform.OS === "android"
+  //         handleExit(shouldGoBack)
+  //       },
+  //   onBackPress ? false : true,
+  // )
+
   focusEffectPreventBack(
     onBackPress
       ? () => {
-          onBackPress()
+          console.log("CAPSULE MENU: handleBackPress() called")
+          // InteractionManager.runAfterInteractions(() => {
+            handleExit(false)
+            onBackPress()
+          // })
         }
       : () => {
           // Defer screenshot capture so it doesn't block the navigation animation
@@ -115,7 +144,7 @@ export function MiniAppCapsuleMenu({
             handleExit(shouldGoBack)
           })
         },
-    onBackPress ? false : true,
+    true,
   )
 
   return (

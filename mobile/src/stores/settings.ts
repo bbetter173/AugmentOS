@@ -103,7 +103,7 @@ export const SETTINGS: Record<string, Setting> = {
       if (process.env.EXPO_PUBLIC_DEPLOYMENT_REGION === "china") {
         return "https://api.mentraglass.cn:443"
       }
-      return "https://api.mentraglass.com"
+      return "https://api.mentra.glass"
     },
     // If env var is set, always use it (on every boot)
     override: () => process.env.EXPO_PUBLIC_BACKEND_URL_OVERRIDE,
@@ -382,6 +382,13 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  glasses_menu_apps: {
+    key: "glasses_menu_apps",
+    defaultValue: () => null,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   // button settings
   button_mode: {key: "button_mode", defaultValue: () => "photo", writable: true, saveOnServer: true, persist: true},
   button_photo_size: {
@@ -624,10 +631,13 @@ interface SettingsState {
 }
 
 const getDefaultSettings = () =>
-  Object.keys(SETTINGS).reduce((acc, key) => {
-    acc[key] = SETTINGS[key].defaultValue()
-    return acc
-  }, {} as Record<string, any>)
+  Object.keys(SETTINGS).reduce(
+    (acc, key) => {
+      acc[key] = SETTINGS[key].defaultValue()
+      return acc
+    },
+    {} as Record<string, any>,
+  )
 
 export const useSettingsStore = create<SettingsState>()(
   subscribeWithSelector((set, get) => ({

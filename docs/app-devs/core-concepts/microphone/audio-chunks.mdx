@@ -1,9 +1,9 @@
 ---
 title: "Audio Chunks & Mic Input"
-description: "Access raw audio from the microphone and detect voice activity"
+description: "Access raw audio from the microphone and detect voice activity."
 ---
 
-Use `session.mic` to receive raw audio chunks from the glasses microphone and detect when the user is speaking. This is separate from transcription — subscribing to `session.mic` gives you raw audio data, not text.
+Use `session.mic` to receive raw audio chunks from the glasses microphone and detect when the user is speaking. This is separate from transcription - subscribing to `session.mic` gives you raw audio data, not text.
 
 ## Audio Chunks
 
@@ -11,8 +11,8 @@ Receive raw PCM audio data from the microphone:
 
 ```typescript
 const cleanup = session.mic.onChunk((chunk) => {
-  // chunk.arrayBuffer — raw PCM audio data
-  // chunk.sampleRate  — sample rate (typically 16000 Hz)
+  // chunk.arrayBuffer - raw PCM audio data
+  // chunk.sampleRate  - sample rate (typically 16000 Hz)
   const buffer = chunk.arrayBuffer;
   const sampleRate = chunk.sampleRate || 16000;
 });
@@ -44,6 +44,30 @@ const speaking = session.mic.isSpeaking;  // true/false
 const active = session.mic.isActive;       // true if mic is streaming
 ```
 
+## Stop the Microphone
+
+Call `session.mic.stop()` to turn off the microphone and stop all audio chunk and voice activity callbacks:
+
+```typescript
+session.mic.stop();
+```
+
+This is useful when your app no longer needs audio input and you want to conserve battery. Subscribing to `onChunk` or `onVoiceActivity` again will restart the microphone.
+
+## Check Permission
+
+Use `session.mic.hasPermission` to check whether your app has microphone access before subscribing:
+
+```typescript
+if (session.mic.hasPermission) {
+  session.mic.onChunk((chunk) => {
+    // process audio
+  });
+} else {
+  session.logger.warn("Microphone permission not granted");
+}
+```
+
 ## When to Use Mic vs Transcription
 
 | Use case | Use this |
@@ -54,6 +78,7 @@ const active = session.mic.isActive;       // true if mic is streaming
 | Record audio for later processing | `session.mic` |
 | Build a voice command system | `session.transcription` |
 | Stream audio to an external API (Whisper, Deepgram, etc.) | `session.mic` |
+| Stop the mic to save battery | `session.mic.stop()` |
 
 Subscribing to `session.transcription` does NOT give you raw audio. Subscribing to `session.mic` does NOT give you transcription text. They are independent. Either one activates the hardware microphone. If you want both, subscribe to both.
 
@@ -108,4 +133,4 @@ session.events.onAudioChunk((chunk) => { ... });
 session.mic.onChunk((chunk) => { ... });
 ```
 
-Voice activity detection (`session.mic.onVoiceActivity`, `session.mic.isSpeaking`) is new in v3 and has no v2 equivalent. See the [Migration Guide](/app-devs/migration/overview) for the full list of changes.
+Voice activity detection (`session.mic.onVoiceActivity`, `session.mic.isSpeaking`), `session.mic.stop()`, and `session.mic.hasPermission` are new in v3 and have no v2 equivalent. See the [Migration Guide](/app-devs/migration/overview) for the full list of changes.

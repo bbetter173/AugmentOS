@@ -305,7 +305,7 @@ export default function InitScreen() {
   // Render
   if (state === "loading") {
     return (
-      <Screen preset="fixed">
+      <Screen preset="fixed" extraAndroidInsets>
         <SplashVideo colorOverride={superMode ? theme.colors.chart_4 : undefined} />
       </Screen>
     )
@@ -314,7 +314,7 @@ export default function InitScreen() {
   const statusConfig = getStatusConfig()
 
   return (
-    <Screen preset="fixed" safeAreaEdges={["bottom"]}>
+    <Screen preset="fixed" safeAreaEdges={["bottom"]} extraAndroidInsets>
       <Header RightActionComponent={<MentraLogoStandalone />} />
 
       {/* Content */}

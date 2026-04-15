@@ -7,7 +7,7 @@ description: Identify MentraOS users in webviews using the SDK's built-in authen
 
 MentraOS provides a simple and secure way for apps to identify users within webviews. When a user opens your web application through the MentraOS Mobile App, you can automatically identify them without requiring a separate login process.
 
-Auth middleware is applied automatically by `MiniAppServer`. You don't need to set it up — just call `getMentraAuth(c)` on any route.
+Auth middleware is applied automatically by `MiniAppServer`. You don't need to set it up - just call `getMentraAuth(c)` on any route.
 
 ```typescript
 import { MiniAppServer, getMentraAuth } from "@mentra/sdk";
@@ -73,7 +73,7 @@ Specify a webview URL in your app's configuration through the MentraOS Developer
 
 ### 2. Authentication Is Automatic
 
-`MiniAppServer` applies auth middleware to all routes automatically. You don't need to call `createAuthMiddleware` or configure a `cookieSecret` — the SDK uses your `apiKey` to sign session cookies by default.
+`MiniAppServer` applies auth middleware to all routes automatically. You don't need to call `createAuthMiddleware` or configure a `cookieSecret` - the SDK uses your `apiKey` to sign session cookies by default.
 
 ```typescript
 import { MiniAppServer, getMentraAuth } from "@mentra/sdk";
@@ -89,7 +89,7 @@ const app = new MiniAppServer({
 
 ### 3. Access User Identity in Your Routes
 
-Call `getMentraAuth(c)` on any route to get the user's identity. The auth context is available everywhere — no middleware application needed per-route.
+Call `getMentraAuth(c)` on any route to get the user's identity. The auth context is available everywhere - no middleware application needed per-route.
 
 ```typescript
 app.get("/webview", (c) => {
@@ -168,7 +168,7 @@ const app = new MiniAppServer({
 // Public health check
 app.get("/api/health", (c) => c.json({ ok: true }));
 
-// Auth is automatic — getMentraAuth(c) works on every route
+// Auth is automatic - getMentraAuth(c) works on every route
 app.get("/api/user/me", (c) => {
   const auth = getMentraAuth(c);
   if (!auth.userId) return c.json({ error: "Not authenticated" }, 401);
@@ -224,7 +224,7 @@ expressApp.get("/webview", (req: AuthenticatedRequest, res) => {
   res.send(`Welcome ${userId}`);
 });
 
-// v3 (Hono) — auth is automatic
+// v3 (Hono) - auth is automatic
 app.get("/webview", (c) => {
   const auth = getMentraAuth(c);
   return c.html(`Welcome ${auth.userId}`);
@@ -241,4 +241,4 @@ See the [Migration Guide](/app-devs/migration/overview) for the full list of cha
 
 ## React Webviews
 
-If you want to build your frontend webview using React, see the [React Webviews](/app-devs/core-concepts/webviews/react-webviews) guide. The `@mentra/react` package handles authentication on the frontend — it works the same regardless of whether your backend uses v2 or v3.
+If you want to build your frontend webview using React, see the [React Webviews](/app-devs/core-concepts/webviews/react-webviews) guide. The `@mentra/react` package handles authentication on the frontend - it works the same regardless of whether your backend uses v2 or v3.

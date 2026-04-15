@@ -630,7 +630,7 @@ class CoreManager {
         handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
-        if (shouldSendTranscript) {
+        if (shouldSendTranscript || offlineCaptionsRunning) {
             transcriber?.acceptAudio(pcmData)
         }
     }
@@ -1111,6 +1111,14 @@ class CoreManager {
 
     fun ping() {
         sgc?.ping()
+    }
+
+    fun dbg1() {
+        sgc?.dbg1()
+    }
+
+    fun dbg2() {
+        sgc?.dbg2()
     }
 
     fun startStream(message: MutableMap<String, Any>) {

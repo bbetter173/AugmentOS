@@ -142,7 +142,7 @@ export class MentraSession {
       },
     });
 
-    this.permissions = new PermissionsManager({ logger: sdkLogger });
+    this.permissions = new PermissionsManager({ logger: sdkLogger, messageHandlers: this._router.messageHandlers });
 
     const deps = {
       router: this._router.dataStreamRouter,

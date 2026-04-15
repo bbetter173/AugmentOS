@@ -1670,6 +1670,10 @@ class MentraLive: NSObject, SGCManager {
             Bridge.log(
                 "📦 DETECTED FILE TRANSFER PACKET (type: 0x\(String(format: "%02X", commandType)))")
 
+            // Debug: Log the raw data
+            // let hexDump = data.prefix(64).map { String(format: "%02X ", $0) }.joined()
+            // Bridge.log("📦 Raw file packet data length=\(data.count), first 64 bytes: \(hexDump)")
+
             // The data IS the file packet - it starts with ## and contains the full file packet structure
             if let packetInfo = K900ProtocolUtils.extractFilePacket(data) {
                 processFilePacket(packetInfo)
@@ -2275,7 +2279,7 @@ class MentraLive: NSObject, SGCManager {
         Bridge.log(
             "LIVE: Sending incidentId to glasses for log upload: \(incidentId) (BLE relay \(bKey), \(lKey))"
         )
-        sendJson(["type": "upload_incident_logs", "incidentId": incidentId, "apiBaseUrl": base], wakeUp: true)
+        sendJson(["type": "upload_incident_logs", "incidentId": incidentId], wakeUp: true)
     }
 
     private static func incidentBleFileBase(incidentId: String, prefix: Character) -> String {
@@ -2597,9 +2601,8 @@ class MentraLive: NSObject, SGCManager {
         if blePhotoTransfers.removeValue(forKey: bleImgId) != nil {
             Bridge.log("LIVE: 🧹 Cleaned up timed out BLE photo transfer for: \(bleImgId)")
         }
-        if let incidentRelay = bleIncidentLogRelays[bleImgId] {
-            incidentRelay.session = nil
-            Bridge.log("LIVE: 🧹 Reset timed out BLE incident log relay session for: \(bleImgId)")
+        if bleIncidentLogRelays.removeValue(forKey: bleImgId) != nil {
+            Bridge.log("LIVE: 🧹 Cleaned up timed out BLE incident log relay for: \(bleImgId)")
         }
     }
 
@@ -2635,9 +2638,8 @@ class MentraLive: NSObject, SGCManager {
                 "LIVE: 🧹 Cleaned up failed BLE photo transfer for: \(bleImgId) (requestId: \(transfer.requestId))"
             )
         }
-        if let incidentRelay = bleIncidentLogRelays[bleImgId] {
-            incidentRelay.session = nil
-            Bridge.log("LIVE: 🧹 Reset failed BLE incident log relay session for: \(bleImgId)")
+        if bleIncidentLogRelays.removeValue(forKey: bleImgId) != nil {
+            Bridge.log("LIVE: 🧹 Cleaned up failed BLE incident log relay for: \(bleImgId)")
         }
     }
 
@@ -2676,7 +2678,6 @@ class MentraLive: NSObject, SGCManager {
             incidentRelay.session = session
 
             if added {
-                sendFileTransferAck(packIndex: Int(packetInfo.packIndex) + 1)
                 if session.isComplete {
                     if let payload = session.assembleFile() {
                         uploadBleIncidentLogRelay(
@@ -2729,7 +2730,6 @@ class MentraLive: NSObject, SGCManager {
                 blePhotoTransfers[bleImgId] = photoTransfer
 
                 if added {
-                    sendFileTransferAck(packIndex: Int(packetInfo.packIndex) + 1)
                     if session.isComplete {
                         let transferEndTime = Date()
                         let totalDuration =
@@ -2801,9 +2801,8 @@ class MentraLive: NSObject, SGCManager {
             activeFileTransfers[packetInfo.fileName] = sess
 
             if added {
-                sendFileTransferAck(packIndex: Int(packetInfo.packIndex) + 1)
                 Bridge.log(
-                    "LIVE: 📦 Packet \(packetInfo.packIndex) received successfully"
+                    "LIVE: 📦 Packet \(packetInfo.packIndex) received successfully (BES will auto-ACK)"
                 )
 
                 if sess.isComplete {
@@ -2987,19 +2986,6 @@ class MentraLive: NSObject, SGCManager {
         ]
 
         sendJson(json, requireAck: false)
-    }
-
-    /// Send an explicit cs_flts packet ACK to the glasses.
-    /// Bypasses the commandQueue so the ACK arrives with minimal latency.
-    /// The glasses expect 1-indexed packIndex (i.e. packIndex = packetInfo.packIndex + 1).
-    private func sendFileTransferAck(packIndex: Int) {
-        guard let peripheral = connectedPeripheral,
-              let txChar = txCharacteristic else { return }
-        let ackJson = "{\"C\":\"cs_flts\",\"B\":{\"state\":1,\"index\":\(packIndex)}}"
-        guard let jsonData = ackJson.data(using: .utf8),
-              let packed = packDataToK900(jsonData, cmdType: K900ProtocolUtils.CMD_TYPE_STRING)
-        else { return }
-        peripheral.writeValue(packed, for: txChar, type: .withoutResponse)
     }
 
     private func sendTransferCompleteConfirmation(fileName: String, success: Bool) {

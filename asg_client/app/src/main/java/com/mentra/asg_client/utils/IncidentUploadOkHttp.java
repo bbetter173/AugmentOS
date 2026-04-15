@@ -144,18 +144,21 @@ public final class IncidentUploadOkHttp {
     if (chain == null || chain.length == 0) {
       throw new CertificateException("Empty server chain");
     }
+
+    // Let the platform delegate validate first (CA store, pinning, etc.).
+    // Only bypass revocation if that is the specific reason for failure.
     try {
       platformTm.checkServerTrusted(chain, authType);
       return;
     } catch (CertificateException e) {
       String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
-      boolean revocationRelated = msg.contains("revocation") || msg.contains("ocsp")
-          || msg.contains("crl");
-      if (!revocationRelated) {
+      boolean isRevocationFailure = msg.contains("revoc") || msg.contains("ocsp") || msg.contains("crl");
+      if (!isRevocationFailure) {
         throw e;
       }
-      Log.w(TAG, "Platform trust failed with revocation error — retrying without revocation check");
+      // Fall through to PKIX validation with revocation disabled.
     }
+
     X509Certificate[] trustedChain = platformTm.getAcceptedIssuers();
     Set<TrustAnchor> anchors = new HashSet<>();
     for (X509Certificate ca : trustedChain) {

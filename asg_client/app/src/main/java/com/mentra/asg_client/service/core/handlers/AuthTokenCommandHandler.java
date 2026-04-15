@@ -54,7 +54,7 @@ public class AuthTokenCommandHandler implements ICommandHandler {
         try {
             String coreToken = data.optString("coreToken", "").trim();
             if (coreToken.isEmpty()) {
-                Log.e(TAG, "Received empty or whitespace-only coreToken");
+                Log.e(TAG, "Received empty coreToken");
                 communicationManager.sendTokenStatusResponse(false);
                 return false;
             }

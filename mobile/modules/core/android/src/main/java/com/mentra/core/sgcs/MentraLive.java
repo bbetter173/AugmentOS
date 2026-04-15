@@ -2801,12 +2801,6 @@ public class MentraLive extends SGCManager {
                 if (photoTransfer != null) {
                     Bridge.log("LIVE: 🧹 Cleaned up timed out BLE photo transfer for: " + bleImgId);
                 }
-
-                BleIncidentLogRelay incidentRelay = bleIncidentLogRelays.get(bleImgId);
-                if (incidentRelay != null) {
-                    incidentRelay.session = null;
-                    Bridge.log("LIVE: 🧹 Reset timed out BLE incident log relay session for: " + bleImgId);
-                }
             }
 
         } catch (Exception e) {
@@ -2850,10 +2844,8 @@ public class MentraLive extends SGCManager {
                 Bridge.log("LIVE: 🧹 Cleaned up failed BLE photo transfer for: " + bleImgId + " (requestId: " + photoTransfer.requestId + ")");
             }
 
-            BleIncidentLogRelay incidentRelay = bleIncidentLogRelays.get(bleImgId);
-            if (incidentRelay != null) {
-                incidentRelay.session = null;
-                Bridge.log("LIVE: 🧹 Reset failed BLE incident log relay session for: " + bleImgId);
+            if (bleIncidentLogRelays.remove(bleImgId) != null) {
+                Bridge.log("LIVE: 🧹 Cleaned up failed BLE incident log relay for: " + bleImgId);
             }
         } catch (Exception e) {
             Log.e(TAG, "❌ Error processing transfer failed notification", e);
@@ -3305,7 +3297,6 @@ public class MentraLive extends SGCManager {
             JSONObject json = new JSONObject();
             json.put("type", "upload_incident_logs");
             json.put("incidentId", incidentId);
-            json.put("apiBaseUrl", base);
             sendJson(json, true);
             Bridge.log("LIVE: Sent incidentId to glasses for log upload: " + incidentId
                     + " (BLE relay keys " + bKey + ", " + lKey + ")");
@@ -5633,14 +5624,14 @@ public class MentraLive extends SGCManager {
                         uploadBleIncidentLogPayload(incidentRelay, packetInfo.fileName, payload);
                     } else {
                         sendTransferCompleteConfirmation(packetInfo.fileName, false);
-                        incidentRelay.session = null;
+                        bleIncidentLogRelays.remove(incidentRelay.fileBaseKey);
                     }
                 } else {
                     List<Integer> missingPackets = incidentRelay.session.getMissingPackets();
                     Log.e(TAG, "❌ BLE incident log transfer incomplete. Missing " + missingPackets.size()
                             + " packets: " + missingPackets);
                     sendTransferCompleteConfirmation(packetInfo.fileName, false);
-                    incidentRelay.session = null;
+                    bleIncidentLogRelays.remove(incidentRelay.fileBaseKey);
                 }
             }
 
@@ -5926,16 +5917,12 @@ public class MentraLive extends SGCManager {
                     if (success) {
                         Bridge.log("LIVE: ✅ Incident log BLE relay uploaded (" + relay.kind + "): "
                                 + relay.incidentId);
-                        bleIncidentLogRelays.remove(relay.fileBaseKey);
                     } else {
                         Log.e(TAG, "❌ Incident log BLE relay upload failed (" + relay.kind + "): "
                                 + message);
-                        BleIncidentLogRelay existing = bleIncidentLogRelays.get(relay.fileBaseKey);
-                        if (existing != null) {
-                            existing.session = null;
-                        }
                     }
                     sendTransferCompleteConfirmation(fileName, success);
+                    bleIncidentLogRelays.remove(relay.fileBaseKey);
                 }));
     }
 

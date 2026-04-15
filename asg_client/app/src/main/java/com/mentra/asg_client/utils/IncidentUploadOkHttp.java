@@ -144,6 +144,18 @@ public final class IncidentUploadOkHttp {
     if (chain == null || chain.length == 0) {
       throw new CertificateException("Empty server chain");
     }
+    try {
+      platformTm.checkServerTrusted(chain, authType);
+      return;
+    } catch (CertificateException e) {
+      String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+      boolean revocationRelated = msg.contains("revocation") || msg.contains("ocsp")
+          || msg.contains("crl");
+      if (!revocationRelated) {
+        throw e;
+      }
+      Log.w(TAG, "Platform trust failed with revocation error — retrying without revocation check");
+    }
     X509Certificate[] trustedChain = platformTm.getAcceptedIssuers();
     Set<TrustAnchor> anchors = new HashSet<>();
     for (X509Certificate ca : trustedChain) {

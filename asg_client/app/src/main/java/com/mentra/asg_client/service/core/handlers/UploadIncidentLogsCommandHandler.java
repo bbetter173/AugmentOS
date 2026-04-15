@@ -244,7 +244,11 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                 deleteQuietly(bFile);
                 return;
             }
-            waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
+            if (!waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS)) {
+                Log.e(TAG, "Timed out waiting for firmware BLE transfer — aborting relay for " + incidentId);
+                deleteQuietly(bFile);
+                return;
+            }
             deleteQuietly(bFile);
 
             String logcatJson = buildGlassesLogcatJson();
@@ -257,7 +261,11 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                 deleteQuietly(lFile);
                 return;
             }
-            waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
+            if (!waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS)) {
+                Log.e(TAG, "Timed out waiting for logcat BLE transfer — aborting relay for " + incidentId);
+                deleteQuietly(lFile);
+                return;
+            }
             deleteQuietly(lFile);
 
             Log.i(TAG, "✅ BLE relay sequence completed for incident " + incidentId);
@@ -290,12 +298,16 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
         }
     }
 
-    private void waitUntilFileTransferIdle(IBluetoothManager bt, long maxWaitMs)
+    /**
+     * @return true if transfer completed; false if timed out while still in progress.
+     */
+    private boolean waitUntilFileTransferIdle(IBluetoothManager bt, long maxWaitMs)
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + maxWaitMs;
         while (bt.isFileTransferInProgress()
                 && System.currentTimeMillis() < deadline) {
             Thread.sleep(FILE_TRANSFER_IDLE_POLL_MS);
         }
+        return !bt.isFileTransferInProgress();
     }
 }

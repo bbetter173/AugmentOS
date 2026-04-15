@@ -48,7 +48,12 @@ public class K900MessageParser {
         // extracting all complete ##...$$ frames (including multiple frames per read).
         boolean added = mCircleBuffer.add(data, 0, size);
         if (!added) {
-            Log.w(TAG, "Failed to append " + size + " bytes to parser buffer");
+            Log.w(TAG, "Buffer overflow adding " + size + " bytes — clearing and retrying");
+            mCircleBuffer.clear();
+            added = mCircleBuffer.add(data, 0, size);
+            if (!added) {
+                Log.e(TAG, "Failed to add " + size + " bytes even after clearing buffer");
+            }
         }
         return added;
     }

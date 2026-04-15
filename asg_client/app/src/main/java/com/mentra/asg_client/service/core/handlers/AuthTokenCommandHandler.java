@@ -52,9 +52,9 @@ public class AuthTokenCommandHandler implements ICommandHandler {
      */
     private boolean handleAuthToken(JSONObject data) {
         try {
-            String coreToken = data.optString("coreToken", "");
+            String coreToken = data.optString("coreToken", "").trim();
             if (coreToken.isEmpty()) {
-                Log.e(TAG, "Received empty coreToken");
+                Log.e(TAG, "Received empty or whitespace-only coreToken");
                 communicationManager.sendTokenStatusResponse(false);
                 return false;
             }

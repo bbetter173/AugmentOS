@@ -638,7 +638,7 @@ class CoreManager {
     private var isUpdatingMicState = false
     private var pendingMicStateUpdate = false
 
-    private fun updateMicState() {
+    internal fun updateMicState() {
         // Guard against re-entrant calls from onRouteChange callbacks
         if (isUpdatingMicState) {
             pendingMicStateUpdate = true

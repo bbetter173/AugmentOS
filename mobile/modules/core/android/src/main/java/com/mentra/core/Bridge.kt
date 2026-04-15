@@ -246,6 +246,14 @@ public class Bridge private constructor() {
             sendTypedMessage("button_press", buttonData as Map<String, Any>)
         }
 
+        /** Send miniapp selection event from glasses dashboard menu */
+        @JvmStatic
+        fun sendMiniappSelected(packageName: String) {
+            val body = HashMap<String, Any>()
+            body["packageName"] = packageName
+            sendTypedMessage("miniapp_selected", body)
+        }
+
         /** Send touch/gesture event from glasses - matches iOS implementation */
         @JvmStatic
         fun sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Long) {

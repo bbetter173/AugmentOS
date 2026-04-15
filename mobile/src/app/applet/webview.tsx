@@ -397,7 +397,7 @@ export default function AppWebView() {
       <Screen
         preset="fixed"
         safeAreaEdges={Platform.OS === "android" ? ["top", "bottom"] : ["top"]}
-        KeyboardAvoidingViewProps={{enabled: true}}
+        KeyboardAvoidingViewProps={{enabled: false}}
         className="px-0"
         ref={viewShotRef}>
         {/* rainbow bars for debugging insets / screenshots */}

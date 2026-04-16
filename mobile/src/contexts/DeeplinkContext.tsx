@@ -519,6 +519,12 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
 
   const processUrl = async (url: string, initial: boolean = false) => {
     try {
+      // ignore expo-dev-deeplinks: (this was causing android to restart the app after hot-reloads twice)
+      if (url.includes("expo-development-client")) {
+        console.log("[DEEPLINK] Ignoring expo-development-client URL:", url)
+        return
+      }
+      
       // Deduplicate — iOS can fire the same universal link event multiple times,
       // and on cold start both getInitialURL and addEventListener fire for the
       // same URL. Initial calls skip the check but claim the URL so that the

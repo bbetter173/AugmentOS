@@ -2302,7 +2302,7 @@ class G2 : SGCManager() {
     }
     override fun dbg2() {}
 
-    fun connectController() {
+    override fun connectController() {
         if (!ready) {
             Bridge.log("G2: connectController - not ready, ignoring")
             return
@@ -2323,7 +2323,7 @@ class G2 : SGCManager() {
         Bridge.log("G2: Sent RING_CONNECT_INFO for MAC $mac")
     }
 
-    fun disconnectController() {
+    override fun disconnectController() {
         if (!ready) {
             Bridge.log("G2: disconnectController - not ready, ignoring")
             return

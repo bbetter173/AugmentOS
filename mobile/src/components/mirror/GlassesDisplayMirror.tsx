@@ -154,8 +154,7 @@ const GlassesDisplayMirror: React.FC<GlassesDisplayMirrorProps> = ({
           <View style={{gap: 2}}>
             {lines.map((line: string, index: number) => (
               <Text key={index} style={[textStyle, styles.cardContent]} numberOfLines={1}>
-                {line || "\u00A0"}
-                {/* Non-breaking space for empty lines */}
+                {line || "\u00A0"} {/* Non-breaking space for empty lines */}
               </Text>
             ))}
           </View>

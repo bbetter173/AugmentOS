@@ -81,9 +81,6 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   // Microphone Commands
   setMicState(sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean): Promise<void>
   restartTranscriber(): Promise<void>
-  injectTestAudioFromFile(
-    filePath: string,
-  ): Promise<{success: boolean; error?: string; pcmBytes?: number; durationMs?: number}>
 
   // Audio Playback Monitoring
   // Notify native side when our app starts/stops playing audio

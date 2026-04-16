@@ -1,6 +1,6 @@
 import restComms from "@/services/RestComms"
 import type {PhotoInfo} from "@/types/asg"
-import {buildBugReportFeedbackDataForBug, submitBugIncident} from "./bugReportIncident"
+import {submitCategorizedBugIncident} from "./automaticBugReport"
 import {
   GALLERY_VIDEO_REPORT_DEDUPE_MS,
   galleryVideoIncidentDedupeKey,
@@ -66,17 +66,18 @@ export async function submitGalleryVideoPlaybackBugReport(
   )
 
   try {
-    const feedbackData = await buildBugReportFeedbackDataForBug({
+    const submitRes = await submitCategorizedBugIncident({
+      categorization: {
+        submissionMode: "AUTOMATIC",
+        triggerArea: "gallery_video",
+        triggerReason: "gallery_video_on_error",
+        source: "gallery_video_onError",
+        automatic: true,
+      },
       expectedBehavior: "Video should play in the glasses gallery.",
       actualBehavior,
       severityRating: 5,
-      extraFeedbackFields: {
-        automatic: true,
-        source: "gallery_video_onError",
-      },
     })
-
-    const submitRes = await submitBugIncident(feedbackData)
     if (!submitRes.ok) {
       console.error("[GalleryVideoBugReport] submitBugIncident failed:", submitRes.error)
     } else {

@@ -41,6 +41,8 @@ export interface IncidentResponse {
   incidentId: string;
 }
 
+export type IncidentSubmissionMode = "USER_INITIATED" | "AUTOMATIC";
+
 // ============================================================================
 // Feedback Types (feature requests via /api/client/feedback)
 // ============================================================================
@@ -66,6 +68,15 @@ export interface FeedbackData {
   expectedBehavior?: string;
   actualBehavior?: string;
   severityRating?: number;
+  submissionMode?: IncidentSubmissionMode;
+  triggerArea?: string;
+  triggerReason?: string;
+  sourceAppletPackageName?: string;
+  sourceAppletName?: string;
+  /** Backward-compatible flag used by some existing automatic incident flows. */
+  automatic?: boolean;
+  /** Backward-compatible source tag used by some existing automatic incident flows. */
+  source?: string;
   // Feature request fields
   feedbackText?: string;
   experienceRating?: number;

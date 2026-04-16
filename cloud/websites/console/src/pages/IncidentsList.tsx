@@ -34,10 +34,25 @@ const IncidentsList: React.FC = () => {
     hasMore: false,
   });
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [submissionMode, setSubmissionMode] = useState<"" | Incident["submissionMode"]>("");
+  const [triggerArea, setTriggerArea] = useState("");
+  const [triggerReason, setTriggerReason] = useState("");
 
   useEffect(() => {
     fetchIncidents();
-  }, [pagination.offset, pagination.limit]);
+  }, [pagination.offset, pagination.limit, searchQuery, submissionMode, triggerArea, triggerReason]);
+
+  useEffect(() => {
+    setPagination((prev) =>
+      prev.offset === 0
+        ? prev
+        : {
+            ...prev,
+            offset: 0,
+          },
+    );
+  }, [searchQuery, submissionMode, triggerArea, triggerReason]);
 
   const fetchIncidents = async () => {
     setIsLoading(true);
@@ -45,7 +60,13 @@ const IncidentsList: React.FC = () => {
     try {
       const response = await api.admin.incidents.list(
         pagination.limit,
-        pagination.offset
+        pagination.offset,
+        {
+          q: searchQuery.trim() || undefined,
+          submissionMode: submissionMode || undefined,
+          triggerArea: triggerArea.trim() || undefined,
+          triggerReason: triggerReason.trim() || undefined,
+        },
       );
       setIncidents(response.data);
       setPagination((prev) => ({
@@ -94,6 +115,24 @@ const IncidentsList: React.FC = () => {
     }
   };
 
+  const getSubmissionBadge = (mode?: Incident["submissionMode"]) => {
+    if (mode === "AUTOMATIC") {
+      return <Badge className="bg-slate-100 text-slate-800 hover:bg-slate-200">Automatic</Badge>;
+    }
+    if (mode === "USER_INITIATED") {
+      return <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200">User Initiated</Badge>;
+    }
+    return null;
+  };
+
+  const formatAreaLabel = (value?: string) =>
+    value
+      ? value
+          .split("_")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ")
+      : null;
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {
@@ -138,6 +177,40 @@ const IncidentsList: React.FC = () => {
             Refresh
           </Button>
         </div>
+
+        <Card>
+          <CardContent className="py-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <input
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm"
+                placeholder="Search user, applet, reason, summary..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <select
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm"
+                value={submissionMode}
+                onChange={(e) => setSubmissionMode(e.target.value as "" | Incident["submissionMode"])}
+              >
+                <option value="">All submission modes</option>
+                <option value="USER_INITIATED">User initiated</option>
+                <option value="AUTOMATIC">Automatic</option>
+              </select>
+              <input
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm"
+                placeholder="Filter trigger area"
+                value={triggerArea}
+                onChange={(e) => setTriggerArea(e.target.value)}
+              />
+              <input
+                className="h-10 rounded-md border border-gray-300 px-3 text-sm"
+                placeholder="Filter trigger reason"
+                value={triggerReason}
+                onChange={(e) => setTriggerReason(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Error state */}
         {error && (
@@ -198,6 +271,19 @@ const IncidentsList: React.FC = () => {
                               {incident.summary}
                             </span>
                           )}
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {getSubmissionBadge(incident.submissionMode)}
+                            {incident.triggerArea && (
+                              <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-200">
+                                {formatAreaLabel(incident.triggerArea)}
+                              </Badge>
+                            )}
+                            {incident.sourceAppletName && (
+                              <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
+                                {incident.sourceAppletName}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
 

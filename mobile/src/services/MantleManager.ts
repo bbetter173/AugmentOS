@@ -9,6 +9,7 @@ import {migrate} from "@/services/Migrations"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
 import {gallerySyncService} from "@/services/asg/gallerySyncService"
+import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore, getGlasesInfoPartial} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
@@ -357,6 +358,49 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("pair_failure", (event) => {
           GlobalEventEmitter.emit("pair_failure", event.error)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("captions_tester_incident", (event) => {
+          const failureCode = typeof event.failure_code === "string" ? event.failure_code : "unknown"
+          const failureMessage =
+            typeof event.failure_message === "string" ? event.failure_message : "Captions tester incident detected."
+          const testRunId = typeof event.test_run_id === "string" ? event.test_run_id : undefined
+          const scenarioName = typeof event.scenario_name === "string" ? event.scenario_name : undefined
+
+          const actualBehavior = JSON.stringify(
+            {
+              failureCode,
+              failureMessage,
+              testRunId,
+              scenarioName,
+              event,
+            },
+            null,
+            2,
+          )
+
+          const dedupeKey = [
+            "captions_tester",
+            failureCode,
+            scenarioName || "unknown",
+            testRunId || "unknown",
+          ].join("|")
+
+          void submitAutomaticBugIncident({
+            categorization: {
+              submissionMode: "AUTOMATIC",
+              triggerArea: "captions_tester",
+              triggerReason: "captions_incident_detected",
+              source: "captions_tester_incident",
+            },
+            expectedBehavior: "Captions tester runs should complete without a captions incident.",
+            actualBehavior,
+            severityRating: 4,
+            dedupeKey,
+            logTag: "CaptionsTesterBugReport",
+          })
         }),
       )
 

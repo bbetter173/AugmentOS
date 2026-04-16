@@ -1,3 +1,4 @@
+import {useLocalSearchParams} from "expo-router"
 import * as ImagePicker from "expo-image-picker"
 import Constants from "expo-constants"
 import * as Location from "expo-location"
@@ -10,6 +11,7 @@ import {RadioGroup, RatingButtons, StarRating} from "@/components/ui"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {buildBugReportFeedbackDataForBug, submitBugIncident} from "@/services/bugReport/bugReportIncident"
+import {buildIncidentCategorization} from "@/services/bugReport/incidentCategorization"
 import restComms from "@/services/RestComms"
 import {feedbackPackageName, settingsPackageName, useAppletStatusStore} from "@/stores/applets"
 import {useGlassesStore} from "@/stores/glasses"
@@ -20,6 +22,13 @@ import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 
 export default function FeedbackPage() {
+  const params = useLocalSearchParams<{
+    submissionMode?: string
+    triggerArea?: string
+    triggerReason?: string
+    sourceAppletPackageName?: string
+    sourceAppletName?: string
+  }>()
   const [savedContactEmail, setSavedContactEmail] = useSetting(SETTINGS.contact_email.key)
   const [email, setEmail] = useState((savedContactEmail as string) || "")
   const [feedbackType, setFeedbackType] = useState<"bug" | "feature">("bug")
@@ -127,6 +136,14 @@ export default function FeedbackPage() {
         actualBehavior,
         severityRating: severityRating!,
         contactEmail: isApplePrivateRelay && email.trim() ? email.trim() : undefined,
+        extraFeedbackFields: buildIncidentCategorization({
+          submissionMode: params.submissionMode === "AUTOMATIC" ? "AUTOMATIC" : "USER_INITIATED",
+          triggerArea: typeof params.triggerArea === "string" ? params.triggerArea : "feedback_screen",
+          triggerReason: typeof params.triggerReason === "string" ? params.triggerReason : "manual_bug_report",
+          sourceAppletPackageName:
+            typeof params.sourceAppletPackageName === "string" ? params.sourceAppletPackageName : undefined,
+          sourceAppletName: typeof params.sourceAppletName === "string" ? params.sourceAppletName : undefined,
+        }),
       })
 
       console.log("Feedback submitted:", JSON.stringify(feedbackData, null, 2))
@@ -363,7 +380,7 @@ export default function FeedbackPage() {
                         {text: translate("common:ok")},
                       ])
                     }>
-                    <Icon name="info-circle" size={16} color={theme.colors.muted_foreground} />
+                    <Icon name="info" size={16} color={theme.colors.muted_foreground} />
                   </Pressable>
                 </View>
                 <TextInput

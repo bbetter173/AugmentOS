@@ -14,6 +14,7 @@ import * as Sentry from "@sentry/react-native"
 import {getCurrentRoute, push} from "@/contexts/NavigationHistoryContext"
 import {translate} from "@/i18n"
 import CoreModule from "core"
+import {submitMiniappStartFailedBugReport} from "@/services/bugReport/miniappStartBugReport"
 import restComms from "@/services/RestComms"
 import STTModelManager from "@/services/STTModelManager"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
@@ -44,7 +45,7 @@ export interface ClientAppletInterface extends AppletInterface {
 interface AppStatusState {
   apps: ClientAppletInterface[]
   refreshApplets: () => Promise<void>
-  retryStartApp: (packageName: string) => void
+  retryStartApp: (packageName: string) => Promise<void>
   startApplet: (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => Promise<void>
   stopApplet: (packageName: string) => Promise<void>
   stopAllApplets: () => AsyncResult<void, Error>
@@ -679,7 +680,7 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
 export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
   apps: [],
 
-  retryStartApp: (packageName: string) => {
+  retryStartApp: async (packageName: string) => {
     // Re-send start request and set up polling (used by error screen retry)
     if (refreshInterval) {
       BackgroundTimer.clearInterval(refreshInterval)
@@ -697,7 +698,12 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
         }
       }
     }, 1000)
-    restComms.startApp(packageName)
+    const applet = get().apps.find((app) => app.packageName === packageName)
+    const startResult = await restComms.startApp(packageName)
+    if (startResult.is_error() && applet) {
+      console.error(`Failed to retry start applet ${packageName}: ${startResult.error}`)
+      void submitMiniappStartFailedBugReport(applet, startResult.error, "retry_start")
+    }
   },
 
   refreshApplets: async () => {
@@ -903,6 +909,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     const result = await startStopApplet(applet, true)
     if (result.is_error()) {
       console.error(`Failed to start applet ${applet.packageName}: ${result.error}`)
+      void submitMiniappStartFailedBugReport(applet, result.error, "initial_start")
       set((state) => ({
         apps: state.apps.map((a) => (a.packageName === packageName ? {...a, running: false, loading: false} : a)),
       }))

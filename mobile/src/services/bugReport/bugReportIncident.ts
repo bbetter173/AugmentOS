@@ -7,6 +7,9 @@ import {Platform} from "react-native"
 
 import restComms from "@/services/RestComms"
 import {useAppletStatusStore} from "@/stores/applets"
+import {useConnectionStore} from "@/stores/connection"
+import {useCoreStore} from "@/stores/core"
+import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {logBuffer} from "@/utils/dev/logging"
@@ -25,12 +28,43 @@ export interface BuildBugReportFeedbackDataForBugParams {
 export function buildBugReportPhoneState(): Record<string, unknown> {
   const appletState = useAppletStatusStore.getState()
   const settingsState = useSettingsStore.getState()
+  const {setCoreInfo: _setCoreInfo, reset: _resetCore, ...coreState} = useCoreStore.getState()
+  const {setDebugInfo: _setDebugInfo, reset: _resetDebug, ...debugState} = useDebugStore.getState()
+  const {
+    setStatus: _setConnectionStatus,
+    setUrl: _setConnectionUrl,
+    setError: _setConnectionError,
+    incrementReconnectAttempts: _incrementReconnectAttempts,
+    resetReconnectAttempts: _resetReconnectAttempts,
+    reset: _resetConnection,
+    ...connectionState
+  } = useConnectionStore.getState()
   const filteredSettings = Object.fromEntries(
     Object.entries(settingsState.settings || {}).filter(([key]) => !SENSITIVE_KEYS.includes(key)),
   )
+
+  const applets = appletState.apps.map((app) => ({
+    packageName: app.packageName,
+    name: app.name,
+    running: app.running,
+    loading: app.loading,
+    healthy: app.healthy,
+    hidden: app.hidden,
+    type: app.type,
+    offline: app.offline,
+    local: app.local,
+  }))
+
   return {
     glasses: useGlassesStore.getState(),
-    installedApplets: appletState.apps.map((app) => app.packageName),
+    core: coreState,
+    debug: debugState,
+    connection: connectionState,
+    applets: {
+      apps: applets,
+      installed: applets.map((app) => app.packageName),
+    },
+    installedApplets: applets.map((app) => app.packageName),
     settings: filteredSettings,
   }
 }

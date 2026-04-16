@@ -332,6 +332,11 @@ export class SlackNotificationService {
     const actualBehavior = feedback?.actualBehavior as string | undefined;
     const severityRating = feedback?.severityRating as number | undefined;
     const systemInfo = feedback?.systemInfo as Record<string, unknown> | undefined;
+    const submissionMode = feedback?.submissionMode as string | undefined;
+    const triggerArea = feedback?.triggerArea as string | undefined;
+    const triggerReason = feedback?.triggerReason as string | undefined;
+    const sourceAppletPackageName = feedback?.sourceAppletPackageName as string | undefined;
+    const sourceAppletName = feedback?.sourceAppletName as string | undefined;
 
     // Build feedback fields if available
     const feedbackBlocks: SlackBlock[] = [];
@@ -365,6 +370,42 @@ export class SlackNotificationService {
           type: "mrkdwn",
           text: `*Severity:* ${severityEmoji} ${severityRating}/5`,
         },
+      });
+    }
+
+    const categorizationBlock: SlackBlock[] = [];
+    const categorizationFields: Array<{ type: string; text: string }> = [];
+    if (submissionMode) {
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Submission mode:*\n${this.escapeSlackText(submissionMode)}`,
+      });
+    }
+    if (triggerArea) {
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Trigger area:*\n${this.escapeSlackText(triggerArea)}`,
+      });
+    }
+    if (triggerReason) {
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Trigger reason:*\n${this.escapeSlackText(triggerReason)}`,
+      });
+    }
+    if (sourceAppletPackageName || sourceAppletName) {
+      const sourceAppletText = sourceAppletName && sourceAppletPackageName
+        ? `${sourceAppletName} (${sourceAppletPackageName})`
+        : sourceAppletName || sourceAppletPackageName!;
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Source applet:*\n${this.escapeSlackText(sourceAppletText)}`,
+      });
+    }
+    if (categorizationFields.length > 0) {
+      categorizationBlock.push({
+        type: "section",
+        fields: categorizationFields,
       });
     }
 
@@ -430,6 +471,7 @@ export class SlackNotificationService {
         },
         ...feedbackBlocks,
         ...severityBlock,
+        ...categorizationBlock,
         ...systemInfoBlock,
         {
           type: "section",

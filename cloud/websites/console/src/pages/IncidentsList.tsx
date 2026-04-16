@@ -1,14 +1,7 @@
 // pages/IncidentsList.tsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@mentra/shared";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@mentra/shared";
 import { useNavigate } from "react-router-dom";
 import {
   Loader2,
@@ -38,46 +31,53 @@ const IncidentsList: React.FC = () => {
   const [submissionMode, setSubmissionMode] = useState<"" | Incident["submissionMode"]>("");
   const [triggerArea, setTriggerArea] = useState("");
   const [triggerReason, setTriggerReason] = useState("");
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    fetchIncidents();
-  }, [pagination.offset, pagination.limit, searchQuery, submissionMode, triggerArea, triggerReason]);
+    if (pagination.offset !== 0) {
+      setPagination((prev) => ({
+        ...prev,
+        offset: 0,
+      }));
+      return;
+    }
 
-  useEffect(() => {
-    setPagination((prev) =>
-      prev.offset === 0
-        ? prev
-        : {
-            ...prev,
-            offset: 0,
-          },
-    );
+    void fetchIncidents();
   }, [searchQuery, submissionMode, triggerArea, triggerReason]);
 
+  useEffect(() => {
+    void fetchIncidents();
+  }, [pagination.offset, pagination.limit]);
+
   const fetchIncidents = async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.admin.incidents.list(
-        pagination.limit,
-        pagination.offset,
-        {
-          q: searchQuery.trim() || undefined,
-          submissionMode: submissionMode || undefined,
-          triggerArea: triggerArea.trim() || undefined,
-          triggerReason: triggerReason.trim() || undefined,
-        },
-      );
+      const response = await api.admin.incidents.list(pagination.limit, pagination.offset, {
+        q: searchQuery.trim() || undefined,
+        submissionMode: submissionMode || undefined,
+        triggerArea: triggerArea.trim() || undefined,
+        triggerReason: triggerReason.trim() || undefined,
+      });
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
       setIncidents(response.data);
       setPagination((prev) => ({
         ...prev,
         ...response.pagination,
       }));
     } catch (err: any) {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
       console.error("Failed to fetch incidents:", err);
       setError(err.response?.data?.message || "Failed to load incidents");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -171,9 +171,7 @@ const IncidentsList: React.FC = () => {
             <h1 className="text-2xl font-bold">Bug Report Incidents</h1>
           </div>
           <Button variant="outline" onClick={fetchIncidents} disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : null}
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Refresh
           </Button>
         </div>
@@ -190,8 +188,7 @@ const IncidentsList: React.FC = () => {
               <select
                 className="h-10 rounded-md border border-gray-300 px-3 text-sm"
                 value={submissionMode}
-                onChange={(e) => setSubmissionMode(e.target.value as "" | Incident["submissionMode"])}
-              >
+                onChange={(e) => setSubmissionMode(e.target.value as "" | Incident["submissionMode"])}>
                 <option value="">All submission modes</option>
                 <option value="USER_INITIATED">User initiated</option>
                 <option value="AUTOMATIC">Automatic</option>
@@ -235,9 +232,7 @@ const IncidentsList: React.FC = () => {
         {!isLoading && !error && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">
-                Recent Incidents ({pagination.total} total)
-              </CardTitle>
+              <CardTitle className="text-lg">Recent Incidents ({pagination.total} total)</CardTitle>
             </CardHeader>
             <CardContent>
               {incidents.length === 0 ? (
@@ -251,10 +246,7 @@ const IncidentsList: React.FC = () => {
                     <div
                       key={incident.incidentId}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() =>
-                        navigate(`/admin/incidents/${incident.incidentId}`)
-                      }
-                    >
+                      onClick={() => navigate(`/admin/incidents/${incident.incidentId}`)}>
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2">
@@ -262,14 +254,10 @@ const IncidentsList: React.FC = () => {
                               {incident.incidentId.slice(0, 8)}...
                             </span>
                             <span className="text-sm text-gray-400">·</span>
-                            <span className="text-sm text-gray-600 truncate">
-                              {incident.userId}
-                            </span>
+                            <span className="text-sm text-gray-600 truncate">{incident.userId}</span>
                           </div>
                           {incident.summary && (
-                            <span className="text-sm font-medium text-gray-800 truncate mt-1">
-                              {incident.summary}
-                            </span>
+                            <span className="text-sm font-medium text-gray-800 truncate mt-1">{incident.summary}</span>
                           )}
                           <div className="flex flex-wrap items-center gap-2 mt-2">
                             {getSubmissionBadge(incident.submissionMode)}
@@ -288,9 +276,7 @@ const IncidentsList: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-4 flex-shrink-0">
-                        <span className="text-sm text-gray-500">
-                          {formatDate(incident.createdAt)}
-                        </span>
+                        <span className="text-sm text-gray-500">{formatDate(incident.createdAt)}</span>
                         {getStatusBadge(incident.status)}
                         {incident.linearIssueUrl && (
                           <a
@@ -298,8 +284,7 @@ const IncidentsList: React.FC = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-blue-500 hover:text-blue-700"
-                          >
+                            className="text-blue-500 hover:text-blue-700">
                             <ExternalLink className="h-4 w-4" />
                           </a>
                         )}
@@ -313,29 +298,15 @@ const IncidentsList: React.FC = () => {
               {/* Pagination */}
               {incidents.length > 0 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToPrevPage}
-                    disabled={pagination.offset === 0}
-                  >
+                  <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={pagination.offset === 0}>
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
                   </Button>
                   <span className="text-sm text-gray-500">
-                    Showing {pagination.offset + 1} -{" "}
-                    {Math.min(
-                      pagination.offset + incidents.length,
-                      pagination.total
-                    )}{" "}
+                    Showing {pagination.offset + 1} - {Math.min(pagination.offset + incidents.length, pagination.total)}{" "}
                     of {pagination.total}
                   </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToNextPage}
-                    disabled={!pagination.hasMore}
-                  >
+                  <Button variant="outline" size="sm" onClick={goToNextPage} disabled={!pagination.hasMore}>
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>

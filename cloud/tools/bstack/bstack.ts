@@ -105,15 +105,12 @@ function normalizeDuration(input: string): string {
 }
 
 /**
- * Pick the correct BetterStack log source table for a region.
- * France and East Asia may still be on the legacy AugmentOS source.
+ * Pick the BetterStack log source table for a region.
  */
 function getSourceForRegion(region: string): string {
-  if (region === "france" || region === "east-asia") {
-    // These regions may still send to the legacy source until redeployed
-    // with the new BETTERSTACK_SOURCE_TOKEN. Check both — prefer prod.
-    return getLogsTable("prod");
-  }
+  // All regions send to the MentraCloud-Prod source.
+  // Regional collector sources (mentra-france, mentra-east-asia, etc.) exist
+  // but the cloud process logs all go to prod via Vector/BetterStack collectors.
   return getLogsTable("prod");
 }
 

@@ -4,6 +4,14 @@
 
 Every Monday morning, or after every major deploy. Takes 15-30 minutes.
 
+## Step 0: Quick health check (30 seconds)
+
+```bash
+bstack health
+```
+
+Check all regions at a glance. Note which regions are up, session counts, RSS, and uptime. If a region has low uptime (recently restarted), investigate further with `bstack crash-timeline --region <REGION>`.
+
 ## Quick Check (30 seconds)
 
 ```bash
@@ -37,6 +45,20 @@ For each entry, ask:
 | Is this new since last week?                        | Investigate — new errors after a deploy often indicate a regression. |
 | Is this > 10,000 occurrences?                       | It's noise. Rate-limit, sample, or downgrade to `debug`.             |
 
+### Step 2b: Memory Leak Check
+
+```bash
+bstack sql "SELECT JSONExtract(raw, 'region', 'Nullable(String)') as region, max(JSONExtract(raw, 'heapUsedMB', 'Nullable(Float64)')) as peak_heap, max(JSONExtract(raw, 'rssMB', 'Nullable(Float64)')) as peak_rss FROM remote(t373499_mentracloud_prod_logs) WHERE dt >= now() - INTERVAL 7 DAY AND JSONExtract(raw, 'feature', 'Nullable(String)') = 'system-vitals' GROUP BY region ORDER BY peak_heap DESC"
+```
+
+For detailed memory breakdown by owner:
+
+```bash
+bstack memory-owners --region us-central
+```
+
+This shows which subsystems are consuming memory and which are growing. If `disposedSessionsPendingGC` is climbing, the timer audit in the pod-crash runbook applies. If a specific owner (e.g., `transcription.history`, `calendar.events`) is growing, that's your leak.
+
 ### Step 3: Top Warnings by Count (2 minutes)
 
 ```bash
@@ -65,6 +87,14 @@ Target: reduce total log volume by 50% without losing diagnostic capability.
 bstack incidents --limit 20
 ```
 
+For any crash you want to investigate further:
+
+```bash
+bstack crash-timeline --region <REGION>
+```
+
+This shows the timeline of diagnostic events leading up to the crash — GC probes, event loop gaps, slow queries, and health timing.
+
 Compare to last week:
 
 | Trend                        | What it means                                           |
@@ -87,7 +117,17 @@ Is churn getting better or worse? Does it correlate with time of day (peak hours
 bstack memory --region us-central --duration 1h
 ```
 
+For per-owner breakdown:
+
+```bash
+bstack memory-owners --region us-central
+```
+
+Check the "Top owners by growth" section. If any owner is growing between snapshots, that's where the leak is.
+
 Is the heap stable (sawtooth pattern) or climbing (leak)? RSS should stay under 500MB with 80 sessions after the logging transport fix (issue 067).
+
+> **Note:** The queries above are scoped to `us-central`. Repeat Steps 1-7 for each active region: `france`, `east-asia`, `us-west`, `us-east`. Or use `bstack diagnostics --region <REGION>` for a quick all-in-one check per region.
 
 ## Fix
 

@@ -8,6 +8,7 @@ const ENABLED = process.env.MEMORY_TELEMETRY_ENABLED === "true" || false;
 
 export interface SessionMemoryStats {
   userId: string;
+  sessionId: string;
   startTime: string;
   // Audio
   audio: {
@@ -62,6 +63,7 @@ export interface MemoryTelemetrySnapshot {
     };
     topSessions: Array<{
       userId: string;
+      sessionId: string;
       estimatedBytes: number;
       topOwners: Array<{ owner: string; estimatedBytes: number }>;
     }>;
@@ -200,6 +202,7 @@ export class MemoryTelemetryService {
 
     return {
       userId: session.userId,
+      sessionId: session.sessionId,
       startTime: session.startTime.toISOString(),
       audio: {
         recentBufferChunks: recent.length,
@@ -249,6 +252,7 @@ export class MemoryTelemetryService {
     const topSessions = [...sessionStats]
       .map((session) => ({
         userId: session.userId,
+        sessionId: session.sessionId,
         estimatedBytes: session.memory.estimatedBytes,
         topOwners: [...session.memory.owners]
           .sort((a, b) => b.estimatedBytes - a.estimatedBytes)

@@ -135,8 +135,8 @@ Interpretation:
 Interpretation:
 
 - this user had both the reconnect instability from issue 073 **and** the broader client/session-liveness problem
-- the cloud side shows multiple break/reconnect attempts, then eventual session disposal
-- once disposed, session-backed behavior continues and the user is effectively broken
+- the cloud side shows multiple break/reconnect attempts, then eventual session disposal after instability
+- the `No active session found` warnings shown here precede the disposal timestamp, so explicit post-disposal evidence is not included for this user — but the pattern of instability followed by disposal strongly suggests the same broken end-state seen with user-A
 
 ### 4. The current strongest detector
 

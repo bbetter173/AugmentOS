@@ -91,15 +91,13 @@ class Bridge {
         }
     }
 
-    static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String, _ signalStrength: Int = -1) {
+    static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String) {
         Task {
             await MainActor.run {
-                let searchResults =
-                    GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
+                let searchResults = GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
                 let newResult: [String: Any] = [
                     "deviceModel": deviceModel,
                     "deviceName": deviceName,
-                    "signalStrength": signalStrength,
                 ]
                 let allResults = searchResults + [newResult]
                 var seen = Set<String>()
@@ -244,7 +242,7 @@ class Bridge {
 
     static func sendMiniappSelected(packageName: String) {
         let event: [String: Any] = [
-            "packageName": packageName,
+            "packageName": packageName
         ]
         Bridge.sendTypedMessage("miniapp_selected", body: event)
     }
@@ -314,7 +312,7 @@ class Bridge {
     /// Send ota_start_ack — glasses confirmed receipt of ota_start command
     static func sendOtaStartAck() {
         let eventBody: [String: Any] = [
-            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000)
         ]
         Bridge.sendTypedMessage("ota_start_ack", body: eventBody)
     }

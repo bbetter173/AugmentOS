@@ -1,7 +1,7 @@
 import {Button, Icon, Text} from "@/components/ignite"
 import {focusEffectPreventBack, push, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
+import {ClientAppletInterface, SYSTEM_APPS, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
 import {Dimensions, Image as RNImage, InteractionManager, Platform, Share, View, PixelRatio} from "react-native"
@@ -132,10 +132,8 @@ export function MiniAppCapsuleMenu({
     onBackPress
       ? () => {
           console.log("CAPSULE MENU: handleBackPress() called")
-          // InteractionManager.runAfterInteractions(() => {
-            handleExit(false)
-            onBackPress()
-          // })
+          handleExit(false)
+          onBackPress()
         }
       : () => {
           // Defer screenshot capture so it doesn't block the navigation animation
@@ -159,7 +157,7 @@ interface MiniAppMoreActionsSheetProps {
 }
 
 export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreActionsSheetProps>(
-  ({packageName}, ref) => {
+  function MiniAppMoreActionsSheet({packageName}, ref) {
     const {theme} = useAppTheme()
     const screenHeight = Dimensions.get("window").height
     const snapPoints = useMemo(() => [screenHeight < 700 ? "70%" : "50%"], [screenHeight])
@@ -185,14 +183,6 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
       ),
       [],
     )
-
-    const handleUninstall = useCallback(() => {
-      // Composer.getInstance().uninstallMiniApp(packageName)
-      const app = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
-      if (app) {
-        uninstallAppUI(app)
-      }
-    }, [packageName])
 
     const handleAddRemoveFromHome = useCallback(() => {
       if (app && app.hidden) {
@@ -235,7 +225,6 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     }, [packageName])
 
     const isSystemApp = SYSTEM_APPS.includes(packageName)
-    const isUninstallable = isSystemApp ? false : true
     const size = 28
 
     return (

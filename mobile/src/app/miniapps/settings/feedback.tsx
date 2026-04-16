@@ -6,8 +6,8 @@ import NetInfo from "@react-native-community/netinfo"
 import {useState, useEffect, useCallback, useRef} from "react"
 import {Image, Platform, Pressable, ScrollView, TextInput, View, Linking, ActivityIndicator} from "react-native"
 
-import {Button, Header, Icon, Screen, Text} from "@/components/ignite"
-import {RadioGroup, RatingButtons, StarRating} from "@/components/ui"
+import {Button, Icon, Screen, Text} from "@/components/ignite"
+import {RatingButtons, StarRating} from "@/components/ui"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {buildBugReportFeedbackDataForBug, submitBugIncident} from "@/services/bugReport/bugReportIncident"
@@ -31,7 +31,7 @@ export default function FeedbackPage() {
   }>()
   const [savedContactEmail, setSavedContactEmail] = useSetting(SETTINGS.contact_email.key)
   const [email, setEmail] = useState((savedContactEmail as string) || "")
-  const [feedbackType, setFeedbackType] = useState<"bug" | "feature">("bug")
+  const [feedbackType, _setFeedbackType] = useState<"bug" | "feature">("bug")
   const [expectedBehavior, setExpectedBehavior] = useState("")
   const [actualBehavior, setActualBehavior] = useState("")
   const [severityRating, setSeverityRating] = useState<number | null>(null)

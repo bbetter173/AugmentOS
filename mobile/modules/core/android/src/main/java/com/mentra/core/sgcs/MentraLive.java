@@ -3297,6 +3297,7 @@ public class MentraLive extends SGCManager {
             JSONObject json = new JSONObject();
             json.put("type", "upload_incident_logs");
             json.put("incidentId", incidentId);
+            json.put("apiBaseUrl", base);
             sendJson(json, true);
             Bridge.log("LIVE: Sent incidentId to glasses for log upload: " + incidentId
                     + " (BLE relay keys " + bKey + ", " + lKey + ")");
@@ -5624,14 +5625,16 @@ public class MentraLive extends SGCManager {
                         uploadBleIncidentLogPayload(incidentRelay, packetInfo.fileName, payload);
                     } else {
                         sendTransferCompleteConfirmation(packetInfo.fileName, false);
-                        bleIncidentLogRelays.remove(incidentRelay.fileBaseKey);
+                        // Keep relay entry so glasses can retry after transfer_complete:false.
+                        incidentRelay.session = null;
                     }
                 } else {
                     List<Integer> missingPackets = incidentRelay.session.getMissingPackets();
                     Log.e(TAG, "❌ BLE incident log transfer incomplete. Missing " + missingPackets.size()
                             + " packets: " + missingPackets);
                     sendTransferCompleteConfirmation(packetInfo.fileName, false);
-                    bleIncidentLogRelays.remove(incidentRelay.fileBaseKey);
+                    // Keep relay entry so glasses can retry after transfer_complete:false.
+                    incidentRelay.session = null;
                 }
             }
 
@@ -5917,12 +5920,14 @@ public class MentraLive extends SGCManager {
                     if (success) {
                         Bridge.log("LIVE: ✅ Incident log BLE relay uploaded (" + relay.kind + "): "
                                 + relay.incidentId);
+                        bleIncidentLogRelays.remove(relay.fileBaseKey);
                     } else {
                         Log.e(TAG, "❌ Incident log BLE relay upload failed (" + relay.kind + "): "
                                 + message);
+                        // Keep relay entry so glasses can retry after transfer_complete:false.
+                        relay.session = null;
                     }
                     sendTransferCompleteConfirmation(fileName, success);
-                    bleIncidentLogRelays.remove(relay.fileBaseKey);
                 }));
     }
 

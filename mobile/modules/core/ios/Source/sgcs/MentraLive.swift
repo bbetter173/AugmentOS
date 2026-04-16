@@ -2279,7 +2279,7 @@ class MentraLive: NSObject, SGCManager {
         Bridge.log(
             "LIVE: Sending incidentId to glasses for log upload: \(incidentId) (BLE relay \(bKey), \(lKey))"
         )
-        sendJson(["type": "upload_incident_logs", "incidentId": incidentId], wakeUp: true)
+        sendJson(["type": "upload_incident_logs", "incidentId": incidentId, "apiBaseUrl": base], wakeUp: true)
     }
 
     private static func incidentBleFileBase(incidentId: String, prefix: Character) -> String {
@@ -2921,11 +2921,18 @@ class MentraLive: NSObject, SGCManager {
             return
         }
 
-        var base = relay.apiBaseUrl
-        while base.hasSuffix("/") {
-            base = String(base.dropLast())
+        guard var components = URLComponents(string: relay.apiBaseUrl) else {
+            sendTransferCompleteConfirmation(fileName: fileName, success: false)
+            if let existing = bleIncidentLogRelays[relay.fileBaseKey] {
+                existing.session = nil
+            }
+            return
         }
-        guard let url = URL(string: base + "/api/incidents/" + relay.incidentId + "/logs") else {
+        let basePath = components.path.hasSuffix("/")
+            ? String(components.path.dropLast())
+            : components.path
+        components.path = basePath + "/api/incidents/\(relay.incidentId)/logs"
+        guard let url = components.url else {
             sendTransferCompleteConfirmation(fileName: fileName, success: false)
             if let existing = bleIncidentLogRelays[relay.fileBaseKey] {
                 existing.session = nil

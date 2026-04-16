@@ -103,15 +103,11 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
         Log.i(TAG, "📋 Incident logs for: " + incidentId);
 
         final String finalIncidentId = incidentId;
+        final String apiBaseUrl = data.optString("apiBaseUrl", "").trim();
         boolean wifi = mStateManager != null && mStateManager.isConnectedToWifi();
 
         if (wifi) {
-            new Thread(() -> uploadLogsOverHttp(finalIncidentId)).start();
-            if (mK900CommandHandler != null) {
-                mK900CommandHandler.requestBesLogs(incidentId, mContext, mConfigurationManager);
-            } else {
-                Log.d(TAG, "K900CommandHandler not available — skipping BES log collection");
-            }
+            new Thread(() -> uploadLogsOverHttp(finalIncidentId, apiBaseUrl)).start();
         } else {
             new Thread(() -> relayLogsViaBle(finalIncidentId)).start();
         }
@@ -119,7 +115,7 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
         return true;
     }
 
-    private void uploadLogsOverHttp(String incidentId) {
+    private void uploadLogsOverHttp(String incidentId, String apiBaseUrl) {
         try {
             String coreToken = mConfigurationManager.getCoreToken();
             if (coreToken == null || coreToken.isEmpty()) {
@@ -128,7 +124,9 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                 return;
             }
 
-            String baseUrl = ServerConfigUtil.getServerBaseUrl(mContext);
+            String baseUrl = (apiBaseUrl != null && !apiBaseUrl.isEmpty())
+                    ? apiBaseUrl
+                    : ServerConfigUtil.getServerBaseUrl(mContext);
             if (baseUrl == null || baseUrl.trim().isEmpty()) {
                 Log.e(TAG, "No server base URL available — cannot upload incident logs");
                 triggerBleFallback(incidentId, "http_missing_base_url");
@@ -175,6 +173,10 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                     if (response.isSuccessful()) {
                         Log.i(TAG, "✅ Glasses logs uploaded for incident " + incidentId
                                 + " (" + logs.length() + " entries)");
+                        if (mK900CommandHandler != null) {
+                            mK900CommandHandler.requestBesLogs(
+                                    incidentId, mContext, mConfigurationManager);
+                        }
                     } else {
                         Log.e(TAG, "❌ Server rejected glasses logs upload, status: "
                                 + response.code() + " for incident " + incidentId);
@@ -244,8 +246,12 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                 deleteQuietly(bFile);
                 return;
             }
-            waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
+            boolean firmwareIdle = waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
             deleteQuietly(bFile);
+            if (!firmwareIdle) {
+                Log.e(TAG, "Timed out waiting for firmware BLE transfer — aborting relay for incident " + incidentId);
+                return;
+            }
 
             String logcatJson = buildGlassesLogcatJson();
             String lName = IncidentLogBleRelayNaming.bleFileBaseName(incidentId, 'L');
@@ -257,8 +263,11 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                 deleteQuietly(lFile);
                 return;
             }
-            waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
+            boolean logcatIdle = waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
             deleteQuietly(lFile);
+            if (!logcatIdle) {
+                Log.w(TAG, "Timed out waiting for logcat BLE transfer — relay may be incomplete for incident " + incidentId);
+            }
 
             Log.i(TAG, "✅ BLE relay sequence completed for incident " + incidentId);
         } catch (InterruptedException e) {
@@ -290,12 +299,19 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
         }
     }
 
-    private void waitUntilFileTransferIdle(IBluetoothManager bt, long maxWaitMs)
+    /**
+     * Polls until the BLE file transfer becomes idle or {@code maxWaitMs} elapses.
+     *
+     * @return {@code true} if the transfer became idle within the deadline,
+     *         {@code false} if the deadline was reached while still in progress
+     */
+    private boolean waitUntilFileTransferIdle(IBluetoothManager bt, long maxWaitMs)
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + maxWaitMs;
         while (bt.isFileTransferInProgress()
                 && System.currentTimeMillis() < deadline) {
             Thread.sleep(FILE_TRANSFER_IDLE_POLL_MS);
         }
+        return !bt.isFileTransferInProgress();
     }
 }

@@ -5,6 +5,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -30,16 +31,21 @@ public final class IncidentLogBleUploadService {
                               byte[] jsonUtf8, Callback callback) {
         new Thread(() -> {
             try {
-                String base = trimTrailingSlash(apiBaseUrl);
-                if (base.isEmpty()) {
-                    callback.onDone(false, "empty api base url");
-                    return;
-                }
                 if (authToken == null || authToken.isEmpty()) {
                     callback.onDone(false, "no auth token");
                     return;
                 }
-                String url = base + "/api/incidents/" + incidentId + "/logs";
+                HttpUrl baseHttpUrl = HttpUrl.parse(apiBaseUrl != null ? apiBaseUrl.trim() : "");
+                if (baseHttpUrl == null) {
+                    callback.onDone(false, "empty or malformed api base url");
+                    return;
+                }
+                HttpUrl url = baseHttpUrl.newBuilder()
+                        .addPathSegment("api")
+                        .addPathSegment("incidents")
+                        .addPathSegment(incidentId)
+                        .addPathSegment("logs")
+                        .build();
                 RequestBody body = RequestBody.create(jsonUtf8, JSON);
                 OkHttpClient client = new OkHttpClient.Builder()
                         .connectTimeout(20, TimeUnit.SECONDS)
@@ -66,16 +72,5 @@ public final class IncidentLogBleUploadService {
                 callback.onDone(false, e.getMessage());
             }
         }).start();
-    }
-
-    private static String trimTrailingSlash(String s) {
-        if (s == null) {
-            return "";
-        }
-        String t = s.trim();
-        while (t.endsWith("/")) {
-            t = t.substring(0, t.length() - 1);
-        }
-        return t;
     }
 }

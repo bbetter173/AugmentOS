@@ -2317,6 +2317,7 @@ class G2 : SGCManager() {
             Bridge.log("G2: connectController - invalid MAC format: $mac")
             return
         }
+        Bridge.log("G2: about to connectController - MAC: $mac")
         val macData = hexParts.toByteArray()
         val msg = DevSettingsProto.ringConnectInfo(sendManager.nextMagicRandom(), true, macData)
         sendDevSettingsCommand(msg)

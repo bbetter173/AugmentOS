@@ -348,6 +348,7 @@ export class SlackNotificationService {
     const sourceAppletPackageName = feedback?.sourceAppletPackageName as string | undefined;
     const sourceAppletName = feedback?.sourceAppletName as string | undefined;
     const isAutomaticIncident = submissionMode === "AUTOMATIC";
+    const summaryForSlack = isAutomaticIncident ? undefined : summary;
 
     // Build feedback fields if available
     const feedbackBlocks: SlackBlock[] = [];
@@ -448,7 +449,9 @@ export class SlackNotificationService {
     }
 
     const fallbackTextParts = [
-      isNewIssue === false ? `[BUG] +1 occurrence: ${summary || incidentId}` : `[BUG] New: ${summary || incidentId}`,
+      isNewIssue === false
+        ? `[BUG] +1 occurrence: ${summaryForSlack || incidentId}`
+        : `[BUG] New: ${summaryForSlack || incidentId}`,
       `User: ${userId}`,
       `Incident ID: ${incidentId}`,
       ...(submissionMode ? [`Submission mode: ${submissionMode}`] : []),
@@ -459,7 +462,7 @@ export class SlackNotificationService {
         : sourceAppletName || sourceAppletPackageName
           ? [`Source applet: ${sourceAppletName || sourceAppletPackageName}`]
           : []),
-      ...(summary ? [`Summary: ${summary}`] : []),
+      ...(summaryForSlack ? [`Summary: ${summaryForSlack}`] : []),
     ];
 
     const message: SlackMessage = {
@@ -473,13 +476,13 @@ export class SlackNotificationService {
             emoji: true,
           },
         },
-        ...(summary
+        ...(summaryForSlack
           ? [
               {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: `*Summary:* ${this.escapeSlackText(summary)}`,
+                  text: `*Summary:* ${this.escapeSlackText(summaryForSlack)}`,
                 },
               } as SlackBlock,
             ]

@@ -6,16 +6,6 @@ export interface IncidentCategorization {
   triggerReason: string
   sourceAppletPackageName?: string
   sourceAppletName?: string
-  /**
-   * Backward-compatible tag for existing incident consumers.
-   * Defaults to triggerReason when omitted.
-   */
-  source?: string
-  /**
-   * Backward-compatible automatic flag for existing incident consumers.
-   * Defaults from submissionMode when omitted.
-   */
-  automatic?: boolean
 }
 
 export function normalizeOptionalIncidentString(value: unknown): string | undefined {
@@ -34,10 +24,7 @@ export function buildIncidentCategorization(categorization: IncidentCategorizati
     submissionMode: categorization.submissionMode,
     triggerArea: categorization.triggerArea,
     triggerReason: categorization.triggerReason,
-    automatic: categorization.automatic ?? categorization.submissionMode === "AUTOMATIC",
-    source: normalizeOptionalIncidentString(categorization.source) ?? categorization.triggerReason,
     ...(sourceAppletPackageName && {sourceAppletPackageName}),
     ...(sourceAppletName && {sourceAppletName}),
   }
 }
-

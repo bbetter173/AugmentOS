@@ -73,10 +73,6 @@ export interface FeedbackData {
   triggerReason?: string;
   sourceAppletPackageName?: string;
   sourceAppletName?: string;
-  /** Backward-compatible flag used by some existing automatic incident flows. */
-  automatic?: boolean;
-  /** Backward-compatible source tag used by some existing automatic incident flows. */
-  source?: string;
   // Feature request fields
   feedbackText?: string;
   experienceRating?: number;

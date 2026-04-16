@@ -48,11 +48,14 @@ export default function GlassesPairingLoadingScreen() {
     goBack()
   }, [clearPairingTimeout, goBack])
 
-  const handlePairFailure = useCallback((error: string) => {
-    clearPairingTimeout()
-    CoreModule.forget()
-    replace("/pairing/failure", {error: error, deviceModel: deviceModel})
-  }, [clearPairingTimeout, replace, deviceModel])
+  const handlePairFailure = useCallback(
+    (error: string) => {
+      clearPairingTimeout()
+      CoreModule.forget()
+      replace("/pairing/failure", {error: error, deviceModel: deviceModel})
+    },
+    [clearPairingTimeout, replace, deviceModel],
+  )
 
   useEffect(() => {
     let sub = CoreModule.addListener("pair_failure", (event: PairFailureEvent) => {
@@ -94,7 +97,6 @@ export default function GlassesPairingLoadingScreen() {
             submissionMode: "AUTOMATIC",
             triggerArea: "pairing_loading",
             triggerReason: "glasses_connect_timeout",
-            source: "glasses_connect_timeout",
           },
           expectedBehavior: "Glasses should connect successfully within 35 seconds.",
           actualBehavior,

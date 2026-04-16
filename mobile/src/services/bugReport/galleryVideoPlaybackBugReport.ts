@@ -50,8 +50,6 @@ export async function submitGalleryVideoPlaybackBugReport(
 
   const actualBehavior = JSON.stringify(
     {
-      automatic: true,
-      source: "gallery_video_onError",
       photoName: photo.name,
       isActive,
       uriScheme,
@@ -71,8 +69,6 @@ export async function submitGalleryVideoPlaybackBugReport(
         submissionMode: "AUTOMATIC",
         triggerArea: "gallery_video",
         triggerReason: "gallery_video_on_error",
-        source: "gallery_video_onError",
-        automatic: true,
       },
       expectedBehavior: "Video should play in the glasses gallery.",
       actualBehavior,

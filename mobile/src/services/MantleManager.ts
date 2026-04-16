@@ -381,19 +381,15 @@ class MantleManager {
             2,
           )
 
-          const dedupeKey = [
-            "captions_tester",
-            failureCode,
-            scenarioName || "unknown",
-            testRunId || "unknown",
-          ].join("|")
+          const dedupeKey = ["captions_tester", failureCode, scenarioName || "unknown", testRunId || "unknown"].join(
+            "|",
+          )
 
           void submitAutomaticBugIncident({
             categorization: {
               submissionMode: "AUTOMATIC",
               triggerArea: "captions_tester",
               triggerReason: "captions_incident_detected",
-              source: "captions_tester_incident",
             },
             expectedBehavior: "Captions tester runs should complete without a captions incident.",
             actualBehavior,

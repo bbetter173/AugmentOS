@@ -68,7 +68,6 @@ export async function submitMiniappStartFailedBugReport(
       triggerReason: "miniapp_start_failed",
       sourceAppletPackageName: applet.packageName,
       sourceAppletName: applet.name,
-      source: "miniapp_start_failed",
     },
     expectedBehavior: `${applet.name} should start and become reachable.`,
     actualBehavior,

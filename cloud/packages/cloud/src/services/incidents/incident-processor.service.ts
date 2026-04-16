@@ -152,7 +152,7 @@ async function processIncident(incidentId: string, userId: string): Promise<void
     const consoleUrl = `https://console.mentra.glass/admin/incidents/${incidentId}`;
 
     const feedback = incidentLogs?.feedback as Record<string, unknown> | undefined;
-    const isAutomaticIncident = feedback?.submissionMode === "AUTOMATIC" || feedback?.automatic === true;
+    const isAutomaticIncident = feedback?.submissionMode === "AUTOMATIC";
 
     // 4. LLM summary generation
     let summary: BugSummary | null = null;

@@ -987,21 +987,29 @@ export class DashboardManager {
 
   public getMemoryStats(): MemoryOwnerStat[] {
     return [
-      this.buildContentStat("dashboard.main-content", this.mainContent),
-      this.buildContentStat("dashboard.expanded-content", this.expandedContent),
-      this.buildContentStat("dashboard.always-on-content", this.alwaysOnContent),
       {
-        owner: "dashboard.system-content",
+        owner: "dashboard.widgets",
         scope: "session",
-        itemCount: Object.values(this.systemContent).filter(Boolean).length,
-        estimatedBytes:
-          estimateStringBytes(this.systemContent.topLeft) +
-          estimateStringBytes(this.systemContent.topRight) +
-          estimateStringBytes(this.systemContent.bottomLeft) +
-          estimateStringBytes(this.systemContent.bottomRight),
+        itemCount: this.mainWidgets.size,
+        estimatedBytes: sumEstimatedBytes(this.mainWidgets.values(), (widget) => {
+          return estimateStringBytes(widget.packageName) + estimateStringBytes(widget.text) + 32;
+        }),
         metadata: {
-          currentMode: this.currentMode,
-          alwaysOnEnabled: this.alwaysOnEnabled,
+          currentMode: this.getCurrentMode(),
+          alwaysOnEnabled: this.isAlwaysOnEnabled(),
+          rotationIndex: this.widgetRotationIndex,
+        },
+      },
+      {
+        owner: "dashboard.system-data",
+        scope: "session",
+        itemCount: (this.weatherText ? 1 : 0) + (this.calendarText ? 1 : 0),
+        estimatedBytes:
+          estimateStringBytes(this.weatherText) +
+          estimateStringBytes(this.calendarText),
+        metadata: {
+          currentMode: this.getCurrentMode(),
+          alwaysOnEnabled: this.isAlwaysOnEnabled(),
         },
       },
     ];
@@ -1027,20 +1035,7 @@ export class DashboardManager {
     this.logger.info({}, "DashboardManager disposed");
   }
 
-  private buildContentStat(owner: string, contentMap: Map<string, AppContent>): MemoryOwnerStat {
-    return {
-      owner,
-      scope: "session",
-      itemCount: contentMap.size,
-      estimatedBytes: sumEstimatedBytes(contentMap.values(), (item) => {
-        const contentBytes = this.estimateContentBytes(item.content);
-        return estimateStringBytes(item.packageName) + contentBytes + 32;
-      }),
-      metadata: {
-        rotationIndex: owner === "dashboard.main-content" ? this.mainContentRotationIndex : null,
-      },
-    };
-  }
+
 
   private estimateContentBytes(content: string | Layout): number {
     if (typeof content === "string") {

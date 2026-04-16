@@ -49,6 +49,9 @@ public class FileManagerImpl implements FileManager {
         this.operationLogger = new FileOperationLogger(logger);
         
         logger.info(TAG, "FileManagerImpl initialized with base directory: " + baseDirectory.getAbsolutePath());
+
+        // Clean up orphaned/empty capture folders left by crashes or failed recordings
+        cleanupOrphanedCaptures();
     }
     
     // FileOperations implementation
@@ -488,15 +491,15 @@ public class FileManagerImpl implements FileManager {
         try {
             String lockInfo = lockManager.getLockInfo(packageName);
             Log.d(TAG, "📋 Lock status before acquisition: " + lockInfo);
-            
+
             int expiredLocksReleased = lockManager.releaseExpiredLocks(packageName);
             if (expiredLocksReleased > 0) {
                 Log.w(TAG, "🧹 Released " + expiredLocksReleased + " expired locks before cleanup");
             }
-            
+
             lock = lockManager.acquireWriteLock(packageName, lockTimeoutMs, "FILE_CLEANUP");
             long lockAcquisitionTime = System.currentTimeMillis() - lockStartTime;
-            
+
             if (lock != null) {
                 Log.d(TAG, "✅ Write lock acquired successfully in " + lockAcquisitionTime + "ms");
                 if (lockAcquisitionTime > 1000) {
@@ -505,7 +508,7 @@ public class FileManagerImpl implements FileManager {
             } else {
                 Log.e(TAG, "❌ Failed to acquire write lock within " + lockTimeoutMs + "ms timeout");
                 Log.d(TAG, "🏁 cleanupOldFiles() completed - Lock acquisition timeout");
-                
+
                 // Log all active lock holders for debugging
                 Map<String, ?> allHolders = lockManager.getAllLockHolders();
                 if (!allHolders.isEmpty()) {
@@ -514,28 +517,51 @@ public class FileManagerImpl implements FileManager {
                         Log.w(TAG, "  " + entry.getKey() + " -> " + entry.getValue());
                     }
                 }
-                
+
                 // Log detailed lock statistics
                 String lockStats = lockManager.getLockStatistics(packageName);
                 Log.w(TAG, "📊 Lock Statistics:\n" + lockStats);
-                
+
                 // Try emergency lock release for this specific package
                 Log.w(TAG, "🚨 Attempting emergency lock release for package: " + packageName);
                 int forceReleased = lockManager.forceReleaseAllLocks(packageName);
                 if (forceReleased > 0) {
                     Log.w(TAG, "⚠️ Force released " + forceReleased + " locks for package: " + packageName);
                     Log.w(TAG, "⚠️ This may indicate a deadlock or stuck operation");
-                    
+
                     // Log updated statistics after force release
                     String updatedStats = lockManager.getLockStatistics(packageName);
                     Log.w(TAG, "📊 Updated Lock Statistics:\n" + updatedStats);
                 }
-                
+
                 return 0;
             }
+
+            // Proceed with cleanup while holding the write lock
+            // Get package directory
+            File packageDir = directoryManager.getPackageDirectory(packageName);
+            if (!packageDir.exists() || !packageDir.isDirectory()) {
+                Log.w(TAG, "⚠️ Package directory does not exist: " + packageDir.getAbsolutePath());
+                return 0;
+            }
+
+            Log.d(TAG, "📁 Scanning directory: " + packageDir.getAbsolutePath());
+
+            // Calculate cutoff time
+            long cutoffTime = System.currentTimeMillis() - maxAgeMs;
+            Log.d(TAG, "⏰ Cutoff time: " + new java.util.Date(cutoffTime));
+
+            // Recursively scan and clean up old files
+            int deletedCount = 0;
+            long totalDeletedSize = 0;
+
+            deletedCount = cleanupFilesRecursively(packageDir, packageName, cutoffTime, totalDeletedSize);
+
+            Log.i(TAG, "✅ Cleanup completed: " + deletedCount + " files deleted, " + totalDeletedSize + " bytes freed");
+            return deletedCount;
+
         } catch (Exception e) {
-            Log.e(TAG, "💥 Exception during write lock acquisition for package: " + packageName, e);
-            Log.d(TAG, "🏁 cleanupOldFiles() completed - Lock acquisition exception");
+            Log.e(TAG, "💥 Exception during file cleanup for package: " + packageName, e);
             return 0;
         } finally {
             if (lock != null) {
@@ -549,35 +575,6 @@ public class FileManagerImpl implements FileManager {
             } else {
                 Log.w(TAG, "⚠️ Cannot release write lock - lock is null");
             }
-        }
-        
-        // Proceed with cleanup under lock
-        try {
-            // Get package directory
-            File packageDir = directoryManager.getPackageDirectory(packageName);
-            if (!packageDir.exists() || !packageDir.isDirectory()) {
-                Log.w(TAG, "⚠️ Package directory does not exist: " + packageDir.getAbsolutePath());
-                return 0;
-            }
-            
-            Log.d(TAG, "📁 Scanning directory: " + packageDir.getAbsolutePath());
-            
-            // Calculate cutoff time
-            long cutoffTime = System.currentTimeMillis() - maxAgeMs;
-            Log.d(TAG, "⏰ Cutoff time: " + new java.util.Date(cutoffTime));
-            
-            // Recursively scan and clean up old files
-            int deletedCount = 0;
-            long totalDeletedSize = 0;
-            
-            deletedCount = cleanupFilesRecursively(packageDir, packageName, cutoffTime, totalDeletedSize);
-            
-            Log.i(TAG, "✅ Cleanup completed: " + deletedCount + " files deleted, " + totalDeletedSize + " bytes freed");
-            return deletedCount;
-            
-        } catch (Exception e) {
-            Log.e(TAG, "💥 Exception during file cleanup for package: " + packageName, e);
-            return 0;
         }
     }
     
@@ -665,5 +662,82 @@ public class FileManagerImpl implements FileManager {
     @Override
     public ThumbnailManager getThumbnailManager() {
         return thumbnailManager;
+    }
+
+    /**
+     * Remove capture folders that are empty or contain no primary media file
+     * (no base.jpg, base.mp4, or any other image/video). These are left behind
+     * when the app crashes mid-recording, when MediaRecorder.stop() fails, or
+     * when the process is OOM-killed.
+     */
+    private void cleanupOrphanedCaptures() {
+        try {
+            File packageDir = directoryManager.getPackageDirectory(getDefaultPackageName());
+            if (packageDir == null || !packageDir.exists()) return;
+
+            File[] dirs = packageDir.listFiles();
+            if (dirs == null) return;
+
+            int cleaned = 0;
+            for (File dir : dirs) {
+                if (!dir.isDirectory()) continue;
+                String name = dir.getName();
+                if (!name.startsWith("IMG_") && !name.startsWith("VID_") && !name.startsWith("BUFFER_")) continue;
+
+                File[] contents = dir.listFiles();
+                if (contents == null || contents.length == 0) {
+                    // Empty directory
+                    dir.delete();
+                    cleaned++;
+                    continue;
+                }
+
+                // Check if any file is a valid primary media file (not just sidecars)
+                boolean hasValidPrimaryMedia = false;
+                for (File f : contents) {
+                    String lower = f.getName().toLowerCase();
+                    boolean isMediaExtension =
+                        lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") ||
+                        lower.endsWith(".mp4") || lower.endsWith(".mov") || lower.endsWith(".avi");
+                    // Exclude HDR brackets — they're not standalone media
+                    boolean isBracket = lower.matches("ev-?\\d+\\.jpe?g");
+
+                    if (isMediaExtension && !isBracket) {
+                        boolean isVideo = lower.endsWith(".mp4") || lower.endsWith(".mov") || lower.endsWith(".avi");
+                        if (isVideo) {
+                            // Videos need moov atom validation — a killed process leaves
+                            // a .mp4 with raw data but no index, which is unplayable
+                            if (thumbnailManager.isValidVideo(f)) {
+                                hasValidPrimaryMedia = true;
+                                break;
+                            } else {
+                                logger.warn(TAG, "Found corrupt video (missing moov atom): " + f.getAbsolutePath());
+                            }
+                        } else {
+                            // Photos: if the file exists and has data, it's usable
+                            if (f.length() > 0) {
+                                hasValidPrimaryMedia = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!hasValidPrimaryMedia) {
+                    // Only sidecars, brackets, or corrupt media — delete all
+                    for (File f : contents) {
+                        f.delete();
+                    }
+                    dir.delete();
+                    cleaned++;
+                }
+            }
+
+            if (cleaned > 0) {
+                logger.info(TAG, "Cleaned up " + cleaned + " orphaned capture folder(s)");
+            }
+        } catch (Exception e) {
+            logger.error(TAG, "Error cleaning up orphaned captures", e);
+        }
     }
 } 

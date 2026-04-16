@@ -11,6 +11,11 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Manages thumbnail generation and caching for both videos and images.
@@ -129,8 +134,24 @@ public class ThumbnailManager {
                 return null;
             }
 
-            // Scale to exact thumbnail dimensions
-            Bitmap thumbnail = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true);
+            // Scale to exact thumbnail dimensions with OOM protection
+            Bitmap thumbnail;
+            try {
+                thumbnail = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true);
+            } catch (OutOfMemoryError oom) {
+                logger.error(TAG, "OOM scaling image thumbnail, retrying with higher inSampleSize");
+                bitmap.recycle();
+                options.inSampleSize *= 4;
+                bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
+                if (bitmap == null) return null;
+                try {
+                    thumbnail = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true);
+                } catch (OutOfMemoryError oom2) {
+                    logger.error(TAG, "OOM on second attempt, giving up");
+                    bitmap.recycle();
+                    return null;
+                }
+            }
 
             // Compress and save
             try (FileOutputStream fos = new FileOutputStream(thumbnailFile)) {
@@ -182,41 +203,67 @@ public class ThumbnailManager {
      */
     private File createVideoThumbnail(File videoFile, File thumbnailFile) {
         MediaMetadataRetriever retriever = null;
-        
+
         try {
             retriever = new MediaMetadataRetriever();
             retriever.setDataSource(videoFile.getAbsolutePath());
-            
-            // Extract frame at 1 second or first available frame
-            Bitmap bitmap = retriever.getFrameAtTime(1000000); // 1 second in microseconds
-            if (bitmap == null) {
-                // Try to get the first frame
-                bitmap = retriever.getFrameAtTime();
+
+            // Extract frame with timeout to prevent hangs on corrupted videos
+            final MediaMetadataRetriever finalRetriever = retriever;
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<Bitmap> future = executor.submit(() -> {
+                Bitmap frame = finalRetriever.getFrameAtTime(1000000); // 1 second in microseconds
+                if (frame == null) {
+                    frame = finalRetriever.getFrameAtTime();
+                }
+                return frame;
+            });
+            Bitmap bitmap;
+            try {
+                bitmap = future.get(10, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                logger.error(TAG, "getFrameAtTime timed out after 10s for: " + videoFile.getName());
+                bitmap = null;
+            } catch (Exception e) {
+                logger.error(TAG, "getFrameAtTime failed for " + videoFile.getName() + ": " + e.getMessage(), e);
+                bitmap = null;
+            } finally {
+                executor.shutdownNow();
             }
-            
+
             if (bitmap == null) {
                 logger.error(TAG, "Failed to extract frame from video: " + videoFile.getName());
                 return null;
             }
-            
-            // Resize bitmap to thumbnail size
-            Bitmap thumbnail = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true);
-            
+
+            // Resize bitmap to thumbnail size with OOM protection
+            Bitmap thumbnail;
+            try {
+                thumbnail = Bitmap.createScaledBitmap(bitmap, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true);
+            } catch (OutOfMemoryError oom) {
+                logger.error(TAG, "OOM scaling video thumbnail, retrying with smaller source");
+                bitmap.recycle();
+                // Re-extract at lower resolution is not straightforward for video frames,
+                // so just return null on OOM
+                return null;
+            }
+
             // Compress and save
             try (FileOutputStream fos = new FileOutputStream(thumbnailFile)) {
                 thumbnail.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, fos);
             }
-            
+
             // Clean up bitmaps
             if (bitmap != thumbnail) {
                 bitmap.recycle();
             }
             thumbnail.recycle();
-            
-            logger.info(TAG, "Thumbnail created successfully: " + thumbnailFile.getName() + 
+
+            logger.info(TAG, "Thumbnail created successfully: " + thumbnailFile.getName() +
                            " (" + thumbnailFile.length() + " bytes)");
             return thumbnailFile;
-            
+
         } catch (Exception e) {
             logger.error(TAG, "Error creating thumbnail for " + videoFile.getName() + ": " + e.getMessage(), e);
             return null;
@@ -398,4 +445,60 @@ public class ThumbnailManager {
 
         return deleted;
     }
-} 
+
+    /**
+     * Check whether a video file has a valid MP4 container (moov atom).
+     * Android's MediaRecorder writes the moov atom on stop(). If the process
+     * is killed mid-recording, the file exists with raw H264 data but no moov
+     * atom, making it unplayable by any player or tool.
+     *
+     * @param videoFile The video file to check
+     * @return true if the video has a valid container and can be opened, false otherwise
+     */
+    public boolean isValidVideo(File videoFile) {
+        if (videoFile == null || !videoFile.exists() || videoFile.length() == 0) {
+            return false;
+        }
+
+        MediaMetadataRetriever retriever = null;
+        try {
+            retriever = new MediaMetadataRetriever();
+
+            // setDataSource will throw if the container is corrupt / missing moov atom
+            final MediaMetadataRetriever finalRetriever = retriever;
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<String> future = executor.submit(() -> {
+                finalRetriever.setDataSource(videoFile.getAbsolutePath());
+                return finalRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            });
+
+            try {
+                String duration = future.get(5, TimeUnit.SECONDS);
+                // A valid MP4 with a moov atom will return a non-null duration string
+                return duration != null && !duration.isEmpty();
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                logger.warn(TAG, "isValidVideo timed out for: " + videoFile.getName());
+                // Timeout is ambiguous — the file might be valid but slow to parse.
+                // Err on the side of keeping it rather than deleting a good file.
+                return true;
+            } catch (Exception e) {
+                logger.debug(TAG, "isValidVideo: invalid video " + videoFile.getName() + ": " + e.getMessage());
+                return false;
+            } finally {
+                executor.shutdownNow();
+            }
+        } catch (Exception e) {
+            logger.debug(TAG, "isValidVideo: could not open " + videoFile.getName() + ": " + e.getMessage());
+            return false;
+        } finally {
+            if (retriever != null) {
+                try {
+                    retriever.release();
+                } catch (Exception e) {
+                    // Ignore release errors
+                }
+            }
+        }
+    }
+}

@@ -149,6 +149,10 @@ async function createOrg(c: AppContext) {
 async function getOrg(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const userEmail = c.get("email");
 
     if (!orgId) {
@@ -188,6 +192,10 @@ async function getOrg(c: AppContext) {
 async function updateOrg(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const userEmail = c.get("email");
 
@@ -233,6 +241,10 @@ async function updateOrg(c: AppContext) {
 async function deleteOrg(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const userEmail = c.get("email");
 
     if (!orgId) {
@@ -267,6 +279,10 @@ async function deleteOrg(c: AppContext) {
 async function invite(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { email } = body as { email?: string };
 
@@ -314,6 +330,10 @@ async function invite(c: AppContext) {
 async function acceptInvite(c: AppContext) {
   try {
     const token = c.req.param("token");
+    if (!token) {
+      return c.json({ success: false, message: "Invite token is required" }, 400);
+    }
+
     const userEmail = c.get("email");
 
     if (!token) {
@@ -343,6 +363,10 @@ async function changeRole(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
     const memberId = c.req.param("memberId");
+    if (!orgId || !memberId) {
+      return c.json({ success: false, message: "Organization ID and member ID are required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { role } = body as { role?: "admin" | "member" };
 
@@ -378,6 +402,10 @@ async function removeMember(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
     const memberId = c.req.param("memberId");
+    if (!orgId || !memberId) {
+      return c.json({ success: false, message: "Organization ID and member ID are required" }, 400);
+    }
+
     const userEmail = c.get("email");
 
     if (!orgId || !memberId) {
@@ -411,6 +439,10 @@ async function removeMember(c: AppContext) {
 async function resendInvite(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { email } = body as { email?: string };
 
@@ -445,6 +477,10 @@ async function resendInvite(c: AppContext) {
 async function rescindInvite(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { email } = body as { email?: string };
 

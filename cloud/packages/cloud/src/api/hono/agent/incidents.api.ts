@@ -113,6 +113,9 @@ async function getIncident(c: AppContext) {
  */
 async function getIncidentLogs(c: AppContext) {
   const incidentId = c.req.param("incidentId");
+  if (!incidentId) {
+    return c.json({ error: "Missing incidentId parameter" }, 400);
+  }
 
   if (!incidentId) {
     return c.json({ error: "Missing required parameter: incidentId" }, 400);

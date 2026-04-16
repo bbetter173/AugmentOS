@@ -27,11 +27,24 @@ const IncidentsList: React.FC = () => {
     hasMore: false,
   });
   const [error, setError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [submissionMode, setSubmissionMode] = useState<"" | Incident["submissionMode"]>("");
+  const [triggerAreaInput, setTriggerAreaInput] = useState("");
   const [triggerArea, setTriggerArea] = useState("");
+  const [triggerReasonInput, setTriggerReasonInput] = useState("");
   const [triggerReason, setTriggerReason] = useState("");
   const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSearchQuery(searchInput);
+      setTriggerArea(triggerAreaInput);
+      setTriggerReason(triggerReasonInput);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput, triggerAreaInput, triggerReasonInput]);
 
   useEffect(() => {
     if (pagination.offset !== 0) {
@@ -182,8 +195,8 @@ const IncidentsList: React.FC = () => {
               <input
                 className="h-10 rounded-md border border-gray-300 px-3 text-sm"
                 placeholder="Search user, applet, reason, summary..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
               <select
                 className="h-10 rounded-md border border-gray-300 px-3 text-sm"
@@ -196,14 +209,14 @@ const IncidentsList: React.FC = () => {
               <input
                 className="h-10 rounded-md border border-gray-300 px-3 text-sm"
                 placeholder="Filter trigger area"
-                value={triggerArea}
-                onChange={(e) => setTriggerArea(e.target.value)}
+                value={triggerAreaInput}
+                onChange={(e) => setTriggerAreaInput(e.target.value)}
               />
               <input
                 className="h-10 rounded-md border border-gray-300 px-3 text-sm"
                 placeholder="Filter trigger reason"
-                value={triggerReason}
-                onChange={(e) => setTriggerReason(e.target.value)}
+                value={triggerReasonInput}
+                onChange={(e) => setTriggerReasonInput(e.target.value)}
               />
             </div>
           </CardContent>

@@ -870,14 +870,21 @@ public class MediaCaptureService {
                                         sendGalleryStatusUpdate();
                                         uploadVideo(filePath, pendingRequestId);
                                     } else {
-                                        File bad = new File(filePath);
-                                        if (bad.exists() && !bad.delete()) {
-                                            Log.w(TAG, "Could not delete failed video file: " + filePath);
+                                        final boolean cleaningUp = isCleaningUp.get();
+                                        if (!cleaningUp) {
+                                            File bad = new File(filePath);
+                                            if (bad.exists() && !bad.delete()) {
+                                                Log.w(TAG, "Could not delete failed video file: " + filePath);
+                                            }
+                                        } else {
+                                            Log.w(TAG, "Skipping failed video deletion because cleanup is in progress");
                                         }
                                         if (mMediaCaptureListener != null) {
                                             mMediaCaptureListener.onMediaError(
                                                 pendingRequestId,
-                                                "Video file failed integrity check and was removed",
+                                                cleaningUp
+                                                    ? "Video integrity check aborted during cleanup; file preserved"
+                                                    : "Video file failed integrity check and was removed",
                                                 MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
                                         }
                                         sendGalleryStatusUpdate();

@@ -48,7 +48,6 @@ import type { DisplayProfile } from "@mentra/display-utils";
 
 import { MemoryOwnerStat } from "../../metrics/memory-census";
 import { estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
-import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../../core/app.service";
 import { WebSocketReadyState } from "../../websocket/types";
 import UserSession from "../UserSession";
 import { weatherService } from "../../core/WeatherService";
@@ -813,131 +812,7 @@ export class DashboardManager {
   // Lifecycle
   // ---------------------------------------------------------------------------
 
-  /**
-   * Generate layout for always-on dashboard mode
-   * @returns Layout for always-on dashboard
-   */
-  private generateAlwaysOnLayout(): Layout {
-    // For always-on mode, we use a LayoutType.REFERENCE_CARD
-    // I think just the title is used for the persistent display.
-    // This is more compact and suited for persistent display
 
-    // Left side shows essential system info (time)
-    // const leftText = this.systemContent.topLeft; // currently it seems the client already ads this info.
-    // TODO: or if it doesn't we should add the time and battery info before the app content.
-
-    // Right side combines battery status and a single App content item
-    const appContent = this.getCombinedAppContent(this.alwaysOnContent, 1);
-
-    return {
-      layoutType: LayoutType.TEXT_WALL,
-      text: appContent,
-      // title: `${leftText} | ${appContent}`,
-    };
-  }
-
-  /**
-   * Combine App content from a queue into a single string
-   * @param contentQueue Queue of App content
-   * @param limit Optional limit on number of items to include
-   * @returns Combined content string
-   */
-  private getCombinedAppContent(contentQueue: Map<string, AppContent>, limit?: number): string {
-    // Sort by timestamp (newest first)
-    const sortedContent = Array.from(contentQueue.values())
-      .sort((a, b) => {
-        const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
-        const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
-        return bTime - aTime;
-      })
-      .slice(0, limit || this.queueSize);
-
-    // If no content, return empty string
-    if (sortedContent.length === 0) {
-      return "";
-    }
-
-    // For expanded dashboard, content is now guaranteed to be a string
-    // For main or always-on, we'll still handle the legacy logic
-    if (limit === 1 && sortedContent.length === 1) {
-      const item = sortedContent[0];
-
-      // For expanded content, it will always be a string
-      if (this.currentMode === DashboardMode.EXPANDED) {
-        return item.content as string;
-      }
-
-      // For other modes, continue supporting existing format
-      if (typeof item.content === "string") {
-        return item.content;
-      } else {
-        // For Layout content, extract the text based on the layout type
-        switch (item.content.layoutType) {
-          case LayoutType.TEXT_WALL:
-            return item.content.text || "";
-          case LayoutType.DOUBLE_TEXT_WALL:
-            return [item.content.topText, item.content.bottomText].filter(Boolean).join("\n");
-          case LayoutType.DASHBOARD_CARD:
-            return [item.content.leftText, item.content.rightText].filter(Boolean).join(" | ");
-          case LayoutType.REFERENCE_CARD:
-            return `${item.content.title}\n${item.content.text}`;
-          default:
-            return "";
-        }
-      }
-    }
-
-    // For multiple items, join them with separators
-    // For expanded dashboard, all content will be strings
-    if (this.currentMode === DashboardMode.EXPANDED) {
-      return sortedContent.map((item) => item.content as string).join("\n\n");
-    }
-
-    // For other modes, continue supporting existing format
-    return sortedContent
-      .map((item) => {
-        if (typeof item.content === "string") {
-          return item.content;
-        } else {
-          // For Layout content, extract the text based on the layout type
-          switch (item.content.layoutType) {
-            case LayoutType.TEXT_WALL:
-              return item.content.text || "";
-            case LayoutType.DOUBLE_TEXT_WALL:
-              return [item.content.topText, item.content.bottomText].filter(Boolean).join("\n");
-            case LayoutType.DASHBOARD_CARD:
-              return [item.content.leftText, item.content.rightText].filter(Boolean).join(" | ");
-            case LayoutType.REFERENCE_CARD:
-              return `${item.content.title}\n${item.content.text}`;
-            default:
-              return "";
-          }
-        }
-      })
-      .join("\n\n");
-  }
-
-  /**
-   * Set the current dashboard mode and notify clients
-   * @param mode New dashboard mode
-   */
-  private setDashboardMode(mode: DashboardMode): void {
-    // Update current mode
-    this.currentMode = mode;
-
-    // Notify Apps of mode change
-    const modeChangeMessage = {
-      type: CloudToAppMessageType.DASHBOARD_MODE_CHANGED,
-      mode,
-      timestamp: new Date(),
-    };
-
-    // Broadcast mode change to all connected Apps
-    this.broadcastToAllApps(modeChangeMessage);
-
-    // Update the dashboard
-    this.updateDashboard();
-  }
 
   /**
    * Broadcast a message to all Apps connected to this user session
@@ -974,7 +849,9 @@ export class DashboardManager {
    * @returns Current dashboard mode
    */
   public getCurrentMode(): DashboardMode | "none" {
-    return this.currentMode;
+    // The refactored dashboard always operates in MAIN mode.
+    // The multi-mode architecture (EXPANDED, ALWAYS_ON) was removed.
+    return DashboardMode.MAIN;
   }
 
   /**
@@ -982,7 +859,8 @@ export class DashboardManager {
    * @returns Always-on dashboard state
    */
   public isAlwaysOnEnabled(): boolean {
-    return this.alwaysOnEnabled;
+    // Always-on mode was removed in the dashboard refactor.
+    return false;
   }
 
   public getMemoryStats(): MemoryOwnerStat[] {

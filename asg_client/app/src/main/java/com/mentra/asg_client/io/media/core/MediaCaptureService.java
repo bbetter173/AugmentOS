@@ -849,6 +849,18 @@ public class MediaCaptureService {
                     currentVideoId = null;
                     currentVideoPath = null;
 
+                    if (filePath == null || captureId == null) {
+                        Log.e(TAG, "onRecordingStopped received null filePath for " + pendingRequestId);
+                        if (mMediaCaptureListener != null) {
+                            mMediaCaptureListener.onMediaError(
+                                pendingRequestId,
+                                "Video recording stopped with no file path",
+                                MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
+                        }
+                        sendGalleryStatusUpdate();
+                        return;
+                    }
+
                     if (isCleaningUp.get()) {
                         Log.w(TAG, "Skipping video integrity check because cleanup is already in progress");
                         sendGalleryStatusUpdate();

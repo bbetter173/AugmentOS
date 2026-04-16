@@ -447,9 +447,23 @@ export class SlackNotificationService {
       }
     }
 
+    const fallbackTextParts = [
+      isNewIssue === false ? `[BUG] +1 occurrence: ${summary || incidentId}` : `[BUG] New: ${summary || incidentId}`,
+      `User: ${userId}`,
+      `Incident ID: ${incidentId}`,
+      ...(submissionMode ? [`Submission mode: ${submissionMode}`] : []),
+      ...(triggerArea ? [`Trigger area: ${triggerArea}`] : []),
+      ...(triggerReason ? [`Trigger reason: ${triggerReason}`] : []),
+      ...(sourceAppletName && sourceAppletPackageName
+        ? [`Source applet: ${sourceAppletName} (${sourceAppletPackageName})`]
+        : sourceAppletName || sourceAppletPackageName
+          ? [`Source applet: ${sourceAppletName || sourceAppletPackageName}`]
+          : []),
+      ...(summary ? [`Summary: ${summary}`] : []),
+    ];
+
     const message: SlackMessage = {
-      text:
-        isNewIssue === false ? `[BUG] +1 occurrence: ${summary || incidentId}` : `[BUG] New: ${summary || incidentId}`,
+      text: fallbackTextParts.join("\n"),
       blocks: [
         {
           type: "header",

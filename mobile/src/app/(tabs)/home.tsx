@@ -106,7 +106,7 @@ export default function Homepage() {
     let height = insets.top * 1.5
     let start = 0.6
     if (Platform.OS === "android") {
-      height = insets.top * 2
+      // height = insets.top * 1.5
       start = 0.4
     }
 

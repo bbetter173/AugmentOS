@@ -935,6 +935,8 @@ class G2 : SGCManager() {
 
     // Device search
     private var DEVICE_SEARCH_ID = "NOT_SET"
+    // Map device names to serial numbers (populated from manufacturer data during scan)
+    private val deviceNameToSerialNumber = mutableMapOf<String, String>()
 
     // Saved addresses for reconnection
     private var leftGlassAddress: String?
@@ -1848,7 +1850,7 @@ class G2 : SGCManager() {
 
     override fun connectById(id: String) {
         Bridge.log("G2: connectById($id)")
-        DEVICE_SEARCH_ID = "_${id}_"
+        DEVICE_SEARCH_ID = id
         startScan()
     }
 
@@ -2077,25 +2079,31 @@ class G2 : SGCManager() {
                 if (!name.contains("G2")) return
 
                 mainHandler.post {
-                    Bridge.log("G2: Discovered: $name (RSSI: ${result.rssi})")
-                    emitDiscoveredDevice(name)
+                    // Extract serial number from manufacturer data (like iOS)
+                    val serialNumber = extractSNFromScanRecord(result)
+                    if (serialNumber == null) {
+                        Bridge.log("G2: Discovered: $name but no SN in mfg data")
+                        return@post
+                    }
+
+                    Bridge.log("G2: Discovered: $name (SN: $serialNumber)")
+                    deviceNameToSerialNumber[name] = serialNumber
+
+                    // Always emit discovered device to frontend
+                    emitDiscoveredDevice(serialNumber)
 
                     // If scan-only mode, don't auto-connect
                     if (DEVICE_SEARCH_ID == "NOT_SET") return@post
 
                     // Only connect to devices matching our search ID
-                    if (!name.contains(DEVICE_SEARCH_ID)) return@post
+                    if (!serialNumber.contains(DEVICE_SEARCH_ID)) return@post
 
                     if (name.contains("_L_")) {
-                        // Hard coded conflict resolution for dev (from iOS)
-                        if (!name.contains("_4935")) return@post
                         if (leftGatt == null) {
                             Bridge.log("G2: Connecting to LEFT: $name")
                             leftGatt = device.connectGatt(context, false, leftGattCallback)
                         }
                     } else if (name.contains("_R_")) {
-                        // Hard coded conflict resolution for dev (from iOS)
-                        if (!name.contains("_BCEF")) return@post
                         if (rightGatt == null) {
                             Bridge.log("G2: Connecting to RIGHT: $name")
                             rightGatt = device.connectGatt(context, false, rightGattCallback)
@@ -2152,13 +2160,33 @@ class G2 : SGCManager() {
         }
     }
 
-    private fun emitDiscoveredDevice(name: String) {
-        val idNumber = extractIdNumber(name)
-        if (idNumber == null) {
-            Bridge.log("G2: Could not extract ID from: $name")
-            return
-        }
-        Bridge.sendDiscoveredDevice(DeviceTypes.G2, "$idNumber")
+    /**
+     * Extract serial number from BLE scan record manufacturer data.
+     * The SN is embedded in the manufacturer-specific data payload.
+     * iOS: skip 2 bytes ("ER" prefix), read 14 bytes of ASCII SN.
+     * Android: same approach on the manufacturer-specific data bytes.
+     */
+    private fun extractSNFromScanRecord(result: ScanResult): String? {
+        val scanRecord = result.scanRecord ?: return null
+
+        // Get manufacturer-specific data
+        // Android strips the 2-byte company ID (0x4552 = "ER"), so the SN starts at offset 0.
+        // iOS keeps the "ER" prefix so it skips 2 bytes — we don't need to skip on Android.
+        val mfgData = scanRecord.manufacturerSpecificData
+        if (mfgData == null || mfgData.size() == 0) return null
+
+        val data = mfgData.valueAt(0) ?: return null
+        if (data.size < 14) return null
+
+        // Read 14 bytes of ASCII SN starting at offset 0
+        val snBytes = data.copyOfRange(0, minOf(14, data.size))
+        val sn = String(snBytes, Charsets.US_ASCII)
+            .replace(Regex("[\\x00-\\x1F\\x7F]"), "") // Strip control chars
+        return if (sn.isNotEmpty()) sn else null
+    }
+
+    private fun emitDiscoveredDevice(serialNumber: String) {
+        Bridge.sendDiscoveredDevice(DeviceTypes.G2, serialNumber)
     }
 
     private fun extractIdNumber(name: String): Int? {

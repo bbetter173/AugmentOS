@@ -1115,10 +1115,12 @@ class CoreManager {
     }
 
     fun dbg1() {
+        Bridge.log("MAN: dbg1()")
         sgc?.dbg1()
     }
 
     fun dbg2() {
+        Bridge.log("MAN: dbg2()")
         sgc?.dbg2()
     }
 

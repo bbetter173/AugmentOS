@@ -3,8 +3,9 @@ import {useLocalSearchParams} from "expo-router"
 import {useEffect} from "react"
 import {View, ViewStyle, TextStyle} from "react-native"
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from "react-native-reanimated"
+import Icon from "react-native-vector-icons/FontAwesome"
 
-import {Screen, Header, Text, Button, Icon} from "@/components/ignite"
+import {Screen, Header, Text, Button} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {TxKeyPath} from "@/i18n"
@@ -46,7 +47,7 @@ export default function PairingFailureScreen() {
 
       <Animated.View style={[themed($container), animatedContainerStyle]}>
         <View style={themed($iconContainer)}>
-          <Icon name="alert-triangle" size={80} color={theme.colors.error} />
+          <Icon name="exclamation-circle" size={80} color={theme.colors.error} />
         </View>
 
         <Text tx="pairing:pairingFailed" preset="heading" style={themed($title)} />
@@ -64,7 +65,7 @@ export default function PairingFailureScreen() {
         </View>
 
         {/* <View style={themed($helpContainer)}>
-          <Icon name="info" size={16} color={theme.colors.textDim} />
+          <Icon name="info-circle" size={16} color={theme.colors.textDim} />
           <Text
             text="Make sure your glasses are powered on and in pairing mode"
             preset="formHelper"

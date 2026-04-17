@@ -370,7 +370,7 @@ export default function FeedbackPage() {
                         {text: translate("common:ok")},
                       ])
                     }>
-                    <Icon name="info-circle" size={16} color={theme.colors.muted_foreground} />
+                    <Icon name="info" size={16} color={theme.colors.muted_foreground} />
                   </Pressable>
                 </View>
                 <TextInput

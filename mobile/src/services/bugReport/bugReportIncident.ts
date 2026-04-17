@@ -14,8 +14,8 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {logBuffer} from "@/utils/dev/logging"
 
-const SENSITIVE_KEYS = ["core_token", "auth_token", "auth_email", "password", "hotspotPassword"] as const
-const SENSITIVE_KEY_SET = new Set<string>(SENSITIVE_KEYS)
+const SENSITIVE_SETTINGS_KEYS = ["core_token", "auth_token", "auth_email"] as const
+const SENSITIVE_GLASSES_KEYS = ["hotspotPassword"] as const
 
 export interface BuildBugReportFeedbackDataForBugParams {
   expectedBehavior: string
@@ -24,22 +24,6 @@ export interface BuildBugReportFeedbackDataForBugParams {
   contactEmail?: string
   /** Merged into root of feedback payload (e.g. automatic, source). */
   extraFeedbackFields?: Record<string, unknown>
-}
-
-function stripSensitiveFields<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((item) => stripSensitiveFields(item)) as T
-  }
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => !SENSITIVE_KEY_SET.has(key))
-        .map(([key, nestedValue]) => [key, stripSensitiveFields(nestedValue)]),
-    ) as T
-  }
-
-  return value
 }
 
 export function buildBugReportPhoneState(): Record<string, unknown> {
@@ -69,8 +53,15 @@ export function buildBugReportPhoneState(): Record<string, unknown> {
     reset: _resetGlasses,
     ...glassesState
   } = useGlassesStore.getState()
+  const filteredGlasses = Object.fromEntries(
+    Object.entries(glassesState).filter(
+      ([key]) => !SENSITIVE_GLASSES_KEYS.includes(key as (typeof SENSITIVE_GLASSES_KEYS)[number]),
+    ),
+  )
   const filteredSettings = Object.fromEntries(
-    Object.entries(settingsState.settings || {}).filter(([key]) => !SENSITIVE_KEYS.includes(key)),
+    Object.entries(settingsState.settings || {}).filter(
+      ([key]) => !SENSITIVE_SETTINGS_KEYS.includes(key as (typeof SENSITIVE_SETTINGS_KEYS)[number]),
+    ),
   )
 
   const applets = appletState.apps.map((app) => ({
@@ -86,10 +77,10 @@ export function buildBugReportPhoneState(): Record<string, unknown> {
   }))
 
   return {
-    glasses: stripSensitiveFields(glassesState),
-    core: stripSensitiveFields(coreState),
-    debug: stripSensitiveFields(debugState),
-    connection: stripSensitiveFields(connectionState),
+    glasses: filteredGlasses,
+    core: coreState,
+    debug: debugState,
+    connection: connectionState,
     applets: {
       apps: applets,
       installed: applets.map((app) => app.packageName),

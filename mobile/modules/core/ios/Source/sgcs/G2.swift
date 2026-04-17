@@ -3012,6 +3012,19 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    private func setControllerFullyConnected() {
+        let isControllerConnected =
+            GlassesStore.shared.get("glasses", "controllerConnected") as? Bool ?? false
+        let isControllerFullyBooted =
+            GlassesStore.shared.get("glasses", "controllerFullyBooted") as? Bool ?? false
+        if !isControllerConnected {
+            GlassesStore.shared.apply("glasses", "controllerConnected", true)
+        }
+        if !isControllerFullyBooted {
+            GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
+        }
+    }
+
     private func handleTouchEvent(_ devEventData: Data) {
         // Parse SendDeviceEvent: field 1=ListEvent, field 2=TextEvent, field 3=SysEvent
         var reader = ProtobufReader(devEventData)
@@ -3058,6 +3071,11 @@ class G2: NSObject, SGCManager {
                 source: eventSource
             )
             Bridge.log("G2: SysEvent → \(eventType) \(eventSource)")
+
+            if eventSource == 1 {
+                // controller must be connected and fully booted:
+                setControllerFullyConnected()
+            }
 
             if eventType == .doubleClick {
                 // trigger dashboard:
@@ -3215,7 +3233,6 @@ class G2: NSObject, SGCManager {
                     Bridge.log("G2: Ring maybe connected?")
                     // GlassesStore.shared.apply("glasses", "controllerConnected", true)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
-
                 }
 
                 if ringFields[4] as? Int32 ?? 0 == 62 {

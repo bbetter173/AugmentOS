@@ -509,6 +509,23 @@ class MonitorWorker:
         self.use_rn_stream = False
         self.use_maestro_stream = False
 
+    def _stop_subprocess(self, process: subprocess.Popen[Any] | None) -> None:
+        if process is None or process.poll() is not None:
+            return
+
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=2)
+
+    def request_stop(self) -> None:
+        self.stop_event.set()
+        self._stop_subprocess(self.playback_process)
+        self._stop_subprocess(self.rn_stream_process)
+        self._stop_subprocess(self.logcat_process)
+
     def make_utterance(self, prepared_row: PreparedRow, now_ms: int) -> UtteranceState:
         row = prepared_row.row
         payload = row["row"]
@@ -1284,9 +1301,18 @@ def main() -> int:
     print(f"Dataset: {args.dataset} ({args.split})")
     print("Press Ctrl-C to stop.")
 
+    shutdown_started = threading.Event()
+
+    def request_shutdown() -> None:
+        if shutdown_started.is_set():
+            return
+        shutdown_started.set()
+        worker.request_stop()
+        # `server.shutdown()` must run off the serve_forever thread.
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
     def handle_signal(_signum: int, _frame: Any) -> None:
-        worker.stop_event.set()
-        server.shutdown()
+        request_shutdown()
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
@@ -1294,7 +1320,7 @@ def main() -> int:
     try:
         server.serve_forever(poll_interval=0.5)
     finally:
-        worker.stop_event.set()
+        worker.request_stop()
         worker_thread.join(timeout=5)
         prefetch_thread.join(timeout=5)
         rn_stream_thread.join(timeout=5)

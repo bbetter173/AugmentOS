@@ -282,7 +282,7 @@ export default function TranscriptionSettingsScreen() {
         titleStyle={{textAlign: "left", paddingLeft: theme.spacing.s3}}
       />
 
-      <ScrollView className="pt-6">
+      <ScrollView className="pt-6 px-6 -mx-6">
         <ToggleSetting
           label={translate("settings:bypassVAD")}
           subtitle={translate("settings:bypassVADSubtitle")}

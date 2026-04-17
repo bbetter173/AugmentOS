@@ -14,7 +14,8 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {logBuffer} from "@/utils/dev/logging"
 
-const SENSITIVE_KEYS = ["core_token", "auth_token", "auth_email"]
+const SENSITIVE_KEYS = ["core_token", "auth_token", "auth_email", "password", "hotspotPassword"] as const
+const SENSITIVE_KEY_SET = new Set<string>(SENSITIVE_KEYS)
 
 export interface BuildBugReportFeedbackDataForBugParams {
   expectedBehavior: string
@@ -23,6 +24,22 @@ export interface BuildBugReportFeedbackDataForBugParams {
   contactEmail?: string
   /** Merged into root of feedback payload (e.g. automatic, source). */
   extraFeedbackFields?: Record<string, unknown>
+}
+
+function stripSensitiveFields<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripSensitiveFields(item)) as T
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !SENSITIVE_KEY_SET.has(key))
+        .map(([key, nestedValue]) => [key, stripSensitiveFields(nestedValue)]),
+    ) as T
+  }
+
+  return value
 }
 
 export function buildBugReportPhoneState(): Record<string, unknown> {
@@ -39,6 +56,19 @@ export function buildBugReportPhoneState(): Record<string, unknown> {
     reset: _resetConnection,
     ...connectionState
   } = useConnectionStore.getState()
+  const {
+    setGlassesInfo: _setGlassesInfo,
+    setBatteryInfo: _setBatteryInfo,
+    setWifiInfo: _setWifiInfo,
+    setHotspotInfo: _setHotspotInfo,
+    setOtaUpdateAvailable: _setOtaUpdateAvailable,
+    setOtaProgress: _setOtaProgress,
+    setOtaInProgress: _setOtaInProgress,
+    setMtkUpdatedThisSession: _setMtkUpdatedThisSession,
+    clearOtaState: _clearOtaState,
+    reset: _resetGlasses,
+    ...glassesState
+  } = useGlassesStore.getState()
   const filteredSettings = Object.fromEntries(
     Object.entries(settingsState.settings || {}).filter(([key]) => !SENSITIVE_KEYS.includes(key)),
   )
@@ -56,10 +86,10 @@ export function buildBugReportPhoneState(): Record<string, unknown> {
   }))
 
   return {
-    glasses: useGlassesStore.getState(),
-    core: coreState,
-    debug: debugState,
-    connection: connectionState,
+    glasses: stripSensitiveFields(glassesState),
+    core: stripSensitiveFields(coreState),
+    debug: stripSensitiveFields(debugState),
+    connection: stripSensitiveFields(connectionState),
     applets: {
       apps: applets,
       installed: applets.map((app) => app.packageName),

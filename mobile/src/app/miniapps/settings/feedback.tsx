@@ -7,7 +7,7 @@ import {useState, useEffect, useCallback, useRef} from "react"
 import {Image, Platform, Pressable, ScrollView, TextInput, View, Linking, ActivityIndicator} from "react-native"
 
 import {Button, Icon, Screen, Text} from "@/components/ignite"
-import {RatingButtons, StarRating} from "@/components/ui"
+import {RadioGroup, RatingButtons, StarRating} from "@/components/ui"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {buildBugReportFeedbackDataForBug, submitBugIncident} from "@/services/bugReport/bugReportIncident"
@@ -31,7 +31,7 @@ export default function FeedbackPage() {
   }>()
   const [savedContactEmail, setSavedContactEmail] = useSetting(SETTINGS.contact_email.key)
   const [email, setEmail] = useState((savedContactEmail as string) || "")
-  const [feedbackType, _setFeedbackType] = useState<"bug" | "feature">("bug")
+  const [feedbackType, setFeedbackType] = useState<"bug" | "feature">("bug")
   const [expectedBehavior, setExpectedBehavior] = useState("")
   const [actualBehavior, setActualBehavior] = useState("")
   const [severityRating, setSeverityRating] = useState<number | null>(null)
@@ -347,25 +347,15 @@ export default function FeedbackPage() {
           <View className="gap-6">
             <View>
               <View className="flex-row items-center mb-2 gap-1.5">
-                <Text className="text-sm font-semibold text-foreground">{translate("feedback:emailOptional")}</Text>
-                <Pressable
-                  hitSlop={10}
-                  onPress={() =>
-                    showAlert(translate("feedback:emailOptional"), translate("feedback:emailInfoMessage"), [
-                      {text: translate("common:ok")},
-                    ])
-                  }>
-                  <Icon name="info" size={16} color={theme.colors.muted_foreground} />
-                </Pressable>
+                <Text className="text-sm font-semibold text-foreground">{translate("feedback:type")}</Text>
               </View>
-              <TextInput
-                className="bg-background border border-border rounded-xl p-4 text-base text-foreground"
-                value={email}
-                onChangeText={setEmail}
-                placeholder={translate("feedback:email")}
-                placeholderTextColor={theme.colors.muted_foreground}
-                keyboardType="email-address"
-                autoCapitalize="none"
+              <RadioGroup
+                options={[
+                  {value: "bug", label: translate("feedback:bugReport")},
+                  {value: "feature", label: translate("feedback:featureRequest")},
+                ]}
+                value={feedbackType}
+                onValueChange={(value) => setFeedbackType(value as "bug" | "feature")}
               />
             </View>
 
@@ -380,7 +370,7 @@ export default function FeedbackPage() {
                         {text: translate("common:ok")},
                       ])
                     }>
-                    <Icon name="info" size={16} color={theme.colors.muted_foreground} />
+                    <Icon name="info-circle" size={16} color={theme.colors.muted_foreground} />
                   </Pressable>
                 </View>
                 <TextInput

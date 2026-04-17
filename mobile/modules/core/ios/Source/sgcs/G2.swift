@@ -1431,7 +1431,6 @@ class G2: NSObject, SGCManager {
 
                         GlassesStore.shared.apply("glasses", "connected", true)
                         GlassesStore.shared.apply("glasses", "fullyBooted", true)
-                        
 
                         // connnect a controller if we have one:
                         self.connectController()
@@ -2652,10 +2651,12 @@ class G2: NSObject, SGCManager {
     }
 
     func exit() {
+        Bridge.log("G2: exit()")
         clearDisplay()
     }
 
     func sendShutdown() {
+        Bridge.log("G2: sendShutdown()")
         clearDisplay()
         disconnect()
     }
@@ -3000,6 +3001,17 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    private func setFullyConnected() {
+        let isFullyConnected = GlassesStore.shared.get("glasses", "connected") as? Bool ?? false
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        if !isFullyConnected {
+            GlassesStore.shared.apply("glasses", "connected", true)
+        }
+        if !isFullyBooted {
+            GlassesStore.shared.apply("glasses", "fullyBooted", true)
+        }
+    }
+
     private func handleTouchEvent(_ devEventData: Data) {
         // Parse SendDeviceEvent: field 1=ListEvent, field 2=TextEvent, field 3=SysEvent
         var reader = ProtobufReader(devEventData)
@@ -3007,22 +3019,25 @@ class G2: NSObject, SGCManager {
 
         let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
 
+        // if we are receiving touch events we are fully booted:
+        setFullyConnected()
+
         // Bridge.log("G2: handleTouchEvent: \(fields)")
+        // Bridge.log("G2: handleTouchEvent: \(devEventData.map { String(format: "%02X", $0) }.joined())")
 
         // SysEvent (field 3) - system-level gestures
         if let sysData = fields[3] as? Data {
             var sysReader = ProtobufReader(sysData)
             let sysFields = sysReader.parseFields()
             var eventType: OsEventType? = nil
+            var eventSource: Int32? = nil
             if let normalType = sysFields[1] as? Int32 {
                 eventType = OsEventType(rawValue: normalType)
-            } else if let clickType = sysFields[2] as? Int32 {
-                if clickType == 2 {
-                    eventType = OsEventType.click
-                }
-                if clickType == 3 {
-                    eventType = OsEventType.click
-                }
+            } else {
+                eventType = OsEventType.click
+            }
+            if let source = sysFields[2] as? Int32 {
+                eventSource = source
             }
 
             // Bridge.log("G2: sysFields: \(sysFields)")
@@ -3039,9 +3054,10 @@ class G2: NSObject, SGCManager {
 
             Bridge.sendTouchEvent(
                 deviceModel: DeviceTypes.G2, gestureName: gestureName,
-                timestamp: timestamp
+                timestamp: timestamp,
+                source: eventSource
             )
-            // Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
+            Bridge.log("G2: SysEvent → \(eventType) \(eventSource)")
 
             if eventType == .doubleClick {
                 // trigger dashboard:
@@ -3096,22 +3112,22 @@ class G2: NSObject, SGCManager {
         }
 
         // TextEvent (field 2) - tap on text container
-        if let textData = fields[2] as? Data {
-            var textReader = ProtobufReader(textData)
-            let textFields = textReader.parseFields()
-            if let eventTypeRaw = textFields[3] as? Int32,
-                let eventType = OsEventType(rawValue: eventTypeRaw)
-            {
-                let gestureName = mapEventTypeToGesture(eventType)
-                if let gestureName = gestureName {
-                    Bridge.sendTouchEvent(
-                        deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp
-                    )
-                    Bridge.log("G2: TextEvent → \(gestureName)")
-                }
-            }
-            return
-        }
+        // if let textData = fields[2] as? Data {
+        //     var textReader = ProtobufReader(textData)
+        //     let textFields = textReader.parseFields()
+        //     if let eventTypeRaw = textFields[3] as? Int32,
+        //         let eventType = OsEventType(rawValue: eventTypeRaw)
+        //     {
+        //         let gestureName = mapEventTypeToGesture(eventType)
+        //         if let gestureName = gestureName {
+        //             Bridge.sendTouchEvent(
+        //                 deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp
+        //             )
+        //             Bridge.log("G2: TextEvent → \(gestureName)")
+        //         }
+        //     }
+        //     return
+        // }
 
         // ListEvent (field 1) - interaction with list container
         // if let listData = fields[1] as? Data {

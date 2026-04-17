@@ -136,6 +136,10 @@ class GlassesStore {
         switch (category, key) {
         case ("glasses", "fullyBooted"):
             Bridge.log("STORE: Glasses fullyBooted changed to \(value)")
+            // skip if the value is the same as the old value:
+            if let ready = value as? Bool, ready == oldValue as? Bool {
+                return
+            }
             if let ready = value as? Bool {
                 if ready {
                     CoreManager.shared.handleDeviceReady()

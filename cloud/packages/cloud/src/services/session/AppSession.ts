@@ -17,6 +17,8 @@ import { Logger } from "pino";
 
 import { ExtendedStreamType, StreamType, isLanguageStream, parseLanguageStream } from "@mentra/sdk";
 
+import { MemoryOwnerStat } from "../metrics/memory-census";
+import { estimateStringBytes, sumEstimatedBytes } from "../metrics/memory-estimate";
 import { ResourceTracker } from "../../utils/resource-tracker";
 import { metricsService } from "../metrics/MetricsService";
 import { IWebSocket, WebSocketReadyState, hasEventEmitter } from "../websocket/types";
@@ -733,6 +735,36 @@ export class AppSession {
    */
   getSubscriptionHistory(): SubscriptionHistoryEntry[] {
     return [...this.subscriptionHistory];
+  }
+
+  getMemoryStats(): MemoryOwnerStat[] {
+    return [
+      {
+        owner: "app-session.subscription-history",
+        scope: "app-session",
+        itemCount: this.subscriptionHistory.length,
+        estimatedBytes: sumEstimatedBytes(this.subscriptionHistory, (entry) => {
+          return (
+            estimateStringBytes(entry.action) +
+            sumEstimatedBytes(entry.subscriptions, (subscription) => estimateStringBytes(subscription)) +
+            32
+          );
+        }),
+        metadata: {
+          packageName: this.packageName,
+        },
+      },
+      {
+        owner: "app-session.subscriptions",
+        scope: "app-session",
+        itemCount: this._subscriptions.size,
+        estimatedBytes:
+          sumEstimatedBytes(this._subscriptions, (subscription) => estimateStringBytes(subscription)) + 16,
+        metadata: {
+          packageName: this.packageName,
+        },
+      },
+    ];
   }
 
   // ===== Pending Connection (for startApp) =====

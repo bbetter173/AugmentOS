@@ -28,6 +28,12 @@ import {
   Layout,
   LayoutType,
   AppToCloudMessage,
+  BitmapAnimation,
+  BitmapView,
+  DashboardCard,
+  DoubleTextWall,
+  ReferenceCard,
+  TextWall,
   ViewType,
 } from "@mentra/sdk";
 import {
@@ -39,6 +45,13 @@ import {
   TextWrapper,
 } from "@mentra/display-utils";
 import type { DisplayProfile } from "@mentra/display-utils";
+
+import { MemoryOwnerStat } from "../../metrics/memory-census";
+import { estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
+import { WebSocketReadyState } from "../../websocket/types";
+import UserSession from "../UserSession";
+import { weatherService } from "../../core/WeatherService";
+import { NotificationService, PhoneNotification } from "./NotificationService";
 
 // Internal package name for OS-generated display requests.
 // Matches OS_PACKAGE_NAME in DisplayManager6.1.ts — both must stay in sync.
@@ -126,9 +139,7 @@ function getHeaderMetrics(profile: DisplayProfile): { leftMaxWidthPx: number; sp
   }
   return cached;
 }
-import { weatherService } from "../../core/WeatherService";
-import UserSession from "../UserSession";
-import { NotificationService, PhoneNotification } from "./NotificationService";
+
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -801,6 +812,88 @@ export class DashboardManager {
   // Lifecycle
   // ---------------------------------------------------------------------------
 
+
+
+  /**
+   * Broadcast a message to all Apps connected to this user session
+   * @param message Message to broadcast
+   */
+  private broadcastToAllApps(message: any): void {
+    try {
+      // Use the appConnections map to send to all connected Apps
+      // this.userSession.appConnections.forEach((ws, packageName) => {
+      this.userSession.appWebsockets.forEach((ws, packageName) => {
+        try {
+          if (ws && ws.readyState === WebSocketReadyState.OPEN) {
+            const appMessage = {
+              ...message,
+              sessionId: `${this.userSession.sessionId}-${packageName}`,
+            };
+            ws.send(JSON.stringify(appMessage));
+          }
+        } catch (error) {
+          const logger = this.userSession.logger.child({
+            packageName,
+            message,
+          });
+          logger.error(error, "Error sending dashboard message to App");
+        }
+      });
+    } catch (error) {
+      this.logger.error(error, "Error broadcasting dashboard message");
+    }
+  }
+
+  /**
+   * Get the current dashboard mode
+   * @returns Current dashboard mode
+   */
+  public getCurrentMode(): DashboardMode | "none" {
+    // The refactored dashboard always operates in MAIN mode.
+    // The multi-mode architecture (EXPANDED, ALWAYS_ON) was removed.
+    return DashboardMode.MAIN;
+  }
+
+  /**
+   * Check if always-on dashboard is enabled
+   * @returns Always-on dashboard state
+   */
+  public isAlwaysOnEnabled(): boolean {
+    // Always-on mode was removed in the dashboard refactor.
+    return false;
+  }
+
+  public getMemoryStats(): MemoryOwnerStat[] {
+    return [
+      {
+        owner: "dashboard.widgets",
+        scope: "session",
+        itemCount: this.mainWidgets.size,
+        estimatedBytes: sumEstimatedBytes(this.mainWidgets.values(), (widget) => {
+          const contentBytes = typeof widget.content === "string" ? estimateStringBytes(widget.content) : 64;
+          return estimateStringBytes(widget.packageName) + contentBytes + 32;
+        }),
+        metadata: {
+          currentMode: this.getCurrentMode(),
+          alwaysOnEnabled: this.isAlwaysOnEnabled(),
+          rotationIndex: this.widgetRotationIndex,
+        },
+      },
+      {
+        owner: "dashboard.system-data",
+        scope: "session",
+        itemCount: (this.weatherText ? 1 : 0) + (this.calendarText ? 1 : 0),
+        estimatedBytes:
+          estimateStringBytes(this.weatherText) +
+          estimateStringBytes(this.calendarText),
+        metadata: {
+          currentMode: this.getCurrentMode(),
+          alwaysOnEnabled: this.isAlwaysOnEnabled(),
+        },
+      },
+    ];
+  }
+
   /**
    * Clean up all timers and state. Called when the UserSession is torn down.
    */
@@ -819,6 +912,41 @@ export class DashboardManager {
     this.notificationService.dispose();
 
     this.logger.info({}, "DashboardManager disposed");
+  }
+
+
+
+  private estimateContentBytes(content: string | Layout): number {
+    if (typeof content === "string") {
+      return estimateStringBytes(content);
+    }
+
+    switch (content.layoutType) {
+      case LayoutType.TEXT_WALL:
+        return estimateStringBytes((content as TextWall).text);
+      case LayoutType.DOUBLE_TEXT_WALL:
+        return (
+          estimateStringBytes((content as DoubleTextWall).topText) +
+          estimateStringBytes((content as DoubleTextWall).bottomText)
+        );
+      case LayoutType.DASHBOARD_CARD:
+        return (
+          estimateStringBytes((content as DashboardCard).leftText) +
+          estimateStringBytes((content as DashboardCard).rightText)
+        );
+      case LayoutType.REFERENCE_CARD:
+        return (
+          estimateStringBytes((content as ReferenceCard).title) + estimateStringBytes((content as ReferenceCard).text)
+        );
+      case LayoutType.BITMAP_VIEW:
+        return estimateStringBytes((content as BitmapView).data);
+      case LayoutType.BITMAP_ANIMATION:
+        return sumEstimatedBytes((content as BitmapAnimation).frames, (frame) => estimateStringBytes(frame)) + 16;
+      case LayoutType.CLEAR_VIEW:
+        return 0;
+      default:
+        return 0;
+    }
   }
 }
 

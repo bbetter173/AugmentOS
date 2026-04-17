@@ -17,6 +17,8 @@ import {
 } from "@mentra/sdk";
 
 import { PosthogService } from "../../logging/posthog.service";
+import { MemoryOwnerStat } from "../../metrics/memory-census";
+import { estimateArrayBufferBytes, estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
 import UserSession from "../UserSession";
 
 import { AlibabaTranscriptionProvider } from "./providers/AlibabaTranscriptionProvider";
@@ -902,9 +904,9 @@ export class TranscriptionManager {
   }
 
   /**
-   * Memory stats used by MemoryTelemetryService
+   * Lightweight summary stats used by MemoryTelemetryService.
    */
-  public getMemoryStats(): {
+  public getMemoryTelemetryStats(): {
     vadBufferChunks: number;
     vadBufferBytes: number;
     transcriptLanguages: number;
@@ -936,6 +938,61 @@ export class TranscriptionManager {
       transcriptLanguages,
       transcriptSegments,
     };
+  }
+
+  /**
+   * Best-effort ownership census for retained transcription state.
+   * This is not exact JSC heap accounting — it is a ranking tool that tells us
+   * which long-lived structures are likely owning memory growth.
+   */
+  public getMemoryStats(): MemoryOwnerStat[] {
+    const stats: MemoryOwnerStat[] = [];
+    const hasEnglishLanguageHistory = this.transcriptHistory.languageSegments.has("en-US");
+
+    for (const [language, segments] of this.transcriptHistory.languageSegments.entries()) {
+      stats.push({
+        owner: `transcription.history.${language}`,
+        scope: "session",
+        itemCount: segments.length,
+        estimatedBytes: estimateTranscriptSegmentBytes(segments),
+        metadata: { language },
+      });
+    }
+
+    if (this.transcriptHistory.segments.length > 0) {
+      stats.push({
+        owner: "transcription.history.legacy",
+        scope: "session",
+        itemCount: this.transcriptHistory.segments.length,
+        estimatedBytes: hasEnglishLanguageHistory
+          ? estimateTranscriptReferenceBytes(this.transcriptHistory.segments.length)
+          : estimateTranscriptSegmentBytes(this.transcriptHistory.segments),
+        metadata: {
+          language: "en-US",
+          mirroredOwner: hasEnglishLanguageHistory ? "transcription.history.en-US" : null,
+          referenceOnly: hasEnglishLanguageHistory,
+        },
+      });
+    }
+
+    stats.push({
+      owner: "transcription.vad-audio-buffer",
+      scope: "session",
+      itemCount: this.vadAudioBuffer.length,
+      estimatedBytes: sumEstimatedBytes(this.vadAudioBuffer, (chunk) => estimateArrayBufferBytes(chunk)),
+    });
+
+    stats.push({
+      owner: "transcription.streams",
+      scope: "session",
+      itemCount: this.streams.size,
+      estimatedBytes: this.streams.size * 256,
+      metadata: {
+        activeSubscriptions: this.activeSubscriptions.size,
+      },
+    });
+
+    return stats;
   }
 
   // ===== PRIVATE METHODS =====
@@ -2302,4 +2359,20 @@ export class TranscriptionManager {
       this.logger.error({ error }, "Error during TranscriptionManager cleanup");
     }
   }
+}
+
+function estimateTranscriptSegmentBytes(segments: TranscriptSegment[]): number {
+  return sumEstimatedBytes(segments, (segment) => {
+    return (
+      estimateStringBytes(segment.text) +
+      estimateStringBytes(segment.resultId) +
+      estimateStringBytes(segment.speakerId) +
+      64
+    );
+  });
+}
+
+function estimateTranscriptReferenceBytes(segmentCount: number): number {
+  if (segmentCount <= 0) return 0;
+  return 64 + segmentCount * 16;
 }

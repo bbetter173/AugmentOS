@@ -86,6 +86,10 @@ async function listIncidents(c: AppContext) {
 async function getIncident(c: AppContext) {
   const incidentId = c.req.param("incidentId");
 
+  if (!incidentId) {
+    return c.json({ error: "Missing required parameter: incidentId" }, 400);
+  }
+
   try {
     const incident = await Incident.findOne({ incidentId }).lean();
 
@@ -111,6 +115,10 @@ async function getIncidentLogs(c: AppContext) {
   const incidentId = c.req.param("incidentId");
   if (!incidentId) {
     return c.json({ error: "Missing incidentId parameter" }, 400);
+  }
+
+  if (!incidentId) {
+    return c.json({ error: "Missing required parameter: incidentId" }, 400);
   }
 
   try {

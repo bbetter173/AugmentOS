@@ -108,6 +108,16 @@ async function addRestreamOutput(c: AppContext) {
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
 
+  if (!streamId) {
+    return c.json(
+      {
+        error: "MISSING_STREAM_ID",
+        message: "streamId is required",
+      },
+      400,
+    );
+  }
+
   try {
     const body = await c.req.json().catch(() => ({}));
     const { url, name } = body as RestreamDestination;
@@ -245,6 +255,16 @@ async function removeRestreamOutput(c: AppContext) {
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
 
+  if (!streamId || !outputId) {
+    return c.json(
+      {
+        error: "MISSING_ROUTE_PARAMS",
+        message: "streamId and outputId are required",
+      },
+      400,
+    );
+  }
+
   logger.info(
     {
       streamId,
@@ -343,6 +363,16 @@ async function listRestreamOutputs(c: AppContext) {
   }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+
+  if (!streamId) {
+    return c.json(
+      {
+        error: "MISSING_STREAM_ID",
+        message: "streamId is required",
+      },
+      400,
+    );
+  }
 
   try {
     // Find user session by app

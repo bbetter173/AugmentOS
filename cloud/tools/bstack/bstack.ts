@@ -105,15 +105,12 @@ function normalizeDuration(input: string): string {
 }
 
 /**
- * Pick the correct BetterStack log source table for a region.
- * France and East Asia may still be on the legacy AugmentOS source.
+ * Pick the BetterStack log source table for a region.
  */
 function getSourceForRegion(region: string): string {
-  if (region === "france" || region === "east-asia") {
-    // These regions may still send to the legacy source until redeployed
-    // with the new BETTERSTACK_SOURCE_TOKEN. Check both — prefer prod.
-    return getLogsTable("prod");
-  }
+  // All regions send to the MentraCloud-Prod source.
+  // Regional collector sources (mentra-france, mentra-east-asia, etc.) exist
+  // but the cloud process logs all go to prod via Vector/BetterStack collectors.
   return getLogsTable("prod");
 }
 
@@ -455,6 +452,79 @@ async function cmdMemory(flags: Record<string, string>) {
   }
 }
 
+// ── memory-owners ───────────────────────────────────────────────────────────
+
+async function cmdMemoryOwners(flags: Record<string, string>) {
+  const region = getFlag(flags, "region", "us-central");
+  const duration = normalizeDuration(getFlag(flags, "duration", "2 HOUR"));
+  const source = getSourceForRegion(region);
+
+  console.log(`🧠 Memory Owners — ${region} (last ${duration})\n`);
+
+  const result = await runSql(`
+    SELECT
+      dt,
+      JSONExtract(raw, 'memoryTopOwners', 'Nullable(String)') AS top_owners,
+      JSONExtract(raw, 'memoryTopOwnerDeltas', 'Nullable(String)') AS top_deltas,
+      JSONExtract(raw, 'memoryTopSessions', 'Nullable(String)') AS top_sessions
+    FROM ${source}
+    WHERE dt >= now() - INTERVAL ${duration}
+      AND JSONExtract(raw, 'region', 'Nullable(String)') = '${region}'
+      AND JSONExtract(raw, 'server', 'Nullable(String)') = 'cloud-prod'
+      AND JSONExtract(raw, 'feature', 'Nullable(String)') = 'system-vitals'
+      AND JSONHas(raw, 'memoryTopOwners')
+    ORDER BY dt DESC
+    LIMIT 12
+  `);
+
+  if (result.data.length === 0) {
+    console.log("  (no memory ownership data found — likely not deployed yet)");
+    return;
+  }
+
+  const latest = result.data[0];
+  const topOwners = safeJsonParse(latest.top_owners);
+  const topDeltas = safeJsonParse(latest.top_deltas);
+  const topSessions = safeJsonParse(latest.top_sessions);
+
+  console.log(`Latest sample: ${latest.dt}\n`);
+
+  console.log("Top owners by size:");
+  printTable(
+    Array.isArray(topOwners)
+      ? topOwners.map((owner: any) => ({
+          owner: owner.owner,
+          estimated_mb: Math.round(Number(owner.estimatedBytes || 0) / 1048576),
+          items: owner.itemCount ?? 0,
+        }))
+      : [],
+  );
+
+  console.log("\nTop owners by growth:");
+  printTable(
+    Array.isArray(topDeltas)
+      ? topDeltas.map((owner: any) => ({
+          owner: owner.owner,
+          delta_mb: Math.round(Number(owner.deltaBytes || 0) / 1048576),
+          estimated_mb: Math.round(Number(owner.estimatedBytes || 0) / 1048576),
+        }))
+      : [],
+  );
+
+  console.log("\nTop sessions:");
+  printTable(
+    Array.isArray(topSessions)
+      ? topSessions.map((session: any) => ({
+          userId: session.userId,
+          estimated_mb: Math.round(Number(session.estimatedBytes || 0) / 1048576),
+          top_owners: Array.isArray(session.topOwners)
+            ? session.topOwners.map((owner: any) => owner.owner).join(", ")
+            : "",
+        }))
+      : [],
+  );
+}
+
 // ── gc ───────────────────────────────────────────────────────────────────────
 
 async function cmdGc(flags: Record<string, string>) {
@@ -773,6 +843,7 @@ Commands:
   bstack diagnostics --region <r>            Full diagnostics (GC, gaps, MongoDB, budget)
   bstack crash-timeline --region <r>         What happened before the last crash
   bstack memory --region <r> [--duration 1h] Memory trend over time
+  bstack memory-owners --region <r>          Top memory owners and growth
   bstack gc --region <r> [--duration 1h]     GC probe analysis
   bstack gaps --region <r> [--duration 1h]   Event loop gap analysis
   bstack budget --region <r>                 Operation budget (CPU consumers)
@@ -790,6 +861,16 @@ Environment:
   BETTERSTACK_PASSWORD    ClickHouse HTTP API password
   BETTERSTACK_API_TOKEN   Management API token (for uptime)
 `);
+}
+
+function safeJsonParse(input: unknown): any[] {
+  if (!input || typeof input !== "string") return [];
+  try {
+    const parsed = JSON.parse(input);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -814,6 +895,10 @@ try {
     case "memory":
     case "mem":
       await cmdMemory(flags);
+      break;
+    case "memory-owners":
+    case "owners":
+      await cmdMemoryOwners(flags);
       break;
     case "gc":
       await cmdGc(flags);

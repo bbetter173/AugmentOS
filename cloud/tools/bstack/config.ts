@@ -6,7 +6,7 @@
  * "where is our data in BetterStack?"
  *
  * See: cloud/issues/064-bstack-cli/spike.md
- * See: cloud/tools/bstack/inventory.md (full resource documentation)
+ * See: cloud/tools/bstack/inventory.md (moved to cloud/issues/097-porter-mini-app-cleanup/inventory.md)
  */
 
 // ---------------------------------------------------------------------------

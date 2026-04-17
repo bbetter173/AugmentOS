@@ -1,0 +1,173 @@
+---
+title: "Safe Areas & Layout"
+description: "Avoid system-reserved UI regions when building Mini App webviews"
+icon: "border-outer"
+---
+
+Mini App webviews run inside the MentraOS companion app. Two screen regions are reserved by system UI and must stay clear of your content.
+
+## Reserved Areas
+
+### Top-right capsule menu
+
+The MentraOS capsule (≡ / ✕) occupies the top-right corner:
+
+| Property | Value |
+|----------|-------|
+| Size | 74 × 32 px |
+| Top offset | 16 px |
+| Right offset | 16 px |
+| Shape | Pill (fully rounded) |
+
+Don't place buttons, menus, badges, tabs, navigation actions, floating actions, status indicators, or popovers in this zone.
+
+<Frame>
+  <img src="/static/img/safe-area-diagram.png" alt="Safe area diagram showing the capsule menu in the top-right corner and the safe content area below" style={{ maxWidth: '300px', margin: '0 auto', display: 'block' }} />
+</Frame>
+
+### Bottom system navigation
+
+On Android, the gesture bar or 3-button navbar occupies the bottom edge. Don't place primary buttons, tab bars, or floating actions flush against it.
+
+<Info>
+**MentraOS 2.9** Content now renders above the Android 3-button navigation bar, but UI should still not sit too close to the bottom edge.
+</Info>
+
+## Using SDK Safe Areas
+
+<Warning>
+The safe area API ships in an upcoming `@mentra/react` release. These examples document the intended interface.
+</Warning>
+
+### Setup
+
+Wrap your app with the safe area provider:
+
+```tsx
+import React from "react"
+import ReactDOM from "react-dom/client"
+import App from "./App"
+import { MentraAuthProvider, MentraSafeAreaProvider } from "@mentra/react"
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <MentraAuthProvider>
+      <MentraSafeAreaProvider>
+        <App />
+      </MentraSafeAreaProvider>
+    </MentraAuthProvider>
+  </React.StrictMode>,
+)
+```
+
+### Read insets manually
+
+Use `useMentraSafeArea` when you need fine-grained control:
+
+```tsx
+import { useMentraSafeArea } from "@mentra/react"
+
+function MyScreen() {
+  const { insets, capsule } = useMentraSafeArea()
+
+  // insets.top, insets.bottom, insets.left, insets.right
+  // capsule.width (74), capsule.height (32), capsule.top (16), capsule.right (16)
+
+  return (
+    <div style={{
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom,
+      paddingLeft: insets.left,
+      paddingRight: insets.right,
+    }}>
+      <h1>My Mini App</h1>
+    </div>
+  )
+}
+```
+
+### SafeAreaView wrapper
+
+For most cases, wrap your content and let the SDK handle it:
+
+```tsx
+import { SafeAreaView } from "@mentra/react"
+
+function MyScreen() {
+  return (
+    <SafeAreaView>
+      <h1>My Mini App</h1>
+      <button>Primary Action</button>
+    </SafeAreaView>
+  )
+}
+```
+
+## Layout Rules
+
+### Do
+
+```
+✅ Build within SDK safe area
+✅ Center or left-align key content
+✅ Place bottom actions above the safe inset
+✅ Test gesture nav, 3-button nav, and different insets
+✅ Validate loading, empty, and error states
+```
+
+### Don't
+
+```
+❌ Place UI in the top-right corner
+❌ Anchor UI tight to top or right edges
+❌ Put buttons or tabs flush to the bottom edge
+❌ Use position: absolute without checking reserved zones
+❌ Rely only on simulator, test on real devices
+```
+
+## Recommended Patterns
+
+<CardGroup cols={2}>
+  <Card title="Good patterns" icon="check" color="#00b869">
+    - Centered content layouts
+    - Left-aligned content flows
+    - Bottom actions above safe inset
+    - Vertically padded layouts
+  </Card>
+  <Card title="Risky patterns" icon="xmark" color="#d93838">
+    - Top-right UI (capsule conflict)
+    - Bottom UI flush to edge
+    - Floating elements near system edges
+    - Edge-to-edge assumptions
+  </Card>
+</CardGroup>
+
+## Pre-publish Checklist
+
+Before submitting your Mini App:
+
+| Check | |
+|-------|--|
+| No UI overlaps the top-right capsule | ☐ |
+| No critical UI near top-right corner | ☐ |
+| No important UI flush with bottom edge | ☐ |
+| Bottom actions clear system nav area | ☐ |
+| Touch targets near edges easy to tap | ☐ |
+| Tested across Android nav modes | ☐ |
+| Absolute-positioned elements validated | ☐ |
+| All states (loading/empty/error) respect safe areas | ☐ |
+
+<Info>
+**Design principle** Design as if the top-right corner and bottom edge are blocked by system hardware. If your layout still works cleanly, it is safe.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="React Webviews" icon="react" href="/app-devs/core-concepts/webviews/react-webviews">
+    Build webviews with @mentra/react
+  </Card>
+  <Card title="Hardware Capabilities" icon="microchip" href="/app-devs/core-concepts/hardware-capabilities/overview">
+    Check device display capabilities
+  </Card>
+</CardGroup>

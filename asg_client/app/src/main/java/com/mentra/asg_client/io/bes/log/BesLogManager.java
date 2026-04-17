@@ -73,11 +73,28 @@ public class BesLogManager {
   private final Consumer<String> mRelayJsonCallback;
 
   /**
+   * Backend base URL for direct HTTP upload. When non-empty, takes precedence over
+   * {@link com.mentra.asg_client.utils.ServerConfigUtil#getServerBaseUrl(android.content.Context)}.
+   */
+  private final String mApiBaseUrl;
+
+  /**
    * Create a new BES log collection session (HTTP upload on completion).
    */
   public BesLogManager(String incidentId, Context context,
                        IConfigurationManager configurationManager) {
-    this(incidentId, context, configurationManager, null);
+    this(incidentId, context, configurationManager, "", null);
+  }
+
+  /**
+   * Create a new BES log collection session that uploads to {@code apiBaseUrl} instead of the
+   * glasses' built-in server config. Falls back to
+   * {@link com.mentra.asg_client.utils.ServerConfigUtil} when {@code apiBaseUrl} is empty.
+   */
+  public BesLogManager(String incidentId, Context context,
+                       IConfigurationManager configurationManager,
+                       String apiBaseUrl) {
+    this(incidentId, context, configurationManager, apiBaseUrl, null);
   }
 
   /**
@@ -87,9 +104,17 @@ public class BesLogManager {
   public BesLogManager(String incidentId, Context context,
                        IConfigurationManager configurationManager,
                        Consumer<String> relayJsonCallback) {
+    this(incidentId, context, configurationManager, "", relayJsonCallback);
+  }
+
+  private BesLogManager(String incidentId, Context context,
+                        IConfigurationManager configurationManager,
+                        String apiBaseUrl,
+                        Consumer<String> relayJsonCallback) {
     mIncidentId = incidentId;
     mContext = context;
     mConfigurationManager = configurationManager;
+    mApiBaseUrl = apiBaseUrl != null ? apiBaseUrl.trim() : "";
     mRelayJsonCallback = relayJsonCallback;
     mHandler = new Handler(Looper.getMainLooper());
 
@@ -250,8 +275,9 @@ public class BesLogManager {
         return;
       }
 
-      String baseUrl = ServerConfigUtil.getServerBaseUrl(mContext);
-      // baseUrl = "https://devapi.mentra.glass:443";
+      String baseUrl = (!mApiBaseUrl.isEmpty())
+          ? mApiBaseUrl
+          : ServerConfigUtil.getServerBaseUrl(mContext);
       String url = baseUrl + "/api/incidents/" + mIncidentId + "/logs";
 
       String bodyStr = buildFirmwareUploadJson(logText);

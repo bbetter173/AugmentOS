@@ -175,7 +175,7 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
                                 + " (" + logs.length() + " entries)");
                         if (mK900CommandHandler != null) {
                             mK900CommandHandler.requestBesLogs(
-                                    incidentId, mContext, mConfigurationManager);
+                                    incidentId, mContext, mConfigurationManager, apiBaseUrl);
                         }
                     } else {
                         Log.e(TAG, "❌ Server rejected glasses logs upload, status: "
@@ -266,7 +266,8 @@ public class UploadIncidentLogsCommandHandler implements ICommandHandler {
             boolean logcatIdle = waitUntilFileTransferIdle(bt, FILE_TRANSFER_MAX_WAIT_MS);
             deleteQuietly(lFile);
             if (!logcatIdle) {
-                Log.w(TAG, "Timed out waiting for logcat BLE transfer — relay may be incomplete for incident " + incidentId);
+                Log.e(TAG, "Timed out waiting for logcat BLE transfer — relay incomplete for incident " + incidentId);
+                return;
             }
 
             Log.i(TAG, "✅ BLE relay sequence completed for incident " + incidentId);

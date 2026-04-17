@@ -2801,6 +2801,14 @@ public class MentraLive extends SGCManager {
                 if (photoTransfer != null) {
                     Bridge.log("LIVE: 🧹 Cleaned up timed out BLE photo transfer for: " + bleImgId);
                 }
+
+                // Reset stale session on incident log relay so a retry starts fresh.
+                // Keep the relay entry itself — glasses will retry after receiving transfer_complete:false.
+                BleIncidentLogRelay incidentRelay = bleIncidentLogRelays.get(bleImgId);
+                if (incidentRelay != null) {
+                    incidentRelay.session = null;
+                    Bridge.log("LIVE: 🧹 Reset timed out BLE incident log relay session for: " + bleImgId);
+                }
             }
 
         } catch (Exception e) {

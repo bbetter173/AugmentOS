@@ -1142,9 +1142,9 @@ class CoreManager {
         sgc?.requestWifiScan()
     }
 
-    fun sendIncidentId(incidentId: String) {
+    fun sendIncidentId(incidentId: String, apiBaseUrl: String? = null) {
         Bridge.log("MAN: Sending incidentId to glasses for log upload: $incidentId")
-        sgc?.sendIncidentId(incidentId)
+        sgc?.sendIncidentId(incidentId, apiBaseUrl)
     }
 
     fun sendWifiCredentials(ssid: String, password: String) {

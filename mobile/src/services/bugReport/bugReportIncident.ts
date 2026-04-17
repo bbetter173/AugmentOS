@@ -228,6 +228,7 @@ export async function submitBugIncident(
   options?: SubmitBugIncidentOptions,
 ): Promise<{ok: true; incidentId: string} | {ok: false; error: Error}> {
   const phoneState = buildBugReportPhoneState()
+  const phoneBackendUrl = useSettingsStore.getState().getRestUrl()
   const res = await restComms.createIncident(feedbackData, phoneState)
   if (res.is_error()) {
     return {ok: false, error: res.error}
@@ -245,7 +246,7 @@ export async function submitBugIncident(
 
   const glassesConnected = useGlassesStore.getState().connected
   if (glassesConnected) {
-    CoreModule.sendIncidentId(incidentId)
+    CoreModule.sendIncidentId(incidentId, phoneBackendUrl)
   }
 
   if (options?.screenshots && options.screenshots.length > 0) {

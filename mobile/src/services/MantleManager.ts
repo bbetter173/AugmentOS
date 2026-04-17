@@ -98,7 +98,8 @@ class MantleManager {
     // Send device timezone to cloud (used for calendar/time display)
     this.syncTimezone()
 
-    await CoreModule.updateCore(useSettingsStore.getState().getCoreSettings()) // send settings to core
+    const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
+    await CoreModule.updateCore(initialCoreSettings) // send settings to core
     console.log("MANTLE: Settings sent to core")
 
     this.initServices()

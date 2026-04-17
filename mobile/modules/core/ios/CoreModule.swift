@@ -189,9 +189,9 @@ public class CoreModule: Module {
 
         // MARK: - Incident Reporting
 
-        AsyncFunction("sendIncidentId") { (incidentId: String) in
+        AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in
             await MainActor.run {
-                CoreManager.shared.sendIncidentId(incidentId)
+                CoreManager.shared.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
             }
         }
 

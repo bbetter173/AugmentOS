@@ -3036,7 +3036,8 @@ class G2: NSObject, SGCManager {
         setFullyConnected()
 
         // Bridge.log("G2: handleTouchEvent: \(fields)")
-        // Bridge.log("G2: handleTouchEvent: \(devEventData.map { String(format: "%02X", $0) }.joined())")
+        // Bridge.log(
+        //     "G2: handleTouchEvent: \(devEventData.map { String(format: "%02X", $0) }.joined())")
 
         // SysEvent (field 3) - system-level gestures
         if let sysData = fields[3] as? Data {
@@ -3130,22 +3131,23 @@ class G2: NSObject, SGCManager {
         }
 
         // TextEvent (field 2) - tap on text container
-        // if let textData = fields[2] as? Data {
-        //     var textReader = ProtobufReader(textData)
-        //     let textFields = textReader.parseFields()
-        //     if let eventTypeRaw = textFields[3] as? Int32,
-        //         let eventType = OsEventType(rawValue: eventTypeRaw)
-        //     {
-        //         let gestureName = mapEventTypeToGesture(eventType)
-        //         if let gestureName = gestureName {
-        //             Bridge.sendTouchEvent(
-        //                 deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp
-        //             )
-        //             Bridge.log("G2: TextEvent → \(gestureName)")
-        //         }
-        //     }
-        //     return
-        // }
+        if let textData = fields[2] as? Data {
+            var textReader = ProtobufReader(textData)
+            let textFields = textReader.parseFields()
+            if let eventTypeRaw = textFields[3] as? Int32,
+                let eventType = OsEventType(rawValue: eventTypeRaw)
+            {
+                guard let gestureName = mapEventTypeToGesture(eventType) else {
+                    Bridge.log("G2: no gesture mapping for \(eventType) \(textFields)")
+                    return
+                }
+                Bridge.sendTouchEvent(
+                    deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp
+                )
+                Bridge.log("G2: TextEvent → \(gestureName)")
+            }
+            return
+        }
 
         // ListEvent (field 1) - interaction with list container
         // if let listData = fields[1] as? Data {

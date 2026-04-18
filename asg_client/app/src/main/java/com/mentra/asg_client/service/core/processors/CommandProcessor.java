@@ -20,14 +20,17 @@ import com.mentra.asg_client.service.core.handlers.VideoCommandHandler;
 import com.mentra.asg_client.service.core.handlers.PhoneReadyCommandHandler;
 import com.mentra.asg_client.service.core.handlers.AuthTokenCommandHandler;
 import com.mentra.asg_client.service.core.handlers.PingCommandHandler;
-import com.mentra.asg_client.service.core.handlers.RtmpCommandHandler;
+import com.mentra.asg_client.service.core.handlers.StreamCommandHandler;
 import com.mentra.asg_client.service.core.handlers.WifiCommandHandler;
 import com.mentra.asg_client.service.core.handlers.BatteryCommandHandler;
 import com.mentra.asg_client.service.core.handlers.ImuCommandHandler;
+import com.mentra.asg_client.service.core.handlers.KeepAwakeCommandHandler;
 import com.mentra.asg_client.service.core.handlers.GalleryCommandHandler;
 import com.mentra.asg_client.service.core.handlers.RgbLedCommandHandler;
 import com.mentra.asg_client.service.core.handlers.BleConfigCommandHandler;
+import com.mentra.asg_client.service.core.handlers.I2SAudioCommandHandler;
 import com.mentra.asg_client.service.core.handlers.UserEmailCommandHandler;
+import com.mentra.asg_client.service.core.handlers.UploadIncidentLogsCommandHandler;
 import com.mentra.asg_client.reporting.core.ReportManager;
 
 import org.json.JSONObject;
@@ -139,7 +142,7 @@ public class CommandProcessor {
      * Process JSON command by delegating to appropriate handlers.
      * Follows Open/Closed Principle by using registry pattern.
      */
-    private void processJsonCommand(JSONObject json) {
+    public void processJsonCommand(JSONObject json) {
         // processJsonCommand() started
 
         Log.d(TAG, "📊 processJsonCommand() started" + json.toString());
@@ -309,8 +312,11 @@ public class CommandProcessor {
             commandHandlerRegistry.registerHandler(new PingCommandHandler(communicationManager, responseBuilder, serviceManager));
             Log.d(TAG, "✅ Registered PingCommandHandler");
 
-            commandHandlerRegistry.registerHandler(new RtmpCommandHandler(context, stateManager, streamingManager));
-            Log.d(TAG, "✅ Registered RtmpCommandHandler");
+            commandHandlerRegistry.registerHandler(new KeepAwakeCommandHandler());
+            Log.d(TAG, "✅ Registered KeepAwakeCommandHandler");
+
+            commandHandlerRegistry.registerHandler(new StreamCommandHandler(context, stateManager, streamingManager));
+            Log.d(TAG, "✅ Registered StreamCommandHandler");
 
             commandHandlerRegistry.registerHandler(new WifiCommandHandler(serviceManager, communicationManager, stateManager));
             Log.d(TAG, "✅ Registered WifiCommandHandler");
@@ -348,8 +354,14 @@ public class CommandProcessor {
             commandHandlerRegistry.registerHandler(new BleConfigCommandHandler());
             Log.d(TAG, "✅ Registered BleConfigCommandHandler");
 
-            commandHandlerRegistry.registerHandler(new com.mentra.asg_client.service.core.handlers.PowerCommandHandler(context));
+            commandHandlerRegistry.registerHandler(new com.mentra.asg_client.service.core.handlers.PowerCommandHandler(context, serviceManager));
             Log.d(TAG, "✅ Registered PowerCommandHandler");
+
+            commandHandlerRegistry.registerHandler(new UploadIncidentLogsCommandHandler(context, configurationManager, k900CommandHandler));
+            Log.d(TAG, "✅ Registered UploadIncidentLogsCommandHandler");
+
+            commandHandlerRegistry.registerHandler(new I2SAudioCommandHandler());
+            Log.d(TAG, "✅ Registered I2SAudioCommandHandler");
 
             Log.i(TAG, "✅ Successfully registered " + commandHandlerRegistry.getHandlerCount() + " command handlers");
 
@@ -430,6 +442,19 @@ public class CommandProcessor {
             k900CommandHandler.requestSystemVersion();
         } else {
             Log.w(TAG, "⚠️ K900CommandHandler not available - cannot request BES system version");
+        }
+    }
+
+    /**
+     * Request BES chip trace buffer logs and print them to logcat.
+     * Pass a non-null incidentId to also upload to the incident backend as "glasses_firmware".
+     */
+    public void requestBesLogs(String incidentId, android.content.Context context,
+                               com.mentra.asg_client.service.system.interfaces.IConfigurationManager configManager) {
+        if (k900CommandHandler != null) {
+            k900CommandHandler.requestBesLogs(incidentId, context, configManager);
+        } else {
+            Log.w(TAG, "⚠️ K900CommandHandler not available — cannot request BES logs");
         }
     }
 

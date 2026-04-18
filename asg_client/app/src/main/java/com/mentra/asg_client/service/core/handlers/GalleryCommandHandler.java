@@ -7,6 +7,8 @@ import com.mentra.asg_client.service.legacy.managers.AsgClientServiceManager;
 import com.mentra.asg_client.io.file.core.FileManager;
 import com.mentra.asg_client.io.media.core.MediaCaptureService;
 import com.mentra.asg_client.io.streaming.services.RtmpStreamingService;
+import com.mentra.asg_client.io.streaming.services.SrtStreamingService;
+import com.mentra.asg_client.io.streaming.services.WhipStreamingService;
 import com.mentra.asg_client.utils.GalleryStatusHelper;
 
 import org.json.JSONObject;
@@ -59,6 +61,15 @@ public class GalleryCommandHandler implements ICommandHandler {
         try {
             Log.d(TAG, "📸 Querying gallery status...");
 
+            // If camera is busy (recording video or streaming), don't report gallery status.
+            // In-progress recordings produce incomplete files on disk that would be corrupted
+            // if the phone attempted to sync them.
+            String cameraState = getCameraBusyState();
+            if (cameraState != null) {
+                Log.d(TAG, "📸 Camera busy (" + cameraState + ") - sending empty gallery status to prevent syncing incomplete files");
+                return sendEmptyGalleryStatus();
+            }
+
             // Get FileManager from the camera server (same way HTTP server does it)
             FileManager fileManager = null;
             if (serviceManager != null && serviceManager.getCameraServer() != null) {
@@ -72,12 +83,6 @@ public class GalleryCommandHandler implements ICommandHandler {
 
             // Build gallery status using shared utility
             JSONObject response = GalleryStatusHelper.buildGalleryStatus(fileManager);
-
-            // Check camera busy state - only include if camera is actually busy
-            String cameraState = getCameraBusyState();
-            if (cameraState != null) {
-                response.put("camera_busy", cameraState);
-            }
 
             // Send response
             boolean sent = communicationManager.sendBluetoothResponse(response);
@@ -117,8 +122,8 @@ public class GalleryCommandHandler implements ICommandHandler {
     private String getCameraBusyState() {
         try {
             // Check if RTMP streaming is active
-            if (RtmpStreamingService.isStreaming()) {
-                Log.d(TAG, "Camera is busy: RTMP streaming active");
+            if (RtmpStreamingService.isStreaming() || SrtStreamingService.isStreaming() || WhipStreamingService.isStreaming()) {
+                Log.d(TAG, "Camera is busy: streaming active");
                 return "stream";
             }
             

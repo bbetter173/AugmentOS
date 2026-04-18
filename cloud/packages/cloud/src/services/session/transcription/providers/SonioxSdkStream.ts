@@ -92,6 +92,16 @@ export class SonioxSdkStream implements StreamInstance {
   private session: RealtimeSttSession;
   private utteranceBuffer: RealtimeUtteranceBuffer;
   private disposed = false;
+  private _lastSlowSendWarn: number = 0;
+
+  // ── Stored listener references for typed .off() cleanup in close() ──
+  private onResult?: (result: RealtimeResult) => void;
+  private onEndpoint?: () => void;
+  private onFinalized?: () => void;
+  private onFinished?: () => void;
+  private onError?: (error: Error) => void;
+  private onDisconnected?: (reason?: string) => void;
+  private onConnected?: () => void;
 
   // ── Utterance tracking ──────────────────────────────────────────────
   private currentUtteranceId: string | null = null;
@@ -100,6 +110,26 @@ export class SonioxSdkStream implements StreamInstance {
 
   // Track last emitted interim text to avoid duplicate callbacks.
   private lastEmittedInterimText = "";
+
+  // ── Auto-pause / keepalive (Fix 044-3) ──────────────────────────────
+  // When Mentra Live glasses' hardware VAD suppresses audio during silence,
+  // the cloud stops sending audio to Soniox but the stream stays open.
+  // Without keepalive, Soniox times out after ~20s → 408 → full teardown.
+  //
+  // The Soniox SDK provides session.pause() which:
+  //   1. Auto-finalizes pending tokens (so new speech starts fresh)
+  //   2. Auto-sends keepalive messages (preventing 408 timeout)
+  //   3. Drops any audio sent while paused (so we must resume before sending)
+  //
+  // We detect audio gaps (2s of silence) and pause the session. On the next
+  // writeAudio() call, we resume before sending the audio chunk.
+  private gapCheckInterval: NodeJS.Timeout | null = null;
+  private lastAudioWriteTime: number = Date.now();
+  private pausedForGap = false;
+
+  // Gap detection configuration
+  private static readonly GAP_CHECK_INTERVAL_MS = 1000; // Check every 1s
+  private static readonly AUDIO_GAP_THRESHOLD_MS = 2000; // 2s of no audio → pause
 
   // ── Stable-prefix accumulation ──────────────────────────────────────
   // The SDK's rolling window compacts (prunes) finalized tokens mid-
@@ -177,14 +207,16 @@ export class SonioxSdkStream implements StreamInstance {
     this.logger.debug({ streamId: this.id }, "Connecting Soniox SDK session");
 
     // ── Wire up events BEFORE connecting ───────────────────────────
-    this.session.on("result", (result: RealtimeResult) => this.handleResult(result));
-    this.session.on("endpoint", () => this.handleEndpoint());
-    this.session.on("finalized", () => this.handleFinalized());
-    this.session.on("finished", () => this.handleFinished());
-    this.session.on("error", (error: Error) => this.handleError(error));
-    this.session.on("disconnected", (reason?: string) => this.handleDisconnected(reason));
-
-    this.session.on("connected", () => {
+    // Store listener references so we can .off() each one in close(),
+    // breaking the SonioxSdkStream → TranscriptionManager → UserSession
+    // reference chain that previously prevented garbage collection.
+    this.onResult = (result: RealtimeResult) => this.handleResult(result);
+    this.onEndpoint = () => this.handleEndpoint();
+    this.onFinalized = () => this.handleFinalized();
+    this.onFinished = () => this.handleFinished();
+    this.onError = (error: Error) => this.handleError(error);
+    this.onDisconnected = (reason?: string) => this.handleDisconnected(reason);
+    this.onConnected = () => {
       this.state = StreamState.READY;
       this.readyTime = Date.now();
       this.metrics.initializationTime = this.readyTime - this.startTime;
@@ -200,8 +232,19 @@ export class SonioxSdkStream implements StreamInstance {
         "✅ Soniox SDK stream connected and ready",
       );
 
+      // Start gap detection that auto-pauses during silence (Fix 044-3)
+      this.startGapDetection();
+
       this.callbacks.onReady?.();
-    });
+    };
+
+    this.session.on("result", this.onResult);
+    this.session.on("endpoint", this.onEndpoint);
+    this.session.on("finalized", this.onFinalized);
+    this.session.on("finished", this.onFinished);
+    this.session.on("error", this.onError);
+    this.session.on("disconnected", this.onDisconnected);
+    this.session.on("connected", this.onConnected);
 
     try {
       await this.session.connect();
@@ -213,6 +256,7 @@ export class SonioxSdkStream implements StreamInstance {
 
   async writeAudio(data: ArrayBuffer): Promise<boolean> {
     this.lastActivity = Date.now();
+    this.lastAudioWriteTime = Date.now();
     this.metrics.audioChunksReceived++;
 
     if (this.state !== StreamState.READY && this.state !== StreamState.ACTIVE) {
@@ -225,8 +269,42 @@ export class SonioxSdkStream implements StreamInstance {
       return false;
     }
 
+    // Resume from auto-pause before sending audio (Fix 044-3).
+    // The SDK drops audio while paused, so we MUST resume first.
+    if (this.pausedForGap) {
+      try {
+        this.session.resume();
+        this.pausedForGap = false;
+        // Reset utterance tracking so new speech starts clean
+        this.stablePrefixText = "";
+        this.prevWindowFinalLen = 0;
+        this.lastEmittedInterimText = "";
+        this.logger.debug({ streamId: this.id }, "Resumed Soniox session — audio incoming after gap");
+      } catch (error) {
+        this.logger.warn({ error, streamId: this.id }, "Error resuming Soniox session after gap");
+        // Continue anyway — sendAudio might still work
+      }
+    }
+
     try {
+      const t0 = performance.now();
       this.session.sendAudio(new Uint8Array(data));
+      const sendDurationMs = performance.now() - t0;
+
+      // Log slow Soniox sends — if this blocks >50ms, it's starving the event loop.
+      // Rate-limited: at most one warning per 30 seconds per stream to avoid log flood
+      // (audio sends happen ~50 times/second per session).
+      if (sendDurationMs > 50 && Date.now() - (this._lastSlowSendWarn || 0) > 30_000) {
+        this._lastSlowSendWarn = Date.now();
+        this.logger.warn(
+          {
+            feature: "soniox-timing",
+            durationMs: Math.round(sendDurationMs * 10) / 10,
+            streamId: this.id,
+          },
+          `Soniox send slow: ${Math.round(sendDurationMs)}ms`,
+        );
+      }
 
       this.state = StreamState.ACTIVE;
       this.metrics.audioChunksWritten++;
@@ -275,14 +353,71 @@ export class SonioxSdkStream implements StreamInstance {
     }
   }
 
+  /**
+   * Start the gap detection interval that auto-pauses the Soniox session
+   * when no audio has arrived for AUDIO_GAP_THRESHOLD_MS. The SDK's pause()
+   * handles keepalive and finalization automatically. (Fix 044-3)
+   *
+   * On the next writeAudio() call, the session is resumed before sending.
+   */
+  private startGapDetection(): void {
+    this.stopGapDetection();
+    this.lastAudioWriteTime = Date.now();
+    this.pausedForGap = false;
+
+    this.gapCheckInterval = setInterval(() => {
+      if (this.disposed || (this.state !== StreamState.READY && this.state !== StreamState.ACTIVE)) {
+        return;
+      }
+
+      if (this.session.state !== "connected") {
+        return;
+      }
+
+      // Already paused — SDK is sending keepalive automatically, nothing to do
+      if (this.pausedForGap) {
+        return;
+      }
+
+      const silenceDuration = Date.now() - this.lastAudioWriteTime;
+
+      if (silenceDuration >= SonioxSdkStream.AUDIO_GAP_THRESHOLD_MS) {
+        try {
+          this.session.pause();
+          this.pausedForGap = true;
+          this.logger.debug(
+            { streamId: this.id, silenceDuration },
+            "Auto-paused Soniox session — no audio for 2s (SDK handles keepalive + finalize)",
+          );
+        } catch (error) {
+          this.logger.warn({ error, streamId: this.id }, "Error pausing Soniox session for gap");
+        }
+      }
+    }, SonioxSdkStream.GAP_CHECK_INTERVAL_MS);
+  }
+
+  /**
+   * Stop the gap detection interval.
+   */
+  private stopGapDetection(): void {
+    if (this.gapCheckInterval) {
+      clearInterval(this.gapCheckInterval);
+      this.gapCheckInterval = null;
+    }
+  }
+
   async close(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this.state = StreamState.CLOSING;
 
+    // Stop gap detection interval (Fix 044-3)
+    this.stopGapDetection();
+
     try {
       // Graceful shutdown: finish() waits for remaining results, then closes.
-      // If the session is already disconnected, close() is a no-op.
+      // Keep listeners active through finish() so finalized/finished handlers
+      // can fire and flush final transcript data via emitFinal().
       const sessionState = this.session.state;
       if (sessionState === "connected" || sessionState === "finishing") {
         try {
@@ -296,6 +431,18 @@ export class SonioxSdkStream implements StreamInstance {
       }
     } catch (error) {
       this.logger.warn({ error, streamId: this.id }, "Error during Soniox SDK stream close");
+    } finally {
+      // Remove event listeners AFTER finish() to prevent leaking references
+      // to this stream (and transitively to TranscriptionManager → UserSession)
+      // via the session emitter. Must happen after finish() because finish()
+      // may emit finalized/finished events that flush pending transcript data.
+      if (this.onResult) this.session.off("result", this.onResult);
+      if (this.onEndpoint) this.session.off("endpoint", this.onEndpoint);
+      if (this.onFinalized) this.session.off("finalized", this.onFinalized);
+      if (this.onFinished) this.session.off("finished", this.onFinished);
+      if (this.onError) this.session.off("error", this.onError);
+      if (this.onDisconnected) this.session.off("disconnected", this.onDisconnected);
+      if (this.onConnected) this.session.off("connected", this.onConnected);
     }
 
     // Reset buffers
@@ -545,6 +692,7 @@ export class SonioxSdkStream implements StreamInstance {
   }
 
   private handleError(error: Error): void {
+    this.stopGapDetection(); // Clean up gap detection on error (Fix 044-3)
     this.state = StreamState.ERROR;
     this.lastError = error;
     this.metrics.errorCount++;

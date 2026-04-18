@@ -8,6 +8,8 @@ import WebSocket from "ws";
 
 import { TranslationData, StreamType } from "@mentra/sdk";
 
+import { MemoryOwnerStat } from "../../../metrics/memory-census";
+import { estimateArrayBufferBytes, estimateStringBytes, sumEstimatedBytes } from "../../../metrics/memory-estimate";
 import { ResourceTracker } from "../../../../utils/resource-tracker";
 import {
   TranslationProvider,
@@ -156,6 +158,13 @@ class SonioxTranslationStream implements TranslationStreamInstance {
   }
 
   private async connect(): Promise<void> {
+    // Silently return instead of rejecting — closeHandler schedules
+    // setTimeout(() => this.connect(), ...) without .catch(), so rejecting
+    // here would create an unhandled rejection during normal shutdown.
+    if (this.disposed || this.isClosing) {
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       try {
         // Create WebSocket connection
@@ -695,6 +704,56 @@ class SonioxTranslationStream implements TranslationStreamInstance {
     };
   }
 
+  getMemoryStats(): MemoryOwnerStat[] {
+    const stats: MemoryOwnerStat[] = [
+      {
+        owner: "translation.soniox.pending-audio",
+        scope: "stream",
+        itemCount: this.pendingAudioChunks.length,
+        estimatedBytes: sumEstimatedBytes(this.pendingAudioChunks, (chunk: ArrayBuffer) =>
+          estimateArrayBufferBytes(chunk),
+        ),
+        metadata: {
+          streamId: this.id,
+          subscription: this.subscription,
+        },
+      },
+      {
+        owner: "translation.soniox.latency-measurements",
+        scope: "stream",
+        itemCount: this.latencyMeasurements.length,
+        estimatedBytes: this.latencyMeasurements.length * 8,
+        metadata: {
+          streamId: this.id,
+        },
+      },
+    ];
+
+    for (const [language, utterance] of this.utterancesByLanguage.entries()) {
+      const originalBytes = sumEstimatedBytes(utterance.originalTokens, (token: SonioxToken) =>
+        estimateSonioxTokenBytes(token),
+      );
+      const translationBytes = sumEstimatedBytes(utterance.translationTokens, (token: SonioxToken) =>
+        estimateSonioxTokenBytes(token),
+      );
+
+      stats.push({
+        owner: `translation.soniox.utterances.${language}`,
+        scope: "stream",
+        itemCount: utterance.originalTokens.length + utterance.translationTokens.length,
+        estimatedBytes: originalBytes + translationBytes,
+        metadata: {
+          streamId: this.id,
+          language,
+          targetLanguage: utterance.targetLanguage ?? null,
+          waitingForTranslation: utterance.waitingForTranslation,
+        },
+      });
+    }
+
+    return stats;
+  }
+
   private handleError(error: Error): void {
     this.lastError = error;
     this.metrics.errorCount++;
@@ -901,6 +960,15 @@ class SonioxTranslationStream implements TranslationStreamInstance {
       this.utteranceTimeouts.delete(sourceLang);
     }
   }
+}
+
+function estimateSonioxTokenBytes(token: SonioxToken): number {
+  return (
+    estimateStringBytes(token.text) +
+    estimateStringBytes(token.language) +
+    estimateStringBytes(token.source_language) +
+    32
+  );
 }
 
 /**

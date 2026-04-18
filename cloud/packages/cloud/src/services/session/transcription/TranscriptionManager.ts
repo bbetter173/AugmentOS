@@ -17,10 +17,11 @@ import {
 } from "@mentra/sdk";
 
 import { PosthogService } from "../../logging/posthog.service";
+import { MemoryOwnerStat } from "../../metrics/memory-census";
+import { estimateArrayBufferBytes, estimateStringBytes, sumEstimatedBytes } from "../../metrics/memory-estimate";
 import UserSession from "../UserSession";
 
 import { AlibabaTranscriptionProvider } from "./providers/AlibabaTranscriptionProvider";
-import { AzureTranscriptionProvider } from "./providers/AzureTranscriptionProvider";
 import { SonioxTranscriptionProvider } from "./providers/SonioxTranscriptionProvider";
 import { ProviderSelector } from "./ProviderSelector";
 import {
@@ -68,6 +69,22 @@ export class TranscriptionManager {
 
   private DEPLOYMENT_REGION: string = process.env.DEPLOYMENT_REGION || "global";
   private IS_CHINA: boolean = this.DEPLOYMENT_REGION === "china";
+
+  // Disposal State
+  private disposed = false;
+  private pendingTimers = new Set<NodeJS.Timeout>();
+
+  // Hot-path allocation reduction: pre-allocated DataStream template to avoid
+  // per-message heap allocations in relayDataToApps, reducing GC pressure
+  // and heap fragmentation on Bun/JSC.
+  private _relayTimestamp: Date = new Date();
+  private _relayDataStream: DataStream = {
+    type: CloudToAppMessageType.DATA_STREAM,
+    sessionId: "",
+    streamType: "" as ExtendedStreamType,
+    data: null as any,
+    timestamp: this._relayTimestamp,
+  };
 
   // Health Monitoring
   private healthCheckInterval?: NodeJS.Timeout;
@@ -206,7 +223,6 @@ export class TranscriptionManager {
             "Forced finalization of Soniox transcription tokens",
           );
         }
-        // Azure doesn't need forced finalization as it sends final results immediately
         // Other providers can be added here as needed
       } catch (error) {
         this.logger.warn(
@@ -847,6 +863,12 @@ export class TranscriptionManager {
    * Dispose of the manager and cleanup resources
    */
   async dispose(): Promise<void> {
+    this.disposed = true;
+    // Clear all pending reconnect/retry timers to release references to this manager
+    for (const timer of this.pendingTimers) {
+      clearTimeout(timer);
+    }
+    this.pendingTimers.clear();
     this.logger.info("Disposing TranscriptionManager");
 
     // Stop health monitoring
@@ -882,9 +904,9 @@ export class TranscriptionManager {
   }
 
   /**
-   * Memory stats used by MemoryTelemetryService
+   * Lightweight summary stats used by MemoryTelemetryService.
    */
-  public getMemoryStats(): {
+  public getMemoryTelemetryStats(): {
     vadBufferChunks: number;
     vadBufferBytes: number;
     transcriptLanguages: number;
@@ -916,6 +938,61 @@ export class TranscriptionManager {
       transcriptLanguages,
       transcriptSegments,
     };
+  }
+
+  /**
+   * Best-effort ownership census for retained transcription state.
+   * This is not exact JSC heap accounting — it is a ranking tool that tells us
+   * which long-lived structures are likely owning memory growth.
+   */
+  public getMemoryStats(): MemoryOwnerStat[] {
+    const stats: MemoryOwnerStat[] = [];
+    const hasEnglishLanguageHistory = this.transcriptHistory.languageSegments.has("en-US");
+
+    for (const [language, segments] of this.transcriptHistory.languageSegments.entries()) {
+      stats.push({
+        owner: `transcription.history.${language}`,
+        scope: "session",
+        itemCount: segments.length,
+        estimatedBytes: estimateTranscriptSegmentBytes(segments),
+        metadata: { language },
+      });
+    }
+
+    if (this.transcriptHistory.segments.length > 0) {
+      stats.push({
+        owner: "transcription.history.legacy",
+        scope: "session",
+        itemCount: this.transcriptHistory.segments.length,
+        estimatedBytes: hasEnglishLanguageHistory
+          ? estimateTranscriptReferenceBytes(this.transcriptHistory.segments.length)
+          : estimateTranscriptSegmentBytes(this.transcriptHistory.segments),
+        metadata: {
+          language: "en-US",
+          mirroredOwner: hasEnglishLanguageHistory ? "transcription.history.en-US" : null,
+          referenceOnly: hasEnglishLanguageHistory,
+        },
+      });
+    }
+
+    stats.push({
+      owner: "transcription.vad-audio-buffer",
+      scope: "session",
+      itemCount: this.vadAudioBuffer.length,
+      estimatedBytes: sumEstimatedBytes(this.vadAudioBuffer, (chunk) => estimateArrayBufferBytes(chunk)),
+    });
+
+    stats.push({
+      owner: "transcription.streams",
+      scope: "session",
+      itemCount: this.streams.size,
+      estimatedBytes: this.streams.size * 256,
+      metadata: {
+        activeSubscriptions: this.activeSubscriptions.size,
+      },
+    });
+
+    return stats;
   }
 
   // ===== PRIVATE METHODS =====
@@ -986,22 +1063,6 @@ export class TranscriptionManager {
         providerErrors.push({ provider: "Alibaba", error: error as Error });
       }
 
-      // Try to initialize Azure provider
-      try {
-        if (this.IS_CHINA) {
-          this.logger.info("Azure provider not initialized for China");
-        } else {
-          const azureProvider = new AzureTranscriptionProvider(this.config.azure, this.logger);
-          await azureProvider.initialize();
-          this.providers.set(ProviderType.AZURE, azureProvider);
-          availableProviders.push(ProviderType.AZURE);
-          this.logger.info("Azure provider initialized successfully");
-        }
-      } catch (error) {
-        this.logger.error(error, "Failed to initialize Azure provider");
-        providerErrors.push({ provider: "Azure", error: error as Error });
-      }
-
       // Try to initialize Soniox provider
       try {
         if (this.IS_CHINA) {
@@ -1027,8 +1088,6 @@ export class TranscriptionManager {
           {
             providerErrors,
             config: {
-              azureHasKey: !!this.config.azure.key,
-              azureRegion: this.config.azure.region,
               sonioxHasKey: !!this.config.soniox.apiKey,
               sonioxEndpoint: this.config.soniox.endpoint,
             },
@@ -1299,16 +1358,10 @@ export class TranscriptionManager {
 
     // Smart provider cycling based on error type and current provider
     if (currentProvider === ProviderType.SONIOX) {
-      // Soniox failed - check if we should retry Soniox or immediately switch to Azure
+      // Soniox failed - check if we should retry Soniox or try another provider
       if (this.isSonioxRateLimit(error)) {
-        // Rate limit - immediately try Azure
-        this.logger.info(
-          { subscription, error: error.message },
-          "Soniox rate limit detected - falling back to Azure immediately",
-        );
-        if (await this.trySpecificProvider(subscription, ProviderType.AZURE)) {
-          return; // Success with Azure
-        }
+        // Rate limit - log and fall through to retry logic
+        this.logger.info({ subscription, error: error.message }, "Soniox rate limit detected");
       } else if (this.isRetryableError(error)) {
         // Other retryable Soniox errors - retry Soniox first
         this.logger.info({ subscription, error: error.message }, "Retrying Soniox for retryable error");
@@ -1316,20 +1369,8 @@ export class TranscriptionManager {
         return;
       }
 
-      // If we reach here, either:
-      // 1. Rate limit and Azure failed, OR
-      // 2. Non-retryable Soniox error
-      // Try Azure as fallback
-      this.logger.info({ subscription }, "Trying Azure as fallback after Soniox failure");
-      if (await this.trySpecificProvider(subscription, ProviderType.AZURE)) {
-        return; // Success with Azure
-      }
-    } else if (currentProvider === ProviderType.AZURE) {
-      // Azure failed - cycle back to Soniox since it's preferred
-      this.logger.info({ subscription }, "Azure failed - cycling back to preferred Soniox provider");
-      if (await this.trySpecificProvider(subscription, ProviderType.SONIOX)) {
-        return; // Success with Soniox
-      }
+      // If we reach here, Soniox failed (rate limit or non-retryable error)
+      // No Azure fallback available — will fall through to retry/give-up logic below
     }
 
     // If we reach here, both providers have been tried and failed
@@ -1507,7 +1548,10 @@ export class TranscriptionManager {
   private scheduleStreamReconnect(subscription: ExtendedStreamType, delayMs: number = 1000): void {
     this.logger.info({ subscription, delayMs }, "Scheduling stream reconnect after provider disconnect");
 
-    setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      this.pendingTimers.delete(timer);
+      if (this.disposed) return;
+
       // Double-check subscription is still active
       if (!this.activeSubscriptions.has(subscription)) {
         this.logger.debug({ subscription }, "Subscription no longer active - skipping reconnect");
@@ -1533,6 +1577,7 @@ export class TranscriptionManager {
         // next subscription update handle it to avoid potential infinite loops
       }
     }, delayMs);
+    this.pendingTimers.add(timer);
   }
 
   private scheduleStreamRetry(subscription: ExtendedStreamType, attempt: number, lastError?: Error): void {
@@ -1586,7 +1631,10 @@ export class TranscriptionManager {
       "Scheduling stream retry",
     );
 
-    setTimeout(async () => {
+    const retryTimer = setTimeout(async () => {
+      this.pendingTimers.delete(retryTimer);
+      if (this.disposed) return;
+
       try {
         await this.startStream(subscription);
         this.streamRetryAttempts.delete(subscription); // Success
@@ -1597,6 +1645,7 @@ export class TranscriptionManager {
         this.logger.warn({ subscription, attempt, error }, "Stream retry failed");
       }
     }, delay);
+    this.pendingTimers.add(retryTimer);
   }
 
   private isRetryableError(error: Error): boolean {
@@ -1942,17 +1991,16 @@ export class TranscriptionManager {
           ? this.findAppTranscriptionSubscription(packageName, data.transcribeLanguage)
           : null;
 
-        const dataStream: DataStream = {
-          type: CloudToAppMessageType.DATA_STREAM,
-          sessionId: appSessionId,
-          streamType: (appSubscription || effectiveSubscription) as ExtendedStreamType,
-          data,
-          timestamp: new Date(),
-        };
+        // Hot-path allocation reduction: mutate pre-allocated template instead of
+        // creating a new object per message to reduce heap fragmentation on Bun/JSC.
+        this._relayDataStream.sessionId = appSessionId;
+        this._relayDataStream.streamType = (appSubscription || effectiveSubscription) as ExtendedStreamType;
+        this._relayDataStream.data = data;
+        this._relayTimestamp.setTime(Date.now());
 
         try {
           // USE APP MANAGER instead of direct WebSocket (restores resurrection)
-          const result = await this.userSession.appManager.sendMessageToApp(packageName, dataStream);
+          const result = await this.userSession.appManager.sendMessageToApp(packageName, this._relayDataStream);
 
           if (!result.sent) {
             this.logger.warn(
@@ -1985,7 +2033,6 @@ export class TranscriptionManager {
         }
       }
 
-      // Enhanced debug logging to show transcription content and provider
       this.logger.debug(
         {
           subscription,
@@ -2312,4 +2359,20 @@ export class TranscriptionManager {
       this.logger.error({ error }, "Error during TranscriptionManager cleanup");
     }
   }
+}
+
+function estimateTranscriptSegmentBytes(segments: TranscriptSegment[]): number {
+  return sumEstimatedBytes(segments, (segment) => {
+    return (
+      estimateStringBytes(segment.text) +
+      estimateStringBytes(segment.resultId) +
+      estimateStringBytes(segment.speakerId) +
+      64
+    );
+  });
+}
+
+function estimateTranscriptReferenceBytes(segmentCount: number): number {
+  if (segmentCount <= 0) return 0;
+  return 64 + segmentCount * 16;
 }

@@ -31,32 +31,6 @@ import android.util.Log;
 import androidx.core.app.ActivityCompat;
 // import androidx.preference.PreferenceManager;
 
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.BatteryLevelEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.ButtonPressEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesGalleryStatusEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesBluetoothSearchDiscoverEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesBluetoothSearchStopEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesWifiScanResultEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesWifiStatusChange;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesHotspotStatusChange;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.KeepAliveAckEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.RtmpStreamStatusEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.supportedglasses.SmartGlassesDevice;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.SmartGlassesConnectionState;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.GlassesVersionInfoEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.SmartGlassesManager;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.DownloadProgressEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.InstallationProgressEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.PairFailureEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.ImuDataEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.ImuGestureEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.eventbusmessages.isMicEnabledForFrontendEvent;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.K900ProtocolUtils;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.MessageChunker;
-// import com.augmentos.augmentos_core.smarterglassesmanager.utils.BlePhotoUploadService;
-// import com.augmentos.smartglassesmanager.cpp.L3cCpp;
-// import com.augmentos.augmentos_core.audio.Lc3Player;
-
 // Mentra
 import com.mentra.core.sgcs.SGCManager;
 import com.mentra.core.CoreManager;
@@ -100,6 +74,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.Random;
 import java.security.SecureRandom;
 import java.io.File;
@@ -162,6 +137,10 @@ public class MentraLive extends SGCManager {
     private static final int RECONNECT_SCAN_TIMEOUT_MS = 10000; // 10 seconds for reconnection scans (faster than 60s default)
     private int reconnectAttempts = 0;
     private boolean isReconnecting = false; // Track if we're in reconnection mode
+    /** Timestamp when sr_shut (K900 shutdown) was last received; used to delay first reconnect scan so glasses can reboot. */
+    private long lastShutdownTimeMs = 0;
+    private static final long POST_SHUTDOWN_RECONNECT_DELAY_MS = 10_000; // 10s before first scan after shutdown
+    private static final long SHUTDOWN_RECENT_MS = 45_000; // Consider "recent shutdown" for 45s
 
     // Keep-alive parameters
     private static final int KEEP_ALIVE_INTERVAL_MS = 5000; // 5 seconds
@@ -212,9 +191,16 @@ public class MentraLive extends SGCManager {
     private boolean isA2dpProxyRegistered = false;
 
     private ConcurrentLinkedQueue<byte[]> sendQueue = new ConcurrentLinkedQueue<>();
+    // Queue for serializing BLE descriptor writes (only one GATT operation at a time)
+    private final ConcurrentLinkedQueue<BluetoothGattDescriptor> pendingDescriptorWrites = new ConcurrentLinkedQueue<>();
+    private boolean isDescriptorWriteInProgress = false;
+    private boolean notificationsEnabled = false; // Track if enableNotifications was already called this connection
     private Runnable connectionTimeoutRunnable;
     private Handler connectionTimeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable processSendQueueRunnable;
+    private int coreTokenRetryCount = 0;
+    private static final int CORE_TOKEN_MAX_RETRIES = 3;
+    private static final long CORE_TOKEN_RETRY_DELAY_MS = 250;
     // Current MTU size
     private int currentMtu = 23; // Default BLE MTU
 
@@ -256,6 +242,15 @@ public class MentraLive extends SGCManager {
     private int fileReadNotificationCount = 0; // Debug counter for FILE_READ notifications
 
     private final Object connectionLock = new Object();
+
+    // Glasses media volume (K900 cs_getvol / cs_vol, sr_getvol / sr_vol)
+    private static final int GLASSES_MEDIA_VOLUME_TIMEOUT_MS = 2000;
+    private final Object glassesMediaVolumeLock = new Object();
+    private Runnable glassesMediaVolumeTimeoutRunnable;
+    private Consumer<Map<String, Object>> pendingGetGlassesVolumeSuccess;
+    private Consumer<String> pendingGetGlassesVolumeError;
+    private Consumer<Map<String, Object>> pendingSetGlassesVolumeSuccess;
+    private Consumer<String> pendingSetGlassesVolumeError;
 
     private static class BlePhotoTransfer {
         String bleImgId;
@@ -690,6 +685,11 @@ public class MentraLive extends SGCManager {
                                     return;
                                 }
                             }
+                            // Clear the reconnection latch before scheduling the next attempt.
+                            // Otherwise handleReconnection() immediately aborts with "already reconnecting".
+                            isReconnecting = false;
+                            Log.i(TAG, "🔌 ⏰ Reconnect scan timed out - scheduling next reconnect attempt");
+                            Bridge.log("LIVE: 🔌 ⏰ Reconnect scan timed out - scheduling next reconnect attempt");
                             handleReconnection();
                         }
                     }
@@ -777,6 +777,7 @@ public class MentraLive extends SGCManager {
                         isConnecting = true;
                     }
                     stopScan();
+                    isReconnecting = false;
                     connectToDevice(result.getDevice());
                 }
             }
@@ -786,6 +787,11 @@ public class MentraLive extends SGCManager {
         public void onScanFailed(int errorCode) {
             Log.e(TAG, "BLE scan failed with error: " + errorCode);
             isScanning = false;
+            if (isReconnecting && !isKilled) {
+                isReconnecting = false;
+                Bridge.log("LIVE: 🔌 ❌ Reconnect scan failed - scheduling next reconnect attempt");
+                handleReconnection();
+            }
         }
     };
 
@@ -888,19 +894,28 @@ public class MentraLive extends SGCManager {
         } 
 
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            Log.e(TAG, "🔌 ❌ RECONNECTION FAILED - Maximum attempts reached (" + MAX_RECONNECT_ATTEMPTS + ")");
-            Bridge.log("LIVE: 🔌 ❌ RECONNECTION FAILED - Gave up after " + MAX_RECONNECT_ATTEMPTS + " attempts");
+            // Keep retrying in cycles until user explicitly forgets/kills the device.
+            Log.w(TAG, "🔌 ♻️ Max reconnect attempts reached - restarting retry cycle");
+            Bridge.log("LIVE: 🔌 ♻️ Max reconnect attempts reached - continuing reconnection cycle");
             reconnectAttempts = 0;
-            isReconnecting = false;
-            return;
         }
 
         // Set reconnecting flag for faster scan timeout
         isReconnecting = true;
 
+        reconnectAttempts++;
+        // RN home UI keys off core.searching for "connecting"; auto-reconnect does not set that.
+        // Publish CONNECTING so the app shows reconnecting during backoff (e.g. post-shutdown delay).
+        updateConnectionState(ConnTypes.CONNECTING);
         // Calculate delay with exponential backoff
         long delay = Math.min(BASE_RECONNECT_DELAY_MS * (1L << reconnectAttempts), MAX_RECONNECT_DELAY_MS);
-        reconnectAttempts++;
+        // After K900 shutdown, glasses need time to power cycle before they advertise again
+        if (reconnectAttempts == 1 && lastShutdownTimeMs > 0
+                && (System.currentTimeMillis() - lastShutdownTimeMs) < SHUTDOWN_RECENT_MS) {
+            delay = Math.max(delay, POST_SHUTDOWN_RECONNECT_DELAY_MS);
+            Log.i(TAG, "🔌 ⏳ Post-shutdown: waiting " + (POST_SHUTDOWN_RECONNECT_DELAY_MS / 1000) + "s before first reconnect scan");
+            Bridge.log("LIVE: 🔌 ⏳ Post-shutdown: waiting for glasses to reboot before first reconnect scan");
+        }
 
         Log.i(TAG, "🔌 📅 SCHEDULING RECONNECT #" + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS + 
               " in " + delay + "ms (base=" + BASE_RECONNECT_DELAY_MS + "ms, max=" + MAX_RECONNECT_DELAY_MS + "ms, scan_timeout=" + RECONNECT_SCAN_TIMEOUT_MS + "ms)");
@@ -912,28 +927,42 @@ public class MentraLive extends SGCManager {
             @Override
             public void run() {
                 if (!isConnected && !isConnecting && !isKilled) {
-                    // Check for last known device name to start scan
-                    // SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                    // String lastDeviceName = prefs.getString(PREF_DEVICE_NAME, null);
+                    // Prefer saved MAC for direct GATT connect (faster and more reliable than scanning).
+                    // Falls back to name-based scan if no address is saved.
+                    String lastDeviceAddress = (String) GlassesStore.INSTANCE.get("core", "device_address");
+                    if (lastDeviceAddress != null && !lastDeviceAddress.isEmpty() && bluetoothAdapter != null) {
+                        try {
+                            BluetoothDevice device = bluetoothAdapter.getRemoteDevice(lastDeviceAddress);
+                            Log.i(TAG, "🔌 🔁 RECONNECT #" + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS
+                                    + " - Direct GATT to saved address " + lastDeviceAddress);
+                            Bridge.log("LIVE: 🔌 🔁 Reconnection attempt " + reconnectAttempts + "/"
+                                    + MAX_RECONNECT_ATTEMPTS + " - connecting to saved BLE address: "
+                                    + lastDeviceAddress);
+                            // Release latch so connect timeout / GATT error can call handleReconnection() again
+                            isReconnecting = false;
+                            connectToDevice(device);
+                            return;
+                        } catch (IllegalArgumentException e) {
+                            Log.w(TAG, "🔌 ⚠️ Invalid saved BLE address, falling back to scan: " + lastDeviceAddress, e);
+                            Bridge.log("LIVE: 🔌 ⚠️ Invalid saved BLE address, using scan fallback");
+                        }
+                    }
 
-                    if (savedDeviceName != null && bluetoothAdapter != null) {
-                        Log.i(TAG, "🔌 🔍 STARTING RECONNECT #" + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS + 
+                    if (savedDeviceName != null && !savedDeviceName.isEmpty() && bluetoothAdapter != null) {
+                        Log.i(TAG, "🔌 🔍 STARTING RECONNECT #" + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS +
                               " - Fast scan (" + RECONNECT_SCAN_TIMEOUT_MS + "ms) for device: " + savedDeviceName);
-                        Bridge.log("LIVE: 🔌 🔍 Reconnection attempt " + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS + 
+                        Bridge.log("LIVE: 🔌 🔍 Reconnection attempt " + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS +
                               " - Starting FAST BLE scan for: " + savedDeviceName);
-                        // Start scan to find this device (will use fast timeout)
                         startScan();
-                        // The scan will automatically connect if it finds a device with the saved name
                     } else {
-                        Log.w(TAG, "🔌 ⚠️ RECONNECT #" + reconnectAttempts + " SKIPPED - No saved device name available");
-                        Bridge.log("LIVE: 🔌 ⚠️ Reconnection attempt " + reconnectAttempts + 
-                              " - No last device name available, scheduling next attempt");
-                        // Schedule another reconnection attempt - maybe the name will be available later
+                        Log.w(TAG, "🔌 ⚠️ RECONNECT #" + reconnectAttempts + " SKIPPED - No saved address or device id");
+                        Bridge.log("LIVE: 🔌 ⚠️ Reconnection attempt " + reconnectAttempts +
+                              " - No saved BLE address or device id, scheduling next attempt");
                         handleReconnection();
                     }
                 } else if (isConnected) {
-                    Log.i(TAG, "🔌 ✅ RECONNECTION SUCCESSFUL - Already connected (attempt " + reconnectAttempts + ")");
-                    Bridge.log("LIVE: 🔌 ✅ Reconnection successful - Already connected");
+                    Log.i(TAG, "🔌 🔗 Reconnect attempt skipped - BLE link already connected (attempt " + reconnectAttempts + ")");
+                    Bridge.log("LIVE: 🔌 🔗 Reconnect attempt skipped - BLE link already connected");
                     reconnectAttempts = 0;
                     isReconnecting = false;
                 } else {
@@ -959,10 +988,15 @@ public class MentraLive extends SGCManager {
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    Bridge.log("LIVE: 🔌 ✅ RECONNECTION SUCCESSFUL - Connected to GATT server, discovering services...");
+                    Bridge.log("LIVE: 🔌 🔗 BLE GATT link connected - validating services/characteristics...");
                     isConnecting = false;
                     isConnected = true;
                     connectedDevice = gatt.getDevice();
+                    GlassesStore.INSTANCE.apply("glasses", "bluetoothName", connectedDevice.getName());
+                    // Persist MAC so reconnection can use direct GATT instead of scanning
+                    if (connectedDevice.getAddress() != null) {
+                        GlassesStore.INSTANCE.apply("core", "device_address", connectedDevice.getAddress());
+                    }
 
                     // Save the connected device name for future reconnections
                     // no longer needed as we now save it immediately in connectToDevice()
@@ -1011,6 +1045,8 @@ public class MentraLive extends SGCManager {
                     glassesReadyReceived = false;
                     audioConnected = false;
 
+                    notificationsEnabled = false;
+
                     // Notify frontend and backend of disconnection
                     updateConnectionState(ConnTypes.DISCONNECTED);
 
@@ -1054,6 +1090,8 @@ public class MentraLive extends SGCManager {
                 glassesReady = false;
                 glassesReadyReceived = false;
                 audioConnected = false;
+
+                notificationsEnabled = false;
 
                 // Notify frontend and backend of disconnection
                 updateConnectionState(ConnTypes.DISCONNECTED);
@@ -1099,7 +1137,7 @@ public class MentraLive extends SGCManager {
 
                     if (hasRequiredCharacteristics) {
                         // BLE connection established, but we still need to wait for glasses SOC
-                        Bridge.log("LIVE: ✅ Core TX/RX and LC3 TX/RX characteristics found - BLE connection ready");
+                        Bridge.log("LIVE: 🔌 ✅ BLE reconnection fully ready (Core TX/RX + LC3 TX/RX characteristics verified)");
                         Bridge.log("LIVE: 🔄 Waiting for glasses SOC to become ready...");
 
                         // Don't set connected=true here - wait for SOC to be ready (fullyBooted=true)
@@ -1108,24 +1146,25 @@ public class MentraLive extends SGCManager {
                         // Keep the state as CONNECTING until the glasses SOC responds
                         // connectionEvent(SmartGlassesConnectionState.CONNECTING);
 
-                        // CRITICAL FIX: Request MTU size ONCE - don't schedule delayed retries
-                        // This avoids BLE operations during active data flow
+                        // Request MTU first, then enable notifications from onMtuChanged,
+                        // then start data flow after all descriptors are written.
+                        // This ensures no concurrent GATT operations on older Android BLE stacks.
                         if (checkPermission()) {
                             boolean mtuRequested = gatt.requestMtu(512);
                             Bridge.log("LIVE: 🔄 Requested MTU size 512, success: " + mtuRequested);
+                            if (!mtuRequested) {
+                                // MTU request failed to even start, enable notifications directly
+                                enableNotifications();
+                            }
+                            // Otherwise, enableNotifications() will be called from onMtuChanged
+                        } else {
+                            enableNotifications();
                         }
 
-                        // Enable notifications AFTER BLE connection is established
-                        enableNotifications();
-
-                        // Start queue processing for sending data
-                        handler.post(processSendQueueRunnable);
-
-                        //openhotspot(); //TODO: REMOVE AFTER DONE DEVELOPING
-                        // Start SOC readiness check loop - this will keep trying until
-                        // the glasses SOC boots and responds with a "glasses_ready" message
-                        // All other initialization will happen after receiving glasses_ready
-                        startReadinessCheckLoop();
+                        // NOTE: Send queue and readiness loop are started AFTER descriptor
+                        // writes complete (in writeNextDescriptor when queue is empty) to
+                        // avoid writeCharacteristic conflicting with writeDescriptor on
+                        // older Android BLE stacks that don't support concurrent GATT ops.
                     } else {
                         Log.e(TAG, "Required BLE characteristics not found");
                         if (rxCharacteristic == null) {
@@ -1239,24 +1278,14 @@ public class MentraLive extends SGCManager {
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             long threadId = Thread.currentThread().getId();
 
-            // CRITICAL FIX: Just log the result but take NO ACTION regardless of status
-            // This prevents descriptor write failures from crashing the connection
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.e(TAG, "Thread-" + threadId + ": ✅ Descriptor write successful");
+                Log.e(TAG, "Thread-" + threadId + ": ✅ Descriptor write successful for " + descriptor.getCharacteristic().getUuid());
             } else {
-                // Just log the error without taking ANY action
-                Log.e(TAG, "Thread-" + threadId + ": ℹ️ Descriptor write failed with status: " + status + " - IGNORING");
-                // DO NOT add any other operations or logging as they might cause issues
+                Log.e(TAG, "Thread-" + threadId + ": ℹ️ Descriptor write failed with status: " + status + " for " + descriptor.getCharacteristic().getUuid());
             }
 
-            // DO NOT:
-            // - Schedule any operations
-            // - Try to retry anything
-            // - Create any new BLE operations
-            // - Post any handlers
-            // - Do any validation or checking
-
-            // Any of these could cause thread conflicts that would kill the connection
+            // Process next queued descriptor write (serialized to avoid BLE stack contention)
+            writeNextDescriptor();
         }
 
         @Override
@@ -1269,56 +1298,76 @@ public class MentraLive extends SGCManager {
                 // Store the new MTU value
                 currentMtu = mtu;
 
-                // NOTE: MTU config will be sent to glasses after glasses_ready is received.
-                // BES2700 chip ignores negotiated MTU and uses 256 for BLE notifications,
-                // so we'll tell glasses to use 256 to fit packets in 253 bytes.
-
                 // If the negotiated MTU is sufficient for LC3 audio packets (typically 40-60 bytes)
                 if (mtu >= 64) {
                     Bridge.log("LIVE: ✅ MTU size is sufficient for LC3 audio data packets");
                 } else {
                     Log.w(TAG, "⚠️ MTU size may be too small for LC3 audio data packets");
-
-                    // Log the effective MTU payload directly
                     Bridge.log("LIVE: 📊 Effective MTU payload: " + effectivePayload + " bytes");
-
-                    // Check if it's sufficient for LC3 audio
-                    if (effectivePayload < 60) {
-                        Log.e(TAG, "❌ CRITICAL: Effective MTU too small for LC3 audio!");
-                        Log.e(TAG, "   This will likely cause issues with LC3 audio transmission");
-                    }
-
-                    // If we still have a small MTU, try requesting again
-                    if (mtu < 64 && gatt != null && checkPermission()) {
-                        handler.postDelayed(() -> {
-                            if (isConnected && gatt != null) {
-                                Bridge.log("LIVE: 🔄 Re-attempting MTU increase after initial small MTU");
-                                boolean retryMtuRequest = gatt.requestMtu(512);
-                                Bridge.log("LIVE:    MTU increase retry requested: " + retryMtuRequest);
-                            }
-                        }, 1000); // Wait 1 second before retry
-                    }
                 }
             } else {
                 Log.e(TAG, "❌ MTU change failed with status: " + status);
                 Log.w(TAG, "   Will continue with default MTU (23 bytes, 20 byte payload)");
+            }
 
-                // Try again if the MTU request failed
-                if (gatt != null && checkPermission()) {
-                    handler.postDelayed(() -> {
-                        if (isConnected && gatt != null) {
-                            Bridge.log("LIVE: 🔄 Re-attempting MTU increase after previous failure");
-                            boolean retryMtuRequest = gatt.requestMtu(512);
-                            Bridge.log("LIVE:    MTU increase retry requested: " + retryMtuRequest);
-                        }
-                    }, 1500); // Wait 1.5 seconds before retry
-                }
+            // Now that MTU operation is complete, enable notifications
+            // (descriptor writes are GATT operations and can't overlap with MTU request)
+            if (!notificationsEnabled) {
+                notificationsEnabled = true;
+                enableNotifications();
             }
         }
     };
 
     /**
-     * Enable notifications for all characteristics to ensure we catch data from any endpoint
+     * Write the next queued descriptor, or mark the queue as idle.
+     * Must be called after each onDescriptorWrite callback to serialize BLE GATT operations.
+     * On older Android devices, issuing multiple writeDescriptor() calls without waiting for
+     * onDescriptorWrite() causes the subsequent writes to silently fail.
+     */
+    private void writeNextDescriptor() {
+        BluetoothGattDescriptor next = pendingDescriptorWrites.poll();
+        if (next == null) {
+            isDescriptorWriteInProgress = false;
+            long threadId = Thread.currentThread().getId();
+            Log.e(TAG, "Thread-" + threadId + ": ✅ All descriptor writes completed");
+            Bridge.log("LIVE: All BLE notification descriptors written successfully");
+
+            // Now that all GATT setup operations are complete, start data flow
+            Bridge.log("LIVE: Starting send queue and readiness check loop");
+            handler.post(processSendQueueRunnable);
+            startReadinessCheckLoop();
+            return;
+        }
+
+        if (bluetoothGatt == null) {
+            isDescriptorWriteInProgress = false;
+            return;
+        }
+
+        try {
+            boolean writeSuccess = bluetoothGatt.writeDescriptor(next);
+            long threadId = Thread.currentThread().getId();
+            UUID uuid = next.getCharacteristic().getUuid();
+            Log.e(TAG, "Thread-" + threadId + ": 📱 Write descriptor for " + uuid + ": " + writeSuccess);
+
+            if (!writeSuccess) {
+                // If writeDescriptor returns false, onDescriptorWrite won't be called,
+                // so we need to continue the queue ourselves
+                Log.e(TAG, "Thread-" + threadId + ": ⚠️ writeDescriptor returned false for " + uuid + ", continuing queue");
+                handler.postDelayed(this::writeNextDescriptor, 50);
+            }
+        } catch (Exception e) {
+            long threadId = Thread.currentThread().getId();
+            Log.e(TAG, "Thread-" + threadId + ": ⚠️ Error writing descriptor: " + e.getMessage());
+            handler.postDelayed(this::writeNextDescriptor, 50);
+        }
+    }
+
+    /**
+     * Enable notifications for all characteristics to ensure we catch data from any endpoint.
+     * Descriptor writes are queued and serialized to work reliably on older Android BLE stacks
+     * that don't support concurrent GATT operations.
      */
     private void enableNotifications() {
         long threadId = Thread.currentThread().getId();
@@ -1347,10 +1396,13 @@ public class MentraLive extends SGCManager {
 
         boolean notificationSuccess = false;
 
+        // Clear any stale queued writes
+        pendingDescriptorWrites.clear();
+        isDescriptorWriteInProgress = false;
+
         // Enable notifications for each characteristic
         for (BluetoothGattCharacteristic characteristic : characteristics) {
             UUID uuid = characteristic.getUuid();
-            // Bridge.log("LIVE: Thread-" + threadId + ": Examining characteristic: " + uuid);
 
             // Log if this is one of the file transfer characteristics
             if (uuid.equals(FILE_READ_UUID)) {
@@ -1391,32 +1443,24 @@ public class MentraLive extends SGCManager {
             // Enable notifications for any characteristic that supports it
             if (hasNotify || hasIndicate) {
                 try {
-                    // Enable local notifications
+                    // Enable local notifications (this is synchronous and can be done for all at once)
                     boolean success = bluetoothGatt.setCharacteristicNotification(characteristic, true);
                     Log.e(TAG, "Thread-" + threadId + ": 📱 Set local notification for " + uuid + ": " + success);
                     notificationSuccess = notificationSuccess || success;
 
-                    // Try to enable remote notifications by writing to descriptor
-                    // We'll do this despite previous issues, since it's required for some devices
+                    // Queue the remote descriptor write (must be serialized on older Android BLE stacks)
                     BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
                         CLIENT_CHARACTERISTIC_CONFIG_UUID);
 
                     if (descriptor != null) {
-                        try {
-                            byte[] value;
-                            if (hasNotify) {
-                                value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
-                            } else {
-                                value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
-                            }
-
-                            descriptor.setValue(value);
-                            boolean writeSuccess = bluetoothGatt.writeDescriptor(descriptor);
-                            Log.e(TAG, "Thread-" + threadId + ": 📱 Write descriptor for " + uuid + ": " + writeSuccess);
-                        } catch (Exception e) {
-                            // Just log the error and continue - doesn't stop us from trying other characteristics
-                            Log.e(TAG, "Thread-" + threadId + ": ⚠️ Error writing descriptor for " + uuid + ": " + e.getMessage());
+                        byte[] value;
+                        if (hasNotify) {
+                            value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+                        } else {
+                            value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
                         }
+                        descriptor.setValue(value);
+                        pendingDescriptorWrites.add(descriptor);
                     } else {
                         Log.e(TAG, "Thread-" + threadId + ": ⚠️ No notification descriptor found for " + uuid);
                     }
@@ -1426,12 +1470,25 @@ public class MentraLive extends SGCManager {
             }
         }
 
-        // Log notification status but AVOID any delayed operations!
+        // Log notification status
         if (notificationSuccess) {
             Bridge.log("LIVE: Thread-" + threadId + ": Local notification registration SUCCESS for at least one characteristic");
             Log.e(TAG, "Thread-" + threadId + ": 🔔 Ready to receive data via onCharacteristicChanged()");
         } else {
             Log.e(TAG, "Thread-" + threadId + ": ❌ Failed to enable notifications on any characteristic");
+        }
+
+        // Kick off the serialized descriptor write queue
+        if (!pendingDescriptorWrites.isEmpty()) {
+            isDescriptorWriteInProgress = true;
+            int queueSize = pendingDescriptorWrites.size();
+            Bridge.log("LIVE: Queued " + queueSize + " descriptor writes, starting serialized write sequence");
+            writeNextDescriptor();
+        } else {
+            // No descriptors to write, start data flow immediately
+            Bridge.log("LIVE: No descriptor writes needed, starting send queue and readiness check loop");
+            handler.post(processSendQueueRunnable);
+            startReadinessCheckLoop();
         }
     }
 
@@ -2024,9 +2081,9 @@ public class MentraLive extends SGCManager {
             case "ble_photo_ready":
                 processBlePhotoReady(json);
                 break;
-            case "rtmp_stream_status":
-                // Process RTMP streaming status update from ASG client
-                Bridge.log("LIVE: Received RTMP status update from glasses: " + json.toString());
+            case "stream_status":
+                // Process streaming status update from ASG client
+                Bridge.log("LIVE: Received stream status update from glasses: " + json.toString());
 
                 // Check if this is an error status
                 String status = json.optString("status", "");
@@ -2064,7 +2121,7 @@ public class MentraLive extends SGCManager {
                         String key = keys.next();
                         rtmpMap.put(key, json.get(key));
                     }
-                    Bridge.sendRtmpStreamStatus(rtmpMap);
+                    Bridge.sendStreamStatus(rtmpMap);
                 } catch (JSONException e) {
                     Log.e(TAG, "Error converting RTMP status to Map", e);
                 }
@@ -2218,6 +2275,12 @@ public class MentraLive extends SGCManager {
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing ota_update_available", e);
                 }
+                break;
+
+            case "ota_start_ack":
+                // Glasses acknowledged receipt of ota_start — phone can cancel its retry timer
+                Bridge.log("LIVE: 📱 Received ota_start_ack from glasses");
+                Bridge.sendOtaStartAck();
                 break;
 
             case "ota_progress":
@@ -2859,15 +2922,18 @@ public class MentraLive extends SGCManager {
                 }
                 break;
 
+            case "sr_getvol":
+                handleSrGetvol(json);
+                break;
+
+            case "sr_vol":
+                handleSrVol(json);
+                break;
+
             case "sr_shut":
                 Bridge.log("LIVE: K900 shutdown command received - glasses shutting down");
-                // // Mark as killed to prevent reconnection attempts
-                // isKilled = true;
-                // // Clean disconnect without reconnection
-                // if (bluetoothGatt != null) {
-                //     Bridge.log("LIVE: Disconnecting from glasses due to shutdown");
-                //     bluetoothGatt.disconnect();
-                // }
+                lastShutdownTimeMs = System.currentTimeMillis();
+                reconnectAttempts = 0; // Fresh reconnection budget after power cycle
                 // Notify the system that glasses are intentionally disconnected
                 updateConnectionState(ConnTypes.DISCONNECTED);
                 glassesReady = false;
@@ -3001,28 +3067,34 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Send the coreToken to the ASG client for direct backend authentication
+     * Send the coreToken to the ASG client for direct backend authentication.
+     * Retries a few times with delay if token is empty (bridge may not have applied
+     * CoreModule.update yet when glasses_ready runs).
      */
     private void sendCoreTokenToAsgClient() {
         Bridge.log("LIVE: Preparing to send coreToken to ASG client");
 
-        // Get the coreToken from SharedPreferences
-        SharedPreferences prefs = context.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE);
-        String coreToken = prefs.getString(KEY_CORE_TOKEN, null);
+        String coreToken = getCoreToken();
 
         if (coreToken == null || coreToken.isEmpty()) {
-            Log.e(TAG, "No coreToken available to send to ASG client");
+            if (coreTokenRetryCount < CORE_TOKEN_MAX_RETRIES - 1) {
+                coreTokenRetryCount++;
+                Log.d(TAG, "getCoreToken empty, retrying in " + CORE_TOKEN_RETRY_DELAY_MS + "ms (attempt " + (coreTokenRetryCount + 1) + "/" + CORE_TOKEN_MAX_RETRIES + ")");
+                handler.postDelayed(this::sendCoreTokenToAsgClient, CORE_TOKEN_RETRY_DELAY_MS);
+                return;
+            }
+            Log.e(TAG, "No coreToken available to send to ASG client after " + CORE_TOKEN_MAX_RETRIES + " attempts");
+            coreTokenRetryCount = 0;
             return;
         }
 
+        coreTokenRetryCount = 0;
         try {
-            // Create a JSON object with the token
             JSONObject tokenMsg = new JSONObject();
             tokenMsg.put("type", "auth_token");
             tokenMsg.put("coreToken", coreToken);
             tokenMsg.put("timestamp", System.currentTimeMillis());
 
-            // Send the JSON object
             Bridge.log("LIVE: Sending coreToken to ASG client");
             sendJson(tokenMsg);
 
@@ -3173,6 +3245,19 @@ public class MentraLive extends SGCManager {
             Bridge.log("LIVE: Sending WiFi scan request to glasses");
         } catch (JSONException e) {
             Log.e(TAG, "Error creating WiFi scan request", e);
+        }
+    }
+
+    @Override
+    public void sendIncidentId(String incidentId) {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("type", "upload_incident_logs");
+            json.put("incidentId", incidentId);
+            sendJson(json, true);
+            Bridge.log("LIVE: Sent incidentId to glasses for log upload: " + incidentId);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating upload_incident_logs command", e);
         }
     }
 
@@ -3517,6 +3602,11 @@ public class MentraLive extends SGCManager {
 
     }
 
+    public void ping() {
+        Bridge.log("LIVE: ping()");
+        keepAwake();
+    }
+
     public boolean displayBitmap(String base64) {
         return false;
     }
@@ -3640,8 +3730,8 @@ public class MentraLive extends SGCManager {
         }
     }
 
-    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean silent) {
-        Bridge.log("LIVE: Requesting photo: " + requestId + " for app: " + appId + " with size: " + size + ", webhookUrl: " + webhookUrl + ", authToken: " + (authToken.isEmpty() ? "none" : "***") + ", compress=" + compress + ", silent=" + silent);
+    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean flash, boolean sound) {
+        Bridge.log("LIVE: Requesting photo: " + requestId + " for app: " + appId + " with size: " + size + ", webhookUrl: " + webhookUrl + ", authToken: " + (authToken.isEmpty() ? "none" : "***") + ", compress=" + compress + ", flash=" + flash + ", sound=" + sound);
 
         try {
             JSONObject json = new JSONObject();
@@ -3662,8 +3752,8 @@ public class MentraLive extends SGCManager {
             } else {
                 json.put("compress", "none");
             }
-            // silent mode: disables shutter sound and privacy LED
-            json.put("silent", silent);
+            json.put("flash", flash);
+            json.put("sound", sound);
 
             // Always generate BLE ID for potential fallback
             String bleImgId = "I" + String.format("%09d", System.currentTimeMillis() % 1000000000);
@@ -3689,7 +3779,7 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void startRtmpStream(Map<String, Object> message) {
+    public void startStream(Map<String, Object> message) {
         Bridge.log("LIVE: Starting RTMP stream");
 
         try {
@@ -3702,11 +3792,11 @@ public class MentraLive extends SGCManager {
         }
     }
 
-    public void stopRtmpStream() {
+    public void stopStream() {
         Bridge.log("LIVE: Requesting to stop RTMP stream");
         try {
             JSONObject json = new JSONObject();
-            json.put("type", "stop_rtmp_stream");
+            json.put("type", "stop_stream");
 
             sendJson(json, true);
         } catch (JSONException e) {
@@ -3715,7 +3805,7 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void sendRtmpKeepAlive(Map<String, Object> message) {
+    public void sendStreamKeepAlive(Map<String, Object> message) {
         Bridge.log("LIVE: Sending RTMP stream keep alive");
 
         try {
@@ -3856,6 +3946,10 @@ public class MentraLive extends SGCManager {
                         switch (bondState) {
                             case BluetoothDevice.BOND_BONDED:
                                 Bridge.log("LIVE: CTKD: ✅ Successfully bonded with device - BT Classic connection established");
+                                if (isKilled) {
+                                    Bridge.log("LIVE: CTKD: Ignoring bond complete — SGC destroyed");
+                                    break;
+                                }
                                 isBtClassicConnected = true;
                                 audioConnected = true;
                                 bondingRetryCount = 0; // Reset retry counter on success
@@ -3884,6 +3978,9 @@ public class MentraLive extends SGCManager {
                                     if (bondingRetryCount < MAX_BONDING_RETRIES && connectedDevice != null) {
                                         Bridge.log("LIVE: CTKD: 🔄 Retrying bonding in " + BONDING_RETRY_DELAY_MS + "ms...");
                                         handler.postDelayed(() -> {
+                                            if (isKilled) {
+                                                return;
+                                            }
                                             if (connectedDevice != null && connectedDevice.getBondState() != BluetoothDevice.BOND_BONDED) {
                                                 Bridge.log("LIVE: CTKD: 🔄 Initiating bonding retry #" + bondingRetryCount);
                                                 createBond(connectedDevice);
@@ -4000,6 +4097,17 @@ public class MentraLive extends SGCManager {
         @Override
         public void onServiceConnected(int profile, BluetoothProfile proxy) {
             if (profile == BluetoothProfile.A2DP) {
+                if (isKilled) {
+                    Bridge.log("LIVE: A2DP: Ignoring onServiceConnected — SGC destroyed (stale profile callback)");
+                    try {
+                        if (bluetoothAdapter != null && proxy != null) {
+                            bluetoothAdapter.closeProfileProxy(BluetoothProfile.A2DP, proxy);
+                        }
+                    } catch (Exception e) {
+                        Bridge.log("LIVE: A2DP: Error closing stale proxy: " + e.getMessage());
+                    }
+                    return;
+                }
                 a2dpProfile = (BluetoothA2dp) proxy;
                 Bridge.log("LIVE: A2DP: Profile proxy obtained");
 
@@ -4024,6 +4132,10 @@ public class MentraLive extends SGCManager {
      * Helper to connect A2DP using the proxy - called from service listener or directly
      */
     private void connectA2dpWithProxy(BluetoothDevice device) {
+        if (isKilled) {
+            Bridge.log("LIVE: A2DP: Skipping connectA2dpWithProxy — SGC destroyed");
+            return;
+        }
         if (a2dpProfile == null || device == null) {
             Bridge.log("LIVE: A2DP: Cannot connect - proxy or device is null");
             return;
@@ -4055,6 +4167,9 @@ public class MentraLive extends SGCManager {
                 // STATE_DISCONNECTING - wait and retry
                 Bridge.log("LIVE: A2DP: Device disconnecting, will retry in 500ms");
                 handler.postDelayed(() -> {
+                    if (isKilled) {
+                        return;
+                    }
                     if (connectedDevice != null && a2dpProfile != null) {
                         connectA2dpWithProxy(connectedDevice);
                     }
@@ -4071,6 +4186,10 @@ public class MentraLive extends SGCManager {
      * Helper to mark audio as connected and notify
      */
     private void markAudioConnected(String deviceName) {
+        if (isKilled) {
+            Bridge.log("LIVE: A2DP: Ignoring markAudioConnected — SGC destroyed (would confuse CoreManager)");
+            return;
+        }
         isBtClassicConnected = true;
         audioConnected = true;
         Bridge.sendAudioConnected(deviceName);
@@ -4086,6 +4205,10 @@ public class MentraLive extends SGCManager {
      * This is needed because being bonded doesn't automatically connect the audio profile
      */
     private void connectA2dpProfile(BluetoothDevice device) {
+        if (isKilled) {
+            Bridge.log("LIVE: A2DP: Skipping connectA2dpProfile — SGC destroyed");
+            return;
+        }
         if (device == null) {
             Bridge.log("LIVE: A2DP: Cannot connect - device is null");
             return;
@@ -4136,7 +4259,6 @@ public class MentraLive extends SGCManager {
         Bridge.log("LIVE: Destroying MentraLiveSGC");
 
         // Mark as killed to prevent reconnection attempts
-        boolean wasKilled = isKilled;
         isKilled = true;
 
         // Stop scanning if in progress
@@ -4165,6 +4287,11 @@ public class MentraLive extends SGCManager {
             phoneAudioMonitor.stopMonitoring();
             Bridge.log("LIVE: 🎵 Phone audio monitor stopped");
         }
+
+        // Clear pending descriptor writes
+        pendingDescriptorWrites.clear();
+        isDescriptorWriteInProgress = false;
+        notificationsEnabled = false;
 
         // Cancel connection timeout
         if (connectionTimeoutRunnable != null) {
@@ -4579,6 +4706,16 @@ public class MentraLive extends SGCManager {
         }
     }
 
+    public void keepAwake(){
+        try{
+            JSONObject json = new JSONObject();
+            json.put("type", "keep_awake");
+            sendJson(json, true);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating keep_awake command", e);
+        }
+    }
+
     public void requestBatteryK900() {
         try {
             JSONObject cmdObject = new JSONObject();
@@ -4592,6 +4729,224 @@ public class MentraLive extends SGCManager {
 
         } catch (JSONException e) {
             Log.e(TAG, "Error creating video command", e);
+        }
+    }
+
+    private JSONObject optK900Body(JSONObject json) {
+        if (json == null || !json.has("B")) {
+            return null;
+        }
+        try {
+            Object b = json.get("B");
+            if (b instanceof JSONObject) {
+                return (JSONObject) b;
+            }
+            if (b instanceof String) {
+                return new JSONObject((String) b);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "optK900Body parse error", e);
+        }
+        return null;
+    }
+
+    private void cancelGlassesMediaVolumeTimeoutLocked() {
+        if (glassesMediaVolumeTimeoutRunnable != null) {
+            handler.removeCallbacks(glassesMediaVolumeTimeoutRunnable);
+            glassesMediaVolumeTimeoutRunnable = null;
+        }
+    }
+
+    private void scheduleGlassesMediaVolumeTimeoutLocked() {
+        cancelGlassesMediaVolumeTimeoutLocked();
+        glassesMediaVolumeTimeoutRunnable =
+                () -> {
+                    Consumer<Map<String, Object>> gOk;
+                    Consumer<String> gErr;
+                    Consumer<Map<String, Object>> sOk;
+                    Consumer<String> sErr;
+                    synchronized (glassesMediaVolumeLock) {
+                        gOk = pendingGetGlassesVolumeSuccess;
+                        gErr = pendingGetGlassesVolumeError;
+                        sOk = pendingSetGlassesVolumeSuccess;
+                        sErr = pendingSetGlassesVolumeError;
+                        pendingGetGlassesVolumeSuccess = null;
+                        pendingGetGlassesVolumeError = null;
+                        pendingSetGlassesVolumeSuccess = null;
+                        pendingSetGlassesVolumeError = null;
+                        cancelGlassesMediaVolumeTimeoutLocked();
+                    }
+                    if (gErr != null) {
+                        handler.post(() -> gErr.accept("glasses_volume_timeout"));
+                    }
+                    if (sErr != null) {
+                        handler.post(() -> sErr.accept("glasses_volume_timeout"));
+                    }
+                };
+        handler.postDelayed(glassesMediaVolumeTimeoutRunnable, GLASSES_MEDIA_VOLUME_TIMEOUT_MS);
+    }
+
+    private boolean sendGlassesMediaVolumeGetCommand() {
+        try {
+            JSONObject cmdObject = new JSONObject();
+            cmdObject.put("C", "cs_getvol");
+            cmdObject.put("V", 1);
+            cmdObject.put("B", "");
+            String jsonStr = cmdObject.toString();
+            byte[] packedData =
+                    K900ProtocolUtils.packDataToK900(
+                            jsonStr.getBytes(StandardCharsets.UTF_8),
+                            K900ProtocolUtils.CMD_TYPE_STRING);
+            Bridge.log("LIVE: AUDIO: Sending cs_getvol command: " + jsonStr);
+            queueData(packedData);
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating cs_getvol", e);
+            return false;
+        }
+    }
+
+    private boolean sendGlassesMediaVolumeSetCommand(int level) {
+        int clamped = Math.max(0, Math.min(15, level));
+        try {
+            JSONObject bData = new JSONObject();
+            bData.put("vol", clamped);
+            JSONObject cmdObject = new JSONObject();
+            cmdObject.put("C", "cs_vol");
+            cmdObject.put("V", 1);
+            cmdObject.put("B", bData.toString());
+            String jsonStr = cmdObject.toString();
+            byte[] packedData =
+                    K900ProtocolUtils.packDataToK900(
+                            jsonStr.getBytes(StandardCharsets.UTF_8),
+                            K900ProtocolUtils.CMD_TYPE_STRING);
+            queueData(packedData);
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating cs_vol", e);
+            return false;
+        }
+    }
+
+    private void handleSrGetvol(JSONObject json) {
+        JSONObject body = optK900Body(json);
+        int vol = body != null ? body.optInt("vol", -1) : -1;
+        int status = json.optInt("S", -1);
+        if (status < 0 && body != null) {
+            status = body.optInt("S", -1);
+        }
+
+        Consumer<Map<String, Object>> ok;
+        Consumer<String> err;
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingGetGlassesVolumeSuccess == null) {
+                Bridge.log(
+                        "LIVE: sr_getvol with no pending request (status="
+                                + status
+                                + ", vol="
+                                + vol
+                                + ")");
+                return;
+            }
+            ok = pendingGetGlassesVolumeSuccess;
+            err = pendingGetGlassesVolumeError;
+            pendingGetGlassesVolumeSuccess = null;
+            pendingGetGlassesVolumeError = null;
+            cancelGlassesMediaVolumeTimeoutLocked();
+        }
+
+        if (vol < 0 || vol > 15) {
+            Bridge.log("LIVE: sr_getvol invalid vol=" + vol);
+            if (err != null) {
+                handler.post(() -> err.accept("glasses_volume_invalid_response"));
+            }
+            return;
+        }
+
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("vol", vol);
+        map.put("statusCode", status);
+        Bridge.log("LIVE: sr_getvol received vol=" + vol + " (0-15), statusCode=" + status);
+        if (ok != null) {
+            handler.post(() -> ok.accept(map));
+        }
+    }
+
+    private void handleSrVol(JSONObject json) {
+        int status = json.optInt("S", -1);
+
+        Consumer<Map<String, Object>> ok;
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingSetGlassesVolumeSuccess == null) {
+                Bridge.log("LIVE: sr_vol with no pending request (status=" + status + ")");
+                return;
+            }
+            ok = pendingSetGlassesVolumeSuccess;
+            pendingSetGlassesVolumeSuccess = null;
+            pendingSetGlassesVolumeError = null;
+            cancelGlassesMediaVolumeTimeoutLocked();
+        }
+
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("statusCode", status);
+        if (ok != null) {
+            handler.post(() -> ok.accept(map));
+        }
+    }
+
+    /**
+     * Read glasses media step volume (0–15) via K900 cs_getvol / sr_getvol.
+     */
+    public void getGlassesMediaVolume(
+            Consumer<Map<String, Object>> onSuccess, Consumer<String> onError) {
+        if (!glassesReady || !getConnectionState().equals(ConnTypes.CONNECTED)) {
+            handler.post(() -> onError.accept("glasses_not_ready"));
+            return;
+        }
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingGetGlassesVolumeSuccess != null || pendingSetGlassesVolumeSuccess != null) {
+                handler.post(() -> onError.accept("glasses_volume_busy"));
+                return;
+            }
+            pendingGetGlassesVolumeSuccess = onSuccess;
+            pendingGetGlassesVolumeError = onError;
+            scheduleGlassesMediaVolumeTimeoutLocked();
+        }
+        if (!sendGlassesMediaVolumeGetCommand()) {
+            synchronized (glassesMediaVolumeLock) {
+                pendingGetGlassesVolumeSuccess = null;
+                pendingGetGlassesVolumeError = null;
+                cancelGlassesMediaVolumeTimeoutLocked();
+            }
+            handler.post(() -> onError.accept("glasses_volume_send_failed"));
+        }
+    }
+
+    /**
+     * Set glasses media step volume (0–15) via K900 cs_vol / sr_vol.
+     */
+    public void setGlassesMediaVolume(
+            int level, Consumer<Map<String, Object>> onSuccess, Consumer<String> onError) {
+        if (!glassesReady || !getConnectionState().equals(ConnTypes.CONNECTED)) {
+            handler.post(() -> onError.accept("glasses_not_ready"));
+            return;
+        }
+        synchronized (glassesMediaVolumeLock) {
+            if (pendingGetGlassesVolumeSuccess != null || pendingSetGlassesVolumeSuccess != null) {
+                handler.post(() -> onError.accept("glasses_volume_busy"));
+                return;
+            }
+            pendingSetGlassesVolumeSuccess = onSuccess;
+            pendingSetGlassesVolumeError = onError;
+            scheduleGlassesMediaVolumeTimeoutLocked();
+        }
+        if (!sendGlassesMediaVolumeSetCommand(level)) {
+            synchronized (glassesMediaVolumeLock) {
+                pendingSetGlassesVolumeSuccess = null;
+                pendingSetGlassesVolumeError = null;
+                cancelGlassesMediaVolumeTimeoutLocked();
+            }
+            handler.post(() -> onError.accept("glasses_volume_send_failed"));
         }
     }
 
@@ -5566,11 +5921,21 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Get the core authentication token
+     * Get the core authentication token.
+     * Reads from GlassesStore first (synced from JS via CoreModule.update), then falls back to
+     * SharedPreferences for backward compatibility.
      */
     private String getCoreToken() {
+        Object fromStore = GlassesStore.INSTANCE.get("core", "auth_token");
+        if (fromStore instanceof String) {
+            String token = (String) fromStore;
+            if (token != null && !token.isEmpty()) {
+                return token;
+            }
+        }
         SharedPreferences prefs = context.getSharedPreferences(AUTH_PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getString(KEY_CORE_TOKEN, "");
+        String fromPrefs = prefs.getString(KEY_CORE_TOKEN, "");
+        return fromPrefs != null ? fromPrefs : "";
     }
 
     /**
@@ -5728,6 +6093,9 @@ public class MentraLive extends SGCManager {
         // Send button camera LED setting
         sendButtonCameraLedSetting();
 
+        // Send camera FOV setting (K900 / Mentra Live)
+        sendCameraFovSetting();
+
         // Send gallery mode state (camera app running status)
         sendGalleryMode();
     }
@@ -5780,6 +6148,47 @@ public class MentraLive extends SGCManager {
     }
 
     /**
+     * Send camera FOV setting to glasses (K900 / Mentra Live). Reads fov and roi_position from store.
+     */
+    @Override
+    public void sendCameraFovSetting() {
+        int fov = 118;
+        int roiPosition = 0;
+        try {
+            Object raw = GlassesStore.INSTANCE.get("core", "camera_fov");
+            if (raw instanceof java.util.Map) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> map = (java.util.Map<String, Object>) raw;
+                Object f = map.get("fov");
+                Object r = map.get("roi_position");
+                if (f instanceof Number) fov = ((Number) f).intValue();
+                if (r instanceof Number) roiPosition = ((Number) r).intValue();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not read camera_fov from store, using defaults", e);
+        }
+
+        Bridge.log("LIVE: Sending camera FOV setting: fov=" + fov + ", roi_position=" + roiPosition);
+
+        if (!isConnected) {
+            Log.w(TAG, "Cannot send camera FOV setting - not connected");
+            return;
+        }
+
+        try {
+            JSONObject json = new JSONObject();
+            json.put("type", "camera_fov_setting");
+            JSONObject params = new JSONObject();
+            params.put("fov", fov);
+            params.put("roi_position", roiPosition);
+            json.put("params", params);
+            sendJson(json, true);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating camera FOV setting message", e);
+        }
+    }
+
+    /**
      * Send button max recording time to glasses
      * Matches iOS MentraLive.swift sendButtonMaxRecordingTime pattern
      */
@@ -5805,22 +6214,23 @@ public class MentraLive extends SGCManager {
     }
 
     @Override
-    public void startVideoRecording(String requestId, boolean save, boolean silent) {
-        startVideoRecording(requestId, save, silent, 0, 0, 0); // Use defaults
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound) {
+        startVideoRecording(requestId, save, flash, sound, 0, 0, 0); // Use defaults
     }
 
     /**
      * Start video recording with optional resolution settings
      * @param requestId Request ID for tracking
      * @param save Whether to save the video
-     * @param silent Whether to disable sound and privacy LED
+     * @param flash Whether to enable privacy flash LED
+     * @param sound Whether to enable start/stop sounds
      * @param width Video width (0 for default)
      * @param height Video height (0 for default)
      * @param fps Video frame rate (0 for default)
      */
-    public void startVideoRecording(String requestId, boolean save, boolean silent, int width, int height, int fps) {
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound, int width, int height, int fps) {
         Bridge.log("LIVE: Starting video recording: requestId=" + requestId + ", save=" + save +
-                   ", silent=" + silent + ", resolution=" + width + "x" + height + "@" + fps + "fps");
+                   ", flash=" + flash + ", sound=" + sound + ", resolution=" + width + "x" + height + "@" + fps + "fps");
 
         if (!isConnected) {
             Log.w(TAG, "Cannot start video recording - not connected");
@@ -5832,7 +6242,8 @@ public class MentraLive extends SGCManager {
             json.put("type", "start_video_recording");
             json.put("requestId", requestId);
             json.put("save", save);
-            json.put("silent", silent);
+            json.put("flash", flash);
+            json.put("sound", sound);
 
             // Add video settings if provided
             if (width > 0 && height > 0) {

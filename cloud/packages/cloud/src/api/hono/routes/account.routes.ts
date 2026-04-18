@@ -477,6 +477,10 @@ async function downloadExport(c: AppContext) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
+    if (!id) {
+      return c.json({ error: "Missing required parameter: id" }, 400);
+    }
+
     const exportRequest = exportRequests.get(id);
 
     if (!exportRequest) {

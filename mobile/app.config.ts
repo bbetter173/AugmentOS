@@ -20,17 +20,17 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
     updates: {
       fallbackToCacheTimeout: 0,
     },
-    newArchEnabled: true,
     jsEngine: "hermes",
     assetBundlePatterns: ["**/*"],
     android: {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: "com.mentra.mentra",
-      versionCode: 88,
+      googleServicesFile: "./google-services.json",
+      versionCode: 174,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",
-        backgroundColor: "#fff"
+        backgroundColor: "#fff",
       },
       allowBackup: false,
       permissions: [
@@ -50,6 +50,11 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
               host: "apps.mentra.glass",
               pathPrefix: "/package/",
             },
+            {
+              scheme: "https",
+              host: "apps.mentraglass.com",
+              pathPrefix: "/package/",
+            },
           ],
           category: ["DEFAULT", "BROWSABLE"],
         },
@@ -59,8 +64,10 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       icon: "./assets/app-icons/ic_launcher.png",
       supportsTablet: false,
       requireFullScreen: true,
+      buildNumber: "174",
       bundleIdentifier: "com.mentra.mentra",
-      associatedDomains: ["applinks:apps.mentra.glass"],
+      googleServicesFile: "./GoogleService-Info.plist",
+      associatedDomains: ["applinks:apps.mentra.glass", "applinks:apps.mentraglass.com"],
       infoPlist: {
         NSCameraUsageDescription: "This app needs access to your camera to capture images.",
         NSMicrophoneUsageDescription:
@@ -144,9 +151,9 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           imageWidth: 100,
           backgroundColor: "#fff",
           dark: {
-            backgroundColor: "#fff",
-            // backgroundColor: "#171717",
-            // image: "./assets/logo/logo_dark.png",
+            // backgroundColor: "#fff",
+            backgroundColor: "#171717",
+            image: "./assets/logo/logo_dark.png",
           },
         },
       ],
@@ -197,6 +204,8 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
               },
             ],
           },
+          // buildReactNativeFromSource: true,
+          // useHermesV1: true
         },
       ],
       [
@@ -225,6 +234,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           locationAlwaysAndWhenInUsePermission: "Allow MentraOS to use your location.",
         },
       ],
+      "@react-native-firebase/app",
       "expo-audio",
       [
         "expo-video",
@@ -233,6 +243,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           supportsPictureInPicture: true,
         },
       ],
+      "expo-web-browser",
     ],
     experiments: {
       tsconfigPaths: true,

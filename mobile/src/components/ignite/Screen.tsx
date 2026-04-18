@@ -17,6 +17,7 @@ import {KeyboardAwareScrollView} from "react-native-keyboard-controller"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {$styles} from "@/theme"
 import {ExtendedEdge, useSafeAreaInsetsStyle} from "@/utils/useSafeAreaInsetsStyle"
+import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 
 export const DEFAULT_BOTTOM_OFFSET = 50
 
@@ -43,6 +44,11 @@ interface BaseScreenProps {
    * Override the default edges for the safe area.
    */
   safeAreaEdges?: ExtendedEdge[]
+  /**
+   * Skip the automatic Android 3-button nav bar bottom inset.
+   * Use when a parent (e.g. tab bar) already handles bottom spacing.
+   */
+  extraAndroidInsets?: boolean
   /**
    * Background color
    */
@@ -210,6 +216,7 @@ function ScreenWithScrolling(props: ScreenProps) {
   useScrollToTop(ref)
 
   return (
+    // @ts-ignore
     <KeyboardAwareScrollView
       bottomOffset={keyboardBottomOffset}
       {...{keyboardShouldPersistTaps, scrollEnabled, ref}}
@@ -237,7 +244,7 @@ function ScreenWithScrolling(props: ScreenProps) {
  * @param {ScreenProps} props - The props for the `Screen` component.
  * @returns {JSX.Element} The rendered `Screen` component.
  */
-export function Screen(props: ScreenProps & {ref?: any}) {
+export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
   const {
     theme: {colors},
     themeContext,
@@ -247,30 +254,22 @@ export function Screen(props: ScreenProps & {ref?: any}) {
     KeyboardAvoidingViewProps,
     keyboardOffset = 0,
     safeAreaEdges,
+    extraAndroidInsets,
     StatusBarProps,
     statusBarStyle,
     ref,
+    className,
   } = props
+  const {theme} = useAppTheme()
 
   let $containerInsets = useSafeAreaInsetsStyle(safeAreaEdges, "padding")
-  const {theme} = useAppTheme()
-  // const [debugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
 
-  if (Platform.OS === "android") {
-    if (safeAreaEdges?.includes("top")) {
-      if ($containerInsets.paddingTop) {
-        $containerInsets.paddingTop += theme.spacing.s4
-      } else {
-        $containerInsets.paddingTop = theme.spacing.s4
-      }
-    }
-    if (safeAreaEdges?.includes("bottom")) {
-      if ($containerInsets.paddingBottom) {
-        $containerInsets.paddingBottom += theme.spacing.s6
-      } else {
-        $containerInsets.paddingBottom = theme.spacing.s6
-      }
-    }
+  // on some screens, we need some extra bottom padding on android so buttons look nice:
+  // SaferAreaContext already inflates insets.bottom to s6 when the real inset is 0
+  // (3-button nav), so we just use insets.bottom directly to avoid double-padding.
+  const insets = useSaferAreaInsets()
+  if (Platform.OS === "android" && extraAndroidInsets) {
+    $containerInsets = {...$containerInsets, paddingBottom: insets.bottom}
   }
 
   return (
@@ -278,7 +277,7 @@ export function Screen(props: ScreenProps & {ref?: any}) {
     <View className="flex-1" style={[{...$containerInsets}, {backgroundColor: backgroundColor || colors.background}]}>
       <View
         ref={ref}
-        className="flex-1 px-6"
+        className={`flex-1 px-6 ${className ?? ""}`}
         style={{backgroundColor: backgroundColor || colors.background}}
         collapsable={false}
         collapsableChildren={false}>

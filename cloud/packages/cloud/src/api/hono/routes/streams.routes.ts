@@ -102,8 +102,21 @@ async function validateAppApiKey(c: AppContext, next: () => Promise<void>) {
  */
 async function addRestreamOutput(c: AppContext) {
   const streamId = c.req.param("streamId");
+  if (!streamId) {
+    return c.json({ error: "MISSING_PARAM", message: "streamId is required" }, 400);
+  }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+
+  if (!streamId) {
+    return c.json(
+      {
+        error: "MISSING_STREAM_ID",
+        message: "streamId is required",
+      },
+      400,
+    );
+  }
 
   try {
     const body = await c.req.json().catch(() => ({}));
@@ -236,8 +249,21 @@ async function addRestreamOutput(c: AppContext) {
 async function removeRestreamOutput(c: AppContext) {
   const streamId = c.req.param("streamId");
   const outputId = c.req.param("outputId");
+  if (!streamId || !outputId) {
+    return c.json({ error: "MISSING_PARAM", message: "streamId and outputId are required" }, 400);
+  }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+
+  if (!streamId || !outputId) {
+    return c.json(
+      {
+        error: "MISSING_ROUTE_PARAMS",
+        message: "streamId and outputId are required",
+      },
+      400,
+    );
+  }
 
   logger.info(
     {
@@ -332,8 +358,21 @@ async function removeRestreamOutput(c: AppContext) {
  */
 async function listRestreamOutputs(c: AppContext) {
   const streamId = c.req.param("streamId");
+  if (!streamId) {
+    return c.json({ error: "MISSING_PARAM", message: "streamId is required" }, 400);
+  }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+
+  if (!streamId) {
+    return c.json(
+      {
+        error: "MISSING_STREAM_ID",
+        message: "streamId is required",
+      },
+      400,
+    );
+  }
 
   try {
     // Find user session by app

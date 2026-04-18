@@ -1,6 +1,12 @@
 import {NativeModule, requireNativeModule} from "expo"
 
-import {CoreModuleEvents, GlassesStatus, CoreStatus} from "./Core.types"
+import {
+  CoreModuleEvents,
+  CoreStatus,
+  GlassesMediaVolumeGetResult,
+  GlassesMediaVolumeSetResult,
+  GlassesStatus,
+} from "./Core.types"
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void
 type CoreListener = (changed: Partial<CoreStatus>) => void
@@ -20,17 +26,26 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   requestStatus(): Promise<void>
   connectDefault(): Promise<void>
   connectByName(deviceName: string): Promise<void>
+  connectDefaultController(): Promise<void>
+  disconnectController(): Promise<void>
   connectSimulated(): Promise<void>
   disconnect(): Promise<void>
   forget(): Promise<void>
+  forgetController(): Promise<void>
   findCompatibleDevices(deviceModel: string): Promise<void>
   showDashboard(): Promise<void>
+  ping(): Promise<void>
+
+  // Incident Reporting
+  sendIncidentId(incidentId: string): Promise<void>
 
   // WiFi Commands
   requestWifiScan(): Promise<void>
   sendWifiCredentials(ssid: string, password: string): Promise<void>
   forgetWifiNetwork(ssid: string): Promise<void>
   setHotspotState(enabled: boolean): Promise<void>
+  /** Logs current WiFi frequency (MHz) and 5 GHz band to Android logcat. */
+  logCurrentWifiFrequency(): Promise<void>
 
   // Gallery Commands
   queryGalleryStatus(): Promise<void>
@@ -41,7 +56,8 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
     webhookUrl: string | null,
     authToken: string | null,
     compress: string,
-    silent: boolean,
+    flash: boolean,
+    sound: boolean,
   ): Promise<void>
 
   // OTA Commands
@@ -54,13 +70,13 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   startBufferRecording(): Promise<void>
   stopBufferRecording(): Promise<void>
   saveBufferVideo(requestId: string, durationSeconds: number): Promise<void>
-  startVideoRecording(requestId: string, save: boolean, silent: boolean): Promise<void>
+  startVideoRecording(requestId: string, save: boolean, flash: boolean, sound: boolean): Promise<void>
   stopVideoRecording(requestId: string): Promise<void>
 
-  // RTMP Stream Commands
-  startRtmpStream(params: Record<string, any>): Promise<void>
-  stopRtmpStream(): Promise<void>
-  keepRtmpStreamAlive(params: Record<string, any>): Promise<void>
+  // Stream Commands
+  startStream(params: Record<string, any>): Promise<void>
+  stopStream(): Promise<void>
+  keepStreamAlive(params: Record<string, any>): Promise<void>
 
   // Microphone Commands
   setMicState(sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean): Promise<void>
@@ -70,6 +86,11 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   // Notify native side when our app starts/stops playing audio
   // Used to suspend LC3 mic during audio playback to avoid MCU overload
   setOwnAppAudioPlaying(playing: boolean): Promise<void>
+
+  /** Mentra Live only: K900 `cs_getvol` / `sr_getvol`. */
+  getGlassesMediaVolume(): Promise<GlassesMediaVolumeGetResult>
+  /** Mentra Live only: K900 `cs_vol` / `sr_vol`; level clamped 0–15 on native. */
+  setGlassesMediaVolume(level: number): Promise<GlassesMediaVolumeSetResult>
 
   // RGB LED Control
   rgbLedControl(
@@ -89,6 +110,9 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   validateSttModel(path: string): Promise<boolean>
   extractTarBz2(sourcePath: string, destinationPath: string): Promise<boolean>
 
+  // Beta build detection (TestFlight on iOS, extensible to Google Play Beta on Android)
+  isBetaBuild(): Promise<boolean>
+
   // Android-specific commands
   getInstalledApps(): Promise<any>
   hasNotificationListenerPermission(): Promise<boolean>
@@ -102,17 +126,6 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
       icon: string | null
     }>
   >
-
-  // Media Library Commands
-  saveToGalleryWithDate(
-    filePath: string,
-    captureTimeMillis?: number,
-  ): Promise<{
-    success: boolean
-    uri?: string
-    identifier?: string
-    error?: string
-  }>
 
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>

@@ -13,6 +13,8 @@ import type { Logger } from "pino";
 
 import { StreamType, CloudToAppMessageType, type CalendarEvent, type DataStream } from "@mentra/sdk";
 
+import { MemoryOwnerStat } from "../metrics/memory-census";
+import { estimateStringBytes, sumEstimatedBytes } from "../metrics/memory-estimate";
 import { WebSocketReadyState } from "../websocket/types";
 
 import type UserSession from "./UserSession";
@@ -53,6 +55,9 @@ export class CalendarManager {
         this.addEvent(normalized);
         this.broadcast(normalized);
       });
+
+      // Notify dashboard with the full updated event list
+      this.userSession.dashboardManager?.onCalendarUpdate(this.getCachedEvents());
     } catch (error) {
       this.logger.child({ expoEvents }).error(error, "Error updating calendar from client");
     }
@@ -114,6 +119,30 @@ export class CalendarManager {
     this.subscribedApps.clear();
   }
 
+  getMemoryStats(): MemoryOwnerStat[] {
+    return [
+      {
+        owner: "calendar.events",
+        scope: "session",
+        itemCount: this.events.length,
+        estimatedBytes: sumEstimatedBytes(this.events, (event) => {
+          return (
+            estimateStringBytes(event.eventId) +
+            estimateStringBytes(event.title) +
+            estimateStringBytes(event.dtStart) +
+            estimateStringBytes(event.dtEnd) +
+            estimateStringBytes(event.timezone) +
+            estimateStringBytes(event.timeStamp) +
+            64
+          );
+        }),
+        metadata: {
+          subscribedApps: this.subscribedApps.size,
+        },
+      },
+    ];
+  }
+
   // ===== Internals =====
 
   /**
@@ -138,7 +167,7 @@ export class CalendarManager {
     const dtEnd = this.toIsoString(end ?? start);
     const timeStamp = new Date().toISOString();
 
-    const event: CalendarEvent = {
+    const event: CalendarEvent & { allDay?: boolean } = {
       type: StreamType.CALENDAR_EVENT,
       eventId: id,
       title,
@@ -147,6 +176,12 @@ export class CalendarManager {
       timezone: tz,
       timeStamp,
     };
+
+    // Preserve Expo's allDay flag so DashboardManager can detect all-day events
+    // without relying on fragile midnight-check heuristics.
+    if (input.allDay === true) {
+      event.allDay = true;
+    }
 
     return event;
   }

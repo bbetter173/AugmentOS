@@ -533,15 +533,15 @@ extension MentraLive: CBCentralManagerDelegate {
 
         case .poweredOff:
             Bridge.log("LIVE: Bluetooth is powered off")
-            connectionState = ConnTypes.DISCONNECTED
+            updateConnectionState(ConnTypes.DISCONNECTED)
 
         case .unauthorized:
             Bridge.log("LIVE: Bluetooth is unauthorized")
-            connectionState = ConnTypes.DISCONNECTED
+            updateConnectionState(ConnTypes.DISCONNECTED)
 
         case .unsupported:
             Bridge.log("LIVE: Bluetooth is unsupported")
-            connectionState = ConnTypes.DISCONNECTED
+            updateConnectionState(ConnTypes.DISCONNECTED)
 
         default:
             Bridge.log("LIVE: Bluetooth state: \(central.state.rawValue)")
@@ -590,11 +590,14 @@ extension MentraLive: CBCentralManagerDelegate {
         isConnecting = false
         connectedPeripheral = peripheral
 
-        // Save device name for future reconnection
+        // Save device name and address for future reconnection
         if let name = peripheral.name {
             UserDefaults.standard.set(name, forKey: PREFS_DEVICE_NAME)
             Bridge.log("Saved device name for future reconnection: \(name)")
+            GlassesStore.shared.apply("glasses", "bluetoothName", name)
         }
+        // Persist peripheral UUID so CoreManager can sync it to RN settings
+        GlassesStore.shared.apply("core", "device_address", peripheral.identifier.uuidString)
 
         // Audio Pairing: Setup Bluetooth audio after BLE connection
         if let deviceName = peripheral.name {
@@ -619,7 +622,7 @@ extension MentraLive: CBCentralManagerDelegate {
         connectedPeripheral = nil
         fullyBooted = false
         connected = false
-        connectionState = ConnTypes.DISCONNECTED
+        updateConnectionState(ConnTypes.DISCONNECTED)
         rgbLedAuthorityClaimed = false
 
         stopAllTimers()
@@ -641,7 +644,8 @@ extension MentraLive: CBCentralManagerDelegate {
 
         stopConnectionTimeout()
         isConnecting = false
-        connectionState = ConnTypes.DISCONNECTED
+        connectedPeripheral = nil
+        updateConnectionState(ConnTypes.DISCONNECTED)
 
         if !isKilled {
             handleReconnection()
@@ -735,7 +739,7 @@ extension MentraLive: CBPeripheralDelegate {
             // GlassesStore handles connected state based on fullyBooted
 
             // Keep state as connecting until glasses are ready
-            connectionState = ConnTypes.CONNECTING
+            updateConnectionState(ConnTypes.CONNECTING)
 
             // Request MTU size
             peripheral.readRSSI()
@@ -874,6 +878,12 @@ class MentraLive: NSObject, SGCManager {
 
     var connectionState: String = ConnTypes.DISCONNECTED
 
+    /// Mirrors Android `updateConnectionState` — RN home reads `glasses.connectionState` for reconnecting UI.
+    private func updateConnectionState(_ state: String) {
+        connectionState = state
+        GlassesStore.shared.apply("glasses", "connectionState", state)
+    }
+
     func setDashboardPosition(_: Int, _: Int) {}
     func setSilentMode(_: Bool) {}
     func exit() {}
@@ -888,6 +898,11 @@ class MentraLive: NSObject, SGCManager {
     func setBrightness(_: Int, autoMode _: Bool) {}
     func clearDisplay() {}
     func sendTextWall(_: String) {}
+    func ping() {
+        Bridge.log("LIVE: ping()")
+        keepAwake()
+    }
+
     func forget() {
         Bridge.log("LIVE: Forgetting Mentra Live glasses")
 
@@ -1004,6 +1019,7 @@ class MentraLive: NSObject, SGCManager {
 
     // BLE Properties
     private var centralManager: CBCentralManager?
+
     private var connectedPeripheral: CBPeripheral?
     private var txCharacteristic: CBCharacteristic?
     private var rxCharacteristic: CBCharacteristic?
@@ -1041,6 +1057,14 @@ class MentraLive: NSObject, SGCManager {
 
     // BES OTA progress tracking - only send to UI on 5% increments
     private var lastBesOtaProgress = -1
+
+    // Glasses media volume (K900 cs_getvol / cs_vol, sr_getvol / sr_vol)
+    private let glassesMediaVolumeLock = NSLock()
+    private var glassesMediaVolumeGetCompletion: ((Result<[String: Any], Error>) -> Void)?
+    private var glassesMediaVolumeSetCompletion: ((Result<[String: Any], Error>) -> Void)?
+    private var glassesMediaVolumeTimeoutWorkItem: DispatchWorkItem?
+    private static let glassesMediaVolumeTimeoutSec: TimeInterval = 2.0
+
     private var connectionTimeoutTimer: Timer?
     private var reconnectionWorkItem: DispatchWorkItem?
 
@@ -1228,9 +1252,9 @@ class MentraLive: NSObject, SGCManager {
 
     func requestPhoto(
         _ requestId: String, appId: String, size: String?, webhookUrl: String?, authToken: String?,
-        compress: String?, silent: Bool
+        compress: String?, flash: Bool, sound: Bool
     ) {
-        Bridge.log("Requesting photo: \(requestId) for app: \(appId), silent: \(silent)")
+        Bridge.log("Requesting photo: \(requestId) for app: \(appId), flash: \(flash), sound: \(sound)")
 
         var json: [String: Any] = [
             "type": "take_photo",
@@ -1274,29 +1298,29 @@ class MentraLive: NSObject, SGCManager {
         // Add compress parameter
         json["compress"] = compress ?? "none"
 
-        // silent mode: disables shutter sound and privacy LED
-        json["silent"] = silent
+        json["flash"] = flash
+        json["sound"] = sound
 
         Bridge.log("Using auto transfer mode with BLE fallback ID: \(bleImgId)")
 
         sendJson(json, wakeUp: true)
     }
 
-    func startRtmpStream(_ message: [String: Any]) {
-        Bridge.log("Starting RTMP stream")
+    func startStream(_ message: [String: Any]) {
+        Bridge.log("Starting stream")
         var json = message
         json.removeValue(forKey: "timestamp")
         sendJson(json, wakeUp: true)
     }
 
-    func stopRtmpStream() {
-        Bridge.log("Stopping RTMP stream")
-        let json: [String: Any] = ["type": "stop_rtmp_stream"]
+    func stopStream() {
+        Bridge.log("Stopping stream")
+        let json: [String: Any] = ["type": "stop_stream"]
         sendJson(json, wakeUp: true)
     }
 
-    func sendRtmpKeepAlive(_ message: [String: Any]) {
-        Bridge.log("Sending RTMP keep alive")
+    func sendStreamKeepAlive(_ message: [String: Any]) {
+        Bridge.log("Sending stream keep alive")
         sendJson(message)
     }
 
@@ -1508,7 +1532,7 @@ class MentraLive: NSObject, SGCManager {
         Bridge.log("LIVE: Connecting to device: \(peripheral.identifier.uuidString)")
 
         isConnecting = true
-        connectionState = ConnTypes.CONNECTING
+        updateConnectionState(ConnTypes.CONNECTING)
         connectedPeripheral = peripheral
         peripheral.delegate = self
 
@@ -1528,7 +1552,7 @@ class MentraLive: NSObject, SGCManager {
         if reconnectAttempts >= MAX_RECONNECT_ATTEMPTS {
             Bridge.log("LIVE: Maximum reconnection attempts reached (\(MAX_RECONNECT_ATTEMPTS))")
             reconnectAttempts = 0
-            connectionState = ConnTypes.DISCONNECTED
+            updateConnectionState(ConnTypes.DISCONNECTED)
             connected = false
             fullyBooted = false
             return
@@ -1540,6 +1564,9 @@ class MentraLive: NSObject, SGCManager {
         )
         reconnectAttempts += 1
 
+        // RN keys off connectionState for reconnecting affordance during backoff (matches Android).
+        updateConnectionState(ConnTypes.CONNECTING)
+
         Bridge.log(
             "LIVE: Scheduling reconnection attempt \(reconnectAttempts) in \(Double(delayNanoseconds) / 1_000_000_000)s (max \(MAX_RECONNECT_ATTEMPTS))"
         )
@@ -1548,7 +1575,8 @@ class MentraLive: NSObject, SGCManager {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
 
-            if self.connectionState == ConnTypes.DISCONNECTED && !self.isKilled {
+            // Use peripheral presence, not connectionState: we stay CONNECTING during backoff until scan/connect.
+            if self.connectedPeripheral == nil, !self.isKilled {
                 // Check for last known device name to start scan
                 if let lastDeviceName = UserDefaults.standard.string(
                     forKey: self.PREFS_DEVICE_NAME), !lastDeviceName.isEmpty
@@ -1563,7 +1591,7 @@ class MentraLive: NSObject, SGCManager {
                     Bridge.log(
                         "LIVE: Reconnection attempt \(self.reconnectAttempts) - no last device name available"
                     )
-                    self.connectionState = ConnTypes.DISCONNECTED
+                    self.updateConnectionState(ConnTypes.DISCONNECTED)
                 }
             }
         }
@@ -1748,7 +1776,7 @@ class MentraLive: NSObject, SGCManager {
         case "wifi_scan_result":
             handleWifiScanResult(json)
 
-        case "rtmp_stream_status":
+        case "stream_status":
             emitRtmpStreamStatus(json)
 
         case "gallery_status":
@@ -1877,6 +1905,11 @@ class MentraLive: NSObject, SGCManager {
                 updates: updates,
                 totalSize: totalSize
             )
+
+        case "ota_start_ack":
+            // Glasses acknowledged receipt of ota_start — phone can cancel its retry timer
+            Bridge.log("LIVE: 📱 Received ota_start_ack from glasses")
+            Bridge.sendOtaStartAck()
 
         case "ota_progress":
             // Process OTA progress update from glasses
@@ -2049,6 +2082,12 @@ class MentraLive: NSObject, SGCManager {
                 updateBatteryStatus(level: percentage, isCharging: isCharging)
             }
 
+        case "sr_getvol":
+            handleSrGetvol(json)
+
+        case "sr_vol":
+            handleSrVol(json)
+
         case "sr_shut":
             Bridge.log("K900 shutdown command received - glasses shutting down")
             // Mark as killed to prevent reconnection attempts
@@ -2059,7 +2098,7 @@ class MentraLive: NSObject, SGCManager {
             //     centralManager?.cancelPeripheralConnection(peripheral)
             // }
             // Notify the system that glasses are intentionally disconnected
-            connectionState = ConnTypes.DISCONNECTED
+            updateConnectionState(ConnTypes.DISCONNECTED)
 
         case "sr_adota":
             // BES chip OTA progress - convert to ota_progress format for phone UI
@@ -2196,6 +2235,11 @@ class MentraLive: NSObject, SGCManager {
         sendJson(json, wakeUp: true)
     }
 
+    func sendIncidentId(_ incidentId: String) {
+        Bridge.log("LIVE: Sending incidentId to glasses for log upload: \(incidentId)")
+        sendJson(["type": "upload_incident_logs", "incidentId": incidentId], wakeUp: true)
+    }
+
     func forgetWifiNetwork(_ ssid: String) {
         Bridge.log("LIVE: 📶 Sending WiFi forget command for SSID: \(ssid)")
 
@@ -2249,6 +2293,17 @@ class MentraLive: NSObject, SGCManager {
         sendJson(json, wakeUp: true)
     }
 
+    func keepAwake() {
+        Bridge.log("LIVE: 📱 Sending keep_awake command to glasses")
+
+        let json: [String: Any] = [
+            "type": "keep_awake",
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+
+        sendJson(json, wakeUp: true)
+    }
+
     // MARK: - Message Handlers
 
     private func handleGlassesReady() {
@@ -2278,7 +2333,9 @@ class MentraLive: NSObject, SGCManager {
         if micIntentEnabled {
             if BLOCK_AUDIO_DUPLEX, let monitor = phoneAudioMonitor, monitor.isPlaying() {
                 micSuspendedForAudio = true
-                Bridge.log("LIVE: 🎤 Restoring mic intent after reconnect, but phone audio is playing - suspending")
+                Bridge.log(
+                    "LIVE: 🎤 Restoring mic intent after reconnect, but phone audio is playing - suspending"
+                )
             } else {
                 micSuspendedForAudio = false
                 Bridge.log("LIVE: 🎤 Restoring mic state after reconnect")
@@ -2288,7 +2345,7 @@ class MentraLive: NSObject, SGCManager {
 
         fullyBooted = true
         connected = true
-        connectionState = ConnTypes.CONNECTED
+        updateConnectionState(ConnTypes.CONNECTED)
     }
 
     private func handleWifiScanResult(_ json: [String: Any]) {
@@ -3370,7 +3427,7 @@ class MentraLive: NSObject, SGCManager {
     }
 
     private func emitRtmpStreamStatus(_ json: [String: Any]) {
-        Bridge.sendTypedMessage("rtmp_stream_status", body: json)
+        Bridge.sendTypedMessage("stream_status", body: json)
     }
 
     private func emitButtonPress(buttonId: String, pressType: String, timestamp: Int64) {
@@ -3431,7 +3488,6 @@ class MentraLive: NSObject, SGCManager {
 
         GlassesStore.shared.apply("glasses", "connected", false)
         GlassesStore.shared.apply("glasses", "fullyBooted", false)
-        GlassesStore.shared.apply("glasses", "connectionState", ConnTypes.DISCONNECTED)
         GlassesStore.shared.apply("glasses", "wifiConnected", false)
         GlassesStore.shared.apply("glasses", "wifiSsid", "")
         GlassesStore.shared.apply("glasses", "wifiLocalIp", "")
@@ -3444,7 +3500,7 @@ class MentraLive: NSObject, SGCManager {
         centralManager?.delegate = nil
         centralManager = nil
 
-        connectionState = ConnTypes.DISCONNECTED
+        updateConnectionState(ConnTypes.DISCONNECTED)
     }
 }
 
@@ -3568,6 +3624,247 @@ extension MentraLive {
         let bytes = [UInt8](data)
         return bytes[0] == K900ProtocolUtils.CMD_START_CODE[0]
             && bytes[1] == K900ProtocolUtils.CMD_START_CODE[1]
+    }
+
+    // MARK: - Glasses media volume (K900)
+
+    private func k900JsonInt(_ json: [String: Any], _ key: String) -> Int? {
+        if let v = json[key] as? Int { return v }
+        if let n = json[key] as? NSNumber { return n.intValue }
+        return nil
+    }
+
+    /// Parse K900 `B` field as dictionary or JSON string.
+    private func k900ParseBody(_ body: Any?) -> [String: Any]? {
+        if let d = body as? [String: Any] { return d }
+        if let s = body as? String,
+           let data = s.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            return obj
+        }
+        return nil
+    }
+
+    private func cancelGlassesMediaVolumeTimeout() {
+        glassesMediaVolumeTimeoutWorkItem?.cancel()
+        glassesMediaVolumeTimeoutWorkItem = nil
+    }
+
+    private func scheduleGlassesMediaVolumeTimeout() {
+        cancelGlassesMediaVolumeTimeout()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.glassesMediaVolumeLock.lock()
+            let getC = self.glassesMediaVolumeGetCompletion
+            let setC = self.glassesMediaVolumeSetCompletion
+            self.glassesMediaVolumeGetCompletion = nil
+            self.glassesMediaVolumeSetCompletion = nil
+            self.glassesMediaVolumeLock.unlock()
+            let err = NSError(
+                domain: "MentraLive",
+                code: -1001,
+                userInfo: [NSLocalizedDescriptionKey: "glasses_volume_timeout"]
+            )
+            if let getC {
+                DispatchQueue.main.async { getC(.failure(err)) }
+            }
+            if let setC {
+                DispatchQueue.main.async { setC(.failure(err)) }
+            }
+        }
+        glassesMediaVolumeTimeoutWorkItem = work
+        bluetoothQueue.asyncAfter(deadline: .now() + Self.glassesMediaVolumeTimeoutSec, execute: work)
+    }
+
+    private func failPendingGlassesVolumeGet(_ error: Error) {
+        cancelGlassesMediaVolumeTimeout()
+        glassesMediaVolumeLock.lock()
+        let c = glassesMediaVolumeGetCompletion
+        glassesMediaVolumeGetCompletion = nil
+        glassesMediaVolumeLock.unlock()
+        if let c {
+            DispatchQueue.main.async { c(.failure(error)) }
+        }
+    }
+
+    private func failPendingGlassesVolumeSet(_ error: Error) {
+        cancelGlassesMediaVolumeTimeout()
+        glassesMediaVolumeLock.lock()
+        let c = glassesMediaVolumeSetCompletion
+        glassesMediaVolumeSetCompletion = nil
+        glassesMediaVolumeLock.unlock()
+        if let c {
+            DispatchQueue.main.async { c(.failure(error)) }
+        }
+    }
+
+    private func handleSrGetvol(_ json: [String: Any]) {
+        let body = k900ParseBody(json["B"])
+        var status = k900JsonInt(json, "S") ?? -1
+        if status < 0, let b = body, let s = k900JsonInt(b, "S") {
+            status = s
+        }
+        let vol = body.flatMap { k900JsonInt($0, "vol") } ?? -1
+
+        glassesMediaVolumeLock.lock()
+        let waiting = glassesMediaVolumeGetCompletion != nil
+        glassesMediaVolumeLock.unlock()
+
+        guard waiting else {
+            Bridge.log("LIVE: sr_getvol received with no pending request (status=\(status), vol=\(vol))")
+            return
+        }
+
+        guard vol >= 0, vol <= 15 else {
+            Bridge.log("LIVE: sr_getvol invalid vol=\(vol)")
+            failPendingGlassesVolumeGet(
+                NSError(
+                    domain: "MentraLive",
+                    code: -1002,
+                    userInfo: [NSLocalizedDescriptionKey: "glasses_volume_invalid_response"]
+                ))
+            return
+        }
+
+        Bridge.log("LIVE: sr_getvol received vol=\(vol) (0-15), statusCode=\(status)")
+
+        cancelGlassesMediaVolumeTimeout()
+        glassesMediaVolumeLock.lock()
+        let c = glassesMediaVolumeGetCompletion
+        glassesMediaVolumeGetCompletion = nil
+        glassesMediaVolumeLock.unlock()
+        if let c {
+            DispatchQueue.main.async {
+                c(.success(["vol": vol, "statusCode": status]))
+            }
+        }
+    }
+
+    private func handleSrVol(_ json: [String: Any]) {
+        let status = k900JsonInt(json, "S") ?? -1
+
+        glassesMediaVolumeLock.lock()
+        let waiting = glassesMediaVolumeSetCompletion != nil
+        glassesMediaVolumeLock.unlock()
+
+        guard waiting else {
+            Bridge.log("LIVE: sr_vol received with no pending request (status=\(status))")
+            return
+        }
+
+        cancelGlassesMediaVolumeTimeout()
+        glassesMediaVolumeLock.lock()
+        let c = glassesMediaVolumeSetCompletion
+        glassesMediaVolumeSetCompletion = nil
+        glassesMediaVolumeLock.unlock()
+        if let c {
+            DispatchQueue.main.async {
+                c(.success(["statusCode": status]))
+            }
+        }
+    }
+
+    private func sendGlassesMediaVolumeGetCommand() -> Bool {
+        let command: [String: Any] = [
+            "C": "cs_getvol",
+            "V": 1,
+            "B": "",
+        ]
+        return sendRawK900Command(command, wakeUp: true)
+    }
+
+    private func sendGlassesMediaVolumeSetCommand(level: Int) -> Bool {
+        let clamped = max(0, min(15, level))
+        do {
+            let bodyData = try JSONSerialization.data(withJSONObject: ["vol": clamped])
+            guard let bodyString = String(data: bodyData, encoding: .utf8) else { return false }
+            let command: [String: Any] = [
+                "C": "cs_vol",
+                "V": 1,
+                "B": bodyString,
+            ]
+            return sendRawK900Command(command, wakeUp: true)
+        } catch {
+            Bridge.log("LIVE: Error encoding cs_vol body: \(error)")
+            return false
+        }
+    }
+
+    /// Read glasses media step volume (0–15) via K900 `cs_getvol` / `sr_getvol`.
+    func getGlassesMediaVolume(completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        glassesMediaVolumeLock.lock()
+        if glassesMediaVolumeGetCompletion != nil || glassesMediaVolumeSetCompletion != nil {
+            glassesMediaVolumeLock.unlock()
+            completion(
+                .failure(
+                    NSError(
+                        domain: "MentraLive",
+                        code: -1003,
+                        userInfo: [NSLocalizedDescriptionKey: "glasses_volume_busy"]
+                    )))
+            return
+        }
+        glassesMediaVolumeGetCompletion = completion
+        glassesMediaVolumeLock.unlock()
+
+        guard connectionState == ConnTypes.CONNECTED, fullyBooted else {
+            failPendingGlassesVolumeGet(
+                NSError(
+                    domain: "MentraLive",
+                    code: -1004,
+                    userInfo: [NSLocalizedDescriptionKey: "glasses_not_ready"]
+                ))
+            return
+        }
+
+        scheduleGlassesMediaVolumeTimeout()
+        if !sendGlassesMediaVolumeGetCommand() {
+            failPendingGlassesVolumeGet(
+                NSError(
+                    domain: "MentraLive",
+                    code: -1005,
+                    userInfo: [NSLocalizedDescriptionKey: "glasses_volume_send_failed"]
+                ))
+        }
+    }
+
+    /// Set glasses media step volume (0–15) via K900 `cs_vol` / `sr_vol`.
+    func setGlassesMediaVolume(level: Int, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        glassesMediaVolumeLock.lock()
+        if glassesMediaVolumeGetCompletion != nil || glassesMediaVolumeSetCompletion != nil {
+            glassesMediaVolumeLock.unlock()
+            completion(
+                .failure(
+                    NSError(
+                        domain: "MentraLive",
+                        code: -1003,
+                        userInfo: [NSLocalizedDescriptionKey: "glasses_volume_busy"]
+                    )))
+            return
+        }
+        glassesMediaVolumeSetCompletion = completion
+        glassesMediaVolumeLock.unlock()
+
+        guard connectionState == ConnTypes.CONNECTED, fullyBooted else {
+            failPendingGlassesVolumeSet(
+                NSError(
+                    domain: "MentraLive",
+                    code: -1004,
+                    userInfo: [NSLocalizedDescriptionKey: "glasses_not_ready"]
+                ))
+            return
+        }
+
+        scheduleGlassesMediaVolumeTimeout()
+        if !sendGlassesMediaVolumeSetCommand(level: level) {
+            failPendingGlassesVolumeSet(
+                NSError(
+                    domain: "MentraLive",
+                    code: -1005,
+                    userInfo: [NSLocalizedDescriptionKey: "glasses_volume_send_failed"]
+                ))
+        }
     }
 
     private func sendRawK900Command(_ command: [String: Any], wakeUp: Bool = false) -> Bool {
@@ -3883,6 +4180,9 @@ extension MentraLive {
         // Send button camera LED setting
         sendButtonCameraLedSetting()
 
+        // Send camera FOV setting (K900 / Mentra Live)
+        sendCameraFovSetting()
+
         // Send gallery mode state (camera app running status)
         sendGalleryMode()
     }
@@ -3972,9 +4272,31 @@ extension MentraLive {
         sendJson(json, wakeUp: true)
     }
 
-    func startVideoRecording(requestId: String, save: Bool, silent: Bool) {
+    func sendCameraFovSetting() {
+        let settings = GlassesStore.shared.get("core", "camera_fov") as? [String: Any] ?? ["fov": 118, "roi_position": 0]
+        let fov = settings["fov"] as? Int ?? 118
+        let roiPosition = settings["roi_position"] as? Int ?? 0
+
+        Bridge.log("Sending camera FOV setting: fov=\(fov), roi_position=\(roiPosition)")
+
+        guard connectionState == ConnTypes.CONNECTED else {
+            Bridge.log("Cannot send camera FOV setting - not connected")
+            return
+        }
+
+        let json: [String: Any] = [
+            "type": "camera_fov_setting",
+            "params": [
+                "fov": fov,
+                "roi_position": roiPosition,
+            ],
+        ]
+        sendJson(json, wakeUp: true)
+    }
+
+    func startVideoRecording(requestId: String, save: Bool, flash: Bool, sound: Bool) {
         startVideoRecording(
-            requestId: requestId, save: save, silent: silent, width: 0, height: 0, fps: 0
+            requestId: requestId, save: save, flash: flash, sound: sound, width: 0, height: 0, fps: 0
         )
     }
 
@@ -3998,10 +4320,10 @@ extension MentraLive {
     }
 
     func startVideoRecording(
-        requestId: String, save: Bool, silent: Bool, width: Int, height: Int, fps: Int
+        requestId: String, save: Bool, flash: Bool, sound: Bool, width: Int, height: Int, fps: Int
     ) {
         Bridge.log(
-            "Starting video recording on glasses: requestId=\(requestId), save=\(save), silent=\(silent), resolution=\(width)x\(height)@\(fps)fps"
+            "Starting video recording on glasses: requestId=\(requestId), save=\(save), flash=\(flash), sound=\(sound), resolution=\(width)x\(height)@\(fps)fps"
         )
 
         guard connectionState == ConnTypes.CONNECTED else {
@@ -4013,7 +4335,8 @@ extension MentraLive {
             "type": "start_video_recording",
             "request_id": requestId,
             "save": save,
-            "silent": silent,
+            "flash": flash,
+            "sound": sound,
         ]
 
         // Add video settings if provided

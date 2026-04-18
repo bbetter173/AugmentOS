@@ -6,6 +6,7 @@ import { generateApiKey, hashApiKey } from "../core/developer.service";
 import { isMentraAdmin } from "../core/admin.utils";
 import { slackService } from "../notifications/slack.service";
 import { logger as rootLogger } from "../logging/pino-logger";
+import { appCache } from "../core/app-cache.service";
 const logger = rootLogger.child({ service: "console.apps.service" });
 
 /**
@@ -132,10 +133,26 @@ async function resolveOrgForWrite(user: UserI, opts?: { orgId?: string }): Promi
   }
   // Mandatory bootstrap if user has no orgs/defaultOrg
   const personalOrgId = await OrganizationService.createPersonalOrg(user);
+
+  // Use atomic $addToSet + $set instead of user.save() to avoid
+  // Mongoose VersionError when concurrent requests (findOrCreateUser,
+  // getConsoleAccount, validateSupabaseToken) modify the same user
+  // document simultaneously.
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $addToSet: { organizations: personalOrgId },
+      $set: { defaultOrg: personalOrgId },
+    },
+  );
+
+  // Update the in-memory object so downstream code sees the change
   if (!user.organizations) user.organizations = [];
-  user.organizations.push(personalOrgId);
+  if (!user.organizations.some((id: any) => id.toString() === personalOrgId.toString())) {
+    user.organizations.push(personalOrgId);
+  }
   user.defaultOrg = personalOrgId;
-  await user.save();
+
   return personalOrgId;
 }
 
@@ -203,6 +220,7 @@ export async function createApp(
 
   try {
     const created = await App.create(doc);
+    appCache.invalidate(); // fire-and-forget
     const leanCreated = (await App.findById(created._id).lean()) || doc;
 
     // Notify Slack about the new mini app submission (fire-and-forget)
@@ -285,6 +303,7 @@ export async function updateApp(email: string, packageName: string, patch: Recor
   }
 
   const updated = await App.findOneAndUpdate({ packageName }, { $set: update }, { new: true }).lean();
+  appCache.invalidate(); // fire-and-forget
 
   return sanitizeApp(updated);
 }
@@ -308,6 +327,7 @@ export async function deleteApp(email: string, packageName: string): Promise<voi
   }
 
   await App.deleteOne({ packageName });
+  appCache.invalidate(); // fire-and-forget
 }
 
 /**
@@ -344,6 +364,7 @@ export async function publishApp(email: string, packageName: string): Promise<an
   }
 
   await appDoc.save();
+  appCache.invalidate(); // fire-and-forget
 
   const lean = await App.findById(appDoc._id).lean();
   return sanitizeApp(lean);
@@ -375,6 +396,7 @@ export async function regenerateApiKey(
 
   appDoc.hashedApiKey = hashed;
   await appDoc.save();
+  appCache.invalidate(); // fire-and-forget
 
   return { apiKey, createdAt: new Date().toISOString() };
 }
@@ -408,6 +430,7 @@ export async function moveApp(email: string, packageName: string, targetOrgId: s
   // Update app
   appDoc.organizationId = targetObjectId;
   await appDoc.save();
+  appCache.invalidate(); // fire-and-forget
 
   const lean = await App.findById(appDoc._id).lean();
   return sanitizeApp(lean);
@@ -458,6 +481,7 @@ export async function updatePermissions(
 
   appDoc.permissions = Array.isArray(permissions) ? permissions : [];
   await appDoc.save();
+  appCache.invalidate(); // fire-and-forget
 
   const lean = await App.findById(appDoc._id).lean();
   return {

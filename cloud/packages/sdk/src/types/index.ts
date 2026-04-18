@@ -13,15 +13,39 @@ export * from "./messages/glasses-to-cloud";
 export * from "./messages/cloud-to-glasses";
 
 // Export from app-to-cloud excluding isPhotoRequest which conflicts with cloud-to-glasses
-// Interfaces / type aliases (erased at runtime — must use `export type`)
+export {
+  // Type guards - all except isPhotoRequest
+  isAppConnectionInit,
+  isAppSubscriptionUpdate,
+  isDisplayRequest,
+  isRgbLedControlRequest,
+  isCameraFovSetRequest,
+  isAudioPlayRequest,
+  isAudioStopRequest,
+  isDashboardContentUpdate,
+  isDashboardModeChange,
+  isDashboardSystemUpdate,
+  isManagedStreamRequest,
+  isManagedStreamStopRequest,
+  isStreamRequest,
+  isStreamStopRequest,
+  isOwnershipRelease,
+  isTelemetryResponse,
+  // Export with alias to avoid conflict
+  isPhotoRequest as isPhotoRequestFromApp,
+} from "./messages/app-to-cloud";
+
+// Type-only exports from app-to-cloud (all interfaces)
 export type {
   SubscriptionRequest,
   AppConnectionInit,
   AppSubscriptionUpdate,
   PhotoRequest,
   RgbLedControlRequest,
-  RtmpStreamRequest,
-  RtmpStreamStopRequest,
+  CameraFovSetRequest,
+  CameraRoiPosition,
+  StreamRequest,
+  StreamStopRequest,
   AppLocationPollRequest,
   RestreamDestination,
   ManagedStreamRequest,
@@ -29,6 +53,8 @@ export type {
   StreamStatusCheckRequest,
   AudioPlayRequest,
   AudioStopRequest,
+  AudioStreamStart,
+  AudioStreamEnd,
   AppToCloudMessage,
   AppBroadcastMessage,
   AppDirectMessage,
@@ -37,29 +63,34 @@ export type {
   AppRoomLeave,
   RequestWifiSetup,
   OwnershipReleaseMessage,
+  TelemetryLogEntry,
+  TelemetryResponse,
 } from "./messages/app-to-cloud";
 
-// Runtime type guards — these are functions and need a value export
+// Export cloud-to-app but exclude the conflicting type guards
 export {
-  isAppConnectionInit,
-  isAppSubscriptionUpdate,
-  isDisplayRequest,
-  isRgbLedControlRequest,
-  isAudioPlayRequest,
-  isAudioStopRequest,
-  isDashboardContentUpdate,
-  isDashboardModeChange,
-  isDashboardSystemUpdate,
-  isManagedStreamRequest,
-  isManagedStreamStopRequest,
-  isRtmpStreamRequest,
-  isRtmpStreamStopRequest,
-  isOwnershipRelease,
-  // Export with alias to avoid conflict
-  isPhotoRequest as isPhotoRequestFromApp,
-} from "./messages/app-to-cloud";
+  // Type guards (excluding isPhotoResponse and isStreamStatus which conflict)
+  isAppConnectionAck,
+  isAppConnectionError,
+  isAppStopped,
+  isSettingsUpdate,
+  isCapabilitiesUpdate,
+  isDataStream,
+  isAudioChunk,
+  isAudioPlayResponse,
+  isDashboardModeChanged,
+  isDashboardAlwaysOnChanged,
+  isManagedStreamStatus,
+  isStreamStatusCheckResponse,
+  // Re-export the cloud-to-app versions of these type guards since they're the ones
+  // that should be used when dealing with CloudToAppMessage types
+  isPhotoResponse as isPhotoResponseFromCloud,
+  isStreamStatus as isStreamStatusFromCloud,
+  isRgbLedControlResponse as isRgbLedControlResponseFromCloud,
+  isRequestTelemetry,
+} from "./messages/cloud-to-app";
 
-// Export cloud-to-app interfaces / type aliases (erased at runtime — must use `export type`)
+// Type-only exports from cloud-to-app (all interfaces)
 export type {
   AppConnectionAck,
   AppConnectionError,
@@ -83,27 +114,8 @@ export type {
   AudioChunk,
   PermissionError,
   PermissionErrorDetail,
-} from "./messages/cloud-to-app";
-
-// Runtime type guards from cloud-to-app (excluding isPhotoResponse and isRtmpStreamStatus which conflict)
-export {
-  isAppConnectionAck,
-  isAppConnectionError,
-  isAppStopped,
-  isSettingsUpdate,
-  isCapabilitiesUpdate,
-  isDataStream,
-  isAudioChunk,
-  isAudioPlayResponse,
-  isDashboardModeChanged,
-  isDashboardAlwaysOnChanged,
-  isManagedStreamStatus,
-  isStreamStatusCheckResponse,
-  // Re-export the cloud-to-app versions of these type guards since they're the ones
-  // that should be used when dealing with CloudToAppMessage types
-  isPhotoResponse as isPhotoResponseFromCloud,
-  isRtmpStreamStatus as isRtmpStreamStatusFromCloud,
-  isRgbLedControlResponse as isRgbLedControlResponseFromCloud,
+  AudioStreamReady,
+  RequestTelemetry,
 } from "./messages/cloud-to-app";
 
 // Stream types
@@ -142,10 +154,26 @@ export interface WebSocketError {
   details?: unknown;
 }
 
-import type { Request } from "express";
 import type { AppSession } from "../app/session";
 
-export interface AuthenticatedRequest extends Request {
+/**
+ * Hono Context variables for authenticated requests
+ * Access via c.get("authUserId") and c.get("activeSession")
+ */
+export interface AuthVariables {
   authUserId?: string;
   activeSession: AppSession | null;
+}
+
+/**
+ * @deprecated Use AuthVariables with Hono context instead
+ * This type is kept for backward compatibility during migration
+ */
+export interface AuthenticatedRequest {
+  authUserId?: string;
+  activeSession: AppSession | null;
+  query: Record<string, string | undefined>;
+  headers: Record<string, string | undefined>;
+  cookies?: Record<string, string>;
+  body?: unknown;
 }

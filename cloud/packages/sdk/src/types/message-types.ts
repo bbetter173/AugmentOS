@@ -1,6 +1,6 @@
 // src/message-types.ts
 
-import {StreamType} from "./streams"
+import { StreamType } from "./streams";
 /**
  * Types of messages from glasses to cloud
  */
@@ -21,8 +21,8 @@ export enum GlassesToCloudMessageType {
   // Local Transcription
   LOCAL_TRANSCRIPTION = "local_transcription",
 
-  // RTMP streaming
-  RTMP_STREAM_STATUS = StreamType.RTMP_STREAM_STATUS,
+  // Streaming
+  STREAM_STATUS = StreamType.STREAM_STATUS,
   KEEP_ALIVE_ACK = "keep_alive_ack",
 
   BUTTON_PRESS = StreamType.BUTTON_PRESS,
@@ -82,12 +82,13 @@ export enum CloudToGlassesMessageType {
   AUDIO_PLAY_REQUEST = "audio_play_request",
   AUDIO_STOP_REQUEST = "audio_stop_request",
   RGB_LED_CONTROL = "rgb_led_control",
+  CAMERA_FOV_SET = "camera_fov_set",
   SHOW_WIFI_SETUP = "show_wifi_setup",
 
-  // RTMP streaming
-  START_RTMP_STREAM = "start_rtmp_stream",
-  STOP_RTMP_STREAM = "stop_rtmp_stream",
-  KEEP_RTMP_STREAM_ALIVE = "keep_rtmp_stream_alive",
+  // Streaming
+  START_STREAM = "start_stream",
+  STOP_STREAM = "stop_stream",
+  KEEP_STREAM_ALIVE = "keep_stream_alive",
 
   // Dashboard updates
   DASHBOARD_MODE_CHANGE = "dashboard_mode_change",
@@ -120,12 +121,15 @@ export enum AppToCloudMessageType {
   PHOTO_REQUEST = "photo_request",
   AUDIO_PLAY_REQUEST = "audio_play_request",
   AUDIO_STOP_REQUEST = "audio_stop_request",
+  AUDIO_STREAM_START = "audio_stream_start",
+  AUDIO_STREAM_END = "audio_stream_end",
   RGB_LED_CONTROL = "rgb_led_control",
+  CAMERA_FOV_SET = "camera_fov_set",
   REQUEST_WIFI_SETUP = "request_wifi_setup",
 
-  // RTMP streaming
-  RTMP_STREAM_REQUEST = "rtmp_stream_request",
-  RTMP_STREAM_STOP = "rtmp_stream_stop",
+  // Streaming
+  STREAM_REQUEST = "stream_request",
+  STREAM_STOP = "stream_stop",
 
   // Managed RTMP streaming
   MANAGED_STREAM_REQUEST = "managed_stream_request",
@@ -149,6 +153,9 @@ export enum AppToCloudMessageType {
 
   // Session lifecycle
   OWNERSHIP_RELEASE = "ownership_release",
+
+  // Telemetry (for incident debugging)
+  TELEMETRY_RESPONSE = "telemetry_response",
 }
 
 /**
@@ -175,8 +182,9 @@ export enum CloudToAppMessageType {
   // Media responses
   PHOTO_RESPONSE = "photo_response",
   AUDIO_PLAY_RESPONSE = "audio_play_response",
+  AUDIO_STREAM_READY = "audio_stream_ready",
   RGB_LED_CONTROL_RESPONSE = "rgb_led_control_response",
-  RTMP_STREAM_STATUS = "rtmp_stream_status",
+  STREAM_STATUS = "stream_status",
   MANAGED_STREAM_STATUS = "managed_stream_status",
   STREAM_STATUS_CHECK_RESPONSE = "stream_status_check_response",
 
@@ -184,6 +192,9 @@ export enum CloudToAppMessageType {
 
   // Permissions
   PERMISSION_ERROR = "permission_error",
+
+  // Telemetry (for incident debugging)
+  REQUEST_TELEMETRY = "request_telemetry",
 
   /**
    * @deprecated Use the settings system (mentraosSettings) instead.
@@ -210,7 +221,7 @@ export const ControlActionTypes = [
   GlassesToCloudMessageType.STOP_APP,
   GlassesToCloudMessageType.DASHBOARD_STATE,
   GlassesToCloudMessageType.OPEN_DASHBOARD,
-] as const
+] as const;
 
 /**
  * Event message types (subset of GlassesToCloudMessageType)
@@ -230,7 +241,7 @@ export const EventTypes = [
   GlassesToCloudMessageType.MENTRAOS_SETTINGS_UPDATE_REQUEST,
   GlassesToCloudMessageType.CORE_STATUS_UPDATE,
   GlassesToCloudMessageType.LOCAL_TRANSCRIPTION,
-] as const
+] as const;
 
 /**
  * Response message types (subset of CloudToGlassesMessageType)
@@ -239,7 +250,7 @@ export const ResponseTypes = [
   CloudToGlassesMessageType.CONNECTION_ACK,
   CloudToGlassesMessageType.CONNECTION_ERROR,
   CloudToGlassesMessageType.AUTH_ERROR,
-] as const
+] as const;
 
 /**
  * Update message types (subset of CloudToGlassesMessageType)
@@ -255,11 +266,11 @@ export const UpdateTypes = [
   CloudToGlassesMessageType.SETTINGS_UPDATE,
   CloudToGlassesMessageType.DASHBOARD_MODE_CHANGE,
   CloudToGlassesMessageType.DASHBOARD_ALWAYS_ON_CHANGE,
-  CloudToGlassesMessageType.START_RTMP_STREAM,
-  CloudToGlassesMessageType.STOP_RTMP_STREAM,
-  CloudToGlassesMessageType.KEEP_RTMP_STREAM_ALIVE,
+  CloudToGlassesMessageType.START_STREAM,
+  CloudToGlassesMessageType.STOP_STREAM,
+  CloudToGlassesMessageType.KEEP_STREAM_ALIVE,
   CloudToGlassesMessageType.LIVEKIT_INFO,
-] as const
+] as const;
 
 /**
  * Dashboard message types
@@ -270,4 +281,4 @@ export const DashboardMessageTypes = [
   AppToCloudMessageType.DASHBOARD_SYSTEM_UPDATE,
   CloudToAppMessageType.DASHBOARD_MODE_CHANGED,
   CloudToAppMessageType.DASHBOARD_ALWAYS_ON_CHANGED,
-] as const
+] as const;

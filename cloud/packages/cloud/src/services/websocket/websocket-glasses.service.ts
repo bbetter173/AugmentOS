@@ -16,7 +16,6 @@ import {
   GlassesToCloudMessageType,
 } from "@mentra/sdk";
 
-import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { PosthogService } from "../logging/posthog.service";
 import UserSession from "../session/UserSession";
@@ -70,8 +69,6 @@ export class GlassesWebSocketService {
     try {
       // Get user ID from request (attached during JWT verification)
       const userId = (request as any).userId;
-      const livekitRequested = (request as any).livekitRequested || false;
-
       if (!userId) {
         logger.error({ error: GlassesErrorCode.INVALID_TOKEN, request }, "No user ID provided in request");
         this.sendError(ws, GlassesErrorCode.INVALID_TOKEN, "Authentication failed");
@@ -80,10 +77,7 @@ export class GlassesWebSocketService {
 
       // Create or retrieve user session
       const { userSession, reconnection } = await UserSession.createOrReconnect(ws, userId);
-      userSession.logger.info(`Glasses WebSocket connection from user: ${userId} (LiveKit: ${livekitRequested})`);
-
-      // Store LiveKit preference in the session
-      userSession.livekitRequested = livekitRequested;
+      userSession.logger.info(`Glasses WebSocket connection from user: ${userId}`);
 
       let i = 0;
       // Handle incoming messages
@@ -94,7 +88,7 @@ export class GlassesWebSocketService {
             i++;
             // await this.handleBinaryMessage(userSession, data);
             if (i % 10 === 0) {
-              logger.debug({ service: "LiveKitManager" }, "[Websocket]Received binary message");
+              logger.debug({ service: "AudioManager" }, "[Websocket]Received binary message");
             }
             userSession.audioManager.processAudioData(data);
             return;
@@ -103,6 +97,19 @@ export class GlassesWebSocketService {
           // Parse text message
           const message = JSON.parse(data.toString()) as GlassesToCloudMessage;
 
+          // Application-level ping/pong for client liveness detection.
+          // Respond immediately — don't log, don't relay, don't touch session state.
+          if ((message as any).type === "ping") {
+            ws.send(JSON.stringify({ type: "pong" }));
+            return;
+          }
+
+          // Client pong (response to legacy server ping). Consume silently.
+          if ((message as any).type === "pong") {
+            userSession.lastAppLevelPongTime = Date.now();
+            return;
+          }
+
           if (message.type === GlassesToCloudMessageType.CONNECTION_INIT) {
             // Handle connection initialization message
             const connectionInitMessage = message as ConnectionInit;
@@ -110,7 +117,7 @@ export class GlassesWebSocketService {
               `Received connection init message from glasses: ${JSON.stringify(connectionInitMessage)}`,
             );
             // If this is a reconnection, we can skip the initialization logic
-            this.handleConnectionInit(userSession, reconnection, userSession.livekitRequested || false)
+            this.handleConnectionInit(userSession, reconnection)
               .then(() => {
                 userSession.logger.info(`✅ Connection reinitialized for user: ${userSession.userId}`);
               })
@@ -119,28 +126,6 @@ export class GlassesWebSocketService {
               });
             return;
           }
-
-          // Handle LiveKit init handshake (client requests LiveKit info)
-          // if (message.type === GlassesToCloudMessageType.LIVEKIT_INIT) {
-          //   userSession.liveKitManager
-          //     .handleLiveKitInit()
-          //     .then((info) => {
-          //       if (!info) return;
-          //       const livekitInfo: CloudToGlassesMessage = {
-          //         type: CloudToGlassesMessageType.LIVEKIT_INFO,
-          //         url: info.url,
-          //         roomName: info.roomName,
-          //         token: info.token,
-          //         timestamp: new Date(),
-          //       } as any;
-          //       ws.send(JSON.stringify(livekitInfo));
-          //       userSession.logger.info({ url: info.url, roomName: info.roomName, feature: 'livekit' }, 'Sent LIVEKIT_INFO (on LIVEKIT_INIT)');
-          //     })
-          //     .catch((e) => {
-          //       userSession.logger.warn({ e, feature: 'livekit' }, 'Failed LIVEKIT_INIT handling');
-          //     });
-          //   return;
-          // }
 
           // Process the message - delegate to UserSession for routing
           userSession
@@ -172,9 +157,7 @@ export class GlassesWebSocketService {
       });
 
       // Handle connection initialization
-      this.handleConnectionInit(userSession, reconnection, livekitRequested);
-
-      // NOTE: Do not auto-send LIVEKIT_INFO here to avoid unnecessary room usage.
+      this.handleConnectionInit(userSession, reconnection);
 
       // Track connection in analytics
       PosthogService.trackEvent("glasses_connection", userId, {
@@ -197,23 +180,10 @@ export class GlassesWebSocketService {
    *
    * @param userSession User session
    * @param reconnection Whether this is a reconnection
-   * @param livekitRequested Whether the client requested LiveKit transport
    */
-  private async handleConnectionInit(
-    userSession: UserSession,
-    reconnection: boolean,
-    livekitRequested = false,
-  ): Promise<void> {
+  private async handleConnectionInit(userSession: UserSession, reconnection: boolean): Promise<void> {
     if (!reconnection) {
-      // Start all the apps that the user has running.
-      try {
-        // Start the dashboard app, but let's not add to the user's running apps since it's a system app.
-        // honestly there should be no annyomous users so if it's an anonymous user we should just not start the dashboard
-        await userSession.appManager.startApp(SYSTEM_DASHBOARD_PACKAGE_NAME);
-      } catch (error) {
-        userSession.logger.error({ error }, `Error starting dashboard app`);
-      }
-
+      // Dashboard is now a cloud-internal service (DashboardManager) — no mini app to start.
       // Start all the apps that the user has running.
       try {
         await userSession.appManager.startPreviouslyRunningApps();
@@ -231,31 +201,6 @@ export class GlassesWebSocketService {
       });
     }
 
-    // Reconnect path: ensure LiveKit bridge has rejoined if it was kicked
-    if (reconnection) {
-      try {
-        // If we previously had a bridge (or client explicitly requested LiveKit), check status
-        const hadBridge =
-          typeof userSession.liveKitManager.getBridgeClient === "function" &&
-          !!userSession.liveKitManager.getBridgeClient();
-
-        if (hadBridge || livekitRequested) {
-          const status = await userSession.liveKitManager.getBridgeStatus?.();
-          userSession.logger.info({ feature: "livekit", status, reconnection }, "Reconnect: bridge status");
-
-          // If the bridge is not connected to the room, attempt a rejoin with a fresh token
-          if (!status || status.connected === false) {
-            await userSession.liveKitManager.rejoinBridge?.();
-            userSession.logger.info({ feature: "livekit" }, "Reconnect: bridge rejoin attempted");
-          } else {
-            userSession.logger.info({ feature: "livekit" }, "Reconnect: bridge healthy, keeping session");
-          }
-        }
-      } catch (err) {
-        userSession.logger.warn({ feature: "livekit", err }, "Reconnect: bridge status check failed");
-      }
-    }
-
     // Prepare the base ACK message
     const ackMessage: ConnectionAck = {
       type: CloudToGlassesMessageType.CONNECTION_ACK,
@@ -264,43 +209,6 @@ export class GlassesWebSocketService {
       timestamp: new Date(),
     };
 
-    // If LiveKit was requested, initialize and include the info
-    if (livekitRequested) {
-      try {
-        const livekitInfo = await userSession.liveKitManager.handleLiveKitInit();
-        if (livekitInfo) {
-          (ackMessage as any).livekit = {
-            url: livekitInfo.url,
-            roomName: livekitInfo.roomName,
-            token: livekitInfo.token,
-          };
-          userSession.logger.info(
-            {
-              url: livekitInfo.url,
-              roomName: livekitInfo.roomName,
-              feature: "livekit",
-            },
-            "Included LiveKit info in CONNECTION_ACK",
-          );
-          userSession.logger.debug(
-            {
-              ackMessage,
-              feature: "connection",
-            },
-            "Sent CONNECTION_ACK",
-          );
-        }
-      } catch (error) {
-        userSession.logger.warn(
-          {
-            error,
-            feature: "livekit",
-          },
-          "Failed to initialize LiveKit for CONNECTION_ACK",
-        );
-      }
-    }
-    // TODO(isaiah): Think about weird edge case where it connects with livekit, then a reconnect without livekit. (should probably never happen, unless they change devices  mid-session and the new device doesn't want livekit)
     userSession.websocket.send(JSON.stringify(ackMessage));
   }
 

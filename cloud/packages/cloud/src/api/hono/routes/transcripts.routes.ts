@@ -40,12 +40,19 @@ app.get("/:appSessionId", getTranscripts);
 async function getTranscripts(c: AppContext) {
   try {
     const appSessionId = c.req.param("appSessionId");
+    if (!appSessionId) {
+      return c.json({ error: "Missing required parameter: appSessionId" }, 400);
+    }
     const duration = c.req.query("duration");
     const startTime = c.req.query("startTime");
     const endTime = c.req.query("endTime");
     const language = c.req.query("language") || "en-US";
 
     logger.debug({ appSessionId, language }, `Fetching transcripts for session`);
+
+    if (!appSessionId) {
+      return c.json({ error: "Missing required parameter: appSessionId" }, 400);
+    }
 
     // Validate that at least one time parameter is provided
     if (!duration && !startTime && !endTime) {

@@ -75,7 +75,14 @@ interface GallerySyncState extends GallerySyncInfo {
   onFileProgress: (fileName: string, progress: number) => void
   onFileComplete: (fileName: string) => void
   onFileFailed: (fileName: string, error?: string) => void
+  onFileProcessing: (fileName: string) => void
+  onFileProcessed: (fileName: string) => void
   updateFileInQueue: (fileName: string, updatedFile: PhotoInfo) => void
+  removeFilesFromQueue: (fileNames: string[]) => void
+
+  // Processing queue tracking
+  processingFiles: Set<string>
+  processedFiles: number
 
   // Hotspot management
   setHotspotInfo: (info: HotspotInfo | null) => void
@@ -94,7 +101,7 @@ interface GallerySyncState extends GallerySyncInfo {
   reset: () => void
 }
 
-const initialState: GallerySyncInfo = {
+const initialState: GallerySyncInfo & {processingFiles: Set<string>; processedFiles: number} = {
   syncState: "idle",
   currentFile: null,
   currentFileProgress: 0,
@@ -110,6 +117,8 @@ const initialState: GallerySyncInfo = {
   glassesTotalCount: 0,
   glassesHasContent: false,
   lastError: null,
+  processingFiles: new Set<string>(),
+  processedFiles: 0,
 }
 
 export const useGallerySyncStore = create<GallerySyncState>()(
@@ -134,7 +143,8 @@ export const useGallerySyncStore = create<GallerySyncState>()(
     setSyncing: (files: PhotoInfo[]) =>
       set({
         syncState: "syncing",
-        queue: files,
+        // C4: Strip thumbnail_data (base64) from store to prevent OOM
+        queue: files.map(({thumbnail_data: _thumbnailData, ...rest}) => rest),
         queueIndex: 0,
         totalFiles: files.length,
         completedFiles: 0,
@@ -142,6 +152,8 @@ export const useGallerySyncStore = create<GallerySyncState>()(
         currentFileProgress: 0,
         failedFiles: [],
         lastError: null,
+        processedFiles: 0,
+        processingFiles: new Set<string>(),
       }),
 
     setSyncComplete: () =>
@@ -177,11 +189,18 @@ export const useGallerySyncStore = create<GallerySyncState>()(
         currentFileProgress: Math.max(0, Math.min(100, progress)),
       }),
 
-    onFileProgress: (fileName: string, progress: number) =>
+    onFileProgress: (fileName: string, progress: number) => {
+      const state = get()
+      const clampedProgress = Math.max(0, Math.min(100, progress))
+      // Throttle: skip update if same file and same percentage (prevents Zustand flood)
+      if (clampedProgress === state.currentFileProgress && fileName === state.currentFile) {
+        return
+      }
       set({
         currentFile: fileName,
-        currentFileProgress: Math.max(0, Math.min(100, progress)),
-      }),
+        currentFileProgress: clampedProgress,
+      })
+    },
 
     onFileComplete: (_fileName: string) => {
       const state = get()
@@ -210,10 +229,56 @@ export const useGallerySyncStore = create<GallerySyncState>()(
       })
     },
 
+    onFileProcessing: (fileName: string) => {
+      const state = get()
+      const newSet = new Set(state.processingFiles)
+      newSet.add(fileName)
+      set({processingFiles: newSet})
+    },
+
+    onFileProcessed: (fileName: string) => {
+      const state = get()
+      const newSet = new Set(state.processingFiles)
+      newSet.delete(fileName)
+      set({processingFiles: newSet, processedFiles: state.processedFiles + 1})
+    },
+
     updateFileInQueue: (fileName: string, updatedFile: PhotoInfo) => {
       const state = get()
       const updatedQueue = state.queue.map((file) => (file.name === fileName ? updatedFile : file))
       set({queue: updatedQueue})
+    },
+
+    removeFilesFromQueue: (fileNames: string[]) => {
+      if (fileNames.length === 0) return
+
+      const filesToRemove = new Set(fileNames)
+      const state = get()
+      const failedFilesSet = new Set(state.failedFiles)
+      const filesBeforeQueueIndex = state.queue
+        .slice(0, state.queueIndex)
+        .filter((file) => filesToRemove.has(file.name))
+      const removedBeforeQueueIndex = filesBeforeQueueIndex.length
+      const removedCompletedBeforeQueueIndex = filesBeforeQueueIndex.filter(
+        (file) => !failedFilesSet.has(file.name),
+      ).length
+      const filteredQueue = state.queue.filter((file) => !filesToRemove.has(file.name))
+      const removedCount = state.queue.length - filteredQueue.length
+
+      if (removedCount === 0) return
+
+      const nextQueueIndex = state.queueIndex - removedBeforeQueueIndex
+      const currentFileRemoved = state.currentFile !== null && filesToRemove.has(state.currentFile)
+
+      set({
+        queue: filteredQueue,
+        totalFiles: state.totalFiles - removedCount,
+        completedFiles: Math.max(0, state.completedFiles - removedCompletedBeforeQueueIndex),
+        queueIndex: nextQueueIndex,
+        failedFiles: state.failedFiles.filter((fileName) => !filesToRemove.has(fileName)),
+        processingFiles: new Set(Array.from(state.processingFiles).filter((fileName) => !filesToRemove.has(fileName))),
+        currentFile: currentFileRemoved ? filteredQueue[nextQueueIndex]?.name || null : state.currentFile,
+      })
     },
 
     // Hotspot management
@@ -249,7 +314,8 @@ export const useGallerySyncStore = create<GallerySyncState>()(
     // Queue management
     setQueue: (files: PhotoInfo[], startIndex: number = 0) =>
       set({
-        queue: files,
+        // C4: Strip thumbnail_data (base64) from store to prevent OOM
+        queue: files.map(({thumbnail_data: _thumbnailData, ...rest}) => rest),
         queueIndex: startIndex,
         totalFiles: files.length,
         completedFiles: startIndex,
@@ -269,7 +335,7 @@ export const useGallerySyncStore = create<GallerySyncState>()(
       }),
 
     // Full reset
-    reset: () => set(initialState),
+    reset: () => set({...initialState, processingFiles: new Set<string>()}),
   })),
 )
 
@@ -281,6 +347,7 @@ export const selectSyncProgress = (state: GallerySyncState) => ({
   completedFiles: state.completedFiles,
   totalFiles: state.totalFiles,
   failedFiles: state.failedFiles,
+  processingFiles: state.processingFiles,
 })
 
 export const selectIssyncing = (state: GallerySyncState) =>

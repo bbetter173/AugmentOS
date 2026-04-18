@@ -149,7 +149,16 @@ async function createOrg(c: AppContext) {
 async function getOrg(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const userEmail = c.get("email");
+
+    if (!orgId) {
+      return c.json({ success: false, message: "Missing required parameter: orgId" }, 400);
+    }
+
     const user = await User.findOne({ email: userEmail });
 
     if (!user) {
@@ -183,8 +192,17 @@ async function getOrg(c: AppContext) {
 async function updateOrg(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const userEmail = c.get("email");
+
+    if (!orgId) {
+      return c.json({ success: false, message: "Missing required parameter: orgId" }, 400);
+    }
+
     const user = await User.findOne({ email: userEmail });
 
     if (!user) {
@@ -223,7 +241,16 @@ async function updateOrg(c: AppContext) {
 async function deleteOrg(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const userEmail = c.get("email");
+
+    if (!orgId) {
+      return c.json({ success: false, message: "Missing required parameter: orgId" }, 400);
+    }
+
     const user = await User.findOne({ email: userEmail });
 
     if (!user) {
@@ -252,8 +279,16 @@ async function deleteOrg(c: AppContext) {
 async function invite(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { email } = body as { email?: string };
+
+    if (!orgId) {
+      return c.json({ success: false, message: "Missing required parameter: orgId" }, 400);
+    }
 
     if (!email) {
       return c.json({ success: false, message: "Email is required" }, 400);
@@ -295,7 +330,16 @@ async function invite(c: AppContext) {
 async function acceptInvite(c: AppContext) {
   try {
     const token = c.req.param("token");
+    if (!token) {
+      return c.json({ success: false, message: "Invite token is required" }, 400);
+    }
+
     const userEmail = c.get("email");
+
+    if (!token) {
+      return c.json({ success: false, message: "Missing required parameter: token" }, 400);
+    }
+
     const user = await User.findOne({ email: userEmail });
 
     if (!user) {
@@ -319,8 +363,16 @@ async function changeRole(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
     const memberId = c.req.param("memberId");
+    if (!orgId || !memberId) {
+      return c.json({ success: false, message: "Organization ID and member ID are required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { role } = body as { role?: "admin" | "member" };
+
+    if (!orgId || !memberId) {
+      return c.json({ success: false, message: "Missing required parameters: orgId and memberId" }, 400);
+    }
 
     if (!role || !["admin", "member"].includes(role)) {
       return c.json({ success: false, message: "Valid role (admin or member) is required" }, 400);
@@ -350,7 +402,16 @@ async function removeMember(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
     const memberId = c.req.param("memberId");
+    if (!orgId || !memberId) {
+      return c.json({ success: false, message: "Organization ID and member ID are required" }, 400);
+    }
+
     const userEmail = c.get("email");
+
+    if (!orgId || !memberId) {
+      return c.json({ success: false, message: "Missing required parameters: orgId and memberId" }, 400);
+    }
+
     const user = await User.findOne({ email: userEmail });
 
     if (!user) {
@@ -378,8 +439,16 @@ async function removeMember(c: AppContext) {
 async function resendInvite(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { email } = body as { email?: string };
+
+    if (!orgId) {
+      return c.json({ success: false, message: "Missing required parameter: orgId" }, 400);
+    }
 
     if (!email) {
       return c.json({ success: false, message: "Email is required" }, 400);
@@ -408,8 +477,16 @@ async function resendInvite(c: AppContext) {
 async function rescindInvite(c: AppContext) {
   try {
     const orgId = c.req.param("orgId");
+    if (!orgId) {
+      return c.json({ success: false, message: "Organization ID is required" }, 400);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const { email } = body as { email?: string };
+
+    if (!orgId) {
+      return c.json({ success: false, message: "Missing required parameter: orgId" }, 400);
+    }
 
     if (!email) {
       return c.json({ success: false, message: "Email is required" }, 400);

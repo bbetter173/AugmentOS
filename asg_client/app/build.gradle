@@ -186,8 +186,8 @@ android {
 
         minSdk 28
         targetSdk 33
-        versionCode 31
-        versionName "31.0"
+        versionCode 36
+        versionName "36.0"
 
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a"
@@ -221,11 +221,22 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Third-party developers (without Mentra's signing key) get a different
+            // package name so their build can coexist with the stock system app.
+            // This is required because Android won't allow installing a differently-signed
+            // APK with the same package name as a system app.
+            if (!useReleaseKey) {
+                applicationIdSuffix ".thirdparty"
+            }
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig asgStorePassword ? signingConfigs.release : signingConfigs.debug
+            // Third-party release builds also need the suffix
+            if (!useReleaseKey) {
+                applicationIdSuffix ".thirdparty"
+            }
         }
     }
 }
@@ -270,12 +281,6 @@ dependencies {
     //EventBus, greenrobot
     implementation("org.greenrobot:eventbus:3.3.1")
 
-    //implementation project(path: ":augmentos_core")
-    //implementation project(path: ':AugmentOSLib')
-    //implementation project(path: ":SmartGlassesManager")
-
-
-
     //location services
     implementation 'com.google.android.gms:play-services-location:18.0.0'
 
@@ -305,6 +310,7 @@ dependencies {
     // StreamPackLite dependencies
     implementation project(':core')
     implementation project(':extension-rtmp')
+    implementation project(':extension-srt')
 
     // OkHttp for network requests
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
@@ -317,6 +323,11 @@ dependencies {
 
     // Sentry SDK for error reporting
     implementation 'io.sentry:sentry-android:7.5.0'
+
+    // Google WebRTC for Android (WHIP streaming)
+    // Community-maintained prebuilt of the official Google WebRTC codebase; uses org.webrtc package.
+    // Pinned to M114 (2023) — compiled with Java 11, compatible with this project's Java 17 toolchain.
+    implementation 'io.github.webrtc-sdk:android:114.5735.08.1'
 
     // AndroidX Test dependencies
     androidTestImplementation 'androidx.test:core:1.5.0'

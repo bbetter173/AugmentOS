@@ -1,5 +1,4 @@
 import ExpoModulesCore
-import Photos
 
 public class CoreModule: Module {
     public func definition() -> ModuleDefinition {
@@ -16,7 +15,6 @@ public class CoreModule: Module {
             "touch_event",
             "head_up",
             "battery_status",
-            "local_transcription",
             "wifi_status_change",
             "hotspot_status_change",
             "hotspot_error",
@@ -33,16 +31,20 @@ public class CoreModule: Module {
             "audio_connected",
             "audio_disconnected",
             "save_setting",
+            "local_transcription",
             "phone_notification",
             "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
-            "mic_data",
-            "rtmp_stream_status",
+            "mic_pcm",
+            "mic_lc3",
+            "stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
-            "ota_progress"
+            "ota_progress",
+            "send_command_to_ble",
+            "receive_command_from_ble"
         )
 
         OnCreate {
@@ -116,6 +118,12 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("connectDefaultController") {
+            await MainActor.run {
+                CoreManager.shared.connectDefaultController()
+            }
+        }
+
         AsyncFunction("connectSimulated") {
             await MainActor.run {
                 CoreManager.shared.connectSimulated()
@@ -128,9 +136,21 @@ public class CoreModule: Module {
             }
         }
 
+        AsyncFunction("disconnectController") {
+            await MainActor.run {
+                CoreManager.shared.disconnectController()
+            }
+        }
+
         AsyncFunction("forget") {
             await MainActor.run {
                 CoreManager.shared.forget()
+            }
+        }
+
+        AsyncFunction("forgetController") {
+            await MainActor.run {
+                CoreManager.shared.forgetController()
             }
         }
 
@@ -143,6 +163,20 @@ public class CoreModule: Module {
         AsyncFunction("showDashboard") {
             await MainActor.run {
                 CoreManager.shared.showDashboard()
+            }
+        }
+
+        AsyncFunction("ping") {
+            await MainActor.run {
+                CoreManager.shared.ping()
+            }
+        }
+
+        // MARK: - Incident Reporting
+
+        AsyncFunction("sendIncidentId") { (incidentId: String) in
+            await MainActor.run {
+                CoreManager.shared.sendIncidentId(incidentId)
             }
         }
 
@@ -183,11 +217,11 @@ public class CoreModule: Module {
         AsyncFunction("photoRequest") {
             (
                 requestId: String, appId: String, size: String, webhookUrl: String?,
-                authToken: String?, compress: String?, silent: Bool
+                authToken: String?, compress: String?, flash: Bool, sound: Bool
             ) in
             await MainActor.run {
                 CoreManager.shared.photoRequest(
-                    requestId, appId, size, webhookUrl, authToken, compress, silent
+                    requestId, appId, size, webhookUrl, authToken, compress, flash, sound
                 )
             }
         }
@@ -242,9 +276,9 @@ public class CoreModule: Module {
             }
         }
 
-        AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, silent: Bool) in
+        AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
             await MainActor.run {
-                CoreManager.shared.startVideoRecording(requestId, save, silent)
+                CoreManager.shared.startVideoRecording(requestId, save, flash, sound)
             }
         }
 
@@ -254,37 +288,23 @@ public class CoreModule: Module {
             }
         }
 
-        // MARK: - RTMP Stream Commands
+        // MARK: - Stream Commands
 
-        AsyncFunction("startRtmpStream") { (params: [String: Any]) in
+        AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                CoreManager.shared.startRtmpStream(params)
+                CoreManager.shared.startStream(params)
             }
         }
 
-        AsyncFunction("stopRtmpStream") {
+        AsyncFunction("stopStream") {
             await MainActor.run {
-                CoreManager.shared.stopRtmpStream()
+                CoreManager.shared.stopStream()
             }
         }
 
-        AsyncFunction("keepRtmpStreamAlive") { (params: [String: Any]) in
+        AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                CoreManager.shared.keepRtmpStreamAlive(params)
-            }
-        }
-
-        // MARK: - Microphone Commands
-
-        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
-            await MainActor.run {
-                CoreManager.shared.setMicState(sendPcmData, sendTranscript, bypassVad)
-            }
-        }
-
-        AsyncFunction("restartTranscriber") {
-            await MainActor.run {
-                CoreManager.shared.restartTranscriber()
+                CoreManager.shared.keepStreamAlive(params)
             }
         }
 
@@ -294,6 +314,14 @@ public class CoreModule: Module {
             // Notify PhoneAudioMonitor that our app started/stopped playing audio
             // This is used to suspend LC3 mic during audio playback to avoid MCU overload
             PhoneAudioMonitor.getInstance().setOwnAppAudioPlaying(playing)
+        }
+
+        AsyncFunction("getGlassesMediaVolume") { () async throws -> [String: Any] in
+            try await CoreManager.shared.getGlassesMediaVolume()
+        }
+
+        AsyncFunction("setGlassesMediaVolume") { (level: Int) async throws -> [String: Any] in
+            try await CoreManager.shared.setGlassesMediaVolume(level: level)
         }
 
         // MARK: - RGB LED Control
@@ -316,7 +344,29 @@ public class CoreModule: Module {
             }
         }
 
-        // MARK: - STT Commands
+        // MARK: - Microphone Commands
+
+        AsyncFunction("setMicState") { (_: Bool, _: Bool, _: Bool) in
+            await MainActor.run {
+                CoreManager.shared.setMicState()
+            }
+        }
+
+        AsyncFunction("restartTranscriber") {
+            await MainActor.run {
+                CoreManager.shared.restartTranscriber()
+            }
+        }
+
+        // MARK: - Display Commands
+
+        AsyncFunction("clearDisplay") {
+            await MainActor.run {
+                CoreManager.shared.sgc?.clearDisplay()
+            }
+        }
+
+        // MARK: - STT Model Management
 
         AsyncFunction("setSttModelDetails") { (path: String, languageCode: String) in
             STTTools.setSttModelDetails(path, languageCode)
@@ -336,6 +386,16 @@ public class CoreModule: Module {
 
         AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
             return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
+        }
+
+        // MARK: - Beta Build Detection
+
+        AsyncFunction("isBetaBuild") { () -> Bool in
+            #if targetEnvironment(simulator)
+                return false
+            #else
+                return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            #endif
         }
 
         // MARK: - Android Stubs
@@ -367,59 +427,6 @@ public class CoreModule: Module {
 
         AsyncFunction("getInstalledAppsForNotifications") { () -> [[String: Any]] in
             return []
-        }
-
-        // MARK: - Media Library Commands
-
-        AsyncFunction("saveToGalleryWithDate") {
-            (filePath: String, captureTimeMillis: Int64?) -> [String: Any] in
-            let fileURL = URL(fileURLWithPath: filePath)
-
-            guard FileManager.default.fileExists(atPath: filePath) else {
-                return ["success": false, "error": "File does not exist"]
-            }
-
-            var assetIdentifier: String?
-            let semaphore = DispatchSemaphore(value: 0)
-            var resultError: Error?
-
-            PHPhotoLibrary.shared().performChanges {
-                let creationRequest: PHAssetChangeRequest
-                let pathExtension = fileURL.pathExtension.lowercased()
-
-                if ["mp4", "mov", "avi", "m4v"].contains(pathExtension) {
-                    // Video
-                    creationRequest = PHAssetChangeRequest.creationRequestForAssetFromVideo(
-                        atFileURL: fileURL)!
-                } else {
-                    // Photo
-                    creationRequest = PHAssetChangeRequest.creationRequestForAssetFromImage(
-                        atFileURL: fileURL)!
-                }
-
-                // Set the creation date if provided
-                if let captureMillis = captureTimeMillis {
-                    let captureDate = Date(
-                        timeIntervalSince1970: TimeInterval(captureMillis) / 1000.0)
-                    creationRequest.creationDate = captureDate
-                    Bridge.log("CoreModule: Setting creation date to: \(captureDate)")
-                }
-
-                assetIdentifier = creationRequest.placeholderForCreatedAsset?.localIdentifier
-            } completionHandler: { _, error in
-                resultError = error
-                semaphore.signal()
-            }
-
-            semaphore.wait()
-
-            if let error = resultError {
-                Bridge.log("CoreModule: Error saving to gallery: \(error.localizedDescription)")
-                return ["success": false, "error": error.localizedDescription]
-            }
-
-            Bridge.log("CoreModule: Successfully saved to gallery with proper creation date")
-            return ["success": true, "identifier": assetIdentifier ?? ""]
         }
     }
 }

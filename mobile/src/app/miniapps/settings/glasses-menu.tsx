@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from "react"
-import {Pressable, ScrollView, View} from "react-native"
+import {Pressable, View} from "react-native"
 import DraggableFlatList, {RenderItemParams} from "react-native-draggable-flatlist"
 import {GestureHandlerRootView} from "react-native-gesture-handler"
 
@@ -145,109 +145,108 @@ export default function GlassesMenuScreen() {
     [applets, theme, removeItem], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
+  const listHeader = (
+    <View className="gap-6 pt-6 pb-2">
+      <Text style={{color: theme.colors.secondary_foreground}} size="xs">
+        {translate("settings:glassesMenuDescription")}
+      </Text>
+      <Text>{translate("settings:glassesMenuApps")}</Text>
+    </View>
+  )
+
+  const listFooter = (
+    <View className="gap-6 pt-6">
+      {menuItems.length < MAX_MENU_ITEMS && (
+        <Pressable
+          onPress={() => setShowPicker(!showPicker)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingVertical: theme.spacing.s3,
+            paddingHorizontal: theme.spacing.s4,
+          }}>
+          <Icon name="plus" size={20} color={theme.colors.primary} />
+          <Text style={{color: theme.colors.primary}} size="sm">
+            {translate("settings:glassesMenuAddApp")}
+          </Text>
+        </Pressable>
+      )}
+
+      {showPicker && pickerReady && (
+        <Group title={translate("settings:glassesMenuAvailableApps")}>
+          {sortedAvailable.length === 0 && (
+            <Text
+              style={{
+                color: theme.colors.secondary_foreground,
+                padding: theme.spacing.s4,
+              }}>
+              {translate("settings:glassesMenuNoApps")}
+            </Text>
+          )}
+          {sortedAvailable.map((app) => (
+            <Pressable
+              key={app.packageName}
+              onPress={() => addItem(app)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                paddingVertical: theme.spacing.s3,
+                paddingHorizontal: theme.spacing.s4,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.colors.border,
+              }}>
+              <AppIcon app={app} style={{width: 28, height: 28, borderRadius: 6}} disableLoader />
+              <Text style={{color: theme.colors.foreground}} size="sm">
+                {app.name}
+              </Text>
+            </Pressable>
+          ))}
+        </Group>
+      )}
+
+      <RouteButton
+        label={translate("settings:glassesMenuReset")}
+        onPress={async () => {
+          const defaults = await getDefaultMenuApps(applets)
+          setMenuItems(defaults)
+          await setSavedMenuApps(null)
+          await syncDashboardMenu()
+        }}
+      />
+    </View>
+  )
+
+  const listEmpty = (
+    <Text
+      style={{
+        color: theme.colors.secondary_foreground,
+        padding: theme.spacing.s4,
+      }}>
+      {translate("settings:glassesMenuEmpty")}
+    </Text>
+  )
+
   return (
     <Screen preset="fixed">
       <Header titleTx="settings:glassesMenu" leftIcon="chevron-left" onLeftPress={goBack} />
       <GestureHandlerRootView style={{flex: 1}}>
-        <ScrollView
-          style={{marginHorizontal: -theme.spacing.s4, paddingHorizontal: theme.spacing.s4}}
+        <DraggableFlatList
+          data={menuItems}
+          keyExtractor={(item) => item.packageName}
+          renderItem={renderMenuItem}
+          onDragEnd={({data}) => {
+            setMenuItems(data)
+            setSavedMenuApps(data)
+            syncDashboardMenu()
+          }}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={listEmpty}
           contentContainerStyle={{paddingBottom: theme.spacing.s6}}
-          nestedScrollEnabled
-          contentInsetAdjustmentBehavior="automatic">
-          <View className="gap-6 pt-6">
-            <Text style={{color: theme.colors.secondary_foreground}} size="xs">
-              {translate("settings:glassesMenuDescription")}
-            </Text>
-
-            {/* Current menu items — draggable list */}
-            <Group title={translate("settings:glassesMenuApps")}>
-              {menuItems.length === 0 ? (
-                <Text
-                  style={{
-                    color: theme.colors.secondary_foreground,
-                    padding: theme.spacing.s4,
-                  }}>
-                  {translate("settings:glassesMenuEmpty")}
-                </Text>
-              ) : (
-                <DraggableFlatList
-                  data={menuItems}
-                  keyExtractor={(item) => item.packageName}
-                  renderItem={renderMenuItem}
-                  onDragEnd={({data}) => {
-                    setMenuItems(data)
-                    setSavedMenuApps(data)
-                    syncDashboardMenu()
-                  }}
-                  scrollEnabled={false}
-                />
-              )}
-            </Group>
-
-            {/* Add app button */}
-            {menuItems.length < MAX_MENU_ITEMS && (
-              <Pressable
-                onPress={() => setShowPicker(!showPicker)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingVertical: theme.spacing.s3,
-                  paddingHorizontal: theme.spacing.s4,
-                }}>
-                <Icon name="plus" size={20} color={theme.colors.primary} />
-                <Text style={{color: theme.colors.primary}} size="sm">
-                  {translate("settings:glassesMenuAddApp")}
-                </Text>
-              </Pressable>
-            )}
-
-            {/* App picker */}
-            {showPicker && pickerReady && (
-              <Group title={translate("settings:glassesMenuAvailableApps")}>
-                {sortedAvailable.length === 0 && (
-                  <Text
-                    style={{
-                      color: theme.colors.secondary_foreground,
-                      padding: theme.spacing.s4,
-                    }}>
-                    {translate("settings:glassesMenuNoApps")}
-                  </Text>
-                )}
-                {sortedAvailable.map((app) => (
-                  <Pressable
-                    key={app.packageName}
-                    onPress={() => addItem(app)}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 12,
-                      paddingVertical: theme.spacing.s3,
-                      paddingHorizontal: theme.spacing.s4,
-                      borderBottomWidth: 1,
-                      borderBottomColor: theme.colors.border,
-                    }}>
-                    <AppIcon app={app} style={{width: 28, height: 28, borderRadius: 6}} disableLoader />
-                    <Text style={{color: theme.colors.foreground}} size="sm">
-                      {app.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </Group>
-            )}
-
-            {/* Reset to default */}
-            <RouteButton
-              label={translate("settings:glassesMenuReset")}
-              onPress={async () => {
-                const defaults = await getDefaultMenuApps(applets)
-                setMenuItems(defaults)
-                await setSavedMenuApps(null)
-                await syncDashboardMenu()
-              }}
-            />
-          </View>
-        </ScrollView>
+          contentInsetAdjustmentBehavior="automatic"
+        />
       </GestureHandlerRootView>
     </Screen>
   )

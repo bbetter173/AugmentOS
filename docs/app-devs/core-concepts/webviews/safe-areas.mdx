@@ -25,19 +25,7 @@ Don't place buttons, menus, badges, tabs, navigation actions, floating actions, 
   <img src="/static/img/safe-area-diagram.png" alt="Safe area diagram showing the capsule menu in the top-right corner and the safe content area below" style={{ maxWidth: '300px', margin: '0 auto', display: 'block' }} />
 </Frame>
 
-### Bottom system navigation
-
-On Android, the gesture bar or 3-button navbar occupies the bottom edge. Don't place primary buttons, tab bars, or floating actions flush against it.
-
-<Info>
-**MentraOS 2.9** Content now renders above the Android 3-button navigation bar, but UI should still not sit too close to the bottom edge.
-</Info>
-
 ## Using SDK Safe Areas
-
-<Warning>
-The safe area API ships in an upcoming `@mentra/react` release. These examples document the intended interface.
-</Warning>
 
 ### Setup
 
@@ -103,63 +91,6 @@ function MyScreen() {
 }
 ```
 
-## Layout Rules
-
-### Do
-
-```
-✅ Build within SDK safe area
-✅ Center or left-align key content
-✅ Place bottom actions above the safe inset
-✅ Test gesture nav, 3-button nav, and different insets
-✅ Validate loading, empty, and error states
-```
-
-### Don't
-
-```
-❌ Place UI in the top-right corner
-❌ Anchor UI tight to top or right edges
-❌ Put buttons or tabs flush to the bottom edge
-❌ Use position: absolute without checking reserved zones
-❌ Rely only on simulator, test on real devices
-```
-
-## Recommended Patterns
-
-<CardGroup cols={2}>
-  <Card title="Good patterns" icon="check" color="#00b869">
-    - Centered content layouts
-    - Left-aligned content flows
-    - Bottom actions above safe inset
-    - Vertically padded layouts
-  </Card>
-  <Card title="Risky patterns" icon="xmark" color="#d93838">
-    - Top-right UI (capsule conflict)
-    - Bottom UI flush to edge
-    - Floating elements near system edges
-    - Edge-to-edge assumptions
-  </Card>
-</CardGroup>
-
-## Pre-publish Checklist
-
-Before submitting your Mini App:
-
-| Check | |
-|-------|--|
-| No UI overlaps the top-right capsule | ☐ |
-| No critical UI near top-right corner | ☐ |
-| No important UI flush with bottom edge | ☐ |
-| Bottom actions clear system nav area | ☐ |
-| Touch targets near edges easy to tap | ☐ |
-| Tested across Android nav modes | ☐ |
-| Absolute-positioned elements validated | ☐ |
-| All states (loading/empty/error) respect safe areas | ☐ |
-
-<Info>
-**Design principle** Design as if the top-right corner and bottom edge are blocked by system hardware. If your layout still works cleanly, it is safe.
-</Info>
 
 ## Next Steps
 

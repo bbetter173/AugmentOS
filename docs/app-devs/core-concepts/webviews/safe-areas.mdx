@@ -1,0 +1,104 @@
+---
+title: "Safe Areas & Layout"
+description: "Avoid system-reserved UI regions when building Mini App webviews"
+icon: "border-outer"
+---
+
+Mini App webviews run inside the MentraOS companion app. Two screen regions are reserved by system UI and must stay clear of your content.
+
+## Reserved Areas
+
+### Top-right capsule menu
+
+The MentraOS capsule (≡ / ✕) occupies the top-right corner:
+
+| Property | Value |
+|----------|-------|
+| Size | 74 × 32 px |
+| Top offset | 16 px |
+| Right offset | 16 px |
+| Shape | Pill (fully rounded) |
+
+Don't place buttons, menus, badges, tabs, navigation actions, floating actions, status indicators, or popovers in this zone.
+
+<Frame>
+  <img src="/static/img/safe-area-diagram.png" alt="Safe area diagram showing the capsule menu in the top-right corner and the safe content area below" style={{ maxWidth: '300px', margin: '0 auto', display: 'block' }} />
+</Frame>
+
+## Using SDK Safe Areas
+
+### Setup
+
+Wrap your app with the safe area provider:
+
+```tsx
+import React from "react"
+import ReactDOM from "react-dom/client"
+import App from "./App"
+import { MentraAuthProvider, MentraSafeAreaProvider } from "@mentra/react"
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <MentraAuthProvider>
+      <MentraSafeAreaProvider>
+        <App />
+      </MentraSafeAreaProvider>
+    </MentraAuthProvider>
+  </React.StrictMode>,
+)
+```
+
+### Read insets manually
+
+Use `useMentraSafeArea` when you need fine-grained control:
+
+```tsx
+import { useMentraSafeArea } from "@mentra/react"
+
+function MyScreen() {
+  const { insets, capsule } = useMentraSafeArea()
+
+  // insets.top, insets.bottom, insets.left, insets.right
+  // capsule.width (74), capsule.height (32), capsule.top (16), capsule.right (16)
+
+  return (
+    <div style={{
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom,
+      paddingLeft: insets.left,
+      paddingRight: insets.right,
+    }}>
+      <h1>My Mini App</h1>
+    </div>
+  )
+}
+```
+
+### SafeAreaView wrapper
+
+For most cases, wrap your content and let the SDK handle it:
+
+```tsx
+import { SafeAreaView } from "@mentra/react"
+
+function MyScreen() {
+  return (
+    <SafeAreaView>
+      <h1>My Mini App</h1>
+      <button>Primary Action</button>
+    </SafeAreaView>
+  )
+}
+```
+
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="React Webviews" icon="react" href="/app-devs/core-concepts/webviews/react-webviews">
+    Build webviews with @mentra/react
+  </Card>
+  <Card title="Hardware Capabilities" icon="microchip" href="/app-devs/core-concepts/hardware-capabilities/overview">
+    Check device display capabilities
+  </Card>
+</CardGroup>

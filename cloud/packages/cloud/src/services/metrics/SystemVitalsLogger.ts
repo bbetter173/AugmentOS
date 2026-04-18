@@ -17,10 +17,12 @@
  */
 
 import { heapStats } from "bun:jsc";
+import { getDeviceStateRateLimitCount, resetDeviceStateRateLimitCount } from "../../api/hono/client/device-state.api";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { UserSession } from "../session/UserSession";
 import { memoryLeakDetector } from "../debug/MemoryLeakDetector";
 import { mongoQueryStats } from "../../connections/mongodb.connection";
+import { getDeviceStateCounters, resetDeviceStateCounters } from "../session/DeviceManager";
 
 const logger = rootLogger.child({ service: "SystemVitalsLogger" });
 
@@ -497,6 +499,20 @@ class SystemVitalsLogger {
               wsReconnects: churn.reconnects,
               wsAvgDowntimeMs: churn.avgDowntimeMs,
               wsCloseCodeDist: Object.keys(churn.closeCodes).length > 0 ? JSON.stringify(churn.closeCodes) : undefined,
+            };
+          })(),
+
+          // Device-state storm counters (issue 099). Pod-global, reset per tick.
+          ...(() => {
+            const ds = getDeviceStateCounters();
+            const rateLimited = getDeviceStateRateLimitCount();
+            resetDeviceStateCounters();
+            resetDeviceStateRateLimitCount();
+            return {
+              deviceStateUpdatesTotal: ds.total,
+              deviceStateUpdatesDeduped: ds.deduped,
+              deviceStateUpdatesApplied: ds.applied,
+              deviceStateUpdatesRateLimited: rateLimited,
             };
           })(),
 

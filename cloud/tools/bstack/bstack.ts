@@ -525,6 +525,64 @@ async function cmdMemoryOwners(flags: Record<string, string>) {
   );
 }
 
+// ── device-state ────────────────────────────────────────────────────────────
+// See: cloud/issues/099-glasses-connection-state-storm/
+
+async function cmdDeviceState(flags: Record<string, string>) {
+  const region = getFlag(flags, "region", "us-central");
+  const duration = normalizeDuration(getFlag(flags, "duration", "30 MINUTE"));
+  const source = getSourceForRegion(region);
+
+  console.log(`📟 Device-State Storm — ${region} (last ${duration})\n`);
+
+  // Pod-wide volume from system-vitals (per-tick counters averaged per minute).
+  const vol = await runSql(`
+    SELECT
+      toStartOfInterval(dt, INTERVAL 1 MINUTE) AS bucket,
+      round(avg(JSONExtract(raw, 'deviceStateUpdatesTotal', 'Nullable(Float64)')), 1) AS total_per_tick,
+      round(avg(JSONExtract(raw, 'deviceStateUpdatesDeduped', 'Nullable(Float64)')), 1) AS deduped,
+      round(avg(JSONExtract(raw, 'deviceStateUpdatesApplied', 'Nullable(Float64)')), 1) AS applied,
+      round(avg(JSONExtract(raw, 'deviceStateUpdatesRateLimited', 'Nullable(Float64)')), 1) AS rate_limited
+    FROM ${source}
+    WHERE dt >= now() - INTERVAL ${duration}
+      AND JSONExtract(raw, 'region', 'Nullable(String)') = '${region}'
+      AND JSONExtract(raw, 'feature', 'Nullable(String)') = 'system-vitals'
+      AND JSONHas(raw, 'deviceStateUpdatesTotal')
+    GROUP BY bucket
+    ORDER BY bucket DESC
+    LIMIT 30
+  `);
+
+  if (vol.data.length === 0) {
+    console.log("  (no vitals data found — counters may not be deployed yet)");
+  } else {
+    console.log("Volume by minute (avg per 30s vitals tick):");
+    printTable(vol.data);
+  }
+
+  // Top emitters from the 'Updating device state' log line.
+  const top = await runSql(`
+    SELECT
+      JSONExtract(raw, 'userId', 'Nullable(String)') AS userId,
+      count() AS updates
+    FROM ${source}
+    WHERE dt >= now() - INTERVAL ${duration}
+      AND JSONExtract(raw, 'region', 'Nullable(String)') = '${region}'
+      AND JSONExtract(raw, 'feature', 'Nullable(String)') = 'device-state'
+      AND JSONExtract(raw, 'message', 'Nullable(String)') = 'Updating device state'
+    GROUP BY userId
+    ORDER BY updates DESC
+    LIMIT 10
+  `);
+
+  console.log("\nTop emitters (post-dedup 'Updating device state' logs):");
+  if (top.data.length === 0) {
+    console.log("  (no device-state log lines in the window)");
+  } else {
+    printTable(top.data);
+  }
+}
+
 // ── gc ───────────────────────────────────────────────────────────────────────
 
 async function cmdGc(flags: Record<string, string>) {
@@ -844,6 +902,7 @@ Commands:
   bstack crash-timeline --region <r>         What happened before the last crash
   bstack memory --region <r> [--duration 1h] Memory trend over time
   bstack memory-owners --region <r>          Top memory owners and growth
+  bstack device-state --region <r>           Device-state storm volume + top emitters (issue 099)
   bstack gc --region <r> [--duration 1h]     GC probe analysis
   bstack gaps --region <r> [--duration 1h]   Event loop gap analysis
   bstack budget --region <r>                 Operation budget (CPU consumers)
@@ -899,6 +958,10 @@ try {
     case "memory-owners":
     case "owners":
       await cmdMemoryOwners(flags);
+      break;
+    case "device-state":
+    case "ds":
+      await cmdDeviceState(flags);
       break;
     case "gc":
       await cmdGc(flags);

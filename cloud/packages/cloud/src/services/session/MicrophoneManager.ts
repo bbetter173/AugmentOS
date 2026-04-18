@@ -35,6 +35,12 @@ export class MicrophoneManager {
   // Track the current microphone state
   private enabled = false;
 
+  // Track the last-known glasses connection state so we only run forceResync
+  // on actual transitions (issue 099). Without this, the device-state storm
+  // re-asserts CONNECTED many times per second and triggers a redundant
+  // resync on every one.
+  private lastKnownConnectionState: "CONNECTED" | "DISCONNECTED" | null = null;
+
   // Debounce mechanism for state changes
   private debounceTimer: NodeJS.Timeout | null = null;
   private pendingState: boolean | null = null;
@@ -294,13 +300,30 @@ export class MicrophoneManager {
    * during the reconnection process.
    */
   handleConnectionStateChange(status: string): void {
-    if (status === "CONNECTED" || status === "RECONNECTED") {
-      this.logger.info({ status, previousMicEnabled: this.enabled }, `Glasses ${status}, forcing mic state resync`);
+    const normalized: "CONNECTED" | "DISCONNECTED" =
+      status === "CONNECTED" || status === "RECONNECTED" ? "CONNECTED" : "DISCONNECTED";
 
+    if (normalized === this.lastKnownConnectionState) {
+      // No transition — skip the resync. This is the common case under
+      // a device-state storm where the mobile app keeps re-asserting the
+      // same CONNECTED state (issue 099).
+      return;
+    }
+
+    const previous = this.lastKnownConnectionState;
+    this.lastKnownConnectionState = normalized;
+
+    if (normalized === "CONNECTED") {
+      this.logger.info(
+        { status, previous, previousMicEnabled: this.enabled },
+        "Glasses transitioned to CONNECTED, forcing mic state resync",
+      );
       // CRITICAL: Force resync on glasses connect/reconnect
-      // This ensures the mobile app has the correct mic state after any connection event
+      // This ensures the mobile app has the correct mic state after any
+      // connection event.
       this.forceResync();
     }
+    // DISCONNECTED transition: no resync needed; the next CONNECTED will resync.
   }
 
   /**

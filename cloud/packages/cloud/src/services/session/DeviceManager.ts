@@ -33,6 +33,38 @@ import { WebSocketReadyState, type IWebSocket } from "../websocket/types";
 import { HardwareCompatibilityService } from "./HardwareCompatibilityService";
 import type UserSession from "./UserSession";
 
+// ---------------------------------------------------------------------------
+// Device-state request counters (issue 099).
+// Pod-global. Read + reset by SystemVitalsLogger each vitals tick (30 s) and
+// exposed on /api/admin/memory/now. Kept as primitives (not a metrics lib)
+// because the hot path runs hundreds of times per minute and we want zero
+// extra allocation in the common "deduped" case.
+//
+// See: cloud/issues/099-glasses-connection-state-storm/
+// ---------------------------------------------------------------------------
+
+let deviceStateUpdatesTotal = 0;
+let deviceStateUpdatesDeduped = 0;
+let deviceStateUpdatesApplied = 0;
+
+export function getDeviceStateCounters(): {
+  total: number;
+  deduped: number;
+  applied: number;
+} {
+  return {
+    total: deviceStateUpdatesTotal,
+    deduped: deviceStateUpdatesDeduped,
+    applied: deviceStateUpdatesApplied,
+  };
+}
+
+export function resetDeviceStateCounters(): void {
+  deviceStateUpdatesTotal = 0;
+  deviceStateUpdatesDeduped = 0;
+  deviceStateUpdatesApplied = 0;
+}
+
 const SERVICE_NAME = "DeviceManager";
 const FALLBACK_MODEL = "Even Realities G1";
 
@@ -109,57 +141,93 @@ export class DeviceManager {
    * - setCurrentModel(modelName)
    */
   async updateDeviceState(payload: Partial<GlassesInfo>): Promise<void> {
-    this.logger.info({ userId: this.userSession.userId, payload, feature: "device-state" }, "Updating device state");
+    // ---- issue 099 equality guard ----
+    // See: cloud/issues/099-glasses-connection-state-storm/spec.md (S1.1)
+    //
+    // Mobile sends POST /api/client/device/state on every Zustand field change
+    // with no client-side dedup. On us-central this sustains 100-150 requests
+    // per minute pod-wide with most payloads being exact re-sends of the
+    // current cloud state. Without this guard, every re-send runs the full
+    // cascade (Mongo, PostHog, capability rebuild, WS broadcast) and creates
+    // enough transient allocation pressure to ratchet V8 heapTotal up and
+    // never let it back down.
+    //
+    // Compute the effective diff BEFORE inference so that synthesized fields
+    // (e.g. inferring `connected: true` from a non-empty `modelName`) do not
+    // falsely register as changes.
+    deviceStateUpdatesTotal++;
 
-    // Infer connection state from modelName if not explicitly provided
-    // If modelName is provided and not empty, glasses are connected
-    // If modelName is null/empty, glasses are disconnected
-    if (payload.modelName && payload.connected === undefined) {
-      payload.connected = true;
+    const effectiveDiff: Partial<GlassesInfo> = {};
+    for (const key of Object.keys(payload) as (keyof GlassesInfo)[]) {
+      if (payload[key] !== this.deviceState[key]) {
+        (effectiveDiff as Record<string, unknown>)[key] = payload[key];
+      }
+    }
+
+    if (Object.keys(effectiveDiff).length === 0) {
+      // No actual changes — silently drop. No log, no cascade, no broadcast.
+      deviceStateUpdatesDeduped++;
+      return;
+    }
+
+    deviceStateUpdatesApplied++;
+
+    this.logger.info(
+      { userId: this.userSession.userId, effectiveDiff, feature: "device-state" },
+      "Updating device state",
+    );
+
+    // Infer connection state from modelName if not explicitly provided.
+    // Runs on effectiveDiff so a re-sent identical modelName does not
+    // re-synthesize a `connected` flag.
+    if (effectiveDiff.modelName && effectiveDiff.connected === undefined) {
+      effectiveDiff.connected = true;
       this.logger.debug(
         {
           userId: this.userSession.userId,
-          modelName: payload.modelName,
+          modelName: effectiveDiff.modelName,
           feature: "device-state",
         },
         "Inferred connected=true from modelName",
       );
-    } else if ((payload.modelName === null || payload.modelName === "") && payload.connected === undefined) {
-      payload.connected = false;
+    } else if (
+      (effectiveDiff.modelName === null || effectiveDiff.modelName === "") &&
+      effectiveDiff.connected === undefined
+    ) {
+      effectiveDiff.connected = false;
       this.logger.debug(
         { userId: this.userSession.userId, feature: "device-state" },
         "Inferred connected=false from empty/null modelName",
       );
     }
 
-    // Check if model is changing BEFORE merging
-    const modelChanged = payload.modelName && payload.modelName !== this.deviceState.modelName;
+    const modelChanged = Boolean(effectiveDiff.modelName);
 
-    // Merge partial updates into device state
+    // Merge real changes into canonical state.
     this.deviceState = {
       ...this.deviceState,
-      ...payload,
+      ...effectiveDiff,
     };
 
-    // Handle connection state changes (includes model update + analytics)
-    if (payload.connected !== undefined) {
-      if (payload.connected && payload.modelName) {
-        await this.handleGlassesConnectionState(payload.modelName, "CONNECTED");
+    // Handle connection state changes (includes model update + analytics).
+    if (effectiveDiff.connected !== undefined) {
+      if (effectiveDiff.connected && this.deviceState.modelName) {
+        await this.handleGlassesConnectionState(this.deviceState.modelName, "CONNECTED");
       } else {
         await this.handleGlassesConnectionState(null, "DISCONNECTED");
       }
 
-      // Notify microphone manager
+      // Notify microphone manager (also gated by its own transition check).
       try {
         this.userSession.microphoneManager?.handleConnectionStateChange(
-          payload.connected ? "CONNECTED" : "DISCONNECTED",
+          effectiveDiff.connected ? "CONNECTED" : "DISCONNECTED",
         );
       } catch (error) {
         this.logger.warn({ error, feature: "device-state" }, "MicrophoneManager handler error");
       }
-    } else if (modelChanged && payload.modelName) {
-      // Model changed without connection state change - just update capabilities
-      await this.updateModelAndCapabilities(payload.modelName);
+    } else if (modelChanged && effectiveDiff.modelName) {
+      // Model changed without connection state change — just update capabilities.
+      await this.updateModelAndCapabilities(effectiveDiff.modelName);
     }
 
     this.logger.info(
@@ -173,8 +241,8 @@ export class DeviceManager {
       "Device state updated successfully",
     );
 
-    // Broadcast device state changes to all connected apps
-    this.broadcastDeviceStateToApps(payload);
+    // Broadcast only the changes to connected apps (not the full payload).
+    this.broadcastDeviceStateToApps(effectiveDiff);
   }
 
   /**

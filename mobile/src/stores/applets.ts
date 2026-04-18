@@ -207,6 +207,7 @@ export const SYSTEM_APPS = [
   mentraAiPackageName,
   notifyPackageName,
   feedbackPackageName,
+  lmaInstallerPackageName,
 ]
 
 // get offline applets:

@@ -10,7 +10,7 @@ import {ExpoConfig, ConfigContext} from "@expo/config"
 module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
   return {
     ...config,
-    name: "MentraOS",
+    name: "Mentra",
     slug: "MentraOS",
     version: process.env.EXPO_PUBLIC_MENTRAOS_VERSION || "0.0.1",
     scheme: "com.mentra",
@@ -26,7 +26,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: "com.mentra.mentra",
       googleServicesFile: "./google-services.json",
-      versionCode: 176,
+      versionCode: 177,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",

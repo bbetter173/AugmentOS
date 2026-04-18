@@ -774,7 +774,7 @@ private enum MenuProto {
                 item.name.count > MAX_NAME_LENGTH
                 ? String(item.name.prefix(MAX_NAME_LENGTH))
                 : item.name
-            let prefix = item.running ? "● " : "  "
+            let prefix = item.running ? "● " : ""
             wireItems.append(
                 WireItem(displayName: prefix + truncated, appId: appId, isBuiltIn: false))
         }
@@ -1127,6 +1127,7 @@ class G2: NSObject, SGCManager {
     /// Set to the first menu item's appId so glasses know our page belongs to the menu
     private var activeMenuAppId: Int32?
     private var lastClickTimestamp: Int64?
+    private var lastMenuSelectTimestamp: Int64?
 
     @Published var aiListening: Bool = false
 
@@ -2939,6 +2940,13 @@ class G2: NSObject, SGCManager {
             handleTouchEvent(devEventData)
         } else if cmdValue == 17 {
             // Miniapp selection from glasses dashboard menu (cmdId=17)
+            // Dedup: L and R peripherals both deliver this event, so debounce or
+            // MantleManager toggles start→stop in quick succession.
+            let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
+            if lastMenuSelectTimestamp != nil && timestamp - lastMenuSelectTimestamp! < 500 {
+                return
+            }
+            lastMenuSelectTimestamp = timestamp
             // field 20 contains sub-message with field 1 = itemAppId
             if let selectData = fields[20] as? Data {
                 var selectReader = ProtobufReader(selectData)

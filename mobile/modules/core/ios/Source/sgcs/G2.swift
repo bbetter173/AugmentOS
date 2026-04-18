@@ -774,7 +774,7 @@ private enum MenuProto {
                 item.name.count > MAX_NAME_LENGTH
                 ? String(item.name.prefix(MAX_NAME_LENGTH))
                 : item.name
-            let prefix = item.running ? "● " : "  "
+            let prefix = item.running ? "● " : ""
             wireItems.append(
                 WireItem(displayName: prefix + truncated, appId: appId, isBuiltIn: false))
         }
@@ -1033,7 +1033,7 @@ actor G2ReconnectionManager {
 
 @MainActor
 class G2: NSObject, SGCManager {
-    func sendIncidentId(_: String) {}
+    func sendIncidentId(_: String, apiBaseUrl _: String?) {}
 
     var type = DeviceTypes.G2
     let hasMic = true
@@ -1127,6 +1127,7 @@ class G2: NSObject, SGCManager {
     /// Set to the first menu item's appId so glasses know our page belongs to the menu
     private var activeMenuAppId: Int32?
     private var lastClickTimestamp: Int64?
+    private var lastMenuSelectTimestamp: Int64?
 
     @Published var aiListening: Bool = false
 
@@ -1431,7 +1432,6 @@ class G2: NSObject, SGCManager {
 
                         GlassesStore.shared.apply("glasses", "connected", true)
                         GlassesStore.shared.apply("glasses", "fullyBooted", true)
-                        
 
                         // connnect a controller if we have one:
                         self.connectController()
@@ -2652,10 +2652,12 @@ class G2: NSObject, SGCManager {
     }
 
     func exit() {
+        Bridge.log("G2: exit()")
         clearDisplay()
     }
 
     func sendShutdown() {
+        Bridge.log("G2: sendShutdown()")
         clearDisplay()
         disconnect()
     }
@@ -2938,6 +2940,13 @@ class G2: NSObject, SGCManager {
             handleTouchEvent(devEventData)
         } else if cmdValue == 17 {
             // Miniapp selection from glasses dashboard menu (cmdId=17)
+            // Dedup: L and R peripherals both deliver this event, so debounce or
+            // MantleManager toggles start→stop in quick succession.
+            let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
+            if lastMenuSelectTimestamp != nil && timestamp - lastMenuSelectTimestamp! < 500 {
+                return
+            }
+            lastMenuSelectTimestamp = timestamp
             // field 20 contains sub-message with field 1 = itemAppId
             if let selectData = fields[20] as? Data {
                 var selectReader = ProtobufReader(selectData)
@@ -3000,6 +3009,30 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    private func setFullyConnected() {
+        let isFullyConnected = GlassesStore.shared.get("glasses", "connected") as? Bool ?? false
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        if !isFullyConnected {
+            GlassesStore.shared.apply("glasses", "connected", true)
+        }
+        if !isFullyBooted {
+            GlassesStore.shared.apply("glasses", "fullyBooted", true)
+        }
+    }
+
+    private func setControllerFullyConnected() {
+        let isControllerConnected =
+            GlassesStore.shared.get("glasses", "controllerConnected") as? Bool ?? false
+        let isControllerFullyBooted =
+            GlassesStore.shared.get("glasses", "controllerFullyBooted") as? Bool ?? false
+        if !isControllerConnected {
+            GlassesStore.shared.apply("glasses", "controllerConnected", true)
+        }
+        if !isControllerFullyBooted {
+            GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
+        }
+    }
+
     private func handleTouchEvent(_ devEventData: Data) {
         // Parse SendDeviceEvent: field 1=ListEvent, field 2=TextEvent, field 3=SysEvent
         var reader = ProtobufReader(devEventData)
@@ -3007,22 +3040,26 @@ class G2: NSObject, SGCManager {
 
         let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
 
+        // if we are receiving touch events we are fully booted:
+        setFullyConnected()
+
         // Bridge.log("G2: handleTouchEvent: \(fields)")
+        // Bridge.log(
+        //     "G2: handleTouchEvent: \(devEventData.map { String(format: "%02X", $0) }.joined())")
 
         // SysEvent (field 3) - system-level gestures
         if let sysData = fields[3] as? Data {
             var sysReader = ProtobufReader(sysData)
             let sysFields = sysReader.parseFields()
             var eventType: OsEventType? = nil
+            var eventSource: Int32? = nil
             if let normalType = sysFields[1] as? Int32 {
                 eventType = OsEventType(rawValue: normalType)
-            } else if let clickType = sysFields[2] as? Int32 {
-                if clickType == 2 {
-                    eventType = OsEventType.click
-                }
-                if clickType == 3 {
-                    eventType = OsEventType.click
-                }
+            } else {
+                eventType = OsEventType.click
+            }
+            if let source = sysFields[2] as? Int32 {
+                eventSource = source
             }
 
             // Bridge.log("G2: sysFields: \(sysFields)")
@@ -3039,9 +3076,15 @@ class G2: NSObject, SGCManager {
 
             Bridge.sendTouchEvent(
                 deviceModel: DeviceTypes.G2, gestureName: gestureName,
-                timestamp: timestamp
+                timestamp: timestamp,
+                source: eventSource
             )
-            // Bridge.log("G2: SysEvent → \(gestureName) \(eventType)")
+            Bridge.log("G2: SysEvent → \(eventType) \(eventSource)")
+
+            if eventSource == 1 {
+                // controller must be connected and fully booted:
+                setControllerFullyConnected()
+            }
 
             if eventType == .doubleClick {
                 // trigger dashboard:
@@ -3102,13 +3145,14 @@ class G2: NSObject, SGCManager {
             if let eventTypeRaw = textFields[3] as? Int32,
                 let eventType = OsEventType(rawValue: eventTypeRaw)
             {
-                let gestureName = mapEventTypeToGesture(eventType)
-                if let gestureName = gestureName {
-                    Bridge.sendTouchEvent(
-                        deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp
-                    )
-                    Bridge.log("G2: TextEvent → \(gestureName)")
+                guard let gestureName = mapEventTypeToGesture(eventType) else {
+                    Bridge.log("G2: no gesture mapping for \(eventType) \(textFields)")
+                    return
                 }
+                Bridge.sendTouchEvent(
+                    deviceModel: DeviceTypes.G2, gestureName: gestureName, timestamp: timestamp
+                )
+                Bridge.log("G2: TextEvent → \(gestureName)")
             }
             return
         }
@@ -3199,7 +3243,6 @@ class G2: NSObject, SGCManager {
                     Bridge.log("G2: Ring maybe connected?")
                     // GlassesStore.shared.apply("glasses", "controllerConnected", true)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
-
                 }
 
                 if ringFields[4] as? Int32 ?? 0 == 62 {

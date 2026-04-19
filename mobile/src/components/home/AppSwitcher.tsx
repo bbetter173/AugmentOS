@@ -619,6 +619,10 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
       push("/applet/local", {
         packageName: applet.packageName,
         appName: applet.name,
+        // For dev-loaded miniapps, pass devUrl so /applet/local re-mounts against
+        // the LAN dev server rather than looking for a bundle on disk.
+        ...(applet.isMiniappDev && applet.devUrl ? {devUrl: applet.devUrl} : {}),
+        ...(applet.logoUrl ? {iconUrl: applet.logoUrl} : {}),
         transition: "fade",
       })
     } else {

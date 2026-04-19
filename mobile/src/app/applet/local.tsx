@@ -5,6 +5,7 @@ import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import composer from "@/services/Composer"
+import {useAppletStatusStore} from "@/stores/applets"
 
 export default function LocalMiniAppPage() {
   const {appName, packageName, version, devUrl, iconUrl} = useLocalSearchParams<{
@@ -26,6 +27,12 @@ export default function LocalMiniAppPage() {
 
     const handleClose = () => {
       miniappHost.unmount(packageName)
+      // Dev miniapps have a fake applet entry for the switcher — remove it
+      // when the user explicitly closes. Regular installed miniapps are left
+      // alone (their store entry is permanent).
+      if (devUrl) {
+        useAppletStatusStore.getState().unregisterDevApplet(packageName)
+      }
       goBackRef.current()
     }
 
@@ -45,6 +52,13 @@ export default function LocalMiniAppPage() {
     ;(async () => {
       if (devUrl) {
         await miniappHost.mountDev(packageName, devUrl, {developerMode: true, appName, iconUrl})
+        // Register a dev applet entry so the app shows up in the switcher.
+        useAppletStatusStore.getState().registerDevApplet({
+          packageName,
+          name: appName || packageName,
+          devUrl,
+          iconUrl,
+        })
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)
         const bundleUri = `file://${bundleDir}/index.html`

@@ -65,6 +65,7 @@
     "expo-application": "~55.0.8",
     "expo-asset": "~55.0.8",
     "expo-audio": "~55.0.8",
+    "expo-battery": "^55.0.13",
     "expo-blur": "~55.0.8",
     "expo-build-properties": "~55.0.9",
     "expo-calendar": "~55.0.9",

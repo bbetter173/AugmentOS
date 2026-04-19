@@ -34,6 +34,7 @@ import micStateCoordinator from "@/services/MicStateCoordinator"
 import socketComms from "@/services/SocketComms"
 import displayProcessor from "@/services/DisplayProcessor"
 import {useDisplayStore} from "@/stores/display"
+import {useGlassesStore} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import {BackgroundTimer} from "@/utils/timers"
 
@@ -288,6 +289,21 @@ class LocalMiniappRuntime {
     installedManifest?: {permissions?: Array<{type: string; description?: string}>},
   ): void {
     console.log(`${LOG_TAG}: registerApp(${packageName})`)
+    // If the app is already registered (e.g. QR scanned again for same package),
+    // tear down its old subscriptions first so streamSubscribers doesn't keep
+    // dangling references. The WebView will re-subscribe after its CONNECT.
+    if (this.connectedApps.has(packageName)) {
+      const existing = this.connectedApps.get(packageName)!
+      for (const stream of existing.subscriptions) {
+        const subs = this.streamSubscribers.get(stream)
+        if (subs) {
+          subs.delete(packageName)
+          if (subs.size === 0) this.streamSubscribers.delete(stream)
+        }
+      }
+      this.recomputeMicRequirements()
+      this.updateCloudSubscriptions()
+    }
     this.connectedApps.set(packageName, {
       subscriptions: new Set(),
       sendMessage: sendFn,
@@ -549,12 +565,78 @@ class LocalMiniappRuntime {
     this.recomputeMicRequirements()
     this.updateCloudSubscriptions()
     this.sendResult(packageName, requestId, true)
+
+    // Fire initial snapshot values for stateful streams so miniapps don't have
+    // to wait for the first change event.
+    this.emitInitialSnapshots(packageName, streams)
+  }
+
+  /**
+   * For state-bearing streams (battery, connection), deliver the current value
+   * immediately on subscribe. Other streams (button press, transcription, etc.)
+   * are pure event streams with no "current value" to snapshot.
+   */
+  private emitInitialSnapshots(packageName: string, streams: string[]): void {
+    const glassesState = useGlassesStore.getState()
+    for (const stream of streams) {
+      if (stream === "glasses_battery") {
+        if (typeof glassesState.batteryLevel === "number" && glassesState.batteryLevel >= 0) {
+          this.sendToMiniapp(packageName, {
+            type: MiniappResponseType.EVENT,
+            streamType: "glasses_battery",
+            data: {
+              level: glassesState.batteryLevel,
+              charging: !!glassesState.charging,
+              timestamp: Date.now(),
+            },
+          })
+        }
+      } else if (stream === "glasses_connection") {
+        this.sendToMiniapp(packageName, {
+          type: MiniappResponseType.EVENT,
+          streamType: "glasses_connection",
+          data: glassesState,
+        })
+      } else if (stream === "head_position") {
+        const headUp = (glassesState as {headUp?: boolean}).headUp
+        if (typeof headUp === "boolean") {
+          this.sendToMiniapp(packageName, {
+            type: MiniappResponseType.EVENT,
+            streamType: "head_position",
+            data: {
+              position: headUp ? "up" : "down",
+              timestamp: Date.now(),
+            },
+          })
+        }
+      }
+      // phone_battery: the Battery listener in MantleManager fires on every
+      // level/state change; when a miniapp connects later, the subsequent
+      // changes will reach it but the initial snapshot isn't cached here.
+      // Acceptable: phone battery changes often enough that first emit is
+      // seconds away.
+    }
   }
 
   private handleDisplay(packageName: string, payload: Record<string, unknown>, requestId?: string): void {
     try {
-      // Extract the layout from the payload — the miniapp SDK sends it as `layout`
-      const displayEvent = payload.layout ?? payload
+      // Miniapp SDK sends the cloud-SDK-compatible shape:
+      //   { type: "DISPLAY", view, layout: {layoutType, ...}, durationMs? }
+      // Native CoreModule.displayEvent expects the same shape (reads event.view
+      // and event.layout.layoutType).
+      const displayEvent: Record<string, unknown> = {
+        view: payload.view ?? "main",
+        layout: payload.layout,
+        durationMs: payload.durationMs,
+      }
+
+      if (!displayEvent.layout || typeof displayEvent.layout !== "object") {
+        this.sendResult(packageName, requestId, false, undefined, {
+          code: MiniappErrorCode.INTERNAL,
+          message: "display request missing layout object",
+        })
+        return
+      }
 
       let processedEvent
       try {
@@ -629,7 +711,7 @@ class LocalMiniappRuntime {
     try {
       const backendUrl = useSettingsStore.getState().getSetting(SETTINGS.backend_url.key)
       const voice = ((payload.voice_id ?? payload.voice) as string) || "default"
-      const ttsUrl = `${backendUrl}/tts?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(voice)}`
+      const ttsUrl = `${backendUrl}/api/tts?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(voice)}`
 
       const audioRequestId = requestId || `tts_${Date.now()}`
 
@@ -666,27 +748,16 @@ class LocalMiniappRuntime {
     }
 
     const ledRequestId = requestId || `led_${Date.now()}`
+    const action = (payload.action as string) ?? "off"
+    const color = typeof payload.color === "string" ? payload.color : null
 
-    // SDK sends color as {r, g, b} object; CoreModule expects a hex string like "#RRGGBB"
-    let colorStr: string | null = null
-    if (payload.color && typeof payload.color === "object") {
-      const c = payload.color as {r?: number; g?: number; b?: number}
-      const r = Math.max(0, Math.min(255, c.r ?? 0))
-      const g = Math.max(0, Math.min(255, c.g ?? 0))
-      const b = Math.max(0, Math.min(255, c.b ?? 0))
-      colorStr = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`
-    } else if (typeof payload.color === "string") {
-      colorStr = payload.color
-    }
-
-    // SDK sends ontimeMs/offtimeMs; CoreModule expects ontime/offtime
     CoreModule.rgbLedControl(
       ledRequestId,
       packageName,
-      (payload.action as string) ?? "off",
-      colorStr,
-      coerceNumber(payload.ontimeMs ?? payload.ontime, 1000),
-      coerceNumber(payload.offtimeMs ?? payload.offtime, 0),
+      action,
+      color,
+      coerceNumber(payload.ontime, 1000),
+      coerceNumber(payload.offtime, 0),
       coerceNumber(payload.count, 1),
     )
 

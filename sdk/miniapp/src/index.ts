@@ -40,11 +40,15 @@ export type {Transport, TransportDisconnectHandler, TransportMessageHandler} fro
 
 // Module types — useful for typing handlers in consumer code
 export type {
-  ShowBitmapAnimationOptions,
-  ShowBitmapViewOptions,
-  ShowDoubleTextWallOptions,
-  ShowReferenceCardOptions,
-  ShowTextWallOptions,
+  BitmapView,
+  ClearView,
+  DashboardCard,
+  DisplayOptions,
+  DoubleTextWall,
+  Layout,
+  LayoutType,
+  ReferenceCard,
+  TextWall,
   ViewType,
 } from "./modules/layouts"
 export type {
@@ -65,6 +69,6 @@ export type {
 export type {PlayAudioOptions, SpeakOptions, SpeakResult} from "./modules/audio"
 export type {PhotoTaken, SetCameraFovOptions, TakePhotoOptions} from "./modules/camera"
 export type {DashboardMode} from "./modules/dashboard"
-export type {LedAction, LedColor, LedOptions} from "./modules/led"
+export type {LedColor, LedControlOptions} from "./modules/led"
 export type {StartUnmanagedOptions, StartManagedOptions, ManagedStreamResult, StreamStatus} from "./modules/stream"
 export type {ShareOptions, ShareResult, DownloadOptions, DownloadResult} from "./modules/system"

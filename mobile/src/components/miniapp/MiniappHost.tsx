@@ -23,6 +23,13 @@ interface MountedMiniapp {
   developerMode: boolean
   isForeground: boolean
   isLoaded: boolean
+  /**
+   * Monotonic counter bumped on every mount/mountDev call for this package.
+   * Used as the WebView's React `key` so a second scan forces a fresh
+   * WebView instance (hard reload of the dev URL). Without this, React
+   * reuses the WebView and `source` prop changes don't trigger a reload.
+   */
+  mountKey: number
   appName?: string
   iconUrl?: string
   onClose?: () => void
@@ -108,6 +115,7 @@ export default function MiniappHost() {
     (packageName: string, bundleUri: string, options?: MiniappMountOptions) => {
       setApps((prev) => {
         const next = new Map(prev)
+        const prevEntry = next.get(packageName)
         next.set(packageName, {
           packageName,
           source: {uri: bundleUri},
@@ -116,9 +124,12 @@ export default function MiniappHost() {
           iconUrl: options?.iconUrl,
           isForeground: false,
           isLoaded: false,
+          mountKey: (prevEntry?.mountKey ?? 0) + 1,
         })
         return next
       })
+      webViewRefs.current.delete(packageName)
+      canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
     },
     [registerRuntime],
@@ -146,17 +157,24 @@ export default function MiniappHost() {
 
       setApps((prev) => {
         const next = new Map(prev)
+        const prevEntry = next.get(packageName)
         next.set(packageName, {
           packageName,
           source: {uri: devUrl},
           developerMode: options?.developerMode ?? true,
           appName: options?.appName,
           iconUrl: options?.iconUrl,
+          // Every mountDev is a fresh session — force remount via mountKey,
+          // start in the splash state, do not inherit foreground from a
+          // previous mount (caller sets foreground explicitly after).
           isForeground: false,
           isLoaded: false,
+          mountKey: (prevEntry?.mountKey ?? 0) + 1,
         })
         return next
       })
+      webViewRefs.current.delete(packageName)
+      canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
       localMiniappRuntime.setInstalledManifest(packageName, {permissions: manifestPerms})
     },
@@ -426,6 +444,10 @@ export default function MiniappHost() {
             pointerEvents={isFg ? 'auto' : 'none'}
           >
             <WebView
+              // Remount on every mount/mountDev (mountKey bumps) so a QR
+              // re-scan reloads the dev miniapp from scratch instead of
+              // keeping the stale WebView.
+              key={`${app.packageName}:${app.mountKey}`}
               ref={(ref) => {
                 if (ref) {
                   webViewRefs.current.set(app.packageName, ref)

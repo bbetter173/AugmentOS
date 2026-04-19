@@ -24,6 +24,7 @@ import {BackgroundTimer} from "@/utils/timers"
 import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
+import {miniappHost} from "@/components/miniapp/MiniappHost"
 
 export interface ClientAppletInterface extends AppletInterface {
   offline: boolean
@@ -51,6 +52,14 @@ interface AppStatusState {
   startApplet: (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => Promise<void>
   stopApplet: (packageName: string) => Promise<void>
   stopAllApplets: () => AsyncResult<void, Error>
+  /**
+   * Register a dev-loaded miniapp (launched via QR scan or URL, not installed)
+   * so it shows up in the app switcher as a running app. Idempotent — calling
+   * again updates the existing entry.
+   */
+  registerDevApplet: (args: {packageName: string; name: string; devUrl: string; iconUrl?: string}) => void
+  /** Remove a dev-loaded miniapp from the switcher. */
+  unregisterDevApplet: (packageName: string) => void
   saveScreenshot: (packageName: string, screenshot: string) => Promise<void>
   setInstalledLmas: (installedLmas: ClientAppletInterface[]) => void
   setHiddenStatus: (packageName: string, status: boolean) => void
@@ -905,6 +914,17 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       return
     }
 
+    // Dev-loaded miniapps: tear down the WebView AND drop the fake applet entry.
+    // These never went through normal install, so startStopApplet has nothing
+    // to do server-side.
+    if (applet.isMiniappDev) {
+      miniappHost.unmount(packageName)
+      set((state) => ({
+        apps: state.apps.filter((a) => a.packageName !== packageName),
+      }))
+      return
+    }
+
     let shouldLoad = !applet.offline && !applet.local
     set((state) => ({
       apps: state.apps.map((a) =>
@@ -968,6 +988,49 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     // await storage.save(`${packageName}_screenshot`, screenshot)
     set((state) => ({
       apps: state.apps.map((a) => (a.packageName === packageName ? {...a, screenshot} : a)),
+    }))
+  },
+
+  registerDevApplet: ({packageName, name, devUrl, iconUrl}) => {
+    set((state) => {
+      const existing = state.apps.find((a) => a.packageName === packageName)
+      const devEntry: ClientAppletInterface = {
+        packageName,
+        name,
+        type: "standard",
+        offline: false,
+        offlineRoute: "",
+        logoUrl: iconUrl || "",
+        webviewUrl: "",
+        healthy: true,
+        hidden: false,
+        permissions: [],
+        running: true,
+        loading: false,
+        local: true,
+        isMiniappDev: true,
+        devUrl,
+        hardwareRequirements: [],
+      }
+      if (existing) {
+        return {
+          apps: state.apps.map((a) =>
+            a.packageName === packageName
+              ? {...a, ...devEntry, screenshot: a.screenshot}
+              : a,
+          ),
+        }
+      }
+      return {apps: [...state.apps, devEntry]}
+    })
+    void saveLastOpenTime(packageName)
+  },
+
+  unregisterDevApplet: (packageName: string) => {
+    set((state) => ({
+      apps: state.apps.filter(
+        (a) => !(a.packageName === packageName && a.isMiniappDev),
+      ),
     }))
   },
 

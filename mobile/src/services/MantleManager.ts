@@ -1,4 +1,5 @@
 import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "core"
+import * as Battery from "expo-battery"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"
@@ -465,7 +466,11 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("head_up", (event) => {
           mantle.handle_head_up(event.up)
-          localMiniappRuntime.forwardEvent('head_up', event)
+          // Translate native {up: boolean} → cloud-SDK shape {position: "up" | "down"}
+          localMiniappRuntime.forwardEvent('head_up', {
+            position: event.up ? "up" : "down",
+            timestamp: Date.now(),
+          })
         }),
       )
 
@@ -474,6 +479,29 @@ class MantleManager {
           localMiniappRuntime.forwardEvent('glasses_battery_update', event)
         }),
       )
+
+      // Phone battery — emit on level/state change so miniapps can subscribe
+      // to phone_battery the same way they subscribe to glasses_battery.
+      const emitPhoneBattery = async () => {
+        try {
+          const level = await Battery.getBatteryLevelAsync()
+          const state = await Battery.getBatteryStateAsync()
+          const charging =
+            state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
+          localMiniappRuntime.forwardEvent('phone_battery', {
+            level: Math.round(level * 100),
+            charging,
+            timestamp: Date.now(),
+          })
+        } catch (err) {
+          console.log("MANTLE: phone battery read failed", err)
+        }
+      }
+      void emitPhoneBattery()
+      const batteryLevelSub = Battery.addBatteryLevelListener(emitPhoneBattery)
+      const batteryStateSub = Battery.addBatteryStateListener(emitPhoneBattery)
+      this.subs.push({remove: () => batteryLevelSub.remove()})
+      this.subs.push({remove: () => batteryStateSub.remove()})
 
       this.subs.push(
         CoreModule.addListener("vad", (event) => {

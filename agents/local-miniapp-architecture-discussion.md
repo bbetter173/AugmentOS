@@ -1,5 +1,11 @@
 # Local Miniapp Architecture — Discussion Doc
 
+## Related docs
+
+- Execution plan (phone-side, V1-V4 by Linear issue): `agents/local-miniapp-execution-plan.md`
+- Technical implementation plan (phone-side, full spec): `agents/local-app-runtime-plan.md`
+- Cloud shrinkage plan (what stays in cloud vs moves to phone, Redis retrofit): `agents/cloud-shrinkage-plan.md`
+
 ## What this is
 
 We're designing how third-party (and first-party) miniapps run on MentraOS. A miniapp is a small program that drives smart glasses — displays text, subscribes to transcription, responds to button presses, takes photos, etc. Today miniapps run as cloud apps: each miniapp is a Node/Bun server somewhere on the internet, the cloud routes events to it over WebSockets, the cloud routes display commands back down to the phone, the phone routes them to the glasses over BLE.

@@ -45,8 +45,12 @@ export interface HeadPositionData {
 export interface LocationData {
   lat: number
   lng: number
+  /** Accuracy in meters, if the platform reported it. */
   accuracy?: number
+  /** Unix ms timestamp of the fix. */
   timestamp?: number
+  /** Set when this event is a response to a single-location request. */
+  correlationId?: string
 }
 
 export interface BatteryData {
@@ -60,21 +64,36 @@ export interface ConnectionData {
 }
 
 export interface PhoneNotificationData {
-  appName: string
+  /** Stable id from the phone's notification listener. */
+  notificationId: string
+  /** Human app name (e.g. "Messages"). */
+  app: string
   title: string
-  body?: string
+  content: string
+  /** Android priority string; empty on iOS. */
+  priority: string
   timestamp: number
+  /** Reverse-DNS package/bundle id of the originating app. */
+  packageName: string
 }
 
 export interface CalendarEventData {
+  eventId: string
   title: string
-  start: string
-  end: string
-  location?: string
+  /** ISO 8601 start time. */
+  dtStart: string
+  /** ISO 8601 end time. */
+  dtEnd: string
+  timezone: string
+  allDay: boolean
+  location: string
+  notes: string
+  calendarId: string
 }
 
 export interface VadData {
-  active: boolean
+  /** True while the user is speaking (voice detected), false when silent. */
+  status: boolean
 }
 
 export interface TouchData {

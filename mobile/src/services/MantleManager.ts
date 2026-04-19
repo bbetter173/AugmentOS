@@ -49,6 +49,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, ({data: {locations}, error}) => {
   const first = locs[0]!
   // socketComms.sendLocationUpdate(first.coords.latitude, first.coords.longitude, first.coords.accuracy ?? undefined)
   restComms.sendLocationData(first)
+
+  // Direct forward to local miniapps. Cloud path (relayMessageToApps) never
+  // reaches __phone__, so local miniapps rely on this direct push.
+  localMiniappRuntime.forwardEvent("location_update", {
+    lat: first.coords.latitude,
+    lng: first.coords.longitude,
+    accuracy: first.coords.accuracy ?? undefined,
+    timestamp: first.timestamp,
+  })
 })
 
 class MantleManager {
@@ -482,17 +491,25 @@ class MantleManager {
 
       // Phone battery — emit on level/state change so miniapps can subscribe
       // to phone_battery the same way they subscribe to glasses_battery.
+      // Also mirror to glasses_battery when connected to Simulated Glasses
+      // (which have no real battery) so dev flows don't see "—".
       const emitPhoneBattery = async () => {
         try {
           const level = await Battery.getBatteryLevelAsync()
           const state = await Battery.getBatteryStateAsync()
           const charging =
             state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
-          localMiniappRuntime.forwardEvent('phone_battery', {
+          const payload = {
             level: Math.round(level * 100),
             charging,
             timestamp: Date.now(),
-          })
+          }
+          localMiniappRuntime.forwardEvent('phone_battery', payload)
+
+          const deviceModel = useGlassesStore.getState().deviceModel || ""
+          if (deviceModel.toLowerCase().includes("simulated")) {
+            localMiniappRuntime.forwardEvent('glasses_battery_update', payload)
+          }
         } catch (err) {
           console.log("MANTLE: phone battery read failed", err)
         }
@@ -604,6 +621,18 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("phone_notification", async (event) => {
+          // Direct forward to local miniapps subscribed to phone_notification.
+          // Gated by READ_NOTIFICATIONS in miniapp.json at subscribe time.
+          localMiniappRuntime.forwardEvent("phone_notification", {
+            notificationId: event.notificationId,
+            app: event.app,
+            title: event.title,
+            content: event.content,
+            priority: event.priority?.toString?.() ?? String(event.priority ?? ""),
+            timestamp: parseInt(event.timestamp?.toString?.() ?? "0"),
+            packageName: event.packageName,
+          })
+
           const res = await restComms.sendPhoneNotification({
             notificationId: event.notificationId,
             app: event.app,
@@ -794,6 +823,23 @@ class MantleManager {
       const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       const events = await Calendar.getEventsAsync(calendarIds, startDate, endDate)
       restComms.sendCalendarData({events, calendars})
+
+      // Direct forward to local miniapps. Emit one event per calendar entry
+      // so miniapps can treat them as a stream rather than a digest.
+      // Gated by CALENDAR in miniapp.json at subscribe time.
+      for (const ev of events) {
+        localMiniappRuntime.forwardEvent("calendar_event", {
+          eventId: ev.id,
+          title: ev.title,
+          dtStart: ev.startDate,
+          dtEnd: ev.endDate,
+          timezone: ev.timeZone ?? "",
+          allDay: !!ev.allDay,
+          location: ev.location ?? "",
+          notes: ev.notes ?? "",
+          calendarId: ev.calendarId,
+        })
+      }
     } catch (error) {
       // it's fine if this fails
       console.log("MANTLE: Error sending calendar events", error)
@@ -852,6 +898,14 @@ class MantleManager {
         location.coords.accuracy ?? undefined,
         correlationId,
       )
+      // Direct forward to local miniapps subscribed to location_update.
+      localMiniappRuntime.forwardEvent("location_update", {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+        accuracy: location.coords.accuracy ?? undefined,
+        timestamp: location.timestamp,
+        correlationId,
+      })
     } catch (error) {
       console.log("MANTLE: Error requesting single location", error)
     }

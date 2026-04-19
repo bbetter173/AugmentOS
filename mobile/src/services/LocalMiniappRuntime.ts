@@ -11,6 +11,7 @@
 
 import {Linking} from "react-native"
 import Share from "react-native-share"
+import * as Battery from "expo-battery"
 import * as Clipboard from "expo-clipboard"
 import {File, Paths} from "expo-file-system"
 import {storage as mmkvStorage} from "@/utils/storage/storage"
@@ -526,15 +527,28 @@ class LocalMiniappRuntime {
 
     console.log(`${LOG_TAG}: SUBSCRIBE from ${packageName}: [${streams.join(", ")}]`)
 
-    // Check microphone permission for mic-requiring streams
-    const micStreams = ["transcription", "translation", "audio_chunk", "vad"]
-    const needsMic = streams.some((s: string) => micStreams.some((m) => s.startsWith(m) || s === m))
-    if (needsMic) {
-      const hasMicPermission = app.installedManifest?.permissions?.some((p) => p.type === "MICROPHONE")
-      if (!hasMicPermission) {
+    // Gate each stream on the permission type its data requires. The manifest
+    // must declare the permission (miniapp.json -> permissions) or we reject
+    // the whole subscribe with PERMISSION_NOT_DECLARED.
+    const declaredTypes = new Set(
+      (app.installedManifest?.permissions ?? []).map((p) => p.type?.toUpperCase()),
+    )
+
+    const permissionForStream = (s: string): string | null => {
+      if (s === "audio_chunk" || s === "vad") return "MICROPHONE"
+      if (s.startsWith("transcription") || s.startsWith("translation")) return "MICROPHONE"
+      if (s === "location_update") return "LOCATION"
+      if (s === "phone_notification") return "READ_NOTIFICATIONS"
+      if (s === "calendar_event") return "CALENDAR"
+      return null
+    }
+
+    for (const stream of streams) {
+      const required = permissionForStream(stream)
+      if (required && !declaredTypes.has(required)) {
         this.sendResult(packageName, requestId, false, undefined, {
           code: MiniappErrorCode.PERMISSION_NOT_DECLARED,
-          message: "MICROPHONE permission not declared in miniapp.json",
+          message: `${required} permission not declared in miniapp.json (required for "${stream}")`,
         })
         return
       }
@@ -578,9 +592,16 @@ class LocalMiniappRuntime {
    */
   private emitInitialSnapshots(packageName: string, streams: string[]): void {
     const glassesState = useGlassesStore.getState()
+    const isSimulated =
+      (glassesState.deviceModel || "").toLowerCase().includes("simulated")
+
     for (const stream of streams) {
       if (stream === "glasses_battery") {
-        if (typeof glassesState.batteryLevel === "number" && glassesState.batteryLevel >= 0) {
+        // Simulated glasses have no real battery; mirror the phone's battery
+        // so miniapps see a sensible value during development.
+        if (isSimulated) {
+          void this.emitPhoneBatteryAs(packageName, "glasses_battery")
+        } else if (typeof glassesState.batteryLevel === "number" && glassesState.batteryLevel >= 0) {
           this.sendToMiniapp(packageName, {
             type: MiniappResponseType.EVENT,
             streamType: "glasses_battery",
@@ -591,6 +612,8 @@ class LocalMiniappRuntime {
             },
           })
         }
+      } else if (stream === "phone_battery") {
+        void this.emitPhoneBatteryAs(packageName, "phone_battery")
       } else if (stream === "glasses_connection") {
         this.sendToMiniapp(packageName, {
           type: MiniappResponseType.EVENT,
@@ -610,11 +633,34 @@ class LocalMiniappRuntime {
           })
         }
       }
-      // phone_battery: the Battery listener in MantleManager fires on every
-      // level/state change; when a miniapp connects later, the subsequent
-      // changes will reach it but the initial snapshot isn't cached here.
-      // Acceptable: phone battery changes often enough that first emit is
-      // seconds away.
+    }
+  }
+
+  /**
+   * Read the phone's battery state right now and emit it as the given stream.
+   * Used for both phone_battery snapshot on subscribe, and as a stand-in for
+   * glasses_battery when connected to Simulated Glasses.
+   */
+  private async emitPhoneBatteryAs(
+    packageName: string,
+    streamType: "phone_battery" | "glasses_battery",
+  ): Promise<void> {
+    try {
+      const level = await Battery.getBatteryLevelAsync()
+      const state = await Battery.getBatteryStateAsync()
+      const charging =
+        state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
+      this.sendToMiniapp(packageName, {
+        type: MiniappResponseType.EVENT,
+        streamType,
+        data: {
+          level: Math.round(level * 100),
+          charging,
+          timestamp: Date.now(),
+        },
+      })
+    } catch (err) {
+      console.log(`${LOG_TAG}: phone battery snapshot failed`, err)
     }
   }
 
@@ -1225,10 +1271,10 @@ class LocalMiniappRuntime {
     let transcriptionLang: string | null = null
     for (const [stream, subscribers] of this.streamSubscribers) {
       if (subscribers.size === 0) continue
-      // Only transcription, translation, and location need cloud delivery.
-      // All other streams (button_press, touch_event, head_position, vad,
-      // audio_chunk, glasses_battery, etc.) are sourced locally from CoreModule.
-      if (stream.startsWith("transcription:") || stream.startsWith("translation:") || stream === "location_update") {
+      // Only transcription / translation need cloud delivery. Location,
+      // notifications, and calendar events are sourced natively on the phone
+      // and forwarded to miniapps directly via MantleManager — no cloud hop.
+      if (stream.startsWith("transcription:") || stream.startsWith("translation:")) {
         cloudStreams.add(stream)
       }
       if (stream.startsWith("transcription:") && transcriptionLang === null) {

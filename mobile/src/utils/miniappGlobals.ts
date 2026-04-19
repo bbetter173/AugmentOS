@@ -99,9 +99,43 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
   if (opts.miniappDeveloperMode) globals.miniappDeveloperMode = true
   if (opts.colorScheme) globals.colorScheme = opts.colorScheme
 
+  // CSS custom properties that mirror the capsule menu / safe-area data.
+  // Miniapp CSS (or Tailwind arbitrary values) can read these without
+  // touching JS: e.g. `style="margin-top: var(--mentra-capsule-top)"`.
+  const capsule = globals.capsuleMenu as CapsuleMenuRect
+  const insets = opts.safeAreaInsets
+  const capsuleCenter = capsule.top + capsule.height / 2
+  const cssVars: Record<string, string> = {
+    "--mentra-safe-top": `${insets.top}px`,
+    "--mentra-safe-bottom": `${insets.bottom}px`,
+    "--mentra-safe-left": `${insets.left}px`,
+    "--mentra-safe-right": `${insets.right}px`,
+    "--mentra-capsule-top": `${capsule.top}px`,
+    "--mentra-capsule-bottom": `${capsule.bottom}px`,
+    "--mentra-capsule-left": `${capsule.left}px`,
+    "--mentra-capsule-right": `${capsule.right}px`,
+    "--mentra-capsule-width": `${capsule.width}px`,
+    "--mentra-capsule-height": `${capsule.height}px`,
+    "--mentra-capsule-center-y": `${capsuleCenter}px`,
+    // Right-side gutter to reserve so content doesn't slide under the
+    // capsule: capsule width + 16px breathing room.
+    "--mentra-capsule-gutter": `${capsule.width + 16}px`,
+  }
+  const cssVarsBlock = Object.entries(cssVars)
+    .map(([k, v]) => `${k}: ${v};`)
+    .join(" ")
+
   return `
     window.MentraOS = ${JSON.stringify(globals)};
     window.receiveNativeMessage = window.receiveNativeMessage || function() {};
+    (function() {
+      try {
+        var styleEl = document.createElement("style");
+        styleEl.setAttribute("data-mentra-injected", "1");
+        styleEl.textContent = ":root { ${cssVarsBlock} }";
+        (document.head || document.documentElement).appendChild(styleEl);
+      } catch (e) { /* ignore */ }
+    })();
     true;
   `
 }

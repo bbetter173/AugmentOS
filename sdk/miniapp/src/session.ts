@@ -20,6 +20,7 @@ import {
   parseEnvelope,
   serializeEnvelope,
 } from "./envelope"
+import {getMentraOSGlobals, MiniappColorScheme} from "./globals"
 import {MiniappErrorCode, MiniappRequestType, MiniappResponseType} from "./protocol"
 import {createTransport, CreateTransportOptions} from "./transport/auto"
 import {Transport} from "./transport/types"
@@ -57,6 +58,7 @@ export interface ConnectAckPayload {
   packageName: string
   capabilities: GlassesCapabilities | null
   visibility?: MiniappVisibility
+  colorScheme?: MiniappColorScheme
 }
 
 export class NotConnectedError extends Error {
@@ -90,6 +92,7 @@ type SessionEmitterEvents = {
   disconnect: (reason: string) => void
   visibility: (v: MiniappVisibility) => void
   capabilities: (cap: GlassesCapabilities | null) => void
+  colorScheme: (scheme: MiniappColorScheme) => void
 }
 
 export class MiniappSession {
@@ -108,6 +111,8 @@ export class MiniappSession {
   public userId = ""
   public packageName = ""
   public visibility: MiniappVisibility = "foreground"
+  /** Host color scheme. Seeded from window.MentraOS, updated via session events. */
+  public colorScheme: MiniappColorScheme = "light"
 
   /** True after CONNECT_ACK. Observe with waitForReady() or the "ready" event. */
   public ready = false
@@ -129,11 +134,11 @@ export class MiniappSession {
     this.transport = createTransport(options)
     this.connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
 
-    const injectedPackageName =
-      typeof window !== "undefined" && typeof window.MentraOS?.packageName === "string"
-        ? window.MentraOS.packageName
-        : undefined
-    this.packageName = options.packageName ?? injectedPackageName ?? ""
+    const injected = getMentraOSGlobals()
+    this.packageName = options.packageName ?? injected.packageName ?? ""
+    if (injected.colorScheme === "light" || injected.colorScheme === "dark") {
+      this.colorScheme = injected.colorScheme
+    }
 
     this.layouts = new LayoutManager(this)
     this.events = new EventManager(this)
@@ -272,6 +277,10 @@ export class MiniappSession {
     return this.on("capabilities", handler)
   }
 
+  onColorSchemeChange(handler: (scheme: MiniappColorScheme) => void): () => void {
+    return this.on("colorScheme", handler)
+  }
+
   // -------------------------------------------------------------------------
   // Internal — transport glue
   // -------------------------------------------------------------------------
@@ -314,6 +323,9 @@ export class MiniappSession {
         if (ack.packageName) this.packageName = ack.packageName
         this.capabilities = ack.capabilities ?? null
         if (ack.visibility) this.visibility = ack.visibility
+        if (ack.colorScheme === "light" || ack.colorScheme === "dark") {
+          this.colorScheme = ack.colorScheme
+        }
         this.ready = true
         this.flushQueue()
         this.emitter.emit("ready")
@@ -355,6 +367,15 @@ export class MiniappSession {
         if (next === "foreground" || next === "background") {
           this.visibility = next
           this.emitter.emit("visibility", next)
+        }
+        return
+      }
+
+      case MiniappResponseType.COLOR_SCHEME_CHANGE: {
+        const next = payload.colorScheme as MiniappColorScheme | undefined
+        if (next === "light" || next === "dark") {
+          this.colorScheme = next
+          this.emitter.emit("colorScheme", next)
         }
         return
       }

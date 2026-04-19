@@ -1,0 +1,107 @@
+/**
+ * miniappGlobals — shared builder for the window.MentraOS globals injected
+ * into every miniapp WebView (both cloud and local).
+ *
+ * Authors should be able to use one API in their miniapp code regardless of
+ * whether it's hosted in the cloud or on-device. So both injection paths
+ * (webview.tsx for cloud miniapps, MiniappHost.tsx for local miniapps) funnel
+ * through this util.
+ */
+
+import {Dimensions, Platform} from "react-native"
+
+export interface MiniappSafeArea {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
+export interface CapsuleMenuRect {
+  top: number
+  right: number
+  bottom: number
+  left: number
+  width: number
+  height: number
+}
+
+/**
+ * The capsule menu bounding rect in the WebView's own coordinate space.
+ *
+ * Keep in sync with CapsuleMenu.tsx:
+ *   - CapsuleButton height ≈ h-7.5 (30px), width ≈ 73px
+ *   - Positioned at right-2 (8px), top = theme.spacing.s2 (8px) below insets.top
+ */
+const CAPSULE_MENU_HEIGHT = 30
+const CAPSULE_MENU_WIDTH = 73
+const CAPSULE_MENU_PADDING = 8
+
+/**
+ * @param topInsetOffset  extra top offset to add when the WebView container does
+ *   NOT already pad by the safe-area inset (i.e. WebView fills edge-to-edge under
+ *   the status bar). Pass `insets.top` in that case, or 0 when the container
+ *   already applies top padding.
+ */
+export function getCapsuleMenuRect(topInsetOffset = 0): CapsuleMenuRect {
+  const screenWidth = Dimensions.get("window").width
+  const top = topInsetOffset + CAPSULE_MENU_PADDING
+  return {
+    top,
+    right: CAPSULE_MENU_PADDING,
+    bottom: top + CAPSULE_MENU_HEIGHT,
+    left: screenWidth - CAPSULE_MENU_PADDING - CAPSULE_MENU_WIDTH,
+    width: CAPSULE_MENU_WIDTH,
+    height: CAPSULE_MENU_HEIGHT,
+  }
+}
+
+export type MiniappColorScheme = "light" | "dark"
+
+export interface BuildMiniappGlobalsOptions {
+  packageName?: string
+  capabilities?: string[]
+  miniappLocal?: boolean
+  miniappDeveloperMode?: boolean
+  safeAreaInsets: MiniappSafeArea
+  /**
+   * True when the WebView container renders edge-to-edge (no top padding for
+   * the status bar). In that case the capsule menu rect needs to shift down by
+   * the top inset so its coords match where it's actually drawn on screen.
+   */
+  webviewFillsStatusBar?: boolean
+  /** Current host color scheme. Miniapps may follow this to match the phone. */
+  colorScheme?: MiniappColorScheme
+}
+
+/**
+ * Returns the JS string to inject into a miniapp WebView before its content
+ * loads. Sets window.MentraOS with the standard fields miniapps read:
+ *
+ *   window.MentraOS = {
+ *     platform, packageName?, capabilities, safeAreaInsets, capsuleMenu,
+ *     miniappLocal?, miniappDeveloperMode?
+ *   }
+ *
+ * Also defines a stub window.receiveNativeMessage so the miniapp can safely
+ * assign to it before the native bridge wires in.
+ */
+export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): string {
+  const capsuleTopOffset = opts.webviewFillsStatusBar ? opts.safeAreaInsets.top : 0
+  const globals: Record<string, unknown> = {
+    platform: Platform.OS,
+    capabilities: opts.capabilities ?? ["share", "open_url", "copy_clipboard", "download"],
+    safeAreaInsets: opts.safeAreaInsets,
+    capsuleMenu: getCapsuleMenuRect(capsuleTopOffset),
+  }
+  if (opts.packageName) globals.packageName = opts.packageName
+  if (opts.miniappLocal) globals.miniappLocal = true
+  if (opts.miniappDeveloperMode) globals.miniappDeveloperMode = true
+  if (opts.colorScheme) globals.colorScheme = opts.colorScheme
+
+  return `
+    window.MentraOS = ${JSON.stringify(globals)};
+    window.receiveNativeMessage = window.receiveNativeMessage || function() {};
+    true;
+  `
+}

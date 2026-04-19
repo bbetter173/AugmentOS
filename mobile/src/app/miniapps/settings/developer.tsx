@@ -37,6 +37,7 @@ export default function DeveloperSettingsScreen() {
   const [_onboardingOsCompleted, setOnboardingOsCompleted] = useSetting(SETTINGS.onboarding_os_completed.key)
   const [_onboardingLiveCompleted, setOnboardingLiveCompleted] = useSetting(SETTINGS.onboarding_live_completed.key)
   const [lc3FrameSize, setLc3FrameSize] = useSetting(SETTINGS.lc3_frame_size.key)
+  const [localSttFallbackEnabled, setLocalSttFallbackEnabled] = useSetting(SETTINGS.local_stt_fallback_enabled.key)
 
   return (
     <Screen preset="fixed">
@@ -138,11 +139,22 @@ export default function DeveloperSettingsScreen() {
             />
           </Group>
 
-          <Group title="Miniapp Development">
+          <Group title={translate("devSettings:miniappDevGroupTitle")}>
             <RouteButton
-              label="Miniapp Developer"
-              subtitle="Load miniapps from dev server via QR code"
-              onPress={() => push("/miniapps/settings/miniapp-developer")}
+              label={translate("devSettings:miniappDevLoadUrlLabel")}
+              subtitle={translate("devSettings:miniappDevLoadUrlSubtitle")}
+              onPress={() => push("/miniapps/settings/miniapp-developer-url")}
+            />
+            <RouteButton
+              label={translate("devSettings:miniappDevScanLabel")}
+              subtitle={translate("devSettings:miniappDevScanSubtitle")}
+              onPress={() => push("/miniapps/settings/miniapp-developer-scanner")}
+            />
+            <ToggleSetting
+              label="Local STT Fallback"
+              subtitle="Use on-device Sherpa when cloud transcription fails (requires downloaded language pack)"
+              value={localSttFallbackEnabled}
+              onValueChange={(value) => setLocalSttFallbackEnabled(value)}
             />
           </Group>
 

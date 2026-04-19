@@ -45,12 +45,18 @@ export function MiniAppCapsuleMenu({
   onEllipsisPress,
   onMinusPress,
   onBackPress,
+  appNameOverride,
+  iconUrlOverride,
 }: {
   packageName: string
   viewShotRef: React.RefObject<View | null>
   onEllipsisPress?: () => void
   onMinusPress?: () => void
   onBackPress?: () => void
+  /** Fallback name for miniapps not registered in the applet store (e.g. dev QR-sideloaded). */
+  appNameOverride?: string
+  /** Fallback icon URL for miniapps not registered in the applet store. */
+  iconUrlOverride?: string
 }) {
   const {goBack} = useNavigationHistory()
   const insets = useSaferAreaInsets()
@@ -148,16 +154,23 @@ export function MiniAppCapsuleMenu({
   return (
     <View className="z-2 absolute right-2 items-center justify-end flex-row" style={{top: top}}>
       <CapsuleButton onMinusPress={handleMinusPress} onEllipsisPress={handleEllipsisPress} />
-      <MiniAppMoreActionsSheet ref={bottomSheetRef} packageName={packageName} />
+      <MiniAppMoreActionsSheet
+        ref={bottomSheetRef}
+        packageName={packageName}
+        appNameOverride={appNameOverride}
+        iconUrlOverride={iconUrlOverride}
+      />
     </View>
   )
 }
 interface MiniAppMoreActionsSheetProps {
   packageName: string
+  appNameOverride?: string
+  iconUrlOverride?: string
 }
 
 export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreActionsSheetProps>(
-  function MiniAppMoreActionsSheet({packageName}, ref) {
+  function MiniAppMoreActionsSheet({packageName, appNameOverride, iconUrlOverride}, ref) {
     const {theme} = useAppTheme()
     const screenHeight = Dimensions.get("window").height
     const snapPoints = useMemo(() => [screenHeight < 700 ? "70%" : "50%"], [screenHeight])
@@ -168,11 +181,24 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     const [superMode] = useSetting(SETTINGS.super_mode.key)
 
     useEffect(() => {
-      const app = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
-      if (app) {
-        setApp(app)
+      const storeApp = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+      if (storeApp) {
+        setApp(storeApp)
+      } else if (appNameOverride || iconUrlOverride) {
+        // Dev-sideloaded miniapp not in the applet store — synthesize a minimal
+        // record so the sheet can show a name + icon.
+        setApp({
+          packageName,
+          name: appNameOverride ?? packageName,
+          logoUrl: iconUrlOverride ?? "",
+          loading: false,
+          running: true,
+          hidden: false,
+          healthy: true,
+          permissions: [],
+        } as unknown as ClientAppletInterface)
       }
-    }, [packageName])
+    }, [packageName, appNameOverride, iconUrlOverride])
 
     // Merge refs so both the parent and internal ref work
     useImperativeHandle(ref, () => internalRef.current!)

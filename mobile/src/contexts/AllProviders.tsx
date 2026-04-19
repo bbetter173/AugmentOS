@@ -176,6 +176,7 @@ export const AllProviders = withWrappers(
             gestureEnabled: forceGestureEnabled || !preventBack,
             gestureDirection: "horizontal",
             animation: convertToNativeAnimation(animation) as any,
+            contentStyle: {backgroundColor: "transparent"},
             // animation: "default",
             // cardStyleInterpolator: getAnimation(animation),
           }}

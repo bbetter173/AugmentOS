@@ -188,6 +188,11 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "offline_captions_running", newValue) }
     }
 
+    private var localSttFallbackActive: Bool {
+        get { GlassesStore.shared.get("core", "local_stt_fallback_active") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "local_stt_fallback_active", newValue) }
+    }
+
     private var shouldSendPcm: Bool {
         get { GlassesStore.shared.get("core", "should_send_pcm") as? Bool ?? false }
         set { GlassesStore.shared.apply("core", "should_send_pcm", newValue) }
@@ -439,7 +444,7 @@ struct ViewState {
             handleSendingPcm(pcmData)
 
             // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript || offlineCaptionsRunning {
+            if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
                 transcriber?.acceptAudio(pcm16le: pcmData)
             }
             return
@@ -475,7 +480,7 @@ struct ViewState {
             handleSendingPcm(pcmData)
 
             // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript || offlineCaptionsRunning {
+            if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
                 transcriber?.acceptAudio(pcm16le: pcmData)
             }
         } else {
@@ -1207,7 +1212,7 @@ struct ViewState {
 
     func setMicState() {
         let willSendPcm = shouldSendPcm || shouldSendLc3
-        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive
         micEnabled = willSendPcm || willSendTranscript
         updateMicState()
     }

@@ -15,17 +15,14 @@
 
 import {Transport, TransportDisconnectHandler, TransportMessageHandler} from "./types"
 
+// Note: window.MentraOS is declared in ../globals.ts. ReactNativeWebView and
+// receiveNativeMessage are local to this transport.
 declare global {
   interface Window {
     ReactNativeWebView?: {
       postMessage: (data: string) => void
     }
     receiveNativeMessage?: (raw: string) => void
-    MentraOS?: {
-      packageName?: string
-      platform?: string
-      miniappDeveloperMode?: boolean
-    }
   }
 }
 

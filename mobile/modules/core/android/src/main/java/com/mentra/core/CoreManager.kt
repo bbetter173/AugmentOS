@@ -124,6 +124,10 @@ class CoreManager {
         get() = GlassesStore.store.get("core", "offline_captions_running") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "offline_captions_running", value)
 
+    private var localSttFallbackActive: Boolean
+        get() = GlassesStore.store.get("core", "local_stt_fallback_active") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "local_stt_fallback_active", value)
+
     private var shouldSendPcm: Boolean
         get() = GlassesStore.store.get("core", "should_send_pcm") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "should_send_pcm", value)
@@ -629,7 +633,7 @@ class CoreManager {
         handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
-        if (shouldSendTranscript || offlineCaptionsRunning) {
+        if (shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive) {
             transcriber?.acceptAudio(pcmData)
         }
     }
@@ -1281,7 +1285,7 @@ class CoreManager {
 
     fun setMicState() {
         val willSendPcm = shouldSendPcm || shouldSendLc3
-        val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive
         micEnabled = willSendPcm || willSendTranscript
         vadBuffer.clear()
         updateMicState()

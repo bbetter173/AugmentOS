@@ -10,35 +10,18 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "development": {
-        "import": "./src/index.ts",
-        "types": "./src/index.ts"
-      },
-      "default": {
-        "import": "./dist/index.js",
-        "types": "./dist/index.d.ts"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./react": {
-      "development": {
-        "import": "./src/react/index.ts",
-        "types": "./src/react/index.ts"
-      },
-      "default": {
-        "import": "./dist/react/index.js",
-        "types": "./dist/react/index.d.ts"
-      }
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
     },
     "./protocol": {
-      "development": {
-        "import": "./src/protocol.ts",
-        "types": "./src/protocol.ts"
-      },
-      "default": {
-        "import": "./dist/protocol.js",
-        "types": "./dist/protocol.d.ts"
-      }
-    }
+      "types": "./dist/protocol.d.ts",
+      "default": "./dist/protocol.js"
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "scripts": {

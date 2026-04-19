@@ -4,6 +4,7 @@ import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import displayProcessor from "@/services/DisplayProcessor"
 import localMiniappRuntime from "@/services/LocalMiniappRuntime"
+import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
 import mantle from "@/services/MantleManager"
 import micStateCoordinator from "@/services/MicStateCoordinator"
 import udp from "@/services/UdpManager"
@@ -817,6 +818,9 @@ class SocketComms {
 
       case "data_stream": {
         const streamType = msg.streamType
+        if (typeof streamType === "string" && streamType.startsWith("transcription:")) {
+          localSttFallbackCoordinator.onCloudTranscript()
+        }
         localMiniappRuntime.forwardEvent(streamType, msg.data)
         break
       }

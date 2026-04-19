@@ -269,6 +269,11 @@ class GlassesStore {
                 CoreManager.shared.setMicState()
             }
 
+        case ("core", "local_stt_fallback_active"):
+            if let active = value as? Bool {
+                CoreManager.shared.setMicState()
+            }
+
         case ("core", "should_send_pcm"):
             if let pcm = value as? Bool {
                 CoreManager.shared.setMicState()

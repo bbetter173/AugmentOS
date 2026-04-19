@@ -6,6 +6,7 @@ import {shallow} from "zustand/shallow"
 
 import livekit from "@/services/Livekit"
 import localMiniappRuntime from "@/services/LocalMiniappRuntime"
+import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
 import micStateCoordinator from "@/services/MicStateCoordinator"
 import miniSockets from "@/services/MiniSockets"
 import composer from "@/services/Composer"
@@ -477,6 +478,7 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("vad", (event) => {
           localMiniappRuntime.forwardEvent('VAD', event)
+          localSttFallbackCoordinator.onVad(!!event?.status)
         }),
       )
 
@@ -869,6 +871,9 @@ class MantleManager {
   }
 
   public async handle_local_transcription(data: any) {
+    console.log(
+      `MANTLE: handle_local_transcription text="${data?.text}" isFinal=${data?.isFinal} lang=${data?.transcribeLanguage} fallbackActive=${localSttFallbackCoordinator.isActive()}`,
+    )
     logE2EMetric("local_transcription_received", {
       text: data?.text ?? "",
       is_final: data?.isFinal ?? false,
@@ -896,6 +901,12 @@ class MantleManager {
         this.displayTextMain(processedText)
       }
 
+      return
+    }
+
+    if (localSttFallbackCoordinator.isActive()) {
+      const lang = data?.transcribeLanguage ?? localSttFallbackCoordinator.getActiveLanguage() ?? "en-US"
+      localMiniappRuntime.forwardEvent(`transcription:${lang}`, data)
       return
     }
 

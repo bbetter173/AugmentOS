@@ -99,7 +99,20 @@ export class EventManager {
   // High-level typed helpers
   // ------------------------------------------------------------------
 
-  onTranscription(language: string, handler: (data: TranscriptionData) => void): UnsubscribeFn {
+  /**
+   * Subscribe to live transcription.
+   *
+   * By default subscribes to `transcription:auto` — the cloud auto-detects
+   * the spoken language and delivers transcripts in whatever was detected.
+   * The resulting `data.transcribeLanguage` field tells you what it detected.
+   *
+   * Pass a BCP-47 language tag (e.g. `"en-US"`, `"fr-FR"`) to pin a specific
+   * language.
+   */
+  onTranscription(
+    handler: (data: TranscriptionData) => void,
+    language: string = "auto",
+  ): UnsubscribeFn {
     return this.subscribe(`${MiniappStreamType.TRANSCRIPTION}:${language}`, handler as (data: unknown) => void)
   }
 
@@ -195,6 +208,15 @@ export class EventManager {
   /** @internal */
   _forwardEvent(stream: string, data: unknown): void {
     this.emitter.emit(stream, data)
+
+    // Wildcard fan-out: a handler subscribed to "transcription:auto" should
+    // receive any "transcription:<lang>" event. The detected language is in
+    // data.transcribeLanguage. Same for translation.
+    if (stream.startsWith("transcription:") && stream !== "transcription:auto") {
+      this.emitter.emit("transcription:auto", data)
+    } else if (stream.startsWith("translation:") && stream !== "translation:auto") {
+      this.emitter.emit("translation:auto", data)
+    }
   }
 
   private sendSubscriptionUpdate(): void {

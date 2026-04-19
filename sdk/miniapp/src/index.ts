@@ -20,6 +20,14 @@ export type {
 export {makeRequestId, parseEnvelope, serializeEnvelope} from "./envelope"
 export type {MiniappEnvelope} from "./envelope"
 
+export {getMentraOSGlobals} from "./globals"
+export type {
+  MentraOSGlobals,
+  MiniappCapsuleMenuRect,
+  MiniappColorScheme,
+  MiniappSafeAreaInsets,
+} from "./globals"
+
 export {MiniappErrorCode, MiniappRequestType, MiniappResponseType, MiniappStreamType} from "./protocol"
 
 // Transports — exported for advanced uses (forced transport injection, tests)

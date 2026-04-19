@@ -50,6 +50,12 @@ class AudioPlaybackService {
         shouldPlayInBackground: true,
         playsInSilentMode: true,
         interruptionMode: "duckOthers",
+        // allowsRecording selects iOS's PlayAndRecord audio session category,
+        // which coexists with the mic being active (local STT, cloud STT, etc.).
+        // Without this the session category is Playback and iOS rejects
+        // setAudioModeAsync with OSStatus 561017449 (CannotInterruptOthers)
+        // when mic is recording.
+        allowsRecording: true,
       })
       this.audioModeConfigured = true
       console.log("AUDIO: Audio mode configured for background playback")

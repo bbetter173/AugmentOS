@@ -1,6 +1,6 @@
 import {useLocalSearchParams} from "expo-router"
 import {useRef, useState, useEffect, useCallback} from "react"
-import {Dimensions, Platform, View} from "react-native"
+import {Platform, View} from "react-native"
 import {WebView} from "react-native-webview"
 import Animated, {useSharedValue, useAnimatedStyle, withTiming} from "react-native-reanimated"
 
@@ -8,6 +8,7 @@ import {Header, Screen, Text} from "@/components/ignite"
 import MiniappErrorScreen from "@/components/miniapps/MiniappErrorScreen"
 import LoadingOverlay from "@/components/ui/LoadingOverlay"
 import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useAppTheme} from "@/contexts/ThemeContext"
 import restComms from "@/services/RestComms"
 import miniComms from "@/services/MiniComms"
 import {WebSocketStatus} from "@/services/ws-types"
@@ -17,7 +18,7 @@ import {useConnectionStore} from "@/stores/connection"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import {useAppTheme} from "@/contexts/ThemeContext"
+import {buildMiniappGlobalsScript} from "@/utils/miniappGlobals"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName, isLocal: isLocalParam} = useLocalSearchParams()
@@ -31,7 +32,9 @@ export default function AppWebView() {
   const [retryTrigger, setRetryTrigger] = useState(0)
   const {goBack, push} = useNavigationHistory()
   const viewShotRef = useRef(null)
+  const insets = useSaferAreaInsets()
   const {theme} = useAppTheme()
+  const colorScheme = theme.isDark ? "dark" : "light"
 
   // Track if the server-side app start failed
   const [appStartFailed, setAppStartFailed] = useState(false)
@@ -251,6 +254,22 @@ export default function AppWebView() {
     }
   }, [packageName])
 
+  // Push color scheme changes into the WebView so miniapps using
+  // useColorScheme() can react. Skipped until the WebView has loaded.
+  useEffect(() => {
+    if (!webViewRef.current || !isWebViewLoaded) return
+    const envelope = JSON.stringify({
+      payload: {type: "miniapp_color_scheme_change", colorScheme},
+    })
+    try {
+      webViewRef.current.injectJavaScript(
+        `window.dispatchEvent(new MessageEvent('message', {data: ${JSON.stringify(envelope)}})); true;`,
+      )
+    } catch {
+      // noop
+    }
+  }, [colorScheme, isWebViewLoaded])
+
   const handleWebViewMessage = (event: any) => {
     // Cloud app webviews don't send miniapp SDK envelopes.
     // Local miniapp WebViews are routed through MiniappHost → LocalMiniappRuntime.
@@ -390,22 +409,19 @@ export default function AppWebView() {
     )
   }
 
-  // Capsule menu bounding rect relative to the webview content area.
-  // CapsuleButton: h-7.5 (30px), width ~73px (px-2 + two 24px buttons + gap + divider)
-  // Positioned at right-2 (8px) with top = theme.spacing.s2 (8px) relative to webview.
-  const capsuleMenuHeight = 30
-  const capsuleMenuWidth = 73
-  const capsuleMenuRight = theme.spacing.s2
-  const capsuleMenuTop = theme.spacing.s2
-  const screenWidth = Dimensions.get("window").width
-  const capsuleMenuRect = {
-    top: capsuleMenuTop,
-    right: capsuleMenuRight,
-    bottom: capsuleMenuTop + capsuleMenuHeight,
-    left: screenWidth - capsuleMenuRight - capsuleMenuWidth,
-    width: capsuleMenuWidth,
-    height: capsuleMenuHeight,
-  }
+  // Build the window.MentraOS globals (safeAreaInsets, capsuleMenu, etc.) via
+  // the shared util so cloud and local miniapps see identical shapes.
+  const miniappGlobalsScript = buildMiniappGlobalsScript({
+    packageName: packageName as string,
+    miniappLocal: isLocal,
+    safeAreaInsets: {
+      top: insets.top,
+      bottom: Platform.OS === "android" ? insets.bottom : 0,
+      left: insets.left,
+      right: insets.right,
+    },
+    colorScheme,
+  })
 
   return (
     <>
@@ -469,29 +485,7 @@ export default function AppWebView() {
                 onNavigationStateChange={(navState) => setWebViewCanGoBack(navState.canGoBack)}
                 automaticallyAdjustContentInsets={false}
                 contentInsetAdjustmentBehavior="never"
-                injectedJavaScriptBeforeContentLoaded={
-                  isLocal
-                    ? `
-                  window.MentraOS = {
-                    packageName: ${JSON.stringify(packageName)},
-                    platform: '${Platform.OS}',
-                    capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
-                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : "null"},
-                    miniappLocal: true,
-                  };
-                  window.receiveNativeMessage = window.receiveNativeMessage || function() {};
-                  true;
-                `
-                    : `
-                  window.MentraOS = {
-                    platform: '${Platform.OS}',
-                    capabilities: ['share', 'open_url', 'copy_clipboard', 'download'],
-                    capsuleMenu: ${capsuleMenuRect ? JSON.stringify(capsuleMenuRect) : "null"},
-                  };
-                  window.receiveNativeMessage = window.receiveNativeMessage || function() {};
-                  true;
-                `
-                }
+                injectedJavaScriptBeforeContentLoaded={miniappGlobalsScript}
                 injectedJavaScript={`
                   const meta = document.createElement('meta');
                   meta.setAttribute('name', 'viewport');

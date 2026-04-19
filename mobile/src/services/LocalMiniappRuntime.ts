@@ -17,12 +17,19 @@ import {storage as mmkvStorage} from "@/utils/storage/storage"
 import * as Location from "expo-location"
 import CoreModule from "core"
 
-import {parseEnvelope, serializeEnvelope} from "@mentra/miniapp"
+import {
+  MiniappErrorCode,
+  MiniappRequestType,
+  MiniappResponseType,
+  MiniappStreamType,
+  parseEnvelope,
+  serializeEnvelope,
+} from "@mentra/miniapp"
 import type {MiniappEnvelope} from "@mentra/miniapp"
-import {MiniappRequestType, MiniappResponseType, MiniappStreamType, MiniappErrorCode} from "@mentra/miniapp/protocol"
 
 import {getModelCapabilities, DeviceTypes} from "@/../../cloud/packages/types/src"
 import audioPlaybackService from "@/services/AudioPlaybackService"
+import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
 import micStateCoordinator from "@/services/MicStateCoordinator"
 import socketComms from "@/services/SocketComms"
 import displayProcessor from "@/services/DisplayProcessor"
@@ -290,6 +297,20 @@ class LocalMiniappRuntime {
     this.ensurePingLoop()
   }
 
+  /**
+   * Attach (or update) the installedManifest for an already-registered app.
+   * Used when the manifest is fetched asynchronously (dev miniapps) after the
+   * miniapp has already CONNECTed — preserves existing subscriptions.
+   */
+  public setInstalledManifest(
+    packageName: string,
+    installedManifest: {permissions?: Array<{type: string; description?: string}>},
+  ): void {
+    const app = this.connectedApps.get(packageName)
+    if (!app) return
+    app.installedManifest = installedManifest
+  }
+
   public unregisterApp(packageName: string): void {
     console.log(`${LOG_TAG}: unregisterApp(${packageName})`)
     const app = this.connectedApps.get(packageName)
@@ -389,6 +410,10 @@ class LocalMiniappRuntime {
       case MiniappRequestType.PING:
         // SDK should handle this itself; reply PONG just in case
         this.sendToMiniapp(packageName, {type: MiniappResponseType.PONG}, requestId)
+        break
+      case MiniappResponseType.PONG:
+        // Miniapp's auto-reply to our PING — mark the app as alive
+        this.handlePong(packageName)
         break
 
       case MiniappRequestType.SHARE:
@@ -1126,6 +1151,7 @@ class LocalMiniappRuntime {
    */
   private updateCloudSubscriptions(): void {
     const cloudStreams = new Set<string>()
+    let transcriptionLang: string | null = null
     for (const [stream, subscribers] of this.streamSubscribers) {
       if (subscribers.size === 0) continue
       // Only transcription, translation, and location need cloud delivery.
@@ -1134,8 +1160,12 @@ class LocalMiniappRuntime {
       if (stream.startsWith("transcription:") || stream.startsWith("translation:") || stream === "location_update") {
         cloudStreams.add(stream)
       }
+      if (stream.startsWith("transcription:") && transcriptionLang === null) {
+        transcriptionLang = stream.substring("transcription:".length)
+      }
     }
     socketComms.updatePhoneSubscriptions(Array.from(cloudStreams))
+    localSttFallbackCoordinator.onSubscriptionChange(transcriptionLang !== null, transcriptionLang)
   }
 
   // ===========================================================================
@@ -1153,10 +1183,32 @@ class LocalMiniappRuntime {
     // Translate cloud event names to miniapp protocol stream types
     const normalizedStream = this.normalizeStreamType(streamType)
 
-    const subs = this.streamSubscribers.get(normalizedStream)
-    if (!subs || subs.size === 0) return
+    // Collect all subscribers: exact match, plus wildcard matches for streams
+    // that carry a language tag. A miniapp subscribed to "transcription:auto"
+    // should receive any "transcription:<lang>" event (the detected language
+    // is conveyed in the event data, not the stream key). Same for translation.
+    const matchedSubs = new Set<string>()
+    const exact = this.streamSubscribers.get(normalizedStream)
+    if (exact) for (const p of exact) matchedSubs.add(p)
 
-    for (const packageName of subs) {
+    if (normalizedStream.startsWith("transcription:")) {
+      const autoSubs = this.streamSubscribers.get("transcription:auto")
+      if (autoSubs) for (const p of autoSubs) matchedSubs.add(p)
+    } else if (normalizedStream.startsWith("translation:")) {
+      const autoSubs = this.streamSubscribers.get("translation:auto")
+      if (autoSubs) for (const p of autoSubs) matchedSubs.add(p)
+    }
+
+    if (normalizedStream.startsWith("transcription:")) {
+      const known = Array.from(this.streamSubscribers.keys())
+      console.log(
+        `${LOG_TAG}: forwardEvent(${streamType} → ${normalizedStream}) matched=${matchedSubs.size} known=[${known.join(", ")}]`,
+      )
+    }
+
+    if (matchedSubs.size === 0) return
+
+    for (const packageName of matchedSubs) {
       this.sendToMiniapp(packageName, {
         type: MiniappResponseType.EVENT,
         streamType: normalizedStream,
@@ -1181,7 +1233,9 @@ class LocalMiniappRuntime {
       case "glasses_connection_state":
         return MiniappStreamType.GLASSES_CONNECTION // glasses_connection_state → glasses_connection
       default:
-        // Most names map directly; lowercase for safety
+        // Preserve case for typed streams like "transcription:en-US" / "translation:en-US:fr-FR"
+        // whose language tags are case-sensitive (BCP-47). Lowercase only plain names.
+        if (cloudEventName.includes(":")) return cloudEventName
         return cloudEventName.toLowerCase()
     }
   }
@@ -1205,8 +1259,13 @@ class LocalMiniappRuntime {
       requestId,
     }
 
+    const serialized = serializeEnvelope(envelope)
+    if ((payload as Record<string, unknown>)?.streamType?.toString().startsWith("transcription")) {
+      console.log(`${LOG_TAG}: sendToMiniapp → ${packageName} streamType=${(payload as Record<string, unknown>).streamType}`)
+    }
+
     try {
-      app.sendMessage(serializeEnvelope(envelope))
+      app.sendMessage(serialized)
     } catch (err) {
       console.error(`${LOG_TAG}: sendToMiniapp error for ${packageName}:`, err)
     }
@@ -1279,9 +1338,9 @@ class LocalMiniappRuntime {
         continue
       }
 
-      // Send PING
+      // Send PING — SDK auto-replies with PONG
       this.sendToMiniapp(packageName, {
-        type: MiniappResponseType.PONG, // phone sends PONG as the ping probe; SDK auto-replies
+        type: MiniappRequestType.PING,
       })
     }
 

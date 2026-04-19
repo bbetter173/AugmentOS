@@ -93,6 +93,9 @@ export enum MiniappResponseType {
   /** Push: miniapp's foreground/background state changed. */
   VISIBILITY_CHANGE = "miniapp_visibility_change",
 
+  /** Push: host color scheme (light/dark) changed. */
+  COLOR_SCHEME_CHANGE = "miniapp_color_scheme_change",
+
   /** Reply to PING. SDK auto-handles this; developers never see it. */
   PONG = "miniapp_pong",
 

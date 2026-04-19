@@ -272,6 +272,12 @@ object GlassesStore {
                     CoreManager.getInstance().setMicState()
                 }
             }
+            "core" to "local_stt_fallback_active" -> {
+                (value as? Boolean)?.let { active ->
+                    Bridge.log("GlassesStore: local_stt_fallback_active changed to $active")
+                    CoreManager.getInstance().setMicState()
+                }
+            }
             "core" to "should_send_pcm" -> {
                 (value as? Boolean)?.let { pcm ->
                     CoreManager.getInstance().setMicState()

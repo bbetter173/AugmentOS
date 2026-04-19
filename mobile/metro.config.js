@@ -34,6 +34,7 @@ config.watchFolders = [
   path.resolve(__dirname, "./modules/core"),
   path.resolve(__dirname, "../cloud/packages/types/src"),
   path.resolve(__dirname, "../cloud/packages/display-utils/src"),
+  path.resolve(__dirname, "../sdk/miniapp"),
 ]
 
 // Resolve the core module from the parent directory

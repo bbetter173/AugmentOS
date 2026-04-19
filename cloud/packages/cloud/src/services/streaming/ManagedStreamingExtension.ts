@@ -660,6 +660,27 @@ export class ManagedStreamingExtension {
   }
 
   /**
+   * Clear the deduplication cache for a specific app.
+   * Must be called when an app reconnects so that stream status
+   * is delivered fresh to the new connection.
+   *
+   * The dedup cache prevents redundant status messages during a single
+   * connection's lifetime (e.g., duplicate Cloudflare webhooks). But it
+   * must not suppress delivery across connections — a reconnected app has
+   * no memory of previous messages.
+   *
+   * See: cloud/issues/087-managed-stream-status-not-delivered-on-reconnect
+   */
+  clearLastSentStatus(packageName: string): void {
+    for (const key of this.lastSentStatus.keys()) {
+      if (key.endsWith(`:${packageName}`)) {
+        this.lastSentStatus.delete(key);
+        this.logger.debug({ packageName, key }, "Cleared dedup cache entry for reconnected app");
+      }
+    }
+  }
+
+  /**
    * Add a restream output to a managed stream
    */
   async addRestreamOutput(

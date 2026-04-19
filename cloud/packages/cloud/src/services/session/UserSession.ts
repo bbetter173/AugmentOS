@@ -102,6 +102,10 @@ export class UserSession {
     return this.appManager.getAllAppWebSockets();
   }
 
+  getAppSessionId(packageName: string): string {
+    return this.appManager.getAppSession(packageName)?.sessionId ?? `${this.sessionId}-${packageName}`;
+  }
+
   // Transcription
   public isTranscribing = false; // TODO(isaiah): Sync with frontend to see if we can remove this property.
   public lastAudioTimestamp?: number;
@@ -588,7 +592,7 @@ export class UserSession {
       for (const packageName of subscribedPackageNames) {
         const connection = this.appWebsockets.get(packageName);
         if (connection && connection.readyState === WebSocketReadyState.OPEN) {
-          const appSessionId = `${this.sessionId}-${packageName}`;
+          const appSessionId = this.getAppSessionId(packageName);
           const dataStream = {
             type: CloudToAppMessageType.DATA_STREAM,
             sessionId: appSessionId,
@@ -651,7 +655,7 @@ export class UserSession {
       }
       const appAudioResponse = {
         type: CloudToAppMessageType.AUDIO_PLAY_RESPONSE,
-        sessionId: `${this.sessionId}-${packageName}`,
+        sessionId: this.getAppSessionId(packageName),
         requestId,
         success: audioResponse.success,
         error: audioResponse.error,

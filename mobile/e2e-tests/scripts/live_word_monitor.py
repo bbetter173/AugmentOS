@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+import tomllib
 
 
 # FIXME: THe maestro data retrieval method is to be removed (2s latency), the html ids have not been committed to the repo.
@@ -23,6 +24,22 @@ SIMULATED_GLASSES_TEXT = "Simulated glasses"
 MIRROR_ROOT_RESOURCE_ID = "glasses-mirror-root"
 MIRROR_TEXT_WALL_RESOURCE_ID = "glasses-mirror-text-wall"
 MIRROR_LINE_RESOURCE_ID_PREFIX = "glasses-mirror-line-"
+DEFAULT_INCIDENT_CONFIG = {
+    "drop_event": {
+        "name": "Dropped Captions",
+        "enabled": True,
+        "incident_threshold_ms": 5000,
+        "alert_threshold_ms": 15000,
+    },
+    "high_average_latency": {
+        "name": "High Average Latency",
+        "enabled": True,
+        "incident_threshold_ms": 10000,
+        "alert_threshold_ms": 15000,
+        "window_size": 10,
+        "resolve_threshold_ms": 10000,
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,13 +57,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765, help="Local dashboard port")
     parser.add_argument("--device", default=None, help="Optional adb device id")
     parser.add_argument(
+        "--incident-config-path",
+        default=str(Path(__file__).resolve().parent.parent / "incident_config.toml"),
+        help="Path to the TOML config file that defines incident thresholds and alert thresholds.",
+    )
+    parser.add_argument(
         "--audio-output-device",
         default=None,
         help="Require this macOS output device for local playback. If SwitchAudioSource is installed, the monitor will switch to it automatically.",
     )
     parser.add_argument("--poll-interval", type=float, default=0.25, help="Hierarchy poll interval in seconds")
     parser.add_argument("--word-match-early-tolerance-ms", type=int, default=250, help="Allow a visible word match slightly before the expected word timestamp")
-    parser.add_argument("--drop-threshold-ms", type=int, default=5000, help="How long visible text can stagnate before a drop is recorded")
     parser.add_argument("--post-roll-ms", type=int, default=1200, help="Extra time after the last aligned word before closing an utterance")
     parser.add_argument("--inter-utterance-gap-ms", type=int, default=350, help="Gap between utterances in continuous playback")
     parser.add_argument("--max-history", type=int, default=500, help="How many completed utterances and drop events to keep in memory")
@@ -201,6 +222,7 @@ class UtteranceState:
     last_visible_change_ts_ms: int | None = None
     last_signature: str = ""
     drop_open: dict[str, Any] | None = None
+    active_drop_incident_id: str | None = None
 
 
 @dataclass
@@ -307,14 +329,96 @@ def load_cached_rows(output_dir: Path) -> dict[int, dict[str, Any]]:
     return cached_rows
 
 
+def load_incident_config(path: Path) -> dict[str, dict[str, Any]]:
+    config = {key: dict(value) for key, value in DEFAULT_INCIDENT_CONFIG.items()}
+    if path.exists():
+        with path.open("rb") as handle:
+            payload = tomllib.load(handle)
+        incidents = payload.get("incidents") or {}
+        for incident_type, incident_payload in incidents.items():
+            if incident_type not in config:
+                config[incident_type] = {}
+            config[incident_type].update(incident_payload)
+
+    for incident_type, incident_config in config.items():
+        incident_config.setdefault("name", incident_type.replace("_", " ").title())
+        incident_config.setdefault("enabled", True)
+        incident_config.setdefault("incident_threshold_ms", 0)
+        incident_config.setdefault("alert_threshold_ms", 0)
+        if incident_type == "high_average_latency":
+            incident_config.setdefault("window_size", 10)
+            incident_config.setdefault("resolve_threshold_ms", incident_config["incident_threshold_ms"])
+    return config
+
+
+def load_incident_history(output_dir: Path, max_history: int) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    incidents_path = output_dir / "incidents.ndjson"
+    alerts_path = output_dir / "alerts.ndjson"
+
+    completed_incidents: list[dict[str, Any]] = []
+    ongoing_incidents: dict[str, dict[str, Any]] = {}
+    alerts: list[dict[str, Any]] = []
+
+    if incidents_path.exists():
+        for line in incidents_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            incident_id = payload.get("incident_id")
+            event = payload.get("event")
+            if not incident_id or not event:
+                continue
+            if event == "incident_started":
+                ongoing_incidents[incident_id] = {
+                    **payload,
+                    "status": "ongoing",
+                    "alerted_at_ms": payload.get("alerted_at_ms"),
+                }
+            elif event == "incident_ended":
+                started = ongoing_incidents.pop(incident_id, None)
+                if started is not None:
+                    completed_incidents.append({**started, **payload, "status": "ended"})
+                else:
+                    completed_incidents.append({**payload, "status": "ended"})
+
+    if alerts_path.exists():
+        for line in alerts_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                alerts.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    alert_by_incident_id = {alert.get("incident_id"): alert for alert in alerts if alert.get("incident_id")}
+    for incident_id, incident in ongoing_incidents.items():
+        alert = alert_by_incident_id.get(incident_id)
+        if alert is not None:
+            incident["alerted_at_ms"] = alert.get("alerted_at_ms")
+    for incident in completed_incidents:
+        alert = alert_by_incident_id.get(incident.get("incident_id"))
+        if alert is not None:
+            incident["alerted_at_ms"] = alert.get("alerted_at_ms")
+
+    return (
+        trim_history(completed_incidents, max_history),
+        ongoing_incidents,
+        trim_history(alerts, max_history),
+    )
+
+
 class MonitorState:
-    def __init__(self, output_dir: Path, max_history: int, dataset: str, split: str) -> None:
+    def __init__(self, output_dir: Path, max_history: int, dataset: str, split: str, incident_config: dict[str, dict[str, Any]]) -> None:
         self.output_dir = output_dir
         self.max_history = max_history
         self.lock = threading.Lock()
         self.started_at_ms = int(time.time() * 1000)
         self.dataset = dataset
         self.split = split
+        self.incident_config = incident_config
         self.status = "starting"
         self.status_detail = "booting"
         self.last_error: str | None = None
@@ -334,6 +438,7 @@ class MonitorState:
         self.maestro_word_delay_points: list[dict[str, Any]] = []
         self.maestro_true_word_delay_points: list[dict[str, Any]] = []
         self.drop_events: list[dict[str, Any]] = []
+        self.completed_incidents, self.ongoing_incidents, self.alerts = load_incident_history(output_dir, max_history)
         self.last_events: list[dict[str, Any]] = []
 
     def append_event(self, kind: str, payload: dict[str, Any]) -> None:
@@ -341,6 +446,105 @@ class MonitorState:
         self.last_events.append(event)
         self.last_events = trim_history(self.last_events, 100)
         write_ndjson(self.output_dir / "monitor_events.ndjson", event)
+
+    def build_incident_id(self, incident_type: str, started_at_ms: int, dataset_row_idx: int | None = None) -> str:
+        suffix = f":row{dataset_row_idx}" if dataset_row_idx is not None else ""
+        return f"{incident_type}:{started_at_ms}{suffix}"
+
+    def get_incident_rule(self, incident_type: str) -> dict[str, Any]:
+        return self.incident_config.get(incident_type, {"name": incident_type, "enabled": False, "incident_threshold_ms": 0, "alert_threshold_ms": 0})
+
+    def find_ongoing_incident_by_type(self, incident_type: str) -> dict[str, Any] | None:
+        for incident in self.ongoing_incidents.values():
+            if incident.get("incident_type") == incident_type:
+                return incident
+        return None
+
+    def start_incident(
+        self,
+        incident_type: str,
+        started_at_ms: int,
+        details: dict[str, Any],
+    ) -> str | None:
+        incident_rule = self.get_incident_rule(incident_type)
+        if not incident_rule.get("enabled", True):
+            return None
+
+        incident_id = self.build_incident_id(incident_type, started_at_ms, details.get("dataset_row_idx"))
+        if incident_id in self.ongoing_incidents:
+            return incident_id
+
+        incident = {
+            "incident_id": incident_id,
+            "incident_type": incident_type,
+            "incident_name": incident_rule.get("name", incident_type),
+            "event": "incident_started",
+            "status": "ongoing",
+            "started_at_ms": started_at_ms,
+            "incident_threshold_ms": int(incident_rule.get("incident_threshold_ms", 0)),
+            "alert_threshold_ms": int(incident_rule.get("alert_threshold_ms", 0)),
+            "alerted_at_ms": None,
+            **details,
+        }
+        self.ongoing_incidents[incident_id] = incident
+        write_ndjson(self.output_dir / "incidents.ndjson", incident)
+        self.append_event("incident_started", incident)
+        return incident_id
+
+    def maybe_alert_incident(self, incident_id: str, now_ms: int) -> dict[str, Any] | None:
+        incident = self.ongoing_incidents.get(incident_id)
+        if incident is None or incident.get("alerted_at_ms") is not None:
+            return None
+
+        started_at_ms = int(incident["started_at_ms"])
+        alert_threshold_ms = int(incident["alert_threshold_ms"])
+        if now_ms - started_at_ms < alert_threshold_ms:
+            return None
+
+        alert = {
+            "alert_id": f"alert:{incident_id}",
+            "incident_id": incident_id,
+            "incident_type": incident["incident_type"],
+            "incident_name": incident.get("incident_name", incident["incident_type"]),
+            "status": "pending_dispatch",
+            "started_at_ms": started_at_ms,
+            "alerted_at_ms": now_ms,
+            "duration_ms": now_ms - started_at_ms,
+            "alert_threshold_ms": alert_threshold_ms,
+            "dataset_row_idx": incident.get("dataset_row_idx"),
+            "utterance_text": incident.get("utterance_text"),
+            "reason": incident.get("reason"),
+        }
+        incident["alerted_at_ms"] = now_ms
+        self.alerts.append(alert)
+        self.alerts = trim_history(self.alerts, self.max_history)
+        write_ndjson(self.output_dir / "alerts.ndjson", alert)
+        self.append_event("incident_alerted", alert)
+        return alert
+
+    def end_incident(self, incident_id: str, ended_at_ms: int, details: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        incident = self.ongoing_incidents.pop(incident_id, None)
+        if incident is None:
+            return None
+
+        ended = {
+            **incident,
+            "event": "incident_ended",
+            "status": "ended",
+            "ended_at_ms": ended_at_ms,
+            "duration_ms": ended_at_ms - int(incident["started_at_ms"]),
+            **(details or {}),
+        }
+        self.completed_incidents.append(ended)
+        self.completed_incidents = trim_history(self.completed_incidents, self.max_history)
+        write_ndjson(self.output_dir / "incidents.ndjson", ended)
+        self.append_event("incident_ended", ended)
+        return ended
+
+    def append_drop_event(self, drop: dict[str, Any]) -> None:
+        self.drop_events.append(drop)
+        self.drop_events = trim_history(self.drop_events, self.max_history)
+        self.append_event("drop_event", drop)
 
     def serialize_utterance(self, utterance: UtteranceState | None) -> dict[str, Any] | None:
         if utterance is None:
@@ -379,6 +583,19 @@ class MonitorState:
 
     def snapshot(self) -> dict[str, Any]:
         with self.lock:
+            now_ms = int(time.time() * 1000)
+            ongoing_incidents = []
+            for incident in self.ongoing_incidents.values():
+                started_at_ms = int(incident["started_at_ms"])
+                alerted_at_ms = incident.get("alerted_at_ms")
+                ongoing_incidents.append(
+                    {
+                        **incident,
+                        "current_duration_ms": now_ms - started_at_ms,
+                        "time_to_alert_ms": None if alerted_at_ms else max(0, int(incident["alert_threshold_ms"]) - (now_ms - started_at_ms)),
+                    }
+                )
+            ongoing_incidents.sort(key=lambda item: item["started_at_ms"])
             return {
                 "started_at_ms": self.started_at_ms,
                 "dataset": self.dataset,
@@ -402,6 +619,9 @@ class MonitorState:
                 "maestro_word_delay_points": list(self.maestro_word_delay_points),
                 "maestro_true_word_delay_points": list(self.maestro_true_word_delay_points),
                 "drop_events": list(self.drop_events),
+                "ongoing_incidents": ongoing_incidents,
+                "completed_incidents": list(self.completed_incidents),
+                "alerts": list(self.alerts),
                 "last_events": list(self.last_events),
             }
 
@@ -648,18 +868,36 @@ class MonitorWorker:
         )
 
     def finalize_utterance(self, utterance: UtteranceState, now_ms: int) -> None:
-        if utterance.drop_open is not None:
+        drop_rule = self.state.get_incident_rule("drop_event")
+        drop_threshold_ms = int(drop_rule.get("incident_threshold_ms", 0))
+        if utterance.active_drop_incident_id is not None:
+            ended_incident = self.state.end_incident(
+                utterance.active_drop_incident_id,
+                now_ms,
+                {"reason": "utterance_finished"},
+            )
+            utterance.active_drop_incident_id = None
+            if ended_incident is not None:
+                self.state.append_drop_event(
+                    {
+                        "incident_id": ended_incident["incident_id"],
+                        "dataset_row_idx": ended_incident.get("dataset_row_idx"),
+                        "started_at_ms": ended_incident["started_at_ms"],
+                        "ended_at_ms": ended_incident["ended_at_ms"],
+                        "duration_ms": ended_incident["duration_ms"],
+                    }
+                )
+        elif utterance.drop_open is not None:
             duration_ms = now_ms - int(utterance.drop_open["started_at_ms"])
-            if duration_ms >= self.args.drop_threshold_ms:
-                drop = {
-                    "dataset_row_idx": utterance.dataset_row_idx,
-                    "started_at_ms": int(utterance.drop_open["started_at_ms"]),
-                    "ended_at_ms": now_ms,
-                    "duration_ms": duration_ms,
-                }
-                self.state.drop_events.append(drop)
-                self.state.drop_events = trim_history(self.state.drop_events, self.state.max_history)
-                self.state.append_event("drop_event", drop)
+            if duration_ms >= drop_threshold_ms:
+                self.state.append_drop_event(
+                    {
+                        "dataset_row_idx": utterance.dataset_row_idx,
+                        "started_at_ms": int(utterance.drop_open["started_at_ms"]),
+                        "ended_at_ms": now_ms,
+                        "duration_ms": duration_ms,
+                    }
+                )
 
         rn_delays = [word.rn_visible_delay_ms for word in utterance.words if word.rn_visible_delay_ms is not None]
         rn_true_delays = [word.rn_true_visible_delay_ms for word in utterance.words if word.rn_true_visible_delay_ms is not None]
@@ -698,8 +936,30 @@ class MonitorWorker:
         self.next_start_ts_ms = now_ms + self.args.inter_utterance_gap_ms
 
     def update_drop_tracking(self, utterance: UtteranceState, now_ms: int, normalized_lines: list[str]) -> None:
+        drop_rule = self.state.get_incident_rule("drop_event")
+        drop_threshold_ms = int(drop_rule.get("incident_threshold_ms", 0))
+        if not drop_rule.get("enabled", True):
+            return
+
         signature = "|".join(normalized_lines)
         if signature != utterance.last_signature:
+            if utterance.active_drop_incident_id is not None:
+                ended_incident = self.state.end_incident(
+                    utterance.active_drop_incident_id,
+                    now_ms,
+                    {"reason": "visible_lines_changed"},
+                )
+                utterance.active_drop_incident_id = None
+                if ended_incident is not None:
+                    self.state.append_drop_event(
+                        {
+                            "incident_id": ended_incident["incident_id"],
+                            "dataset_row_idx": ended_incident.get("dataset_row_idx"),
+                            "started_at_ms": ended_incident["started_at_ms"],
+                            "ended_at_ms": ended_incident["ended_at_ms"],
+                            "duration_ms": ended_incident["duration_ms"],
+                        }
+                    )
             utterance.last_signature = signature
             utterance.last_visible_change_ts_ms = now_ms
             utterance.drop_open = None
@@ -710,7 +970,7 @@ class MonitorWorker:
         if utterance.first_visible_activity_ts_ms is None or utterance.last_visible_change_ts_ms is None:
             return
 
-        if now_ms - utterance.last_visible_change_ts_ms < self.args.drop_threshold_ms:
+        if now_ms - utterance.last_visible_change_ts_ms < drop_threshold_ms:
             return
 
         if utterance.drop_open is None:
@@ -718,6 +978,81 @@ class MonitorWorker:
                 "dataset_row_idx": utterance.dataset_row_idx,
                 "started_at_ms": utterance.last_visible_change_ts_ms,
             }
+
+        if utterance.active_drop_incident_id is None:
+            utterance.active_drop_incident_id = self.state.start_incident(
+                "drop_event",
+                int(utterance.drop_open["started_at_ms"]),
+                {
+                    "dataset_row_idx": utterance.dataset_row_idx,
+                    "utterance_text": utterance.text,
+                    "reason": "visible_lines_stalled",
+                },
+            )
+
+        if utterance.active_drop_incident_id is not None:
+            self.state.maybe_alert_incident(utterance.active_drop_incident_id, now_ms)
+
+    def evaluate_high_average_latency_incident(self, now_ms: int) -> None:
+        incident_rule = self.state.get_incident_rule("high_average_latency")
+        ongoing_incident = self.state.find_ongoing_incident_by_type("high_average_latency")
+
+        if not incident_rule.get("enabled", True):
+            if ongoing_incident is not None:
+                self.state.end_incident(ongoing_incident["incident_id"], now_ms, {"reason": "incident_disabled"})
+            return
+
+        window_size = max(1, int(incident_rule.get("window_size", 10)))
+        points = self.state.logcat_true_word_delay_points[-window_size:]
+        if len(points) < window_size:
+            return
+
+        average_delay_ms = int(sum(int(point["delay_ms"]) for point in points) / len(points))
+        threshold_ms = int(incident_rule.get("incident_threshold_ms", 0))
+        resolve_threshold_ms = int(incident_rule.get("resolve_threshold_ms", threshold_ms))
+
+        if ongoing_incident is not None:
+            ongoing_incident.update(
+                {
+                    "current_average_delay_ms": average_delay_ms,
+                    "window_size": window_size,
+                    "last_point_ts_ms": points[-1]["ts_ms"],
+                }
+            )
+
+        if average_delay_ms >= threshold_ms:
+            incident_id = ongoing_incident["incident_id"] if ongoing_incident is not None else self.state.start_incident(
+                "high_average_latency",
+                now_ms,
+                {
+                    "current_average_delay_ms": average_delay_ms,
+                    "window_size": window_size,
+                    "last_point_ts_ms": points[-1]["ts_ms"],
+                    "reason": "moving_average_above_threshold",
+                },
+            )
+            if incident_id is not None:
+                active_incident = self.state.ongoing_incidents.get(incident_id)
+                if active_incident is not None:
+                    active_incident.update(
+                        {
+                            "current_average_delay_ms": average_delay_ms,
+                            "window_size": window_size,
+                            "last_point_ts_ms": points[-1]["ts_ms"],
+                        }
+                    )
+                self.state.maybe_alert_incident(incident_id, now_ms)
+            return
+
+        if ongoing_incident is not None and average_delay_ms < resolve_threshold_ms:
+            self.state.end_incident(
+                ongoing_incident["incident_id"],
+                now_ms,
+                {
+                    "reason": "moving_average_recovered",
+                    "recovered_average_delay_ms": average_delay_ms,
+                },
+            )
 
     def maybe_record_word_matches(
         self,
@@ -1018,9 +1353,12 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro_true", min_run_length=1)
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro")
                         self.update_drop_tracking(utterance, now_ms, normalized_lines)
+                        self.evaluate_high_average_latency_incident(now_ms)
                         if now_ms >= utterance.end_ts_ms:
                             self.finalize_utterance(utterance, now_ms)
 
+                    for incident_id in list(self.state.ongoing_incidents):
+                        self.state.maybe_alert_incident(incident_id, now_ms)
                     self.state.last_error = None
             except Exception as exc:
                 with self.state.lock:
@@ -1079,6 +1417,8 @@ HTML_PAGE = """<!doctype html>
       <div class="card"><div class="label">Mirror Visible</div><div id="mirror" class="value">-</div><div id="snapshotAge" class="small"></div></div>
       <div class="card"><div class="label">Current Row</div><div id="rowIdx" class="value">-</div><div id="wordProgress" class="small"></div></div>
       <div class="card"><div class="label">Drop Events &gt; 5s</div><div id="dropCount" class="value">0</div><div class="small">Across all utterances</div></div>
+      <div class="card"><div class="label">Ongoing Incidents</div><div id="ongoingIncidentCount" class="value">0</div><div class="small">Currently active</div></div>
+      <div class="card"><div class="label">Alerts Raised</div><div id="alertCount" class="value">0</div><div class="small">Written to alerts.ndjson</div></div>
     </div>
 
     <div class="grid">
@@ -1101,6 +1441,17 @@ HTML_PAGE = """<!doctype html>
       <div class="card">
         <h2>Source Ages</h2>
         <div id="sourceAges" class="small lines"></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card wide">
+        <h2>Ongoing Incidents</h2>
+        <table id="incidentTable"><thead><tr><th>Type</th><th>Started</th><th>Duration</th><th>Alert</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card wide">
+        <h2>Recent Alerts</h2>
+        <table id="alertTable"><thead><tr><th>Type</th><th>Alerted</th><th>Duration</th><th>Status</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -1135,6 +1486,14 @@ HTML_PAGE = """<!doctype html>
     function fmtMs(ms) {
       if (ms === null || ms === undefined) return '-';
       return `${Math.round(ms)} ms`;
+    }
+    function fmtDuration(ms) {
+      if (ms === null || ms === undefined) return '-';
+      const seconds = ms / 1000;
+      if (seconds < 60) return `${seconds.toFixed(1)}s`;
+      const minutes = Math.floor(seconds / 60);
+      const remSeconds = Math.round(seconds % 60);
+      return `${minutes}m ${remSeconds}s`;
     }
     function ageFrom(ms) {
       if (!ms) return '-';
@@ -1254,6 +1613,8 @@ HTML_PAGE = """<!doctype html>
       document.getElementById('rowIdx').textContent = state.current_utterance ? `#${state.current_utterance.dataset_row_idx}` : '-';
       document.getElementById('wordProgress').textContent = state.current_utterance ? `RN ${state.current_utterance.rn_matched_word_count}/${state.current_utterance.word_count}, Maestro ${state.current_utterance.maestro_matched_word_count}/${state.current_utterance.word_count}` : 'Waiting for utterance';
       document.getElementById('dropCount').textContent = String(state.drop_events.length);
+      document.getElementById('ongoingIncidentCount').textContent = String(state.ongoing_incidents.length);
+      document.getElementById('alertCount').textContent = String(state.alerts.length);
       document.getElementById('liveClock').textContent = fmtTs(Date.now());
       document.getElementById('liveClockMs').textContent = fmtTsWithMs(Date.now());
       document.getElementById('logcatVisibleLines').textContent = state.logcat_visible_lines.length ? state.logcat_visible_lines.join('\\n') : '(no logcat event yet)';
@@ -1276,6 +1637,19 @@ HTML_PAGE = """<!doctype html>
         `<tr><td>${point.word_text} <span class="small">(${point.source})</span></td><td>${fmtMs(point.delay_ms)}</td><td>${fmtTs(point.expected_ts_ms)}</td><td>${fmtTs(point.ts_ms)}</td></tr>`
       );
       fillRows('wordTable', recentWords, 4);
+
+      const ongoingIncidents = state.ongoing_incidents.slice().reverse().map((incident) => {
+        const alertLabel = incident.alerted_at_ms
+          ? `Alerted at ${fmtTs(incident.alerted_at_ms)}`
+          : `In ${fmtDuration(incident.time_to_alert_ms)}`;
+        return `<tr><td>${incident.incident_name || incident.incident_type}</td><td>${fmtTs(incident.started_at_ms)}</td><td>${fmtDuration(incident.current_duration_ms)}</td><td>${alertLabel}</td></tr>`;
+      });
+      fillRows('incidentTable', ongoingIncidents, 4);
+
+      const recentAlerts = state.alerts.slice().reverse().map((alert) =>
+        `<tr><td>${alert.incident_name || alert.incident_type}</td><td>${fmtTs(alert.alerted_at_ms)}</td><td>${fmtDuration(alert.duration_ms)}</td><td>${alert.status}</td></tr>`
+      );
+      fillRows('alertTable', recentAlerts, 4);
 
       const recentUtterances = state.completed_utterances.slice().reverse().map((item) =>
         `<tr><td>${item.dataset_row_idx}</td><td>${fmtMs(item.average_logcat_true_delay_ms)}</td></tr>`
@@ -1331,8 +1705,10 @@ def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    incident_config_path = Path(args.incident_config_path)
+    incident_config = load_incident_config(incident_config_path)
 
-    state = MonitorState(output_dir=output_dir, max_history=args.max_history, dataset=args.dataset, split=args.split)
+    state = MonitorState(output_dir=output_dir, max_history=args.max_history, dataset=args.dataset, split=args.split, incident_config=incident_config)
     cached_rows = load_cached_rows(output_dir)
     cursor = DatasetCursor(dataset=args.dataset, config=args.config, split=args.split, page_size=args.page_size, cached_rows=cached_rows)
     worker = MonitorWorker(args=args, state=state, cursor=cursor)
@@ -1357,6 +1733,7 @@ def main() -> int:
 
     print(f"Dashboard: http://127.0.0.1:{args.port}")
     print(f"Output dir: {output_dir}")
+    print(f"Incident config: {incident_config_path}")
     print(f"Dataset: {args.dataset} ({args.split})")
     print("Press Ctrl-C to stop.")
 

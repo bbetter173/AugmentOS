@@ -170,6 +170,31 @@ curl -A 'Mozilla/5.0' https://captions.smartglasses.art
 - The dashboard now uses Plotly for chart interaction.
 - The chart is intended for incident review as well as live monitoring, so older windows can be inspected from the UI.
 
+## Incident Config
+
+Incident thresholds now live in:
+
+- [incident_config.toml](/Users/philippe/dev/MentraOS-philippe-OS-1274-e2e-testing-checklist/mobile/e2e-tests/incident_config.toml)
+
+This file defines per-incident names and thresholds. Current examples:
+
+- `drop_event`
+- `high_average_latency`
+
+Each incident can have its own:
+
+- `name`
+- `enabled`
+- `incident_threshold_ms`
+- `alert_threshold_ms`
+
+Some incident types can also use extra fields. For example, `high_average_latency` uses:
+
+- `window_size`
+- `resolve_threshold_ms`
+
+The monitor reads this file at startup.
+
 ## Running it
 
 ### 1. Start the local captions mini app backend (optional, can instead use the deployed com.mentra.captions)
@@ -201,8 +226,7 @@ From the MentraOS repo:
 cd mobile/e2e-tests
 python3 scripts/live_word_monitor.py \
   --output-dir results \
-  --port 8765 \
-  --audio-output-device "External Headphones"
+  --port 8765
 ```
 
 Open:

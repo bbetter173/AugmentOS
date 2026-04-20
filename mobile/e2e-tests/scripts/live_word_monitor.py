@@ -39,6 +39,12 @@ DEFAULT_INCIDENT_CONFIG = {
         "incident_threshold_ms": 0,
         "alert_threshold_ms": 15000,
     },
+    "app_not_foreground": {
+        "name": "MentraOS Not Foreground",
+        "enabled": True,
+        "incident_threshold_ms": 0,
+        "alert_threshold_ms": 15000,
+    },
     "high_average_latency": {
         "name": "High Average Latency",
         "enabled": True,
@@ -850,6 +856,10 @@ class MonitorWorker:
         self.last_audio_output_check_ts_ms = 0
         self.last_audio_output_device_name: str | None = None
         self.last_audio_output_check_error: str | None = None
+        self.last_foreground_app_check_ts_ms = 0
+        self.last_is_app_foreground: bool | None = None
+        self.last_foreground_app_check_error: str | None = None
+        self.last_foreground_focus: str | None = None
 
     @property
     def adb_prefix(self) -> list[str]:
@@ -1377,6 +1387,124 @@ class MonitorWorker:
                 },
             )
 
+    def get_foreground_app_probe(
+        self,
+        now_ms: int,
+        refresh_interval_ms: int = 2000,
+    ) -> tuple[bool | None, str | None, str | None]:
+        if self.last_foreground_app_check_ts_ms and now_ms - self.last_foreground_app_check_ts_ms < refresh_interval_ms:
+            return (
+                self.last_is_app_foreground,
+                self.last_foreground_focus,
+                self.last_foreground_app_check_error,
+            )
+
+        focused_app: str | None = None
+        probe_error: str | None = None
+        is_app_foreground: bool | None = None
+        try:
+            focus_result = subprocess.run(
+                [*self.adb_prefix, "shell", "dumpsys", "window"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            for line in focus_result.stdout.splitlines():
+                if "mCurrentFocus=" in line:
+                    focused_app = line.strip()
+                    break
+            is_app_foreground = bool(
+                focused_app
+                and "com.mentra.mentra" in focused_app
+                and "MainActivity" in focused_app
+            )
+        except Exception as exc:
+            probe_error = str(exc)
+            is_app_foreground = None
+
+        self.last_foreground_app_check_ts_ms = now_ms
+        self.last_is_app_foreground = is_app_foreground
+        self.last_foreground_focus = focused_app
+        self.last_foreground_app_check_error = probe_error
+        return is_app_foreground, focused_app, probe_error
+
+    def evaluate_app_not_foreground_incident(self, now_ms: int) -> None:
+        incident_type = "app_not_foreground"
+        incident_rule = self.state.get_incident_rule(incident_type)
+        ongoing_incident = self.state.find_ongoing_incident_by_type(incident_type)
+
+        if not incident_rule.get("enabled", True):
+            if ongoing_incident is not None:
+                self.state.end_incident(
+                    ongoing_incident["incident_id"],
+                    now_ms,
+                    {
+                        "reason": "incident_disabled",
+                    },
+                )
+            return
+
+        is_app_foreground, current_focus, probe_error = self.get_foreground_app_probe(now_ms)
+        details = {
+            "current_focus": current_focus,
+            "expected_package": "com.mentra.mentra",
+            "expected_activity": "MainActivity",
+        }
+
+        if probe_error is not None:
+            incident_id = ongoing_incident["incident_id"] if ongoing_incident is not None else self.state.start_incident(
+                incident_type,
+                now_ms,
+                {
+                    **details,
+                    "reason": "foreground_probe_failed",
+                    "probe_error": probe_error,
+                },
+            )
+            if incident_id is not None:
+                active_incident = self.state.ongoing_incidents.get(incident_id)
+                if active_incident is not None:
+                    active_incident.update(
+                        {
+                            **details,
+                            "reason": "foreground_probe_failed",
+                            "probe_error": probe_error,
+                        }
+                    )
+                self.maybe_alert_and_dispatch(incident_id, now_ms)
+            return
+
+        if not is_app_foreground:
+            incident_id = ongoing_incident["incident_id"] if ongoing_incident is not None else self.state.start_incident(
+                incident_type,
+                now_ms,
+                {
+                    **details,
+                    "reason": "mentraos_not_foreground",
+                },
+            )
+            if incident_id is not None:
+                active_incident = self.state.ongoing_incidents.get(incident_id)
+                if active_incident is not None:
+                    active_incident.update(
+                        {
+                            **details,
+                            "reason": "mentraos_not_foreground",
+                        }
+                    )
+                self.maybe_alert_and_dispatch(incident_id, now_ms)
+            return
+
+        if ongoing_incident is not None:
+            self.state.end_incident(
+                ongoing_incident["incident_id"],
+                now_ms,
+                {
+                    **details,
+                    "reason": "mentraos_foreground_restored",
+                },
+            )
+
     def maybe_record_word_matches(
         self,
         utterance: UtteranceState,
@@ -1695,12 +1823,14 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                             self.state.status = "between_utterances"
                             self.state.status_detail = "waiting for next utterance"
                         self.evaluate_audio_output_device_incident(now_ms)
+                        self.evaluate_app_not_foreground_incident(now_ms)
                     else:
                         if self.use_maestro_stream:
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro_true", min_run_length=1)
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro")
                         self.evaluate_high_average_latency_incident(now_ms)
                         self.evaluate_audio_output_device_incident(now_ms)
+                        self.evaluate_app_not_foreground_incident(now_ms)
                         if now_ms >= utterance.end_ts_ms:
                             self.finalize_utterance(utterance, now_ms)
 

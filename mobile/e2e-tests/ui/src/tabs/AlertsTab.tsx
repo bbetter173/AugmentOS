@@ -1,12 +1,14 @@
-import {EmptyState} from '../components/EmptyState';
-import {SectionCard} from '../components/SectionCard';
-import type {MonitorSnapshot} from '../types';
-import {formatClock, formatDuration} from '../utils';
+import {EmptyState} from "../components/EmptyState"
+import {SectionCard} from "../components/SectionCard"
+import type {MonitorSnapshot} from "../types"
+import {formatClock, formatDuration} from "../utils"
 
 export function AlertsTab({snapshot}: {snapshot: MonitorSnapshot}) {
   return (
     <div className="tab-layout">
-      <SectionCard title="Alert History" subtitle="One row per alert threshold crossing, with dispatch and bug-report status">
+      <SectionCard
+        title="Alert History"
+        subtitle="One row per alert threshold crossing, with dispatch and bug-report status">
         {snapshot.alerts.length ? (
           <table className="data-table">
             <thead>
@@ -28,14 +30,14 @@ export function AlertsTab({snapshot}: {snapshot: MonitorSnapshot}) {
                     <td>{formatClock(alert.alerted_at_ms)}</td>
                     <td>{formatDuration(alert.duration_ms)}</td>
                     <td>{alert.status}</td>
-                    <td>{alert.report_state || '-'}</td>
+                    <td>{alert.report_state || "-"}</td>
                     <td>
                       {alert.reported_incident_url ? (
                         <a href={alert.reported_incident_url} target="_blank" rel="noreferrer">
-                          {alert.reported_incident_id || 'Open'}
+                          {alert.reported_incident_id || "Open"}
                         </a>
                       ) : (
-                        alert.report_error || alert.report_reason || '-'
+                        alert.report_error || alert.report_reason || "-"
                       )}
                     </td>
                   </tr>
@@ -43,9 +45,12 @@ export function AlertsTab({snapshot}: {snapshot: MonitorSnapshot}) {
             </tbody>
           </table>
         ) : (
-          <EmptyState title="No alerts yet" detail="Alerts will show up here after an incident stays open past its alert threshold." />
+          <EmptyState
+            title="No alerts yet"
+            detail="Alerts will show up here after an incident stays open past its alert threshold."
+          />
         )}
       </SectionCard>
     </div>
-  );
+  )
 }

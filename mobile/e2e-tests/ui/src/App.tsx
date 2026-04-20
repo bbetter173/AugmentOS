@@ -1,77 +1,77 @@
-import * as Tabs from '@radix-ui/react-tabs';
-import {lazy, startTransition, Suspense, useEffect, useMemo, useState} from 'react';
+import * as Tabs from "@radix-ui/react-tabs"
+import {lazy, startTransition, Suspense, useEffect, useMemo, useState} from "react"
 
-import {EmptyState} from './components/EmptyState';
-import {StatusBadge} from './components/StatusBadge';
-import type {MonitorSnapshot} from './types';
-import {formatAge} from './utils';
+import {EmptyState} from "./components/EmptyState"
+import {StatusBadge} from "./components/StatusBadge"
+import type {MonitorSnapshot} from "./types"
+import {formatAge} from "./utils"
 
-const OverviewTab = lazy(() => import('./tabs/OverviewTab').then((module) => ({default: module.OverviewTab})));
-const IncidentsTab = lazy(() => import('./tabs/IncidentsTab').then((module) => ({default: module.IncidentsTab})));
-const AlertsTab = lazy(() => import('./tabs/AlertsTab').then((module) => ({default: module.AlertsTab})));
-const LatencyTab = lazy(() => import('./tabs/LatencyTab').then((module) => ({default: module.LatencyTab})));
-const DebugTab = lazy(() => import('./tabs/DebugTab').then((module) => ({default: module.DebugTab})));
+const OverviewTab = lazy(() => import("./tabs/OverviewTab").then((module) => ({default: module.OverviewTab})))
+const IncidentsTab = lazy(() => import("./tabs/IncidentsTab").then((module) => ({default: module.IncidentsTab})))
+const AlertsTab = lazy(() => import("./tabs/AlertsTab").then((module) => ({default: module.AlertsTab})))
+const LatencyTab = lazy(() => import("./tabs/LatencyTab").then((module) => ({default: module.LatencyTab})))
+const DebugTab = lazy(() => import("./tabs/DebugTab").then((module) => ({default: module.DebugTab})))
 
-const POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 1000
 const TAB_OPTIONS = [
-  {value: 'overview', label: 'Overview'},
-  {value: 'incidents', label: 'Incidents'},
-  {value: 'alerts', label: 'Alerts'},
-  {value: 'latency', label: 'Latency'},
-  {value: 'debug', label: 'Debug'},
-] as const;
+  {value: "overview", label: "Overview"},
+  {value: "incidents", label: "Incidents"},
+  {value: "alerts", label: "Alerts"},
+  {value: "latency", label: "Latency"},
+  {value: "debug", label: "Debug"},
+] as const
 
-type TabValue = (typeof TAB_OPTIONS)[number]['value'];
+type TabValue = (typeof TAB_OPTIONS)[number]["value"]
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabValue>('overview');
-  const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabValue>("overview")
+  const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
 
     const refresh = async () => {
       try {
-        const response = await fetch('/state', {cache: 'no-store'});
+        const response = await fetch("/state", {cache: "no-store"})
         if (!response.ok) {
-          throw new Error(`State request failed with ${response.status}`);
+          throw new Error(`State request failed with ${response.status}`)
         }
-        const nextSnapshot = (await response.json()) as MonitorSnapshot;
+        const nextSnapshot = (await response.json()) as MonitorSnapshot
         if (cancelled) {
-          return;
+          return
         }
         startTransition(() => {
-          setSnapshot(nextSnapshot);
-          setErrorMessage(null);
-        });
+          setSnapshot(nextSnapshot)
+          setErrorMessage(null)
+        })
       } catch (error) {
         if (cancelled) {
-          return;
+          return
         }
-        setErrorMessage(error instanceof Error ? error.message : String(error));
+        setErrorMessage(error instanceof Error ? error.message : String(error))
       }
-    };
+    }
 
-    void refresh();
+    void refresh()
     const intervalId = window.setInterval(() => {
-      void refresh();
-    }, POLL_INTERVAL_MS);
+      void refresh()
+    }, POLL_INTERVAL_MS)
 
     return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, []);
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [])
 
   const headline = useMemo(() => {
     if (!snapshot) {
-      return 'Booting live monitor dashboard';
+      return "Booting live monitor dashboard"
     }
     return snapshot.ongoing_incidents.length
-      ? `${snapshot.ongoing_incidents.length} active incident${snapshot.ongoing_incidents.length === 1 ? '' : 's'}`
-      : 'No active incidents';
-  }, [snapshot]);
+      ? `${snapshot.ongoing_incidents.length} active incident${snapshot.ongoing_incidents.length === 1 ? "" : "s"}`
+      : "No active incidents"
+  }, [snapshot])
 
   return (
     <div className="app-shell">
@@ -80,21 +80,21 @@ export default function App() {
           <div className="eyebrow">MentraOS Captions Monitor</div>
           <h1>Live incident review without the old one-page wall of tables.</h1>
           <p>
-            The dashboard is now organized around what you actually need while testing: current health, incident lifecycle,
-            alert outcomes, latency behavior, and a smaller debug surface.
+            The dashboard is now organized around what you actually need while testing: current health, incident
+            lifecycle, alert outcomes, latency behavior, and a smaller debug surface.
           </p>
         </div>
         <div className="hero-status">
-          <div className="hero-pill">{snapshot ? <StatusBadge status={snapshot.status} /> : 'Loading…'}</div>
+          <div className="hero-pill">{snapshot ? <StatusBadge status={snapshot.status} /> : "Loading…"}</div>
           <strong>{headline}</strong>
-          <span>{snapshot ? `Logcat ${formatAge(snapshot.last_logcat_event_ts_ms)}` : 'Waiting for /state'}</span>
+          <span>{snapshot ? `Logcat ${formatAge(snapshot.last_logcat_event_ts_ms)}` : "Waiting for /state"}</span>
           {errorMessage ? <span className="hero-error">{errorMessage}</span> : null}
         </div>
       </div>
 
       {!snapshot ? (
         <div className="loading-shell">
-          <EmptyState title="Loading live monitor state" detail={errorMessage || 'Polling /state once per second.'} />
+          <EmptyState title="Loading live monitor state" detail={errorMessage || "Polling /state once per second."} />
         </div>
       ) : (
         <Tabs.Root className="tabs-root" value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
@@ -109,16 +109,16 @@ export default function App() {
           {TAB_OPTIONS.map((tab) => (
             <Tabs.Content key={tab.value} className="tab-content" value={tab.value}>
               <Suspense fallback={<div className="panel-loading">Loading {tab.label.toLowerCase()}…</div>}>
-                {tab.value === 'overview' ? <OverviewTab snapshot={snapshot} /> : null}
-                {tab.value === 'incidents' ? <IncidentsTab snapshot={snapshot} /> : null}
-                {tab.value === 'alerts' ? <AlertsTab snapshot={snapshot} /> : null}
-                {tab.value === 'latency' ? <LatencyTab snapshot={snapshot} /> : null}
-                {tab.value === 'debug' ? <DebugTab snapshot={snapshot} /> : null}
+                {tab.value === "overview" ? <OverviewTab snapshot={snapshot} /> : null}
+                {tab.value === "incidents" ? <IncidentsTab snapshot={snapshot} /> : null}
+                {tab.value === "alerts" ? <AlertsTab snapshot={snapshot} /> : null}
+                {tab.value === "latency" ? <LatencyTab snapshot={snapshot} /> : null}
+                {tab.value === "debug" ? <DebugTab snapshot={snapshot} /> : null}
               </Suspense>
             </Tabs.Content>
           ))}
         </Tabs.Root>
       )}
     </div>
-  );
+  )
 }

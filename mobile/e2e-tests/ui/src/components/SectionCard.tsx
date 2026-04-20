@@ -1,8 +1,8 @@
-import type {PropsWithChildren, ReactNode} from 'react';
+import type {PropsWithChildren, ReactNode} from "react"
 
 interface SectionCardProps extends PropsWithChildren {
-  title: string;
-  subtitle?: ReactNode;
+  title: string
+  subtitle?: ReactNode
 }
 
 export function SectionCard({title, subtitle, children}: SectionCardProps) {
@@ -16,5 +16,5 @@ export function SectionCard({title, subtitle, children}: SectionCardProps) {
       </div>
       {children}
     </section>
-  );
+  )
 }

@@ -1,9 +1,9 @@
-import type {ReactNode} from 'react';
+import type {ReactNode} from "react"
 
 interface MetricCardProps {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
+  label: string
+  value: ReactNode
+  detail?: ReactNode
 }
 
 export function MetricCard({label, value, detail}: MetricCardProps) {
@@ -13,5 +13,5 @@ export function MetricCard({label, value, detail}: MetricCardProps) {
       <div className="metric-value">{value}</div>
       {detail ? <div className="metric-detail">{detail}</div> : null}
     </section>
-  );
+  )
 }

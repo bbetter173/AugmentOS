@@ -1,6 +1,6 @@
 interface EmptyStateProps {
-  title: string;
-  detail: string;
+  title: string
+  detail: string
 }
 
 export function EmptyState({title, detail}: EmptyStateProps) {
@@ -9,5 +9,5 @@ export function EmptyState({title, detail}: EmptyStateProps) {
       <div className="empty-title">{title}</div>
       <div className="empty-detail">{detail}</div>
     </div>
-  );
+  )
 }

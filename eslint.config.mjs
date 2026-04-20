@@ -156,6 +156,7 @@ export default defineConfig([
   {
     files: ["mobile/e2e-tests/ui/**/*.{js,ts,jsx,tsx}"],
     rules: {
+      "no-restricted-imports": "off",
       "react-native/no-unused-styles": "off",
       "react-native/split-platform-components": "off",
       "react-native/no-inline-styles": "off",

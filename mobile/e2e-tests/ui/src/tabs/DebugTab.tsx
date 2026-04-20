@@ -1,13 +1,15 @@
-import {EmptyState} from '../components/EmptyState';
-import {SectionCard} from '../components/SectionCard';
-import type {MonitorSnapshot} from '../types';
-import {formatClockWithMs} from '../utils';
+import {EmptyState} from "../components/EmptyState"
+import {SectionCard} from "../components/SectionCard"
+import type {MonitorSnapshot} from "../types"
+import {formatClockWithMs} from "../utils"
 
 export function DebugTab({snapshot}: {snapshot: MonitorSnapshot}) {
   return (
     <div className="tab-layout">
       <div className="content-grid two-up">
-        <SectionCard title="Raw Snapshot Highlights" subtitle="Live state details that are still handy when debugging the monitor">
+        <SectionCard
+          title="Raw Snapshot Highlights"
+          subtitle="Live state details that are still handy when debugging the monitor">
           <div className="detail-list">
             <div>
               <span>Monitor started</span>
@@ -19,7 +21,7 @@ export function DebugTab({snapshot}: {snapshot: MonitorSnapshot}) {
             </div>
             <div>
               <span>Last error</span>
-              <strong>{snapshot.last_error || 'None'}</strong>
+              <strong>{snapshot.last_error || "None"}</strong>
             </div>
           </div>
         </SectionCard>
@@ -47,5 +49,5 @@ export function DebugTab({snapshot}: {snapshot: MonitorSnapshot}) {
         </SectionCard>
       )}
     </div>
-  );
+  )
 }

@@ -1,21 +1,12 @@
-import {
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ResponsiveContainer,
-  Scatter,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import {CartesianGrid, ComposedChart, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis} from "recharts"
 
-import {EmptyState} from '../components/EmptyState';
-import {SectionCard} from '../components/SectionCard';
-import type {MonitorSnapshot} from '../types';
-import {buildLatencySeries, formatClock, formatDelay} from '../utils';
+import {EmptyState} from "../components/EmptyState"
+import {SectionCard} from "../components/SectionCard"
+import type {MonitorSnapshot} from "../types"
+import {buildLatencySeries, formatClock, formatDelay} from "../utils"
 
 export function LatencyTab({snapshot}: {snapshot: MonitorSnapshot}) {
-  const latencySeries = buildLatencySeries(snapshot.logcat_true_word_delay_points);
+  const latencySeries = buildLatencySeries(snapshot.logcat_true_word_delay_points)
 
   return (
     <div className="tab-layout">
@@ -37,8 +28,8 @@ export function LatencyTab({snapshot}: {snapshot: MonitorSnapshot}) {
                   width={72}
                 />
                 <Tooltip
-                  cursor={{stroke: '#33415f'}}
-                  contentStyle={{background: '#101828', border: '1px solid #27324a', borderRadius: 12}}
+                  cursor={{stroke: "#33415f"}}
+                  contentStyle={{background: "#101828", border: "1px solid #27324a", borderRadius: 12}}
                   formatter={(value: number) => formatDelay(value)}
                   labelFormatter={(value: number) => formatClock(value)}
                 />
@@ -56,7 +47,10 @@ export function LatencyTab({snapshot}: {snapshot: MonitorSnapshot}) {
             </ResponsiveContainer>
           </div>
         ) : (
-          <EmptyState title="No latency data yet" detail="Word-level delay points will appear once captions are being matched." />
+          <EmptyState
+            title="No latency data yet"
+            detail="Word-level delay points will appear once captions are being matched."
+          />
         )}
       </SectionCard>
 
@@ -85,7 +79,10 @@ export function LatencyTab({snapshot}: {snapshot: MonitorSnapshot}) {
               </tbody>
             </table>
           ) : (
-            <EmptyState title="No completed utterances yet" detail="This fills in as the monitor finishes audio rows." />
+            <EmptyState
+              title="No completed utterances yet"
+              detail="This fills in as the monitor finishes audio rows."
+            />
           )}
         </SectionCard>
 
@@ -115,10 +112,13 @@ export function LatencyTab({snapshot}: {snapshot: MonitorSnapshot}) {
               </tbody>
             </table>
           ) : (
-            <EmptyState title="No word matches yet" detail="You will see individual matched words here once captions align with the dataset." />
+            <EmptyState
+              title="No word matches yet"
+              detail="You will see individual matched words here once captions align with the dataset."
+            />
           )}
         </SectionCard>
       </div>
     </div>
-  );
+  )
 }

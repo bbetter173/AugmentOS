@@ -1,7 +1,7 @@
-import {EmptyState} from '../components/EmptyState';
-import {SectionCard} from '../components/SectionCard';
-import type {MonitorSnapshot} from '../types';
-import {formatClock, formatDuration} from '../utils';
+import {EmptyState} from "../components/EmptyState"
+import {SectionCard} from "../components/SectionCard"
+import type {MonitorSnapshot} from "../types"
+import {formatClock, formatDuration} from "../utils"
 
 export function IncidentsTab({snapshot}: {snapshot: MonitorSnapshot}) {
   return (
@@ -36,7 +36,10 @@ export function IncidentsTab({snapshot}: {snapshot: MonitorSnapshot}) {
               </tbody>
             </table>
           ) : (
-            <EmptyState title="No ongoing incidents" detail="The monitor is not tracking any active incident right now." />
+            <EmptyState
+              title="No ongoing incidents"
+              detail="The monitor is not tracking any active incident right now."
+            />
           )}
         </SectionCard>
 
@@ -61,16 +64,21 @@ export function IncidentsTab({snapshot}: {snapshot: MonitorSnapshot}) {
                       <td>{formatClock(incident.started_at_ms)}</td>
                       <td>{formatClock(incident.ended_at_ms)}</td>
                       <td>{formatDuration(incident.duration_ms)}</td>
-                      <td>{incident.alerted_at_ms ? `Alerted at ${formatClock(incident.alerted_at_ms)}` : 'No alert'}</td>
+                      <td>
+                        {incident.alerted_at_ms ? `Alerted at ${formatClock(incident.alerted_at_ms)}` : "No alert"}
+                      </td>
                     </tr>
                   ))}
               </tbody>
             </table>
           ) : (
-            <EmptyState title="No incident history yet" detail="Resolved incidents will appear here once the monitor closes them out." />
+            <EmptyState
+              title="No incident history yet"
+              detail="Resolved incidents will appear here once the monitor closes them out."
+            />
           )}
         </SectionCard>
       </div>
     </div>
-  );
+  )
 }

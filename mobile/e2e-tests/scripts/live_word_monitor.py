@@ -4,6 +4,7 @@ import collections
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -484,6 +485,10 @@ class MonitorState:
         self.maestro_word_delay_points: list[dict[str, Any]] = []
         self.maestro_true_word_delay_points: list[dict[str, Any]] = []
         self.drop_events: list[dict[str, Any]] = []
+        self.drop_last_signature = ""
+        self.drop_last_change_ts_ms: int | None = None
+        self.drop_open: dict[str, Any] | None = None
+        self.active_drop_incident_id: str | None = None
         self.completed_incidents, self.ongoing_incidents, self.alerts = load_incident_history(output_dir, max_history)
         self.last_events: list[dict[str, Any]] = []
 
@@ -899,8 +904,7 @@ class MonitorWorker:
             f"{alert.get('incident_name', alert.get('incident_type', 'incident'))} alert reached after "
             f"{int(alert.get('duration_ms') or 0) / 1000:.1f}s."
         )
-        adb_cmd = self.adb_prefix + [
-            "shell",
+        remote_cmd = [
             "am",
             "broadcast",
             "-a",
@@ -908,8 +912,8 @@ class MonitorWorker:
         ]
         component = (self.args.alert_intent_component or "").strip()
         if component:
-            adb_cmd.extend(["-n", component])
-        adb_cmd.extend(
+            remote_cmd.extend(["-n", component])
+        remote_cmd.extend(
             [
                 "--es",
                 "failure_code",
@@ -956,9 +960,11 @@ class MonitorWorker:
             ]
         )
         if alert.get("dataset_row_idx") is not None:
-            adb_cmd.extend(["--ei", "dataset_row_idx", str(int(alert["dataset_row_idx"]))])
+            remote_cmd.extend(["--ei", "dataset_row_idx", str(int(alert["dataset_row_idx"]))])
         if alert.get("utterance_text"):
-            adb_cmd.extend(["--es", "utterance_text", str(alert["utterance_text"])])
+            remote_cmd.extend(["--es", "utterance_text", str(alert["utterance_text"])])
+
+        adb_cmd = self.adb_prefix + ["shell", " ".join(shlex.quote(part) for part in remote_cmd)]
 
         try:
             result = subprocess.run(adb_cmd, check=True, capture_output=True, text=True, timeout=15)
@@ -1092,38 +1098,34 @@ class MonitorWorker:
             },
         )
 
-    def finalize_utterance(self, utterance: UtteranceState, now_ms: int) -> None:
-        drop_rule = self.state.get_incident_rule("drop_event")
-        drop_threshold_ms = int(drop_rule.get("incident_threshold_ms", 0))
-        if utterance.active_drop_incident_id is not None:
-            ended_incident = self.state.end_incident(
-                utterance.active_drop_incident_id,
-                now_ms,
-                {"reason": "utterance_finished"},
-            )
-            utterance.active_drop_incident_id = None
-            if ended_incident is not None:
-                self.state.append_drop_event(
-                    {
-                        "incident_id": ended_incident["incident_id"],
-                        "dataset_row_idx": ended_incident.get("dataset_row_idx"),
-                        "started_at_ms": ended_incident["started_at_ms"],
-                        "ended_at_ms": ended_incident["ended_at_ms"],
-                        "duration_ms": ended_incident["duration_ms"],
-                    }
-                )
-        elif utterance.drop_open is not None:
-            duration_ms = now_ms - int(utterance.drop_open["started_at_ms"])
-            if duration_ms >= drop_threshold_ms:
-                self.state.append_drop_event(
-                    {
-                        "dataset_row_idx": utterance.dataset_row_idx,
-                        "started_at_ms": int(utterance.drop_open["started_at_ms"]),
-                        "ended_at_ms": now_ms,
-                        "duration_ms": duration_ms,
-                    }
-                )
+    def end_active_drop_incident(self, now_ms: int, reason: str, details: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        incident_id = self.state.active_drop_incident_id
+        if incident_id is None:
+            return None
 
+        ended_incident = self.state.end_incident(
+            incident_id,
+            now_ms,
+            {
+                "reason": reason,
+                **(details or {}),
+            },
+        )
+        self.state.active_drop_incident_id = None
+        self.state.drop_open = None
+        if ended_incident is not None:
+            self.state.append_drop_event(
+                {
+                    "incident_id": ended_incident["incident_id"],
+                    "dataset_row_idx": ended_incident.get("dataset_row_idx"),
+                    "started_at_ms": ended_incident["started_at_ms"],
+                    "ended_at_ms": ended_incident["ended_at_ms"],
+                    "duration_ms": ended_incident["duration_ms"],
+                }
+            )
+        return ended_incident
+
+    def finalize_utterance(self, utterance: UtteranceState, now_ms: int) -> None:
         rn_delays = [word.rn_visible_delay_ms for word in utterance.words if word.rn_visible_delay_ms is not None]
         rn_true_delays = [word.rn_true_visible_delay_ms for word in utterance.words if word.rn_true_visible_delay_ms is not None]
         logcat_true_delays = [word.logcat_true_visible_delay_ms for word in utterance.words if word.logcat_true_visible_delay_ms is not None]
@@ -1165,63 +1167,55 @@ class MonitorWorker:
         self.state.status_detail = "waiting for next utterance"
         self.next_start_ts_ms = now_ms + self.args.inter_utterance_gap_ms
 
-    def update_drop_tracking(self, utterance: UtteranceState, now_ms: int, normalized_lines: list[str]) -> None:
+    def update_drop_tracking(self, utterance: UtteranceState | None, now_ms: int, normalized_lines: list[str]) -> None:
         drop_rule = self.state.get_incident_rule("drop_event")
         drop_threshold_ms = int(drop_rule.get("incident_threshold_ms", 0))
         if not drop_rule.get("enabled", True):
+            self.end_active_drop_incident(now_ms, "incident_disabled")
             return
 
         signature = "|".join(normalized_lines)
-        if signature != utterance.last_signature:
-            if utterance.active_drop_incident_id is not None:
-                ended_incident = self.state.end_incident(
-                    utterance.active_drop_incident_id,
-                    now_ms,
-                    {"reason": "visible_lines_changed"},
-                )
-                utterance.active_drop_incident_id = None
-                if ended_incident is not None:
-                    self.state.append_drop_event(
-                        {
-                            "incident_id": ended_incident["incident_id"],
-                            "dataset_row_idx": ended_incident.get("dataset_row_idx"),
-                            "started_at_ms": ended_incident["started_at_ms"],
-                            "ended_at_ms": ended_incident["ended_at_ms"],
-                            "duration_ms": ended_incident["duration_ms"],
-                        }
-                    )
-            utterance.last_signature = signature
-            utterance.last_visible_change_ts_ms = now_ms
-            utterance.drop_open = None
-            if normalized_lines and utterance.first_visible_activity_ts_ms is None:
-                utterance.first_visible_activity_ts_ms = now_ms
+        if self.state.drop_last_change_ts_ms is None:
+            self.state.drop_last_signature = signature
+            self.state.drop_last_change_ts_ms = now_ms
             return
 
-        if utterance.first_visible_activity_ts_ms is None or utterance.last_visible_change_ts_ms is None:
+        if signature != self.state.drop_last_signature:
+            self.state.drop_last_signature = signature
+            self.state.drop_last_change_ts_ms = now_ms
+            if self.state.active_drop_incident_id is None:
+                self.state.drop_open = None
             return
 
-        if now_ms - utterance.last_visible_change_ts_ms < drop_threshold_ms:
+        if self.state.drop_last_change_ts_ms is None:
             return
 
-        if utterance.drop_open is None:
-            utterance.drop_open = {
-                "dataset_row_idx": utterance.dataset_row_idx,
-                "started_at_ms": utterance.last_visible_change_ts_ms,
+        if self.state.active_drop_incident_id is not None:
+            self.maybe_alert_and_dispatch(self.state.active_drop_incident_id, now_ms)
+            return
+
+        if now_ms - self.state.drop_last_change_ts_ms < drop_threshold_ms:
+            return
+
+        if self.state.drop_open is None:
+            self.state.drop_open = {
+                "dataset_row_idx": utterance.dataset_row_idx if utterance is not None else None,
+                "started_at_ms": self.state.drop_last_change_ts_ms,
             }
 
-        if utterance.active_drop_incident_id is None:
-            utterance.active_drop_incident_id = self.state.start_incident(
-                "drop_event",
-                int(utterance.drop_open["started_at_ms"]),
-                {
-                    "dataset_row_idx": utterance.dataset_row_idx,
-                    "utterance_text": utterance.text,
-                    "reason": "visible_lines_stalled",
-                },
-            )
+        incident_id = self.state.start_incident(
+            "drop_event",
+            int(self.state.drop_open["started_at_ms"]),
+            {
+                "dataset_row_idx": utterance.dataset_row_idx if utterance is not None else None,
+                "utterance_text": utterance.text if utterance is not None else None,
+                "reason": "visible_lines_stalled",
+            },
+        )
 
-        if utterance.active_drop_incident_id is not None:
-            self.maybe_alert_and_dispatch(utterance.active_drop_incident_id, now_ms)
+        if incident_id is not None:
+            self.state.active_drop_incident_id = incident_id
+            self.maybe_alert_and_dispatch(incident_id, now_ms)
 
     def evaluate_high_average_latency_incident(self, now_ms: int) -> None:
         incident_rule = self.state.get_incident_rule("high_average_latency")
@@ -1440,6 +1434,16 @@ class MonitorWorker:
                     word.logcat_true_first_visible_ts_ms = now_ms
                     word.logcat_true_visible_delay_ms = delay_ms
                     utterance.logcat_true_last_matched_index = ref_index
+                    self.state.drop_last_signature = "|".join(normalize_text(line) for line in visible_lines)
+                    self.state.drop_last_change_ts_ms = now_ms
+                    self.end_active_drop_incident(
+                        now_ms,
+                        "captions_resumed",
+                        {
+                            "dataset_row_idx": utterance.dataset_row_idx,
+                            "utterance_text": utterance.text,
+                        },
+                    )
                 elif source == "maestro_true":
                     word.maestro_true_first_visible_ts_ms = now_ms
                     word.maestro_true_visible_delay_ms = delay_ms
@@ -1677,6 +1681,8 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                         self.state.mirror_visible = True
 
                     utterance = self.state.current_utterance
+                    if not self.use_maestro_stream or mirror_visible:
+                        self.update_drop_tracking(utterance, now_ms, normalized_lines)
                     if utterance is None:
                         if self.use_maestro_stream and not mirror_visible:
                             self.state.status = "waiting_for_mirror"
@@ -1691,7 +1697,6 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                         if self.use_maestro_stream:
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro_true", min_run_length=1)
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro")
-                        self.update_drop_tracking(utterance, now_ms, normalized_lines)
                         self.evaluate_high_average_latency_incident(now_ms)
                         self.evaluate_audio_output_device_incident(now_ms)
                         if now_ms >= utterance.end_ts_ms:

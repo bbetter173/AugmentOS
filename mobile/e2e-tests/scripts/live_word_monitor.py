@@ -2,6 +2,7 @@
 import argparse
 import collections
 import json
+import mimetypes
 import os
 import re
 import shlex
@@ -50,6 +51,7 @@ DEFAULT_INCIDENT_CONFIG = {
 CAPTIONS_TESTER_INCIDENT_RESULT_MARKER = "CAPTIONS_TESTER_INCIDENT_RESULT "
 CONSOLE_INCIDENT_BASE_URL = "https://console.mentra.glass/admin/incidents/"
 CAPTIONS_TESTER_FILED_RE = re.compile(r"CaptionsTesterBugReport\]\s+Incident filed:\s*([0-9a-fA-F-]+)")
+UI_DIST_DIR = Path(__file__).resolve().parent.parent / "ui" / "dist"
 
 
 def parse_args() -> argparse.Namespace:
@@ -1723,330 +1725,6 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
             self.logcat_process.terminate()
 
 
-HTML_PAGE = """<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MentraOS Word Delay Monitor</title>
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <style>
-    body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; background: #0b1220; color: #e5eef9; }
-    .wrap { max-width: 1500px; margin: 0 auto; padding: 20px; }
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .card { background: #121b2d; border: 1px solid #24314f; border-radius: 12px; padding: 14px; }
-    .wide { grid-column: span 2; }
-    h1, h2 { margin: 0 0 12px; font-weight: 700; }
-    h1 { font-size: 24px; margin-bottom: 16px; }
-    h2 { font-size: 16px; }
-    .label { color: #89a1c6; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
-    .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
-    .pill { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #203254; }
-    .ok { background: #184f33; color: #b6f2cf; }
-    .warn { background: #574115; color: #f7e2a2; }
-    .bad { background: #5e1f25; color: #ffbec4; }
-    .small { font-size: 12px; color: #9eb3d1; }
-    .lines { white-space: pre-wrap; line-height: 1.5; }
-    .long { max-height: 220px; overflow: auto; }
-    #chart { width: 100%; height: 360px; background: #0f1728; border-radius: 10px; border: 1px solid #24314f; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #24314f; vertical-align: top; }
-    th { color: #89a1c6; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>MentraOS Live Word Delay Monitor</h1>
-    <div class="grid">
-      <div class="card"><div class="label">Status</div><div id="status" class="value">Loading...</div><div id="statusDetail" class="small"></div></div>
-      <div class="card"><div class="label">Mirror Visible</div><div id="mirror" class="value">-</div><div id="snapshotAge" class="small"></div></div>
-      <div class="card"><div class="label">Current Row</div><div id="rowIdx" class="value">-</div><div id="wordProgress" class="small"></div></div>
-      <div class="card"><div class="label">Drop Events &gt; 5s</div><div id="dropCount" class="value">0</div><div class="small">Across all utterances</div></div>
-      <div class="card"><div class="label">Ongoing Incidents</div><div id="ongoingIncidentCount" class="value">0</div><div class="small">Currently active</div></div>
-      <div class="card"><div class="label">Alert History</div><div id="alertCount" class="value">0</div><div class="small">Persisted alerts</div></div>
-      <div class="card"><div class="label">Incident History</div><div id="completedIncidentCount" class="value">0</div><div class="small">Resolved incidents</div></div>
-    </div>
-
-    <div class="grid">
-      <div class="card wide">
-        <h2>Word Delay Over Time</h2>
-        <div id="chart"></div>
-        <div class="small">Use the built-in range buttons, zoom, pan, and range slider to inspect incidents. Purple = raw points, orange = 10-point trimmed moving average with the bottom and top 10% dropped as outliers.</div>
-      </div>
-      <div class="card">
-        <h2>Logcat Visible Text</h2>
-        <div id="logcatVisibleLines" class="lines small long"></div>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card wide">
-        <h2>Current Utterance</h2>
-        <div id="utteranceText" class="small lines long"></div>
-      </div>
-      <div class="card">
-        <h2>Source Ages</h2>
-        <div id="sourceAges" class="small lines"></div>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card wide">
-        <h2>Ongoing Incidents</h2>
-        <table id="incidentTable"><thead><tr><th>Type</th><th>Started</th><th>Duration</th><th>Alert</th></tr></thead><tbody></tbody></table>
-      </div>
-      <div class="card wide">
-        <h2>Alert History</h2>
-        <table id="alertTable"><thead><tr><th>Type</th><th>Alerted</th><th>Duration</th><th>Dispatch</th><th>Report</th><th>Incident</th></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card wide">
-        <h2>Incident History</h2>
-        <table id="completedIncidentTable"><thead><tr><th>Type</th><th>Started</th><th>Ended</th><th>Duration</th><th>Alert</th></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card wide">
-        <h2>Recent Word Matches</h2>
-        <table id="wordTable"><thead><tr><th>Word</th><th>Delay</th><th>Expected</th><th>Seen</th></tr></thead><tbody></tbody></table>
-      </div>
-      <div class="card">
-        <h2>Live Time</h2>
-        <div id="liveClock" class="value">-</div>
-        <div id="liveClockMs" class="small"></div>
-        <div class="label" style="margin-top: 12px;">Current Timing Window</div>
-        <div id="timingWindow" class="small lines long">-</div>
-      </div>
-      <div class="card wide">
-        <h2>Recent Utterances</h2>
-        <table id="utteranceTable"><thead><tr><th>Row</th><th>Trimmed Logcat True</th></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
-  </div>
-  <script>
-    function trimmedMean(values, trimFraction = 0.10) {
-      if (!values.length) return null;
-      const sortedValues = [...values].map((value) => Number(value)).sort((a, b) => a - b);
-      let trimCount = Math.floor(sortedValues.length * trimFraction);
-      if (trimCount * 2 >= sortedValues.length) {
-        trimCount = Math.max(0, Math.floor((sortedValues.length - 1) / 2));
-      }
-      const trimmedValues = trimCount ? sortedValues.slice(trimCount, sortedValues.length - trimCount) : sortedValues;
-      const valuesToAverage = trimmedValues.length ? trimmedValues : sortedValues;
-      return valuesToAverage.reduce((sum, value) => sum + value, 0) / valuesToAverage.length;
-    }
-    function fmtTs(ms) {
-      if (!ms) return '-';
-      return new Date(ms).toLocaleTimeString();
-    }
-    function fmtTsWithMs(ms) {
-      if (!ms) return '-';
-      const date = new Date(ms);
-      return `${date.toLocaleTimeString()}.${String(date.getMilliseconds()).padStart(3, '0')}`;
-    }
-    function fmtMs(ms) {
-      if (ms === null || ms === undefined) return '-';
-      return `${Math.round(ms)} ms`;
-    }
-    function fmtDuration(ms) {
-      if (ms === null || ms === undefined) return '-';
-      const seconds = ms / 1000;
-      if (seconds < 60) return `${seconds.toFixed(1)}s`;
-      const minutes = Math.floor(seconds / 60);
-      const remSeconds = Math.round(seconds % 60);
-      return `${minutes}m ${remSeconds}s`;
-    }
-    function ageFrom(ms) {
-      if (!ms) return '-';
-      const delta = Math.max(0, Date.now() - ms);
-      return `${(delta / 1000).toFixed(1)}s ago`;
-    }
-    function statusClass(status) {
-      if (status === 'running_utterance') return 'pill ok';
-      if (status === 'error') return 'pill bad';
-      return 'pill warn';
-    }
-    function fillRows(id, rows, colspan) {
-      const tbody = document.querySelector(`#${id} tbody`);
-      tbody.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="${colspan}" class="small">No data yet</td></tr>`;
-    }
-    function renderChart(logcatTruePoints) {
-      const chart = document.getElementById('chart');
-      const points = [...logcatTruePoints].sort((a, b) => a.ts_ms - b.ts_ms);
-      if (!points.length) {
-        chart.innerHTML = '<div class="small" style="padding: 24px; color: #89a1c6;">Waiting for word delay points...</div>';
-        return;
-      }
-      const movingAveragePoints = [];
-      for (let index = 9; index < points.length; index += 1) {
-        const window = points.slice(index - 9, index + 1);
-        const avgDelay = trimmedMean(window.map((point) => point.delay_ms || 0));
-        movingAveragePoints.push({ ts_ms: points[index].ts_ms, delay_ms: avgDelay });
-      }
-      const traces = [
-        {
-          name: 'Logcat true',
-          type: 'scattergl',
-          mode: 'markers',
-          x: points.map((point) => new Date(point.ts_ms)),
-          y: points.map((point) => point.delay_ms),
-          text: points.map((point) => `Row ${point.dataset_row_idx} • ${point.word_text}`),
-          hovertemplate: '%{text}<br>%{x|%b %d, %I:%M:%S %p}<br>%{y:.0f} ms<extra></extra>',
-          marker: { color: '#c084fc', size: 5, opacity: 0.85 },
-        },
-        {
-          name: '10-pt trimmed avg',
-          type: 'scattergl',
-          mode: 'lines',
-          x: movingAveragePoints.map((point) => new Date(point.ts_ms)),
-          y: movingAveragePoints.map((point) => point.delay_ms),
-          hovertemplate: '%{x|%b %d, %I:%M:%S %p}<br>%{y:.0f} ms<extra></extra>',
-          line: { color: '#f59e0b', width: 3, shape: 'linear' },
-        },
-      ];
-      const layout = {
-        uirevision: 'word-delay-chart',
-        paper_bgcolor: '#0f1728',
-        plot_bgcolor: '#0f1728',
-        margin: { l: 72, r: 24, t: 16, b: 64 },
-        font: { color: '#e5eef9', family: 'ui-sans-serif, system-ui, sans-serif' },
-        hovermode: 'closest',
-        showlegend: true,
-        legend: { orientation: 'h', x: 0, y: 1.12 },
-        xaxis: {
-          type: 'date',
-          title: { text: 'Time' },
-          gridcolor: '#24314f',
-          zeroline: false,
-          tickformat: '%-I:%M %p',
-          rangeslider: { visible: true, bgcolor: '#121b2d', bordercolor: '#24314f' },
-          rangeselector: {
-            bgcolor: '#17233a',
-            activecolor: '#23406e',
-            bordercolor: '#314261',
-            font: { color: '#e5eef9' },
-            buttons: [
-              { count: 5, step: 'minute', stepmode: 'backward', label: '5m' },
-              { count: 15, step: 'minute', stepmode: 'backward', label: '15m' },
-              { count: 30, step: 'minute', stepmode: 'backward', label: '30m' },
-              { count: 1, step: 'hour', stepmode: 'backward', label: '1h' },
-              { count: 6, step: 'hour', stepmode: 'backward', label: '6h' },
-              { count: 24, step: 'hour', stepmode: 'backward', label: '24h' },
-              { step: 'all', label: 'All' },
-            ],
-          },
-        },
-        yaxis: {
-          title: { text: 'Delay' },
-          gridcolor: '#24314f',
-          zeroline: false,
-          rangemode: 'tozero',
-          range: [0, null],
-          tickformat: '~s',
-          tickvals: undefined,
-          ticktext: undefined,
-          hoverformat: '.0f',
-        },
-      };
-      const maxDelay = Math.max(3000, ...points.map((point) => point.delay_ms || 0), ...movingAveragePoints.map((point) => point.delay_ms || 0));
-      const stepMs = 500;
-      const tickvals = [];
-      const ticktext = [];
-      for (let value = 0; value <= Math.ceil(maxDelay / stepMs) * stepMs; value += stepMs) {
-        tickvals.push(value);
-        ticktext.push(`${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}s`);
-      }
-      layout.yaxis.tickvals = tickvals;
-      layout.yaxis.ticktext = ticktext;
-      const config = {
-        responsive: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
-      };
-      Plotly.react(chart, traces, layout, config);
-    }
-    async function refresh() {
-      const state = await (await fetch('/state')).json();
-      document.getElementById('status').innerHTML = `<span class="${statusClass(state.status)}">${state.status}</span>`;
-      document.getElementById('statusDetail').textContent = state.status_detail || '';
-      document.getElementById('mirror').textContent = state.mirror_visible ? 'Yes' : 'No';
-      document.getElementById('snapshotAge').textContent = `Last Maestro snapshot ${ageFrom(state.last_snapshot_ts_ms)}`;
-      document.getElementById('rowIdx').textContent = state.current_utterance ? `#${state.current_utterance.dataset_row_idx}` : '-';
-      document.getElementById('wordProgress').textContent = state.current_utterance ? `RN ${state.current_utterance.rn_matched_word_count}/${state.current_utterance.word_count}, Maestro ${state.current_utterance.maestro_matched_word_count}/${state.current_utterance.word_count}` : 'Waiting for utterance';
-      document.getElementById('dropCount').textContent = String(state.drop_events.length);
-      document.getElementById('ongoingIncidentCount').textContent = String(state.ongoing_incidents.length);
-      document.getElementById('alertCount').textContent = String(state.alerts.length);
-      document.getElementById('completedIncidentCount').textContent = String(state.completed_incidents.length);
-      document.getElementById('liveClock').textContent = fmtTs(Date.now());
-      document.getElementById('liveClockMs').textContent = fmtTsWithMs(Date.now());
-      document.getElementById('logcatVisibleLines').textContent = state.logcat_visible_lines.length ? state.logcat_visible_lines.join('\\n') : '(no logcat event yet)';
-      document.getElementById('utteranceText').textContent = state.current_utterance ? state.current_utterance.text : '(none)';
-      document.getElementById('sourceAges').textContent = `Logcat: ${ageFrom(state.last_logcat_event_ts_ms)}`;
-      if (state.current_utterance) {
-        const words = state.current_utterance.words || [];
-        const nextWord = words.find((word) => !word.rn_true_first_visible_ts_ms) || null;
-        const currentWord = [...words].reverse().find((word) => word.rn_true_first_visible_ts_ms) || null;
-        document.getElementById('timingWindow').textContent =
-          `Utterance start: ${fmtTsWithMs(state.current_utterance.start_ts_ms)}\n` +
-          `Utterance end: ${fmtTsWithMs(state.current_utterance.end_ts_ms)}\n` +
-          `Current/last matched word: ${currentWord ? `${currentWord.text} @ ${fmtTsWithMs(currentWord.expected_ts_ms)}` : '-'}\n` +
-          `Next expected word: ${nextWord ? `${nextWord.text} @ ${fmtTsWithMs(nextWord.expected_ts_ms)}` : '-'}`;
-      } else {
-        document.getElementById('timingWindow').textContent = '(waiting for utterance)';
-      }
-
-      const recentWords = state.word_delay_points.slice(-20).reverse().map((point) =>
-        `<tr><td>${point.word_text} <span class="small">(${point.source})</span></td><td>${fmtMs(point.delay_ms)}</td><td>${fmtTs(point.expected_ts_ms)}</td><td>${fmtTs(point.ts_ms)}</td></tr>`
-      );
-      fillRows('wordTable', recentWords, 4);
-
-      const ongoingIncidents = state.ongoing_incidents.slice().reverse().map((incident) => {
-        const alertLabel = incident.alerted_at_ms
-          ? `Alerted at ${fmtTs(incident.alerted_at_ms)}`
-          : `In ${fmtDuration(incident.time_to_alert_ms)}`;
-        return `<tr><td>${incident.incident_name || incident.incident_type}</td><td>${fmtTs(incident.started_at_ms)}</td><td>${fmtDuration(incident.current_duration_ms)}</td><td>${alertLabel}</td></tr>`;
-      });
-      fillRows('incidentTable', ongoingIncidents, 4);
-
-      const recentAlerts = state.alerts
-        .slice()
-        .sort((left, right) => (right.alerted_at_ms || 0) - (left.alerted_at_ms || 0))
-        .map((alert) => {
-          const reportState = alert.report_state || '-';
-          const incidentCell = alert.reported_incident_url
-            ? `<a href="${alert.reported_incident_url}" target="_blank" rel="noreferrer">${alert.reported_incident_id || 'Open'}</a>`
-            : (alert.report_error || alert.report_reason || '-');
-          return `<tr><td>${alert.incident_name || alert.incident_type}</td><td>${fmtTs(alert.alerted_at_ms)}</td><td>${fmtDuration(alert.duration_ms)}</td><td>${alert.status}</td><td>${reportState}</td><td>${incidentCell}</td></tr>`;
-        });
-      fillRows('alertTable', recentAlerts, 6);
-
-      const completedIncidents = state.completed_incidents
-        .slice()
-        .sort((left, right) => (right.ended_at_ms || 0) - (left.ended_at_ms || 0))
-        .map((incident) => {
-          const alertLabel = incident.alerted_at_ms ? `Alerted at ${fmtTs(incident.alerted_at_ms)}` : 'No alert';
-          return `<tr><td>${incident.incident_name || incident.incident_type}</td><td>${fmtTs(incident.started_at_ms)}</td><td>${fmtTs(incident.ended_at_ms)}</td><td>${fmtDuration(incident.duration_ms)}</td><td>${alertLabel}</td></tr>`;
-        });
-      fillRows('completedIncidentTable', completedIncidents, 5);
-
-      const recentUtterances = state.completed_utterances.slice().reverse().map((item) =>
-        `<tr><td>${item.dataset_row_idx}</td><td>${fmtMs(item.average_logcat_true_delay_ms)}</td></tr>`
-      );
-      fillRows('utteranceTable', recentUtterances, 2);
-
-      renderChart(state.logcat_true_word_delay_points);
-    }
-    refresh().catch(console.error);
-    setInterval(() => refresh().catch(console.error), 1000);
-  </script>
-</body>
-</html>
-"""
-
-
 class MonitorHandler(BaseHTTPRequestHandler):
     monitor_state: MonitorState | None = None
 
@@ -2063,16 +1741,47 @@ class MonitorHandler(BaseHTTPRequestHandler):
             # Browsers polling /state can disconnect mid-response; treat that as a normal client abort.
             pass
 
+    def _serve_ui_asset(self, request_path: str) -> bool:
+        if not UI_DIST_DIR.exists():
+            return False
+
+        normalized_path = urllib.parse.unquote(request_path.split("?", 1)[0])
+        relative_path = normalized_path.lstrip("/") or "index.html"
+        candidate = (UI_DIST_DIR / relative_path).resolve()
+        try:
+            candidate.relative_to(UI_DIST_DIR.resolve())
+        except ValueError:
+            return False
+
+        if candidate.is_dir():
+            candidate = candidate / "index.html"
+
+        if not candidate.exists() or not candidate.is_file():
+            return False
+
+        content_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
+        self._send_bytes(candidate.read_bytes(), content_type)
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/":
-            body = HTML_PAGE.encode("utf-8")
-            self._send_bytes(body, "text/html; charset=utf-8")
+            if self._serve_ui_asset("/index.html"):
+                return
+            self.send_response(503)
+            body = b"UI build not found. Run `bun run build` in mobile/e2e-tests/ui."
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
 
         if self.path == "/state":
             assert self.monitor_state is not None
             body = json.dumps(self.monitor_state.snapshot()).encode("utf-8")
             self._send_bytes(body, "application/json; charset=utf-8", {"Cache-Control": "no-store"})
+            return
+
+        if self._serve_ui_asset(self.path):
             return
 
         self.send_response(404)

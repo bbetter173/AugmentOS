@@ -114,6 +114,14 @@ Then open:
 
 - [http://127.0.0.1:8765](http://127.0.0.1:8765)
 
+The dashboard UI now lives in `ui/` as a small React app. If you change the frontend, rebuild it before restarting the monitor:
+
+```bash
+cd /path/to/MentraOS/mobile/e2e-tests/ui
+bun install
+bun run build
+```
+
 ### 7. Set up Cloudflare Tunnel on the new machine
 
 Login to the correct zone:

@@ -1696,6 +1696,7 @@ HTML_PAGE = """<!doctype html>
       <div class="card"><div class="label">Drop Events &gt; 5s</div><div id="dropCount" class="value">0</div><div class="small">Across all utterances</div></div>
       <div class="card"><div class="label">Ongoing Incidents</div><div id="ongoingIncidentCount" class="value">0</div><div class="small">Currently active</div></div>
       <div class="card"><div class="label">Alerts Raised</div><div id="alertCount" class="value">0</div><div class="small">Written to alerts.ndjson</div></div>
+      <div class="card"><div class="label">Incident History</div><div id="completedIncidentCount" class="value">0</div><div class="small">Resolved incidents</div></div>
     </div>
 
     <div class="grid">
@@ -1729,6 +1730,13 @@ HTML_PAGE = """<!doctype html>
       <div class="card wide">
         <h2>Recent Alerts</h2>
         <table id="alertTable"><thead><tr><th>Type</th><th>Alerted</th><th>Duration</th><th>Status</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card wide">
+        <h2>Incident History</h2>
+        <table id="completedIncidentTable"><thead><tr><th>Type</th><th>Started</th><th>Ended</th><th>Duration</th><th>Alert</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -1903,6 +1911,7 @@ HTML_PAGE = """<!doctype html>
       document.getElementById('dropCount').textContent = String(state.drop_events.length);
       document.getElementById('ongoingIncidentCount').textContent = String(state.ongoing_incidents.length);
       document.getElementById('alertCount').textContent = String(state.alerts.length);
+      document.getElementById('completedIncidentCount').textContent = String(state.completed_incidents.length);
       document.getElementById('liveClock').textContent = fmtTs(Date.now());
       document.getElementById('liveClockMs').textContent = fmtTsWithMs(Date.now());
       document.getElementById('logcatVisibleLines').textContent = state.logcat_visible_lines.length ? state.logcat_visible_lines.join('\\n') : '(no logcat event yet)';
@@ -1938,6 +1947,15 @@ HTML_PAGE = """<!doctype html>
         `<tr><td>${alert.incident_name || alert.incident_type}</td><td>${fmtTs(alert.alerted_at_ms)}</td><td>${fmtDuration(alert.duration_ms)}</td><td>${alert.status}</td></tr>`
       );
       fillRows('alertTable', recentAlerts, 4);
+
+      const completedIncidents = state.completed_incidents
+        .slice()
+        .sort((left, right) => (right.ended_at_ms || 0) - (left.ended_at_ms || 0))
+        .map((incident) => {
+          const alertLabel = incident.alerted_at_ms ? `Alerted at ${fmtTs(incident.alerted_at_ms)}` : 'No alert';
+          return `<tr><td>${incident.incident_name || incident.incident_type}</td><td>${fmtTs(incident.started_at_ms)}</td><td>${fmtTs(incident.ended_at_ms)}</td><td>${fmtDuration(incident.duration_ms)}</td><td>${alertLabel}</td></tr>`;
+        });
+      fillRows('completedIncidentTable', completedIncidents, 5);
 
       const recentUtterances = state.completed_utterances.slice().reverse().map((item) =>
         `<tr><td>${item.dataset_row_idx}</td><td>${fmtMs(item.average_logcat_true_delay_ms)}</td></tr>`

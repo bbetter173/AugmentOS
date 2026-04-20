@@ -1240,25 +1240,29 @@ HTML_PAGE = """<!doctype html>
 class MonitorHandler(BaseHTTPRequestHandler):
     monitor_state: MonitorState | None = None
 
+    def _send_bytes(self, body: bytes, content_type: str, extra_headers: dict[str, str] | None = None) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        for header, value in (extra_headers or {}).items():
+            self.send_header(header, value)
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # Browsers polling /state can disconnect mid-response; treat that as a normal client abort.
+            pass
+
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/":
             body = HTML_PAGE.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(body, "text/html; charset=utf-8")
             return
 
         if self.path == "/state":
             assert self.monitor_state is not None
             body = json.dumps(self.monitor_state.snapshot()).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(body, "application/json; charset=utf-8", {"Cache-Control": "no-store"})
             return
 
         self.send_response(404)

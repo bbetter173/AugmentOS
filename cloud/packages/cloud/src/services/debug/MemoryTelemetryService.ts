@@ -3,6 +3,7 @@ import { Logger } from "pino";
 // SessionStorage replaced by static registry in UserSession
 import { logger as rootLogger } from "../logging/pino-logger";
 import { MemoryOwnerStat } from "../metrics/memory-census";
+import { getDeviceStateCounters } from "../metrics/device-state-counters";
 import UserSession from "../session/UserSession";
 const ENABLED = process.env.MEMORY_TELEMETRY_ENABLED === "true" || false;
 
@@ -67,6 +68,14 @@ export interface MemoryTelemetrySnapshot {
       estimatedBytes: number;
       topOwners: Array<{ owner: string; estimatedBytes: number }>;
     }>;
+  };
+  // Device-state storm counters since last reset (issue 099).
+  // Counters reset every vitals tick (~30 s), so this is a short-window view.
+  deviceState: {
+    updatesTotalSinceLastReset: number;
+    updatesDedupedSinceLastReset: number;
+    updatesAppliedSinceLastReset: number;
+    updatesRateLimitedSinceLastReset: number;
   };
 }
 
@@ -142,6 +151,15 @@ export class MemoryTelemetryService {
       },
       sessions: sessionStats,
       memoryCensus: this.getMemoryCensus(sessionStats),
+      deviceState: (() => {
+        const ds = getDeviceStateCounters();
+        return {
+          updatesTotalSinceLastReset: ds.total,
+          updatesDedupedSinceLastReset: ds.deduped,
+          updatesAppliedSinceLastReset: ds.applied,
+          updatesRateLimitedSinceLastReset: ds.rateLimited,
+        };
+      })(),
     };
   }
 

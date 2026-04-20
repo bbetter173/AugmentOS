@@ -999,8 +999,8 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                         )
                     else:
                         mirror_visible = True
-                        visible_lines = []
-                        normalized_lines = []
+                        visible_lines = list(self.state.logcat_visible_lines)
+                        normalized_lines = [normalize_text(line) for line in visible_lines]
                         self.state.mirror_visible = True
 
                     utterance = self.state.current_utterance
@@ -1017,7 +1017,7 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                         if self.use_maestro_stream:
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro_true", min_run_length=1)
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro")
-                            self.update_drop_tracking(utterance, now_ms, normalized_lines)
+                        self.update_drop_tracking(utterance, now_ms, normalized_lines)
                         if now_ms >= utterance.end_ts_ms:
                             self.finalize_utterance(utterance, now_ms)
 

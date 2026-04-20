@@ -25,6 +25,7 @@ import {translate} from "@/i18n"
 import GlassView from "@/components/ui/GlassView"
 import Animated, {
   cancelAnimation,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -170,13 +171,17 @@ const WiggleWrapper: React.FC<{
   children: React.ReactNode
 }> = ({enabled, isDummy, children}) => {
   const offset = useSharedValue(0)
-  const isRunning = useSharedValue(false)
   const randomPhase = useRef(Math.random() * 120).current
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (enabled.value && !isDummy && !isRunning.value) {
-        isRunning.value = true
+  // React to `enabled` flipping instead of polling it 10×/sec. With 50+ icons,
+  // a per-icon setInterval pegged the JS thread enough to heat the device on
+  // an idle home screen.
+  useAnimatedReaction(
+    () => enabled.value,
+    (isEnabled, wasEnabled) => {
+      "worklet"
+      if (isEnabled === wasEnabled) return
+      if (isEnabled && !isDummy) {
         offset.value = withRepeat(
           withSequence(
             withTiming(1, {duration: 60 + randomPhase}),
@@ -185,16 +190,13 @@ const WiggleWrapper: React.FC<{
           ),
           -1,
         )
-      }
-      if (!enabled.value && isRunning.value) {
-        isRunning.value = false
+      } else {
         cancelAnimation(offset)
         offset.value = withTiming(0, {duration: 100})
       }
-    }, 100)
-
-    return () => clearInterval(id)
-  }, [isDummy])
+    },
+    [isDummy],
+  )
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{rotate: `${offset.value * 2}deg`}],

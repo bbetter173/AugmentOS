@@ -978,6 +978,42 @@ private class G2ReceiveManager {
 
 // MARK: - G2 Class (SGCManager implementation)
 
+/// Heartbeat ticker driven by Swift Concurrency.
+///
+/// Uses `Task.sleep` instead of `Timer.scheduledTimer` so ticks are not bound
+/// to the main RunLoop. Main-RunLoop timers get heavily coalesced when the app
+/// is backgrounded (typically to ~30s minimum), which would starve G2's 5s
+/// firmware-side heartbeat requirement and cause the glasses to drop the link.
+actor G2HeartbeatManager {
+    private var task: Task<Void, Never>?
+    private let intervalSeconds: TimeInterval
+
+    init(intervalSeconds: TimeInterval = 5) {
+        self.intervalSeconds = intervalSeconds
+    }
+
+    func start(onTick: @escaping @Sendable () async -> Void) {
+        stop()
+
+        task = Task {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(intervalSeconds * 1_000_000_000))
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled else { break }
+                await onTick()
+            }
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+    }
+}
+
 /// Actor for reconnection logic (matches G1 pattern)
 actor G2ReconnectionManager {
     private var task: Task<Void, Never>?
@@ -1107,8 +1143,8 @@ class G2: NSObject, SGCManager {
     // Protocol state
     private let sendManager = G2SendManager()
     private let receiveManager = G2ReceiveManager()
-    private var heartbeatTimer: Timer?
-    private var devSettingsHeartbeatTimer: Timer?
+    private let heartbeatManager = G2HeartbeatManager(intervalSeconds: 5)
+    private var foregroundObserver: NSObjectProtocol?
     private var startupPageCreated: Bool = false  // createStartUpPageContainer can only be called once
     private var pageCreated: Bool = false
     private var pageHasTextContainer: Bool = false  // tracks if current page has a text container
@@ -1140,6 +1176,9 @@ class G2: NSObject, SGCManager {
     }
 
     deinit {
+        if let observer = foregroundObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         centralManager?.delegate = nil
         leftPeripheral?.delegate = nil
         rightPeripheral?.delegate = nil
@@ -1158,13 +1197,13 @@ class G2: NSObject, SGCManager {
         }
     }
 
-    private func sendEvenHubCommand(_ payload: Data) {
+    private func sendEvenHubCommand(_ payload: Data, left: Bool = false, right: Bool = true) {
         let packets = sendManager.buildPackets(
             serviceId: ServiceID.evenHub.rawValue,
             payload: payload,
             reserveFlag: true
         )
-        sendToGlasses(packets)
+        sendToGlasses(packets, left: left, right: right)
     }
 
     private func sendDevSettingsCommand(_ payload: Data, left: Bool = false, right: Bool = true) {
@@ -1679,36 +1718,68 @@ class G2: NSObject, SGCManager {
     // MARK: - Heartbeats
 
     private func startHeartbeats() {
-        // EvenHub heartbeat every 5 seconds
-        heartbeatTimer?.invalidate()
-        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) {
-            [weak self] _ in
-            DispatchQueue.main.async {
-                self?.sendEvenHubHeartbeat()
-            }
-        }
-
-        // DevSettings heartbeat every 5 seconds
-        devSettingsHeartbeatTimer?.invalidate()
-        devSettingsHeartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) {
-            [weak self] _ in
-            DispatchQueue.main.async {
-                self?.sendDevSettingsHeartbeat()
+        registerForegroundObserverIfNeeded()
+        Task { [weak self] in
+            await self?.heartbeatManager.start { [weak self] in
+                await self?.heartbeatTick()
             }
         }
     }
 
     private func stopHeartbeats() {
-        heartbeatTimer?.invalidate()
-        heartbeatTimer = nil
-        devSettingsHeartbeatTimer?.invalidate()
-        devSettingsHeartbeatTimer = nil
+        Task { [weak self] in
+            await self?.heartbeatManager.stop()
+        }
+    }
+
+    /// Single tick: sends both heartbeats sequentially off the main queue.
+    /// Runs on the BLE queue so the actual `peripheral.writeValue` call doesn't
+    /// depend on main-thread runloop servicing while backgrounded.
+    private func heartbeatTick() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            G2._bluetoothQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume()
+                    return
+                }
+                Task { @MainActor [weak self] in
+                    guard let self else {
+                        continuation.resume()
+                        return
+                    }
+                    self.sendEvenHubHeartbeat()
+                    self.sendDevSettingsHeartbeat()
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    /// Fire one immediate heartbeat pair when the app returns to foreground,
+    /// closing any gap caused by iOS coalescing during background.
+    private func registerForegroundObserverIfNeeded() {
+        guard foregroundObserver == nil else { return }
+        foregroundObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self, self.ready else { return }
+                self.sendEvenHubHeartbeat()
+                self.sendDevSettingsHeartbeat()
+            }
+        }
     }
 
     private func sendEvenHubHeartbeat() {
         guard ready else { return }
         let msg = EvenHubProto.heartbeatMessage()
-        sendEvenHubCommand(msg)
+        // Write to BOTH arms. If either side sees no traffic for ~50s while
+        // backgrounded, iOS bluetoothd reclaims the connection as "Unused"
+        // (disconnect reason 722) and tears down the link.
+        sendEvenHubCommand(msg, left: true, right: true)
 
         // Poll battery every 10 heartbeats (~50 seconds)
         heartbeatCounter += 1
@@ -1720,7 +1791,7 @@ class G2: NSObject, SGCManager {
     private func sendDevSettingsHeartbeat() {
         guard ready else { return }
         let msg = DevSettingsProto.baseHeartbeat(magicRandom: sendManager.nextMagicRandom())
-        sendDevSettingsCommand(msg)
+        sendDevSettingsCommand(msg, left: true, right: true)
     }
 
     /// Request battery, version, and other device info via g2_setting service

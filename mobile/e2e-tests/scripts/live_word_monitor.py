@@ -1695,7 +1695,7 @@ HTML_PAGE = """<!doctype html>
       <div class="card"><div class="label">Current Row</div><div id="rowIdx" class="value">-</div><div id="wordProgress" class="small"></div></div>
       <div class="card"><div class="label">Drop Events &gt; 5s</div><div id="dropCount" class="value">0</div><div class="small">Across all utterances</div></div>
       <div class="card"><div class="label">Ongoing Incidents</div><div id="ongoingIncidentCount" class="value">0</div><div class="small">Currently active</div></div>
-      <div class="card"><div class="label">Alerts Raised</div><div id="alertCount" class="value">0</div><div class="small">Written to alerts.ndjson</div></div>
+      <div class="card"><div class="label">Alert History</div><div id="alertCount" class="value">0</div><div class="small">Persisted alerts</div></div>
       <div class="card"><div class="label">Incident History</div><div id="completedIncidentCount" class="value">0</div><div class="small">Resolved incidents</div></div>
     </div>
 
@@ -1728,7 +1728,7 @@ HTML_PAGE = """<!doctype html>
         <table id="incidentTable"><thead><tr><th>Type</th><th>Started</th><th>Duration</th><th>Alert</th></tr></thead><tbody></tbody></table>
       </div>
       <div class="card wide">
-        <h2>Recent Alerts</h2>
+        <h2>Alert History</h2>
         <table id="alertTable"><thead><tr><th>Type</th><th>Alerted</th><th>Duration</th><th>Status</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
@@ -1943,7 +1943,10 @@ HTML_PAGE = """<!doctype html>
       });
       fillRows('incidentTable', ongoingIncidents, 4);
 
-      const recentAlerts = state.alerts.slice().reverse().map((alert) =>
+      const recentAlerts = state.alerts
+        .slice()
+        .sort((left, right) => (right.alerted_at_ms || 0) - (left.alerted_at_ms || 0))
+        .map((alert) =>
         `<tr><td>${alert.incident_name || alert.incident_type}</td><td>${fmtTs(alert.alerted_at_ms)}</td><td>${fmtDuration(alert.duration_ms)}</td><td>${alert.status}</td></tr>`
       );
       fillRows('alertTable', recentAlerts, 4);

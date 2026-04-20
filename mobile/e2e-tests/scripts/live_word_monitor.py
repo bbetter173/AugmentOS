@@ -97,6 +97,21 @@ def tokenize(value: str) -> list[str]:
     return [token for token in normalize_text(value).split() if token]
 
 
+def trimmed_mean_ms(values: list[int | float], trim_fraction: float = 0.10) -> float | None:
+    if not values:
+        return None
+
+    sorted_values = sorted(float(value) for value in values)
+    trim_count = int(len(sorted_values) * trim_fraction)
+    if trim_count * 2 >= len(sorted_values):
+        trim_count = max(0, (len(sorted_values) - 1) // 2)
+
+    trimmed_values = sorted_values[trim_count : len(sorted_values) - trim_count] if trim_count else sorted_values
+    if not trimmed_values:
+        trimmed_values = sorted_values
+    return sum(trimmed_values) / len(trimmed_values)
+
+
 def parse_hierarchy_output(raw_output: str) -> dict[str, Any]:
     json_start = raw_output.find("{")
     if json_start == -1:
@@ -913,6 +928,11 @@ class MonitorWorker:
         logcat_true_delays = [word.logcat_true_visible_delay_ms for word in utterance.words if word.logcat_true_visible_delay_ms is not None]
         maestro_delays = [word.maestro_visible_delay_ms for word in utterance.words if word.maestro_visible_delay_ms is not None]
         maestro_true_delays = [word.maestro_true_visible_delay_ms for word in utterance.words if word.maestro_true_visible_delay_ms is not None]
+        average_rn_delay_ms = trimmed_mean_ms(rn_delays)
+        average_rn_true_delay_ms = trimmed_mean_ms(rn_true_delays)
+        average_logcat_true_delay_ms = trimmed_mean_ms(logcat_true_delays)
+        average_maestro_delay_ms = trimmed_mean_ms(maestro_delays)
+        average_maestro_true_delay_ms = trimmed_mean_ms(maestro_true_delays)
         summary = {
             "dataset_row_idx": utterance.dataset_row_idx,
             "text": utterance.text,
@@ -921,15 +941,15 @@ class MonitorWorker:
             "rn_matched_words": utterance.rn_matched_word_count,
             "maestro_matched_words": utterance.maestro_matched_word_count,
             "word_count": len(utterance.words),
-            "average_rn_delay_ms": int(sum(rn_delays) / len(rn_delays)) if rn_delays else None,
-            "average_rn_true_delay_ms": int(sum(rn_true_delays) / len(rn_true_delays)) if rn_true_delays else None,
-            "average_logcat_true_delay_ms": int(sum(logcat_true_delays) / len(logcat_true_delays)) if logcat_true_delays else None,
+            "average_rn_delay_ms": int(round(average_rn_delay_ms)) if average_rn_delay_ms is not None else None,
+            "average_rn_true_delay_ms": int(round(average_rn_true_delay_ms)) if average_rn_true_delay_ms is not None else None,
+            "average_logcat_true_delay_ms": int(round(average_logcat_true_delay_ms)) if average_logcat_true_delay_ms is not None else None,
             "max_rn_delay_ms": max(rn_delays) if rn_delays else None,
             "max_rn_true_delay_ms": max(rn_true_delays) if rn_true_delays else None,
             "max_logcat_true_delay_ms": max(logcat_true_delays) if logcat_true_delays else None,
-            "average_maestro_delay_ms": int(sum(maestro_delays) / len(maestro_delays)) if maestro_delays else None,
+            "average_maestro_delay_ms": int(round(average_maestro_delay_ms)) if average_maestro_delay_ms is not None else None,
             "max_maestro_delay_ms": max(maestro_delays) if maestro_delays else None,
-            "average_maestro_true_delay_ms": int(sum(maestro_true_delays) / len(maestro_true_delays)) if maestro_true_delays else None,
+            "average_maestro_true_delay_ms": int(round(average_maestro_true_delay_ms)) if average_maestro_true_delay_ms is not None else None,
             "max_maestro_true_delay_ms": max(maestro_true_delays) if maestro_true_delays else None,
         }
         self.state.completed_utterances.append(summary)
@@ -1016,7 +1036,10 @@ class MonitorWorker:
         if len(points) < window_size:
             return
 
-        average_delay_ms = int(sum(int(point["delay_ms"]) for point in points) / len(points))
+        trimmed_average_delay = trimmed_mean_ms([int(point["delay_ms"]) for point in points])
+        if trimmed_average_delay is None:
+            return
+        average_delay_ms = int(round(trimmed_average_delay))
         threshold_ms = int(incident_rule.get("incident_threshold_ms", 0))
         resolve_threshold_ms = int(incident_rule.get("resolve_threshold_ms", threshold_ms))
 
@@ -1024,6 +1047,7 @@ class MonitorWorker:
             ongoing_incident.update(
                 {
                     "current_average_delay_ms": average_delay_ms,
+                    "current_trimmed_average_delay_ms": average_delay_ms,
                     "window_size": window_size,
                     "last_point_ts_ms": points[-1]["ts_ms"],
                 }
@@ -1035,9 +1059,10 @@ class MonitorWorker:
                 now_ms,
                 {
                     "current_average_delay_ms": average_delay_ms,
+                    "current_trimmed_average_delay_ms": average_delay_ms,
                     "window_size": window_size,
                     "last_point_ts_ms": points[-1]["ts_ms"],
-                    "reason": "moving_average_above_threshold",
+                    "reason": "trimmed_moving_average_above_threshold",
                 },
             )
             if incident_id is not None:
@@ -1046,6 +1071,7 @@ class MonitorWorker:
                     active_incident.update(
                         {
                             "current_average_delay_ms": average_delay_ms,
+                            "current_trimmed_average_delay_ms": average_delay_ms,
                             "window_size": window_size,
                             "last_point_ts_ms": points[-1]["ts_ms"],
                         }
@@ -1527,7 +1553,7 @@ HTML_PAGE = """<!doctype html>
       <div class="card wide">
         <h2>Word Delay Over Time</h2>
         <div id="chart"></div>
-        <div class="small">Use the built-in range buttons, zoom, pan, and range slider to inspect incidents. Purple = raw points, orange = 10-point moving average.</div>
+        <div class="small">Use the built-in range buttons, zoom, pan, and range slider to inspect incidents. Purple = raw points, orange = 10-point trimmed moving average with the bottom and top 10% dropped as outliers.</div>
       </div>
       <div class="card">
         <h2>Logcat Visible Text</h2>
@@ -1571,11 +1597,22 @@ HTML_PAGE = """<!doctype html>
       </div>
       <div class="card wide">
         <h2>Recent Utterances</h2>
-        <table id="utteranceTable"><thead><tr><th>Row</th><th>Avg Logcat True</th></tr></thead><tbody></tbody></table>
+        <table id="utteranceTable"><thead><tr><th>Row</th><th>Trimmed Logcat True</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
   </div>
   <script>
+    function trimmedMean(values, trimFraction = 0.10) {
+      if (!values.length) return null;
+      const sortedValues = [...values].map((value) => Number(value)).sort((a, b) => a - b);
+      let trimCount = Math.floor(sortedValues.length * trimFraction);
+      if (trimCount * 2 >= sortedValues.length) {
+        trimCount = Math.max(0, Math.floor((sortedValues.length - 1) / 2));
+      }
+      const trimmedValues = trimCount ? sortedValues.slice(trimCount, sortedValues.length - trimCount) : sortedValues;
+      const valuesToAverage = trimmedValues.length ? trimmedValues : sortedValues;
+      return valuesToAverage.reduce((sum, value) => sum + value, 0) / valuesToAverage.length;
+    }
     function fmtTs(ms) {
       if (!ms) return '-';
       return new Date(ms).toLocaleTimeString();
@@ -1621,7 +1658,7 @@ HTML_PAGE = """<!doctype html>
       const movingAveragePoints = [];
       for (let index = 9; index < points.length; index += 1) {
         const window = points.slice(index - 9, index + 1);
-        const avgDelay = window.reduce((sum, point) => sum + (point.delay_ms || 0), 0) / window.length;
+        const avgDelay = trimmedMean(window.map((point) => point.delay_ms || 0));
         movingAveragePoints.push({ ts_ms: points[index].ts_ms, delay_ms: avgDelay });
       }
       const traces = [
@@ -1636,7 +1673,7 @@ HTML_PAGE = """<!doctype html>
           marker: { color: '#c084fc', size: 5, opacity: 0.85 },
         },
         {
-          name: '10-pt avg',
+          name: '10-pt trimmed avg',
           type: 'scattergl',
           mode: 'lines',
           x: movingAveragePoints.map((point) => new Date(point.ts_ms)),

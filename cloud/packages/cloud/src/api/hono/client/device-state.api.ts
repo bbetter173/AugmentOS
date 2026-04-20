@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { GlassesInfo } from "@mentra/types";
 import { clientAuth, requireUserSession } from "../middleware/client.middleware";
 import { logger as rootLogger } from "../../../services/logging/pino-logger";
+import { incrementDeviceStateRateLimited } from "../../../services/metrics/device-state-counters";
 import type { AppEnv, AppContext } from "../../../types/hono";
 
 const logger = rootLogger.child({ service: "device-state.api" });
@@ -36,16 +37,6 @@ const RATE_LIMIT_ENTRY_MAX_AGE_MS = 5 * 60_000;
 
 type RateLimitEntry = { count: number; windowStart: number; lastWarnAt: number };
 const rateLimitState = new Map<string, RateLimitEntry>();
-
-let deviceStateUpdatesRateLimited = 0;
-
-export function getDeviceStateRateLimitCount(): number {
-  return deviceStateUpdatesRateLimited;
-}
-
-export function resetDeviceStateRateLimitCount(): void {
-  deviceStateUpdatesRateLimited = 0;
-}
 
 // Background sweep so idle users' counters don't pin memory. unref() so the
 // interval doesn't block shutdown.
@@ -76,7 +67,7 @@ async function rateLimit(c: AppContext, next: () => Promise<void>) {
 
   existing.count += 1;
   if (existing.count > RATE_LIMIT_MAX_PER_SEC) {
-    deviceStateUpdatesRateLimited++;
+    incrementDeviceStateRateLimited();
     if (now - existing.lastWarnAt > RATE_LIMIT_WARN_THROTTLE_MS) {
       existing.lastWarnAt = now;
       logger.warn(

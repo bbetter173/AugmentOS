@@ -1,10 +1,9 @@
 import os from "os";
 import { Logger } from "pino";
 // SessionStorage replaced by static registry in UserSession
-import { getDeviceStateRateLimitCount } from "../../api/hono/client/device-state.api";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { MemoryOwnerStat } from "../metrics/memory-census";
-import { getDeviceStateCounters } from "../session/DeviceManager";
+import { getDeviceStateCounters } from "../metrics/device-state-counters";
 import UserSession from "../session/UserSession";
 const ENABLED = process.env.MEMORY_TELEMETRY_ENABLED === "true" || false;
 
@@ -158,7 +157,7 @@ export class MemoryTelemetryService {
           updatesTotalSinceLastReset: ds.total,
           updatesDedupedSinceLastReset: ds.deduped,
           updatesAppliedSinceLastReset: ds.applied,
-          updatesRateLimitedSinceLastReset: getDeviceStateRateLimitCount(),
+          updatesRateLimitedSinceLastReset: ds.rateLimited,
         };
       })(),
     };

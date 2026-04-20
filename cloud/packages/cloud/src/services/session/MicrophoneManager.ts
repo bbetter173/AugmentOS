@@ -300,27 +300,45 @@ export class MicrophoneManager {
    * during the reconnection process.
    */
   handleConnectionStateChange(status: string): void {
-    const normalized: "CONNECTED" | "DISCONNECTED" =
-      status === "CONNECTED" || status === "RECONNECTED" ? "CONNECTED" : "DISCONNECTED";
+    const isConnectLike = status === "CONNECTED" || status === "RECONNECTED";
+    const normalized: "CONNECTED" | "DISCONNECTED" = isConnectLike ? "CONNECTED" : "DISCONNECTED";
 
-    if (normalized === this.lastKnownConnectionState) {
-      // No transition — skip the resync. This is the common case under
-      // a device-state storm where the mobile app keeps re-asserting the
-      // same CONNECTED state (issue 099).
+    // RECONNECTED is always a real reconnect event — even if we still think
+    // we were CONNECTED, the client is telling us the transport just re-established
+    // and the mobile app may have lost mic state during the transient drop.
+    // Always resync in that case.
+    //
+    // CONNECTED without RECONNECTED semantics is a heartbeat in the common
+    // case (device-state storm from issue 099): dedupe unless it is a genuine
+    // transition from DISCONNECTED/null.
+    const isRealReconnect = status === "RECONNECTED";
+    const isTransition = normalized !== this.lastKnownConnectionState;
+
+    if (!isRealReconnect && !isTransition) {
+      // Same state we already knew about, and the client did not signal a
+      // reconnect. Skip the resync — this is the common storm case.
       return;
     }
 
     const previous = this.lastKnownConnectionState;
     this.lastKnownConnectionState = normalized;
 
-    if (normalized === "CONNECTED") {
+    if (isConnectLike) {
       this.logger.info(
-        { status, previous, previousMicEnabled: this.enabled },
-        "Glasses transitioned to CONNECTED, forcing mic state resync",
+        {
+          status,
+          previous,
+          previousMicEnabled: this.enabled,
+          isRealReconnect,
+          isTransition,
+        },
+        isRealReconnect
+          ? "Glasses RECONNECTED — forcing mic state resync"
+          : "Glasses transitioned to CONNECTED — forcing mic state resync",
       );
-      // CRITICAL: Force resync on glasses connect/reconnect
+      // CRITICAL: Force resync on glasses connect/reconnect.
       // This ensures the mobile app has the correct mic state after any
-      // connection event.
+      // real reconnect event.
       this.forceResync();
     }
     // DISCONNECTED transition: no resync needed; the next CONNECTED will resync.

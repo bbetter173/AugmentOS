@@ -30,40 +30,13 @@ import appService from "../core/app.service";
 import { PosthogService } from "../logging/posthog.service";
 import { WebSocketReadyState, type IWebSocket } from "../websocket/types";
 
+import {
+  incrementDeviceStateTotal,
+  incrementDeviceStateDeduped,
+  incrementDeviceStateApplied,
+} from "../metrics/device-state-counters";
 import { HardwareCompatibilityService } from "./HardwareCompatibilityService";
 import type UserSession from "./UserSession";
-
-// ---------------------------------------------------------------------------
-// Device-state request counters (issue 099).
-// Pod-global. Read + reset by SystemVitalsLogger each vitals tick (30 s) and
-// exposed on /api/admin/memory/now. Kept as primitives (not a metrics lib)
-// because the hot path runs hundreds of times per minute and we want zero
-// extra allocation in the common "deduped" case.
-//
-// See: cloud/issues/099-glasses-connection-state-storm/
-// ---------------------------------------------------------------------------
-
-let deviceStateUpdatesTotal = 0;
-let deviceStateUpdatesDeduped = 0;
-let deviceStateUpdatesApplied = 0;
-
-export function getDeviceStateCounters(): {
-  total: number;
-  deduped: number;
-  applied: number;
-} {
-  return {
-    total: deviceStateUpdatesTotal,
-    deduped: deviceStateUpdatesDeduped,
-    applied: deviceStateUpdatesApplied,
-  };
-}
-
-export function resetDeviceStateCounters(): void {
-  deviceStateUpdatesTotal = 0;
-  deviceStateUpdatesDeduped = 0;
-  deviceStateUpdatesApplied = 0;
-}
 
 const SERVICE_NAME = "DeviceManager";
 const FALLBACK_MODEL = "Even Realities G1";
@@ -155,7 +128,7 @@ export class DeviceManager {
     // Compute the effective diff BEFORE inference so that synthesized fields
     // (e.g. inferring `connected: true` from a non-empty `modelName`) do not
     // falsely register as changes.
-    deviceStateUpdatesTotal++;
+    incrementDeviceStateTotal();
 
     const effectiveDiff: Partial<GlassesInfo> = {};
     for (const key of Object.keys(payload) as (keyof GlassesInfo)[]) {
@@ -166,11 +139,11 @@ export class DeviceManager {
 
     if (Object.keys(effectiveDiff).length === 0) {
       // No actual changes — silently drop. No log, no cascade, no broadcast.
-      deviceStateUpdatesDeduped++;
+      incrementDeviceStateDeduped();
       return;
     }
 
-    deviceStateUpdatesApplied++;
+    incrementDeviceStateApplied();
 
     this.logger.info(
       { userId: this.userSession.userId, effectiveDiff, feature: "device-state" },

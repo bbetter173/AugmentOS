@@ -16,6 +16,11 @@ await $({ stdio: 'inherit', cwd: 'modules/crust' })`bun install --ignore-scripts
 // now run prepare (expo-module will be available in node_modules/.bin)
 await $({ stdio: 'inherit', cwd: 'modules/crust' })`bun run prepare`;
 
+// Build @mentra/miniapp so its dist/ exists before Metro bundling (file: deps
+// don't run prepare reliably under bun). Safe no-op when already built.
+await $({ stdio: 'inherit', cwd: '../sdk/miniapp' })`bun install --ignore-scripts`;
+await $({ stdio: 'inherit', cwd: '../sdk/miniapp' })`bun run build`;
+
 // ignore scripts to avoid infinite loop:
 await $({ stdio: 'inherit' })`bun install --ignore-scripts`;
 

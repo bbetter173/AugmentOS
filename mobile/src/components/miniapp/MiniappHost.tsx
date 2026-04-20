@@ -201,6 +201,12 @@ export default function MiniappHost() {
     webViewRefs.current.delete(packageName)
     canGoBackMap.current.delete(packageName)
     canGoBackListeners.current.delete(packageName)
+    setCanGoBackState((m) => {
+      if (!m.has(packageName)) return m
+      const next = new Map(m)
+      next.delete(packageName)
+      return next
+    })
     miniComms.setWebViewMessageHandler(packageName, undefined)
     localMiniappRuntime.unregisterApp(packageName)
   }, [])
@@ -234,11 +240,21 @@ export default function MiniappHost() {
     }
   }, [])
 
+  // React state mirror of canGoBack so that render-time consumers (e.g. the
+  // WebView's `allowsBackForwardNavigationGestures` prop) re-read the value
+  // when it changes. External subscribers still use the ref + listener fanout.
+  const [canGoBackState, setCanGoBackState] = useState<Map<string, boolean>>(new Map())
+
   const handleNavStateChange = useCallback(
     (packageName: string, canGo: boolean) => {
       const prev = canGoBackMap.current.get(packageName) ?? false
       if (prev === canGo) return
       canGoBackMap.current.set(packageName, canGo)
+      setCanGoBackState((m) => {
+        const next = new Map(m)
+        next.set(packageName, canGo)
+        return next
+      })
       const listeners = canGoBackListeners.current.get(packageName)
       if (listeners) {
         for (const l of listeners) l(canGo)
@@ -465,7 +481,11 @@ export default function MiniappHost() {
               onError={() => handleError(app.packageName)}
               onNavigationStateChange={(navState) => handleNavStateChange(app.packageName, navState.canGoBack)}
               onLoadEnd={() => markLoaded(app.packageName)}
-              allowsBackForwardNavigationGestures={true}
+              // Only enable WKWebView's own edge-swipe when there's history to
+              // pop. Otherwise the native gesture silently eats our left-edge
+              // touches and LeftEdgeBackSwipe (the "exit miniapp" fallback)
+              // never gets them.
+              allowsBackForwardNavigationGestures={canGoBackState.get(app.packageName) ?? false}
               bounces={false}
               overScrollMode="never"
               automaticallyAdjustContentInsets={false}

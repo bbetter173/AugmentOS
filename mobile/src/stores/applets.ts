@@ -718,11 +718,18 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       }))
     }
 
+    // Preserve dev-loaded miniapps (launched via QR / URL, not installed)
+    // through refresh. They live only in state.apps, not in any of the
+    // sources below, so without this merge they'd get wiped on every
+    // refreshApplets() call (triggered by startApplet/stopApplet polling).
+    const devApplets = useAppletStatusStore.getState().apps.filter((a) => a.isMiniappDev)
+
     // merge in the offline apps:
     let applets: ClientAppletInterface[] = [
       ...onlineApps,
       ...(await getOfflineApplets()),
       ...(await composer.getLocalApplets()),
+      ...devApplets,
     ]
 
     // remove duplicates and keep the online versions:

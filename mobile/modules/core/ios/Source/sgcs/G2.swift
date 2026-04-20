@@ -978,42 +978,6 @@ private class G2ReceiveManager {
 
 // MARK: - G2 Class (SGCManager implementation)
 
-/// Heartbeat ticker driven by Swift Concurrency.
-///
-/// Uses `Task.sleep` instead of `Timer.scheduledTimer` so ticks are not bound
-/// to the main RunLoop. Main-RunLoop timers get heavily coalesced when the app
-/// is backgrounded (typically to ~30s minimum), which would starve G2's 5s
-/// firmware-side heartbeat requirement and cause the glasses to drop the link.
-actor G2HeartbeatManager {
-    private var task: Task<Void, Never>?
-    private let intervalSeconds: TimeInterval
-
-    init(intervalSeconds: TimeInterval = 5) {
-        self.intervalSeconds = intervalSeconds
-    }
-
-    func start(onTick: @escaping @Sendable () async -> Void) {
-        stop()
-
-        task = Task {
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(intervalSeconds * 1_000_000_000))
-                } catch {
-                    break
-                }
-                guard !Task.isCancelled else { break }
-                await onTick()
-            }
-        }
-    }
-
-    func stop() {
-        task?.cancel()
-        task = nil
-    }
-}
-
 /// Actor for reconnection logic (matches G1 pattern)
 actor G2ReconnectionManager {
     private var task: Task<Void, Never>?
@@ -1143,7 +1107,6 @@ class G2: NSObject, SGCManager {
     // Protocol state
     private let sendManager = G2SendManager()
     private let receiveManager = G2ReceiveManager()
-    private let heartbeatManager = G2HeartbeatManager(intervalSeconds: 5)
     private var foregroundObserver: NSObjectProtocol?
     private var startupPageCreated: Bool = false  // createStartUpPageContainer can only be called once
     private var pageCreated: Bool = false
@@ -1514,106 +1477,11 @@ class G2: NSObject, SGCManager {
         // // Small delay then auth right + pipe role change + time sync
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             guard let self = self else { return }
-
-            //     let authR = DevSettingsProto.authCmd(magicRandom: self.sendManager.nextMagicRandom())
-            //     self.sendDevSettingsCommand(authR, left: false, right: true)
-
-            //     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            //         guard let self = self else { return }
-
-            //         let roleChange = DevSettingsProto.pipeRoleChange(
-            //             magicRandom: self.sendManager.nextMagicRandom()
-            //         )
-            //         self.sendDevSettingsCommand(roleChange, left: false, right: true)
-
-            //         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            //             guard let self = self else { return }
-
-            //             let timeSync = DevSettingsProto.timeSync(
-            //                 magicRandom: self.sendManager.nextMagicRandom()
-            //             )
-            //             self.sendDevSettingsCommand(timeSync)
-
-            //             // Skip onboarding on connect
-            //             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            //                 guard let self = self else { return }
-            // let onboarding = OnboardingProto.skipOnboarding(
-            //     magicRandom: self.sendManager.nextMagicRandom()
-            // )
-            // self.sendOnboardingCommand(onboarding)
-            // Bridge.log("G2: Sent onboarding skip (FINISH)")
-
-            // // Disable "Hey Even" wakeword on connect
-            // let heyEvenOff = EvenAIProto.setHeyEven(
-            //     magicRandom: self.sendManager.nextMagicRandom(),
-            //     enabled: false
-            // )
-            // self.sendEvenAICommand(heyEvenOff)
-            // Bridge.log("G2: Disabled Hey Even wakeword")
-
-            // // Replicate Even app's full init sequence for menu selection support:
-
-            // // 0. Universe settings (g2_setting cmd=1 field3 with field9=universe settings)
-            // // Even app's bytes: 4a 0a 08 00 10 00 18 01 20 00 28 01
-            // // = field 9 (universe), {1:0, 2:0, 3:1, 4:0, 5:1}
-            // var univW = ProtobufWriter()
-            // univW.writeInt32Field(1, 1)  // DeviceReceiveInfo
-            // univW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // univW.writeMessageField(
-            //     3,
-            //     Data([
-            //         0x4A, 0x0A,  // field 9, length 10
-            //         0x08, 0x00,  // unitFormat=0
-            //         0x10, 0x00,  // distanceUnit=0
-            //         0x18, 0x01,  // timeFormat=1
-            //         0x20, 0x00,  // dateFormat=0
-            //         0x28, 0x01,  // temperatureUnit=1
-            //     ]))
-            // self.sendG2SettingCommand(univW.data)
-
             // 1. gesture_ctrl init (field1=0, field2=magicRandom)
             var gestureInitW = ProtobufWriter()
             gestureInitW.writeInt32Field(1, 0)
             gestureInitW.writeInt32Field(2, self.sendManager.nextMagicRandom())
             self.sendGestureCtrlCommand(gestureInitW.data)
-
-            // 2. ui_setting_app (0x0C) — query (cmd=2, field4={settingInfoType=1, autoBrightnessLevel=0})
-            // var uiSettW = ProtobufWriter()
-            // uiSettW.writeInt32Field(1, 2)  // cmd = DeviceReceiveRequest
-            // uiSettW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // uiSettW.writeMessageField(4, Data([0x08, 0x01, 0x10, 0x00]))  // {1:1, 2:0}
-            // self.sendToGlasses(
-            //     self.sendManager.buildPackets(
-            //         serviceId: 0x0C, payload: uiSettW.data, reserveFlag: true
-            //     ))
-
-            // // 3. teleprompter (0x10) — config (cmd=1, field3={1:4})
-            // var teleW = ProtobufWriter()
-            // teleW.writeInt32Field(1, 1)
-            // teleW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // teleW.writeMessageField(3, Data([0x08, 0x04]))  // {1:4}
-            // self.sendToGlasses(
-            //     self.sendManager.buildPackets(
-            //         serviceId: 0x10, payload: teleW.data, reserveFlag: true
-            //     ))
-
-            // 4. EvenHub CTRL on service 0x81 (cmd=1, empty field3)
-            // var ehCtrlW = ProtobufWriter()
-            // ehCtrlW.writeInt32Field(1, 1)
-            // ehCtrlW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // ehCtrlW.writeMessageField(3, Data())
-            // self.sendEvenHubCtrlCommand(ehCtrlW.data)
-
-            // // 5. calendar (0x04) — config
-            // var calW = ProtobufWriter()
-            // calW.writeInt32Field(1, 1)
-            // calW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // calW.writeMessageField(
-            //     3, Data([0x08, 0x01, 0x10, 0x01, 0x18, 0x05, 0x28, 0x01]))
-            // self.sendToGlasses(
-            //     self.sendManager.buildPackets(
-            //         serviceId: 0x04, payload: calW.data, reserveFlag: true
-            //     ))
 
             // 6. Dashboard init (0x01) — display settings
             var dashDisplayW = ProtobufWriter()
@@ -1633,144 +1501,29 @@ class G2: NSObject, SGCManager {
             dashPkgW.writeInt32Field(2, self.sendManager.nextMagicRandom())
             dashPkgW.writeMessageField(4, dashRecvW.data)
             self.sendDashboardCommand(dashPkgW.data)
-
-            // // 7. Dashboard REQUEST_NEWS_INFO (cmd=5, field7={1:1})
-            // var dashNewsReqW = ProtobufWriter()
-            // dashNewsReqW.writeInt32Field(1, 5)  // REQUEST_NEWS_INFO
-            // dashNewsReqW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // dashNewsReqW.writeMessageField(7, Data([0x08, 0x01]))  // {1:1}
-            // self.sendDashboardCommand(dashNewsReqW.data)
-
-            // // 8. Gesture control list via g2_setting
-            // var gestListW = ProtobufWriter()
-            // gestListW.writeInt32Field(1, 1)  // DeviceReceiveInfo
-            // gestListW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // // field 3 with field 10 (gestureControlList): 3 items, all app_unable
-            // let gestureCtrlPayload = Data([
-            //     0x52, 0x18,  // field 10, length 24
-            //     0x0A, 0x06, 0x08, 0x00, 0x10, 0x00, 0x18, 0x00,  // item 1
-            //     0x0A, 0x06, 0x08, 0x00, 0x10, 0x01, 0x18, 0x00,  // item 2
-            //     0x0A, 0x06, 0x08, 0x00, 0x10, 0x02, 0x18, 0x00,  // item 3
-            // ])
-            // gestListW.writeMessageField(3, gestureCtrlPayload)
-            // self.sendG2SettingCommand(gestListW.data)
-
-            // 9. Dashboard APP_REQUEST_NEWS_INFO (cmd=7, field9={1:1})
-            // var dashAppNewsW = ProtobufWriter()
-            // dashAppNewsW.writeInt32Field(1, 7)  // APP_REQUEST_NEWS_INFO
-            // dashAppNewsW.writeInt32Field(2, self.sendManager.nextMagicRandom())
-            // dashAppNewsW.writeMessageField(9, Data([0x08, 0x01]))  // {1:1}
-            // self.sendDashboardCommand(dashAppNewsW.data)
-
             Bridge.log("G2: Sent full Even-compatible init sequence")
-
-            //             // Start heartbeats after auth
-            //             self.startHeartbeats()
-
-            //             // Mark as ready and request device info (version + battery)
-            //             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            //                 guard let self = self else { return }
-            //                 self.ready = true
-            //                 Task { await self.reconnectionManager.stop() }
-            //                 Bridge.log("G2: Auth sequence complete, glasses ready")
-
-            //                 // Set device_name so CoreManager can save it for reconnection
-            //                 if let peripheralName = self.rightPeripheral?.name
-            //                     ?? self.leftPeripheral?.name,
-            //                     let idNumber = self.extractIdNumber(peripheralName)
-            //                 {
-            //                     let deviceId = "\(idNumber)"
-            //                     GlassesStore.shared.apply("core", "device_name", deviceId)
-            //                     Bridge.log("G2: Set device_name to \(deviceId)")
-            //                 }
-
-            //                 // Set bluetooth name and device model for Device Info page
-            //                 let btName =
-            //                     self.rightPeripheral?.name
-            //                     ?? self.leftPeripheral?.name ?? ""
-            //                 GlassesStore.shared.apply("glasses", "bluetoothName", btName)
-            //                 GlassesStore.shared.apply("glasses", "deviceModel", DeviceTypes.G2)
-
-            //                 GlassesStore.shared.apply("glasses", "connected", true)
-            //                 GlassesStore.shared.apply("glasses", "fullyBooted", true)
-
-            //                 // Query version + battery info from glasses
-            //                 self.requestDeviceInfo()
-
-            //                 // Re-send dashboard menu if we have stored items
-            //                 if !self.dashboardMenuItems.isEmpty {
-            //                     let (msg, appIdMap) = MenuProto.sendMenuInfo(
-            //                         magicRandom: self.sendManager.nextMagicRandom(),
-            //                         items: self.dashboardMenuItems
-            //                     )
-            //                     self.menuAppIdToPackageName = appIdMap
-            //                     self.sendMenuCommand(msg)
-            //                     Bridge.log(
-            //                         "G2: Re-sent dashboard menu (\(self.dashboardMenuItems.count) items)"
-            //                     )
-            //                 }
-            //             }
-            //         }
         }
-        // }
     }
 
     // MARK: - Heartbeats
 
     private func startHeartbeats() {
-        registerForegroundObserverIfNeeded()
-        Task { [weak self] in
-            await self?.heartbeatManager.start { [weak self] in
-                await self?.heartbeatTick()
+        heartbeatTask?.cancel()
+        heartbeatTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { break }
+                await MainActor.run {
+                    self?.sendEvenHubHeartbeat()
+                    self?.sendDevSettingsHeartbeat()
+                }
             }
         }
     }
 
     private func stopHeartbeats() {
-        Task { [weak self] in
-            await self?.heartbeatManager.stop()
-        }
-    }
-
-    /// Single tick: sends both heartbeats sequentially off the main queue.
-    /// Runs on the BLE queue so the actual `peripheral.writeValue` call doesn't
-    /// depend on main-thread runloop servicing while backgrounded.
-    private func heartbeatTick() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            G2._bluetoothQueue.async { [weak self] in
-                guard let self else {
-                    continuation.resume()
-                    return
-                }
-                Task { @MainActor [weak self] in
-                    guard let self else {
-                        continuation.resume()
-                        return
-                    }
-                    self.sendEvenHubHeartbeat()
-                    self.sendDevSettingsHeartbeat()
-                    continuation.resume()
-                }
-            }
-        }
-    }
-
-    /// Fire one immediate heartbeat pair when the app returns to foreground,
-    /// closing any gap caused by iOS coalescing during background.
-    private func registerForegroundObserverIfNeeded() {
-        guard foregroundObserver == nil else { return }
-        foregroundObserver = NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor [weak self] in
-                guard let self, self.ready else { return }
-                self.sendEvenHubHeartbeat()
-                self.sendDevSettingsHeartbeat()
-            }
-        }
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
     }
 
     private func sendEvenHubHeartbeat() {

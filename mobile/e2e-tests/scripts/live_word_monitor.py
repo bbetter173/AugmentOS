@@ -4,6 +4,7 @@ import collections
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -38,6 +39,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True, help="Directory for monitor state and NDJSON history")
     parser.add_argument("--port", type=int, default=8765, help="Local dashboard port")
     parser.add_argument("--device", default=None, help="Optional adb device id")
+    parser.add_argument(
+        "--audio-output-device",
+        default=None,
+        help="Require this macOS output device for local playback. If SwitchAudioSource is installed, the monitor will switch to it automatically.",
+    )
     parser.add_argument("--poll-interval", type=float, default=0.25, help="Hierarchy poll interval in seconds")
     parser.add_argument("--word-match-early-tolerance-ms", type=int, default=250, help="Allow a visible word match slightly before the expected word timestamp")
     parser.add_argument("--drop-threshold-ms", type=int, default=5000, help="How long visible text can stagnate before a drop is recorded")
@@ -488,7 +494,56 @@ def download_audio(cache_dir: Path, row_idx: int, audio_url: str) -> Path:
     return destination
 
 
-def play_audio_locally(audio_file: Path) -> subprocess.Popen[bytes]:
+def get_default_output_device_name() -> str | None:
+    result = subprocess.run(
+        ["system_profiler", "SPAudioDataType"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    lines = result.stdout.splitlines()
+    for index, raw_line in enumerate(lines):
+        line = raw_line.rstrip()
+        if "Default Output Device: Yes" not in line:
+            continue
+
+        for candidate in range(index - 1, -1, -1):
+            header = lines[candidate].rstrip()
+            stripped = header.strip()
+            if not stripped or stripped == "Devices:" or stripped == "Audio:" or ":" not in stripped:
+                continue
+            if header.startswith("        ") and not header.startswith("          "):
+                return stripped[:-1]
+    return None
+
+
+def ensure_audio_output_device(device_name: str) -> None:
+    current_device = get_default_output_device_name()
+    if current_device == device_name:
+        return
+
+    switch_audio_source = shutil.which("SwitchAudioSource")
+    if switch_audio_source:
+        subprocess.run(
+            [switch_audio_source, "-t", "output", "-s", device_name],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        current_device = get_default_output_device_name()
+        if current_device == device_name:
+            return
+
+    current_label = current_device or "unknown"
+    raise RuntimeError(
+        f"Expected audio output device '{device_name}', but macOS default output is '{current_label}'. "
+        "Switch to the expected device manually or install SwitchAudioSource to allow auto-switching."
+    )
+
+
+def play_audio_locally(audio_file: Path, audio_output_device: str | None = None) -> subprocess.Popen[bytes]:
+    if audio_output_device:
+        ensure_audio_output_device(audio_output_device)
     return subprocess.Popen(["afplay", str(audio_file)])
 
 
@@ -566,7 +621,7 @@ class MonitorWorker:
             return
 
         utterance = self.make_utterance(prepared_row, now_ms)
-        self.playback_process = play_audio_locally(prepared_row.audio_file)
+        self.playback_process = play_audio_locally(prepared_row.audio_file, self.args.audio_output_device)
         self.state.current_utterance = utterance
         self.state.status = "running_utterance"
         self.state.status_detail = f"row {utterance.dataset_row_idx}"

@@ -97,7 +97,8 @@ The phone must be able to open the captions mini app and render the `Simulated g
 cd /path/to/MentraOS/mobile/e2e-test
 python3 scripts/live_word_monitor.py \
   --output-dir results \
-  --port 8765
+  --port 8765 \
+  --audio-output-device "External Headphones"
 ```
 
 Then open:
@@ -200,7 +201,8 @@ From the MentraOS repo:
 cd mobile/e2e-tests
 python3 scripts/live_word_monitor.py \
   --output-dir results \
-  --port 8765
+  --port 8765 \
+  --audio-output-device "External Headphones"
 ```
 
 Open:
@@ -211,6 +213,7 @@ Notes:
 
 - this script does **not** hot reload; restart it after code changes
 - it writes cache and monitor output under `results`
+- if `--audio-output-device` is set, the monitor will refuse playback unless that macOS output device is active; with `SwitchAudioSource` installed it will auto-switch first
 - if startup fails because cached utterance history is on an old schema, remove or migrate `results/utterance_reports.ndjson`
 
 ### 4. Optional: expose the dashboard publicly

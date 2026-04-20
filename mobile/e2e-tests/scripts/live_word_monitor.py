@@ -46,6 +46,9 @@ DEFAULT_INCIDENT_CONFIG = {
         "resolve_threshold_ms": 10000,
     },
 }
+CAPTIONS_TESTER_INCIDENT_RESULT_MARKER = "CAPTIONS_TESTER_INCIDENT_RESULT "
+CONSOLE_INCIDENT_BASE_URL = "https://console.mentra.glass/admin/incidents/"
+CAPTIONS_TESTER_FILED_RE = re.compile(r"CaptionsTesterBugReport\]\s+Incident filed:\s*([0-9a-fA-F-]+)")
 
 
 def parse_args() -> argparse.Namespace:
@@ -974,6 +977,55 @@ class MonitorWorker:
                 dispatch_error=str(exc),
             )
 
+    def handle_captions_tester_incident_result(self, payload: dict[str, Any], now_ms: int) -> dict[str, Any] | None:
+        alert_id = str(payload.get("alert_id") or payload.get("test_run_id") or "").strip()
+        if not alert_id:
+            return None
+
+        result_status = str(payload.get("status") or "").strip()
+        updates: dict[str, Any] = {
+            "report_state": result_status or "unknown",
+            "report_updated_at_ms": now_ms,
+        }
+        incident_id = str(payload.get("incident_id") or "").strip()
+        if incident_id:
+            updates["reported_incident_id"] = incident_id
+            updates["reported_incident_url"] = urllib.parse.urljoin(CONSOLE_INCIDENT_BASE_URL, incident_id)
+
+        reason = str(payload.get("reason") or "").strip()
+        error = str(payload.get("error") or "").strip()
+        if reason:
+            updates["report_reason"] = reason
+        if error:
+            updates["report_error"] = error
+        return self.state.update_alert(alert_id, **updates)
+
+    def find_latest_unreported_alert_id(self) -> str | None:
+        with self.state.lock:
+            ordered_alerts = sorted(self.state.alerts, key=lambda item: int(item.get("alerted_at_ms") or 0), reverse=True)
+            for alert in ordered_alerts:
+                alert_id = str(alert.get("alert_id") or "").strip()
+                if not alert_id or alert.get("reported_incident_id"):
+                    continue
+                return alert_id
+        return None
+
+    def handle_legacy_captions_tester_filed_log(self, line: str, now_ms: int) -> dict[str, Any] | None:
+        match = CAPTIONS_TESTER_FILED_RE.search(line)
+        if not match:
+            return None
+        alert_id = self.find_latest_unreported_alert_id()
+        if not alert_id:
+            return None
+        incident_id = match.group(1)
+        return self.state.update_alert(
+            alert_id,
+            report_state="filed",
+            report_updated_at_ms=now_ms,
+            reported_incident_id=incident_id,
+            reported_incident_url=urllib.parse.urljoin(CONSOLE_INCIDENT_BASE_URL, incident_id),
+        )
+
     def make_utterance(self, prepared_row: PreparedRow, now_ms: int) -> UtteranceState:
         row = prepared_row.row
         payload = row["row"]
@@ -1548,6 +1600,17 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                 for line in self.logcat_process.stdout:
                     if self.stop_event.is_set():
                         break
+                    now_ms = int(time.time() * 1000)
+                    if CAPTIONS_TESTER_INCIDENT_RESULT_MARKER in line:
+                        payload_text = line.split(CAPTIONS_TESTER_INCIDENT_RESULT_MARKER, 1)[1].strip()
+                        try:
+                            payload = json.loads(payload_text)
+                        except json.JSONDecodeError:
+                            continue
+                        self.handle_captions_tester_incident_result(payload, now_ms)
+                        continue
+                    if self.handle_legacy_captions_tester_filed_log(line, now_ms) is not None:
+                        continue
                     marker = "E2E_METRIC "
                     if marker not in line:
                         continue
@@ -1560,7 +1623,7 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                     if payload.get("event") != "display_store_update":
                         continue
 
-                    now_ms = int(payload.get("ts_ms") or time.time() * 1000)
+                    now_ms = int(payload.get("ts_ms") or now_ms)
                     visible_lines = payload.get("text_lines") or []
                     normalized_lines = [normalize_text(item) for item in visible_lines]
                     with self.state.lock:
@@ -1729,7 +1792,7 @@ HTML_PAGE = """<!doctype html>
       </div>
       <div class="card wide">
         <h2>Alert History</h2>
-        <table id="alertTable"><thead><tr><th>Type</th><th>Alerted</th><th>Duration</th><th>Status</th></tr></thead><tbody></tbody></table>
+        <table id="alertTable"><thead><tr><th>Type</th><th>Alerted</th><th>Duration</th><th>Dispatch</th><th>Report</th><th>Incident</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -1946,10 +2009,14 @@ HTML_PAGE = """<!doctype html>
       const recentAlerts = state.alerts
         .slice()
         .sort((left, right) => (right.alerted_at_ms || 0) - (left.alerted_at_ms || 0))
-        .map((alert) =>
-        `<tr><td>${alert.incident_name || alert.incident_type}</td><td>${fmtTs(alert.alerted_at_ms)}</td><td>${fmtDuration(alert.duration_ms)}</td><td>${alert.status}</td></tr>`
-      );
-      fillRows('alertTable', recentAlerts, 4);
+        .map((alert) => {
+          const reportState = alert.report_state || '-';
+          const incidentCell = alert.reported_incident_url
+            ? `<a href="${alert.reported_incident_url}" target="_blank" rel="noreferrer">${alert.reported_incident_id || 'Open'}</a>`
+            : (alert.report_error || alert.report_reason || '-');
+          return `<tr><td>${alert.incident_name || alert.incident_type}</td><td>${fmtTs(alert.alerted_at_ms)}</td><td>${fmtDuration(alert.duration_ms)}</td><td>${alert.status}</td><td>${reportState}</td><td>${incidentCell}</td></tr>`;
+        });
+      fillRows('alertTable', recentAlerts, 6);
 
       const completedIncidents = state.completed_incidents
         .slice()

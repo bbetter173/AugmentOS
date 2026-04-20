@@ -690,7 +690,7 @@ struct ViewState {
             // sgc = FrameManager()
         }
         // update device model:
-        GlassesStore.shared.apply("glasses", "deviceModel", sgc.type)
+        GlassesStore.shared.apply("glasses", "deviceModel", sgc?.type ?? "")
     }
 
     func initController(_ controllerModel: String) {
@@ -1122,9 +1122,9 @@ struct ViewState {
         sgc?.requestWifiScan()
     }
 
-    func sendIncidentId(_ incidentId: String) {
+    func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil) {
         Bridge.log("MAN: Sending incidentId to glasses for log upload: \(incidentId)")
-        sgc?.sendIncidentId(incidentId)
+        sgc?.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
     }
 
     func sendWifiCredentials(_ ssid: String, _ password: String) {

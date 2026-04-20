@@ -28,7 +28,7 @@ export default function AppearanceSettingsPage() {
   return (
     <Screen preset="fixed">
       <Header title={translate("settings:appearance")} leftIcon="chevron-left" onLeftPress={() => goBack()} />
-      <ScrollView className="pt-6" contentContainerClassName="gap-6">
+      <ScrollView className="pt-6 px-6 -mx-6" contentContainerClassName="gap-6">
         <OptionList
           title={translate("appearanceSettings:theme")}
           selected={themePreference}

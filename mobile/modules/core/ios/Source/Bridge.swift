@@ -139,12 +139,15 @@ class Bridge {
         Bridge.sendTypedMessage("button_press", body: body)
     }
 
-    static func sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Int64) {
-        let body: [String: Any] = [
+    static func sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Int64, source: Int32? = nil) {
+        var body: [String: Any] = [
             "device_model": deviceModel,
             "gesture_name": gestureName,
             "timestamp": timestamp,
         ]
+        if let source {
+            body["source"] = source
+        }
         Bridge.sendTypedMessage("touch_event", body: body)
     }
 

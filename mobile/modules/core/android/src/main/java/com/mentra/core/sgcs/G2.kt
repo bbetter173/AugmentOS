@@ -2423,7 +2423,7 @@ class G2 : SGCManager() {
         requestDeviceInfo()
     }
 
-    override fun sendIncidentId(incidentId: String) {}
+    override fun sendIncidentId(incidentId: String, apiBaseUrl: String?) {}
 
     // ---------- BLE Scanning ----------
 

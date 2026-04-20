@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # Manual trigger only — no auto-deploy
   push:
     branches:
-      - cloud/issues-078-memory-ownership-census
+      - cloud/issues-099-glasses-connection-state-storm
     paths:
       - "cloud/**"
       - ".github/workflows/porter-us-west.yml"

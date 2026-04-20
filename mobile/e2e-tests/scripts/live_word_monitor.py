@@ -72,6 +72,21 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Require this macOS output device for local playback. If SwitchAudioSource is installed, the monitor will switch to it automatically.",
     )
+    parser.add_argument(
+        "--alert-intent-action",
+        default="com.mentra.CAPTIONS_TESTER_INCIDENT",
+        help="Android broadcast action to fire when an alert is raised.",
+    )
+    parser.add_argument(
+        "--alert-intent-component",
+        default="com.mentra.mentra/com.mentra.core.receivers.CaptionsTesterIncidentReceiver",
+        help="Optional explicit Android broadcast component for alert dispatch.",
+    )
+    parser.add_argument(
+        "--disable-alert-intent-dispatch",
+        action="store_true",
+        help="Disable Android alert-intent dispatch even when alerts are raised.",
+    )
     parser.add_argument("--poll-interval", type=float, default=0.25, help="Hierarchy poll interval in seconds")
     parser.add_argument("--word-match-early-tolerance-ms", type=int, default=250, help="Allow a visible word match slightly before the expected word timestamp")
     parser.add_argument("--post-roll-ms", type=int, default=1200, help="Extra time after the last aligned word before closing an utterance")
@@ -406,13 +421,20 @@ def load_incident_history(output_dir: Path, max_history: int) -> tuple[list[dict
                     completed_incidents.append({**payload, "status": "ended"})
 
     if alerts_path.exists():
+        alert_by_id: dict[str, dict[str, Any]] = {}
         for line in alerts_path.read_text().splitlines():
             if not line.strip():
                 continue
             try:
-                alerts.append(json.loads(line))
+                alert = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            alert_id = alert.get("alert_id")
+            if alert_id:
+                alert_by_id[alert_id] = alert
+            else:
+                alerts.append(alert)
+        alerts.extend(alert_by_id.values())
 
     alert_by_incident_id = {alert.get("incident_id"): alert for alert in alerts if alert.get("incident_id")}
     for incident_id, incident in ongoing_incidents.items():
@@ -542,6 +564,17 @@ class MonitorState:
         write_ndjson(self.output_dir / "alerts.ndjson", alert)
         self.append_event("incident_alerted", alert)
         return alert
+
+    def update_alert(self, alert_id: str, **updates: Any) -> dict[str, Any] | None:
+        with self.lock:
+            for alert in self.alerts:
+                if alert.get("alert_id") != alert_id:
+                    continue
+                alert.update(updates)
+                write_ndjson(self.output_dir / "alerts.ndjson", alert)
+                self.append_event("alert_updated", {"alert_id": alert_id, **updates})
+                return alert
+        return None
 
     def end_incident(self, incident_id: str, ended_at_ms: int, details: dict[str, Any] | None = None) -> dict[str, Any] | None:
         incident = self.ongoing_incidents.pop(incident_id, None)
@@ -808,6 +841,13 @@ class MonitorWorker:
         self.last_audio_output_device_name: str | None = None
         self.last_audio_output_check_error: str | None = None
 
+    @property
+    def adb_prefix(self) -> list[str]:
+        prefix = ["adb"]
+        if self.args.device:
+            prefix.extend(["-s", self.args.device])
+        return prefix
+
     def _stop_subprocess(self, process: subprocess.Popen[Any] | None) -> None:
         if process is None or process.poll() is not None:
             return
@@ -824,6 +864,115 @@ class MonitorWorker:
         self._stop_subprocess(self.playback_process)
         self._stop_subprocess(self.rn_stream_process)
         self._stop_subprocess(self.logcat_process)
+
+    def maybe_alert_and_dispatch(self, incident_id: str, now_ms: int) -> dict[str, Any] | None:
+        alert = self.state.maybe_alert_incident(incident_id, now_ms)
+        if alert is not None:
+            threading.Thread(target=self.dispatch_alert_intent, args=(dict(alert), now_ms), daemon=True).start()
+        return alert
+
+    def dispatch_alert_intent(self, alert: dict[str, Any], now_ms: int) -> dict[str, Any] | None:
+        alert_id = str(alert.get("alert_id") or "")
+        if not alert_id:
+            return None
+
+        if self.args.disable_alert_intent_dispatch:
+            return self.state.update_alert(
+                alert_id,
+                status="dispatch_disabled",
+                dispatch_attempted_at_ms=now_ms,
+            )
+
+        action = (self.args.alert_intent_action or "").strip()
+        if not action:
+            return self.state.update_alert(
+                alert_id,
+                status="dispatch_disabled",
+                dispatch_attempted_at_ms=now_ms,
+                dispatch_error="No alert intent action configured.",
+            )
+
+        failure_message = (
+            f"{alert.get('incident_name', alert.get('incident_type', 'incident'))} alert reached after "
+            f"{int(alert.get('duration_ms') or 0) / 1000:.1f}s."
+        )
+        adb_cmd = self.adb_prefix + [
+            "shell",
+            "am",
+            "broadcast",
+            "-a",
+            action,
+        ]
+        component = (self.args.alert_intent_component or "").strip()
+        if component:
+            adb_cmd.extend(["-n", component])
+        adb_cmd.extend(
+            [
+                "--es",
+                "failure_code",
+                str(alert.get("incident_type") or "unknown_incident"),
+                "--es",
+                "failure_message",
+                failure_message,
+                "--es",
+                "test_run_id",
+                alert_id,
+                "--es",
+                "scenario_name",
+                str(alert.get("incident_name") or alert.get("incident_type") or "Unknown Incident"),
+                "--es",
+                "source",
+                "live_word_monitor",
+                "--es",
+                "alert_id",
+                alert_id,
+                "--es",
+                "incident_id",
+                str(alert.get("incident_id") or ""),
+                "--es",
+                "incident_type",
+                str(alert.get("incident_type") or ""),
+                "--es",
+                "incident_name",
+                str(alert.get("incident_name") or ""),
+                "--es",
+                "reason",
+                str(alert.get("reason") or ""),
+                "--ei",
+                "duration_ms",
+                str(int(alert.get("duration_ms") or 0)),
+                "--ei",
+                "alert_threshold_ms",
+                str(int(alert.get("alert_threshold_ms") or 0)),
+                "--el",
+                "started_at_ms",
+                str(int(alert.get("started_at_ms") or 0)),
+                "--el",
+                "alerted_at_ms",
+                str(int(alert.get("alerted_at_ms") or now_ms)),
+            ]
+        )
+        if alert.get("dataset_row_idx") is not None:
+            adb_cmd.extend(["--ei", "dataset_row_idx", str(int(alert["dataset_row_idx"]))])
+        if alert.get("utterance_text"):
+            adb_cmd.extend(["--es", "utterance_text", str(alert["utterance_text"])])
+
+        try:
+            result = subprocess.run(adb_cmd, check=True, capture_output=True, text=True, timeout=15)
+            return self.state.update_alert(
+                alert_id,
+                status="dispatched",
+                dispatch_attempted_at_ms=now_ms,
+                dispatch_completed_at_ms=int(time.time() * 1000),
+                dispatch_output=(result.stdout or result.stderr).strip() or "broadcast_sent",
+            )
+        except Exception as exc:
+            return self.state.update_alert(
+                alert_id,
+                status="dispatch_failed",
+                dispatch_attempted_at_ms=now_ms,
+                dispatch_error=str(exc),
+            )
 
     def make_utterance(self, prepared_row: PreparedRow, now_ms: int) -> UtteranceState:
         row = prepared_row.row
@@ -1020,7 +1169,7 @@ class MonitorWorker:
             )
 
         if utterance.active_drop_incident_id is not None:
-            self.state.maybe_alert_incident(utterance.active_drop_incident_id, now_ms)
+            self.maybe_alert_and_dispatch(utterance.active_drop_incident_id, now_ms)
 
     def evaluate_high_average_latency_incident(self, now_ms: int) -> None:
         incident_rule = self.state.get_incident_rule("high_average_latency")
@@ -1076,7 +1225,7 @@ class MonitorWorker:
                             "last_point_ts_ms": points[-1]["ts_ms"],
                         }
                     )
-                self.state.maybe_alert_incident(incident_id, now_ms)
+                self.maybe_alert_and_dispatch(incident_id, now_ms)
             return
 
         if ongoing_incident is not None and average_delay_ms < resolve_threshold_ms:
@@ -1146,7 +1295,7 @@ class MonitorWorker:
                             "probe_error": probe_error,
                         }
                     )
-                self.state.maybe_alert_incident(incident_id, now_ms)
+                self.maybe_alert_and_dispatch(incident_id, now_ms)
             return
 
         if current_output_device != expected_output_device:
@@ -1167,7 +1316,7 @@ class MonitorWorker:
                             "reason": "default_output_mismatch",
                         }
                     )
-                self.state.maybe_alert_incident(incident_id, now_ms)
+                self.maybe_alert_and_dispatch(incident_id, now_ms)
             return
 
         if ongoing_incident is not None:
@@ -1486,7 +1635,7 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                             self.finalize_utterance(utterance, now_ms)
 
                     for incident_id in list(self.state.ongoing_incidents):
-                        self.state.maybe_alert_incident(incident_id, now_ms)
+                        self.maybe_alert_and_dispatch(incident_id, now_ms)
                     self.state.last_error = None
             except Exception as exc:
                 with self.state.lock:

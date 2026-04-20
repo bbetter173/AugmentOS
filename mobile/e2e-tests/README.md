@@ -207,6 +207,8 @@ The monitor reads this file at startup.
 
 For `audio_output_device_mismatch`, the thresholds live in the TOML config, but the expected device name is still provided at runtime with `--audio-output-device`. That keeps the policy shared in git while letting a MacBook and Mac mini use different local hardware.
 
+When an alert is raised, the monitor also broadcasts an Android intent to the connected phone by default. This is intended for the `internal` Android build, which registers the `com.mentra.CAPTIONS_TESTER_INCIDENT` receiver and files a normal automatic incident through the mobile app.
+
 ## Running it
 
 ### 1. Start the local captions mini app backend (optional, can instead use the deployed com.mentra.captions)

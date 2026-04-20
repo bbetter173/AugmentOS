@@ -1115,6 +1115,7 @@ class G2: NSObject, SGCManager {
     private var currentBitmapBase64: String = ""
     private var textContainerID: Int32 = 1
     private var imageSessionCounter: Int = 0
+    private var heartbeatTask: Task<Void, Never>?
     private var heartbeatCounter: Int = 0
     private var authStarted: Bool = false
 

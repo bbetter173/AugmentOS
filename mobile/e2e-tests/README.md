@@ -97,6 +97,15 @@ The phone must be able to open the captions mini app and render the `Simulated g
 cd /path/to/MentraOS/mobile/e2e-test
 python3 scripts/live_word_monitor.py \
   --output-dir results \
+  --port 8765
+```
+
+If you want the monitor to verify a specific macOS output device and raise incidents when playback would route elsewhere, run it with the extra device flag:
+
+```bash
+cd /path/to/MentraOS/mobile/e2e-test
+python3 scripts/live_word_monitor.py \
+  --output-dir results \
   --port 8765 \
   --audio-output-device "External Headphones"
 ```
@@ -179,6 +188,7 @@ Incident thresholds now live in:
 This file defines per-incident names and thresholds. Current examples:
 
 - `drop_event`
+- `audio_output_device_mismatch`
 - `high_average_latency`
 
 Each incident can have its own:
@@ -194,6 +204,8 @@ Some incident types can also use extra fields. For example, `high_average_latenc
 - `resolve_threshold_ms`
 
 The monitor reads this file at startup.
+
+For `audio_output_device_mismatch`, the thresholds live in the TOML config, but the expected device name is still provided at runtime with `--audio-output-device`. That keeps the policy shared in git while letting a MacBook and Mac mini use different local hardware.
 
 ## Running it
 

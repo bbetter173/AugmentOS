@@ -31,6 +31,12 @@ DEFAULT_INCIDENT_CONFIG = {
         "incident_threshold_ms": 5000,
         "alert_threshold_ms": 15000,
     },
+    "audio_output_device_mismatch": {
+        "name": "Audio Output Device Mismatch",
+        "enabled": True,
+        "incident_threshold_ms": 0,
+        "alert_threshold_ms": 15000,
+    },
     "high_average_latency": {
         "name": "High Average Latency",
         "enabled": True,
@@ -783,6 +789,9 @@ class MonitorWorker:
         self.logcat_process: subprocess.Popen[str] | None = None
         self.use_rn_stream = False
         self.use_maestro_stream = False
+        self.last_audio_output_check_ts_ms = 0
+        self.last_audio_output_device_name: str | None = None
+        self.last_audio_output_check_error: str | None = None
 
     def _stop_subprocess(self, process: subprocess.Popen[Any] | None) -> None:
         if process is None or process.poll() is not None:
@@ -1051,6 +1060,97 @@ class MonitorWorker:
                 {
                     "reason": "moving_average_recovered",
                     "recovered_average_delay_ms": average_delay_ms,
+                },
+            )
+
+    def get_audio_output_probe(self, now_ms: int, refresh_interval_ms: int = 2000) -> tuple[str | None, str | None]:
+        if self.last_audio_output_check_ts_ms and now_ms - self.last_audio_output_check_ts_ms < refresh_interval_ms:
+            return self.last_audio_output_device_name, self.last_audio_output_check_error
+
+        try:
+            self.last_audio_output_device_name = get_default_output_device_name()
+            self.last_audio_output_check_error = None
+        except Exception as exc:
+            self.last_audio_output_device_name = None
+            self.last_audio_output_check_error = str(exc)
+
+        self.last_audio_output_check_ts_ms = now_ms
+        return self.last_audio_output_device_name, self.last_audio_output_check_error
+
+    def evaluate_audio_output_device_incident(self, now_ms: int) -> None:
+        incident_type = "audio_output_device_mismatch"
+        incident_rule = self.state.get_incident_rule(incident_type)
+        ongoing_incident = self.state.find_ongoing_incident_by_type(incident_type)
+        expected_output_device = self.args.audio_output_device
+
+        if not incident_rule.get("enabled", True) or not expected_output_device:
+            if ongoing_incident is not None:
+                self.state.end_incident(
+                    ongoing_incident["incident_id"],
+                    now_ms,
+                    {
+                        "reason": "incident_disabled" if not incident_rule.get("enabled", True) else "output_device_monitoring_disabled",
+                    },
+                )
+            return
+
+        current_output_device, probe_error = self.get_audio_output_probe(now_ms)
+        details = {
+            "expected_output_device": expected_output_device,
+            "current_output_device": current_output_device,
+        }
+
+        if probe_error is not None:
+            incident_id = ongoing_incident["incident_id"] if ongoing_incident is not None else self.state.start_incident(
+                incident_type,
+                now_ms,
+                {
+                    **details,
+                    "reason": "output_device_probe_failed",
+                    "probe_error": probe_error,
+                },
+            )
+            if incident_id is not None:
+                active_incident = self.state.ongoing_incidents.get(incident_id)
+                if active_incident is not None:
+                    active_incident.update(
+                        {
+                            **details,
+                            "reason": "output_device_probe_failed",
+                            "probe_error": probe_error,
+                        }
+                    )
+                self.state.maybe_alert_incident(incident_id, now_ms)
+            return
+
+        if current_output_device != expected_output_device:
+            incident_id = ongoing_incident["incident_id"] if ongoing_incident is not None else self.state.start_incident(
+                incident_type,
+                now_ms,
+                {
+                    **details,
+                    "reason": "default_output_mismatch",
+                },
+            )
+            if incident_id is not None:
+                active_incident = self.state.ongoing_incidents.get(incident_id)
+                if active_incident is not None:
+                    active_incident.update(
+                        {
+                            **details,
+                            "reason": "default_output_mismatch",
+                        }
+                    )
+                self.state.maybe_alert_incident(incident_id, now_ms)
+            return
+
+        if ongoing_incident is not None:
+            self.state.end_incident(
+                ongoing_incident["incident_id"],
+                now_ms,
+                {
+                    **details,
+                    "reason": "expected_output_device_restored",
                 },
             )
 
@@ -1348,12 +1448,14 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                         else:
                             self.state.status = "between_utterances"
                             self.state.status_detail = "waiting for next utterance"
+                        self.evaluate_audio_output_device_incident(now_ms)
                     else:
                         if self.use_maestro_stream:
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro_true", min_run_length=1)
                             self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro")
                         self.update_drop_tracking(utterance, now_ms, normalized_lines)
                         self.evaluate_high_average_latency_incident(now_ms)
+                        self.evaluate_audio_output_device_incident(now_ms)
                         if now_ms >= utterance.end_ts_ms:
                             self.finalize_utterance(utterance, now_ms)
 

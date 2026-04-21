@@ -29,12 +29,15 @@ This is a descriptive list of what the module currently contains, not a restrict
 - **G2** - Display glasses
 - **Mach1** - Display glasses
 - **Vuzix Z100** - Display glasses
-- **Brilliant Frame** - Display glasses
 - **Simulated** - For testing without hardware
 
 ### Key Distinction
 
-**MentraOS** is an operating system and application that _uses_ the Mentra Bluetooth SDK. The Bluetooth SDK is purely hardware-focused - BLE, audio, display, camera. No cloud, no OS features, no notification forwarding.
+**MentraOS** is an operating system and application that _uses_ the Mentra Bluetooth SDK. The target end state for the Bluetooth SDK is a mostly hardware-focused module: BLE, audio, display, camera, device management.
+
+In practice, we have historically thrown some MentraOS-specific native helpers into `core` whenever we needed them quickly, especially Android-side app features like notification forwarding. This plan cleans that up by moving obvious app-layer/native MentraOS code into `crust`.
+
+A few MentraLive-specific plumbing paths still stay in Bluetooth SDK because the hardware depends on them today, including `core_token`, `auth_email`, and incident context sent down to the device.
 
 ## Monorepo Approach
 
@@ -92,7 +95,6 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 - G2
 - Mach1
 - Vuzix Z100
-- Brilliant Frame
 - Simulated
 
 **Core Functionality:**
@@ -116,13 +118,15 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 - Protobuf (for MentraNex/MentraDisplay - naming is legacy but required)
 - SherpaOnnx (optional - user supplies models)
 
-**Bridge Events (hardware events to JS):**
+**Bridge Events (notable device events surfaced to JS):**
 
-- `head_up`, `button_press`, `touch_event`, `battery_status`
+- `head_up`, `button_press`, `touch_event`
 - `mic_pcm`, `mic_lc3`, `local_transcription`
 - `wifi_status_change`, `hotspot_status_change`, `gallery_status`
 - `stream_status`, `imu_data_event`, `imu_gesture_event`
 - `ota_update_available`, `ota_progress`
+
+Battery/status cleanup is still part of Phase 3. There are a few older native helpers that still format MentraOS-specific payloads instead of exposing a clean typed event path.
 
 **Local STT Control:**
 
@@ -139,21 +143,13 @@ Do not introduce a new STT control key in this workstream. The offline STT refac
 
 Everything that's about the MentraOS application layer.
 
-**State Keys to REMOVE from native code entirely:**
-
-These keys exist in native GlassesStore but are never actually used. Remove them from native and keep only in TypeScript if needed:
-
-```
-always_on_status_bar      # Dead feature - remove from native AND from developer.tsx in MentraOS
-metric_system             # Not used in native - keep in TypeScript only for display formatting
-power_saving_mode         # Not used in native (only commented-out code) - remove from native AND developer.tsx
-```
-
 **Note:** `contextual_dashboard` STAYS in Bluetooth SDK - it's actually used in `sendCurrentState()` and `displayEvent()` to control whether dashboard content shows when user looks up.
 
-**Note:** `auth_email` and `auth_token` stay in Bluetooth SDK because they get sent to MentraLive hardware via `sgc?.sendAuthEmail()`. Even though they're conceptually OS authentication, the hardware needs them.
+**Note:** `auth_email` and `core_token` stay in Bluetooth SDK. MentraLive currently reads them from `GlassesStore` and sends them down to hardware / the ASG client during init, so they cannot move cleanly to Crust yet.
 
 **Note:** Leave `offline_mode` and `offline_captions_running` unchanged in this plan. That STT control refactor is being handled separately.
+
+**Note:** Do not spend time on dead native setting cleanup in this workstream unless it directly helps the rename/extraction.
 
 **Services to Move:**
 
@@ -169,7 +165,7 @@ These duplicate functions format data for MentraOS cloud protocol. They will be 
 
 - `sendVadStatus()` - DELETE (TypeScript will format)
 - `sendCoreStatus()` - DELETE (TypeScript will format)
-- `sendButtonPress()` - DELETE (use `sendButtonPressEvent()` instead)
+- Button press helper naming/path should be standardized, but keep the current typed event behavior on both platforms
 - `sendPhotoResponse()` - DELETE (TypeScript will format)
 - `sendHeadPosition()` - DELETE (use `sendHeadUp()` instead)
 - `sendVideoStreamResponse()` - DELETE (TypeScript will format)
@@ -261,21 +257,12 @@ The Bluetooth SDK will expose a generic "send notification to display" API. Crus
 
 ### 2.2 Move OS-Specific State
 
-Create extension in Crust for MentraOS-specific state:
+Keep the state split practical in this branch:
 
-```kotlin
-// crust/android/src/main/java/com/mentra/crust/MentraOSStore.kt
-object MentraOSStore {
-    // OS-specific settings
-    var contextualDashboard: Boolean
-    var alwaysOnStatusBar: Boolean
-    var offlineMode: Boolean
-    var offlineCaptionsRunning: Boolean
-    var metricSystem: Boolean
-    var powerSavingMode: Boolean
-    // Note: auth_email/auth_token STAY in Bluetooth SDK (hardware needs them)
-}
-```
+- Move obvious MentraOS-only native features to Crust, especially notification listening / permission management
+- Keep hardware-driven state and settings in Bluetooth SDK
+- Keep `contextual_dashboard`, `auth_email`, `core_token`, and incident plumbing in Bluetooth SDK for now because current hardware paths still depend on them
+- Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this workstream
 
 ### 2.3 Update GlassesStore.apply()
 
@@ -286,7 +273,8 @@ Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function
 ```kotlin
 "core" to "brightness" -> sgc?.setBrightness(...)
 "core" to "auto_brightness" -> sgc?.setBrightness(...)
-"core" to "dashboard_height" -> sgc?.setDashboardPosition(...)
+"core" to "dashboard_height" -> sgc?.setDashboardHeightOnly(...)
+"core" to "dashboard_depth" -> sgc?.setDashboardDepthOnly(...)
 "core" to "head_up_angle" -> sgc?.setHeadUpAngle(...)
 "core" to "gallery_mode" -> sgc?.sendGalleryMode()
 "core" to "button_mode" -> sgc?.sendButtonModeSetting()
@@ -305,15 +293,22 @@ Keep the existing offline STT settings and handlers as-is in this plan. Do not a
 
 ### 3.1 Keep (Hardware Events)
 
+The important rule here is behavior, not perfect Android/iOS naming symmetry. Today:
+
+- Android already uses `sendButtonPressEvent()` for the typed `button_press` event
+- iOS still uses `sendButtonPress()`, but that helper already emits the typed `button_press` event rather than formatting a cloud payload
+- `sendBatteryStatus()` is still inconsistent and should be normalized during this cleanup
+
 ```kotlin
 // Raw hardware events - stay in Bluetooth SDK
 fun sendHeadUp(isUp: Boolean)
-fun sendButtonPressEvent(buttonId: String, pressType: String)
+fun sendButtonPressEvent(buttonId: String, pressType: String) // Android today
+fun sendButtonPress(buttonId: String, pressType: String)      // iOS today; standardize naming later
 fun sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Long)
 fun sendMicPcm(data: ByteArray)
 fun sendMicLc3(data: ByteArray)
 fun sendLocalTranscription(text: String, isFinal: Boolean, language: String)
-fun sendBatteryStatus(level: Int, charging: Boolean) // raw event to JS
+fun sendBatteryStatus(level: Int, charging: Boolean) // currently inconsistent; normalize in cleanup
 fun sendDiscoveredDevice(deviceModel: String, deviceName: String)
 fun sendWifiStatusChange(connected: Boolean, ssid: String?, localIp: String?)
 fun sendHotspotStatusChange(enabled: Boolean, ssid: String, password: String, gatewayIp: String)
@@ -344,7 +339,6 @@ These functions are duplicates that format data for MentraOS cloud protocol. The
 // These are redundant - raw events already go to JS, format in TypeScript instead
 fun sendVadStatus(isSpeaking: Boolean)        // DELETE - use raw VAD event
 fun sendCoreStatus(status: Map<String, Any>)  // DELETE - format in TS
-fun sendButtonPress(...)                       // DELETE - sendButtonPressEvent() exists
 fun sendPhotoResponse(...)                     // DELETE - format in TS
 fun sendHeadPosition(...)                      // DELETE - sendHeadUp() exists
 fun sendVideoStreamResponse(...)              // DELETE - format in TS
@@ -353,12 +347,24 @@ fun sendPhoneNotification(...)                // MOVE to Crust with Notification
 fun sendPhoneNotificationDismissed(...)       // MOVE to Crust with NotificationListener
 ```
 
-**KEEP raw event emitters:**
+**Button Press Cleanup:**
+
+- Android already uses `sendButtonPressEvent()`
+- iOS `sendButtonPress()` already behaves like a raw typed event emitter
+- End state: one typed `button_press` path on both platforms, no cloud-formatting detour through `ws_text`
+
+**Battery Cleanup:**
+
+- `sendBatteryStatus()` does not yet match that clean end state on both platforms
+- Today it still formats a `glasses_battery_update` payload over `ws_text`
+- Decide during cleanup whether to replace that with a typed battery event path or keep it as an explicit passthrough on purpose
+
+**KEEP typed/raw hardware event emitters:**
 
 ```kotlin
-fun sendButtonPressEvent()  // Raw hardware event to app
-fun sendHeadUp()            // Raw hardware event to app
-fun sendBatteryStatus()     // Raw hardware event to app (rename from cloud version)
+fun sendButtonPressEvent() // Android naming today
+fun sendButtonPress()      // iOS naming today
+fun sendHeadUp()           // Raw hardware event to app
 // etc.
 ```
 
@@ -406,7 +412,6 @@ com.mentra.bluetoothsdk (Android) / MentraBluetoothSDK (iOS)
 │   ├── MentraNex / MentraDisplay
 │   ├── G1 / G2
 │   ├── Mach1 / Z100
-│   ├── Brilliant Frame
 │   └── Simulated
 └── BluetoothSdkModule     # Expo wrapper / JS entry point
 ```
@@ -449,7 +454,7 @@ Publishing is not just opening registry accounts. Before release we still need t
   "react-native": "src/index.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AugmentOS/AugmentOS.git",
+    "url": "https://github.com/Mentra-Community/MentraOS.git",
     "directory": "mobile/modules/bluetooth-sdk"
   },
   "keywords": ["react-native", "expo", "smart-glasses", "bluetooth", "ble", "ar-glasses"],
@@ -496,7 +501,7 @@ publishing {
             pom {
                 name = 'Mentra Bluetooth SDK'
                 description = 'SDK for communicating with smart glasses'
-                url = 'https://github.com/AugmentOS/AugmentOS'
+                url = 'https://github.com/Mentra-Community/MentraOS'
                 licenses {
                     license {
                         name = 'MIT License'
@@ -518,10 +523,10 @@ Pod::Spec.new do |s|
   s.name             = 'MentraBluetoothSDK'
   s.version          = '1.0.0'
   s.summary          = 'SDK for communicating with smart glasses'
-  s.homepage         = 'https://github.com/AugmentOS/AugmentOS'
+  s.homepage         = 'https://github.com/Mentra-Community/MentraOS'
   s.license          = { :type => 'MIT' }
   s.author           = { 'Mentra' => 'dev@mentra.glass' }
-  s.source           = { :git => 'https://github.com/AugmentOS/AugmentOS.git', :tag => s.version.to_s }
+  s.source           = { :git => 'https://github.com/Mentra-Community/MentraOS.git', :tag => s.version.to_s }
 
   s.ios.deployment_target = '13.0'
   s.swift_version = '5.0'
@@ -595,21 +600,28 @@ pod 'MentraBluetoothSDK'
 
 ## Quick Start
 
-import { BluetoothSdk } from '@mentra/bluetooth-sdk';
+import BluetoothSdk from '@mentra/bluetooth-sdk';
 
-// Start scanning for devices
-await BluetoothSdk.startScanning();
+const buttonSub = BluetoothSdk.addListener('button_press', (event) => {
+  console.log('Button pressed:', event.buttonId);
+});
 
-// Connect to a device
-await BluetoothSdk.connect(deviceId);
+// Find compatible devices for a model
+await BluetoothSdk.findCompatibleDevices('Mentra Live');
+
+// Connect using the saved/default device, or use connectByName(...)
+await BluetoothSdk.connectDefault();
 
 // Display text
-await BluetoothSdk.displayText('Hello World');
-
-// Listen for button presses
-BluetoothSdk.onButtonPress((event) => {
-console.log('Button pressed:', event.buttonId);
+await BluetoothSdk.displayText({
+  text: 'Hello World',
+  x: 0,
+  y: 0,
+  size: 24,
 });
+
+// Later
+buttonSub.remove();
 ```
 
 ### 5.2 Documentation Site
@@ -640,11 +652,9 @@ console.log('Button pressed:', event.buttonId);
 
 - [ ] Move NotificationListener service to Crust
 - [ ] Move NotificationListener manifest entry to Crust
-- [ ] Remove dead/unused state keys from native GlassesStore:
-  - [ ] Remove `always_on_status_bar` (dead feature - also remove from developer.tsx in MentraOS)
-  - [ ] Remove `metric_system` (not used in native - keep in TypeScript only)
-  - [ ] Remove `power_saving_mode` (not used - also remove from developer.tsx in MentraOS)
-  - [ ] Keep `contextual_dashboard` (actually used for display logic)
+- [ ] Keep the state split practical instead of redesigning it:
+  - [ ] Move obvious MentraOS-only native features to Crust
+  - [ ] Keep `contextual_dashboard`, `auth_email`, `core_token`, and incident plumbing in Bluetooth SDK where hardware still depends on them
 - [ ] Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this branch
 - [ ] Update GlassesStore.apply() to remove handlers for deleted keys
 - [ ] Create Crust TypeScript interface
@@ -691,19 +701,22 @@ When we delete the duplicate cloud-formatting functions from Bridge, the MentraO
 **Current flow:**
 
 ```
-Native: button pressed → Bridge.sendButtonPress() formats JSON → emits ws_text event → TS sends to WebSocket
+Android today: button pressed → Bridge.sendButtonPressEvent() emits typed event → TS handles / forwards as needed
+iOS today: button pressed → Bridge.sendButtonPress() emits typed event → TS handles / forwards as needed
+
+Some other helpers (battery / VAD / video / ws_text passthroughs) still format MentraOS cloud payloads in native and should move to TypeScript.
 ```
 
 **New flow:**
 
 ```
-Native: button pressed → Bridge.sendButtonPressEvent() emits raw event → TS formats JSON → TS sends to WebSocket
+Native: hardware emits typed/raw device events only → TypeScript formats any MentraOS cloud payloads that are still needed → TypeScript sends to WebSocket
 ```
 
 **Files to update in MentraOS TypeScript:**
 
 - Find where `ws_text` events are being listened to
-- Instead, listen for raw events (`button_press`, `head_up`, `battery_status`, etc.)
+- Make typed hardware events the source of truth (`button_press`, `head_up`, `touch_event`, etc.)
 - Format the cloud protocol JSON in TypeScript
 - Send via WebSocket from TypeScript
 

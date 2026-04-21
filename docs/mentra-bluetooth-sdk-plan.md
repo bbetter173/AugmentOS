@@ -1,8 +1,8 @@
-# Mentra Device Bridge SDK Plan
+# Mentra Bluetooth SDK Plan
 
 ## Overview
 
-The **Mentra Device Bridge** is a standalone SDK for communicating with smart glasses. It provides a unified API for Bluetooth communication, audio streaming, display control, and device management.
+The **Mentra Bluetooth SDK** is a standalone SDK for communicating with smart glasses. It provides a unified API for Bluetooth communication, audio streaming, display control, and device management.
 
 ### Why Build This?
 
@@ -10,37 +10,42 @@ Enterprise customers want to integrate smart glasses into their own mobile apps 
 
 ### What Is It?
 
-The Device Bridge is the existing `mobile/modules/core` module, cleaned up and published as a standalone package. It's already 95% of the way there - we just need to:
+Most of the device logic already lives in `mobile/modules/core`, but packaging, naming, autolinking, publishing, and MentraOS-specific cleanup are still substantial work. The main tasks are:
 
-1. Rename it (`core` → `device-bridge`)
+1. Rename it (`core` → `bluetooth-sdk`)
 2. Remove MentraOS-specific code (move to `crust` module)
 3. Delete duplicate cloud-formatting functions (handle in TypeScript instead)
 4. Publish to npm, Maven Central, and CocoaPods
 5. Write documentation
 6. Create a React Native example app
 
-### Supported Devices
+### Current Hardware Implementations
+
+This is a descriptive list of what the module currently contains, not a restrictive compatibility matrix:
 
 - **MentraLive** (K900/BES2800) - Camera/mic glasses
 - **MentraNex** / **MentraDisplay** - Protobuf-based display glasses
 - **G1** - Display glasses
+- **G2** - Display glasses
 - **Mach1** - Display glasses
+- **Vuzix Z100** - Display glasses
+- **Brilliant Frame** - Display glasses
 - **Simulated** - For testing without hardware
 
 ### Key Distinction
 
-**MentraOS** is an operating system and application that _uses_ the Mentra Device Bridge. The Device Bridge is purely hardware-focused - BLE, audio, display, camera. No cloud, no OS features, no notification forwarding.
+**MentraOS** is an operating system and application that _uses_ the Mentra Bluetooth SDK. The Bluetooth SDK is purely hardware-focused - BLE, audio, display, camera. No cloud, no OS features, no notification forwarding.
 
 ## Monorepo Approach
 
-Everything stays in the existing monorepo structure. We rename `core` to `device-bridge` and move MentraOS-specific code to `crust`.
+Everything stays in the existing monorepo structure. We rename `core` to `bluetooth-sdk` and move MentraOS-specific code to `crust`.
 
 ```
 mobile/modules/
-├── device-bridge/           # Renamed from core - publishes as SDK
+├── bluetooth-sdk/           # Renamed from core - publishes as SDK
 │   ├── src/                 # TypeScript interface
-│   ├── android/             # Android native (com.mentra.devicebridge)
-│   └── ios/                 # iOS native (MentraDeviceBridge)
+│   ├── android/             # Android native (com.mentra.bluetoothsdk)
+│   └── ios/                 # iOS native (MentraBluetoothSDK)
 │
 └── crust/                   # MentraOS-specific native code
     ├── src/                 # TypeScript interface
@@ -50,9 +55,9 @@ mobile/modules/
 
 ---
 
-## What Stays in Device Bridge vs Moves to Crust
+## What Stays in Bluetooth SDK vs Moves to Crust
 
-### Device Bridge (Hardware Communication)
+### Bluetooth SDK (Hardware Communication)
 
 Everything that talks directly to glasses hardware:
 
@@ -84,7 +89,10 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 - MentraLive (K900/BES2800)
 - MentraNex (Protobuf-based)
 - G1
+- G2
 - Mach1
+- Vuzix Z100
+- Brilliant Frame
 - Simulated
 
 **Core Functionality:**
@@ -111,15 +119,14 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 **Bridge Events (hardware events to JS):**
 
 - `head_up`, `button_press`, `touch_event`, `battery_status`
-- `mic_data`, `local_transcription`
-- `wifi_status_change`, `hotspot_status_change`
-- `gallery_status`, `rtmp_stream_status`
-- `imu_data_event`, `imu_gesture_event`
+- `mic_pcm`, `mic_lc3`, `local_transcription`
+- `wifi_status_change`, `hotspot_status_change`, `gallery_status`
+- `stream_status`, `imu_data_event`, `imu_gesture_event`
 - `ota_update_available`, `ota_progress`
 
 **Local STT Control:**
 
-The Device Bridge includes optional local speech-to-text (SherpaOnnx). Control it with a single key:
+The Bluetooth SDK includes optional local speech-to-text (SherpaOnnx). Control it with a single key:
 
 ```
 local_stt_active          # true/false - turns local transcriber on/off
@@ -143,15 +150,15 @@ offline_mode              # MentraOS TypeScript setting - controls when to use l
 offline_captions_running  # MentraOS TypeScript setting - tracks if offline captions are active
 ```
 
-**Note:** `contextual_dashboard` STAYS in Device Bridge - it's actually used in `sendCurrentState()` and `displayEvent()` to control whether dashboard content shows when user looks up.
+**Note:** `contextual_dashboard` STAYS in Bluetooth SDK - it's actually used in `sendCurrentState()` and `displayEvent()` to control whether dashboard content shows when user looks up.
 
-**Note:** `auth_email` and `auth_token` stay in Device Bridge because they get sent to MentraLive hardware via `sgc?.sendAuthEmail()`. Even though they're conceptually OS authentication, the hardware needs them.
+**Note:** `auth_email` and `auth_token` stay in Bluetooth SDK because they get sent to MentraLive hardware via `sgc?.sendAuthEmail()`. Even though they're conceptually OS authentication, the hardware needs them.
 
 **Services to Move:**
 
 - `NotificationListener` - Phone notification forwarding (MentraOS feature)
 
-**Services that STAY in Device Bridge:**
+**Services that STAY in Bluetooth SDK:**
 
 - `ForegroundService` - Required for maintaining BLE connection in background (hardware need)
 
@@ -173,21 +180,21 @@ These duplicate functions format data for MentraOS cloud protocol. They will be 
 
 ## Phase 1: Rename and Restructure
 
-### 1.1 Rename core to device-bridge
+### 1.1 Rename core to bluetooth-sdk
 
 ```bash
 # In mobile/modules/
-mv core device-bridge
+mv core bluetooth-sdk
 
 # Update all imports and references
 ```
 
 **Files to update:**
 
-- `device-bridge/package.json` - name: `@mentra/device-bridge`
-- `device-bridge/android/` - package: `com.mentra.devicebridge`
-- `device-bridge/ios/` - module: `MentraDeviceBridge`
-- `device-bridge/expo-module.config.json`
+- `bluetooth-sdk/package.json` - name: `@mentra/bluetooth-sdk`
+- `bluetooth-sdk/android/` - package: `com.mentra.bluetoothsdk`
+- `bluetooth-sdk/ios/` - module: `MentraBluetoothSDK`
+- `bluetooth-sdk/expo-module.config.json`
 - All imports in `mobile/src/` that reference `@mentra/core`
 
 ### 1.2 Update Namespaces
@@ -196,11 +203,11 @@ mv core device-bridge
 
 ```kotlin
 // Before: com.mentra.core
-// After: com.mentra.devicebridge
+// After: com.mentra.bluetoothsdk
 
-package com.mentra.devicebridge
+package com.mentra.bluetoothsdk
 
-class DeviceBridgeModule : Module() { ... }
+class BluetoothSdkModule : Module() { ... }
 class DeviceManager { ... }  // renamed from CoreManager
 class DeviceStore { ... }    // renamed from GlassesStore
 ```
@@ -209,9 +216,9 @@ class DeviceStore { ... }    // renamed from GlassesStore
 
 ```swift
 // Before: MentraCore module
-// After: MentraDeviceBridge module
+// After: MentraBluetoothSDK module
 
-public class DeviceBridge { ... }
+public class BluetoothSdk { ... }
 public class DeviceManager { ... }  // renamed from CoreManager
 public class DeviceStore { ... }    // renamed from GlassesStore
 ```
@@ -223,7 +230,7 @@ public class DeviceStore { ... }    // renamed from GlassesStore
 import {CoreModule} from "@mentra/core"
 
 // After
-import {DeviceBridge} from "@mentra/device-bridge"
+import {BluetoothSdk} from "@mentra/bluetooth-sdk"
 ```
 
 ---
@@ -232,10 +239,10 @@ import {DeviceBridge} from "@mentra/device-bridge"
 
 ### 2.1 Move NotificationListener
 
-**From:** `device-bridge/android/src/main/java/com/mentra/devicebridge/services/NotificationListener.kt`
+**From:** `bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/services/NotificationListener.kt`
 **To:** `crust/android/src/main/java/com/mentra/crust/services/NotificationListener.kt`
 
-**Also move from Device Bridge's AndroidManifest.xml to Crust's AndroidManifest.xml:**
+**Also move from Bluetooth SDK's AndroidManifest.xml to Crust's AndroidManifest.xml:**
 
 ```xml
 <service android:name="com.mentra.crust.services.NotificationListenerServiceImpl"
@@ -249,7 +256,7 @@ import {DeviceBridge} from "@mentra/device-bridge"
 </service>
 ```
 
-The Device Bridge will expose a generic "send notification to display" API. Crust will handle listening to phone notifications and calling that API.
+The Bluetooth SDK will expose a generic "send notification to display" API. Crust will handle listening to phone notifications and calling that API.
 
 ### 2.2 Move OS-Specific State
 
@@ -265,15 +272,15 @@ object MentraOSStore {
     var offlineCaptionsRunning: Boolean
     var metricSystem: Boolean
     var powerSavingMode: Boolean
-    // Note: auth_email/auth_token STAY in Device Bridge (hardware needs them)
+    // Note: auth_email/auth_token STAY in Bluetooth SDK (hardware needs them)
 }
 ```
 
 ### 2.3 Update GlassesStore.apply()
 
-Remove MentraOS-specific side effects from Device Bridge. The `apply()` function should only handle hardware-related side effects:
+Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function should only handle hardware-related side effects:
 
-**Keep in Device Bridge:**
+**Keep in Bluetooth SDK:**
 
 ```kotlin
 "core" to "brightness" -> sgc?.setBrightness(...)
@@ -287,7 +294,7 @@ Remove MentraOS-specific side effects from Device Bridge. The `apply()` function
 "core" to "default_wearable" -> initSGC(...)
 ```
 
-**Add to Device Bridge (new simplified key):**
+**Add to Bluetooth SDK (new simplified key):**
 
 ```kotlin
 "core" to "local_stt_active" -> {
@@ -301,14 +308,14 @@ Remove MentraOS-specific side effects from Device Bridge. The `apply()` function
 }
 ```
 
-**Remove from Device Bridge (delete these handlers):**
+**Remove from Bluetooth SDK (delete these handlers):**
 
 ```kotlin
 "core" to "offline_mode" -> // DELETE - handled in TypeScript
 "core" to "offline_captions_running" -> // DELETE - handled in TypeScript
 ```
 
-MentraOS TypeScript will manage `offline_mode` and `offline_captions_running` as UI state, then simply call `DeviceBridge.setSetting('local_stt_active', true/false)` when appropriate.
+MentraOS TypeScript will manage `offline_mode` and `offline_captions_running` as UI state, then simply call `BluetoothSdk.setSetting('local_stt_active', true/false)` when appropriate.
 
 ---
 
@@ -317,11 +324,12 @@ MentraOS TypeScript will manage `offline_mode` and `offline_captions_running` as
 ### 3.1 Keep (Hardware Events)
 
 ```kotlin
-// Raw hardware events - stay in Device Bridge
+// Raw hardware events - stay in Bluetooth SDK
 fun sendHeadUp(isUp: Boolean)
 fun sendButtonPressEvent(buttonId: String, pressType: String)
 fun sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Long)
-fun sendMicData(data: ByteArray)
+fun sendMicPcm(data: ByteArray)
+fun sendMicLc3(data: ByteArray)
 fun sendLocalTranscription(text: String, isFinal: Boolean, language: String)
 fun sendBatteryStatus(level: Int, charging: Boolean) // raw event to JS
 fun sendDiscoveredDevice(deviceModel: String, deviceName: String)
@@ -332,7 +340,7 @@ fun sendImuDataEvent(...)
 fun sendImuGestureEvent(...)
 fun sendOtaUpdateAvailable(...)
 fun sendOtaProgress(...)
-fun sendRtmpStreamStatus(...)
+fun sendStreamStatus(...)
 fun sendSwipeVolumeStatus(...)
 fun sendSwitchStatus(...)
 fun sendRgbLedControlResponse(...)
@@ -397,51 +405,61 @@ fun sendWSBinary(data: ByteArray)
 
 ## Native SDK Architecture
 
-The current code is already well-structured for native consumption. Expo dependencies are isolated to:
+The current codebase already has most of the device logic grouped in one module, which is a good starting point for a standalone SDK. But there is still cleanup to do around Expo module wrappers, config plugins, packaging metadata, and a few React Native assumptions before it is polished for external consumption.
 
-- `DeviceBridgeModule.kt` (Android entry point)
-- `DeviceBridgeModule.swift` (iOS entry point)
+The React Native / Expo entry points stay here:
 
-All core logic (`DeviceManager`, `DeviceStore`, `Bridge`, SGC implementations) is pure native with no Expo/React Native dependencies.
+- `BluetoothSdkModule.kt` (Android entry point)
+- `BluetoothSdkModule.swift` (iOS entry point)
 
 **Architecture:**
 
 ```
-com.mentra.devicebridge (Android) / MentraDeviceBridge (iOS)
-├── DeviceManager          # Main orchestrator (pure native)
-├── DeviceStore            # State management (pure native)
-├── Bridge                 # Event emission (pure native)
-├── sgcs/                  # Device implementations (pure native)
+com.mentra.bluetoothsdk (Android) / MentraBluetoothSDK (iOS)
+├── DeviceManager          # Main orchestrator
+├── DeviceStore            # State management
+├── Bridge                 # Event emission
+├── sgcs/                  # Device implementations
 │   ├── MentraLive
-│   ├── MentraNex
-│   ├── G1
-│   ├── Mach1
+│   ├── MentraNex / MentraDisplay
+│   ├── G1 / G2
+│   ├── Mach1 / Z100
+│   ├── Brilliant Frame
 │   └── Simulated
-└── DeviceBridgeModule     # Expo wrapper (only RN dependency)
+└── BluetoothSdkModule     # Expo wrapper / JS entry point
 ```
 
 **For Native Apps:**
 
-- Use the library directly via Maven/CocoaPods
-- Initialize `DeviceManager` and set up callbacks
-- No React Native required
+- Target end state: use the library directly via Maven/CocoaPods
+- Native consumers should be able to initialize `DeviceManager` and set up callbacks directly
+- We still need the Phase 4 packaging cleanup before this is ready as a polished external story
 
 **For React Native Apps:**
 
-- Use `@mentra/device-bridge` npm package
+- Use `@mentra/bluetooth-sdk` npm package
 - Expo module provides JS interface to native library
 
 ---
 
 ## Phase 4: Publishing Infrastructure
 
+### 4.0 What Still Needs Cleanup Before Publishing
+
+Publishing is not just opening registry accounts. Before release we still need to:
+
+- Finish the rename from `core` / `device-bridge` to `bluetooth-sdk` across package names, namespaces, podspec/module names, and docs
+- Replace template metadata and placeholder repository/package info with Mentra-owned values
+- Remove or generalize monorepo-specific assumptions in Expo config plugins, Gradle paths, and Podfile modifications so the package installs cleanly outside MentraOS
+- Verify the external install flow end-to-end for React Native, Maven Central, and CocoaPods before first release
+
 ### 4.1 Package Configuration
 
-**device-bridge/package.json:**
+**bluetooth-sdk/package.json:**
 
 ```json
 {
-  "name": "@mentra/device-bridge",
+  "name": "@mentra/bluetooth-sdk",
   "version": "1.0.0",
   "description": "SDK for communicating with smart glasses",
   "main": "build/index.js",
@@ -450,7 +468,7 @@ com.mentra.devicebridge (Android) / MentraDeviceBridge (iOS)
   "repository": {
     "type": "git",
     "url": "https://github.com/AugmentOS/AugmentOS.git",
-    "directory": "mobile/modules/device-bridge"
+    "directory": "mobile/modules/bluetooth-sdk"
   },
   "keywords": ["react-native", "expo", "smart-glasses", "bluetooth", "ble", "ar-glasses"],
   "peerDependencies": {
@@ -463,7 +481,7 @@ com.mentra.devicebridge (Android) / MentraDeviceBridge (iOS)
 
 ### 4.2 Android Publishing (Maven Central)
 
-**device-bridge/android/build.gradle additions:**
+**bluetooth-sdk/android/build.gradle additions:**
 
 ```gradle
 plugins {
@@ -472,7 +490,7 @@ plugins {
 }
 
 android {
-    namespace 'com.mentra.devicebridge'
+    namespace 'com.mentra.bluetoothsdk'
 
     publishing {
         singleVariant("release") {
@@ -486,7 +504,7 @@ publishing {
     publications {
         release(MavenPublication) {
             groupId = 'com.mentra'
-            artifactId = 'device-bridge'
+            artifactId = 'bluetooth-sdk'
             version = project.version
 
             afterEvaluate {
@@ -494,7 +512,7 @@ publishing {
             }
 
             pom {
-                name = 'Mentra Device Bridge'
+                name = 'Mentra Bluetooth SDK'
                 description = 'SDK for communicating with smart glasses'
                 url = 'https://github.com/AugmentOS/AugmentOS'
                 licenses {
@@ -511,11 +529,11 @@ publishing {
 
 ### 4.3 iOS Publishing (CocoaPods + SPM)
 
-**device-bridge/ios/MentraDeviceBridge.podspec:**
+**bluetooth-sdk/ios/MentraBluetoothSDK.podspec:**
 
 ```ruby
 Pod::Spec.new do |s|
-  s.name             = 'MentraDeviceBridge'
+  s.name             = 'MentraBluetoothSDK'
   s.version          = '1.0.0'
   s.summary          = 'SDK for communicating with smart glasses'
   s.homepage         = 'https://github.com/AugmentOS/AugmentOS'
@@ -528,14 +546,14 @@ Pod::Spec.new do |s|
   s.source_files = 'ios/Source/**/*.swift'
   s.frameworks = 'CoreBluetooth', 'AVFoundation'
   s.resource_bundles = {
-    'MentraDeviceBridge' => ['ios/Source/PrivacyInfo.xcprivacy']
+    'MentraBluetoothSDK' => ['ios/Source/PrivacyInfo.xcprivacy']
   }
 end
 ```
 
 ### 4.4 iOS Privacy Manifest (Required by Apple)
 
-**device-bridge/ios/Source/PrivacyInfo.xcprivacy:**
+**bluetooth-sdk/ios/Source/PrivacyInfo.xcprivacy:**
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -566,16 +584,16 @@ end
 
 ### 4.5 Versioning
 
-Device Bridge and Crust versions will be kept in sync for simplicity. When either changes, both get a version bump. This avoids compatibility matrix headaches.
+Bluetooth SDK and Crust versions will be kept in sync for simplicity. When either changes, both get a version bump. This avoids compatibility matrix headaches.
 
 ---
 
 ## Phase 5: Documentation
 
-### 5.1 README for Device Bridge
+### 5.1 README for Bluetooth SDK
 
 ```markdown
-# Mentra Device Bridge
+# Mentra Bluetooth SDK
 
 SDK for communicating with smart glasses.
 
@@ -583,31 +601,31 @@ SDK for communicating with smart glasses.
 
 ### React Native / Expo
 
-npm install @mentra/device-bridge
+npm install @mentra/bluetooth-sdk
 
 ### Android (Maven)
 
-implementation 'com.mentra:device-bridge:1.0.0'
+implementation 'com.mentra:bluetooth-sdk:1.0.0'
 
 ### iOS (CocoaPods)
 
-pod 'MentraDeviceBridge'
+pod 'MentraBluetoothSDK'
 
 ## Quick Start
 
-import { DeviceBridge } from '@mentra/device-bridge';
+import { BluetoothSdk } from '@mentra/bluetooth-sdk';
 
 // Start scanning for devices
-await DeviceBridge.startScanning();
+await BluetoothSdk.startScanning();
 
 // Connect to a device
-await DeviceBridge.connect(deviceId);
+await BluetoothSdk.connect(deviceId);
 
 // Display text
-await DeviceBridge.displayText('Hello World');
+await BluetoothSdk.displayText('Hello World');
 
 // Listen for button presses
-DeviceBridge.onButtonPress((event) => {
+BluetoothSdk.onButtonPress((event) => {
 console.log('Button pressed:', event.buttonId);
 });
 ```
@@ -616,7 +634,7 @@ console.log('Button pressed:', event.buttonId);
 
 - Getting Started (Android, iOS, React Native)
 - API Reference
-- Supported Devices
+- Hardware Integration Notes
 - Audio Streaming Guide
 - Display Control Guide
 - Camera Control Guide
@@ -627,10 +645,10 @@ console.log('Button pressed:', event.buttonId);
 
 ### Phase 1: Rename (Week 1)
 
-- [ ] Create branch `feature/device-bridge-rename`
-- [ ] Rename `mobile/modules/core` to `mobile/modules/device-bridge`
-- [ ] Update package.json name to `@mentra/device-bridge`
-- [ ] Update Android package: `com.mentra.core` -> `com.mentra.devicebridge`
+- [ ] Create branch `feature/bluetooth-sdk-rename`
+- [ ] Rename `mobile/modules/core` to `mobile/modules/bluetooth-sdk`
+- [ ] Update package.json name to `@mentra/bluetooth-sdk`
+- [ ] Update Android package: `com.mentra.core` -> `com.mentra.bluetoothsdk`
 - [ ] Update iOS module name
 - [ ] Update all imports in `mobile/src/`
 - [ ] Update expo-module.config.json
@@ -662,7 +680,7 @@ console.log('Button pressed:', event.buttonId);
 - [ ] Update call sites to use raw event emitters
 - [ ] Move cloud protocol formatting to TypeScript layer
 - [ ] Delete duplicate functions from Bridge.kt and Bridge.swift
-- [ ] Keep only raw hardware event emitters in Device Bridge
+- [ ] Keep only raw hardware event emitters in Bluetooth SDK
 - [ ] Document public API surface
 
 ### Phase 4: Publishing Setup (Week 3)
@@ -725,14 +743,14 @@ This is cleaner anyway - all cloud protocol logic lives in one place (TypeScript
 ## Success Criteria
 
 1. **Published Packages**
-   - `@mentra/device-bridge` on npm
-   - `com.mentra:device-bridge` on Maven Central
-   - `MentraDeviceBridge` on CocoaPods
+   - `@mentra/bluetooth-sdk` on npm
+   - `com.mentra:bluetooth-sdk` on Maven Central
+   - `MentraBluetoothSDK` on CocoaPods
 
 2. **Clean Separation**
-   - Device Bridge has no MentraOS-specific code
+   - Bluetooth SDK has no MentraOS-specific code
    - Crust contains all OS-specific native code
-   - Enterprise customers can use Device Bridge standalone
+   - Enterprise customers can use Bluetooth SDK standalone
 
 3. **Working Examples**
    - Example apps demonstrating standalone usage
@@ -740,5 +758,5 @@ This is cleaner anyway - all cloud protocol logic lives in one place (TypeScript
 
 4. **MentraOS Compatibility**
    - MentraOS app continues to work
-   - Uses Device Bridge + Crust together
+   - Uses Bluetooth SDK + Crust together
    - No regression in functionality

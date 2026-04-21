@@ -207,6 +207,7 @@ export const SYSTEM_APPS = [
   mentraAiPackageName,
   notifyPackageName,
   feedbackPackageName,
+  lmaInstallerPackageName,
 ]
 
 // get offline applets:
@@ -471,24 +472,8 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       type: "background",
       logoUrl: require("@assets/applet-icons/store.png"),
       local: false,
-      onStart: () => {
-        return Res.try_async(async () => {
-          const appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
-          if (!appSwitcherUi) {
-            saveLocalAppRunningState(storePackageName, true)
-          }
-          return undefined
-        })
-      },
-      onStop: () => {
-        return Res.try_async(async () => {
-          const appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
-          if (!appSwitcherUi) {
-            saveLocalAppRunningState(storePackageName, false)
-          }
-          return undefined
-        })
-      },
+      onStart: () => saveLocalAppRunningState(storePackageName, true),
+      onStop: () => saveLocalAppRunningState(storePackageName, false),
     },
     {
       packageName: mirrorPackageName,
@@ -549,8 +534,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
   ]
 
   let superMode = useSettingsStore.getState().getSetting(SETTINGS.super_mode.key)
-  let appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
-  if (superMode && appSwitcherUi) {
+  if (superMode) {
     miniApps.push({
       packageName: lmaInstallerPackageName,
       name: translate("miniApps:lmaInstaller"),
@@ -571,17 +555,6 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     })
   }
 
-  if (!appSwitcherUi) {
-    // remove the settings, gallery, and simulator apps:
-    miniApps = miniApps.filter(
-      (app) =>
-        app.packageName !== settingsPackageName &&
-        app.packageName !== galleryPackageName &&
-        app.packageName !== simulatedPackageName &&
-        app.packageName !== mirrorPackageName,
-    )
-  }
-
   // check the storage for the running state of the applets and update them:
   for (const mapp of miniApps) {
     let runningRes = await storage.load(`${mapp.packageName}_running`)
@@ -599,14 +572,6 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
 const startStopOfflineApplet = (applet: ClientAppletInterface, status: boolean): AsyncResult<void, Error> => {
   // await useSettingsStore.getState().setSetting(packageName, status)
   return Res.try_async(async () => {
-    let packageName = applet.packageName
-
-    let appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
-    if (packageName === storePackageName && !appSwitcherUi) {
-      push("/store")
-      return
-    }
-
     if (!status && applet.onStop) {
       const result = await applet.onStop()
       if (result.is_error()) {
@@ -875,8 +840,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     }))
 
     // open the app webview if it has one:
-    let appSwitcherUi = useSettingsStore.getState().getSetting(SETTINGS.app_switcher_ui.key)
-    if (appSwitcherUi && !options?.skipNavigation) {
+    if (!options?.skipNavigation) {
       // only open if the current route is home:
       const currentRoute = getCurrentRoute()
       if (currentRoute === "/home") {

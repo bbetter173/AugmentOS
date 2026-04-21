@@ -7,12 +7,12 @@ The current production path for this harness is:
 - word-level ground truth from Hugging Face word-timestamp data
 - visible transcription timing from `E2E_METRIC` app logs in `adb logcat`
 - live dashboard served locally by `scripts/live_word_monitor.py`
+- read-only archive review served by the same script with `--read-only`
 - optional public sharing via Cloudflare Tunnel
 
 ## Layout
 
 - `scripts/live_word_monitor.py`: current live dashboard and monitor
-- `scripts/serve_monitor_history.py`: serves previously captured monitor history
 - `results/`: NDJSON, cache, and monitor outputs
 
 ## Current Signal Source
@@ -94,7 +94,7 @@ The phone must be able to open the captions mini app and render the `Simulated g
 ### 6. Run the monitor
 
 ```bash
-cd /path/to/MentraOS/mobile/e2e-test
+cd /path/to/MentraOS/mobile/e2e-tests
 python3 scripts/live_word_monitor.py \
   --output-dir results \
   --port 8765
@@ -103,7 +103,7 @@ python3 scripts/live_word_monitor.py \
 If you want the monitor to verify a specific macOS output device and raise incidents when playback would route elsewhere, run it with the extra device flag:
 
 ```bash
-cd /path/to/MentraOS/mobile/e2e-test
+cd /path/to/MentraOS/mobile/e2e-tests
 python3 scripts/live_word_monitor.py \
   --output-dir results \
   --port 8765 \
@@ -113,6 +113,18 @@ python3 scripts/live_word_monitor.py \
 Then open:
 
 - [http://127.0.0.1:8765](http://127.0.0.1:8765)
+
+If you only want to inspect previously captured results, start the same dashboard in read-only mode:
+
+```bash
+cd /path/to/MentraOS/mobile/e2e-tests
+python3 scripts/live_word_monitor.py \
+  --read-only \
+  --output-dir results \
+  --port 8765
+```
+
+In read-only mode, the dashboard loads history from `monitor_events.ndjson` and does not require the phone, `adb`, local audio playback, or any live collectors.
 
 The dashboard UI now lives in `ui/` as a small React app. If you change the frontend, rebuild it before restarting the monitor:
 
@@ -184,8 +196,9 @@ curl -A 'Mozilla/5.0' https://captions.smartglasses.art
 ## Notes
 
 - The monitor server is Python, not Expo; restart it after code changes.
-- The dashboard now uses Plotly for chart interaction.
-- The chart is intended for incident review as well as live monitoring, so older windows can be inspected from the UI.
+- The dashboard UI is a small React app under `ui/`.
+- The chart is intended for incident review as well as live monitoring.
+- On startup, the monitor restores recent graph history from `results/monitor_events.ndjson`, so the latency shape survives dashboard restarts.
 
 ## Incident Config
 
@@ -262,6 +275,22 @@ Notes:
 - if `--audio-output-device` is set, the monitor will refuse playback unless that macOS output device is active; with `SwitchAudioSource` installed it will auto-switch first
 - if startup fails because cached utterance history is on an old schema, remove or migrate `results/utterance_reports.ndjson`
 
+If you only want to review archived output:
+
+```bash
+cd mobile/e2e-tests
+python3 scripts/live_word_monitor.py \
+  --read-only \
+  --output-dir results \
+  --port 8765
+```
+
+Notes:
+
+- this mode serves the same dashboard UI
+- it reloads recent delay points, completed utterances, drop events, and recent events from disk
+- it does not start playback, logcat collection, RN streaming, USB forwarding, or any adb-dependent checks
+
 ### 4. Optional: expose the dashboard publicly
 
 Only if needed:
@@ -287,8 +316,8 @@ cloudflared tunnel info captions
 If the monitor looks stale:
 
 ```bash
-pkill -f 'mobile/e2e-test/scripts/live_word_monitor.py'
-cd mobile/e2e-test
+pkill -f 'mobile/e2e-tests/scripts/live_word_monitor.py'
+cd mobile/e2e-tests
 python3 scripts/live_word_monitor.py \
   --output-dir results \
   --port 8765

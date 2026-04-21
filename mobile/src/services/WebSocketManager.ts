@@ -1,16 +1,31 @@
 import {EventEmitter} from "events"
 
 import restComms from "@/services/RestComms"
+import {WebSocketStatus} from "@/services/ws-types"
 import {useConnectionStore} from "@/stores/connection"
 import {getGlasesInfoPartial, useGlassesStore} from "@/stores/glasses"
+import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import {BackgroundTimer} from "@/utils/timers"
 
-export enum WebSocketStatus {
-  DISCONNECTED = "disconnected",
-  CONNECTING = "connecting",
-  CONNECTED = "connected",
-  ERROR = "error",
-}
+export {WebSocketStatus}
+
+// ---------------------------------------------------------------------------
+// Liveness detection constants
+// ---------------------------------------------------------------------------
+// The CLIENT sends {"type":"ping"} every 5 s. The server responds with
+// {"type":"pong"}. If a pong is missed, the client reconnects immediately.
+
+// How often the client sends a ping to the server.
+const PING_INTERVAL_MS = 5_000
+
+// If no pong is received within this window, consider the connection
+// dead and reconnect. This timeout is measured from the last ping sent,
+// not from connect time, so the first timer tick always sends a ping
+// instead of immediately declaring the socket stale.
+const PONG_TIMEOUT_MS = 5_000
+
+// Delay between reconnect attempts after a disconnect.
+const RECONNECT_INTERVAL_MS = 5_000
 
 class WebSocketManager extends EventEmitter {
   private static instance: WebSocketManager | null = null
@@ -21,8 +36,15 @@ class WebSocketManager extends EventEmitter {
   private reconnectInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0
   private manuallyDisconnected: boolean = false
 
+  // Liveness detection state
+  private lastPingAt: number = 0
+  private lastPongTime: number = 0
+  private awaitingPong: boolean = false
+  private pingInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0
+
   private constructor() {
     super()
+    GlobalEventEmitter.on("NO_ACTIVE_SESSION", this.handleNoActiveSession)
   }
 
   public static getInstance(): WebSocketManager {
@@ -31,6 +53,10 @@ class WebSocketManager extends EventEmitter {
     }
     return WebSocketManager.instance
   }
+
+  // -------------------------------------------------------------------------
+  // Connection lifecycle
+  // -------------------------------------------------------------------------
 
   // things to run when the websocket status changes to connected:
   private onConnect() {
@@ -53,14 +79,16 @@ class WebSocketManager extends EventEmitter {
     }
   }
 
-  public connect(url: string, coreToken: string) {
-    console.log(`WSM: connect: ${url}, ${coreToken}`)
-    // mantle.displayTextMain(`WSM: connect: ${url}, ${coreToken}`)
-    this.manuallyDisconnected = false
-    this.url = url
-    this.coreToken = coreToken
-
-    // Disconnect existing connection if any
+  /**
+   * Detach all event handlers from the current WebSocket and close it.
+   *
+   * Nulling out handlers BEFORE calling .close() prevents a stale `onclose`
+   * callback from firing asynchronously and kicking off a rogue reconnect
+   * loop (e.g. when switching backends: disconnect() sets
+   * manuallyDisconnected = true, connect() resets it to false, then the
+   * stale onclose fires and calls startReconnectInterval against the old URL).
+   */
+  private detachAndCloseSocket() {
     if (this.webSocket) {
       this.webSocket.onclose = null
       this.webSocket.onerror = null
@@ -69,6 +97,17 @@ class WebSocketManager extends EventEmitter {
       this.webSocket.close()
       this.webSocket = null
     }
+  }
+
+  public connect(url: string, coreToken: string) {
+    console.log(`WSM: connect: ${url}`)
+    this.manuallyDisconnected = false
+    this.url = url
+    this.coreToken = coreToken
+
+    // Tear down any existing connection cleanly
+    this.stopLivenessMonitor()
+    this.detachAndCloseSocket()
 
     // Update status to connecting and set URL in store
     this.updateStatus(WebSocketStatus.CONNECTING)
@@ -88,8 +127,8 @@ class WebSocketManager extends EventEmitter {
     // Set up event handlers
     this.webSocket.onopen = () => {
       console.log("WSM: WebSocket connection established")
-      // mantle.displayTextMain(`WSM: WebSocket connection established`)
       this.updateStatus(WebSocketStatus.CONNECTED)
+      this.startLivenessMonitor()
     }
 
     this.webSocket.onmessage = (event) => {
@@ -97,16 +136,16 @@ class WebSocketManager extends EventEmitter {
     }
 
     this.webSocket.onerror = (_error) => {
-      console.log("WSM: WebSocket error:", _error) // Commented out - unrelated to gallery sync
-      // mantle.displayTextMain(`WSM: WebSocket error: ${_error?.toString() || "WebSocket error"}`)
+      console.log("WSM: WebSocket error:", _error)
+      this.stopLivenessMonitor()
       this.updateStatus(WebSocketStatus.ERROR)
       store.setError(_error?.toString() || "WebSocket error")
       this.startReconnectInterval()
     }
 
     this.webSocket.onclose = (_event) => {
-      console.log("WSM: Connection closed with code:", _event.code) // Commented out - unrelated to gallery sync
-      // mantle.displayTextMain(`WSM: Connection closed with code: ${_event.code}`)
+      console.log("WSM: Connection closed with code:", _event.code)
+      this.stopLivenessMonitor()
       this.updateStatus(WebSocketStatus.DISCONNECTED)
       this.startReconnectInterval()
     }
@@ -114,21 +153,24 @@ class WebSocketManager extends EventEmitter {
 
   private actuallyReconnect() {
     console.log("WSM: Attempting reconnect")
-    // mantle.displayTextMain(`WSM: Attempting reconnect`)
     const store = useConnectionStore.getState()
+
+    // Reconnect from both DISCONNECTED and ERROR states.
+    // The old code only reconnected from DISCONNECTED — if onerror fired
+    // without a subsequent onclose, the client was stuck in ERROR forever.
     if (store.status === WebSocketStatus.DISCONNECTED || store.status === WebSocketStatus.ERROR) {
-      this.connect(this.url!, this.coreToken!)
+      if (this.url && this.coreToken) {
+        this.connect(this.url, this.coreToken)
+      }
     }
     if (store.status === WebSocketStatus.CONNECTED) {
       console.log("WSM: Connected, stopping reconnect interval")
-      // mantle.displayTextMain(`WSM: Connected, stopping reconnect interval`)
       BackgroundTimer.clearInterval(this.reconnectInterval)
     }
   }
 
   private startReconnectInterval() {
-    console.log("WSM: Starting reconnect interval, manuallyDisconnected: ", this.manuallyDisconnected) // Commented out - unrelated to gallery sync
-    // mantle.displayTextMain(`WSM: Starting reconnect interval, manuallyDisconnected: ${this.manuallyDisconnected}`)
+    console.log("WSM: Starting reconnect interval, manuallyDisconnected:", this.manuallyDisconnected)
     if (this.reconnectInterval) {
       BackgroundTimer.clearInterval(this.reconnectInterval)
       this.reconnectInterval = 0
@@ -139,11 +181,41 @@ class WebSocketManager extends EventEmitter {
       return
     }
 
-    this.reconnectInterval = BackgroundTimer.setInterval(this.actuallyReconnect.bind(this), 5000)
+    this.reconnectInterval = BackgroundTimer.setInterval(this.actuallyReconnect.bind(this), RECONNECT_INTERVAL_MS)
+  }
+
+  private reconnectNow(reason: string) {
+    console.log(`WSM: Immediate reconnect requested: ${reason}`)
+    if (this.manuallyDisconnected) {
+      return
+    }
+
+    if (this.reconnectInterval) {
+      BackgroundTimer.clearInterval(this.reconnectInterval)
+      this.reconnectInterval = 0
+    }
+
+    this.stopLivenessMonitor()
+    this.detachAndCloseSocket()
+    this.updateStatus(WebSocketStatus.DISCONNECTED)
+
+    if (this.url && this.coreToken) {
+      this.connect(this.url, this.coreToken)
+      return
+    }
+
+    this.startReconnectInterval()
+  }
+
+  private handleNoActiveSession = () => {
+    if (this.previousStatus === WebSocketStatus.CONNECTING) {
+      return
+    }
+
+    this.reconnectNow("REST request returned NO_ACTIVE_SESSION")
   }
 
   public disconnect() {
-    // mantle.displayTextMain(`WSM: manual disconnect() called`)
     this.manuallyDisconnected = true
 
     if (this.reconnectInterval) {
@@ -151,18 +223,85 @@ class WebSocketManager extends EventEmitter {
       this.reconnectInterval = 0
     }
 
-    if (this.webSocket) {
-      this.webSocket.close()
-      this.webSocket = null
-    }
-
+    this.stopLivenessMonitor()
+    this.detachAndCloseSocket()
     this.updateStatus(WebSocketStatus.DISCONNECTED)
   }
 
+  // -------------------------------------------------------------------------
+  // Liveness detection
+  // -------------------------------------------------------------------------
+
+  /**
+   * Start the client-initiated ping-pong liveness monitor.
+   *
+   * Every PING_INTERVAL_MS the client sends {"type":"ping"} to the server.
+   * The server responds with {"type":"pong"} which updates lastPongTime
+   * (via handleIncomingMessage → pong branch).
+   */
+  private startLivenessMonitor() {
+    this.stopLivenessMonitor()
+
+    this.lastPingAt = 0
+    this.lastPongTime = Date.now()
+    this.awaitingPong = false
+
+    this.sendPing()
+
+    this.pingInterval = BackgroundTimer.setInterval(() => {
+      if (!this.isConnected()) return
+
+      if (this.awaitingPong) {
+        const elapsed = Date.now() - this.lastPingAt
+        if (elapsed >= PONG_TIMEOUT_MS) {
+          this.reconnectNow(`pong timeout after ${elapsed}ms`)
+        }
+        return
+      }
+
+      this.sendPing()
+    }, PING_INTERVAL_MS)
+  }
+
+  private sendPing() {
+    if (!this.isConnected()) {
+      return
+    }
+
+    this.lastPingAt = Date.now()
+    this.awaitingPong = true
+
+    try {
+      this.webSocket?.send(JSON.stringify({type: "ping"}))
+    } catch (error) {
+      console.log("WSM: Error sending ping:", error)
+    }
+  }
+
+  /**
+   * Stop the liveness monitor — clear the ping interval.
+   */
+  private stopLivenessMonitor() {
+    if (this.pingInterval) {
+      BackgroundTimer.clearInterval(this.pingInterval)
+      this.pingInterval = 0
+    }
+
+    this.awaitingPong = false
+    this.lastPingAt = 0
+  }
+
+  // -------------------------------------------------------------------------
+  // State queries
+  // -------------------------------------------------------------------------
+
   public isConnected(): boolean {
-    // return this.webSocket !== null && this.webSocket.readyState === WebSocket.OPEN
     return this.previousStatus === WebSocketStatus.CONNECTED
   }
+
+  // -------------------------------------------------------------------------
+  // Sending
+  // -------------------------------------------------------------------------
 
   // Send JSON message
   public sendText(text: string) {
@@ -192,6 +331,10 @@ class WebSocketManager extends EventEmitter {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Receiving
+  // -------------------------------------------------------------------------
+
   private handleIncomingMessage(data: string | ArrayBuffer) {
     try {
       let message: any
@@ -205,6 +348,13 @@ class WebSocketManager extends EventEmitter {
         message = JSON.parse(text)
       }
 
+      // Pong received — update liveness timestamp. Don't forward to SocketComms.
+      if (message.type === "pong") {
+        this.lastPongTime = Date.now()
+        this.awaitingPong = false
+        return
+      }
+
       // Forward message to listeners
       this.emit("message", message)
     } catch (error) {
@@ -212,10 +362,13 @@ class WebSocketManager extends EventEmitter {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Cleanup
+  // -------------------------------------------------------------------------
+
   public cleanup() {
     console.log("WSM: cleanup()")
     this.disconnect()
-    this.removeAllListeners()
     this.webSocket = null
     const store = useConnectionStore.getState()
     store.reset()

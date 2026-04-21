@@ -24,13 +24,27 @@ import { User } from "../../models/user.model";
 import crypto from "crypto";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { Types } from "mongoose";
+import { appCache } from "./app-cache.service";
 const logger = rootLogger.child({ service: "app.service" });
 
 const APPSTORE_ENABLED = true;
-export const SYSTEM_DASHBOARD_PACKAGE_NAME = process.env.SYSTEM_DASHBOARD_PACKAGE_NAME || "dev.augmentos.dashboard";
+
 export const PRE_INSTALLED = [
   "cloud.augmentos.notify",
   // "cloud.augmentos.mira",
+];
+
+/**
+ * Apps that have been deprecated and should no longer be started or connected.
+ * When encountered in a user's runningApps (from DB), they are skipped and
+ * cleaned up automatically. Inbound WebSocket connections are also rejected.
+ *
+ * This list is checked at the code level so it takes effect per-deployment
+ * without requiring a database migration (important because all environments
+ * share the same DB).
+ */
+export const DEPRECATED_APPS: string[] = [
+  "system.augmentos.dashboard", // Replaced by cloud-internal DashboardManager (issue #047)
 ];
 export const PRE_INSTALLED_DEBUG = [
   // "com.mentra.link",
@@ -193,10 +207,10 @@ export class AppService {
   }
 
   // TODO(isaiah): Move this to the new AppManager within new UserSession class.
-  async triggerStopByPackageName(packageName: string, userId: string): Promise<void> {
+  async triggerStopByPackageName(packageName: string, userId: string, sessionId?: string): Promise<void> {
     // Look up the App by packageName
     const app = await this.getApp(packageName);
-    const appSessionId = `${userId}-${packageName}`;
+    const appSessionId = sessionId ?? `${userId}-${packageName}`;
 
     const payload: StopWebhookRequest = {
       type: WebhookRequestType.STOP_REQUEST,
@@ -558,6 +572,8 @@ export class AppService {
       hashedApiKey,
     });
 
+    appCache.invalidate(); // fire-and-forget — no await
+
     return { app, apiKey };
   }
 
@@ -658,6 +674,8 @@ export class AppService {
     // Update app
     const updatedApp = await App.findOneAndUpdate({ packageName }, { $set: appData }, { new: true });
 
+    appCache.invalidate(); // fire-and-forget — no await
+
     return updatedApp!;
   }
 
@@ -730,6 +748,8 @@ export class AppService {
       { new: true },
     );
 
+    appCache.invalidate(); // fire-and-forget — no await
+
     return updatedApp!;
   }
 
@@ -763,6 +783,8 @@ export class AppService {
       throw new Error("You do not have permission to delete this app");
     }
     await App.findOneAndDelete({ packageName });
+
+    appCache.invalidate(); // fire-and-forget — no await
   }
 
   // TODO(isaiah): Move this logic to a new developer service to declutter the app service.
@@ -801,6 +823,8 @@ export class AppService {
 
     // Update app with new hashed API key
     await App.findOneAndUpdate({ packageName }, { $set: { hashedApiKey } });
+
+    appCache.invalidate(); // fire-and-forget — no await
 
     return apiKey;
   }
@@ -1018,6 +1042,9 @@ export class AppService {
     app.organizationDomain = organizationDomain;
     app.visibility = visibility;
     await app.save();
+
+    appCache.invalidate(); // fire-and-forget — no await
+
     return app;
   }
 
@@ -1044,6 +1071,9 @@ export class AppService {
     const validEmails = emails.filter((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email));
     app.sharedWithEmails = validEmails;
     await app.save();
+
+    appCache.invalidate(); // fire-and-forget — no await
+
     return app.toObject();
   }
 
@@ -1099,6 +1129,8 @@ export class AppService {
     // Update organization ID
     app.organizationId = targetOrgId;
     await app.save();
+
+    appCache.invalidate(); // fire-and-forget — no await
 
     // Log the move operation
     logger.info(

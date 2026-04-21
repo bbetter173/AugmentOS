@@ -5,7 +5,14 @@ import {Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {ThemedStyle} from "@/theme"
 
-export const Group = ({title, style, children}: {title?: string; style?: ViewStyle; children?: React.ReactNode}) => {
+interface GroupProps {
+  title?: string
+  style?: ViewStyle
+  children?: React.ReactNode
+  forcePosition?: "top" | "middle" | "bottom"
+}
+
+export const Group = ({title, style, children, forcePosition}: GroupProps) => {
   const {themed} = useAppTheme()
 
   const childrenArray = Children.toArray(children)
@@ -25,6 +32,9 @@ export const Group = ({title, style, children}: {title?: string; style?: ViewSty
       position = "bottom"
     } else {
       position = "middle"
+    }
+    if (forcePosition) {
+      position = forcePosition
     }
 
     let containerStyle
@@ -54,7 +64,7 @@ export const Group = ({title, style, children}: {title?: string; style?: ViewSty
 }
 
 const $container: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  flex: 1,
+  // flex: 1,
   gap: spacing.s2,
 })
 

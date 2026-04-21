@@ -1,6 +1,6 @@
 import CoreModule from "core"
 
-import {push} from "@/contexts/NavigationRef"
+import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import displayProcessor from "@/services/DisplayProcessor"
 import mantle from "@/services/MantleManager"
@@ -13,6 +13,7 @@ import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
 import restComms from "@/services/RestComms"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
+import {throttle} from "@/utils/timers"
 
 class SocketComms {
   private static instance: SocketComms | null = null
@@ -88,7 +89,7 @@ class SocketComms {
     ws.sendText(JSON.stringify(msg))
   }
 
-  public sendRtmpStreamStatus(statusMessage: any) {
+  public sendStreamStatus(statusMessage: any) {
     // Forward the status message directly since it's already in the correct format
     ws.sendText(JSON.stringify(statusMessage))
     console.log("SOCKET: Sent RTMP stream status:", statusMessage)
@@ -322,19 +323,19 @@ class SocketComms {
     const udpHost = msg.udpHost || msg.udp_host
     const udpPort = msg.udpPort || msg.udp_port || 8000
 
-    console.log("SOCKET: connection_ack UDP fields:", {
-      udpHost: msg.udpHost,
-      udp_host: msg.udp_host,
-      udpPort: msg.udpPort,
-      udp_port: msg.udp_port,
-      resolvedHost: udpHost,
-      resolvedPort: udpPort,
-      hasEncryption: !!msg.udpEncryption,
-      allKeys: Object.keys(msg),
-    })
+    // console.log("SOCKET: connection_ack UDP fields:", {
+    //   udpHost: msg.udpHost,
+    //   udp_host: msg.udp_host,
+    //   udpPort: msg.udpPort,
+    //   udp_port: msg.udp_port,
+    //   resolvedHost: udpHost,
+    //   resolvedPort: udpPort,
+    //   hasEncryption: !!msg.udpEncryption,
+    //   allKeys: Object.keys(msg),
+    // })
 
     if (udpHost) {
-      console.log(`SOCKET: UDP endpoint found, configuring with ${udpHost}:${udpPort}`)
+      // console.log(`SOCKET: UDP endpoint found, configuring with ${udpHost}:${udpPort}`)
       udp.configure(udpHost, udpPort, this.userid)
 
       // Configure encryption if server provided a key
@@ -395,16 +396,21 @@ class SocketComms {
       return
     }
 
-    console.log(
-      `SOCKET: Audio format configured successfully: ${audioFormat}${
-        bypassEncoding ? " (raw PCM)" : `, ${frameSizeBytes} bytes/frame`
-      }`,
-    )
+    // console.log(
+    //   `SOCKET: Audio format configured successfully: ${audioFormat}${
+    //     bypassEncoding ? " (raw PCM)" : `, ${frameSizeBytes} bytes/frame`
+    //   }`,
+    // )
   }
+
+  private refreshAppletsThrottled = throttle(() => {
+    useAppletStatusStore.getState().refreshApplets()
+  }, 500)
 
   private handle_app_state_change(msg: any) {
     console.log("SOCKET: app_state_change", msg)
-    useAppletStatusStore.getState().refreshApplets()
+    // throttle so we don't call more than once in 500ms
+    this.refreshAppletsThrottled()
   }
 
   private handle_connection_error(msg: any) {
@@ -445,7 +451,12 @@ class SocketComms {
       }
     }
 
-    CoreModule.setMicState(shouldSendPcmData, shouldSendTranscript, bypassVad)
+    CoreModule.update("core", {
+      // should_send_pcm: shouldSendPcmData,
+      should_send_lc3: shouldSendPcmData, // online apps always want lc3
+      should_send_transcript: shouldSendTranscript,
+      bypass_vad: bypassVad,
+    })
   }
 
   public handle_display_event(msg: any) {
@@ -510,34 +521,35 @@ class SocketComms {
     const size = msg.size ?? "medium"
     const authToken = msg.authToken ?? ""
     const compress = msg.compress ?? "none"
-    const silent = msg.silent ?? true
+    const flash = msg.flash ?? true
+    const sound = msg.sound ?? true
     console.log(
-      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} silent: ${silent}`,
+      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} flash: ${flash} sound: ${sound}`,
     )
     if (!requestId || !appId) {
       console.log("Invalid photo request: missing requestId or appId")
       return
     }
-    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, silent
-    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, silent)
+    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, flash, sound
+    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
   }
 
-  private handle_start_rtmp_stream(msg: any) {
-    const rtmpUrl = msg.rtmpUrl || ""
-    if (rtmpUrl) {
-      CoreModule.startRtmpStream(msg)
+  private handle_start_stream(msg: any) {
+    const streamUrl = msg.streamUrl
+    if (streamUrl) {
+      CoreModule.startStream(msg)
     } else {
-      console.log("Invalid RTMP stream request: missing rtmpUrl")
+      console.log("Invalid stream request: missing stream URL")
     }
   }
 
-  private handle_stop_rtmp_stream() {
-    CoreModule.stopRtmpStream()
+  private handle_stop_stream() {
+    CoreModule.stopStream()
   }
 
-  private handle_keep_rtmp_stream_alive(msg: any) {
-    console.log(`SOCKET: Received KEEP_RTMP_STREAM_ALIVE: ${JSON.stringify(msg)}`)
-    CoreModule.keepRtmpStreamAlive(msg)
+  private handle_keep_stream_alive(msg: any) {
+    console.log(`SOCKET: Received KEEP_STREAM_ALIVE: ${JSON.stringify(msg)}`)
+    CoreModule.keepStreamAlive(msg)
   }
 
   private handle_save_buffer_video(msg: any) {
@@ -561,8 +573,9 @@ class SocketComms {
     console.log(`SOCKET: Received START_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const videoRequestId = msg.requestId || `video_${Date.now()}`
     const save = msg.save !== false
-    const silent = msg.silent ?? false
-    CoreModule.startVideoRecording(videoRequestId, save, silent)
+    const flash = msg.flash ?? true
+    const sound = msg.sound ?? true
+    CoreModule.startVideoRecording(videoRequestId, save, flash, sound)
   }
 
   private handle_stop_video_recording(msg: any) {
@@ -591,6 +604,15 @@ class SocketComms {
       coerceNumber(msg.offtime, 0),
       coerceNumber(msg.count, 1),
     )
+  }
+
+  private handle_camera_fov_set(msg: any) {
+    const ROI_MAP: Record<string, number> = {center: 0, bottom: 1, top: 2}
+    const fov = typeof msg.fov === "number" ? Math.min(118, Math.max(82, msg.fov)) : 118
+    const roiStr: string = msg.roiPosition ?? "center"
+    const numericRoi = ROI_MAP[roiStr] ?? 0
+    console.log(`SOCKET: camera_fov_set fov=${fov} roi=${roiStr} (${numericRoi})`)
+    useSettingsStore.getState().setSetting(SETTINGS.camera_fov.key, {fov, roi_position: numericRoi}, false)
   }
 
   private handle_show_wifi_setup(msg: any) {
@@ -666,10 +688,6 @@ class SocketComms {
     audioPlaybackService.stopForApp(appId)
   }
 
-  private handle_ping(msg: any) {
-    ws.sendText(JSON.stringify({type: "pong"}))
-  }
-
   // Message Handling
   private handle_message(msg: any) {
     const type = msg.type
@@ -677,6 +695,10 @@ class SocketComms {
     // console.log(`SOCKET: msg: ${type}`)
 
     switch (type) {
+      case "ping":
+        // do nothing
+        break
+
       case "connection_ack":
         this.handle_connection_ack(msg)
         break
@@ -721,16 +743,16 @@ class SocketComms {
         this.handle_photo_request(msg)
         break
 
-      case "start_rtmp_stream":
-        this.handle_start_rtmp_stream(msg)
+      case "start_stream":
+        this.handle_start_stream(msg)
         break
 
-      case "stop_rtmp_stream":
-        this.handle_stop_rtmp_stream()
+      case "stop_stream":
+        this.handle_stop_stream()
         break
 
-      case "keep_rtmp_stream_alive":
-        this.handle_keep_rtmp_stream_alive(msg)
+      case "keep_stream_alive":
+        this.handle_keep_stream_alive(msg)
         break
 
       case "start_buffer_recording":
@@ -757,6 +779,10 @@ class SocketComms {
         this.handle_rgb_led_control(msg)
         break
 
+      case "camera_fov_set":
+        this.handle_camera_fov_set(msg)
+        break
+
       case "show_wifi_setup":
         this.handle_show_wifi_setup(msg)
         break
@@ -767,10 +793,6 @@ class SocketComms {
 
       case "audio_stop_request":
         this.handle_audio_stop_request(msg)
-        break
-
-      case "ping":
-        this.handle_ping(msg)
         break
 
       case "udp_ping_ack":

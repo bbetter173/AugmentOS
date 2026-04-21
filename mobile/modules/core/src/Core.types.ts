@@ -8,7 +8,7 @@ export type ButtonPressEvent = {
   type: "button_press"
   buttonId: string
   pressType: "long" | "short"
-  timestamp: string
+  timestamp: number
 }
 
 export type TouchEvent = {
@@ -26,6 +26,17 @@ export type BatteryStatusEvent = {
   level: number
   charging: boolean
   timestamp: number
+}
+
+/** K900 `sr_getvol` response (Mentra Live glasses media step volume 0–15). */
+export type GlassesMediaVolumeGetResult = {
+  vol: number
+  statusCode: number
+}
+
+/** K900 `sr_vol` acknowledgment. */
+export type GlassesMediaVolumeSetResult = {
+  statusCode: number
 }
 
 export type LocalTranscriptionEvent = {
@@ -55,7 +66,29 @@ export type HotspotStatusChangeEvent = {
 export type HotspotErrorEvent = {
   type: "hotspot_error"
   error_message: string
-  timestamp: string
+  timestamp: number
+}
+
+export type PhotoResponseEvent = {
+  type: "photo_response"
+  requestId: string
+  photoUrl: string
+  timestamp: number
+  success: boolean
+  errorCode?: string
+  errorMessage?: string
+}
+
+export type CaptionsTesterIncidentEvent = {
+  type?: "captions_tester_incident"
+  action?: string
+  timestamp?: number
+  failure_code?: string
+  failure_message?: string
+  test_run_id?: string
+  scenario_name?: string
+  source?: string
+  [key: string]: unknown
 }
 
 export type GalleryStatusEvent = {
@@ -75,14 +108,14 @@ export type CompatibleGlassesSearchStopEvent = {
 export type HeartbeatSentEvent = {
   type: "heartbeat_sent"
   heartbeat_sent: {
-    timestamp: string
+    timestamp: number
   }
 }
 
 export type HeartbeatReceivedEvent = {
   type: "heartbeat_received"
   heartbeat_received: {
-    timestamp: string
+    timestamp: number
   }
 }
 
@@ -140,7 +173,7 @@ export type PhoneNotificationEvent = {
   title: string
   content: string
   priority: number
-  timestamp: string
+  timestamp: number
   packageName: string
 }
 
@@ -161,13 +194,20 @@ export type WsBinEvent = {
   base64: string
 }
 
-export type MicDataEvent = {
-  type: "mic_data"
-  base64: string
+export type MicPcmEvent = {
+  type: "mic_pcm"
+  // base64: string
+  pcm: ArrayBuffer
 }
 
-export type RtmpStreamStatusEvent = {
-  type: "rtmp_stream_status"
+export type MicLc3Event = {
+  type: "mic_lc3"
+  // base64: string
+  lc3: ArrayBuffer
+}
+
+export type StreamStatusEvent = {
+  type: "stream_status"
   [key: string]: any
 }
 
@@ -179,7 +219,7 @@ export type KeepAliveAckEvent = {
 export type MtkUpdateCompleteEvent = {
   type: "mtk_update_complete"
   message: string
-  timestamp: string
+  timestamp: number
 }
 
 export type OtaUpdateAvailableEvent = {
@@ -201,39 +241,25 @@ export type OtaProgressEvent = {
   error_message?: string
 }
 
+export type OtaStartAckEvent = {
+  type: "ota_start_ack"
+  timestamp: number
+}
+
+/** Nex BLE protobuf trace (NexEventUtils); payload matches native Map keys. */
+export type BleCommandTraceEvent = {
+  command: string
+  commandText: string
+  timestamp: number
+}
+
+export type MiniappSelectedEvent = {
+  type: "miniapp_selected"
+  packageName: string
+}
+
 // Union type of all core events
-export type CoreEvent =
-  | ButtonPressEvent
-  | TouchEvent
-  | HeadUpEvent
-  | LocalTranscriptionEvent
-  | LogEvent
-  | WifiStatusChangeEvent
-  | HotspotStatusChangeEvent
-  | HotspotErrorEvent
-  | GalleryStatusEvent
-  | CompatibleGlassesSearchStopEvent
-  | HeartbeatSentEvent
-  | HeartbeatReceivedEvent
-  | SwipeVolumeStatusEvent
-  | SwitchStatusEvent
-  | RgbLedControlResponseEvent
-  | PairFailureEvent
-  | AudioPairingNeededEvent
-  | AudioConnectedEvent
-  | AudioDisconnectedEvent
-  | SaveSettingEvent
-  | PhoneNotificationEvent
-  | PhoneNotificationDismissedEvent
-  | WsTextEvent
-  | WsBinEvent
-  | MicDataEvent
-  | RtmpStreamStatusEvent
-  | KeepAliveAckEvent
-  | MtkUpdateCompleteEvent
-  | OtaUpdateAvailableEvent
-  | OtaProgressEvent
-  | GlassesNotReadyEvent
+export type CoreEvent = Parameters<CoreModuleEvents[keyof CoreModuleEvents]>[0]
 
 export type CoreModuleEvents = {
   glasses_status: (changed: Partial<GlassesStatus>) => void
@@ -249,6 +275,7 @@ export type CoreModuleEvents = {
   wifi_status_change: (event: WifiStatusChangeEvent) => void
   hotspot_status_change: (event: HotspotStatusChangeEvent) => void
   hotspot_error: (event: HotspotErrorEvent) => void
+  photo_response: (event: PhotoResponseEvent) => void
   gallery_status: (event: GalleryStatusEvent) => void
   compatible_glasses_search_stop: (event: CompatibleGlassesSearchStopEvent) => void
   heartbeat_sent: (event: HeartbeatSentEvent) => void
@@ -265,12 +292,18 @@ export type CoreModuleEvents = {
   phone_notification_dismissed: (event: PhoneNotificationDismissedEvent) => void
   ws_text: (event: WsTextEvent) => void
   ws_bin: (event: WsBinEvent) => void
-  mic_data: (event: MicDataEvent) => void
-  rtmp_stream_status: (event: RtmpStreamStatusEvent) => void
+  mic_pcm: (event: MicPcmEvent) => void
+  mic_lc3: (event: MicLc3Event) => void
+  stream_status: (event: StreamStatusEvent) => void
   keep_alive_ack: (event: KeepAliveAckEvent) => void
   mtk_update_complete: (event: MtkUpdateCompleteEvent) => void
   ota_update_available: (event: OtaUpdateAvailableEvent) => void
   ota_progress: (event: OtaProgressEvent) => void
+  ota_start_ack: (event: OtaStartAckEvent) => void
+  send_command_to_ble: (event: BleCommandTraceEvent) => void
+  receive_command_from_ble: (event: BleCommandTraceEvent) => void
+  miniapp_selected: (event: MiniappSelectedEvent) => void
+  captions_tester_incident: (event: CaptionsTesterIncidentEvent) => void
 }
 
 export type GlassesConnectionState = "disconnected" | "connected" | "connecting"
@@ -304,6 +337,7 @@ export interface GlassesStatus {
   micEnabled: boolean
   connectionState: string
   btcConnected: boolean
+  signalStrength: number
   // device info
   deviceModel: string
   androidVersion: string
@@ -338,6 +372,12 @@ export interface GlassesStatus {
   otaUpdateAvailable: OtaUpdateInfo | null
   otaProgress: OtaProgress | null
   otaInProgress: boolean
+  // ring info
+  controllerConnected: boolean
+  controllerFullyBooted: boolean
+  controllerMacAddress: string
+  controllerBatteryLevel: number
+  controllerSignalStrength: number
 }
 
 export type MicRanking = "auto" | "phone" | "glasses" | "bluetooth"
@@ -352,11 +392,14 @@ export interface WifiSearchResult {
   ssid: string
   requiresPassword: boolean
   signalStrength: number
+  /** Frequency in MHz (from glasses scan). 5 GHz band is typically 5170–5825. Omitted if unknown. */
+  frequency?: number
 }
 
 export interface CoreStatus {
   // state:
   searching: boolean
+  searchingController: boolean
   systemMicUnavailable: boolean
   micRanking: MicRanking[]
   currentMic: MicRanking | null

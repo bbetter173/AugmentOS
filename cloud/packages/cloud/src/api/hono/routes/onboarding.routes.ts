@@ -7,6 +7,7 @@
 import { Hono } from "hono";
 import { User } from "../../../models/user.model";
 import App from "../../../models/app.model";
+import { appCache } from "../../../services/core/app-cache.service";
 import { logger as rootLogger } from "../../../services/logging/pino-logger";
 import type { AppEnv, AppContext } from "../../../types/hono";
 
@@ -68,6 +69,7 @@ async function getOnboardingStatus(c: AppContext) {
 
       if (!hasEntry) {
         await App.updateOne({ _id: appDoc._id }, { $set: { [`onboardingStatus.${userId}`]: false } });
+        appCache.invalidate(); // fire-and-forget
       }
     }
 
@@ -99,6 +101,7 @@ async function completeOnboarding(c: AppContext) {
 
     // Update onboardingStatus for this user in the app
     await App.updateOne({ packageName }, { $set: { [`onboardingStatus.${user._id.toString()}`]: true } });
+    appCache.invalidate(); // fire-and-forget
 
     // Reload the app to get the latest onboardingStatus
     const appDoc = await App.findOne({ packageName });

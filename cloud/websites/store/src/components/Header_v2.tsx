@@ -76,6 +76,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onSearchClear, onSearchChange
   const [selectedTab, setSelectedTab] = useState<"apps" | "glasses" | "support">("apps");
   const [isScrolled, setIsScrolled] = useState(false);
   const [windowWidth, setWindowWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1920);
+  const hasAttemptedRefresh = useRef(false);
 
   // Track window width for responsive behavior
   useEffect(() => {
@@ -94,20 +95,27 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onSearchClear, onSearchChange
     return user.avatarUrl || null;
   };
 
-  // Refresh user data on mount to ensure avatar is loaded
+  // Refresh user data on mount to ensure avatar is loaded (only once)
   useEffect(() => {
-    if (isAuthenticated && !user?.avatarUrl) {
-      refreshUser();
+    if (isAuthenticated && !user?.avatarUrl && !hasAttemptedRefresh.current) {
+      hasAttemptedRefresh.current = true;
+      (async () => {
+        try {
+          await refreshUser();
+        } catch {
+          // Reset flag on failure to allow retry on next mount
+          hasAttemptedRefresh.current = false;
+        }
+      })();
     }
   }, [isAuthenticated, user?.avatarUrl, refreshUser]);
 
-  // Debug: log user data
+  // Reset refresh flag when user logs out
   useEffect(() => {
-    if (user) {
-      console.log("User data:", user);
-      console.log("Avatar URL:", getUserAvatar());
+    if (!isAuthenticated) {
+      hasAttemptedRefresh.current = false;
     }
-  }, [user]);
+  }, [isAuthenticated]);
 
   // Handle scroll detection
   useEffect(() => {
@@ -274,7 +282,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onSearchClear, onSearchChange
               <Button
                 onClick={() => navigate("/login")}
                 variant={theme === "light" ? "default" : "outline"}
-                className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] text-[var(--foreground)]">
+                className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] hover:bg-[var(--primary-foreground)] hover:opacity-80 text-[var(--foreground)]">
                 <User className="w-4 h-4" style={{ color: "var(--foreground)" }} />
                 Login
               </Button>
@@ -444,7 +452,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onSearchClear, onSearchChange
                   <Button
                     onClick={() => navigate("/login")}
                     variant={theme === "light" ? "default" : "outline"}
-                    className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] text-[var(--foreground)]">
+                    className="rounded-full border-[1.0px] border-[var(--border-btn)] flex items-center gap-[10px] py-2 px-4 bg-[var(--primary-foreground)] hover:bg-[var(--primary-foreground)] hover:opacity-80 text-[var(--foreground)]">
                     <User className="w-4 h-4" style={{ color: "var(--foreground)" }} />
                     Login
                   </Button>

@@ -13,6 +13,7 @@ import { User, UserI } from "../../../models/user.model";
 import { OrganizationService } from "../../../services/core/organization.service";
 import { isMentraAdmin } from "../../../services/core/admin.utils";
 import App from "../../../models/app.model";
+import { appCache } from "../../../services/core/app-cache.service";
 import type { AppEnv, AppContext } from "../../../types/hono";
 
 const logger = rootLogger.child({ service: "developer.routes" });
@@ -429,8 +430,8 @@ async function getShareableLink(c: AppContext) {
       return c.json({ error: "App not found" }, 404);
     }
 
-    const baseUrl = process.env.STORE_PUBLIC_URL || "https://store.mentra.glass";
-    const installUrl = `${baseUrl}/app/${packageName}`;
+    const baseUrl = process.env.STORE_PUBLIC_URL || "https://apps.mentraglass.com";
+    const installUrl = `${baseUrl}/package/${packageName}`;
 
     return c.json({ installUrl });
   } catch (error) {
@@ -521,6 +522,7 @@ async function publishApp(c: AppContext) {
       { $set: { appStoreStatus: newStatus, updatedAt: new Date() } },
       { new: true },
     );
+    appCache.invalidate(); // fire-and-forget
 
     logger.info(
       { email, packageName, status: newStatus },
@@ -590,6 +592,8 @@ async function updateSharedEmails(c: AppContext) {
       return c.json({ error: "App not found" }, 404);
     }
 
+    appCache.invalidate(); // fire-and-forget
+
     return c.json(updatedApp);
   } catch (error) {
     logger.error(error, "Error updating shared emails");
@@ -644,6 +648,7 @@ async function moveToOrg(c: AppContext) {
       return c.json({ error: "App not found" }, 404);
     }
 
+    appCache.invalidate(); // fire-and-forget
     logger.info({ packageName, sourceOrgId, targetOrgId }, "App moved to new organization");
 
     return c.json(updatedApp);

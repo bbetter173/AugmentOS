@@ -18,13 +18,10 @@ export const ActiveBackgroundApps: React.FC = () => {
 
   const handlePress = (applet: ClientAppletInterface) => {
     if (applet) {
-      // Handle offline apps - navigate directly to React Native route
-      if (applet.offline) {
-        const offlineRoute = applet.offlineRoute
-        if (offlineRoute) {
-          push(offlineRoute)
-          return
-        }
+      // Handle apps with custom routes
+      if (applet.offlineRoute) {
+        push(applet.offlineRoute)
+        return
       }
 
       // Check if app has webviewURL and navigate directly to it
@@ -126,7 +123,7 @@ const $container: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
   // borderWidth: 2,
   // borderColor: colors.border,
   borderRadius: spacing.s4,
-  backgroundColor: colors.backgroundAlt,
+  backgroundColor: colors.primary_foreground,
   paddingHorizontal: spacing.s2,
 })
 

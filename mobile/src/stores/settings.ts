@@ -1,10 +1,19 @@
+import {Platform} from "react-native"
 import {getTimeZone} from "react-native-localize"
 import {AsyncResult, result as Res, Result} from "typesafe-ts"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
+import * as Device from "expo-device"
 
 import restComms from "@/services/RestComms"
 import {storage} from "@/utils/storage"
+
+/** Display depth is 1–3 (default 2); clamps legacy 4–5 from older builds. */
+function clampDashboardDepth(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw)
+  if (!Number.isFinite(n)) return 2
+  return Math.min(3, Math.max(1, Math.round(n)))
+}
 
 interface Setting {
   key: string
@@ -26,6 +35,24 @@ export const SETTINGS: Record<string, Setting> = {
   super_mode: {key: "super_mode", defaultValue: () => false, writable: true, saveOnServer: true, persist: true},
   enable_squircles: {
     key: "enable_squircles",
+    defaultValue: () => true,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  android_blur: {
+    key: "android_blur",
+    defaultValue: () => {
+      if (Platform.OS !== "android") return true
+      const ram = Device.totalMemory
+      return ram ? ram >= 4 * 1024 * 1024 * 1024 : true
+    },
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  ios_glass_effect: {
+    key: "ios_glass_effect",
     defaultValue: () => true,
     writable: true,
     saveOnServer: true,
@@ -94,6 +121,20 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: false,
     persist: true,
   },
+  saved_backend_urls: {
+    key: "saved_backend_urls",
+    defaultValue: () => [],
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  saved_store_urls: {
+    key: "saved_store_urls",
+    defaultValue: () => [],
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   reconnect_on_app_foreground: {
     key: "reconnect_on_app_foreground",
     defaultValue: () => true,
@@ -105,16 +146,8 @@ export const SETTINGS: Record<string, Setting> = {
   // state:
   core_token: {key: "core_token", defaultValue: () => "", writable: true, saveOnServer: true, persist: true},
   auth_email: {key: "auth_email", defaultValue: () => "", writable: true, saveOnServer: false, persist: true},
-  auth_token: {key: "auth_token", defaultValue: () => "", writable: true, saveOnServer: false, persist: true},
   pending_wearable: {
     key: "pending_wearable",
-    defaultValue: () => "",
-    writable: true,
-    saveOnServer: false,
-    persist: false,
-  },
-  pending_device_name: {
-    key: "pending_device_name",
     defaultValue: () => "",
     writable: true,
     saveOnServer: false,
@@ -135,7 +168,42 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  default_controller: {
+    key: "default_controller",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  pending_controller: {
+    key: "pending_controller",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
+    persist: true,
+  },
+  controller_device_name: {
+    key: "controller_device_name",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  controller_address: {
+    key: "controller_address",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
   // ui state:
+  home_background: {
+    key: "home_background",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
+    persist: true,
+  },
   theme_preference: {
     key: "theme_preference",
     defaultValue: () => (__DEV__ ? "system" : "light"),
@@ -301,7 +369,14 @@ export const SETTINGS: Record<string, Setting> = {
   },
   dashboard_depth: {
     key: "dashboard_depth",
-    defaultValue: () => 5,
+    defaultValue: () => 2,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  glasses_menu_apps: {
+    key: "glasses_menu_apps",
+    defaultValue: () => null,
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -332,6 +407,20 @@ export const SETTINGS: Record<string, Setting> = {
   button_max_recording_time: {
     key: "button_max_recording_time",
     defaultValue: () => 10,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  camera_fov: {
+    key: "camera_fov",
+    defaultValue: () => ({fov: 118, roi_position: 0}),
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  media_post_processing: {
+    key: "media_post_processing",
+    defaultValue: () => false,
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -369,11 +458,40 @@ export const SETTINGS: Record<string, Setting> = {
     persist: true,
   },
   gallery_mode: {key: "gallery_mode", defaultValue: () => false, writable: true, saveOnServer: true, persist: true},
+  gallery_sync_explained: {
+    key: "gallery_sync_explained",
+    defaultValue: () => false,
+    writable: true,
+    saveOnServer: false,
+    persist: true,
+  },
   offline_camera_running: {
     key: "offline_camera_running",
     defaultValue: () => false,
     writable: true,
     saveOnServer: false,
+    persist: true,
+  },
+  // offline translation
+  offline_translation_running: {
+    key: "offline_translation_running",
+    defaultValue: () => false,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  offline_translation_source: {
+    key: "offline_translation_source",
+    defaultValue: () => "en",
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  offline_translation_target: {
+    key: "offline_translation_target",
+    defaultValue: () => "es",
+    writable: true,
+    saveOnServer: true,
     persist: true,
   },
   // button action settings
@@ -406,6 +524,14 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  // Cached required version from server - used to enforce updates even when offline
+  cached_required_version: {
+    key: "cached_required_version",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
+    persist: true,
+  },
   // OTA update dismissal - stores the version code user dismissed (not persisted so resets on app restart)
   dismissed_ota_version: {
     key: "dismissed_ota_version",
@@ -413,6 +539,14 @@ export const SETTINGS: Record<string, Setting> = {
     writable: true,
     saveOnServer: false,
     persist: false,
+  },
+  // Contact email for feedback (persisted for Apple private relay users)
+  contact_email: {
+    key: "contact_email",
+    defaultValue: () => "",
+    writable: true,
+    saveOnServer: false,
+    persist: true,
   },
 } as const
 
@@ -432,7 +566,7 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.preferred_mic.key,
   SETTINGS.screen_disabled.key,
   SETTINGS.auth_email.key,
-  SETTINGS.auth_token.key,
+  SETTINGS.core_token.key,
   // glasses settings:
   SETTINGS.contextual_dashboard.key,
   SETTINGS.head_up_angle.key,
@@ -446,15 +580,22 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.button_video_settings.key,
   SETTINGS.button_camera_led.key,
   SETTINGS.button_max_recording_time.key,
+  SETTINGS.camera_fov.key,
   // device / pairing:
   SETTINGS.pending_wearable.key,
-  SETTINGS.pending_device_name.key,
   SETTINGS.default_wearable.key,
   SETTINGS.device_name.key,
   SETTINGS.device_address.key,
+  SETTINGS.default_controller.key,
+  SETTINGS.pending_controller.key,
+  SETTINGS.controller_device_name.key,
+  SETTINGS.controller_address.key,
   // offline applets:
   SETTINGS.offline_mode.key,
   SETTINGS.offline_captions_running.key,
+  SETTINGS.offline_translation_running.key,
+  SETTINGS.offline_translation_source.key,
+  SETTINGS.offline_translation_target.key,
   SETTINGS.gallery_mode.key,
   // notifications:
   SETTINGS.notifications_enabled.key,
@@ -478,6 +619,7 @@ interface SettingsState {
   getRestUrl: () => string
   getWsUrl: () => string
   getCoreSettings: () => Record<string, any>
+  resetAllSettingsLocally: () => void
 }
 
 const getDefaultSettings = () =>
@@ -509,6 +651,10 @@ export const useSettingsStore = create<SettingsState>()(
 
         if (!setting.writable) {
           throw new Error(`SETTINGS: ${originalKey} is not writable!`)
+        }
+
+        if (originalKey === SETTINGS.dashboard_depth.key) {
+          value = clampDashboardDepth(value)
         }
 
         // Update store immediately for optimistic UI
@@ -557,7 +703,11 @@ export const useSettingsStore = create<SettingsState>()(
       // console.log(`GET SETTING: ${key} = ${state.settings[key]}`)
 
       try {
-        return state.settings[key] ?? SETTINGS[originalKey].defaultValue()
+        const raw = state.settings[key] ?? SETTINGS[originalKey].defaultValue()
+        if (originalKey === SETTINGS.dashboard_depth.key) {
+          return clampDashboardDepth(raw)
+        }
+        return raw
       } catch (e) {
         // for dynamically created settings, we need to create a new setting in SETTINGS:
         console.log(`Failed to get setting, creating new setting:(${key}):`, e)
@@ -579,6 +729,10 @@ export const useSettingsStore = create<SettingsState>()(
             continue
           }
           settingsToLoad[key.toLowerCase()] = value
+        }
+
+        if (settingsToLoad.dashboard_depth !== undefined) {
+          settingsToLoad.dashboard_depth = clampDashboardDepth(settingsToLoad.dashboard_depth)
         }
 
         set((state) => ({
@@ -638,6 +792,10 @@ export const useSettingsStore = create<SettingsState>()(
         // console.log(loadedSettings)
         // console.log("##############################################")
 
+        if (loadedSettings.dashboard_depth !== undefined) {
+          loadedSettings.dashboard_depth = clampDashboardDepth(loadedSettings.dashboard_depth)
+        }
+
         set((state) => ({
           isInitialized: true,
           settings: {...state.settings, ...loadedSettings},
@@ -666,6 +824,12 @@ export const useSettingsStore = create<SettingsState>()(
         }
       })
       return coreSettings
+    },
+    resetAllSettingsLocally: () => {
+      set((_state) => ({
+        settings: getDefaultSettings(),
+        isInitialized: true,
+      }))
     },
   })),
 )

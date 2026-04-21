@@ -129,7 +129,7 @@ public class K900BluetoothManager extends BaseBluetoothManager implements Serial
     }
 
     @Override
-    public boolean sendData(byte[] data) {
+    protected boolean sendDataInternal(byte[] data) {
         Log.d(TAG, "📡 =========================================");
         Log.d(TAG, "📡 K900 BLUETOOTH SEND DATA");
         Log.d(TAG, "📡 =========================================");
@@ -481,8 +481,6 @@ public class K900BluetoothManager extends BaseBluetoothManager implements Serial
         notificationManager.showDebugNotification("Serial Ready", "Serial port ready: " + serialPath);
         Log.d(TAG, "🔌 ✅ Bluetooth state notifications sent");
 
-        // Request BES system version now that UART is ready
-        // This caches firmware version and MAC addresses before phone connects
         Log.d(TAG, "🔌 📋 Requesting BES system version via UART");
         requestBesSystemVersion();
     }

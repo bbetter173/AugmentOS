@@ -113,7 +113,7 @@ class UdpManager {
     const config = createEncryptionConfig(base64Key)
     if (config) {
       this.encryptionConfig = config
-      console.log("UDP: Encryption configured successfully")
+      // console.log("UDP: Encryption configured successfully")
       return true
     } else {
       console.log("UDP: Failed to configure encryption - invalid key")
@@ -343,17 +343,17 @@ class UdpManager {
 
       // Bind to any available port (we're only sending, not receiving)
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
+        const timeout = BackgroundTimer.setTimeout(() => {
           reject(new Error("Socket bind timeout"))
         }, 5000)
 
         this.socket!.bind(0, () => {
-          clearTimeout(timeout)
+          BackgroundTimer.clearTimeout(timeout)
           resolve()
         })
 
         this.socket!.once("error", (err: Error) => {
-          clearTimeout(timeout)
+          BackgroundTimer.clearTimeout(timeout)
           reject(err)
         })
       })
@@ -376,7 +376,7 @@ class UdpManager {
    */
   public stop(): void {
     if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout)
+      BackgroundTimer.clearTimeout(this.pingTimeout)
       this.pingTimeout = null
     }
 
@@ -423,14 +423,14 @@ class UdpManager {
     return maxFrames * frameSizeBytes
   }
 
-  public sendAudio(pcmData: string): void {
+  public sendAudio(lc3OrPcm: ArrayBuffer): void {
     if (!this.isReady || !this.socket || !this.config) {
       return
     }
 
     try {
       // Decode base64 to bytes
-      const audioBytes = Buffer.from(pcmData, "base64")
+      const audioBytes = Buffer.from(lc3OrPcm, 0, lc3OrPcm.byteLength)
 
       // Get frame-aligned max chunk size
       // If encryption enabled, we need to recalculate alignment after accounting for overhead
@@ -445,16 +445,16 @@ class UdpManager {
       }
 
       // Debug log every 100 packets to confirm audio is flowing
-      const numChunks = Math.ceil(audioBytes.length / maxChunkSize)
-      if (this.sequenceNumber % 100 === 0) {
-        console.log(
-          `UDP: Sending audio #${this.sequenceNumber}, total=${
-            audioBytes.length
-          }bytes, chunks=${numChunks}, maxChunk=${maxChunkSize}, encrypted=${!!this.encryptionConfig} to ${
-            this.config.host
-          }:${this.config.port}`,
-        )
-      }
+      // const numChunks = Math.ceil(audioBytes.length / maxChunkSize)
+      // if (this.sequenceNumber % 100 === 0) {
+      //   console.log(
+      //     `UDP: Sending audio #${this.sequenceNumber}, total=${
+      //       audioBytes.length
+      //     }bytes, chunks=${numChunks}, maxChunk=${maxChunkSize}, encrypted=${!!this.encryptionConfig} to ${
+      //       this.config.host
+      //     }:${this.config.port}`,
+      //   )
+      // }
 
       // Chunk audio data if it exceeds max packet size
       // Chunks are aligned to LC3 frame boundaries to prevent decoder corruption
@@ -642,7 +642,7 @@ class UdpManager {
       this.pingRetryCount = 0
 
       // Set overall timeout
-      this.pingTimeout = setTimeout(() => {
+      this.pingTimeout = BackgroundTimer.setTimeout(() => {
         console.log("UDP: Probe timed out after all retries")
         this.pingResolve = null
         this.pingTimeout = null
@@ -670,7 +670,7 @@ class UdpManager {
 
         // Schedule next retry if we haven't received ack yet
         if (this.pingResolve && this.pingRetryCount < PING_RETRY_COUNT) {
-          setTimeout(() => {
+          BackgroundTimer.setTimeout(() => {
             if (this.pingResolve) {
               this.sendPingWithRetry()
             }
@@ -687,10 +687,10 @@ class UdpManager {
    * This confirms UDP connectivity is working
    */
   public onPingAckReceived(): void {
-    console.log("UDP: Ping ack received - UDP is working")
+    // console.log("UDP: Ping ack received - UDP is working")
 
     if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout)
+      BackgroundTimer.clearTimeout(this.pingTimeout)
       this.pingTimeout = null
     }
 

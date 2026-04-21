@@ -9,14 +9,14 @@ import {type ConfigPlugin, withPodfile, withDangerousMod} from "expo/config-plug
  */
 function addProjectSpecification(podfileContent: string): string {
   // Check if already added
-  if (podfileContent.includes("project 'MentraOS.xcodeproj'")) {
+  if (podfileContent.includes("project 'Mentra.xcodeproj'")) {
     return podfileContent
   }
   // Find platform declaration and add project specification after it
   const platformRegex = /(platform :ios[^\n]+\n)/
   const match = podfileContent.match(platformRegex)
   if (match) {
-    const projectSpec = `\n# Specify which Xcode project to use\nproject 'MentraOS.xcodeproj'\n`
+    const projectSpec = `\n# Specify which Xcode project to use\nproject 'Mentra.xcodeproj'\n`
     return podfileContent.replace(platformRegex, `$1${projectSpec}`)
   }
   return podfileContent
@@ -38,6 +38,14 @@ function addPodDependencies(podfileContent: string): string {
     # Add SWCompression for TarBz2Extractor functionality
     pod 'onnxruntime-objc', '1.18.0', :modular_headers => true
     pod 'SWCompression', '~> 4.8.0'
+
+    # Firebase dependencies need modular headers for static library linking
+    pod 'GoogleUtilities', :modular_headers => true
+    pod 'FirebaseCore', :modular_headers => true
+    pod 'FirebaseCoreInternal', :modular_headers => true
+    pod 'FirebaseInstallations', :modular_headers => true
+    pod 'GoogleAppMeasurement', :modular_headers => true
+    pod 'nanopb', :modular_headers => true
   `
     return podfileContent.replace(nativeModulesRegex, `$1${podDependencies}\n`)
   }

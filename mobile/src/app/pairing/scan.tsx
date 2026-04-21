@@ -18,6 +18,7 @@ import {PermissionFeatures, requestFeaturePermissions} from "@/utils/Permissions
 import {getGlassesOpenImage} from "@/utils/getGlassesImage"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useCoreStore} from "@/stores/core"
+import GlassView from "@/components/ui/GlassView"
 
 export default function SelectGlassesBluetoothScreen() {
   const {deviceModel}: {deviceModel: string} = useLocalSearchParams()
@@ -26,6 +27,7 @@ export default function SelectGlassesBluetoothScreen() {
   const [showTroubleshootingModal, setShowTroubleshootingModal] = useState(false)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const [_deviceName, setDeviceName] = useSetting(SETTINGS.device_name.key)
+  const [devMode] = useSetting(SETTINGS.dev_mode.key)
   const searchResults = useCoreStore((state) => state.searchResults)
   const [rememberedSearchResults, setRememberedSearchResults] = useState<DeviceSearchResult[]>(searchResults)
 
@@ -121,44 +123,48 @@ export default function SelectGlassesBluetoothScreen() {
   return (
     <Screen preset="fixed" safeAreaEdges={["bottom"]}>
       <Header leftIcon="chevron-left" onLeftPress={goBack} RightActionComponent={<MentraLogoStandalone />} />
-      <View className="flex-1 pt-[35%]">
-        <View className="gap-6 rounded-3xl bg-primary-foreground p-6">
+      <View className="flex-1 justify-center">
+        <GlassView className="gap-6 rounded-3xl bg-primary-foreground p-6">
           <Image source={getGlassesOpenImage(deviceModel)} className="h-[90px] w-full" resizeMode="contain" />
           <Text
             className="text-center text-xl font-semibold text-text-dim"
             text={translate("pairing:scanningForGlassesModel", {model: deviceModel})}
           />
 
-          {!rememberedSearchResults || rememberedSearchResults.length === 0 ? (
-            <View className="flex-1 justify-center py-4">
+          {!rememberedSearchResults ||
+          rememberedSearchResults.filter((r) => r.deviceName !== "NOTREQUIREDSKIP").length === 0 ? (
+            <View className="justify-center min-h-20 py-4">
               <ActivityIndicator size="large" color={theme.colors.foreground} />
             </View>
           ) : (
             <ScrollView className="max-h-[300px] -mr-4 pr-4">
               <Group>
-                {rememberedSearchResults.map((res: DeviceSearchResult, index: number) => (
-                  <TouchableOpacity
-                    key={index}
-                    className="h-[50px] flex-row items-center justify-between bg-background px-4 py-3"
-                    onPress={() => triggerGlassesPairingGuide(res.deviceModel, res.deviceName)}>
-                    <View className="flex-1 px-2.5">
-                      <Text
-                        text={`${deviceModel} - ${filterDeviceName(res.deviceName)}`}
-                        className="flex-wrap text-sm font-semibold"
-                        numberOfLines={2}
-                      />
-                    </View>
-                    <Icon name="chevron-right" size={24} color={theme.colors.text} />
-                  </TouchableOpacity>
-                ))}
+                {rememberedSearchResults
+                  .filter((r) => r.deviceName !== "NOTREQUIREDSKIP")
+                  .map((res: DeviceSearchResult, index: number) => {
+                    let deviceName = filterDeviceName(res.deviceName)
+
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        className="h-[50px] flex-row items-center justify-between bg-primary-foreground px-4 py-3"
+                        onPress={() => triggerGlassesPairingGuide(res.deviceModel, res.deviceName)}>
+                        <View className="flex-1 px-2.5 flex-col">
+                          <Text text={deviceModel} className="flex-wrap text-sm font-semibold" numberOfLines={2} />
+                          <Text text={deviceName} className="text-xs text-muted-foreground" numberOfLines={1} />
+                        </View>
+                        <Icon name="chevron-right" size={24} color={theme.colors.text} />
+                      </TouchableOpacity>
+                    )
+                  })}
               </Group>
             </ScrollView>
           )}
           <Divider />
           <View className="flex-row justify-end">
-            <Button preset="secondary" compact tx="common:cancel" onPress={() => goBack()} className="min-w-[100px]" />
+            <Button preset="alternate" compact tx="common:cancel" onPress={() => goBack()} className="min-w-[100px]" />
           </View>
-        </View>
+        </GlassView>
       </View>
       <Button
         preset="secondary"

@@ -210,7 +210,7 @@ const AppCard: React.FC<AppCardProps> = memo(
                 }>
                 <div className="text-[14px]">Installed</div>
               </Button>
-            ) : (
+            ) : app.compatibility?.isCompatible === false ? null : (
               // )
               <Button
                 onClick={handleInstallClick}

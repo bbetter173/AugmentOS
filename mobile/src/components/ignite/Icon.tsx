@@ -2,17 +2,27 @@ import {createIconSet} from "@expo/vector-icons"
 import {
   Bell,
   CircleUser,
+  Ellipsis,
   FileType2,
   Fullscreen,
   Glasses,
   Info,
   LayoutDashboard,
   Locate,
+  Minus,
   Unlink,
   Unplug,
   UserRound,
   Wifi,
   WifiOff,
+  Grid3X3,
+  Share,
+  Cog,
+  ExternalLink,
+  PlayIcon,
+  PauseIcon,
+  PointerIcon,
+  CircleX,
 } from "lucide-react-native"
 import {
   Image,
@@ -26,7 +36,7 @@ import {
   ViewStyle,
 } from "react-native"
 
-import {ShoppingBagIcon, HomeIcon} from "@/components/icons"
+import {ShoppingBagIcon, HomeIcon, GridIcon} from "@/components/icons"
 import {useAppTheme} from "@/contexts/ThemeContext"
 
 export type IconTypes = keyof typeof iconRegistry
@@ -113,14 +123,26 @@ const lucideIcons = {
   "info": Info,
   // "house": House,
   // custom icons:
+  "grid": GridIcon,
   "shopping-bag": ShoppingBagIcon,
   "shopping-bag-filled": ShoppingBagIcon,
   "house": HomeIcon,
   "house-filled": HomeIcon,
+  "ellipsis": Ellipsis,
+  "minus": Minus,
+  "grid-3x3": Grid3X3,
+  "share": Share,
+  "cog": Cog,
+  "external-link": ExternalLink,
+  "play": PlayIcon,
+  "pause": PauseIcon,
+  "pointer": PointerIcon,
+  "circle-x": CircleX,
 }
 
 const tablerIcons = {
   "settings": 1,
+  "bluetooth": 1,
   "bluetooth-connected": 1,
   "bluetooth-off": 1,
   "battery-3": 1,
@@ -142,8 +164,10 @@ const tablerIcons = {
   "brightness-half": 1,
   "battery-charging": 1,
   "alert": 1,
+  "exclamation-circle": 1,
   "chevron-left": 1,
   "chevron-right": 1,
+  "info-circle": 1,
   "trash": 1,
   "trash-x": 1,
   "check": 1,
@@ -153,6 +177,8 @@ const tablerIcons = {
   "chevron-down": 1,
   "chevron-up": 1,
   "alert-triangle": 1,
+  "plus": 1,
+  "search": 1,
 }
 
 /**
@@ -192,7 +218,7 @@ export function Icon(props: IconProps) {
     const IconComponent = lucideIcons[name] as any
 
     return (
-      <View {...viewProps} style={$containerStyleOverride}>
+      <View {...viewProps} style={[$containerStyleOverride, $iconCenterStyle]}>
         <IconComponent style={$imageStyle} size={size} color={color} fill={backgroundColor ?? "transparent"} />
       </View>
     )
@@ -200,14 +226,14 @@ export function Icon(props: IconProps) {
 
   if (TablerIcon.glyphMap[name]) {
     return (
-      <View {...viewProps} style={$containerStyleOverride}>
+      <View {...viewProps} style={[$containerStyleOverride, $iconCenterStyle]}>
         <TablerIcon style={$textStyle} name={name} size={size} color={color} />
       </View>
     )
   }
 
   return (
-    <View {...viewProps} style={$containerStyleOverride}>
+    <View {...viewProps} style={[$containerStyleOverride, $iconCenterStyle]}>
       <Image style={$imageStyle} source={iconRegistry[name] as any} />
     </View>
   )
@@ -220,6 +246,11 @@ export const iconRegistry = {
   ...tablerIcons,
   // lucide-react-native icons:
   ...lucideIcons,
+}
+
+const $iconCenterStyle: ViewStyle = {
+  // justifyContent: "center",
+  // alignItems: "center",
 }
 
 const $imageStyleBase: ImageStyle = {

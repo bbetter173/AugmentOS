@@ -15,7 +15,6 @@
 
 import type { Logger } from "pino";
 
-
 import { CloudToAppMessageType, CloudToGlassesMessageType, DataStream, LocationUpdate, StreamType } from "@mentra/sdk";
 
 import { User } from "../../models/user.model";
@@ -147,6 +146,7 @@ export class LocationManager {
       } else {
         this.lastLocation = normalized;
         this.broadcastLocation(normalized);
+        this.userSession.dashboardManager?.onLocationUpdate(normalized.lat, normalized.lng);
       }
     } catch (error) {
       this.logger.error(error as Error, "Error handling REST location update");
@@ -173,6 +173,7 @@ export class LocationManager {
         const normalized = this.normalizeFromDevice(update);
         this.lastLocation = normalized;
         this.broadcastLocation(normalized);
+        this.userSession.dashboardManager?.onLocationUpdate(normalized.lat, normalized.lng);
       }
     } catch (error) {
       this.logger.error(error as Error, "Error ingesting location update from device WS");
@@ -372,7 +373,7 @@ export class LocationManager {
     const locationUpdate = this.toSdkLocationUpdate(this.lastLocation);
     const dataStream: DataStream = {
       type: CloudToAppMessageType.DATA_STREAM,
-      sessionId: `${this.userSession.userId}-${packageName}`,
+      sessionId: this.userSession.getAppSessionId(packageName),
       streamType: StreamType.LOCATION_UPDATE,
       data: locationUpdate,
       timestamp: new Date(),
@@ -425,6 +426,8 @@ export class LocationManager {
           timestamp: user.location.timestamp instanceof Date ? user.location.timestamp : new Date(),
         };
         this.logger.info("Seeded lastLocation from DB cold cache");
+        // Notify dashboard so weather is populated immediately on connect
+        this.userSession.dashboardManager?.onLocationUpdate(this.lastLocation.lat, this.lastLocation.lng);
       }
     } catch (error) {
       this.logger.warn(error, "Failed to seed location from DB cold cache");
@@ -470,7 +473,7 @@ export class LocationManager {
       const dataStream: DataStream = {
         type: CloudToAppMessageType.DATA_STREAM,
         streamType: StreamType.LOCATION_UPDATE,
-        sessionId: `${this.userSession.sessionId}-${packageName}`,
+        sessionId: this.userSession.getAppSessionId(packageName),
         data: update,
         timestamp: new Date(),
       };

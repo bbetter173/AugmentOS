@@ -13,6 +13,7 @@ import path from "path";
 
 import { CORS_ORIGINS } from "./config/cors";
 import { logger as rootLogger } from "./services/logging/pino-logger";
+import { isShuttingDown } from "./services/shutdown";
 import { metricsService } from "./services/metrics";
 import UserSession from "./services/session/UserSession";
 import { udpAudioServer } from "./services/udp/UdpAudioServer";
@@ -22,14 +23,15 @@ import type { AppEnv } from "./types/hono";
 import {
   // Client APIs (mobile app and glasses client)
   audioConfigApi,
-  livekitApi,
   minVersionApi,
   clientAppsApi,
   userSettingsApi,
   feedbackApi,
+  incidentLogsApi,
   calendarApi,
   locationApi,
   notificationsApi,
+  photoApi,
   deviceStateApi,
   // SDK APIs (third-party apps)
   sdkVersionApi,
@@ -41,6 +43,9 @@ import {
   consoleOrgsApi,
   consoleAppsApi,
   cliKeysApi,
+  consoleIncidentsApi,
+  // Agent APIs (coding agents)
+  agentIncidentsApi,
   // Store APIs (MentraOS Store website)
   storeAppsApi,
   storeAuthApi,
@@ -69,7 +74,6 @@ import organizationRoutes from "./api/hono/routes/organization.routes";
 import audioRoutes, { textToSpeech } from "./api/hono/routes/audio.routes";
 import errorReportRoutes from "./api/hono/routes/error-report.routes";
 import transcriptsRoutes from "./api/hono/routes/transcripts.routes";
-import appCommunicationRoutes from "./api/hono/routes/app-communication.routes";
 
 // Hono middleware
 import { authenticateConsole, authenticateCLI, transformCLIToConsole } from "./api/hono/middleware";
@@ -94,6 +98,17 @@ app.use(
   }),
 );
 
+// Drain middleware — reject all requests during graceful shutdown.
+// This prevents REST requests from hitting a dying pod that has no sessions.
+// Without this, the LB can route requests here during the 30s SIGTERM grace period.
+// /livez is excluded so Kubernetes can still check if the process is alive.
+app.use(async (c, next) => {
+  if (isShuttingDown() && c.req.path !== "/livez") {
+    return c.json({ status: "draining", message: "Server is shutting down" }, 503);
+  }
+  await next();
+});
+
 // Request logging middleware (replaces pino-http)
 // Logs all HTTP requests to Better Stack with detailed information
 app.use(async (c, next) => {
@@ -112,7 +127,7 @@ app.use(async (c, next) => {
   c.set("reqId", reqId);
 
   // Skip detailed logging for noisy endpoints (but still process them)
-  const isNoisyEndpoint = reqPath === "/health" || reqPath.startsWith("/api/livekit/token");
+  const isNoisyEndpoint = reqPath === "/health" || reqPath === "/livez";
 
   // Capture request details before processing
   const userAgent = c.req.header("user-agent") || "unknown";
@@ -194,10 +209,24 @@ app.use(async (c, next) => {
 });
 
 // ============================================================================
+// Liveness Probe
+// ============================================================================
+
+// Lightweight liveness probe — zero computation.
+// If the event loop can return 2 bytes, the process is alive.
+app.get("/livez", (c) => c.text("ok"));
+
+// ============================================================================
 // Health Check
 // ============================================================================
 
 app.get("/health", (c) => {
+  // A2: Return 503 during graceful shutdown so LB stops routing to this pod
+  if (isShuttingDown()) {
+    return c.json({ status: "draining", message: "Server is shutting down" }, 503);
+  }
+
+  const t0 = performance.now();
   try {
     const activeSessions = UserSession.getAllSessions();
 
@@ -209,9 +238,17 @@ app.get("/health", (c) => {
     metricsService.setUserSessions(activeSessions.length);
     metricsService.setMiniappSessions(miniappCount);
 
+    const memUsage = process.memoryUsage();
     return c.json({
       status: "ok",
       timestamp: new Date().toISOString(),
+      heapUsedMB: Math.round(memUsage.heapUsed / 1048576),
+      heapTotalMB: Math.round(memUsage.heapTotal / 1048576),
+      rssMB: Math.round(memUsage.rss / 1048576),
+      externalMB: Math.round(memUsage.external / 1048576),
+      eventLoopLagMs: metricsService.getCurrentLag?.() ?? 0,
+      activeSessions: activeSessions.length,
+      uptimeSeconds: Math.round(process.uptime()),
       ...metricsService.toJSON(),
     });
   } catch (error) {
@@ -224,6 +261,18 @@ app.get("/health", (c) => {
       },
       500,
     );
+  } finally {
+    const durationMs = performance.now() - t0;
+    if (durationMs > 50) {
+      logger.warn(
+        {
+          feature: "health-timing",
+          durationMs: Math.round(durationMs * 10) / 10,
+          activeSessions: UserSession.getAllSessions().length,
+        },
+        `Health check slow: ${Math.round(durationMs)}ms`,
+      );
+    }
   }
 });
 
@@ -255,14 +304,15 @@ app.get("/metrics", (c) => {
 // Client API Routes (Hono native)
 // ============================================================================
 
-app.route("/api/client/livekit", livekitApi);
 app.route("/api/client/min-version", minVersionApi);
 app.route("/api/client/apps", clientAppsApi);
 app.route("/api/client/user/settings", userSettingsApi);
 app.route("/api/client/feedback", feedbackApi);
+app.route("/api/incidents", incidentLogsApi);
 app.route("/api/client/calendar", calendarApi);
 app.route("/api/client/location", locationApi);
 app.route("/api/client/notifications", notificationsApi);
+app.route("/api/client/photo", photoApi);
 app.route("/api/client/device/state", deviceStateApi);
 app.route("/api/client/audio/configure", audioConfigApi);
 
@@ -291,7 +341,14 @@ consoleRouter.route("/account", consoleAccountApi);
 consoleRouter.route("/orgs", consoleOrgsApi);
 consoleRouter.route("/apps", consoleAppsApi);
 consoleRouter.route("/cli-keys", cliKeysApi);
+consoleRouter.route("/admin/incidents", consoleIncidentsApi);
 app.route("/api/console", consoleRouter);
+
+// ============================================================================
+// Agent API Routes (for coding agents with X-Agent-Key auth)
+// ============================================================================
+
+app.route("/api/agent/incidents", agentIncidentsApi);
 
 // ============================================================================
 // CLI API Routes (with CLI auth middleware, reusing console handlers)
@@ -382,9 +439,6 @@ app.route("/", errorReportRoutes);
 
 // Transcripts routes
 app.route("/api/transcripts", transcriptsRoutes);
-
-// App communication routes
-app.route("/api/app-communication", appCommunicationRoutes);
 
 // ============================================================================
 // Static Files

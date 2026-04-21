@@ -35,11 +35,6 @@ class Bridge {
         Bridge.sendTypedMessage("log", body: data)
     }
 
-    static func sendEvent(withName: String, body: String) {
-        let data: [String: Any] = ["body": body]
-        dispatchEvent(withName, data)
-    }
-
     static func sendHeadUp(_ isUp: Bool) {
         let data = ["up": isUp]
         Bridge.sendTypedMessage("head_up", body: data)
@@ -50,13 +45,18 @@ class Bridge {
         Bridge.sendTypedMessage("pair_failure", body: data)
     }
 
-    /// Send microphone data to React Native.
-    /// React Native handles the decision of whether to send via UDP or WebSocket.
-    /// This keeps the native layer simple and UDP logic centralized in React Native.
-    static func sendMicData(_ data: Data) {
-        let base64String = data.base64EncodedString()
-        let body = ["base64": base64String]
-        Bridge.sendTypedMessage("mic_data", body: body)
+    static func sendMicPcm(_ data: Data) {
+        // let base64String = data.base64EncodedString()
+        // let body = ["base64": base64String]
+        let body = ["pcm": data]
+        Bridge.sendTypedMessage("mic_pcm", body: body)
+    }
+
+    static func sendMicLc3(_ data: Data) {
+        // let base64String = data.base64EncodedString()
+        // let body = ["base64": base64String]
+        let body = ["lc3": data]
+        Bridge.sendTypedMessage("mic_lc3", body: body)
     }
 
     static func saveSetting(_ key: String, _ value: Any) {
@@ -82,7 +82,7 @@ class Bridge {
             "level": level,
             "charging": charging,
             "timestamp": Date().timeIntervalSince1970 * 1000,
-            // TODO: time remaining
+                // TODO: time remaining
         ]
 
         let jsonData = try! JSONSerialization.data(withJSONObject: vadMsg)
@@ -94,8 +94,7 @@ class Bridge {
     static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String) {
         Task {
             await MainActor.run {
-                let searchResults =
-                    GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
+                let searchResults = GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
                 let newResult: [String: Any] = [
                     "deviceModel": deviceModel,
                     "deviceName": deviceName,
@@ -140,12 +139,15 @@ class Bridge {
         Bridge.sendTypedMessage("button_press", body: body)
     }
 
-    static func sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Int64) {
-        let body: [String: Any] = [
+    static func sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Int64, source: Int32? = nil) {
+        var body: [String: Any] = [
             "device_model": deviceModel,
             "gesture_name": gestureName,
             "timestamp": timestamp,
         ]
+        if let source {
+            body["source"] = source
+        }
         Bridge.sendTypedMessage("touch_event", body: body)
     }
 
@@ -179,21 +181,31 @@ class Bridge {
     }
 
     static func sendPhotoResponse(requestId: String, photoUrl: String) {
-        do {
-            let event: [String: Any] = [
-                "type": "photo_response",
-                "requestId": requestId,
-                "photoUrl": photoUrl,
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-            ]
+        let event: [String: Any] = [
+            "type": "photo_response",
+            "requestId": requestId,
+            "success": true,
+            "photoUrl": photoUrl,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        Bridge.sendTypedMessage("photo_response", body: event)
+    }
 
-            let jsonData = try JSONSerialization.data(withJSONObject: event)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                Bridge.sendWSText(jsonString)
-            }
-        } catch {
-            Bridge.log("ServerComms: Error building photo_response JSON: \(error)")
+    static func sendPhotoError(requestId: String, errorCode: String, errorMessage: String) {
+        var event: [String: Any] = [
+            "type": "photo_response",
+            "requestId": requestId,
+            "success": false,
+            "photoUrl": "",
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        if !errorCode.isEmpty {
+            event["errorCode"] = errorCode
         }
+        if !errorMessage.isEmpty {
+            event["errorMessage"] = errorMessage
+        }
+        Bridge.sendTypedMessage("photo_response", body: event)
     }
 
     static func sendVideoStreamResponse(appId: String, streamUrl: String) {
@@ -231,6 +243,13 @@ class Bridge {
         }
     }
 
+    static func sendMiniappSelected(packageName: String) {
+        let event: [String: Any] = [
+            "packageName": packageName
+        ]
+        Bridge.sendTypedMessage("miniapp_selected", body: event)
+    }
+
     /**
      * Send transcription result to server
      * Used by AOSManager to send pre-formatted transcription results
@@ -247,18 +266,13 @@ class Bridge {
 
     // core bridge funcs:
 
-    static func sendStatus(_ statusObj: [String: Any]) {
-        let body = ["core_status": statusObj]
-        Bridge.sendTypedMessage("core_status_update", body: body)
-    }
-
     static func sendserialNumber(_ serialNumber: String, style: String, color: String) {
         let body = [
             "glasses_serial_number": [
                 "serial_number": serialNumber,
                 "style": style,
                 "color": color,
-            ],
+            ]
         ]
         Bridge.sendTypedMessage("glasses_serial_number", body: body)
     }
@@ -296,6 +310,14 @@ class Bridge {
             "timestamp": timestamp,
         ]
         Bridge.sendTypedMessage("mtk_update_complete", body: eventBody)
+    }
+
+    /// Send ota_start_ack — glasses confirmed receipt of ota_start command
+    static func sendOtaStartAck() {
+        let eventBody: [String: Any] = [
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000)
+        ]
+        Bridge.sendTypedMessage("ota_start_ack", body: eventBody)
     }
 
     /// Send OTA update available notification - glasses have detected an available update (background mode)

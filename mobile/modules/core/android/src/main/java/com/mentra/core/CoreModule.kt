@@ -1,5 +1,7 @@
 package com.mentra.core
 
+import android.net.wifi.WifiManager
+import android.os.Build
 import com.mentra.core.services.NotificationListener
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -26,10 +28,13 @@ class CoreModule : Module() {
             "wifi_status_change",
             "hotspot_status_change",
             "hotspot_error",
+            "photo_response",
             "gallery_status",
             "compatible_glasses_search_stop",
             "heartbeat_sent",
             "heartbeat_received",
+            "send_command_to_ble",
+            "receive_command_from_ble",
             "swipe_volume_status",
             "switch_status",
             "rgb_led_control_response",
@@ -42,12 +47,18 @@ class CoreModule : Module() {
             "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
-            "mic_data",
-            "rtmp_stream_status",
+            "mic_pcm",
+            "mic_lc3",
+            "stream_status",
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
+            "send_command_to_ble",
+            "receive_command_from_ble",
+            "miniapp_selected",
+            "captions_tester_incident",
         )
 
         OnCreate {
@@ -82,6 +93,24 @@ class CoreModule : Module() {
 
         Function("update") { category: String, values: Map<String, Any> ->
             values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
+            // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
+            // (bridge may run this after glasses_ready; prefs survive retries and next connection)
+            if (category == "core") {
+                values["core_token"]?.let { token ->
+                    val len = (token as? String)?.length ?: 0
+                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
+                    if (token is String && token.isNotEmpty()) {
+                        val ctx = appContext.reactContext ?: appContext.currentActivity
+                        ctx?.let {
+                            it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit()
+                                .putString("core_token", token)
+                                .apply()
+                            android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
+                        }
+                    }
+                }
+            }
         }
 
         // MARK: - Display Commands
@@ -116,6 +145,23 @@ class CoreModule : Module() {
 
         AsyncFunction("showDashboard") { coreManager?.showDashboard() }
 
+        AsyncFunction("ping") { coreManager?.ping() }
+
+        AsyncFunction("dbg1") {
+            coreManager?.dbg1()
+            coreManager?.sgc?.dbg1()
+        }
+        AsyncFunction("dbg2") {
+            coreManager?.dbg2()
+            coreManager?.sgc?.dbg2()
+        }
+
+        // MARK: - Incident Reporting
+
+        AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
+            coreManager?.sendIncidentId(incidentId, apiBaseUrl)
+        }
+
         // MARK: - WiFi Commands
 
         AsyncFunction("requestWifiScan") { coreManager?.requestWifiScan() }
@@ -130,6 +176,25 @@ class CoreModule : Module() {
             coreManager?.setHotspotState(enabled)
         }
 
+        AsyncFunction("logCurrentWifiFrequency") {
+            val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
+            val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
+            if (wifiManager == null) {
+                val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
+                android.util.Log.d("CoreModule", unavailableMsg)
+                Bridge.log(unavailableMsg)
+                return@AsyncFunction null
+            }
+            val info = wifiManager.connectionInfo
+            val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
+            val is5Ghz = freqMhz >= 5000
+            val frequencyMsg =
+                "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
+            android.util.Log.d("CoreModule", frequencyMsg)
+            Bridge.log(frequencyMsg)
+            null
+        }
+
         // MARK: - Gallery Commands
 
         AsyncFunction("queryGalleryStatus") { coreManager?.queryGalleryStatus() }
@@ -141,7 +206,8 @@ class CoreModule : Module() {
                 webhookUrl: String,
                 authToken: String,
                 compress: String,
-                silent: Boolean ->
+                flash: Boolean,
+                sound: Boolean ->
             coreManager?.photoRequest(
                     requestId,
                     appId,
@@ -149,7 +215,8 @@ class CoreModule : Module() {
                     webhookUrl,
                     authToken,
                     compress,
-                    silent
+                    flash,
+                    sound
             )
         }
 
@@ -177,24 +244,24 @@ class CoreModule : Module() {
             coreManager?.saveBufferVideo(requestId, durationSeconds)
         }
 
-        AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, silent: Boolean ->
-            coreManager?.startVideoRecording(requestId, save, silent)
+        AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
+            coreManager?.startVideoRecording(requestId, save, flash, sound)
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
             coreManager?.stopVideoRecording(requestId)
         }
 
-        // MARK: - RTMP Stream Commands
+        // MARK: - Stream Commands
 
-        AsyncFunction("startRtmpStream") { params: Map<String, Any> ->
-            coreManager?.startRtmpStream(params.toMutableMap())
+        AsyncFunction("startStream") { params: Map<String, Any> ->
+            coreManager?.startStream(params.toMutableMap())
         }
 
-        AsyncFunction("stopRtmpStream") { coreManager?.stopRtmpStream() }
+        AsyncFunction("stopStream") { coreManager?.stopStream() }
 
-        AsyncFunction("keepRtmpStreamAlive") { params: Map<String, Any> ->
-            coreManager?.keepRtmpStreamAlive(params.toMutableMap())
+        AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
+            coreManager?.keepStreamAlive(params.toMutableMap())
         }
 
         // MARK: - Microphone Commands
@@ -203,7 +270,7 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            coreManager?.setMicState(sendPcmData, sendTranscript, bypassVad)
+            coreManager?.setMicState()
         }
 
         AsyncFunction("restartTranscriber") { coreManager?.restartTranscriber() }
@@ -215,6 +282,16 @@ class CoreModule : Module() {
             // This is used to suspend LC3 mic during audio playback to avoid MCU overload
             val context = appContext.reactContext ?: return@AsyncFunction
             com.mentra.core.utils.PhoneAudioMonitor.getInstance(context).setOwnAppAudioPlaying(playing)
+        }
+
+        AsyncFunction("getGlassesMediaVolume") {
+            val cm = coreManager ?: throw IllegalStateException("core_manager_null")
+            cm.getGlassesMediaVolumeBlocking()
+        }
+
+        AsyncFunction("setGlassesMediaVolume") { level: Int ->
+            val cm = coreManager ?: throw IllegalStateException("core_manager_null")
+            cm.setGlassesMediaVolumeBlocking(level)
         }
 
         // MARK: - RGB LED Control
@@ -272,6 +349,12 @@ class CoreModule : Module() {
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
 
+        // MARK: - Beta Build Detection (TestFlight on iOS; TODO: Google Play Beta on Android)
+
+        AsyncFunction("isBetaBuild") {
+            false
+        }
+
         // MARK: - Android-specific Commands
 
         AsyncFunction("getInstalledApps") {
@@ -321,10 +404,27 @@ class CoreModule : Module() {
                     context.getSystemService(android.content.Context.LOCATION_SERVICE) as
                             android.location.LocationManager
             // Check if either GPS or Network location provider is enabled
-            locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
+            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
                     locationManager.isProviderEnabled(
                             android.location.LocationManager.NETWORK_PROVIDER
                     )
+            if (!providerEnabled) {
+                // Fallback: check the system-level location toggle directly.
+                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
+                // Google Play Services or without a GPS chip, even when location is toggled on.
+                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val systemEnabled = locationManager.isLocationEnabled
+                    if (systemEnabled) {
+                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
+                    }
+                    systemEnabled
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
         }
 
         AsyncFunction("openLocationSettings") {
@@ -413,116 +513,5 @@ class CoreModule : Module() {
             true
         }
 
-        // MARK: - Media Library Commands
-
-        AsyncFunction("saveToGalleryWithDate") { filePath: String, captureTimeMillis: Long? ->
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-
-            try {
-                val file = java.io.File(filePath)
-                if (!file.exists()) {
-                    throw IllegalArgumentException("File does not exist: $filePath")
-                }
-
-                val mimeType =
-                        when (file.extension.lowercase()) {
-                            "jpg", "jpeg" -> "image/jpeg"
-                            "png" -> "image/png"
-                            "mp4" -> "video/mp4"
-                            "mov" -> "video/quicktime"
-                            else -> "application/octet-stream"
-                        }
-
-                val isVideo = mimeType.startsWith("video/")
-                val collection =
-                        if (isVideo) {
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
-                            ) {
-                                android.provider.MediaStore.Video.Media.getContentUri(
-                                        android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
-                                )
-                            } else {
-                                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                            }
-                        } else {
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
-                            ) {
-                                android.provider.MediaStore.Images.Media.getContentUri(
-                                        android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
-                                )
-                            } else {
-                                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                            }
-                        }
-
-                val values =
-                        android.content.ContentValues().apply {
-                            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, file.name)
-                            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                            put(android.provider.MediaStore.MediaColumns.SIZE, file.length())
-
-                            // Set the capture time (DATE_TAKEN) if provided
-                            if (captureTimeMillis != null) {
-                                if (isVideo) {
-                                    put(
-                                            android.provider.MediaStore.Video.Media.DATE_TAKEN,
-                                            captureTimeMillis
-                                    )
-                                } else {
-                                    put(
-                                            android.provider.MediaStore.Images.Media.DATE_TAKEN,
-                                            captureTimeMillis
-                                    )
-                                }
-                                android.util.Log.d(
-                                        "CoreModule",
-                                        "Setting DATE_TAKEN to: $captureTimeMillis (${java.util.Date(captureTimeMillis)})"
-                                )
-                            }
-
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
-                            ) {
-                                put(
-                                        android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
-                                        if (isVideo) "DCIM/Camera" else "DCIM/Camera"
-                                )
-                                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
-                            }
-                        }
-
-                val resolver = context.contentResolver
-                val uri =
-                        resolver.insert(collection, values)
-                                ?: throw IllegalStateException("Failed to create MediaStore entry")
-
-                try {
-                    resolver.openOutputStream(uri)?.use { outputStream ->
-                        file.inputStream().use { inputStream -> inputStream.copyTo(outputStream) }
-                    }
-                            ?: throw IllegalStateException("Failed to open output stream")
-
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        values.clear()
-                        values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
-                        resolver.update(uri, values, null, null)
-                    }
-
-                    android.util.Log.d(
-                            "CoreModule",
-                            "Successfully saved to gallery with proper DATE_TAKEN: ${file.name}"
-                    )
-                    mapOf("success" to true, "uri" to uri.toString())
-                } catch (e: Exception) {
-                    resolver.delete(uri, null, null)
-                    throw e
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("CoreModule", "Error saving to gallery: ${e.message}", e)
-                mapOf("success" to false, "error" to e.message)
-            }
-        }
     }
 }

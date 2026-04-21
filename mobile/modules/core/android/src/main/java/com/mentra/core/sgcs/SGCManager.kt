@@ -20,15 +20,16 @@ abstract class SGCManager {
             webhookUrl: String?,
             authToken: String?,
             compress: String?,
-            silent: Boolean
+            flash: Boolean,
+            sound: Boolean
     )
-    abstract fun startRtmpStream(message: MutableMap<String, Any>)
-    abstract fun stopRtmpStream()
-    abstract fun sendRtmpKeepAlive(message: MutableMap<String, Any>)
+    abstract fun startStream(message: MutableMap<String, Any>)
+    abstract fun stopStream()
+    abstract fun sendStreamKeepAlive(message: MutableMap<String, Any>)
     abstract fun startBufferRecording()
     abstract fun stopBufferRecording()
     abstract fun saveBufferVideo(requestId: String, durationSeconds: Int)
-    abstract fun startVideoRecording(requestId: String, save: Boolean, silent: Boolean)
+    abstract fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean)
     abstract fun stopVideoRecording(requestId: String)
 
     // Button Settings
@@ -37,6 +38,7 @@ abstract class SGCManager {
     abstract fun sendButtonVideoRecordingSettings()
     abstract fun sendButtonMaxRecordingTime()
     abstract fun sendButtonCameraLedSetting()
+    abstract fun sendCameraFovSetting()
 
     // Display Control
     abstract fun setBrightness(level: Int, autoMode: Boolean)
@@ -46,6 +48,21 @@ abstract class SGCManager {
     abstract fun displayBitmap(base64ImageData: String): Boolean
     abstract fun showDashboard()
     abstract fun setDashboardPosition(height: Int, depth: Int)
+
+    /** Default: full [setDashboardPosition] (e.g. G1 single command). Nex overrides to height protobuf only. */
+    open fun setDashboardHeightOnly(height: Int) {
+        val depth = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
+        setDashboardPosition(height, depth)
+    }
+
+    /** Default: full [setDashboardPosition]. Nex overrides to display_distance only. */
+    open fun setDashboardDepthOnly(depth: Int) {
+        val height = (GlassesStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
+        setDashboardPosition(height, depth)
+    }
+
+    // Dashboard Menu (default no-op — only G2 supports this)
+    open fun setDashboardMenu(items: List<Map<String, Any>>) {}
 
     // Device Control
     abstract fun setHeadUpAngle(angle: Int)
@@ -71,6 +88,9 @@ abstract class SGCManager {
     abstract fun connectById(id: String)
     abstract fun getConnectedBluetoothName(): String
     abstract fun cleanup()
+    abstract fun ping()
+    abstract fun dbg1()
+    abstract fun dbg2()
 
     // Network Management
     abstract fun requestWifiScan()
@@ -80,6 +100,9 @@ abstract class SGCManager {
 
     // User Context (for crash reporting)
     abstract fun sendUserEmailToGlasses(email: String)
+
+    // Incident Reporting
+    abstract fun sendIncidentId(incidentId: String, apiBaseUrl: String? = null)
 
     // Gallery
     abstract fun queryGalleryStatus()
@@ -130,6 +153,9 @@ abstract class SGCManager {
 
     val micEnabled: Boolean
         get() = GlassesStore.get("glasses", "micEnabled") as? Boolean ?: false
+
+    val vadEnabled: Boolean
+        get() = GlassesStore.get("glasses", "vadEnabled") as? Boolean ?: false
 
     val batteryLevel: Int
         get() = GlassesStore.get("glasses", "batteryLevel") as? Int ?: -1

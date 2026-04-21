@@ -3,9 +3,11 @@ import {View, Animated, Easing, Image} from "react-native"
 
 import {Button, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useSetting, SETTINGS} from "@/stores/settings"
 import {getGlassesImage, getEvenRealitiesG1Image} from "@/utils/getGlassesImage"
 
 import {getModelSpecificTips} from "@/components/glasses/GlassesTroubleshootingModal"
+import GlassView from "@/components/ui/GlassView"
 
 interface GlassesPairingLoaderProps {
   deviceModel: string
@@ -16,6 +18,7 @@ interface GlassesPairingLoaderProps {
 
 const GlassesPairingLoader: React.FC<GlassesPairingLoaderProps> = ({deviceModel, deviceName, onCancel, isBooting}) => {
   const {theme} = useAppTheme()
+  const [superMode] = useSetting<boolean>(SETTINGS.super_mode.key)
   const progressAnim = useRef(new Animated.Value(0)).current
   const [currentTipIndex, setCurrentTipIndex] = useState(0)
   const tipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -67,12 +70,12 @@ const GlassesPairingLoader: React.FC<GlassesPairingLoaderProps> = ({deviceModel,
 
   return (
     <View className="flex-1 justify-center">
-      <View className="bg-primary-foreground rounded-lg p-6 gap-4">
+      <GlassView className="bg-primary-foreground rounded-2xl p-6 gap-4">
         {/* Title */}
         <Text tx="pairing:pairing" className="text-xl font-semibold text-center" />
         <Text className="text-xl text-center">
           {deviceModel}
-          {deviceName && deviceName !== "NOTREQUIREDSKIP" ? ` - ${deviceName}` : ""}
+          {superMode && deviceName && deviceName !== "NOTREQUIREDSKIP" ? ` - ${deviceName}` : ""}
         </Text>
 
         {/* Glasses image */}
@@ -108,7 +111,7 @@ const GlassesPairingLoader: React.FC<GlassesPairingLoaderProps> = ({deviceModel,
             <Button preset="alternate" compact tx="common:cancel" onPress={onCancel} className="min-w-24" />
           </View>
         )}
-      </View>
+      </GlassView>
     </View>
   )
 }

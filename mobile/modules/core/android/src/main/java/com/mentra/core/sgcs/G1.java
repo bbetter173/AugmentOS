@@ -1515,22 +1515,22 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean silent) {
+    public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean flash, boolean sound) {
 
     }
 
     @Override
-    public void startRtmpStream(Map<String, Object> message) {
+    public void startStream(Map<String, Object> message) {
 
     }
 
     @Override
-    public void stopRtmpStream() {
+    public void stopStream() {
 
     }
 
     @Override
-    public void sendRtmpKeepAlive(Map<String, Object> message) {
+    public void sendStreamKeepAlive(Map<String, Object> message) {
 
     }
 
@@ -1550,7 +1550,7 @@ public class G1 extends SGCManager {
     }
 
     @Override
-    public void startVideoRecording(String requestId, boolean save, boolean silent) {
+    public void startVideoRecording(String requestId, boolean save, boolean flash, boolean sound) {
 
     }
 
@@ -1577,6 +1577,10 @@ public class G1 extends SGCManager {
     @Override
     public void sendButtonCameraLedSetting() {
 
+    }
+
+    @Override
+    public void sendCameraFovSetting() {
     }
 
     @Override
@@ -1632,6 +1636,17 @@ public class G1 extends SGCManager {
     public void showDashboard() {
         exit();
     }
+
+    @Override
+    public void ping() {
+        Bridge.log("G1: ping()");
+    }
+
+    @Override
+    public void dbg1() {}
+
+    @Override
+    public void dbg2() {}
 
     @Override
     public void setDashboardPosition(int height, int depth) {
@@ -1729,6 +1744,11 @@ public class G1 extends SGCManager {
     @Override
     public void sendUserEmailToGlasses(String email) {
         // G1 doesn't support user email (no ASG client)
+    }
+
+    @Override
+    public void sendIncidentId(String incidentId, String apiBaseUrl) {
+        // G1 doesn't support incident reporting (no ASG client)
     }
 
     @Override

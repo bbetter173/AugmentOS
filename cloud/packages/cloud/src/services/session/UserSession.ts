@@ -18,6 +18,7 @@ import {
 import { ResourceTracker } from "../../utils/resource-tracker";
 import appService from "../core/app.service";
 import { memoryLeakDetector } from "../debug/MemoryLeakDetector";
+import { connectionChurnTracker } from "../metrics/SystemVitalsLogger";
 import DisplayManager from "../layout/DisplayManager6.1";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { PosthogService } from "../logging/posthog.service";
@@ -27,12 +28,12 @@ import { IWebSocket, WebSocketReadyState, hasEventEmitter } from "../websocket/t
 
 import AppManager from "./AppManager";
 import AudioManager from "./AudioManager";
+import { AppAudioStreamManager } from "./AppAudioStreamManager";
 import CalendarManager from "./CalendarManager";
 import { DashboardManager } from "./dashboard";
 import DeviceManager from "./DeviceManager";
 import { handleAppMessage as appMessageHandler, handleGlassesMessage as glassesMessageHandler } from "./handlers";
-import LiveKitManager from "./livekit/LiveKitManager";
-import SpeakerManager from "./livekit/SpeakerManager";
+import { clearSubscriptionChangeTimer } from "./handlers/app-message-handler";
 import LocationManager from "./LocationManager";
 import MicrophoneManager from "./MicrophoneManager";
 import PhotoManager from "./PhotoManager";
@@ -56,6 +57,14 @@ export class UserSession {
   public readonly userId: string;
   public readonly startTime: Date; // = new Date();
   public disconnectedAt: Date | null = null;
+
+  // Connection churn tracking — proves whether disconnects are client-side or server-side
+  // See: cloud/issues/069-ws-disconnect-observability/spike.md
+  public reconnectCount = 0;
+  public lastCloseCode?: number;
+  public lastCloseReason?: string;
+  public lastClientMessageTime?: number; // Updated on every message FROM the client
+  public lastAppLevelPongTime?: number; // Updated when client responds to our app-level ping
 
   // Logging
   public readonly logger: Logger;
@@ -92,6 +101,10 @@ export class UserSession {
     return this.appManager.getAllAppWebSockets();
   }
 
+  getAppSessionId(packageName: string): string {
+    return this.appManager.getAppSession(packageName)?.sessionId ?? `${this.sessionId}-${packageName}`;
+  }
+
   // Transcription
   public isTranscribing = false; // TODO(isaiah): Sync with frontend to see if we can remove this property.
   public lastAudioTimestamp?: number;
@@ -113,13 +126,13 @@ export class UserSession {
   public transcriptionManager: TranscriptionManager;
   public translationManager: TranslationManager;
   public subscriptionManager: SubscriptionManager;
-  public liveKitManager: LiveKitManager;
-  public speakerManager: SpeakerManager;
+
   public calendarManager: CalendarManager;
   public locationManager: LocationManager;
   public userSettingsManager: UserSettingsManager;
   public deviceManager: DeviceManager;
   public udpAudioManager: UdpAudioManager;
+  public appAudioStreamManager: AppAudioStreamManager;
 
   public streamRegistry: StreamRegistry;
   public unmanagedStreamingExtension: UnmanagedStreamingExtension;
@@ -132,9 +145,9 @@ export class UserSession {
 
   // Heartbeat for glasses connection
   private glassesHeartbeatInterval?: NodeJS.Timeout;
-  private appLevelPingInterval?: NodeJS.Timeout;
+  private appLevelPingInterval?: NodeJS.Timeout; // Retained for clearGlassesHeartbeat cleanup
   private pongHandler?: () => void; // Stored for cleanup
-  private lastPongTime?: number;
+  public lastPongTime?: number;
   private pongTimeoutTimer?: NodeJS.Timeout;
   private readonly PONG_TIMEOUT_MS = 30000; // 30 seconds - 3x heartbeat interval
 
@@ -155,9 +168,6 @@ export class UserSession {
 
   // User's timezone (IANA name like "America/New_York")
   public userTimezone?: string;
-
-  // LiveKit transport preference
-  public livekitRequested?: boolean;
 
   // Capability Discovery
 
@@ -186,11 +196,28 @@ export class UserSession {
     this.streamRegistry = new StreamRegistry(this.logger);
     this.unmanagedStreamingExtension = new UnmanagedStreamingExtension(this);
     this.managedStreamingExtension = new ManagedStreamingExtension(this.logger, this.streamRegistry);
-    this.liveKitManager = new LiveKitManager(this);
     this.userSettingsManager = new UserSettingsManager(this);
-    this.speakerManager = new SpeakerManager(this);
     this.deviceManager = new DeviceManager(this);
     this.udpAudioManager = new UdpAudioManager(this);
+    this.appAudioStreamManager = new AppAudioStreamManager(userId, this.logger, (streamId, streamUrl, packageName) => {
+      if (!this.websocket || this.websocket.readyState !== WebSocketReadyState.OPEN) {
+        return false;
+      }
+      try {
+        const playRequest = {
+          type: CloudToGlassesMessageType.AUDIO_PLAY_REQUEST,
+          sessionId: this.sessionId,
+          requestId: streamId,
+          packageName,
+          audioUrl: streamUrl,
+          timestamp: new Date(),
+        };
+        this.websocket.send(JSON.stringify(playRequest));
+        return true;
+      } catch {
+        return false;
+      }
+    });
 
     // Set up heartbeat for glasses connection
     this.setupGlassesHeartbeat();
@@ -208,7 +235,6 @@ export class UserSession {
    */
   private setupGlassesHeartbeat(): void {
     const HEARTBEAT_INTERVAL = 10000; // 10 seconds
-    const APP_LEVEL_PING_INTERVAL = 2000; // 2 seconds
 
     // Clear any existing heartbeat
     this.clearGlassesHeartbeat();
@@ -230,22 +256,10 @@ export class UserSession {
       }
     }, HEARTBEAT_INTERVAL);
 
-    // Application-level pings — visible to the client's onmessage handler.
-    // Protocol-level pings are invisible to React Native's WebSocket API,
-    // so the client can't use them for liveness detection. These app-level
-    // pings give the client guaranteed periodic messages to track against.
-    this.appLevelPingInterval = setInterval(() => {
-      if (this.disposed) return;
-      if (this.websocket && this.websocket.readyState === WebSocketReadyState.OPEN) {
-        try {
-          this.websocket.send(JSON.stringify({ type: "ping" }));
-        } catch (_e) {
-          // Send failure will be caught by the connection close handler
-        }
-      }
-    }, APP_LEVEL_PING_INTERVAL);
-
-    this.resources.trackInterval(this.appLevelPingInterval);
+    // Application-level pings are no longer sent by the server.
+    // The client now initiates pings and the server responds with pongs
+    // (handled in bun-websocket.ts). This lets the client detect dead
+    // connections faster and trigger its own health-check + reconnect flow.
 
     // Track interval for automatic cleanup
     this.resources.trackInterval(this.glassesHeartbeatInterval);
@@ -290,7 +304,7 @@ export class UserSession {
       this.resetPongTimeout();
     }
 
-    this.logger.debug(`[UserSession:setupGlassesHeartbeat] Heartbeat established for glasses connection`);
+    this.logger.info(`[UserSession:setupGlassesHeartbeat] Heartbeat established for glasses connection`);
   }
 
   /**
@@ -300,7 +314,7 @@ export class UserSession {
     if (this.glassesHeartbeatInterval) {
       clearInterval(this.glassesHeartbeatInterval);
       this.glassesHeartbeatInterval = undefined;
-      this.logger.debug(`[UserSession:clearGlassesHeartbeat] Heartbeat cleared for glasses connection`);
+      this.logger.info(`[UserSession:clearGlassesHeartbeat] Heartbeat cleared for glasses connection`);
     }
 
     // Clear app-level ping interval
@@ -398,6 +412,7 @@ export class UserSession {
     if (this.microphoneManager) {
       this.logger.info(`[UserSession:updateWebSocket] Scheduling mic state resync after WebSocket reconnect`);
       setTimeout(() => {
+        if (this.disposed) return;
         if (this.microphoneManager && this.websocket?.readyState === WebSocketReadyState.OPEN) {
           this.logger.info(`[UserSession:updateWebSocket] Forcing mic state resync after WebSocket reconnect`);
           this.microphoneManager.forceResync();
@@ -440,9 +455,42 @@ export class UserSession {
   ): Promise<{ userSession: UserSession; reconnection: boolean }> {
     const existingSession = UserSession.getById(userId);
     if (existingSession) {
-      existingSession.logger.info(
-        `[UserSession:createOrReconnect] Existing session found for ${userId}, updating WebSocket`,
-      );
+      // Only log reconnect metrics if the session was actually disconnected.
+      // If disconnectedAt is null, this is a WebSocket upgrade (new socket arriving
+      // before old one closed) — not a true disconnect/reconnect cycle.
+      if (existingSession.disconnectedAt) {
+        const downtimeMs = Date.now() - existingSession.disconnectedAt.getTime();
+        const sessionAgeSeconds = Math.round((Date.now() - existingSession.startTime.getTime()) / 1000);
+        const now = Date.now();
+
+        existingSession.reconnectCount++;
+
+        existingSession.logger.info(
+          {
+            feature: "ws-reconnect",
+            reconnectCount: existingSession.reconnectCount,
+            downtimeMs,
+            sessionAgeSeconds,
+            lastCloseCode: existingSession.lastCloseCode,
+            lastCloseReason: existingSession.lastCloseReason || undefined,
+            timeSinceLastClientMessage: existingSession.lastClientMessageTime
+              ? now - existingSession.lastClientMessageTime
+              : null,
+            timeSinceLastPong: existingSession.lastPongTime ? now - (existingSession.lastPongTime as number) : null,
+            timeSinceLastAppPong: existingSession.lastAppLevelPongTime
+              ? now - existingSession.lastAppLevelPongTime
+              : null,
+          },
+          `Glasses reconnect #${existingSession.reconnectCount}: downtime=${downtimeMs}ms, lastClose=${existingSession.lastCloseCode}`,
+        );
+
+        // Record reconnect for churn tracking in SystemVitalsLogger
+        connectionChurnTracker.recordReconnect(downtimeMs);
+      } else {
+        existingSession.logger.info(
+          `[UserSession:createOrReconnect] WebSocket upgrade for ${userId} (session was not disconnected)`,
+        );
+      }
 
       // Update WS and restart heartbeat
       existingSession.updateWebSocket(ws);
@@ -541,7 +589,7 @@ export class UserSession {
       for (const packageName of subscribedPackageNames) {
         const connection = this.appWebsockets.get(packageName);
         if (connection && connection.readyState === WebSocketReadyState.OPEN) {
-          const appSessionId = `${this.sessionId}-${packageName}`;
+          const appSessionId = this.getAppSessionId(packageName);
           const dataStream = {
             type: CloudToAppMessageType.DATA_STREAM,
             sessionId: appSessionId,
@@ -604,7 +652,7 @@ export class UserSession {
       }
       const appAudioResponse = {
         type: CloudToAppMessageType.AUDIO_PLAY_RESPONSE,
-        sessionId: `${this.sessionId}-${packageName}`,
+        sessionId: this.getAppSessionId(packageName),
         requestId,
         success: audioResponse.success,
         error: audioResponse.error,
@@ -699,6 +747,17 @@ export class UserSession {
 
     this.logger.warn(`[UserSession:dispose]: Disposing UserSession: ${this.userId}`);
 
+    // Clear the subscription-change debounce timer for this user. Its closure
+    // captures `userSession`, so leaving it alive would prevent GC of the
+    // disposed UserSession until the timer fires.
+    // Only clear if this is still the active session for this userId — during
+    // reconnect races, a stale session's dispose must not cancel the newer
+    // session's pending subscription-change timer. The timer map is keyed by
+    // userId, so a blind clear would affect whichever session currently owns it.
+    if (UserSession.sessions.get(this.userId) === this || !UserSession.sessions.has(this.userId)) {
+      clearSubscriptionChangeTimer(this.userId);
+    }
+
     // Clean up all tracked resources (removes event listeners, clears timers)
     // This must happen BEFORE disposing managers to prevent stale callbacks
     this.resources.dispose();
@@ -706,7 +765,22 @@ export class UserSession {
     // Log to posthog disconnected duration.
     const now = new Date();
     const duration = now.getTime() - this.startTime.getTime();
-    this.logger.info({ duration }, `User session ${this.userId} disconnected. Connected for ${duration}ms`);
+    const sessionDurationSeconds = Math.round(duration / 1000);
+    const nowMs = now.getTime();
+    this.logger.info(
+      {
+        feature: "ws-dispose",
+        duration,
+        sessionDurationSeconds,
+        reconnectCount: this.reconnectCount,
+        lastCloseCode: this.lastCloseCode,
+        lastCloseReason: this.lastCloseReason || undefined,
+        timeSinceLastClientMessage: this.lastClientMessageTime ? nowMs - this.lastClientMessageTime : null,
+        timeSinceLastAppPong: this.lastAppLevelPongTime ? nowMs - this.lastAppLevelPongTime : null,
+        disposalReason: this.disconnectedAt ? "grace_period_timeout" : "explicit_disposal",
+      },
+      `Session disposed: duration=${sessionDurationSeconds}s, reconnects=${this.reconnectCount}, lastClose=${this.lastCloseCode}, silent=${this.lastClientMessageTime ? nowMs - this.lastClientMessageTime : "?"}ms`,
+    );
     try {
       await PosthogService.trackEvent("disconnected", this.userId, {
         duration: duration,
@@ -722,7 +796,7 @@ export class UserSession {
     // Clean up all resources
     if (this.appManager) this.appManager.dispose();
     if (this.audioManager) this.audioManager.dispose();
-    if (this.liveKitManager) this.liveKitManager.dispose();
+
     if (this.microphoneManager) this.microphoneManager.dispose();
     if (this.displayManager) this.displayManager.dispose();
     if (this.dashboardManager) this.dashboardManager.dispose();
@@ -733,6 +807,14 @@ export class UserSession {
     if (this.unmanagedStreamingExtension) this.unmanagedStreamingExtension.dispose();
     if (this.photoManager) this.photoManager.dispose();
     if (this.managedStreamingExtension) this.managedStreamingExtension.dispose();
+    if (this.appAudioStreamManager) this.appAudioStreamManager.dispose();
+
+    // These 4 were previously missing from dispose. Each now has a proper
+    // dispose() that clears internal state (Maps, Sets, promises, snapshots).
+    if (this.calendarManager) this.calendarManager.dispose();
+    if (this.deviceManager) this.deviceManager.dispose();
+    if (this.userSettingsManager) this.userSettingsManager.dispose();
+    if (this.streamRegistry) this.streamRegistry.dispose();
 
     // Persist location to DB cold cache and clean up
     if (this.locationManager) await this.locationManager.dispose();
@@ -758,18 +840,23 @@ export class UserSession {
     // Dispose UDP audio manager
     if (this.udpAudioManager) this.udpAudioManager.dispose();
 
-    // Remove from static session map
-    UserSession.sessions.delete(this.userId);
+    // Only delete from map if this session is still the registered one.
+    // A stale session's dispose() must not delete a newer session's entry.
+    if (UserSession.sessions.get(this.userId) === this) {
+      UserSession.sessions.delete(this.userId);
+    }
 
-    this.logger.info(
-      {
-        disposalReason: this.disconnectedAt ? "grace_period_timeout" : "explicit_disposal",
-      },
-      `🗑️ Session disposed and removed from storage for ${this.userId}`,
-    );
+    this.logger.info(`🗑️ Session disposed and removed from storage for ${this.userId}`);
 
     // Mark disposed for leak detection
     memoryLeakDetector.markDisposed(`UserSession:${this.userId}`);
+
+    // gc-after-disconnect REMOVED — confirmed wasteful:
+    // 31 calls/hour on US Central, 2,242ms total event loop blocking, freed 0 bytes
+    // every single time. The gc-probe in SystemVitalsLogger provides the same
+    // diagnostic data on a fixed 60s schedule without being triggered by user behavior.
+    // See: cloud/issues/066-ws-disconnect-churn/spec.md (A7)
+    // See: cloud/issues/067-heap-growth-investigation/spike.md
   }
 
   /**

@@ -1,4 +1,4 @@
-import { ChevronLeft, Info, Share2, X } from "lucide-react";
+import { ChevronLeft, Info, Share2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "../components/ui/MuiToast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,7 @@ import { useState } from "react";
 
 const AppDetailsMobile: React.FC<AppDetailsMobileProps> = ({
   app,
+  deviceInfo,
   isAuthenticated,
   isWebView,
   installingApp,
@@ -147,7 +148,7 @@ const AppDetailsMobile: React.FC<AppDetailsMobileProps> = ({
                     }}>
                     Installed
                   </Button>
-                ) : (
+                ) : app.compatibility?.isCompatible === false ? null : (
                   <Button
                     onClick={handleInstall}
                     disabled={installingApp}
@@ -188,6 +189,31 @@ const AppDetailsMobile: React.FC<AppDetailsMobileProps> = ({
                 Share
               </button>
             </div>
+
+            {/* Incompatibility Warning - Above About section */}
+            {app.compatibility?.isCompatible === false && deviceInfo?.modelName && (
+              <div className="mb-6">
+                <div
+                  className="flex items-center gap-2 p-3 rounded-lg"
+                  style={{
+                    backgroundColor: "var(--bg-secondary)",
+                  }}>
+                  <AlertTriangle
+                    className="h-5 w-5 flex-shrink-0"
+                    style={{
+                      color: "var(--text-primary)",
+                    }}
+                  />
+                  <span
+                    className="text-[14px] font-medium"
+                    style={{
+                      color: "var(--text-primary)",
+                    }}>
+                    This app is incompatible with {deviceInfo.modelName}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* About this app Section */}
             <div className="mb-6">

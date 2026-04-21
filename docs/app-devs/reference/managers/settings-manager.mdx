@@ -1,3 +1,7 @@
+<Warning>
+**This page documents the v2 API.** In v3, these managers are accessed directly on the MentraSession object (e.g. `session.speaker`, `session.camera`, `session.led`). See the [MentraSession](/app-devs/core-concepts/session) page for the current documentation, or the [Migration Guide](/app-devs/migration/overview) for all v2 → v3 changes.
+</Warning>
+
 # SettingsManager API Reference
 
 The `SettingsManager` class provides a type-safe interface for accessing and monitoring App settings. It automatically synchronizes with MentraOS Cloud and provides real-time change notifications.
@@ -109,7 +113,7 @@ const toggles = allSettings.filter(s => s.type === 'toggle');
 
 ### getSetting
 
-Find a setting by key and get the full [setting object](/reference/interfaces/setting-types#appsetting).
+Find a setting by key and get the full [setting object](/app-devs/reference/interfaces/setting-types#appsetting).
 
 ```typescript
 getSetting(key: string): AppSetting | undefined
@@ -331,5 +335,5 @@ export class MyAppServer extends AppServer {
 ## Related Documentation
 
 * [Settings Overview](/settings) - Guide to using settings in Apps
-* [Setting Types Reference](/reference/interfaces/setting-types) - Detailed type definitions
-* [App Session](/reference/app-session) - AppSession class reference
+* [Setting Types Reference](/app-devs/reference/interfaces/setting-types) - Detailed type definitions
+* [App Session](/app-devs/reference/app-session) - AppSession class reference

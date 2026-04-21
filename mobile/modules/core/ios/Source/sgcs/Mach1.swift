@@ -14,9 +14,11 @@ import UltraliteSDK
 
 @MainActor
 class Mach1: UltraliteBaseViewController, SGCManager {
+    func sendIncidentId(_: String, apiBaseUrl _: String?) {}
+
     func requestPhoto(
         _: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?,
-        compress _: String?, silent _: Bool
+        compress _: String?, flash _: Bool, sound _: Bool
     ) {}
 
     func sendGalleryMode() {}
@@ -38,6 +40,8 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     func sendButtonMaxRecordingTime(_: Int) {}
 
     func sendButtonCameraLedSetting() {}
+
+    func sendCameraFovSetting() {}
 
     func exit() {}
 
@@ -82,11 +86,11 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func sendJson(_: [String: Any]) {}
 
-    func startRtmpStream(_: [String: Any]) {}
+    func startStream(_: [String: Any]) {}
 
-    func stopRtmpStream() {}
+    func stopStream() {}
 
-    func sendRtmpKeepAlive(_: [String: Any]) {}
+    func sendStreamKeepAlive(_: [String: Any]) {}
 
     func startBufferRecording() {}
 
@@ -94,7 +98,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func saveBufferVideo(requestId _: String, durationSeconds _: Int) {}
 
-    func startVideoRecording(requestId _: String, save _: Bool, silent _: Bool) {}
+    func startVideoRecording(requestId _: String, save _: Bool, flash _: Bool, sound _: Bool) {}
 
     func stopVideoRecording(requestId _: String) {}
 
@@ -105,6 +109,12 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     func setBrightness(_: Int, autoMode _: Bool) {}
 
     func cleanup() {}
+
+    func ping() {}
+    func dbg1() {}
+    func dbg2() {}
+    func connectController() {}
+    func disconnectController() {}
 
     var type: String = DeviceTypes.MACH1
     var hasMic: Bool = false
@@ -176,6 +186,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             guard let self else { return }
             Bridge.log("MACH1: batteryLevelListener: \(value)")
             batteryLevel = value
+            GlassesStore.shared.apply("glasses", "batteryLevel", value)
             ready = true
             connected = true
         })

@@ -2,6 +2,12 @@ import {GlassesStatus, OtaProgress, OtaUpdateInfo} from "core"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 
+/** Native Core ConnTypes (uppercase); RN default may be lowercase. */
+export function isGlassesLinkLayerBusy(connectionState: string | undefined): boolean {
+  const u = (connectionState ?? "").toUpperCase()
+  return u === "CONNECTING" || u === "SCANNING" || u === "BONDING"
+}
+
 interface GlassesState extends GlassesStatus {
   setGlassesInfo: (info: Partial<GlassesStatus>) => void
   setBatteryInfo: (batteryLevel: number, charging: boolean, caseBatteryLevel: number, caseCharging: boolean) => void
@@ -27,6 +33,9 @@ export const getGlasesInfoPartial = (state: GlassesStatus) => {
     wifiConnected: state.wifiConnected,
     wifiSsid: state.wifiSsid,
     deviceModel: state.deviceModel,
+    // Cloud GlassesInfo uses modelName, map from deviceModel so the cloud
+    // knows which device is connected when it receives connection state updates
+    modelName: state.deviceModel || null,
   }
 }
 
@@ -41,6 +50,7 @@ const initialState: GlassesStore = {
   micEnabled: false,
   connectionState: "disconnected",
   btcConnected: false,
+  signalStrength: -1,
   // device info
   deviceModel: "",
   androidVersion: "",
@@ -76,6 +86,12 @@ const initialState: GlassesStore = {
   otaProgress: null,
   otaInProgress: false,
   mtkUpdatedThisSession: false,
+  // ring:
+  controllerConnected: false,
+  controllerFullyBooted: false,
+  controllerMacAddress: "",
+  controllerBatteryLevel: -1,
+  controllerSignalStrength: -1,
 }
 
 export const useGlassesStore = create<GlassesState>()(
@@ -120,11 +136,22 @@ export const useGlassesStore = create<GlassesState>()(
     setOtaUpdateAvailable: (info: OtaUpdateInfo | null) => set({otaUpdateAvailable: info}),
 
     setOtaProgress: (progress: OtaProgress | null) =>
-      set((_state) => {
-        // Auto-detect otaInProgress from status
+      set((state) => {
         const otaInProgress = progress !== null && progress.status !== "FINISHED" && progress.status !== "FAILED"
         console.log("🔍 GLASSES STORE: setOtaProgress called with:", JSON.stringify(progress))
         console.log("🔍 GLASSES STORE: otaInProgress =", otaInProgress)
+
+        // Never allow progress to regress within the same stage+currentUpdate
+        if (
+          progress &&
+          state.otaProgress &&
+          progress.stage === state.otaProgress.stage &&
+          progress.currentUpdate === state.otaProgress.currentUpdate &&
+          progress.progress < state.otaProgress.progress
+        ) {
+          return {otaProgress: {...progress, progress: state.otaProgress.progress}, otaInProgress}
+        }
+
         return {otaProgress: progress, otaInProgress}
       }),
 

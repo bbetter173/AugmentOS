@@ -52,14 +52,21 @@ interface AppInfo {
  */
 export class SlackNotificationService {
   private feedbackWebhookUrl: string | undefined;
+  private automaticIncidentWebhookUrl: string | undefined;
   private miniAppSubmissionWebhookUrl: string | undefined;
 
   constructor() {
     this.feedbackWebhookUrl = process.env.SLACK_WEBHOOK_USER_FEEDBACK;
+    this.automaticIncidentWebhookUrl = process.env.SLACK_WEBHOOK_AUTOMATIC_INCIDENTS;
     this.miniAppSubmissionWebhookUrl = process.env.SLACK_WEBHOOK_MINI_APP_SUBMISSION;
 
     if (!this.feedbackWebhookUrl) {
       logger.warn("SLACK_WEBHOOK_USER_FEEDBACK not configured - feedback notifications disabled");
+    }
+    if (!this.automaticIncidentWebhookUrl) {
+      logger.warn(
+        "SLACK_WEBHOOK_AUTOMATIC_INCIDENTS not configured - automatic incidents will fall back to SLACK_WEBHOOK_USER_FEEDBACK",
+      );
     }
     if (!this.miniAppSubmissionWebhookUrl) {
       logger.warn("SLACK_WEBHOOK_MINI_APP_SUBMISSION not configured - mini app submission notifications disabled");
@@ -98,10 +105,7 @@ export class SlackNotificationService {
    */
   private escapeSlackText(text: string): string {
     // Escape &, <, > which have special meaning in Slack
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   /**
@@ -135,7 +139,12 @@ export class SlackNotificationService {
         });
       }
       if (feedback.severityRating !== undefined) {
-        const severityEmoji = feedback.severityRating >= 4 ? ":red_circle:" : feedback.severityRating >= 3 ? ":large_orange_circle:" : ":large_green_circle:";
+        const severityEmoji =
+          feedback.severityRating >= 4
+            ? ":red_circle:"
+            : feedback.severityRating >= 3
+              ? ":large_orange_circle:"
+              : ":large_green_circle:";
         mainFields.push({
           type: "mrkdwn",
           text: `*Severity:*\n${severityEmoji} ${feedback.severityRating}/5`,
@@ -166,7 +175,8 @@ export class SlackNotificationService {
       if (sys.platform) sysInfoParts.push(`Platform: ${this.escapeSlackText(sys.platform)}`);
       if (sys.deviceName) sysInfoParts.push(`Device: ${this.escapeSlackText(sys.deviceName)}`);
       if (sys.osVersion) sysInfoParts.push(`OS: ${this.escapeSlackText(sys.osVersion)}`);
-      if (sys.glassesConnected !== undefined) sysInfoParts.push(`Glasses: ${sys.glassesConnected ? "Connected" : "Not connected"}`);
+      if (sys.glassesConnected !== undefined)
+        sysInfoParts.push(`Glasses: ${sys.glassesConnected ? "Connected" : "Not connected"}`);
       if (sys.defaultWearable) sysInfoParts.push(`Wearable: ${this.escapeSlackText(sys.defaultWearable)}`);
     }
 
@@ -176,7 +186,8 @@ export class SlackNotificationService {
     if (glasses && sys?.glassesConnected) {
       if (glasses.modelName) glassesInfoParts.push(`Model: ${this.escapeSlackText(glasses.modelName)}`);
       if (glasses.fwVersion) glassesInfoParts.push(`FW: ${this.escapeSlackText(glasses.fwVersion)}`);
-      if (glasses.batteryLevel !== undefined && glasses.batteryLevel >= 0) glassesInfoParts.push(`Battery: ${glasses.batteryLevel}%`);
+      if (glasses.batteryLevel !== undefined && glasses.batteryLevel >= 0)
+        glassesInfoParts.push(`Battery: ${glasses.batteryLevel}%`);
     }
 
     // Contact email if Apple private relay user provided one
@@ -257,13 +268,14 @@ export class SlackNotificationService {
     });
 
     // Truncate feedback if too long for Slack
-    const truncatedFeedback = feedback.length > 2500
-      ? feedback.substring(0, 2500) + "..."
-      : feedback;
+    const truncatedFeedback = feedback.length > 2500 ? feedback.substring(0, 2500) + "..." : feedback;
 
     // Escape and format as blockquote
     const escapedFeedback = this.escapeSlackText(truncatedFeedback);
-    const quotedFeedback = escapedFeedback.split("\n").map(line => `>${line}`).join("\n");
+    const quotedFeedback = escapedFeedback
+      .split("\n")
+      .map((line) => `>${line}`)
+      .join("\n");
 
     const message: SlackMessage = {
       text: `New feedback from ${userEmail}`,
@@ -300,6 +312,244 @@ export class SlackNotificationService {
     };
 
     return this.sendToWebhook(this.feedbackWebhookUrl, message, "user-feedback");
+  }
+
+  /**
+   * Send incident notification to the feedback channel.
+   * Used by the background incident processor after collecting logs.
+   */
+  async sendIncidentNotification(
+    incidentId: string,
+    userId: string,
+    ticketUrl: string,
+    consoleUrl: string,
+    summary?: string,
+    isNewIssue?: boolean,
+    feedback?: Record<string, unknown>,
+  ): Promise<boolean> {
+    const timestamp = new Date().toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "America/Los_Angeles",
+    });
+
+    // Determine header based on whether this is new or duplicate
+    const isLinearUrl = ticketUrl.includes("linear.app");
+    const headerText = isNewIssue === false ? ":bug: +1 Bug Report (Duplicate)" : ":bug: New Bug Report";
+
+    // Extract expected/actual behavior from feedback
+    const expectedBehavior = feedback?.expectedBehavior as string | undefined;
+    const actualBehavior = feedback?.actualBehavior as string | undefined;
+    const severityRating = feedback?.severityRating as number | undefined;
+    const systemInfo = feedback?.systemInfo as Record<string, unknown> | undefined;
+    const submissionMode = feedback?.submissionMode as string | undefined;
+    const triggerArea = feedback?.triggerArea as string | undefined;
+    const triggerReason = feedback?.triggerReason as string | undefined;
+    const sourceAppletPackageName = feedback?.sourceAppletPackageName as string | undefined;
+    const sourceAppletName = feedback?.sourceAppletName as string | undefined;
+    const isAutomaticIncident = submissionMode === "AUTOMATIC";
+    const summaryForSlack = isAutomaticIncident ? undefined : summary;
+
+    // Build feedback fields if available
+    const feedbackBlocks: SlackBlock[] = [];
+    if (expectedBehavior || actualBehavior) {
+      const feedbackFields: Array<{ type: string; text: string }> = [];
+      if (expectedBehavior) {
+        feedbackFields.push({
+          type: "mrkdwn",
+          text: `*Expected:*\n${this.escapeSlackText(expectedBehavior.substring(0, 300))}${expectedBehavior.length > 300 ? "..." : ""}`,
+        });
+      }
+      if (actualBehavior) {
+        feedbackFields.push({
+          type: "mrkdwn",
+          text: `*Actual:*\n${this.escapeSlackText(actualBehavior.substring(0, 300))}${actualBehavior.length > 300 ? "..." : ""}`,
+        });
+      }
+      feedbackBlocks.push({
+        type: "section",
+        fields: feedbackFields,
+      });
+    }
+
+    // Severity indicator
+    const severityBlock: SlackBlock[] = [];
+    if (severityRating !== undefined) {
+      const severityEmoji =
+        severityRating >= 4 ? ":red_circle:" : severityRating >= 3 ? ":large_orange_circle:" : ":large_green_circle:";
+      severityBlock.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Severity:* ${severityEmoji} ${severityRating}/5`,
+        },
+      });
+    }
+
+    const categorizationBlock: SlackBlock[] = [];
+    const categorizationFields: Array<{ type: string; text: string }> = [];
+    if (submissionMode) {
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Submission mode:*\n${this.escapeSlackText(submissionMode)}`,
+      });
+    }
+    if (triggerArea) {
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Trigger area:*\n${this.escapeSlackText(triggerArea)}`,
+      });
+    }
+    if (triggerReason) {
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Trigger reason:*\n${this.escapeSlackText(triggerReason)}`,
+      });
+    }
+    if (sourceAppletPackageName || sourceAppletName) {
+      const sourceAppletText =
+        sourceAppletName && sourceAppletPackageName
+          ? `${sourceAppletName} (${sourceAppletPackageName})`
+          : sourceAppletName || sourceAppletPackageName!;
+      categorizationFields.push({
+        type: "mrkdwn",
+        text: `*Source applet:*\n${this.escapeSlackText(sourceAppletText)}`,
+      });
+    }
+    if (categorizationFields.length > 0) {
+      categorizationBlock.push({
+        type: "section",
+        fields: categorizationFields,
+      });
+    }
+
+    // System info block
+    const systemInfoBlock: SlackBlock[] = [];
+    if (systemInfo) {
+      const sysInfoParts: string[] = [];
+      if (systemInfo.appVersion) sysInfoParts.push(`App: ${this.escapeSlackText(String(systemInfo.appVersion))}`);
+      if (systemInfo.platform) sysInfoParts.push(`Platform: ${this.escapeSlackText(String(systemInfo.platform))}`);
+      if (systemInfo.deviceName) sysInfoParts.push(`Device: ${this.escapeSlackText(String(systemInfo.deviceName))}`);
+      if (systemInfo.osVersion) sysInfoParts.push(`OS: ${this.escapeSlackText(String(systemInfo.osVersion))}`);
+      if (systemInfo.glassesConnected !== undefined)
+        sysInfoParts.push(`Glasses: ${systemInfo.glassesConnected ? "Connected" : "Not connected"}`);
+      if (systemInfo.defaultWearable)
+        sysInfoParts.push(`Wearable: ${this.escapeSlackText(String(systemInfo.defaultWearable))}`);
+      if (systemInfo.backendUrl) sysInfoParts.push(`Backend: ${this.escapeSlackText(String(systemInfo.backendUrl))}`);
+
+      if (sysInfoParts.length > 0) {
+        systemInfoBlock.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*System:* ${sysInfoParts.join(" | ")}`,
+          },
+        });
+      }
+    }
+
+    const fallbackTextParts = [
+      isNewIssue === false
+        ? `[BUG] +1 occurrence: ${summaryForSlack || incidentId}`
+        : `[BUG] New: ${summaryForSlack || incidentId}`,
+      `User: ${userId}`,
+      `Incident ID: ${incidentId}`,
+      ...(submissionMode ? [`Submission mode: ${submissionMode}`] : []),
+      ...(triggerArea ? [`Trigger area: ${triggerArea}`] : []),
+      ...(triggerReason ? [`Trigger reason: ${triggerReason}`] : []),
+      ...(sourceAppletName && sourceAppletPackageName
+        ? [`Source applet: ${sourceAppletName} (${sourceAppletPackageName})`]
+        : sourceAppletName || sourceAppletPackageName
+          ? [`Source applet: ${sourceAppletName || sourceAppletPackageName}`]
+          : []),
+      ...(summaryForSlack ? [`Summary: ${summaryForSlack}`] : []),
+    ];
+
+    const message: SlackMessage = {
+      text: fallbackTextParts.join("\n"),
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: headerText,
+            emoji: true,
+          },
+        },
+        ...(summaryForSlack
+          ? [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `*Summary:* ${this.escapeSlackText(summaryForSlack)}`,
+                },
+              } as SlackBlock,
+            ]
+          : []),
+        {
+          type: "section",
+          fields: [
+            {
+              type: "mrkdwn",
+              text: `*User:*\n${this.escapeSlackText(userId)}`,
+            },
+            {
+              type: "mrkdwn",
+              text: `*Incident ID:*\n\`${this.escapeSlackText(incidentId.slice(0, 8))}...\``,
+            },
+          ],
+        },
+        ...feedbackBlocks,
+        ...severityBlock,
+        ...categorizationBlock,
+        ...systemInfoBlock,
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `_Processed: ${timestamp}_`,
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            ...(isLinearUrl
+              ? [
+                  {
+                    type: "button",
+                    text: {
+                      type: "plain_text",
+                      text: "View in Linear",
+                      emoji: true,
+                    },
+                    url: ticketUrl,
+                  },
+                ]
+              : []),
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "View Logs",
+                emoji: true,
+              },
+              url: consoleUrl,
+            },
+          ],
+        },
+      ],
+    };
+
+    const targetWebhookUrl = isAutomaticIncident
+      ? this.automaticIncidentWebhookUrl || this.feedbackWebhookUrl
+      : this.feedbackWebhookUrl;
+
+    return this.sendToWebhook(
+      targetWebhookUrl,
+      message,
+      isAutomaticIncident ? "automatic-incident-notification" : "incident-notification",
+    );
   }
 
   /**

@@ -70,14 +70,6 @@ public class Bridge private constructor() {
             sendTypedMessage("log", data as Map<String, Any>)
         }
 
-        /** Send an event to JavaScript */
-        @JvmStatic
-        fun sendEvent(eventName: String, body: String) {
-            val data = HashMap<String, Any>()
-            data["body"] = body
-            eventCallback?.invoke(eventName, data as Map<String, Any>)
-        }
-
         /** Send head position event */
         @JvmStatic
         fun sendHeadUp(isUp: Boolean) {
@@ -109,17 +101,26 @@ public class Bridge private constructor() {
             sendTypedMessage("audio_disconnected", data as Map<String, Any>)
         }
 
-        /**
-         * Send microphone data to React Native. React Native handles the decision of whether to
-         * send via UDP or WebSocket. This keeps the native layer simple and UDP logic centralized
-         * in React Native.
-         */
         @JvmStatic
-        fun sendMicData(data: ByteArray) {
-            val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+        fun sendMicPcm(data: ByteArray) {
+            // val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            // val body = HashMap<String, Any>()
+            // body["base64"] = base64String
+            // sendTypedMessage("mic_pcm", body as Map<String, Any>)
             val body = HashMap<String, Any>()
-            body["base64"] = base64String
-            sendTypedMessage("mic_data", body as Map<String, Any>)
+            body["pcm"] = data
+            sendTypedMessage("mic_pcm", body as Map<String, Any>)
+        }
+        
+        @JvmStatic
+        fun sendMicLc3(data: ByteArray) {
+            // val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
+            // val body = HashMap<String, Any>()
+            // body["base64"] = base64String
+            // sendTypedMessage("mic_lc3", body as Map<String, Any>)
+            val body = HashMap<String, Any>()
+            body["lc3"] = data
+            sendTypedMessage("mic_lc3", body as Map<String, Any>)
         }
 
         /** Save a setting */
@@ -277,19 +278,27 @@ public class Bridge private constructor() {
         /** Send photo response */
         @JvmStatic
         fun sendPhotoResponse(requestId: String, photoUrl: String) {
-            try {
-                val event = HashMap<String, Any>()
-                event["type"] = "photo_response"
-                event["requestId"] = requestId
-                event["photoUrl"] = photoUrl
-                event["timestamp"] = System.currentTimeMillis().toInt()
+            val event = HashMap<String, Any>()
+            event["type"] = "photo_response"
+            event["requestId"] = requestId
+            event["photoUrl"] = photoUrl
+            event["timestamp"] = System.currentTimeMillis().toInt()
+            event["success"] = true
+            sendTypedMessage("photo_response", event as Map<String, Any>)
+        }
 
-                val jsonData = JSONObject(event as Map<*, *>)
-                val jsonString = jsonData.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                log("ServerComms: Error building photo_response JSON: $e")
-            }
+        @JvmStatic
+        fun sendPhotoError(requestId: String, errorCode: String, errorMessage: String) {
+            val event = HashMap<String, Any>()
+            event["type"] = "photo_response"
+            event["requestId"] = requestId
+            event["photoUrl"] = ""
+            event["success"] = false
+            event["errorCode"] = errorCode
+            event["errorMessage"] = errorMessage
+            event["timestamp"] = System.currentTimeMillis()
+            // sendWSText(JSONObject(event as Map<*, *>).toString())
+            sendTypedMessage("photo_response", event as Map<String, Any>)
         }
 
         /** Send RGB LED control response */
@@ -412,7 +421,9 @@ public class Bridge private constructor() {
         /** Send WiFi scan results */
         @JvmStatic
         fun updateWifiScanResults(networks: List<Map<String, Any>>) {
-            var storedNetworks: List<Map<String, Any>> = GlassesStore.get("core", "wifiScanResults") as? List<Map<String, Any>> ?: emptyList()
+            var storedNetworks: List<Map<String, Any>> =
+                    GlassesStore.get("core", "wifiScanResults") as? List<Map<String, Any>>
+                            ?: emptyList()
             // add the networks to the storedNetworks array, removing duplicates by ssid
             val updatedNetworks = storedNetworks.toMutableList()
             for (network in networks) {
@@ -498,6 +509,14 @@ public class Bridge private constructor() {
             sendTypedMessage("ota_update_available", eventBody as Map<String, Any>)
         }
 
+        /** Send ota_start_ack — glasses confirmed receipt of ota_start command */
+        @JvmStatic
+        fun sendOtaStartAck() {
+            val eventBody = HashMap<String, Any>()
+            eventBody["timestamp"] = System.currentTimeMillis()
+            sendTypedMessage("ota_start_ack", eventBody as Map<String, Any>)
+        }
+
         /** Send OTA progress update - glasses are downloading/installing an update */
         @JvmStatic
         fun sendOtaProgress(
@@ -521,10 +540,10 @@ public class Bridge private constructor() {
             sendTypedMessage("ota_progress", eventBody as Map<String, Any>)
         }
 
-        /** Send RTMP stream status - forwards to websocket system (matches iOS) */
+        /** Send stream status - forwards to websocket system (matches iOS) */
         @JvmStatic
-        fun sendRtmpStreamStatus(statusJson: Map<String, Any>) {
-            sendTypedMessage("rtmp_stream_status", statusJson)
+        fun sendStreamStatus(statusJson: Map<String, Any>) {
+            sendTypedMessage("stream_status", statusJson)
         }
 
         /** Send keep alive ACK - forwards to websocket system (matches iOS) */
@@ -581,7 +600,7 @@ public class Bridge private constructor() {
                         "$packageName-$notificationKey" // Stable ID combining package and Android
                 // key
                 data["app"] = appName
-                data["title"] = title
+                data["title"] = title.ifEmpty { appName }
                 data["content"] = text
                 data["priority"] = "normal" // Default priority, could be enhanced later
                 data["timestamp"] = timestamp

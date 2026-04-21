@@ -2,9 +2,12 @@ import {AppletInterface} from "@/../../cloud/packages/types/src"
 import axios, {AxiosInstance, AxiosRequestConfig} from "axios"
 import {AsyncResult, Result, result as Res} from "typesafe-ts"
 
-import {GlassesInfo} from "@/stores/glasses"
+import CoreModule, {GlassesStatus, PhotoResponseEvent} from "core"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
+import {useConnectionStore} from "@/stores/connection"
+import {WebSocketStatus} from "@/services/ws-types"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
+import {BackgroundTimer} from "@/utils/timers"
 
 interface RequestConfig {
   method: "GET" | "POST" | "DELETE"
@@ -38,11 +41,19 @@ class RestComms {
   // Token Management
   public setCoreToken(token: string | null): void {
     this.coreToken = token
+    const tokenLen = token?.length ?? 0
     console.log(
-      `${this.TAG}: Core token ${token ? "set" : "cleared"} - Length: ${token?.length || 0} - First 20 chars: ${
+      `${this.TAG}: Core token ${token ? "set" : "cleared"} - Length: ${tokenLen} - First 20 chars: ${
         token?.substring(0, 20) || "null"
       }`,
     )
+
+    // Sync to native GlassesStore (and persist to SharedPreferences in CoreModule when bridge runs)
+    const value = token ?? ""
+    const updateResult = CoreModule.update("core", {core_token: value})
+    if (updateResult != null && typeof (updateResult as Promise<void>).then === "function") {
+      ;(updateResult as Promise<void>).catch(() => {})
+    }
 
     if (token) {
       console.log(`${this.TAG}: Core token set, emitting CORE_TOKEN_SET event`)
@@ -87,9 +98,82 @@ class RestComms {
     }
 
     return Res.try_async(async () => {
-      const res = await this.axiosInstance.request<T>(axiosConfig)
-      return res.data
+      try {
+        const res = await this.axiosInstance.request<T>(axiosConfig)
+        return res.data
+      } catch (error) {
+        if (!this.isNoActiveSessionError(error)) {
+          throw error
+        }
+
+        // Cloud pod has no session for this user (we reconnected to a different
+        // pod, or the prior session was cleaned up). Trigger a WS reconnect,
+        // wait for it to land, then retry the request exactly once.
+        //
+        // Subscribe BEFORE emitting so we don't miss the DISCONNECTED → CONNECTED
+        // transition triggered by handleNoActiveSession → reconnectNow.
+        const waitPromise = this.waitForNextConnected(8_000)
+        GlobalEventEmitter.emit("NO_ACTIVE_SESSION")
+        try {
+          await waitPromise
+        } catch (waitErr) {
+          console.log(`${this.TAG}: Retry skipped — WS didn't reconnect in time:`, waitErr)
+          throw error
+        }
+
+        const retryHeaders = requiresAuth ? this.createAuthHeaders() : {"Content-Type": "application/json"}
+        const retryRes = await this.axiosInstance.request<T>({...axiosConfig, headers: retryHeaders})
+        return retryRes.data
+      }
     })
+  }
+
+  /**
+   * Resolves on the NEXT CONNECTED transition of the WS (or rejects after
+   * timeoutMs). Does NOT short-circuit when already CONNECTED — callers
+   * invoke this after a 503 NO_ACTIVE_SESSION when we know the current
+   * connection is landing on the wrong pod; we need to wait for the
+   * post-reconnect CONNECTED event, not the current one.
+   *
+   * Uses the connection store directly rather than WebSocketManager to avoid
+   * a circular import (WebSocketManager → RestComms → WebSocketManager).
+   */
+  private waitForNextConnected(timeoutMs: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false
+      const timer = BackgroundTimer.setTimeout(() => {
+        if (settled) return
+        settled = true
+        unsub()
+        reject(new Error(`waitForNextConnected timed out after ${timeoutMs}ms`))
+      }, timeoutMs)
+
+      let sawNonConnected = useConnectionStore.getState().status !== WebSocketStatus.CONNECTED
+      const unsub = useConnectionStore.subscribe((state) => {
+        if (settled) return
+        if (state.status !== WebSocketStatus.CONNECTED) {
+          sawNonConnected = true
+          return
+        }
+        // Only resolve on a CONNECTED transition that follows a non-CONNECTED
+        // state. This guarantees we waited for a real reconnect rather than
+        // resolving on the stale pre-reconnect CONNECTED state.
+        if (sawNonConnected) {
+          settled = true
+          BackgroundTimer.clearTimeout(timer)
+          unsub()
+          resolve()
+        }
+      })
+    })
+  }
+
+  private isNoActiveSessionError(error: unknown): boolean {
+    if (!axios.isAxiosError(error)) {
+      return false
+    }
+
+    return error.response?.status === 503 && error.response?.data?.error === "NO_ACTIVE_SESSION"
   }
 
   private authenticatedRequest<T>(config: RequestConfig): AsyncResult<T, Error> {
@@ -229,7 +313,7 @@ class RestComms {
     return res.map((response) => response.data)
   }
 
-  public updateGlassesState(state: Partial<GlassesInfo>): AsyncResult<void, Error> {
+  public updateGlassesState(state: Partial<GlassesStatus>): AsyncResult<void, Error> {
     const config: RequestConfig = {
       method: "POST",
       endpoint: "/api/client/device/state",
@@ -343,18 +427,130 @@ class RestComms {
     return res.map((response) => response.data)
   }
 
-  // User Feedback & Settings
-  public sendFeedback(feedbackBody: string | object): AsyncResult<void, Error> {
+  // User Feedback & Incidents
+
+  /**
+   * Create a new incident for a bug report.
+   * Returns incidentId for subsequent log/attachment uploads.
+   */
+  public createIncident(
+    feedback: object,
+    phoneState?: Record<string, unknown>,
+  ): AsyncResult<{success: boolean; incidentId: string}, Error> {
+    const config: RequestConfig = {
+      method: "POST",
+      endpoint: "/api/incidents",
+      data: {
+        feedback,
+        ...(phoneState && {phoneState}),
+      },
+    }
+    interface Response {
+      success: boolean
+      incidentId: string
+    }
+    return this.authenticatedRequest<Response>(config)
+  }
+
+  /**
+   * Submit feedback (feature requests only).
+   * For bug reports, use createIncident instead.
+   */
+  public sendFeedback(
+    feedbackBody: string | object,
+    phoneState?: Record<string, unknown>,
+  ): AsyncResult<{success: boolean}, Error> {
     const config: RequestConfig = {
       method: "POST",
       endpoint: "/api/client/feedback",
-      data: {feedback: feedbackBody},
+      data: {
+        feedback: feedbackBody,
+        ...(phoneState && {phoneState}),
+      },
+    }
+    interface Response {
+      success: boolean
+    }
+    return this.authenticatedRequest<Response>(config)
+  }
+
+  /**
+   * Upload phone logs to an incident.
+   * Called after createIncident returns an incidentId.
+   */
+  public uploadIncidentLogs(
+    incidentId: string,
+    logs: Array<{timestamp: number; level: string; message: string; source?: string}>,
+  ): AsyncResult<void, Error> {
+    const config: RequestConfig = {
+      method: "POST",
+      endpoint: `/api/incidents/${incidentId}/logs`,
+      data: {
+        source: "phone",
+        logs,
+      },
     }
     interface Response {
       success: boolean
     }
     const res = this.authenticatedRequest<Response>(config)
     return res.map(() => undefined)
+  }
+
+  /**
+   * Upload screenshot attachments to an incident.
+   * Called after createIncident returns an incidentId.
+   */
+  public uploadIncidentAttachments(
+    incidentId: string,
+    images: Array<{uri: string; fileName?: string | null; mimeType?: string | null}>,
+  ): AsyncResult<{uploaded: number; errors: number}, Error> {
+    const uploadPromise = async (): Promise<Result<{uploaded: number; errors: number}, Error>> => {
+      try {
+        const coreToken = this.getCoreToken()
+        if (!coreToken) {
+          return Res.error(new Error("Not authenticated"))
+        }
+
+        const baseUrl = useSettingsStore.getState().getRestUrl()
+        const formData = new FormData()
+
+        for (const image of images) {
+          const filename = image.fileName || `screenshot-${Date.now()}.jpg`
+          const mimeType = image.mimeType || "image/jpeg"
+
+          // React Native FormData expects this format
+          formData.append("files", {
+            uri: image.uri,
+            name: filename,
+            type: mimeType,
+          } as unknown as Blob)
+        }
+
+        const response = await axios.post(`${baseUrl}/api/incidents/${incidentId}/attachments`, formData, {
+          headers: {
+            "Authorization": `Bearer ${coreToken}`,
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 60000, // 60 second timeout for uploads
+        })
+
+        const data = response.data as {
+          success: boolean
+          uploaded?: Array<{filename: string}>
+          errors?: Array<{filename: string; error: string}>
+        }
+
+        return Res.ok({
+          uploaded: data.uploaded?.length || 0,
+          errors: data.errors?.length || 0,
+        })
+      } catch (err) {
+        return Res.error(err instanceof Error ? err : new Error(String(err)))
+      }
+    }
+
+    return new AsyncResult(uploadPromise())
   }
 
   public writeUserSettings(settings: any): AsyncResult<void, Error> {
@@ -459,6 +655,20 @@ class RestComms {
     const config: RequestConfig = {
       method: "POST",
       endpoint: "/api/client/notifications/dismissed",
+      data: data,
+    }
+    interface Response {
+      success: boolean
+      data: any
+    }
+    const res = this.authenticatedRequest<Response>(config)
+    return res.map(() => undefined)
+  }
+
+  public sendPhotoResponse(data: PhotoResponseEvent): AsyncResult<any, Error> {
+    const config: RequestConfig = {
+      method: "POST",
+      endpoint: "/api/client/photo/response",
       data: data,
     }
     interface Response {

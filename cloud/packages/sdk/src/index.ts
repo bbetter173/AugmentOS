@@ -16,9 +16,31 @@ export * from "./types/messages/app-to-cloud";
 export * from "./utils/bitmap-utils";
 export * from "./utils/animation-utils";
 
-// Export cloud-to-app but exclude the conflicting type guards
+// Export cloud-to-app type guards and runtime exports
 export {
-  // Types
+  // Type guards (excluding isPhotoResponse and isStreamStatus which conflict)
+  isAppConnectionAck,
+  isAppConnectionError,
+  isAppStopped,
+  isSettingsUpdate,
+  isCapabilitiesUpdate,
+  isDataStream,
+  isAudioChunk,
+  isStreamStatusCheckResponse,
+  isDashboardModeChanged,
+  isDashboardAlwaysOnChanged,
+  isManagedStreamStatus,
+  isRequestTelemetry,
+  isTelemetryResponse,
+  // Re-export the cloud-to-app versions of these type guards since they're the ones
+  // that should be used when dealing with CloudToAppMessage types
+  isPhotoResponse as isPhotoResponseFromCloud,
+  isRgbLedControlResponse as isRgbLedControlResponseFromCloud,
+  isStreamStatus as isStreamStatusFromCloud,
+} from "./types";
+
+// Export cloud-to-app types (type-only exports)
+export type {
   AppConnectionAck,
   AppConnectionError,
   AppStopped,
@@ -41,24 +63,10 @@ export {
   PermissionError,
   PermissionErrorDetail,
   AudioPlayResponse,
-  // Type guards (excluding isPhotoResponse and isRtmpStreamStatus which conflict)
-  isAppConnectionAck,
-  isAppConnectionError,
-  isAppStopped,
-  isSettingsUpdate,
-  isCapabilitiesUpdate,
-  isDataStream,
-  isAudioChunk,
-  isStreamStatusCheckResponse,
-  isDashboardModeChanged,
-  isDashboardAlwaysOnChanged,
-  isManagedStreamStatus,
-  // Re-export the cloud-to-app versions of these type guards since they're the ones
-  // that should be used when dealing with CloudToAppMessage types
-  isPhotoResponse as isPhotoResponseFromCloud,
-  isRgbLedControlResponse as isRgbLedControlResponseFromCloud,
-  isRtmpStreamStatus as isRtmpStreamStatusFromCloud,
-} from "./types/messages/cloud-to-app";
+  RequestTelemetry,
+  TelemetryLogEntry,
+  TelemetryResponse,
+} from "./types";
 
 // Stream types
 export * from "./types/streams";
@@ -86,16 +94,32 @@ export * from "./types/capabilities";
 
 // App session and server exports
 export * from "./app/index";
+export * from "./MiniAppServer";
+
+// v3 session — explicit re-exports to avoid name collisions with v2 types
+// The full set of manager types is available via "@mentra/sdk/session" entrypoint
+export { MentraSession } from "./session/MentraSession";
+export type { MentraSessionConfig } from "./session/MentraSession";
 
 // Logging exports
 export * from "./logging/logger";
+
+// Error classes
+export {
+  MentraError,
+  MentraAuthError,
+  MentraConnectionError,
+  MentraTimeoutError,
+  MentraValidationError,
+  MentraPermissionError,
+} from "./logging/errors";
 
 // Re-export common types for convenience
 // This allows developers to import commonly used types directly from the package root
 // without having to know exactly which file they come from
 
 // From messages/glasses-to-cloud.ts
-export {
+export type {
   ButtonPress,
   HeadPosition,
   TouchEvent,
@@ -115,16 +139,18 @@ export {
   GlassesToCloudMessage,
   PhotoResponse,
   RgbLedControlResponse,
-  PhotoErrorCode,
-  PhotoStage,
   ConnectionState,
   PhotoErrorDetails,
-  RtmpStreamStatus,
-  KeepAliveAck,
 } from "./types/messages/glasses-to-cloud";
 
+// These are enums (runtime values) — must NOT be re-exported as `export type`
+// or they become unusable as values (TS1362). The `export *` at the top of
+// this file already exports them correctly; these explicit exports are kept
+// here as documentation but as value exports.
+export { PhotoErrorCode, PhotoStage, StreamStatus, KeepAliveAck } from "./types/messages/glasses-to-cloud";
+
 // From messages/cloud-to-glasses.ts
-export {
+export type {
   ConnectionAck,
   ConnectionError,
   AuthError,
@@ -134,26 +160,29 @@ export {
   CloudToGlassesMessage,
   PhotoRequestToGlasses,
   RgbLedControlToGlasses,
+  CameraFovSetToGlasses,
   SettingsUpdate,
-  StartRtmpStream,
-  StopRtmpStream,
-  KeepRtmpStreamAlive,
+  StartStream,
+  StopStream,
+  KeepStreamAlive,
   LedColor,
 } from "./types/messages/cloud-to-glasses";
 
 // From messages/app-to-cloud.ts
-export {
+export type {
   AppConnectionInit,
   AppSubscriptionUpdate,
-  RtmpStreamRequest,
-  RtmpStreamStopRequest,
+  StreamRequest,
+  StreamStopRequest,
   AppToCloudMessage,
   PhotoRequest,
   RgbLedControlRequest,
+  CameraFovSetRequest,
+  CameraRoiPosition,
 } from "./types/messages/app-to-cloud";
 
 // From layout.ts
-export {
+export type {
   TextWall,
   DoubleTextWall,
   DashboardCard,
@@ -173,7 +202,7 @@ export {
   isStopApp,
   isPhotoResponse as isPhotoResponseFromGlasses,
   isRgbLedControlResponse as isRgbLedControlResponseFromGlasses,
-  isRtmpStreamStatus as isRtmpStreamStatusFromGlasses,
+  isStreamStatus as isStreamStatusFromGlasses,
   isKeepAliveAck,
   isPhoneNotificationDismissed,
 } from "./types/messages/glasses-to-cloud";
@@ -184,9 +213,9 @@ export {
   isAppStateChange,
   isPhotoRequest,
   isSettingsUpdate as isSettingsUpdateToGlasses,
-  isStartRtmpStream,
-  isStopRtmpStream,
-  isKeepRtmpStreamAlive,
+  isStartStream,
+  isStopStream,
+  isKeepStreamAlive,
   isRgbLedControl,
 } from "./types/messages/cloud-to-glasses";
 
@@ -194,20 +223,22 @@ export {
   isAppConnectionInit,
   isAppSubscriptionUpdate,
   isDisplayRequest,
-  isRtmpStreamRequest,
-  isRtmpStreamStopRequest,
+  isStreamRequest,
+  isStreamStopRequest,
   isPhotoRequest as isPhotoRequestFromApp,
   isRgbLedControlRequest,
+  isCameraFovSetRequest,
   isOwnershipRelease,
 } from "./types/messages/app-to-cloud";
 
 // Export setting-related types
-export {
+export { validateAppConfig } from "./types/models";
+
+export type {
   BaseAppSetting,
   AppSetting,
   AppSettings,
   AppConfig,
-  validateAppConfig,
   ToolSchema,
   ToolParameterSchema,
   HardwareRequirement,
@@ -216,16 +247,16 @@ export {
 } from "./types/models";
 
 // Export RTMP streaming types
-export { VideoConfig, AudioConfig, StreamConfig, StreamStatusHandler } from "./types/rtmp-stream";
+export type { VideoConfig, AudioConfig, StreamConfig, StreamStatusHandler } from "./types/rtmp-stream";
 
 // Export app session modules
 export * from "./app/session/modules";
 
 // Export photo data types
-export { PhotoData } from "./types/photo-data";
+export type { PhotoData } from "./types/photo-data";
 
 // Export device state types (WebSocket-based observables)
-export { DeviceState } from "./app/session/device-state";
+export type { DeviceState } from "./app/session/device-state";
 export { Observable } from "./utils/Observable";
 
 // Re-export types from @mentra/types so SDK users don't need to install it separately
@@ -240,4 +271,13 @@ export interface WebSocketError {
   details?: unknown;
 }
 
-export { AuthenticatedRequest } from "./types/index";
+export type { AuthenticatedRequest, AuthVariables, MentraAuthContext, MentraAuthHonoContext } from "./types/index";
+
+// Frontend authentication helpers for Bun fullstack apps
+export {
+  createAuthMiddleware,
+  createMentraAuthRoutes,
+  generateFrontendToken,
+  getMentraAuth,
+  requireMentraAuth,
+} from "./app/webview/index";

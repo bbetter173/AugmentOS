@@ -24,8 +24,9 @@ import {
   AppConnectionInit,
 } from "@mentra/sdk";
 
-import { SYSTEM_DASHBOARD_PACKAGE_NAME } from "../core/app.service";
 import { logger as rootLogger } from "../logging/pino-logger";
+import { operationTimers, connectionChurnTracker } from "../metrics/SystemVitalsLogger";
+import { isShuttingDown } from "../shutdown";
 import { metricsService } from "../metrics";
 import { PosthogService } from "../logging/posthog.service";
 import UserSession from "../session/UserSession";
@@ -37,6 +38,10 @@ import type {
   AppServerWebSocket,
   CloudServerWebSocket,
 } from "./types";
+
+import { parseBinaryFrame } from "../session/AppAudioStreamManager";
+import * as developerService from "../core/developer.service";
+import { deferredAppConnectionRegistry } from "./DeferredAppConnectionRegistry";
 
 const logger = rootLogger.child({ service: "bun-websocket" });
 
@@ -53,12 +58,17 @@ const GRACE_PERIOD_CLEANUP_ENABLED = true;
  * Returns true if upgrade was successful, false otherwise.
  */
 export function handleUpgrade(req: Request, server: any): Response | undefined {
+  // A3: Reject new WebSocket upgrades during graceful shutdown
+  if (isShuttingDown()) {
+    return new Response("Server is shutting down", { status: 503 });
+  }
+
   const url = new URL(req.url);
   const path = url.pathname;
 
-  if (path === "/glasses-ws") {
+  if (path === "/glasses-ws" || path === "/ws/client") {
     return handleGlassesUpgrade(req, server, url);
-  } else if (path === "/app-ws") {
+  } else if (path === "/app-ws" || path === "/ws/miniapp") {
     return handleAppUpgrade(req, server, url);
   }
 
@@ -85,7 +95,7 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
 
   try {
     const payload = jwt.verify(token, AUGMENTOS_AUTH_JWT_SECRET) as any;
-    const userId = payload.email;
+    const userId = payload.email?.toLowerCase();
 
     if (!userId) {
       logger.warn("Glasses upgrade rejected: no userId in token");
@@ -99,12 +109,7 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
       );
     }
 
-    const livekitRequested = url.searchParams.get("livekit") === "true" || req.headers.get("livekit") === "true";
     const udpEncryptionRequested = url.searchParams.get("udpEncryption") === "true";
-
-    if (livekitRequested) {
-      logger.info({ userId, feature: "livekit" }, "Client requested LiveKit transport");
-    }
 
     if (udpEncryptionRequested) {
       logger.info({ userId, feature: "udp-audio-encryption" }, "Client requested UDP encryption");
@@ -114,7 +119,6 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
       data: {
         type: "glasses",
         userId,
-        livekitRequested,
         udpEncryptionRequested,
       } as GlassesWebSocketData,
     });
@@ -143,8 +147,11 @@ function handleGlassesUpgrade(req: Request, server: any, url: URL): Response | u
  */
 function handleAppUpgrade(req: Request, server: any, _url: URL): Response | undefined {
   const authHeader = req.headers.get("authorization");
-  const userId = req.headers.get("x-user-id") || "";
-  const sessionId = req.headers.get("x-session-id") || "";
+  const userId = (req.headers.get("x-user-id") || "").toLowerCase();
+  const sessionId = req.headers.get("x-session-id") || undefined;
+  const packageName = req.headers.get("x-package-name") || undefined;
+  const apiKey = req.headers.get("x-api-key") || undefined;
+  const sdkVersion = req.headers.get("x-sdk-version") || undefined;
 
   let appJwtPayload: { packageName: string; apiKey: string } | undefined;
 
@@ -153,13 +160,13 @@ function handleAppUpgrade(req: Request, server: any, _url: URL): Response | unde
     const appJwt = authHeader.substring(7);
 
     // Check for required headers when using JWT auth
-    if (!userId || !sessionId) {
-      logger.error("Missing userId or sessionId in app request headers");
+    if (!userId) {
+      logger.error("Missing userId in app request headers");
       return new Response(
         JSON.stringify({
           type: "tpa_connection_error",
           code: "MISSING_HEADERS",
-          message: "Missing userId or sessionId in request headers",
+          message: "Missing userId in request headers",
           timestamp: new Date(),
         }),
         { status: 401, headers: { "Content-Type": "application/json" } },
@@ -196,6 +203,9 @@ function handleAppUpgrade(req: Request, server: any, _url: URL): Response | unde
       type: "app",
       userId,
       sessionId,
+      packageName,
+      apiKey,
+      sdkVersion,
       appJwtPayload,
     } as AppWebSocketData,
   });
@@ -276,27 +286,29 @@ export const websocketHandlers = {
  * Handle glasses WebSocket connection open
  */
 async function handleGlassesOpen(ws: GlassesServerWebSocket): Promise<void> {
-  const { userId, livekitRequested, udpEncryptionRequested } = ws.data;
+  const { userId, udpEncryptionRequested } = ws.data;
 
   try {
     // Create or reconnect user session
     const { userSession, reconnection } = await UserSession.createOrReconnect(ws as any, userId);
 
-    // Store LiveKit preference
-    userSession.livekitRequested = livekitRequested;
-
-    // Initialize UDP encryption if requested
-    if (udpEncryptionRequested) {
+    // Initialize UDP encryption if requested.
+    // On reconnect, skip key generation if encryption is already set up — reuse
+    // the existing key. The mobile gets the same key back in CONNECTION_ACK and
+    // calls setEncryption() idempotently. This eliminates the silence gap caused
+    // by in-flight UDP packets encrypted with the old key failing decryption
+    // during a key transition window. (Fix 044-2)
+    if (udpEncryptionRequested && !userSession.udpAudioManager.encryptionEnabled) {
       userSession.udpAudioManager.initializeEncryption();
     }
 
     userSession.logger.info(
-      { reconnection, livekitRequested, udpEncryptionRequested },
+      { reconnection, udpEncryptionRequested },
       `Glasses WebSocket connection opened for user: ${userId}`,
     );
 
     // Handle connection initialization
-    await handleGlassesConnectionInit(userSession, ws, reconnection, livekitRequested, udpEncryptionRequested);
+    await handleGlassesConnectionInit(userSession, ws, reconnection, udpEncryptionRequested);
 
     // Track connection in analytics
     PosthogService.trackEvent("glasses_connection", userId, {
@@ -317,17 +329,9 @@ async function handleGlassesConnectionInit(
   userSession: UserSession,
   ws: GlassesServerWebSocket,
   reconnection: boolean,
-  livekitRequested: boolean,
   udpEncryptionRequested: boolean,
 ): Promise<void> {
   if (!reconnection) {
-    // Start dashboard app
-    try {
-      await userSession.appManager.startApp(SYSTEM_DASHBOARD_PACKAGE_NAME);
-    } catch (error) {
-      userSession.logger.error({ error }, "Error starting dashboard app");
-    }
-
     // Start previously running apps
     try {
       await userSession.appManager.startPreviouslyRunningApps();
@@ -342,28 +346,9 @@ async function handleGlassesConnectionInit(
     });
   }
 
-  // Handle reconnection - check LiveKit bridge status and resurrect dormant apps
+  // Handle reconnection - resurrect dormant apps
   if (reconnection) {
-    try {
-      const hadBridge =
-        typeof userSession.liveKitManager.getBridgeClient === "function" &&
-        !!userSession.liveKitManager.getBridgeClient();
-
-      if (hadBridge || livekitRequested) {
-        const status = await userSession.liveKitManager.getBridgeStatus?.();
-        userSession.logger.info({ feature: "livekit", status, reconnection }, "Reconnect: bridge status");
-
-        if (!status || status.connected === false) {
-          await userSession.liveKitManager.rejoinBridge?.();
-          userSession.logger.info({ feature: "livekit" }, "Reconnect: bridge rejoin attempted");
-        } else {
-          userSession.logger.info({ feature: "livekit" }, "Reconnect: bridge healthy, keeping session");
-        }
-      }
-    } catch (err) {
-      userSession.logger.warn({ feature: "livekit", err }, "Reconnect: bridge status check failed");
-    }
-
+    // Resurrect dormant apps on reconnection
     // Resurrect any apps that went dormant while user was disconnected
     // See AppManager.resurrectDormantApps() for detailed explanation of why
     // we wait for user reconnection before resurrecting
@@ -379,9 +364,6 @@ async function handleGlassesConnectionInit(
       userSession.logger.error({ err }, "Error resurrecting dormant apps after reconnect");
     }
   }
-  // Testing client livekit reconnection logic.
-  // if (reconnection)
-  //   return userSession.logger.warn({ feature: "livekit" }, "Reconnecting, skipping CONNECTION_ACK message");
 
   // Prepare ACK message
   const ackMessage: ConnectionAck = {
@@ -415,29 +397,6 @@ async function handleGlassesConnectionInit(
     }
   }
 
-  // Include LiveKit info if requested
-  if (livekitRequested) {
-    try {
-      const livekitInfo = await userSession.liveKitManager.handleLiveKitInit();
-      if (livekitInfo) {
-        (ackMessage as any).livekit = {
-          url: livekitInfo.url,
-          roomName: livekitInfo.roomName,
-          token: livekitInfo.token,
-        };
-        userSession.logger.info(
-          { url: livekitInfo.url, roomName: livekitInfo.roomName, feature: "livekit" },
-          "Included LiveKit info in CONNECTION_ACK",
-        );
-      }
-    } catch (error) {
-      userSession.logger.warn({ error, feature: "livekit" }, "Failed to initialize LiveKit for CONNECTION_ACK");
-    }
-  }
-
-  // Log when we send CONNECTION_ACK, and if it's a reconnection or not.
-  const _logger = userSession.logger.child({ function: "sendConnectionAck" });
-  _logger.info({ feature: "websocket", ackMessage, reconnection }, "Sending CONNECTION_ACK");
   ws.send(JSON.stringify(ackMessage));
   metricsService.incrementClientMessagesOut();
 }
@@ -446,6 +405,7 @@ async function handleGlassesConnectionInit(
  * Handle glasses WebSocket message
  */
 async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string | Buffer): Promise<void> {
+  const t0 = performance.now();
   metricsService.incrementClientMessagesIn();
   const { userId } = ws.data;
   const userSession = UserSession.getById(userId);
@@ -454,6 +414,12 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     logger.error({ userId }, "No user session found for glasses message");
     return;
   }
+
+  // Track every message from the client — this is the key metric for proving
+  // client-side disconnects. If lastClientMessageTime is stale at close time,
+  // the CLIENT went silent (not the server).
+  // See: cloud/issues/069-ws-disconnect-observability/spike.md
+  userSession.lastClientMessageTime = Date.now();
 
   try {
     // Handle binary message (audio data)
@@ -473,16 +439,19 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
       return;
     }
 
+    // Client pong (response to server's app-level ping). Consume silently.
+    // Protocol-level pongs are handled separately in websocketHandlers.pong().
+    // Without this, the pong falls through to handleGlassesMessage → default
+    // case → relayMessageToApps, causing 1800 debug logs/user/hour in BetterStack.
+    if (parsed.type === "pong") {
+      userSession.lastAppLevelPongTime = Date.now();
+      return;
+    }
+
     // Handle connection init specially (re-init after reconnect)
     if (parsed.type === GlassesToCloudMessageType.CONNECTION_INIT) {
       userSession.logger.info("Received CONNECTION_INIT from glasses");
-      await handleGlassesConnectionInit(
-        userSession,
-        ws,
-        true,
-        userSession.livekitRequested || false,
-        userSession.udpAudioManager.encryptionRequested,
-      );
+      await handleGlassesConnectionInit(userSession, ws, true, userSession.udpAudioManager.encryptionRequested);
       return;
     }
 
@@ -490,6 +459,8 @@ async function handleGlassesMessage(ws: GlassesServerWebSocket, message: string 
     await userSession.handleGlassesMessage(parsed);
   } catch (error) {
     userSession.logger.error({ error }, "Error processing glasses message");
+  } finally {
+    operationTimers.addTiming("glassesMessage", performance.now() - t0);
   }
 }
 
@@ -519,7 +490,45 @@ function handleGlassesClose(ws: GlassesServerWebSocket, code: number, reason: st
     return;
   }
 
-  userSession.logger.warn({ code, reason }, "Glasses connection closed");
+  // Guard: if the session already has a NEWER WebSocket (from a reconnect that
+  // raced ahead of this close), this close event is for the OLD connection.
+  // Don't mark the session as disconnected — it's actively connected on the new WS.
+  if (userSession.websocket && userSession.websocket !== (ws as any)) {
+    userSession.logger.info(
+      { code, reason },
+      "Glasses connection closed (stale — newer WebSocket already active, ignoring)",
+    );
+    return;
+  }
+
+  // Stash close code/reason on the session so we can log it on reconnect.
+  // This is the evidence trail: if code=1006 and timeSinceLastClientMessage is large,
+  // the CLIENT went dark (network loss, app backgrounded, etc.) — not the server.
+  userSession.lastCloseCode = code;
+  userSession.lastCloseReason = reason;
+
+  const now = Date.now();
+  const sessionDurationSeconds = Math.round((now - userSession.startTime.getTime()) / 1000);
+  const timeSinceLastClientMessage = userSession.lastClientMessageTime ? now - userSession.lastClientMessageTime : null;
+  const timeSinceLastPong = userSession.lastPongTime ? now - (userSession.lastPongTime as number) : null;
+  const timeSinceLastAppPong = userSession.lastAppLevelPongTime ? now - userSession.lastAppLevelPongTime : null;
+
+  userSession.logger.warn(
+    {
+      feature: "ws-close",
+      code,
+      reason: reason || undefined,
+      sessionDurationSeconds,
+      reconnectCount: userSession.reconnectCount,
+      timeSinceLastClientMessage,
+      timeSinceLastPong,
+      timeSinceLastAppPong,
+    },
+    `Glasses connection closed: code=${code}, silent=${timeSinceLastClientMessage}ms, session=${sessionDurationSeconds}s, reconnects=${userSession.reconnectCount}`,
+  );
+
+  // Record disconnect for churn tracking in SystemVitalsLogger
+  connectionChurnTracker.recordDisconnect(code);
 
   // Mark session as disconnected
   userSession.disconnectedAt = new Date();
@@ -567,7 +576,7 @@ async function handleAppOpen(ws: AppServerWebSocket): Promise<void> {
   logger.info({ userId, hasJwt: !!appJwtPayload }, "App WebSocket connection opened");
 
   // If we have JWT auth, handle init immediately
-  if (appJwtPayload && userId && sessionId) {
+  if (appJwtPayload && userId) {
     const userSession = UserSession.getById(userId);
     if (!userSession) {
       logger.error({ userId }, "User session not found for app connection");
@@ -587,8 +596,9 @@ async function handleAppOpen(ws: AppServerWebSocket): Promise<void> {
     const initMessage: AppConnectionInit = {
       type: AppToCloudMessageType.CONNECTION_INIT,
       packageName: appJwtPayload.packageName,
-      sessionId: sessionId,
       apiKey: appJwtPayload.apiKey,
+      sdkVersion: ws.data.sdkVersion,
+      ...(sessionId ? { sessionId } : {}),
     };
 
     try {
@@ -607,23 +617,49 @@ async function handleAppOpen(ws: AppServerWebSocket): Promise<void> {
  * Handle app WebSocket message
  */
 async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer): Promise<void> {
+  const t0 = performance.now();
   metricsService.incrementMiniappMessagesIn();
   const { userId, packageName } = ws.data;
 
   try {
+    // Binary frames are audio stream data — route through the UserSession's manager
+    if (typeof message !== "string" && !isJsonBuffer(message)) {
+      const frame = parseBinaryFrame(message instanceof Buffer ? message : Buffer.from(message));
+      if (frame) {
+        const userSession = UserSession.getById(userId || ws.data.userId);
+        if (userSession) {
+          await userSession.appAudioStreamManager.writeToStream(frame.streamId, frame.audioData);
+        }
+      } else {
+        logger.debug({ userId, packageName, bytes: message.length }, "Unrecognized binary frame from app");
+      }
+      return;
+    }
+
     const parsed = JSON.parse(message.toString()) as AppToCloudMessage;
+
+    // App-level ping from SDK — respond immediately, don't touch session state.
+    // Only new SDK versions (3.x hono+) send these. Old 2.x apps never send pings
+    // so this branch is never hit for legacy apps — fully backwards compatible.
+    // See: cloud/issues/046-sdk-app-ws-liveness
+    if ((parsed as any).type === "ping") {
+      ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+      return;
+    }
+
+    // App-level pong (future: SDK responding to cloud-initiated ping) — consume silently.
+    if ((parsed as any).type === "pong") {
+      return;
+    }
 
     // Handle CONNECTION_INIT for legacy apps
     if (parsed.type === AppToCloudMessageType.CONNECTION_INIT) {
       const initMessage = parsed as AppConnectionInit;
 
-      // Parse session ID to get user ID
-      const sessionParts = initMessage.sessionId.split("-");
-      const parsedUserId = sessionParts[0];
-
-      if (sessionParts.length < 2) {
-        logger.error({ sessionId: initMessage.sessionId }, "Invalid session ID format");
-        ws.close(1008, "Invalid session ID format");
+      const parsedUserId = userId || ws.data.userId || parseUserIdFromLegacySessionId(initMessage.sessionId);
+      if (!parsedUserId) {
+        logger.error({ sessionId: initMessage.sessionId }, "Unable to determine user ID for app init");
+        ws.close(1008, "User session identity missing");
         return;
       }
 
@@ -645,8 +681,105 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
       // Update ws.data with parsed info
       ws.data.userId = parsedUserId;
       ws.data.packageName = initMessage.packageName;
+      ws.data.sdkVersion = initMessage.sdkVersion;
+      ws.data.apiKey = initMessage.apiKey;
 
       await userSession.appManager.handleAppInit(ws as any, initMessage);
+      return;
+    }
+
+    if (parsed.type === AppToCloudMessageType.RECONNECT) {
+      const reconnectMessage = parsed as any;
+      const reconnectUserId = userId || ws.data.userId;
+      const reconnectPackageName =
+        ws.data.packageName ||
+        ws.data.appJwtPayload?.packageName ||
+        parsePackageNameFromLegacySessionId(reconnectMessage.sessionId);
+      const reconnectSdkVersion = reconnectMessage.sdkVersion || ws.data.sdkVersion;
+
+      if (!isV3Sdk(reconnectSdkVersion)) {
+        ws.send(
+          JSON.stringify({
+            type: CloudToAppMessageType.RECONNECT_REJECTED,
+            code: "SESSION_NOT_FOUND",
+            message: "Reconnect is only supported for SDK v3",
+            timestamp: new Date(),
+          }),
+        );
+        ws.close(1008, "Reconnect unsupported");
+        return;
+      }
+
+      if (!reconnectUserId || !reconnectPackageName) {
+        ws.send(
+          JSON.stringify({
+            type: CloudToAppMessageType.RECONNECT_REJECTED,
+            code: "SESSION_NOT_FOUND",
+            message: "Reconnect missing user or package identity",
+            timestamp: new Date(),
+          }),
+        );
+        ws.close(1008, "Reconnect identity missing");
+        return;
+      }
+
+      ws.data.userId = reconnectUserId;
+      ws.data.packageName = reconnectPackageName;
+      ws.data.sdkVersion = reconnectSdkVersion;
+
+      const activeUserSession = UserSession.getById(reconnectUserId);
+      if (!activeUserSession) {
+        const apiKey = ws.data.appJwtPayload?.apiKey || ws.data.apiKey;
+        if (!apiKey) {
+          ws.send(
+            JSON.stringify({
+              type: CloudToAppMessageType.RECONNECT_REJECTED,
+              code: "SESSION_NOT_FOUND",
+              message: "Reconnect requires apiKey when cloud state is unavailable",
+              timestamp: new Date(),
+            }),
+          );
+          ws.close(1008, "Reconnect unauthenticated");
+          return;
+        }
+
+        const isValidApiKey = await developerService.validateApiKey(reconnectPackageName, apiKey);
+        if (!isValidApiKey) {
+          ws.send(
+            JSON.stringify({
+              type: CloudToAppMessageType.CONNECTION_ERROR,
+              code: "INVALID_API_KEY",
+              message: "Invalid API key",
+              timestamp: new Date(),
+            }),
+          );
+          ws.close(1008, "Invalid API key");
+          return;
+        }
+
+        deferredAppConnectionRegistry.register({
+          userId: reconnectUserId,
+          packageName: reconnectPackageName,
+          sdkVersion: reconnectSdkVersion,
+          apiKey,
+          priorSessionId: reconnectMessage.sessionId,
+          websocket: ws,
+          reason: "booting",
+        });
+
+        ws.send(
+          JSON.stringify({
+            type: CloudToAppMessageType.RECONNECT_DEFERRED,
+            code: "BOOTING",
+            message: "Cloud is still restoring user session state",
+            timeoutMs: 30_000,
+            timestamp: new Date(),
+          }),
+        );
+        return;
+      }
+
+      await activeUserSession.appManager.handleReconnect(ws as any, reconnectMessage, reconnectPackageName);
       return;
     }
 
@@ -670,6 +803,8 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
   } catch (error) {
     logger.error({ error, userId, packageName }, "Error processing app message");
     ws.close(1011, "Internal server error");
+  } finally {
+    operationTimers.addTiming("appMessage", performance.now() - t0);
   }
 }
 
@@ -684,10 +819,20 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
  * ws.on("close", ...). But Bun's ServerWebSocket doesn't support EventEmitter,
  * so we must explicitly call handleDisconnect here.
  */
+/**
+ * Quick check: does this Buffer look like a JSON text message?
+ * JSON messages always start with '{'. Binary audio frames start with a UUID hex char.
+ */
+function isJsonBuffer(buf: Buffer | Uint8Array): boolean {
+  return buf.length > 0 && buf[0] === 0x7b; // '{' character
+}
+
 function handleAppClose(ws: AppServerWebSocket, code: number, reason: string): void {
   const { userId, packageName } = ws.data;
 
   logger.info({ userId, packageName, code, reason }, "App WebSocket closed");
+
+  deferredAppConnectionRegistry.removeSocket(ws);
 
   if (!packageName) {
     logger.warn({ userId, code, reason }, "App WebSocket closed but no packageName - ignoring");
@@ -703,4 +848,39 @@ function handleAppClose(ws: AppServerWebSocket, code: number, reason: string): v
   // Delegate to AppManager which owns the AppSession
   // This will trigger grace period -> resurrection flow
   userSession.appManager.handleAppConnectionClosed(packageName, code, reason);
+}
+
+function isV3Sdk(version?: string): boolean {
+  if (!version) {
+    return false;
+  }
+
+  const major = Number.parseInt(version.split(".")[0] ?? "", 10);
+  return Number.isFinite(major) && major >= 3;
+}
+
+function parsePackageNameFromLegacySessionId(sessionId?: string): string | undefined {
+  if (!sessionId) {
+    return undefined;
+  }
+
+  const separator = sessionId.indexOf("-");
+  if (separator === -1 || separator === sessionId.length - 1) {
+    return undefined;
+  }
+
+  return sessionId.slice(separator + 1);
+}
+
+function parseUserIdFromLegacySessionId(sessionId?: string): string | undefined {
+  if (!sessionId) {
+    return undefined;
+  }
+
+  const separator = sessionId.indexOf("-");
+  if (separator <= 0) {
+    return undefined;
+  }
+
+  return sessionId.slice(0, separator);
 }

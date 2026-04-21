@@ -7,29 +7,31 @@ import Slider from "@react-native-community/slider"
 import {Image} from "expo-image"
 import {useState, useRef, useEffect, useCallback, useMemo, memo, type ElementRef} from "react"
 // eslint-disable-next-line no-restricted-imports
-import {View, TouchableOpacity, Modal, StatusBar, Text, Dimensions} from "react-native"
+import {View, TouchableOpacity, Modal, StatusBar, Text, useWindowDimensions} from "react-native"
 import Gallery, {GalleryRef} from "react-native-awesome-gallery"
-import {useSafeAreaInsets} from "react-native-safe-area-context"
+import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons"
 import Video from "react-native-video"
 
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {submitGalleryVideoPlaybackBugReport} from "@/services/bugReport/galleryVideoPlaybackBugReport"
 import {ThemedStyle} from "@/theme"
 import {PhotoInfo} from "@/types/asg"
 
-const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get("window")
+// Screen dimensions are now obtained via useWindowDimensions() hook for rotation support
 
 interface AwesomeGalleryViewerProps {
   visible: boolean
   photos: PhotoInfo[]
   initialIndex: number
   onClose: () => void
-  onShare?: () => void
+  onShare?: (photo: PhotoInfo) => void
 }
 
 interface VideoPlayerItemProps {
   photo: PhotoInfo
   isActive: boolean
+  onSeekingChange?: (seeking: boolean) => void
 }
 
 interface ImageItemProps {
@@ -41,8 +43,9 @@ interface ImageItemProps {
 /**
  * Video player component for gallery items
  */
-const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPlayerItemProps) {
+const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive, onSeekingChange}: VideoPlayerItemProps) {
   const {themed} = useAppTheme()
+  const {width: screenWidth, height: screenHeight} = useWindowDimensions()
   const videoRef = useRef<ElementRef<typeof Video>>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showControls, setShowControls] = useState(true)
@@ -53,6 +56,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
   const [errorMessage, setErrorMessage] = useState("")
   const [isBuffering, setIsBuffering] = useState(true)
   const [showThumbnail, setShowThumbnail] = useState(true)
+  const [videoAspectRatio, setVideoAspectRatio] = useState(4 / 3)
   const wasInactiveRef = useRef(false)
   const userPausedRef = useRef(false) // Track if user manually paused
 
@@ -118,13 +122,22 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
   }
 
   return (
-    <View style={themed($videoPlayerContainer)}>
+    <View
+      style={{
+        flex: 1,
+        width: screenWidth,
+        height: screenHeight,
+        backgroundColor: "black",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingTop: screenHeight * 0.05,
+      }}>
       <Video
         ref={videoRef}
         source={{uri: videoUrl}}
         poster={posterUrl}
         posterResizeMode="contain"
-        style={themed($video)}
+        style={{width: "100%", aspectRatio: videoAspectRatio}}
         resizeMode="contain"
         paused={!isPlaying}
         controls={false}
@@ -144,10 +157,13 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
             setCurrentTime(time)
           }
         }}
-        onLoad={({duration: dur}) => {
-          console.log("🎥 [VideoPlayerItem] Video loaded, duration:", dur)
+        onLoad={({duration: dur, naturalSize}) => {
+          console.log("🎥 [VideoPlayerItem] Video loaded, duration:", dur, "naturalSize:", naturalSize)
           setDuration(dur)
           setHasError(false)
+          if (naturalSize?.width && naturalSize?.height && naturalSize.height > 0) {
+            setVideoAspectRatio(naturalSize.width / naturalSize.height)
+          }
         }}
         onBuffer={({isBuffering: buffering}) => {
           console.log("🎥 [VideoPlayerItem] Buffering state:", buffering)
@@ -160,12 +176,15 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
         }}
         onError={(error) => {
           console.error("🎥 [VideoPlayerItem] Video error:", error)
-          const errorStr = String(error?.error?.errorString || error?.error?.code || "Unknown error")
-          const isCorrupted = errorStr.includes("UNSUPPORTED") || errorStr.includes("PARSING")
+          const inner = (error as {error?: {code?: number; domain?: string; errorString?: string}})?.error
+          const code = inner?.code
+          const errorStr = String(inner?.errorString || inner?.code || "Unknown error")
+          const isCorrupted = errorStr.includes("UNSUPPORTED") || errorStr.includes("PARSING") || code === -11829
           setHasError(true)
           setErrorMessage(isCorrupted ? "Video file corrupted or unsupported format" : "Failed to play video")
           setIsPlaying(false)
           setIsBuffering(false)
+          void submitGalleryVideoPlaybackBugReport(photo, error, isActive)
         }}
         onEnd={() => {
           console.log("🎥 [VideoPlayerItem] Video playback ended:", photo.name)
@@ -188,7 +207,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
       {/* Tap area to toggle controls */}
       <TouchableOpacity
         activeOpacity={1}
-        style={themed($tapArea)}
+        style={{position: "absolute", top: 0, left: 0, bottom: screenHeight * 0.15, right: 0, zIndex: 1}}
         onPress={() => {
           console.log("🎮 [TapArea] Toggling controls, current state:", showControls)
           setShowControls(!showControls)
@@ -198,7 +217,11 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
       {/* Thumbnail placeholder while video loads - instant display */}
       {showThumbnail && posterUrl && !hasError && (
         <View style={themed($thumbnailOverlay)} pointerEvents="none">
-          <Image source={{uri: posterUrl}} style={themed($video)} contentFit="contain" />
+          <Image
+            source={{uri: posterUrl}}
+            style={{width: "100%", aspectRatio: videoAspectRatio}}
+            contentFit="contain"
+          />
         </View>
       )}
 
@@ -216,7 +239,16 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
 
       {/* Unified video controls - elegant bottom bar */}
       {showControls && !hasError && (
-        <View style={themed($videoControlsContainer)} pointerEvents="auto">
+        <View
+          style={{
+            position: "absolute",
+            bottom: screenHeight * 0.1,
+            left: 0,
+            right: 0,
+            paddingHorizontal: 24,
+            zIndex: 100,
+          }}
+          pointerEvents="auto">
           <TouchableOpacity
             style={themed($controlBarWrapper)}
             activeOpacity={1}
@@ -269,9 +301,13 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
                 minimumTrackTintColor="#FFFFFF"
                 maximumTrackTintColor="rgba(255,255,255,0.3)"
                 thumbTintColor="#FFFFFF"
-                onSlidingStart={() => setIsSeeking(true)}
+                onSlidingStart={() => {
+                  setIsSeeking(true)
+                  onSeekingChange?.(true)
+                }}
                 onSlidingComplete={(value) => {
                   videoRef.current?.seek(value)
+                  onSeekingChange?.(false)
                 }}
               />
 
@@ -289,7 +325,7 @@ const VideoPlayerItem = memo(function VideoPlayerItem({photo, isActive}: VideoPl
  * Image component for gallery items
  */
 const ImageItem = memo(function ImageItem({photo, setImageDimensions, isActive: _isActive}: ImageItemProps) {
-  const {themed} = useAppTheme()
+  const {width: screenWidth, height: screenHeight} = useWindowDimensions()
   const hasReportedDimensions = useRef(false)
 
   const imageUri = photo.filePath
@@ -299,10 +335,17 @@ const ImageItem = memo(function ImageItem({photo, setImageDimensions, isActive: 
     : photo.url
 
   // Memoize styles to prevent expo-image from restarting loads on iOS
-  const imageStyle = useMemo(() => themed($image), [themed])
+  const imageStyle = useMemo(() => ({width: screenWidth, height: screenHeight}), [screenWidth, screenHeight])
 
   return (
-    <View style={themed($imageContainer)}>
+    <View
+      style={{
+        width: screenWidth,
+        height: screenHeight,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingTop: screenHeight * 0.05,
+      }}>
       <Image
         source={{uri: imageUri}}
         style={imageStyle}
@@ -337,7 +380,7 @@ interface CustomOverlayProps {
 }
 
 function CustomOverlay({onClose, currentIndex, total, onShare}: CustomOverlayProps) {
-  const insets = useSafeAreaInsets()
+  const insets = useSaferAreaInsets()
   const {themed} = useAppTheme()
 
   return (
@@ -364,6 +407,7 @@ function CustomOverlay({onClose, currentIndex, total, onShare}: CustomOverlayPro
  */
 export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, onShare}: AwesomeGalleryViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  const [isVideoSeeking, setIsVideoSeeking] = useState(false)
   const galleryRef = useRef<GalleryRef>(null)
 
   console.log("🎨 [AwesomeGalleryViewer] === RENDER START ===")
@@ -414,12 +458,12 @@ export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, on
       )
 
       if (isVideo) {
-        return <VideoPlayerItem photo={item} isActive={isActiveItem} />
+        return <VideoPlayerItem photo={item} isActive={isActiveItem} onSeekingChange={setIsVideoSeeking} />
       }
 
       return <ImageItem photo={item} setImageDimensions={setImageDimensions} isActive={isActiveItem} />
     },
-    [currentIndex],
+    [currentIndex, setIsVideoSeeking],
   )
 
   // Memoized keyExtractor
@@ -451,7 +495,7 @@ export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, on
         maxScale={3}
         doubleTapScale={2}
         pinchEnabled={true}
-        swipeEnabled={true}
+        swipeEnabled={!isVideoSeeking}
         doubleTapEnabled={true}
         disableVerticalSwipe={true}
         disableTransitionOnScaledImage={true}
@@ -462,7 +506,12 @@ export function AwesomeGalleryViewer({visible, photos, initialIndex, onClose, on
       />
 
       {/* Custom overlay */}
-      <CustomOverlay onClose={onClose} currentIndex={currentIndex} total={photos.length} onShare={onShare} />
+      <CustomOverlay
+        onClose={onClose}
+        currentIndex={currentIndex}
+        total={photos.length}
+        onShare={onShare ? () => onShare(photos[currentIndex]) : undefined}
+      />
     </Modal>
   )
 }
@@ -499,30 +548,7 @@ const $counterText: ThemedStyle<any> = ({spacing}) => ({
   marginLeft: spacing.s3,
 })
 
-// Video player styles
-const $videoPlayerContainer: ThemedStyle<any> = () => ({
-  flex: 1,
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
-  backgroundColor: "black",
-  justifyContent: "center",
-  alignItems: "center",
-  paddingTop: SCREEN_HEIGHT * 0.05, // Shift videos 5% down for better visual balance (matches images)
-})
-
-const $video: ThemedStyle<any> = () => ({
-  width: "100%",
-  aspectRatio: 4 / 3,
-})
-
-const $tapArea: ThemedStyle<any> = () => ({
-  position: "absolute",
-  top: 0,
-  left: 0,
-  bottom: SCREEN_HEIGHT * 0.15, // Don't cover bottom controls area - allows swipes near controls
-  right: 0,
-  zIndex: 1,
-})
+// Video player styles (dynamic dimensions now inlined via useWindowDimensions)
 
 const $errorContainer: ThemedStyle<any> = () => ({
   position: "absolute",
@@ -541,7 +567,7 @@ const $errorBadge: ThemedStyle<any> = ({spacing}) => ({
   borderRadius: 16,
   padding: spacing.s8,
   alignItems: "center",
-  maxWidth: SCREEN_WIDTH * 0.8,
+  maxWidth: "80%",
   borderWidth: 2,
   borderColor: "rgba(255,107,107,0.3)",
 })
@@ -566,15 +592,6 @@ const $errorSubtext: ThemedStyle<any> = () => ({
   color: "rgba(255,255,255,0.6)",
   textAlign: "center",
   lineHeight: 18,
-})
-
-const $videoControlsContainer: ThemedStyle<any> = ({spacing}) => ({
-  position: "absolute",
-  bottom: SCREEN_HEIGHT * 0.1, // 10% from bottom - scales with screen size
-  left: 0,
-  right: 0,
-  paddingHorizontal: spacing.s6,
-  zIndex: 100,
 })
 
 const $controlBarWrapper: ThemedStyle<any> = () => ({
@@ -602,7 +619,7 @@ const $playButtonInline: ThemedStyle<any> = () => ({
 
 const $seekBar: ThemedStyle<any> = () => ({
   flex: 1,
-  height: 40,
+  height: 50,
 })
 
 const $timeText: ThemedStyle<any> = () => ({
@@ -613,19 +630,7 @@ const $timeText: ThemedStyle<any> = () => ({
   textAlign: "center",
 })
 
-// Image item styles
-const $imageContainer: ThemedStyle<any> = () => ({
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
-  justifyContent: "center",
-  alignItems: "center",
-  paddingTop: SCREEN_HEIGHT * 0.05, // Shift images 5% down for better visual balance
-})
-
-const $image: ThemedStyle<any> = () => ({
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
-})
+// Image item styles (dynamic dimensions now inlined via useWindowDimensions)
 
 const $thumbnailOverlay: ThemedStyle<any> = () => ({
   position: "absolute",

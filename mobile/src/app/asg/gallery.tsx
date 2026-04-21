@@ -1,32 +1,19 @@
-import {useFocusEffect} from "expo-router"
-import {useCallback} from "react"
-import {BackHandler} from "react-native"
-
 import {GalleryScreen} from "@/components/glasses/Gallery/GalleryScreen"
 import {Screen} from "@/components/ignite"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import {useAppTheme} from "@/contexts/ThemeContext"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
+import {cameraPackageName} from "@/stores/applets"
+import {useRef} from "react"
+import {View} from "react-native"
 
 export default function AsgGallery() {
-  const {theme} = useAppTheme()
-  const {goBack} = useNavigationHistory()
-
-  const handleGoBack = useCallback(() => {
-    goBack()
-    return true // Prevent default back behavior
-  }, [goBack])
-
-  // Handle Android back button
-  useFocusEffect(
-    useCallback(() => {
-      const backHandler = BackHandler.addEventListener("hardwareBackPress", handleGoBack)
-      return () => backHandler.remove()
-    }, [handleGoBack]),
-  )
+  const viewShotRef = useRef<View>(null)
 
   return (
-    <Screen preset="fixed">
-      <GalleryScreen />
-    </Screen>
+    <>
+      <MiniAppCapsuleMenu packageName={cameraPackageName} viewShotRef={viewShotRef} />
+      <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef}>
+        <GalleryScreen />
+      </Screen>
+    </>
   )
 }

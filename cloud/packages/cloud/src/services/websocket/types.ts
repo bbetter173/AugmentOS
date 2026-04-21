@@ -14,7 +14,6 @@ import type { ServerWebSocket } from "bun";
 export interface GlassesWebSocketData {
   type: "glasses";
   userId: string;
-  livekitRequested: boolean;
   udpEncryptionRequested: boolean;
 }
 
@@ -24,8 +23,10 @@ export interface GlassesWebSocketData {
 export interface AppWebSocketData {
   type: "app";
   userId: string;
-  sessionId: string;
+  sessionId?: string;
   packageName?: string;
+  apiKey?: string;
+  sdkVersion?: string;
   appJwtPayload?: {
     packageName: string;
     apiKey: string;

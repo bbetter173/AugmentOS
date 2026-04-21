@@ -142,6 +142,7 @@ export default function InitScreen() {
   }
 
   const handleTokenExchange = async (): Promise<void> => {
+    console.log("INDEX: handleTokenExchange()")
     const token = session?.token
     if (!token) {
       setState("auth")
@@ -292,6 +293,8 @@ export default function InitScreen() {
 
   // Effects
   useEffect(() => {
+
+    console.log("INDEX: USE EFFECT: authLoading, isNavigationReady:", authLoading, isNavigationReady)
     if (authLoading || !isNavigationReady) return
     if (initStartedRef.current) return
     initStartedRef.current = true

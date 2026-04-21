@@ -7,9 +7,7 @@ export function DebugTab({snapshot}: {snapshot: MonitorSnapshot}) {
   return (
     <div className="tab-layout">
       <div className="content-grid two-up">
-        <SectionCard
-          title="Raw Snapshot Highlights"
-          subtitle="Live state details that are still handy when debugging the monitor">
+        <SectionCard title="Raw Snapshot Highlights" subtitle="Key state fields for debugging the monitor">
           <div className="detail-list">
             <div>
               <span>Monitor started</span>
@@ -26,7 +24,7 @@ export function DebugTab({snapshot}: {snapshot: MonitorSnapshot}) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Current JSON Snapshot" subtitle="Compact dump for sanity-checking what the UI is reading">
+        <SectionCard title="Current JSON Snapshot" subtitle="Subset of the current /state payload">
           <pre className="terminal-block terminal-tall">
             {JSON.stringify(
               {
@@ -44,7 +42,7 @@ export function DebugTab({snapshot}: {snapshot: MonitorSnapshot}) {
       </div>
 
       {!snapshot.last_error ? null : (
-        <SectionCard title="Monitor Error" subtitle="Last collector error from the Python worker">
+        <SectionCard title="Monitor Error" subtitle="Most recent collector error from the Python worker">
           <EmptyState title="Last error" detail={snapshot.last_error} />
         </SectionCard>
       )}

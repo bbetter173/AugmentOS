@@ -8,7 +8,7 @@ export function AlertsTab({snapshot}: {snapshot: MonitorSnapshot}) {
     <div className="tab-layout">
       <SectionCard
         title="Alert History"
-        subtitle="One row per alert threshold crossing, with dispatch and bug-report status">
+        subtitle="One row per alert threshold crossing, including dispatch and bug report status">
         {snapshot.alerts.length ? (
           <table className="data-table">
             <thead>

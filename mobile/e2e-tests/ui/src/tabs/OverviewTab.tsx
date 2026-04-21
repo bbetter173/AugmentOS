@@ -44,7 +44,7 @@ export function OverviewTab({snapshot}: {snapshot: MonitorSnapshot}) {
       </div>
 
       <div className="content-grid two-up">
-        <SectionCard title="Visible Text" subtitle="Latest logcat-derived caption lines from the phone">
+        <SectionCard title="Visible Text" subtitle="Current caption lines from logcat">
           <pre className="terminal-block">
             {snapshot.logcat_visible_lines.length
               ? snapshot.logcat_visible_lines.join("\n")
@@ -52,7 +52,7 @@ export function OverviewTab({snapshot}: {snapshot: MonitorSnapshot}) {
           </pre>
         </SectionCard>
 
-        <SectionCard title="Current Timing Window" subtitle="Ground-truth alignment for the active utterance">
+        <SectionCard title="Current Timing" subtitle="Ground-truth alignment for the active utterance">
           <div className="detail-list">
             <div>
               <span>Utterance start</span>
@@ -76,7 +76,7 @@ export function OverviewTab({snapshot}: {snapshot: MonitorSnapshot}) {
         </SectionCard>
       </div>
 
-      <SectionCard title="Current Utterance" subtitle="Active text row being monitored against live captions">
+      <SectionCard title="Current Utterance" subtitle="Active reference row being monitored against live captions">
         <div className="large-text">{snapshot.current_utterance?.text || "No utterance is active right now."}</div>
       </SectionCard>
     </div>

@@ -7,7 +7,7 @@ export function IncidentsTab({snapshot}: {snapshot: MonitorSnapshot}) {
   return (
     <div className="tab-layout">
       <div className="content-grid two-up">
-        <SectionCard title="Ongoing Incidents" subtitle="These incidents stay open until the failure really clears">
+        <SectionCard title="Ongoing Incidents" subtitle="Open incidents for the current monitor session">
           {snapshot.ongoing_incidents.length ? (
             <table className="data-table">
               <thead>

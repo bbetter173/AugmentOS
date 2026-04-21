@@ -66,7 +66,7 @@ export default function App() {
 
   const headline = useMemo(() => {
     if (!snapshot) {
-      return "Booting live monitor dashboard"
+      return "Loading monitor dashboard"
     }
     return snapshot.ongoing_incidents.length
       ? `${snapshot.ongoing_incidents.length} active incident${snapshot.ongoing_incidents.length === 1 ? "" : "s"}`
@@ -78,23 +78,25 @@ export default function App() {
       <div className="hero">
         <div className="hero-copy">
           <div className="eyebrow">MentraOS Captions Monitor</div>
-          <h1>Live incident review without the old one-page wall of tables.</h1>
+          <h1>Captions incident review dashboard.</h1>
           <p>
-            The dashboard is now organized around what you actually need while testing: current health, incident
-            lifecycle, alert outcomes, latency behavior, and a smaller debug surface.
+            Monitor caption health, incident state, alerts, latency, and recent debug signals during live or archived
+            test runs.
           </p>
         </div>
         <div className="hero-status">
           <div className="hero-pill">{snapshot ? <StatusBadge status={snapshot.status} /> : "Loading…"}</div>
           <strong>{headline}</strong>
-          <span>{snapshot ? `Logcat ${formatAge(snapshot.last_logcat_event_ts_ms)}` : "Waiting for /state"}</span>
+          <span>
+            {snapshot ? `Last logcat event ${formatAge(snapshot.last_logcat_event_ts_ms)}` : "Waiting for state"}
+          </span>
           {errorMessage ? <span className="hero-error">{errorMessage}</span> : null}
         </div>
       </div>
 
       {!snapshot ? (
         <div className="loading-shell">
-          <EmptyState title="Loading live monitor state" detail={errorMessage || "Polling /state once per second."} />
+          <EmptyState title="Loading monitor state" detail={errorMessage || "Polling /state once per second."} />
         </div>
       ) : (
         <Tabs.Root className="tabs-root" value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>

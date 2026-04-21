@@ -299,3 +299,48 @@ If the public URL is down:
 ```bash
 cloudflared --config ~/.cloudflared/config.yml tunnel run captions
 ```
+
+## On Mentra's mac mini
+
+### Disable computer sleep
+
+It should not sleep but log out and screen saver is fine
+
+### Disable system updates
+
+Disable the user-level automatic update settings for this account:
+
+com.apple.SoftwareUpdate.AutomaticCheckEnabled = 0
+com.apple.SoftwareUpdate.AutomaticDownload = 0
+com.apple.SoftwareUpdate.AutomaticallyInstallMacOSUpdates = 0
+com.apple.commerce.AutoUpdate = 0
+com.apple.commerce.AutoUpdateRestartRequired = 0
+
+Open:
+System Settings > General > Software Update > Automatic Updates
+
+Turn off:
+
+Check for Updates
+Download new updates when available
+Install macOS updates
+Install Security Responses and system files
+That should stop both full macOS updates and the background security/system-file installs that can sometimes interfere.
+
+### Run it
+
+Connect the phone with a data-USB cable
+Open the Captions app, go back to the home screen.
+
+# Terminal 1
+
+```
+cd /Users/mentraconference/Documents/MentraOS/mobile/e2e-tests
+python3 scripts/live_word_monitor.py --output-dir results --port 8765
+```
+
+# Terminal 2
+
+```
+cloudflared --config /Users/mentraconference/.cloudflared/config.yml tunnel run captions
+```

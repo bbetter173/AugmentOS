@@ -126,13 +126,39 @@ python3 scripts/live_word_monitor.py \
 
 In read-only mode, the dashboard loads history from `monitor_events.ndjson` and does not require the phone, `adb`, local audio playback, or any live collectors.
 
-The dashboard UI now lives in `ui/` as a small React app. If you change the frontend, rebuild it before restarting the monitor:
+The dashboard UI now lives in `ui/` as a small React app.
+
+For the normal static workflow, rebuild it before restarting the monitor:
 
 ```bash
 cd /path/to/MentraOS/mobile/e2e-tests/ui
 bun install
 bun run build
 ```
+
+For frontend hot reload during development, run Vite separately and start the monitor in UI dev mode:
+
+```bash
+cd /path/to/MentraOS/mobile/e2e-tests/ui
+bun install
+bun run dev
+```
+
+In another terminal:
+
+```bash
+cd /path/to/MentraOS/mobile/e2e-tests
+python3 scripts/live_word_monitor.py \
+  --output-dir results \
+  --port 8765 \
+  --ui-dev
+```
+
+Then keep using:
+
+- [http://127.0.0.1:8765](http://127.0.0.1:8765)
+
+The monitor will proxy UI requests to Vite on `127.0.0.1:5173` while still serving `/state` itself, so React edits hot reload without rebuilding `ui/dist`.
 
 ### 7. Set up Cloudflare Tunnel on the new machine
 
@@ -270,10 +296,11 @@ Open:
 
 Notes:
 
-- this script does **not** hot reload; restart it after code changes
+- backend/script changes still require restarting this Python process
 - it writes cache and monitor output under `results`
 - if `--audio-output-device` is set, the monitor will refuse playback unless that macOS output device is active; with `SwitchAudioSource` installed it will auto-switch first
 - if startup fails because cached utterance history is on an old schema, remove or migrate `results/utterance_reports.ndjson`
+- if you are editing the React dashboard, run Vite in `ui/` and add `--ui-dev` for hot reload; otherwise rebuild `ui/dist`
 
 If you only want to review archived output:
 

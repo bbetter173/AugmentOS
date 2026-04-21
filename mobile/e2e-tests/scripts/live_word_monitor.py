@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -53,6 +54,7 @@ CAPTIONS_TESTER_INCIDENT_RESULT_MARKER = "CAPTIONS_TESTER_INCIDENT_RESULT "
 CONSOLE_INCIDENT_BASE_URL = "https://console.mentra.glass/admin/incidents/"
 CAPTIONS_TESTER_FILED_RE = re.compile(r"CaptionsTesterBugReport\]\s+Incident filed:\s*([0-9a-fA-F-]+)")
 UI_DIST_DIR = Path(__file__).resolve().parent.parent / "ui" / "dist"
+DEFAULT_UI_DEV_ORIGIN = "http://127.0.0.1:5173"
 SNAPSHOT_WORD_HISTORY_MULTIPLIER = 8
 
 
@@ -100,6 +102,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--post-roll-ms", type=int, default=1200, help="Extra time after the last aligned word before closing an utterance")
     parser.add_argument("--inter-utterance-gap-ms", type=int, default=350, help="Gap between utterances in continuous playback")
     parser.add_argument("--max-history", type=int, default=500, help="How many completed utterances and drop events to keep in memory")
+    parser.add_argument(
+        "--ui-dev",
+        action="store_true",
+        help="Proxy UI requests to a Vite dev server instead of serving ui/dist. Useful for hot reloading frontend edits.",
+    )
+    parser.add_argument(
+        "--ui-dev-origin",
+        default=DEFAULT_UI_DEV_ORIGIN,
+        help="Origin for the Vite dev server used by --ui-dev (default: http://127.0.0.1:5173).",
+    )
     parser.add_argument(
         "--read-only",
         action="store_true",
@@ -1804,6 +1816,7 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
 
 class MonitorHandler(BaseHTTPRequestHandler):
     monitor_state: MonitorState | None = None
+    ui_dev_origin: str | None = None
 
     def _send_bytes(self, body: bytes, content_type: str, extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(200)
@@ -1817,6 +1830,42 @@ class MonitorHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             # Browsers polling /state can disconnect mid-response; treat that as a normal client abort.
             pass
+
+    def _proxy_ui_dev_asset(self, request_path: str) -> bool:
+        if not self.ui_dev_origin:
+            return False
+
+        normalized_path = request_path if request_path.startswith("/") else f"/{request_path}"
+        upstream_url = urllib.parse.urljoin(f"{self.ui_dev_origin.rstrip('/')}/", normalized_path.lstrip("/"))
+        request = urllib.request.Request(
+            upstream_url,
+            headers={
+                "Accept": self.headers.get("Accept", "*/*"),
+                "User-Agent": self.headers.get("User-Agent", "MentraMonitor/1.0"),
+            },
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=2) as response:
+                body = response.read()
+                content_type = response.headers.get("Content-Type", "application/octet-stream")
+                cache_control = response.headers.get("Cache-Control")
+                extra_headers = {"Cache-Control": cache_control} if cache_control else None
+                self._send_bytes(body, content_type, extra_headers)
+                return True
+        except urllib.error.HTTPError as exc:
+            body = exc.read()
+            self.send_response(exc.code)
+            self.send_header("Content-Type", exc.headers.get("Content-Type", "text/plain; charset=utf-8"))
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return True
+        except (urllib.error.URLError, TimeoutError):
+            return False
 
     def _serve_ui_asset(self, request_path: str) -> bool:
         if not UI_DIST_DIR.exists():
@@ -1842,10 +1891,15 @@ class MonitorHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/":
+            if self._proxy_ui_dev_asset("/"):
+                return
             if self._serve_ui_asset("/index.html"):
                 return
             self.send_response(503)
-            body = b"UI build not found. Run `bun run build` in mobile/e2e-tests/ui."
+            body = (
+                b"UI build not found. Run `bun run build` in mobile/e2e-tests/ui, "
+                b"or start Vite and use `--ui-dev`."
+            )
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -1856,6 +1910,9 @@ class MonitorHandler(BaseHTTPRequestHandler):
             assert self.monitor_state is not None
             body = json.dumps(self.monitor_state.snapshot()).encode("utf-8")
             self._send_bytes(body, "application/json; charset=utf-8", {"Cache-Control": "no-store"})
+            return
+
+        if self._proxy_ui_dev_asset(self.path):
             return
 
         if self._serve_ui_asset(self.path):
@@ -1877,6 +1934,7 @@ def main() -> int:
 
     state = MonitorState(output_dir=output_dir, max_history=args.max_history, dataset=args.dataset, split=args.split, incident_config=incident_config)
     MonitorHandler.monitor_state = state
+    MonitorHandler.ui_dev_origin = args.ui_dev_origin if args.ui_dev else None
     server = ThreadingHTTPServer(("127.0.0.1", args.port), MonitorHandler)
     server.daemon_threads = True
 

@@ -4,6 +4,7 @@ import { setBuildEnv } from './set-build-env.mjs';
 await setBuildEnv();
 
 process.env.ORG_GRADLE_PROJECT_reactNativeArchitectures = 'arm64-v8a';
+process.env.EXPO_PUBLIC_ENABLE_E2E_METRICS = 'true';
 
 console.log('Building Android internal...');
 

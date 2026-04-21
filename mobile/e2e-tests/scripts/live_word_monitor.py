@@ -53,6 +53,7 @@ CAPTIONS_TESTER_INCIDENT_RESULT_MARKER = "CAPTIONS_TESTER_INCIDENT_RESULT "
 CONSOLE_INCIDENT_BASE_URL = "https://console.mentra.glass/admin/incidents/"
 CAPTIONS_TESTER_FILED_RE = re.compile(r"CaptionsTesterBugReport\]\s+Incident filed:\s*([0-9a-fA-F-]+)")
 UI_DIST_DIR = Path(__file__).resolve().parent.parent / "ui" / "dist"
+SNAPSHOT_WORD_HISTORY_MULTIPLIER = 8
 
 
 def parse_args() -> argparse.Namespace:
@@ -477,6 +478,11 @@ class MonitorState:
         self.last_events = trim_history(self.last_events, 100)
         write_ndjson(self.output_dir / "monitor_events.ndjson", event)
 
+    def snapshot_word_history_limit(self) -> int:
+        # Keep enough points to preserve the recent graph shape without sending
+        # multi-megabyte /state responses to the browser on every poll.
+        return max(200, self.max_history * SNAPSHOT_WORD_HISTORY_MULTIPLIER)
+
     def build_incident_id(self, incident_type: str, started_at_ms: int, dataset_row_idx: int | None = None) -> str:
         suffix = f":row{dataset_row_idx}" if dataset_row_idx is not None else ""
         return f"{incident_type}:{started_at_ms}{suffix}"
@@ -620,6 +626,7 @@ class MonitorState:
     def snapshot(self) -> dict[str, Any]:
         with self.lock:
             now_ms = int(time.time() * 1000)
+            snapshot_word_history_limit = self.snapshot_word_history_limit()
             ongoing_incidents = []
             for incident in self.ongoing_incidents.values():
                 started_at_ms = int(incident["started_at_ms"])
@@ -648,10 +655,13 @@ class MonitorState:
                 "last_logcat_event_ts_ms": self.last_logcat_event_ts_ms,
                 "current_utterance": self.serialize_utterance(self.current_utterance),
                 "completed_utterances": list(self.completed_utterances),
-                "word_delay_points": list(self.word_delay_points),
-                "rn_word_delay_points": list(self.rn_word_delay_points),
-                "rn_true_word_delay_points": list(self.rn_true_word_delay_points),
-                "logcat_true_word_delay_points": list(self.logcat_true_word_delay_points),
+                "word_delay_points": trim_history(list(self.word_delay_points), snapshot_word_history_limit),
+                "rn_word_delay_points": trim_history(list(self.rn_word_delay_points), snapshot_word_history_limit),
+                "rn_true_word_delay_points": trim_history(list(self.rn_true_word_delay_points), snapshot_word_history_limit),
+                "logcat_true_word_delay_points": trim_history(
+                    list(self.logcat_true_word_delay_points),
+                    snapshot_word_history_limit,
+                ),
                 "drop_events": list(self.drop_events),
                 "ongoing_incidents": ongoing_incidents,
                 "completed_incidents": list(self.completed_incidents),

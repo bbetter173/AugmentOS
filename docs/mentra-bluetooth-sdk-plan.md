@@ -126,13 +126,14 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 
 **Local STT Control:**
 
-The Bluetooth SDK includes optional local speech-to-text (SherpaOnnx). Control it with a single key:
+The Bluetooth SDK includes optional local speech-to-text (SherpaOnnx). In this plan, leave the current offline STT control flow as-is:
 
 ```
-local_stt_active          # true/false - turns local transcriber on/off
+offline_mode              # MentraOS TypeScript setting for offline behavior
+offline_captions_running  # MentraOS TypeScript setting tracking offline captions state
 ```
 
-This replaces the old `offline_mode` + `offline_captions_running` logic. MentraOS TypeScript decides when to enable local STT (offline mode, no cloud connection, etc.) and simply sets `local_stt_active = true/false`.
+Do not introduce a new STT control key in this workstream. The offline STT refactor is happening separately.
 
 ### Crust (MentraOS-Specific)
 
@@ -146,13 +147,13 @@ These keys exist in native GlassesStore but are never actually used. Remove them
 always_on_status_bar      # Dead feature - remove from native AND from developer.tsx in MentraOS
 metric_system             # Not used in native - keep in TypeScript only for display formatting
 power_saving_mode         # Not used in native (only commented-out code) - remove from native AND developer.tsx
-offline_mode              # MentraOS TypeScript setting - controls when to use local STT
-offline_captions_running  # MentraOS TypeScript setting - tracks if offline captions are active
 ```
 
 **Note:** `contextual_dashboard` STAYS in Bluetooth SDK - it's actually used in `sendCurrentState()` and `displayEvent()` to control whether dashboard content shows when user looks up.
 
 **Note:** `auth_email` and `auth_token` stay in Bluetooth SDK because they get sent to MentraLive hardware via `sgc?.sendAuthEmail()`. Even though they're conceptually OS authentication, the hardware needs them.
+
+**Note:** Leave `offline_mode` and `offline_captions_running` unchanged in this plan. That STT control refactor is being handled separately.
 
 **Services to Move:**
 
@@ -294,28 +295,9 @@ Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function
 "core" to "default_wearable" -> initSGC(...)
 ```
 
-**Add to Bluetooth SDK (new simplified key):**
+**Offline STT Note:**
 
-```kotlin
-"core" to "local_stt_active" -> {
-    (value as? Boolean)?.let { active ->
-        CoreManager.getInstance().setMicState(
-            shouldSendPcmData,
-            active,  // this is shouldSendTranscript
-            bypassVad
-        )
-    }
-}
-```
-
-**Remove from Bluetooth SDK (delete these handlers):**
-
-```kotlin
-"core" to "offline_mode" -> // DELETE - handled in TypeScript
-"core" to "offline_captions_running" -> // DELETE - handled in TypeScript
-```
-
-MentraOS TypeScript will manage `offline_mode` and `offline_captions_running` as UI state, then simply call `BluetoothSdk.setSetting('local_stt_active', true/false)` when appropriate.
+Keep the existing offline STT settings and handlers as-is in this plan. Do not add `local_stt_active`, and do not remove the current `offline_mode` / `offline_captions_running` wiring here.
 
 ---
 
@@ -662,12 +644,8 @@ console.log('Button pressed:', event.buttonId);
   - [ ] Remove `always_on_status_bar` (dead feature - also remove from developer.tsx in MentraOS)
   - [ ] Remove `metric_system` (not used in native - keep in TypeScript only)
   - [ ] Remove `power_saving_mode` (not used - also remove from developer.tsx in MentraOS)
-  - [ ] Remove `offline_mode` (TypeScript-only setting)
-  - [ ] Remove `offline_captions_running` (TypeScript-only setting)
   - [ ] Keep `contextual_dashboard` (actually used for display logic)
-- [ ] Refactor local STT control:
-  - [ ] Add `local_stt_active` key to GlassesStore (simple on/off for local transcriber)
-  - [ ] Update MentraOS TypeScript to set `local_stt_active` based on offline_mode logic
+- [ ] Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this branch
 - [ ] Update GlassesStore.apply() to remove handlers for deleted keys
 - [ ] Create Crust TypeScript interface
 - [ ] Wire up Crust to MentraOS app layer

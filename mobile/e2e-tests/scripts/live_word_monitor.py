@@ -100,6 +100,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--inter-utterance-gap-ms", type=int, default=350, help="Gap between utterances in continuous playback")
     parser.add_argument("--max-history", type=int, default=500, help="How many completed utterances and drop events to keep in memory")
     parser.add_argument(
+        "--read-only",
+        action="store_true",
+        help="Serve the dashboard from archived monitor output only. No adb, playback, or live collectors are started.",
+    )
+    parser.add_argument(
         "--local-playback-offset-ms",
         type=int,
         default=0,
@@ -381,10 +386,11 @@ def load_monitor_history(
     list[dict[str, Any]],
     list[dict[str, Any]],
     list[dict[str, Any]],
+    list[dict[str, Any]],
 ]:
     events_path = output_dir / "monitor_events.ndjson"
     if not events_path.exists():
-        return [], [], [], [], [], []
+        return [], [], [], [], [], [], []
 
     completed_utterances: list[dict[str, Any]] = []
     word_delay_points: list[dict[str, Any]] = []
@@ -392,6 +398,7 @@ def load_monitor_history(
     rn_true_word_delay_points: list[dict[str, Any]] = []
     logcat_true_word_delay_points: list[dict[str, Any]] = []
     drop_events: list[dict[str, Any]] = []
+    last_events: list[dict[str, Any]] = []
     word_history_limit = max_history * 40
 
     for line in events_path.read_text().splitlines():
@@ -403,6 +410,7 @@ def load_monitor_history(
             continue
 
         kind = payload.get("kind")
+        last_events.append(payload)
         if kind == "utterance_completed":
             completed_utterances.append(payload)
         elif kind == "drop_event":
@@ -424,6 +432,7 @@ def load_monitor_history(
         trim_history(rn_true_word_delay_points, word_history_limit),
         trim_history(logcat_true_word_delay_points, word_history_limit),
         trim_history(drop_events, max_history),
+        trim_history(last_events, 100),
     )
 
 
@@ -454,13 +463,13 @@ class MonitorState:
             self.rn_true_word_delay_points,
             self.logcat_true_word_delay_points,
             self.drop_events,
+            self.last_events,
         ) = load_monitor_history(output_dir, max_history)
         self.drop_last_signature = ""
         self.drop_last_change_ts_ms: int | None = None
         self.drop_open: dict[str, Any] | None = None
         self.active_drop_incident_id: str | None = None
         self.completed_incidents, self.ongoing_incidents, self.alerts = load_incident_history(output_dir, max_history)
-        self.last_events: list[dict[str, Any]] = []
 
     def append_event(self, kind: str, payload: dict[str, Any]) -> None:
         event = {"kind": kind, **payload}
@@ -1832,32 +1841,46 @@ def main() -> int:
     incident_config = load_incident_config(incident_config_path)
 
     state = MonitorState(output_dir=output_dir, max_history=args.max_history, dataset=args.dataset, split=args.split, incident_config=incident_config)
-    cached_rows = load_cached_rows(output_dir)
-    cursor = DatasetCursor(dataset=args.dataset, config=args.config, split=args.split, page_size=args.page_size, cached_rows=cached_rows)
-    worker = MonitorWorker(args=args, state=state, cursor=cursor)
-
-    adb_prefix = ["adb"]
-    if args.device:
-        adb_prefix.extend(["-s", args.device])
-
-    subprocess.run(adb_prefix + ["forward", "tcp:7001", "tcp:7001"], check=False)
     MonitorHandler.monitor_state = state
     server = ThreadingHTTPServer(("127.0.0.1", args.port), MonitorHandler)
     server.daemon_threads = True
 
-    worker_thread = threading.Thread(target=worker.monitor_loop, daemon=True)
-    prefetch_thread = threading.Thread(target=worker.prefetch_loop, daemon=True)
-    rn_stream_thread = threading.Thread(target=worker.rn_stream_loop, daemon=True)
-    logcat_thread = threading.Thread(target=worker.logcat_stream_loop, daemon=True)
-    prefetch_thread.start()
-    rn_stream_thread.start()
-    logcat_thread.start()
-    worker_thread.start()
+    worker: MonitorWorker | None = None
+    worker_thread: threading.Thread | None = None
+    prefetch_thread: threading.Thread | None = None
+    rn_stream_thread: threading.Thread | None = None
+    logcat_thread: threading.Thread | None = None
+
+    if args.read_only:
+        state.status = "archived"
+        state.status_detail = "read-only dashboard from archived output"
+    else:
+        cached_rows = load_cached_rows(output_dir)
+        cursor = DatasetCursor(dataset=args.dataset, config=args.config, split=args.split, page_size=args.page_size, cached_rows=cached_rows)
+        worker = MonitorWorker(args=args, state=state, cursor=cursor)
+
+        adb_prefix = ["adb"]
+        if args.device:
+            adb_prefix.extend(["-s", args.device])
+
+        subprocess.run(adb_prefix + ["forward", "tcp:7001", "tcp:7001"], check=False)
+
+        worker_thread = threading.Thread(target=worker.monitor_loop, daemon=True)
+        prefetch_thread = threading.Thread(target=worker.prefetch_loop, daemon=True)
+        rn_stream_thread = threading.Thread(target=worker.rn_stream_loop, daemon=True)
+        logcat_thread = threading.Thread(target=worker.logcat_stream_loop, daemon=True)
+        prefetch_thread.start()
+        rn_stream_thread.start()
+        logcat_thread.start()
+        worker_thread.start()
 
     print(f"Dashboard: http://127.0.0.1:{args.port}")
     print(f"Output dir: {output_dir}")
     print(f"Incident config: {incident_config_path}")
-    print(f"Dataset: {args.dataset} ({args.split})")
+    if args.read_only:
+        print("Mode: read-only archive")
+    else:
+        print(f"Dataset: {args.dataset} ({args.split})")
     print("Press Ctrl-C to stop.")
 
     shutdown_started = threading.Event()
@@ -1866,7 +1889,8 @@ def main() -> int:
         if shutdown_started.is_set():
             return
         shutdown_started.set()
-        worker.request_stop()
+        if worker is not None:
+            worker.request_stop()
         # `server.shutdown()` must run off the serve_forever thread.
         threading.Thread(target=server.shutdown, daemon=True).start()
 
@@ -1879,11 +1903,16 @@ def main() -> int:
     try:
         server.serve_forever(poll_interval=0.5)
     finally:
-        worker.request_stop()
-        worker_thread.join(timeout=5)
-        prefetch_thread.join(timeout=5)
-        rn_stream_thread.join(timeout=5)
-        logcat_thread.join(timeout=5)
+        if worker is not None:
+            worker.request_stop()
+        if worker_thread is not None:
+            worker_thread.join(timeout=5)
+        if prefetch_thread is not None:
+            prefetch_thread.join(timeout=5)
+        if rn_stream_thread is not None:
+            rn_stream_thread.join(timeout=5)
+        if logcat_thread is not None:
+            logcat_thread.join(timeout=5)
         server.server_close()
 
     return 0

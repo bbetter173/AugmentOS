@@ -1,3 +1,4 @@
+import {useState} from "react"
 import {CartesianGrid, ComposedChart, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis} from "recharts"
 
 import {EmptyState} from "../components/EmptyState"
@@ -5,12 +6,43 @@ import {SectionCard} from "../components/SectionCard"
 import type {MonitorSnapshot} from "../types"
 import {buildLatencySeries, formatClock, formatDelay} from "../utils"
 
+const WINDOW_OPTIONS = [
+  {label: "1m", value: 60_000},
+  {label: "5m", value: 5 * 60_000},
+  {label: "15m", value: 15 * 60_000},
+  {label: "All", value: null},
+] as const
+
 export function LatencyTab({snapshot}: {snapshot: MonitorSnapshot}) {
-  const latencySeries = buildLatencySeries(snapshot.logcat_true_word_delay_points)
+  const [windowMs, setWindowMs] = useState<number | null>(null)
+  const latestPointTsMs = snapshot.logcat_true_word_delay_points.at(-1)?.ts_ms ?? null
+  const filteredPoints =
+    windowMs === null || latestPointTsMs === null
+      ? snapshot.logcat_true_word_delay_points
+      : snapshot.logcat_true_word_delay_points.filter((point) => latestPointTsMs - point.ts_ms <= windowMs)
+  const latencySeries = buildLatencySeries(filteredPoints)
+  const activeWindowLabel = WINDOW_OPTIONS.find((option) => option.value === windowMs)?.label ?? "All"
 
   return (
     <div className="tab-layout">
-      <SectionCard title="Latency Trend" subtitle="Raw word visibility points with a 10-point trimmed moving average">
+      <SectionCard
+        title="Latency Trend"
+        subtitle={`Showing ${activeWindowLabel} of raw word visibility points with a 10-point trimmed moving average`}>
+        <div className="latency-toolbar" role="group" aria-label="Latency time window">
+          {WINDOW_OPTIONS.map((option) => (
+            <button
+              key={option.label}
+              className="latency-window-button"
+              data-active={option.value === windowMs ? "true" : "false"}
+              onClick={() => setWindowMs(option.value)}
+              type="button">
+              {option.label}
+            </button>
+          ))}
+          <span className="latency-window-meta">
+            {filteredPoints.length} point{filteredPoints.length === 1 ? "" : "s"}
+          </span>
+        </div>
         {latencySeries.length ? (
           <div className="chart-shell">
             <ResponsiveContainer width="100%" height={380}>

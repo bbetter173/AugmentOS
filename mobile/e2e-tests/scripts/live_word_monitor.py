@@ -371,6 +371,62 @@ def load_incident_history(output_dir: Path, max_history: int) -> tuple[list[dict
     )
 
 
+def load_monitor_history(
+    output_dir: Path,
+    max_history: int,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    events_path = output_dir / "monitor_events.ndjson"
+    if not events_path.exists():
+        return [], [], [], [], [], []
+
+    completed_utterances: list[dict[str, Any]] = []
+    word_delay_points: list[dict[str, Any]] = []
+    rn_word_delay_points: list[dict[str, Any]] = []
+    rn_true_word_delay_points: list[dict[str, Any]] = []
+    logcat_true_word_delay_points: list[dict[str, Any]] = []
+    drop_events: list[dict[str, Any]] = []
+    word_history_limit = max_history * 40
+
+    for line in events_path.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        kind = payload.get("kind")
+        if kind == "utterance_completed":
+            completed_utterances.append(payload)
+        elif kind == "drop_event":
+            drop_events.append(payload)
+        elif kind == "word_match":
+            word_delay_points.append(payload)
+            source = payload.get("source")
+            if source == "rn":
+                rn_word_delay_points.append(payload)
+            elif source == "rn_true":
+                rn_true_word_delay_points.append(payload)
+            elif source == "logcat_true":
+                logcat_true_word_delay_points.append(payload)
+
+    return (
+        trim_history(completed_utterances, max_history),
+        trim_history(word_delay_points, word_history_limit),
+        trim_history(rn_word_delay_points, word_history_limit),
+        trim_history(rn_true_word_delay_points, word_history_limit),
+        trim_history(logcat_true_word_delay_points, word_history_limit),
+        trim_history(drop_events, max_history),
+    )
+
+
 class MonitorState:
     def __init__(self, output_dir: Path, max_history: int, dataset: str, split: str, incident_config: dict[str, dict[str, Any]]) -> None:
         self.output_dir = output_dir
@@ -391,12 +447,14 @@ class MonitorState:
         self.logcat_visible_lines: list[str] = []
         self.last_logcat_event_ts_ms: int | None = None
         self.current_utterance: UtteranceState | None = None
-        self.completed_utterances: list[dict[str, Any]] = []
-        self.word_delay_points: list[dict[str, Any]] = []
-        self.rn_word_delay_points: list[dict[str, Any]] = []
-        self.rn_true_word_delay_points: list[dict[str, Any]] = []
-        self.logcat_true_word_delay_points: list[dict[str, Any]] = []
-        self.drop_events: list[dict[str, Any]] = []
+        (
+            self.completed_utterances,
+            self.word_delay_points,
+            self.rn_word_delay_points,
+            self.rn_true_word_delay_points,
+            self.logcat_true_word_delay_points,
+            self.drop_events,
+        ) = load_monitor_history(output_dir, max_history)
         self.drop_last_signature = ""
         self.drop_last_change_ts_ms: int | None = None
         self.drop_open: dict[str, Any] | None = None

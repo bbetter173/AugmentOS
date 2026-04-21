@@ -471,6 +471,7 @@ class MonitorState:
         self.drop_open: dict[str, Any] | None = None
         self.active_drop_incident_id: str | None = None
         self.completed_incidents, self.ongoing_incidents, self.alerts = load_incident_history(output_dir, max_history)
+        self.restore_drop_incident_runtime_state()
 
     def append_event(self, kind: str, payload: dict[str, Any]) -> None:
         event = {"kind": kind, **payload}
@@ -495,6 +496,43 @@ class MonitorState:
             if incident.get("incident_type") == incident_type:
                 return incident
         return None
+
+    def find_ongoing_incidents_by_type(self, incident_type: str) -> list[dict[str, Any]]:
+        incidents = [incident for incident in self.ongoing_incidents.values() if incident.get("incident_type") == incident_type]
+        incidents.sort(key=lambda item: (int(item.get("started_at_ms", 0)), str(item.get("incident_id", ""))))
+        return incidents
+
+    def restore_drop_incident_runtime_state(self) -> None:
+        drop_incidents = self.find_ongoing_incidents_by_type("drop_event")
+        if not drop_incidents:
+            self.active_drop_incident_id = None
+            self.drop_open = None
+            return
+
+        active_incident = drop_incidents[-1]
+        self.active_drop_incident_id = str(active_incident["incident_id"])
+        self.drop_open = {
+            "dataset_row_idx": active_incident.get("dataset_row_idx"),
+            "started_at_ms": int(active_incident["started_at_ms"]),
+        }
+
+    def resolve_duplicate_drop_incidents(self, now_ms: int) -> None:
+        drop_incidents = self.find_ongoing_incidents_by_type("drop_event")
+        if len(drop_incidents) <= 1:
+            self.restore_drop_incident_runtime_state()
+            return
+
+        active_incident = drop_incidents[-1]
+        for duplicate in drop_incidents[:-1]:
+            self.end_incident(
+                str(duplicate["incident_id"]),
+                now_ms,
+                {
+                    "reason": "superseded_on_startup",
+                    "superseded_by_incident_id": active_incident["incident_id"],
+                },
+            )
+        self.restore_drop_incident_runtime_state()
 
     def start_incident(
         self,
@@ -1177,6 +1215,13 @@ class MonitorWorker:
 
         if self.state.active_drop_incident_id is not None:
             self.maybe_alert_and_dispatch(self.state.active_drop_incident_id, now_ms)
+            return
+
+        ongoing_drop_incidents = self.state.find_ongoing_incidents_by_type("drop_event")
+        if ongoing_drop_incidents:
+            self.state.restore_drop_incident_runtime_state()
+            if self.state.active_drop_incident_id is not None:
+                self.maybe_alert_and_dispatch(self.state.active_drop_incident_id, now_ms)
             return
 
         if now_ms - self.state.drop_last_change_ts_ms < drop_threshold_ms:
@@ -1874,6 +1919,8 @@ def main() -> int:
         state.status = "archived"
         state.status_detail = "read-only dashboard from archived output"
     else:
+        with state.lock:
+            state.resolve_duplicate_drop_incidents(int(time.time() * 1000))
         cached_rows = load_cached_rows(output_dir)
         cursor = DatasetCursor(dataset=args.dataset, config=args.config, split=args.split, page_size=args.page_size, cached_rows=cached_rows)
         worker = MonitorWorker(args=args, state=state, cursor=cursor)

@@ -21,11 +21,6 @@ from typing import Any
 import tomllib
 
 
-# FIXME: THe maestro data retrieval method is to be removed (2s latency), the html ids have not been committed to the repo.
-SIMULATED_GLASSES_TEXT = "Simulated glasses"
-MIRROR_ROOT_RESOURCE_ID = "glasses-mirror-root"
-MIRROR_TEXT_WALL_RESOURCE_ID = "glasses-mirror-text-wall"
-MIRROR_LINE_RESOURCE_ID_PREFIX = "glasses-mirror-line-"
 DEFAULT_INCIDENT_CONFIG = {
     "drop_event": {
         "name": "Dropped Captions",
@@ -139,88 +134,6 @@ def trimmed_mean_ms(values: list[int | float], trim_fraction: float = 0.10) -> f
     return sum(trimmed_values) / len(trimmed_values)
 
 
-def parse_hierarchy_output(raw_output: str) -> dict[str, Any]:
-    json_start = raw_output.find("{")
-    if json_start == -1:
-        raise ValueError("Maestro hierarchy output did not contain JSON")
-    return json.loads(raw_output[json_start:])
-
-
-def find_parent_of_text(node: dict[str, Any], target: str) -> dict[str, Any] | None:
-    children = node.get("children") or []
-    for child in children:
-        attributes = child.get("attributes") or {}
-        if attributes.get("text") == target:
-            return node
-    for child in children:
-        found = find_parent_of_text(child, target)
-        if found:
-            return found
-    return None
-
-
-def find_first_by_resource_id(node: dict[str, Any], resource_id: str) -> dict[str, Any] | None:
-    attributes = node.get("attributes") or {}
-    if attributes.get("resource-id") == resource_id:
-        return node
-
-    for child in node.get("children") or []:
-        found = find_first_by_resource_id(child, resource_id)
-        if found:
-            return found
-    return None
-
-
-def extract_visible_transcript_lines(hierarchy: dict[str, Any]) -> tuple[bool, list[str]]:
-    mirror_root = find_first_by_resource_id(hierarchy, MIRROR_ROOT_RESOURCE_ID)
-    text_wall = find_first_by_resource_id(hierarchy, MIRROR_TEXT_WALL_RESOURCE_ID)
-    if mirror_root and text_wall:
-        indexed_lines: list[tuple[int, str]] = []
-        for child in text_wall.get("children") or []:
-            attributes = child.get("attributes") or {}
-            resource_id = attributes.get("resource-id") or ""
-            if not resource_id.startswith(MIRROR_LINE_RESOURCE_ID_PREFIX):
-                continue
-
-            text = (attributes.get("text") or "").strip()
-            if not text:
-                continue
-
-            try:
-                index = int(resource_id.removeprefix(MIRROR_LINE_RESOURCE_ID_PREFIX))
-            except ValueError:
-                continue
-            indexed_lines.append((index, text))
-
-        indexed_lines.sort(key=lambda item: item[0])
-        return True, [text for _, text in indexed_lines]
-
-    parent = find_parent_of_text(hierarchy, SIMULATED_GLASSES_TEXT)
-    if not parent:
-        return False, []
-
-    lines: list[str] = []
-    for child in parent.get("children") or []:
-        attributes = child.get("attributes") or {}
-        text = (attributes.get("text") or "").strip()
-        if not text or text == SIMULATED_GLASSES_TEXT:
-            continue
-        lines.append(text)
-    return True, lines
-
-
-def run_maestro_hierarchy(device: str | None) -> dict[str, Any]:
-    env = os.environ.copy()
-    env["JAVA_HOME"] = "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-    env["PATH"] = f'{env["JAVA_HOME"]}/bin:/opt/homebrew/bin:' + env["PATH"]
-    cmd = ["maestro"]
-    if device:
-        cmd.extend(["--device", device])
-    cmd.extend(["hierarchy", "--no-ansi"])
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
-    return parse_hierarchy_output(result.stdout)
-
-
 def write_ndjson(path: Path, record: dict[str, Any]) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=True) + "\n")
@@ -245,10 +158,6 @@ class WordState:
     rn_true_visible_delay_ms: int | None = None
     logcat_true_first_visible_ts_ms: int | None = None
     logcat_true_visible_delay_ms: int | None = None
-    maestro_first_visible_ts_ms: int | None = None
-    maestro_visible_delay_ms: int | None = None
-    maestro_true_first_visible_ts_ms: int | None = None
-    maestro_true_visible_delay_ms: int | None = None
 
 
 @dataclass
@@ -260,12 +169,9 @@ class UtteranceState:
     end_ts_ms: int
     words: list[WordState]
     rn_matched_word_count: int = 0
-    maestro_matched_word_count: int = 0
     rn_last_matched_index: int = -1
     rn_true_last_matched_index: int = -1
     logcat_true_last_matched_index: int = -1
-    maestro_last_matched_index: int = -1
-    maestro_true_last_matched_index: int = -1
     first_visible_activity_ts_ms: int | None = None
     last_visible_change_ts_ms: int | None = None
     last_signature: str = ""
@@ -490,8 +396,6 @@ class MonitorState:
         self.rn_word_delay_points: list[dict[str, Any]] = []
         self.rn_true_word_delay_points: list[dict[str, Any]] = []
         self.logcat_true_word_delay_points: list[dict[str, Any]] = []
-        self.maestro_word_delay_points: list[dict[str, Any]] = []
-        self.maestro_true_word_delay_points: list[dict[str, Any]] = []
         self.drop_events: list[dict[str, Any]] = []
         self.drop_last_signature = ""
         self.drop_last_change_ts_ms: int | None = None
@@ -625,7 +529,6 @@ class MonitorState:
             "start_ts_ms": utterance.start_ts_ms,
             "end_ts_ms": utterance.end_ts_ms,
             "rn_matched_word_count": utterance.rn_matched_word_count,
-            "maestro_matched_word_count": utterance.maestro_matched_word_count,
             "word_count": len(utterance.words),
             "first_visible_activity_ts_ms": utterance.first_visible_activity_ts_ms,
             "last_visible_change_ts_ms": utterance.last_visible_change_ts_ms,
@@ -642,10 +545,6 @@ class MonitorState:
                     "rn_true_visible_delay_ms": word.rn_true_visible_delay_ms,
                     "logcat_true_first_visible_ts_ms": word.logcat_true_first_visible_ts_ms,
                     "logcat_true_visible_delay_ms": word.logcat_true_visible_delay_ms,
-                    "maestro_first_visible_ts_ms": word.maestro_first_visible_ts_ms,
-                    "maestro_visible_delay_ms": word.maestro_visible_delay_ms,
-                    "maestro_true_first_visible_ts_ms": word.maestro_true_first_visible_ts_ms,
-                    "maestro_true_visible_delay_ms": word.maestro_true_visible_delay_ms,
                 }
                 for word in utterance.words
             ],
@@ -686,8 +585,6 @@ class MonitorState:
                 "rn_word_delay_points": list(self.rn_word_delay_points),
                 "rn_true_word_delay_points": list(self.rn_true_word_delay_points),
                 "logcat_true_word_delay_points": list(self.logcat_true_word_delay_points),
-                "maestro_word_delay_points": list(self.maestro_word_delay_points),
-                "maestro_true_word_delay_points": list(self.maestro_true_word_delay_points),
                 "drop_events": list(self.drop_events),
                 "ongoing_incidents": ongoing_incidents,
                 "completed_incidents": list(self.completed_incidents),
@@ -852,7 +749,6 @@ class MonitorWorker:
         self.rn_stream_process: subprocess.Popen[str] | None = None
         self.logcat_process: subprocess.Popen[str] | None = None
         self.use_rn_stream = False
-        self.use_maestro_stream = False
         self.last_audio_output_check_ts_ms = 0
         self.last_audio_output_device_name: str | None = None
         self.last_audio_output_check_error: str | None = None
@@ -1141,20 +1037,15 @@ class MonitorWorker:
         rn_delays = [word.rn_visible_delay_ms for word in utterance.words if word.rn_visible_delay_ms is not None]
         rn_true_delays = [word.rn_true_visible_delay_ms for word in utterance.words if word.rn_true_visible_delay_ms is not None]
         logcat_true_delays = [word.logcat_true_visible_delay_ms for word in utterance.words if word.logcat_true_visible_delay_ms is not None]
-        maestro_delays = [word.maestro_visible_delay_ms for word in utterance.words if word.maestro_visible_delay_ms is not None]
-        maestro_true_delays = [word.maestro_true_visible_delay_ms for word in utterance.words if word.maestro_true_visible_delay_ms is not None]
         average_rn_delay_ms = trimmed_mean_ms(rn_delays)
         average_rn_true_delay_ms = trimmed_mean_ms(rn_true_delays)
         average_logcat_true_delay_ms = trimmed_mean_ms(logcat_true_delays)
-        average_maestro_delay_ms = trimmed_mean_ms(maestro_delays)
-        average_maestro_true_delay_ms = trimmed_mean_ms(maestro_true_delays)
         summary = {
             "dataset_row_idx": utterance.dataset_row_idx,
             "text": utterance.text,
             "start_ts_ms": utterance.start_ts_ms,
             "end_ts_ms": utterance.end_ts_ms,
             "rn_matched_words": utterance.rn_matched_word_count,
-            "maestro_matched_words": utterance.maestro_matched_word_count,
             "word_count": len(utterance.words),
             "average_rn_delay_ms": int(round(average_rn_delay_ms)) if average_rn_delay_ms is not None else None,
             "average_rn_true_delay_ms": int(round(average_rn_true_delay_ms)) if average_rn_true_delay_ms is not None else None,
@@ -1162,10 +1053,6 @@ class MonitorWorker:
             "max_rn_delay_ms": max(rn_delays) if rn_delays else None,
             "max_rn_true_delay_ms": max(rn_true_delays) if rn_true_delays else None,
             "max_logcat_true_delay_ms": max(logcat_true_delays) if logcat_true_delays else None,
-            "average_maestro_delay_ms": int(round(average_maestro_delay_ms)) if average_maestro_delay_ms is not None else None,
-            "max_maestro_delay_ms": max(maestro_delays) if maestro_delays else None,
-            "average_maestro_true_delay_ms": int(round(average_maestro_true_delay_ms)) if average_maestro_true_delay_ms is not None else None,
-            "max_maestro_true_delay_ms": max(maestro_true_delays) if maestro_true_delays else None,
         }
         self.state.completed_utterances.append(summary)
         self.state.completed_utterances = trim_history(self.state.completed_utterances, self.state.max_history)
@@ -1522,8 +1409,6 @@ class MonitorWorker:
             "rn": utterance.rn_last_matched_index,
             "rn_true": utterance.rn_true_last_matched_index,
             "logcat_true": utterance.logcat_true_last_matched_index,
-            "maestro": utterance.maestro_last_matched_index,
-            "maestro_true": utterance.maestro_true_last_matched_index,
         }
         current_cursor = cursor_by_source[source]
         for run in consecutive_runs(matched_indices):
@@ -1540,10 +1425,6 @@ class MonitorWorker:
                 if source == "rn_true" and word.rn_true_first_visible_ts_ms is not None:
                     continue
                 if source == "logcat_true" and word.logcat_true_first_visible_ts_ms is not None:
-                    continue
-                if source == "maestro" and word.maestro_first_visible_ts_ms is not None:
-                    continue
-                if source == "maestro_true" and word.maestro_true_first_visible_ts_ms is not None:
                     continue
                 if now_ms < word.expected_ts_ms - self.args.word_match_early_tolerance_ms:
                     continue
@@ -1574,15 +1455,8 @@ class MonitorWorker:
                             "utterance_text": utterance.text,
                         },
                     )
-                elif source == "maestro_true":
-                    word.maestro_true_first_visible_ts_ms = now_ms
-                    word.maestro_true_visible_delay_ms = delay_ms
-                    utterance.maestro_true_last_matched_index = ref_index
                 else:
-                    word.maestro_first_visible_ts_ms = now_ms
-                    word.maestro_visible_delay_ms = delay_ms
-                    utterance.maestro_matched_word_count += 1
-                    utterance.maestro_last_matched_index = ref_index
+                    raise ValueError(f"Unsupported match source: {source}")
                 current_cursor = ref_index
 
                 point = {
@@ -1605,12 +1479,8 @@ class MonitorWorker:
                 elif source == "logcat_true":
                     self.state.logcat_true_word_delay_points.append(point)
                     self.state.logcat_true_word_delay_points = trim_history(self.state.logcat_true_word_delay_points, self.state.max_history * 40)
-                elif source == "maestro_true":
-                    self.state.maestro_true_word_delay_points.append(point)
-                    self.state.maestro_true_word_delay_points = trim_history(self.state.maestro_true_word_delay_points, self.state.max_history * 40)
                 else:
-                    self.state.maestro_word_delay_points.append(point)
-                    self.state.maestro_word_delay_points = trim_history(self.state.maestro_word_delay_points, self.state.max_history * 40)
+                    raise ValueError(f"Unsupported point source: {source}")
                 self.state.append_event("word_match", point)
 
     def prefetch_loop(self) -> None:
@@ -1787,37 +1657,15 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
             now_ms = int(started * 1000)
             try:
                 with self.state.lock:
-                    if self.use_maestro_stream:
-                        hierarchy = run_maestro_hierarchy(self.args.device)
-                        mirror_visible, visible_lines = extract_visible_transcript_lines(hierarchy)
-                        normalized_lines = [normalize_text(line) for line in visible_lines]
-                        self.state.mirror_visible = mirror_visible
-                        self.state.current_visible_lines = visible_lines
-                        self.state.last_snapshot_ts_ms = now_ms
-                        write_ndjson(
-                            self.state.output_dir / "live_snapshots.ndjson",
-                            {
-                                "ts_ms": now_ms,
-                                "mirror_visible": mirror_visible,
-                                "visible_lines": visible_lines,
-                                "normalized_visible_lines": normalized_lines,
-                                "source": "maestro",
-                            },
-                        )
-                    else:
-                        mirror_visible = True
-                        visible_lines = list(self.state.logcat_visible_lines)
-                        normalized_lines = [normalize_text(line) for line in visible_lines]
-                        self.state.mirror_visible = True
+                    visible_lines = list(self.state.logcat_visible_lines)
+                    normalized_lines = [normalize_text(line) for line in visible_lines]
+                    self.state.mirror_visible = True
+                    self.state.current_visible_lines = visible_lines
 
                     utterance = self.state.current_utterance
-                    if not self.use_maestro_stream or mirror_visible:
-                        self.update_drop_tracking(utterance, now_ms, normalized_lines)
+                    self.update_drop_tracking(utterance, now_ms, normalized_lines)
                     if utterance is None:
-                        if self.use_maestro_stream and not mirror_visible:
-                            self.state.status = "waiting_for_mirror"
-                            self.state.status_detail = "Simulated glasses mirror is not visible"
-                        elif now_ms >= self.next_start_ts_ms:
+                        if now_ms >= self.next_start_ts_ms:
                             self.start_next_utterance(now_ms)
                         else:
                             self.state.status = "between_utterances"
@@ -1825,9 +1673,6 @@ ws.on('error', (err) => process.stderr.write(String(err && err.message || err) +
                         self.evaluate_audio_output_device_incident(now_ms)
                         self.evaluate_app_not_foreground_incident(now_ms)
                     else:
-                        if self.use_maestro_stream:
-                            self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro_true", min_run_length=1)
-                            self.maybe_record_word_matches(utterance, now_ms, visible_lines, "maestro")
                         self.evaluate_high_average_latency_incident(now_ms)
                         self.evaluate_audio_output_device_incident(now_ms)
                         self.evaluate_app_not_foreground_incident(now_ms)

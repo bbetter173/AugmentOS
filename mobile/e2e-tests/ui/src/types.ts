@@ -17,7 +17,6 @@ export interface CurrentUtterance {
   end_ts_ms: number
   word_count: number
   rn_matched_word_count: number
-  maestro_matched_word_count: number
   words: WordState[]
 }
 

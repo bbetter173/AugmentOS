@@ -2,7 +2,7 @@ import {BottomSheetModalProvider} from "@gorhom/bottom-sheet"
 import * as Sentry from "@sentry/react-native"
 import {Stack} from "expo-router"
 import {PostHogProvider} from "posthog-react-native"
-import {Suspense, FunctionComponent, PropsWithChildren} from "react"
+import {Suspense, FunctionComponent, PropsWithChildren, useMemo} from "react"
 import {View} from "react-native"
 import ErrorBoundary from "react-native-error-boundary"
 import {GestureHandlerRootView} from "react-native-gesture-handler"
@@ -159,26 +159,20 @@ export const AllProviders = withWrappers(
   (props) => {
     const {preventBack, animation, forceGestureEnabled} = useNavigationHistory()
 
-    const convertToNativeAnimation = (animation: string) => {
-      if (animation === "zoom") {
-        return "fade"
-      }
-      return animation
-    }
+    const screenOptions = useMemo(
+      () => ({
+        headerShown: false,
+        gestureEnabled: forceGestureEnabled || !preventBack,
+        gestureDirection: "horizontal" as const,
+        animation: (animation === "zoom" ? "fade" : animation) as any,
+      }),
+      [preventBack, forceGestureEnabled, animation],
+    )
 
     return (
       <>
         {props.children}
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            gestureEnabled: forceGestureEnabled || !preventBack,
-            gestureDirection: "horizontal",
-            animation: convertToNativeAnimation(animation) as any,
-            // animation: "default",
-            // cardStyleInterpolator: getAnimation(animation),
-          }}
-        />
+        <Stack screenOptions={screenOptions} />
       </>
     )
 

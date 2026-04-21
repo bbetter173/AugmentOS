@@ -1,7 +1,7 @@
 import {AsyncResult, result as Res} from "typesafe-ts"
 
 import {storage} from "@/utils/storage"
-import {useSettingsStore} from "@/stores/settings"
+import {SETTINGS, useSettingsStore} from "@/stores/settings"
 
 interface Migration {
   version: number // the version this migration brings you TO
@@ -18,12 +18,22 @@ const migrations: Migration[] = [
       useSettingsStore.getState().setSetting("app_switcher_ui", true)
     },
   },
-  // {
-  //   version: 2,
-  //   run: async () => {
-  //     // migrates from 1 → 2
-  //   }
-  // },
+  {
+    version: 2,
+    run: async () => {
+      // migrates from 1 → 2
+      const dashboardDepth = useSettingsStore.getState().getSetting(SETTINGS.dashboard_depth.key)
+      if (dashboardDepth > 3) {
+        useSettingsStore.getState().setSetting("dashboard_depth", 3)
+      }
+    },
+  },
+  {
+    version: 3,
+    run: async () => {
+      // migrates from 2 → 3
+    },
+  },
 ]
 
 const migration_version_key = "migration_version"

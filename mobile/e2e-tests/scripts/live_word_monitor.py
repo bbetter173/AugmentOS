@@ -1149,7 +1149,16 @@ class MonitorWorker:
         if signature != self.state.drop_last_signature:
             self.state.drop_last_signature = signature
             self.state.drop_last_change_ts_ms = now_ms
-            if self.state.active_drop_incident_id is None:
+            if self.state.active_drop_incident_id is not None:
+                self.end_active_drop_incident(
+                    now_ms,
+                    "visible_lines_resumed",
+                    {
+                        "dataset_row_idx": utterance.dataset_row_idx if utterance is not None else None,
+                        "utterance_text": utterance.text if utterance is not None else None,
+                    },
+                )
+            else:
                 self.state.drop_open = None
             return
 

@@ -365,7 +365,7 @@ Open the Captions app, go back to the home screen.
 
 ```
 cd /Users/mentraconference/Documents/MentraOS/mobile/e2e-tests
-python3 scripts/live_word_monitor.py --output-dir results --port 8765
+python3 scripts/live_word_monitor.py --output-dir results --port 8765 --audio-output-device "External Headphones"
 ```
 
 # Terminal 2

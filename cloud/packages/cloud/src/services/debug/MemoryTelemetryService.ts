@@ -18,12 +18,13 @@ export interface SessionMemoryStats {
     orderedBufferChunks: number;
     orderedBufferBytes: number;
   };
-  // Transcription
+  // Transcription.
+  // transcriptLanguages / transcriptSegments were removed in issue 098 when
+  // the cloud stopped retaining transcript history. Only VAD buffer stats
+  // remain for telemetry.
   transcription: {
     vadBufferChunks: number;
     vadBufferBytes: number;
-    transcriptLanguages: number;
-    transcriptSegments: number;
   };
   // Microphone
   microphone: {
@@ -182,17 +183,15 @@ export class MemoryTelemetryService {
       for (const c of chunks) orderedBufferBytes += this.estimateBytes(c.data as any);
     }
 
-    // Transcription stats via helper method
+    // Transcription stats via helper method.
+    // Transcript-history counts were removed in issue 098; only VAD buffer
+    // telemetry is reported now.
     let vadBufferChunks = 0;
     let vadBufferBytes = 0;
-    let transcriptLanguages = 0;
-    let transcriptSegments = 0;
     if (typeof (session.transcriptionManager as any).getMemoryTelemetryStats === "function") {
       const t = (session.transcriptionManager as any).getMemoryTelemetryStats();
       vadBufferChunks = t.vadBufferChunks ?? 0;
       vadBufferBytes = t.vadBufferBytes ?? 0;
-      transcriptLanguages = t.transcriptLanguages ?? 0;
-      transcriptSegments = t.transcriptSegments ?? 0;
     }
 
     // Microphone timers
@@ -231,8 +230,6 @@ export class MemoryTelemetryService {
       transcription: {
         vadBufferChunks,
         vadBufferBytes,
-        transcriptLanguages,
-        transcriptSegments,
       },
       microphone: {
         enabled: micEnabled,

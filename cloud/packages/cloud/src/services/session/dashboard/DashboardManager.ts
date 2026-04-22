@@ -847,8 +847,7 @@ export class DashboardManager {
         scope: "session",
         itemCount: this.mainWidgets.size,
         estimatedBytes: sumEstimatedBytes(this.mainWidgets.values(), (widget) => {
-          const contentBytes = typeof widget.content === "string" ? estimateStringBytes(widget.content) : 64;
-          return estimateStringBytes(widget.packageName) + contentBytes + 32;
+          return estimateStringBytes(widget.packageName) + this.estimateContentBytes(widget.content) + 32;
         }),
         metadata: {
           currentMode: this.getCurrentMode(),

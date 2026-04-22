@@ -309,15 +309,20 @@ async function failFastShutdown(signal: string): Promise<void> {
     } catch {
       // swallow per-socket
     }
-    if (session.appWebsockets) {
-      for (const [, appWs] of session.appWebsockets) {
-        try {
-          appWs.close(1001, "Server shutting down");
-          closedApps++;
-        } catch {
-          // swallow per-socket
+    try {
+      const appWsMap = session.appWebsockets;
+      if (appWsMap) {
+        for (const [, appWs] of appWsMap) {
+          try {
+            appWs.close(1001, "Server shutting down");
+            closedApps++;
+          } catch {
+            // swallow per-socket
+          }
         }
       }
+    } catch {
+      // swallow per-session (getter / iteration failure must not abort the loop)
     }
   }
 

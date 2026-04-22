@@ -69,7 +69,7 @@ If `disposedSessionsPendingGC` climbs above 0 and stays there, sessions are leak
 For per-region peak heap/RSS over the last week:
 
 ```bash
-bstack sql "SELECT JSONExtract(raw, 'region', 'Nullable(String)') as region, max(JSONExtract(raw, 'heapUsedMB', 'Nullable(Float64)')) as peak_heap, max(JSONExtract(raw, 'rssMB', 'Nullable(Float64)')) as peak_rss FROM remote(t373499_mentracloud_prod_logs) WHERE dt >= now() - INTERVAL 7 DAY AND JSONExtract(raw, 'feature', 'Nullable(String)') = 'system-vitals' GROUP BY region ORDER BY peak_heap DESC"
+bstack sql "SELECT JSONExtract(raw, 'region', 'Nullable(String)') as region, max(JSONExtract(raw, 'heapUsedMB', 'Nullable(Float64)')) as peak_heap, max(JSONExtract(raw, 'rssMB', 'Nullable(Float64)')) as peak_rss FROM s3Cluster(primary, t373499_mentracloud_prod_s3) WHERE _row_type = 1 AND dt >= now() - INTERVAL 7 DAY AND JSONExtract(raw, 'feature', 'Nullable(String)') = 'system-vitals' GROUP BY region ORDER BY peak_heap DESC"
 ```
 
 For a detailed memory breakdown by owner:

@@ -256,11 +256,20 @@ public class Bridge private constructor() {
 
         /** Send touch/gesture event from glasses - matches iOS implementation */
         @JvmStatic
-        fun sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Long) {
+        @JvmOverloads
+        fun sendTouchEvent(
+                deviceModel: String,
+                gestureName: String,
+                timestamp: Long,
+                source: Int? = null
+        ) {
             val body = HashMap<String, Any>()
             body["device_model"] = deviceModel
             body["gesture_name"] = gestureName
             body["timestamp"] = timestamp
+            if (source != null) {
+                body["source"] = source
+            }
             sendTypedMessage("touch_event", body)
         }
 

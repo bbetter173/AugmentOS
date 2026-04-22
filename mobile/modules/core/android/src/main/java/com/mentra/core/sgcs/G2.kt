@@ -1057,6 +1057,7 @@ class G2 : SGCManager() {
     private var dashboardMenuItems: MutableList<MenuProto.MenuItem> = mutableListOf()
     private var activeMenuAppId: Int? = null
     private var lastClickTimestamp: Long? = null
+    private var lastMenuSelectTimestamp: Long? = null
 
     // Battery state
     private var _batteryLevel: Int = -1
@@ -2262,6 +2263,7 @@ class G2 : SGCManager() {
         menuAppIdToPackageName.clear()
         activeMenuAppId = null
         lastClickTimestamp = null
+        lastMenuSelectTimestamp = null
         GlassesStore.apply("glasses", "connected", false)
         GlassesStore.apply("glasses", "fullyBooted", false)
     }
@@ -2430,6 +2432,8 @@ class G2 : SGCManager() {
     private fun startScan(): Boolean {
         Bridge.log("G2: startScan()")
 
+        stopScan()
+
         val adapter =
                 bluetoothAdapter
                         ?: run {
@@ -2478,6 +2482,12 @@ class G2 : SGCManager() {
 
                             Bridge.log("G2: Discovered: $name (SN: $serialNumber)")
                             deviceNameToSerialNumber[name] = serialNumber
+                            // Stop scanning once we have both
+                            if (leftGatt != null && rightGatt != null) {
+                                stopScan()
+                                Bridge.log("G2: Stopped scan after discovering both devices")
+                                return@post
+                            }
 
                             // Always emit discovered device to frontend
                             emitDiscoveredDevice(serialNumber)
@@ -2504,6 +2514,7 @@ class G2 : SGCManager() {
                             // Stop scanning once we have both
                             if (leftGatt != null && rightGatt != null) {
                                 stopScan()
+                                Bridge.log("G2: Stopped scan after discovering both devices2")
                             }
                         }
                     }
@@ -2815,8 +2826,8 @@ class G2 : SGCManager() {
                         }
 
         if (cmdValue == EvenHubResponseCmd.OS_NOTIFY_EVENT_TO_APP.value) {
+            // Touch/gesture event from glasses
             val devEventData = fields[13] as? ByteArray ?: return
-            // Click deduplication (100ms debounce)
             val timestamp = System.currentTimeMillis()
             val last = lastClickTimestamp
             if (last != null && timestamp - last < 100) {
@@ -2826,27 +2837,37 @@ class G2 : SGCManager() {
             handleTouchEvent(devEventData)
         } else if (cmdValue == 17) {
             // Miniapp selection from glasses dashboard menu (cmdId=17)
+            // Dedup: L and R peripherals both deliver this event, so debounce or
+            // MantleManager toggles start→stop in quick succession.
+            val timestamp = System.currentTimeMillis()
+            val lastMenu = lastMenuSelectTimestamp
+            if (lastMenu != null && timestamp - lastMenu < 500) {
+                return
+            }
+            lastMenuSelectTimestamp = timestamp
             // field 20 contains sub-message with field 1 = itemAppId
             val selectData = fields[20] as? ByteArray ?: return
             val selectReader = ProtobufReader(selectData)
             val selectFields = selectReader.parseFields()
             val appId = selectFields[1] as? Int ?: return
+            // Resolve appId → packageName using our stored mapping
             val packageName = menuAppIdToPackageName[appId]
             if (packageName != null) {
-                Bridge.log("G2: Menu miniapp selected -- $packageName")
+                Bridge.log("G2: Menu miniapp selected — $packageName")
                 Bridge.sendMiniappSelected(packageName)
                 mainHandler.postDelayed({ clearDisplay() }, 500)
             } else {
-                Bridge.log("G2: Menu selection ignored -- placeholder or unknown appId=$appId")
+                Bridge.log("G2: Menu selection ignored — placeholder or unknown appId=$appId")
             }
         } else {
             // Parse error codes from responses
+            // field 4 = StartupResCmd, field 6 = ImgResCmd, field 8 = RebuildResCmd, field 10 = TextResCmd
             for (resField in listOf(4, 6, 8, 10)) {
                 val resData = fields[resField] as? ByteArray ?: continue
                 val resReader = ProtobufReader(resData)
                 val resFields = resReader.parseFields()
                 (resFields[1] as? Int)?.let { errorCode ->
-                    Bridge.log("G2: EvenHub response field$resField errorCode=$errorCode")
+                    // 0=page_success, 4=img_success, 5=img_failed, 6=rebuild_success, 7=rebuild_failed, 8=text_success, 9=text_failed
                     if (errorCode == 9) {
                         Bridge.log(
                                 "G2: WARN: Glasses shutdown our EvenHub page — resetting page state"
@@ -2858,13 +2879,14 @@ class G2 : SGCManager() {
                     }
                 }
                 (resFields[8] as? Int)?.let { errorCode ->
+                    // ImgResCmd has ErrorCode in field 8
                     Bridge.log("G2: EvenHub ImgRes errorCode=$errorCode")
                 }
             }
 
-            // If glasses sent a shutdown, our page is gone — reset state
+            // If glasses sent a shutdown (cmd=9/10), our page is gone — reset state
             if (cmdValue == 9 || cmdValue == 10) {
-                Bridge.log("G2: Glasses shutdown our EvenHub page — resetting page state")
+                Bridge.log("G2: ERROR: Glasses shutdown our EvenHub page — resetting page state")
                 startupPageCreated = false
                 pageCreated = false
                 pageHasTextContainer = false
@@ -2873,46 +2895,83 @@ class G2 : SGCManager() {
         }
     }
 
+    private fun setFullyConnected() {
+        val isFullyConnected = GlassesStore.get("glasses", "connected") as? Boolean ?: false
+        val isFullyBooted = GlassesStore.get("glasses", "fullyBooted") as? Boolean ?: false
+        if (!isFullyConnected) {
+            GlassesStore.apply("glasses", "connected", true)
+        }
+        if (!isFullyBooted) {
+            GlassesStore.apply("glasses", "fullyBooted", true)
+        }
+    }
+
+    private fun setControllerFullyConnected() {
+        val isControllerConnected =
+                GlassesStore.get("glasses", "controllerConnected") as? Boolean ?: false
+        val isControllerFullyBooted =
+                GlassesStore.get("glasses", "controllerFullyBooted") as? Boolean ?: false
+        if (!isControllerConnected) {
+            GlassesStore.apply("glasses", "controllerConnected", true)
+        }
+        if (!isControllerFullyBooted) {
+            GlassesStore.apply("glasses", "controllerFullyBooted", true)
+        }
+    }
+
     private fun handleTouchEvent(devEventData: ByteArray) {
+        // Parse SendDeviceEvent: field 1=ListEvent, field 2=TextEvent, field 3=SysEvent
         val reader = ProtobufReader(devEventData)
         val fields = reader.parseFields()
+
         val timestamp = System.currentTimeMillis()
+
+        // if we are receiving touch events we are fully booted:
+        setFullyConnected()
 
         // SysEvent (field 3) - system-level gestures
         (fields[3] as? ByteArray)?.let { sysData ->
             val sysReader = ProtobufReader(sysData)
             val sysFields = sysReader.parseFields()
 
-            var eventType: OsEventType? = null
-            // Normal event type (field 1)
-            (sysFields[1] as? Int)?.let { normalType ->
-                eventType = OsEventType.fromInt(normalType)
-            }
-            // Fallback: clickType (field 2) — values 2,3 map to CLICK
+            val normalType = sysFields[1] as? Int
+            val eventType: OsEventType? =
+                    if (normalType != null) OsEventType.fromInt(normalType) else OsEventType.CLICK
+            val eventSource: Int? = sysFields[2] as? Int
+
             if (eventType == null) {
-                (sysFields[2] as? Int)?.let { clickType ->
-                    if (clickType == 2 || clickType == 3) {
-                        eventType = OsEventType.CLICK
-                    }
-                }
+                Bridge.log("G2: unknown event type: $sysFields")
+                return@let
             }
 
-            val et = eventType ?: return@let
-            val gestureName = mapEventTypeToGesture(et) ?: return@let
+            val gestureName = mapEventTypeToGesture(eventType)
+            if (gestureName == null) {
+                Bridge.log("G2: no gesture mapping for $eventType $sysFields")
+                return@let
+            }
 
-            Bridge.sendTouchEvent(DeviceTypes.G2, gestureName, timestamp)
+            Bridge.sendTouchEvent(DeviceTypes.G2, gestureName, timestamp, eventSource)
+            Bridge.log("G2: SysEvent → $eventType $eventSource")
 
-            // Double-tap: toggle dashboard (headUp state)
-            if (et == OsEventType.DOUBLE_CLICK) {
+            if (eventSource == 1) {
+                // controller must be connected and fully booted:
+                setControllerFullyConnected()
+            }
+
+            if (eventType == OsEventType.DOUBLE_CLICK) {
+                // trigger dashboard:
                 val isHeadUp = GlassesStore.get("glasses", "headUp") as? Boolean ?: false
+                // toggle head up:
                 GlassesStore.apply("glasses", "headUp", !isHeadUp)
                 if (isHeadUp) {
+                    // clear the display after a delay:
                     mainHandler.postDelayed({ clearDisplay() }, 500)
                 }
             }
 
-            // System exit: glasses killed our EvenHub page — reset page state
-            if (et == OsEventType.SYSTEM_EXIT || et == OsEventType.ABNORMAL_EXIT) {
+            // System exit: glasses killed our EvenHub page (user opened menu or another app)
+            // Reset page state and re-create the page to reclaim EvenHub focus
+            if (eventType == OsEventType.SYSTEM_EXIT || eventType == OsEventType.ABNORMAL_EXIT) {
                 startupPageCreated = false
                 pageCreated = false
                 pageHasTextContainer = false
@@ -2928,11 +2987,17 @@ class G2 : SGCManager() {
             val textFields = textReader.parseFields()
             val eventTypeRaw = textFields[3] as? Int ?: return@let
             val eventType = OsEventType.fromInt(eventTypeRaw) ?: return@let
-            val gestureName = mapEventTypeToGesture(eventType) ?: return@let
+            val gestureName = mapEventTypeToGesture(eventType)
+            if (gestureName == null) {
+                Bridge.log("G2: no gesture mapping for $eventType $textFields")
+                return@let
+            }
             Bridge.sendTouchEvent(DeviceTypes.G2, gestureName, timestamp)
             Bridge.log("G2: TextEvent → $gestureName")
             return
         }
+
+        // ListEvent (field 1) - interaction with list container (not currently handled)
     }
 
     private fun mapEventTypeToGesture(eventType: OsEventType): String? {

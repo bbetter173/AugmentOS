@@ -15,25 +15,31 @@ const migrations: Migration[] = [
     version: 1,
     run: async () => {
       // migrates from 0 → 1 turns on the new app switcher ui!
-      useSettingsStore.getState().setSetting("app_switcher_ui", true)
+      // useSettingsStore.getState().setSetting("app_switcher_ui", true)
     },
   },
   {
     version: 2,
     run: async () => {
       // migrates from 1 → 2
-      const dashboardDepth = useSettingsStore.getState().getSetting(SETTINGS.dashboard_depth.key)
-      if (dashboardDepth > 3) {
-        useSettingsStore.getState().setSetting("dashboard_depth", 3)
+      const dashboardDepthRes = storage.load<number>(SETTINGS.dashboard_depth.key)
+      if (dashboardDepthRes.is_error()) {
+        return
+      }
+      if (Number(dashboardDepthRes.value) > 3) {
+        const res = await useSettingsStore.getState().setSetting(SETTINGS.dashboard_depth.key, 3, false)
+        if (res.is_error()) {
+          throw res.error
+        }
       }
     },
   },
-  {
-    version: 3,
-    run: async () => {
-      // migrates from 2 → 3
-    },
-  },
+  // {
+  //   version: 3,
+  //   run: async () => {
+  //     // migrates from 2 → 3
+  //   },
+  // },
 ]
 
 const migration_version_key = "migration_version"

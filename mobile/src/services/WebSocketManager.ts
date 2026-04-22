@@ -50,6 +50,17 @@ class WebSocketManager extends EventEmitter {
   private awaitingPong: boolean = false
   private pingInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0
 
+  // Serializes concurrent connect() calls so callers cannot race.
+  // Three paths can trigger connect(): backend_url subscription,
+  // NO_ACTIVE_SESSION event, and the reconnect interval's actuallyReconnect.
+  // Without serialization, if two fire while detachAndCloseSocket() is
+  // awaiting the 500ms close, the second caller sees this.webSocket === null,
+  // proceeds, and assigns its own new WebSocket; the first caller then
+  // resumes after the close-wait and overwrites this.webSocket, orphaning
+  // the second WebSocket on the server (the exact overlap this PR is
+  // supposed to prevent). The in-flight promise ensures callers serialize.
+  private connectInFlight: Promise<void> | null = null
+
   // Zustand subscription — fires when Zustand backend_url changes so we can
   // proactively tear down the old WS and reconnect to the new backend.
   // Without this, a Zustand update without a corresponding ws.connect() call
@@ -221,6 +232,34 @@ class WebSocketManager extends EventEmitter {
    * the current setting, we log a warning and still use the setting.
    */
   public async connect(_urlDeprecated: string | null | undefined, coreToken: string): Promise<void> {
+    // Serialize. If a previous connect() is still running (e.g. awaiting
+    // detachAndCloseSocket()'s 500ms close timer), wait for it to finish
+    // before starting this one. Otherwise two in-flight connects can race
+    // and the second can overwrite this.webSocket, orphaning the first
+    // socket server-side.
+    if (this.connectInFlight) {
+      try {
+        await this.connectInFlight
+      } catch {
+        // Prior connect failed; proceed with this attempt.
+      }
+    }
+
+    const attempt = this.performConnect(_urlDeprecated, coreToken)
+    this.connectInFlight = attempt
+    try {
+      await attempt
+    } finally {
+      // Only clear if this attempt is still the registered one. A later
+      // connect() may have chained after us and replaced connectInFlight;
+      // don't null theirs.
+      if (this.connectInFlight === attempt) {
+        this.connectInFlight = null
+      }
+    }
+  }
+
+  private async performConnect(_urlDeprecated: string | null | undefined, coreToken: string): Promise<void> {
     this.manuallyDisconnected = false
     this.coreToken = coreToken
 
@@ -503,10 +542,13 @@ class WebSocketManager extends EventEmitter {
 
   public async cleanup(): Promise<void> {
     console.log("WSM: cleanup()")
-    if (this.backendUrlUnsub) {
-      this.backendUrlUnsub()
-      this.backendUrlUnsub = null
-    }
+    // Note: we intentionally do NOT unsubscribe backendUrlUnsub here.
+    // WSM is a process-wide singleton and the constructor subscription is
+    // never recreated. Any later ws.cleanup() path (e.g. the dev "Clear
+    // Websocket" flow or mantle.cleanup()) would permanently disable
+    // backend_url reactivity for the rest of the session and let REST and
+    // WS diverge again (the bug this PR is fixing). The subscription is
+    // cheap; let it live for the process.
     await this.disconnect()
     this.webSocket = null
     const store = useConnectionStore.getState()

@@ -1,8 +1,8 @@
-# Design: Mobile WebSocket Reconnect Storm — Implementation
+# Design: Mobile WebSocket Reconnect Storm (Implementation)
 
 ## Overview
 
-**What this doc covers:** File-by-file implementation plan for the root-cause fix in [spec.md](./spec.md). The core change is removing `WebSocketManager.this.url` as a cached variable and always reading the WS URL freshly from the settings store when reconnecting. Plus two small defense-in-depth changes.
+**What this doc covers:** File-by-file implementation plan for the fix in [spec.md](./spec.md). Two coordinated changes to WebSocketManager (always-derive URL, plus Zustand subscription to backend_url) and two defense-in-depth changes (await close event, gate applet refresh on sustained disconnect).
 
 **What you need to know first:** [spike.md](./spike.md), [spec.md](./spec.md).
 
@@ -12,7 +12,7 @@
 
 ## Branch Plan
 
-One branch, one PR. All three changes land together — they're tightly related, small individually, and share testing.
+One branch, one PR. All four changes land together: they are tightly related, small individually, and share testing.
 
 Branch: `mobile/ws-reconnect-storm-fix` off `origin/dev`. Already created.
 
@@ -20,13 +20,15 @@ Branch: `mobile/ws-reconnect-storm-fix` off `origin/dev`. Already created.
 
 ## Changes Summary
 
-| Component             | File                                              | What changes                                                  |
-| --------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
-| WSM always-derive URL | `mobile/src/services/WebSocketManager.ts`         | Remove `this.url`, derive URL fresh on reconnect              |
-| WSM await close       | `mobile/src/services/WebSocketManager.ts`         | `detachAndCloseSocket` awaits close event with 500 ms timeout |
-| Applet refresh gate   | `mobile/src/components/error/WebsocketStatus.tsx` | Only refresh on transition from sustained-disconnected        |
+| Component                    | File                                                                                            | What changes                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| WSM always-derive URL        | `mobile/src/services/WebSocketManager.ts`                                                       | Remove `this.url`, derive URL fresh from the settings store on every connect/reconnect                |
+| WSM backend_url subscription | `mobile/src/services/WebSocketManager.ts`                                                       | Subscribe to Zustand `backend_url` selector; reconnect immediately on change                          |
+| WSM await close              | `mobile/src/services/WebSocketManager.ts`                                                       | `detachAndCloseSocket` awaits the close event with a 500 ms timeout                                   |
+| Async plumbing               | `mobile/src/services/SocketComms.ts`, `MantleManager.ts`, `app/miniapps/settings/developer.tsx` | `cleanup`, `restartConnection`, `connectWebsocket` callers updated to await the new async WSM methods |
+| Applet refresh gate          | `mobile/src/components/error/WebsocketStatus.tsx`                                               | Only refresh on transition from sustained-disconnected                                                |
 
-All three in the same PR. Total diff estimate: ~80 lines.
+All in the same PR. Actual diff: about 300 lines added, 140 removed, across 5 files.
 
 ---
 
@@ -40,13 +42,13 @@ All three in the same PR. Total diff estimate: ~80 lines.
 
 ```typescript
 class WebSocketManager extends EventEmitter {
-  private static instance: WebSocketManager | null = null;
-  private webSocket: WebSocket | null = null;
-  private previousStatus: WebSocketStatus = WebSocketStatus.DISCONNECTED;
-  private url: string | null = null;
-  private coreToken: string | null = null;
-  private reconnectInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0;
-  private manuallyDisconnected: boolean = false;
+  private static instance: WebSocketManager | null = null
+  private webSocket: WebSocket | null = null
+  private previousStatus: WebSocketStatus = WebSocketStatus.DISCONNECTED
+  private url: string | null = null
+  private coreToken: string | null = null
+  private reconnectInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0
+  private manuallyDisconnected: boolean = false
   // ...
 }
 ```
@@ -55,12 +57,12 @@ class WebSocketManager extends EventEmitter {
 
 ```typescript
 class WebSocketManager extends EventEmitter {
-  private static instance: WebSocketManager | null = null;
-  private webSocket: WebSocket | null = null;
-  private previousStatus: WebSocketStatus = WebSocketStatus.DISCONNECTED;
-  private coreToken: string | null = null;
-  private reconnectInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0;
-  private manuallyDisconnected: boolean = false;
+  private static instance: WebSocketManager | null = null
+  private webSocket: WebSocket | null = null
+  private previousStatus: WebSocketStatus = WebSocketStatus.DISCONNECTED
+  private coreToken: string | null = null
+  private reconnectInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0
+  private manuallyDisconnected: boolean = false
   // ...
 }
 ```
@@ -241,7 +243,94 @@ private handleNoActiveSession = () => {
 
 Note: `reconnectNow` previously called `this.detachAndCloseSocket()` and `this.updateStatus(DISCONNECTED)` before calling `connect()`. That's now redundant because `connect()` does the same tear-down at its start. Remove the duplicate calls.
 
-### Change D2: `detachAndCloseSocket` awaits the close event
+### Change D2: Subscribe to backend_url Zustand changes
+
+**File:** `mobile/src/services/WebSocketManager.ts`
+
+**Rationale:** The always-derive fix (D1) alone closes the root cause but leaves a user-visible gap. If the user changes `backend_url` in dev settings without triggering any other reconnect signal (no 503, no server close, no ping timeout), the WS keeps running on the old backend because nothing tells it to reconnect. On a healthy connection that could be minutes. Users expect the switch to happen immediately when they tap Save.
+
+**New field:**
+
+```typescript
+// Zustand subscription: fires when backend_url changes so we can
+// proactively tear down the old WS and reconnect to the new backend.
+// Without this, a Zustand update without a corresponding ws.connect()
+// call would leave WSM on the old URL until the next reconnect trigger
+// (ping timeout, server close, NO_ACTIVE_SESSION).
+private backendUrlUnsub: (() => void) | null = null
+```
+
+**Subscription installed in the constructor:**
+
+```typescript
+private constructor() {
+  super()
+  GlobalEventEmitter.on("NO_ACTIVE_SESSION", this.handleNoActiveSession)
+
+  this.backendUrlUnsub = useSettingsStore.subscribe(
+    (state) => state.getSetting(SETTINGS.backend_url.key) as string | undefined,
+    (newBackendUrl, prevBackendUrl) => {
+      if (!newBackendUrl || newBackendUrl === prevBackendUrl) return
+      this.handleBackendUrlChanged(newBackendUrl, prevBackendUrl)
+    },
+  )
+}
+```
+
+This uses the `subscribeWithSelector` middleware already enabled on `useSettingsStore` (see `mobile/src/stores/settings.ts`). The selector returns the current `backend_url` value; the handler fires only when that value actually changes.
+
+**Handler:**
+
+```typescript
+private handleBackendUrlChanged(newBackendUrl: string, prevBackendUrl: string | undefined): void {
+  const currentStoreUrl = useConnectionStore.getState().url
+  console.log(
+    `WSM: backend_url changed ${prevBackendUrl ?? "(unset)"} -> ${newBackendUrl} (WS currently pointed at ${currentStoreUrl ?? "(none)"})`,
+  )
+
+  if (this.manuallyDisconnected) {
+    // If the caller explicitly disconnected, trust that. The next
+    // connect() call will read the fresh URL.
+    return
+  }
+
+  if (!this.coreToken) {
+    // No auth yet. Nothing to reconnect with. The next connect() call
+    // from mantle.init() will pick up the new URL.
+    return
+  }
+
+  void this.reconnectNow(`backend_url changed to ${newBackendUrl}`)
+}
+```
+
+Three guards, each preventing a real bug:
+
+- `manuallyDisconnected`: the caller is already orchestrating a disconnect (e.g., during `mantle.cleanup()` mid-switch). If we also kick a reconnect here, we race with them.
+- `coreToken` null: we are pre-auth. `reconnectNow` would fall through to `startReconnectInterval()` which would later try to call `connect()` with no token. Cleaner to let `mantle.init()` drive the first connect.
+- Neither set: call `reconnectNow` which routes through the standard teardown-then-connect path. `connect()` reads the URL fresh from the settings store, so we pick up the new value automatically.
+
+**Cleanup in `cleanup()`:**
+
+```typescript
+public async cleanup(): Promise<void> {
+  console.log("WSM: cleanup()")
+  if (this.backendUrlUnsub) {
+    this.backendUrlUnsub()
+    this.backendUrlUnsub = null
+  }
+  await this.disconnect()
+  this.webSocket = null
+  const store = useConnectionStore.getState()
+  store.reset()
+}
+```
+
+Net effect: any `setSetting(backend_url, newUrl)` call triggers an immediate reconnect, with a debuggable log line showing the old vs new URL.
+
+---
+
+### Change D3: `detachAndCloseSocket` awaits the close event
 
 **File:** `mobile/src/services/WebSocketManager.ts`
 
@@ -275,7 +364,7 @@ private async detachAndCloseSocket(): Promise<void> {
   // Install a one-shot close listener to await the clean TCP close before
   // letting the caller proceed. Without this, a subsequent connect() can
   // create a new WebSocket while the old one is still finishing its close
-  // handshake, producing server-side "stale — newer WebSocket already
+  // handshake, producing server-side "stale, newer WebSocket already
   // active" log lines. See: cloud/issues/101-mobile-ws-reconnect-storm/
   const closePromise = new Promise<void>((resolve) => {
     sock.onclose = () => resolve()
@@ -301,7 +390,7 @@ private async detachAndCloseSocket(): Promise<void> {
 
 The key change: we keep a one-shot `onclose` handler on the old socket just long enough to resolve the wait promise, then null it. If the close takes longer than `CLOSE_WAIT_TIMEOUT_MS`, we proceed anyway; the native bridge will eventually close the socket on its own schedule.
 
-### Change D3: `disconnect()` becomes async
+### Change D4: `disconnect()` becomes async
 
 **Current:**
 
@@ -333,7 +422,7 @@ public async disconnect(): Promise<void> {
 }
 ```
 
-### Change D4: Callers adapt to the new async signatures
+### Change D5: Callers adapt to the new async signatures
 
 **Files:**
 
@@ -391,7 +480,7 @@ public async restartConnection() {
 
 ### Why we ship both "always-derive" AND "subscription"
 
-Initial design was always-derive only. Testing on-device revealed the UX gap: when the user hits Save & Test URL in dev settings, `setSetting(backend_url, newUrl)` updates Zustand instantly, axios's next REST call goes to the new backend — but the WS stays on the old backend until something independently triggers a reconnect. For a healthy connection with no 503 pressure, that could be minutes (on the next ping timeout or server-side close). Users expect an immediate switch.
+Initial design was always-derive only. Testing on-device revealed the UX gap: when the user hits Save & Test URL in dev settings, `setSetting(backend_url, newUrl)` updates Zustand instantly, axios's next REST call goes to the new backend. But the WS stays on the old backend until something independently triggers a reconnect. For a healthy connection with no 503 pressure, that could be minutes (on the next ping timeout or server-side close). Users expect an immediate switch.
 
 Subscription layer handles that. WSM subscribes to `useSettingsStore`'s `backend_url` selector. On change, it calls `reconnectNow()` which tears down and reconnects against the fresh URL.
 
@@ -409,9 +498,9 @@ private handleBackendUrlChanged(newBackendUrl: string, prevBackendUrl: string | 
 
 Three guards:
 
-- `manuallyDisconnected` — the caller explicitly disconnected (e.g. during `mantle.cleanup()` mid-switch); honor that and let the next `connect()` pick up the URL.
-- `coreToken` missing — we are pre-auth; no token to reconnect with. First `connect()` from `mantle.init()` will use the current URL.
-- Otherwise — call `reconnectNow()` which goes through the standard teardown-then-connect path. `connect()` reads from the settings store inside, so whatever the current URL is at the moment of the new WS, that's what gets used.
+- `manuallyDisconnected` , the caller explicitly disconnected (e.g. during `mantle.cleanup()` mid-switch); honor that and let the next `connect()` pick up the URL.
+- `coreToken` missing: we are pre-auth; no token to reconnect with. First `connect()` from `mantle.init()` will use the current URL.
+- Otherwise: call `reconnectNow()` which goes through the standard teardown-then-connect path. `connect()` reads from the settings store inside, so whatever the current URL is at the moment of the new WS, that's what gets used.
 
 Cleanup unsubscribes in `cleanup()`.
 
@@ -419,7 +508,7 @@ Cleanup unsubscribes in `cleanup()`.
 
 ## WebsocketStatus Changes
 
-### Change D5: `refreshApplets()` only on transition from sustained-disconnected
+### Change D6: `refreshApplets()` only on transition from sustained-disconnected
 
 **File:** `mobile/src/components/error/WebsocketStatus.tsx`
 
@@ -427,41 +516,41 @@ Cleanup unsubscribes in `cleanup()`.
 
 ```typescript
 useEffect(() => {
-  const prevStatus = prevConnectionStatusRef.current;
-  prevConnectionStatusRef.current = connectionStatus;
+  const prevStatus = prevConnectionStatusRef.current
+  prevConnectionStatusRef.current = connectionStatus
 
-  console.log(`WSM: useEffect: connectionStatus: ${connectionStatus}`);
+  console.log(`WSM: useEffect: connectionStatus: ${connectionStatus}`)
 
   if (connectionStatus === WebSocketStatus.CONNECTED) {
     if (disconnectionTimerRef.current) {
-      BackgroundTimer.clearTimeout(disconnectionTimerRef.current);
-      disconnectionTimerRef.current = null;
+      BackgroundTimer.clearTimeout(disconnectionTimerRef.current)
+      disconnectionTimerRef.current = null
     }
-    setDisplayStatus("connected");
-    refreshApplets();
-    return;
+    setDisplayStatus("connected")
+    refreshApplets()
+    return
   }
 
   if (prevStatus === WebSocketStatus.CONNECTED) {
-    setDisplayStatus("warning");
+    setDisplayStatus("warning")
     if (disconnectionTimerRef.current) {
-      BackgroundTimer.clearTimeout(disconnectionTimerRef.current);
-      disconnectionTimerRef.current = null;
+      BackgroundTimer.clearTimeout(disconnectionTimerRef.current)
+      disconnectionTimerRef.current = null
     }
     disconnectionTimerRef.current = BackgroundTimer.setTimeout(() => {
-      setDisplayStatus("disconnected");
-      refreshApplets();
-    }, DISCONNECTION_DELAY);
-    return;
+      setDisplayStatus("disconnected")
+      refreshApplets()
+    }, DISCONNECTION_DELAY)
+    return
   }
 
   return () => {
     if (disconnectionTimerRef.current) {
-      BackgroundTimer.clearTimeout(disconnectionTimerRef.current);
-      disconnectionTimerRef.current = null;
+      BackgroundTimer.clearTimeout(disconnectionTimerRef.current)
+      disconnectionTimerRef.current = null
     }
-  };
-}, [connectionStatus]);
+  }
+}, [connectionStatus])
 ```
 
 **New:**
@@ -472,53 +561,53 @@ useEffect(() => {
 // DISCONNECTION_DELAY timer below. Cleared on next CONNECTED after the
 // refresh fires. Under the reconnect storm (issue 101), a sub-second
 // CONNECTED → DISCONNECTED → CONNECTED flap does not mean we lost applet
-// data — only a real "offline for N seconds" event does.
-const wasSustainedDisconnectedRef = useRef(false);
+// data. Only a real "offline for N seconds" event does.
+const wasSustainedDisconnectedRef = useRef(false)
 
 useEffect(() => {
-  const prevStatus = prevConnectionStatusRef.current;
-  prevConnectionStatusRef.current = connectionStatus;
+  const prevStatus = prevConnectionStatusRef.current
+  prevConnectionStatusRef.current = connectionStatus
 
-  console.log(`WSM: useEffect: connectionStatus: ${connectionStatus}`);
+  console.log(`WSM: useEffect: connectionStatus: ${connectionStatus}`)
 
   if (connectionStatus === WebSocketStatus.CONNECTED) {
     if (disconnectionTimerRef.current) {
-      BackgroundTimer.clearTimeout(disconnectionTimerRef.current);
-      disconnectionTimerRef.current = null;
+      BackgroundTimer.clearTimeout(disconnectionTimerRef.current)
+      disconnectionTimerRef.current = null
     }
-    setDisplayStatus("connected");
+    setDisplayStatus("connected")
 
-    // Only refresh applets if we were "really" disconnected — i.e. for at
-    // least DISCONNECTION_DELAY (3s). A brief flap during a reconnect storm
+    // Only refresh applets if we were "really" disconnected,
+    // that is, for at least DISCONNECTION_DELAY (3s). A brief flap during a reconnect storm
     // is not evidence we lost applet state.
     if (wasSustainedDisconnectedRef.current) {
-      wasSustainedDisconnectedRef.current = false;
-      refreshApplets();
+      wasSustainedDisconnectedRef.current = false
+      refreshApplets()
     }
-    return;
+    return
   }
 
   if (prevStatus === WebSocketStatus.CONNECTED) {
-    setDisplayStatus("warning");
+    setDisplayStatus("warning")
     if (disconnectionTimerRef.current) {
-      BackgroundTimer.clearTimeout(disconnectionTimerRef.current);
-      disconnectionTimerRef.current = null;
+      BackgroundTimer.clearTimeout(disconnectionTimerRef.current)
+      disconnectionTimerRef.current = null
     }
     disconnectionTimerRef.current = BackgroundTimer.setTimeout(() => {
-      setDisplayStatus("disconnected");
-      wasSustainedDisconnectedRef.current = true;
-      refreshApplets();
-    }, DISCONNECTION_DELAY);
-    return;
+      setDisplayStatus("disconnected")
+      wasSustainedDisconnectedRef.current = true
+      refreshApplets()
+    }, DISCONNECTION_DELAY)
+    return
   }
 
   return () => {
     if (disconnectionTimerRef.current) {
-      BackgroundTimer.clearTimeout(disconnectionTimerRef.current);
-      disconnectionTimerRef.current = null;
+      BackgroundTimer.clearTimeout(disconnectionTimerRef.current)
+      disconnectionTimerRef.current = null
     }
-  };
-}, [connectionStatus]);
+  }
+}, [connectionStatus])
 ```
 
 The refresh still fires in two places:
@@ -526,7 +615,7 @@ The refresh still fires in two places:
 - After 3 seconds of sustained DISCONNECTED (when the user is "really" offline and we want them to see fresh data when they come back)
 - On the next CONNECTED if we previously observed a sustained-disconnected state
 
-A transient flap (CONNECTED → DISCONNECTED → CONNECTED within 3s) triggers neither refresh. This is not a debounce or rate-limit — it's correctness. A brief flap doesn't invalidate our applet state.
+A transient flap (CONNECTED → DISCONNECTED → CONNECTED within 3s) triggers neither refresh. This is not a debounce or rate-limit. It is correctness. A brief flap doesn't invalidate our applet state.
 
 ---
 
@@ -535,7 +624,7 @@ A transient flap (CONNECTED → DISCONNECTED → CONNECTED within 3s) triggers n
 ### Added to `WebSocketManager.ts`:
 
 ```typescript
-import { useSettingsStore, SETTINGS } from "@/stores/settings";
+import {useSettingsStore, SETTINGS} from "@/stores/settings"
 ```
 
 Already imported in `SocketComms.ts`; adding here to access `getWsUrl()` and the settings key.
@@ -583,36 +672,37 @@ No new imports. Uses the existing `wasSustainedDisconnectedRef`.
 3. **Cherry-pick to `v2.10.1`** hotfix branch. Release to stores.
 4. **Observe production** for 1 week. Confirm no reports of "apps broken, can't recover without force-close." Confirm the WS-opens-per-minute metric for known reproducers drops to baseline.
 5. **Full release as `v2.11`** with the fix plus any other accumulated dev changes.
-6. **Backport to `main`** for eventual merge. Low urgency because main's retry logic is different — but the stale-URL bug exists on main too and should be fixed there.
+6. **Backport to `main`** for eventual merge. Low urgency because main's retry logic is different (the stale-URL bug exists on main too and should be fixed there).
 
 ---
 
 ## Decision Log
 
-| Decision                                                               | Alternatives considered                              | Why we chose this                                                                                                                                                                                                                        |
-| ---------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Remove `this.url` (always-derive)                                      | Reactive subscription to settings store              | Simpler. No listener to clean up. No edge cases around subscription firing during cleanup. Strictly less state to reason about.                                                                                                          |
-| Keep `this.coreToken` cached                                           | Also derive fresh                                    | Token doesn't rotate mid-session; no observed bug pattern. Reducing scope to what's actually broken. Flag for follow-up audit.                                                                                                           |
-| `connect()` signature drops `url` argument                             | Keep `url` arg, default to `getWsUrl()` if undefined | Current callers all pass the URL as a prop of "give me this URL specifically." But the bug is that the URL should never be sticky. Dropping the arg forces callers to go through the settings store, which is the right source of truth. |
-| `detachAndCloseSocket` awaits close via one-shot listener              | Poll `readyState`; use raw native bridge             | Listener is the correct abstraction. `readyState` polling is hacky. Native bridge is over-engineering.                                                                                                                                   |
-| 500 ms timeout on close wait                                           | 100 ms, 2 s, no timeout                              | 500 ms covers typical TCP close latency (50–200 ms) with margin. Short enough to not noticeably delay legitimate reconnects. No timeout risks hanging on a dead socket.                                                                  |
-| `WebsocketStatus` uses a ref to track sustained-disconnected           | New Zustand state                                    | Local concern to this component. No other component cares about this flag. Ref is the simplest expression.                                                                                                                               |
-| Leave `refreshApplets` call inside the 3s disconnect-then-refresh path | Always refresh on CONNECTED + 3s debounce            | The 3s disconnect threshold already encodes the "were we really offline" check. Don't duplicate it.                                                                                                                                      |
+| Decision                                                               | Alternatives considered                                                  | Why we chose this                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ship always-derive AND a Zustand subscription                          | Always-derive only                                                       | On-device testing showed users expect the WS to switch immediately when they change backend URL in dev settings. Without the subscription, the switch is delayed until the next reconnect trigger. Adding the subscription is ~25 lines. Strictly less total cost than shipping always-derive alone and iterating. |
+| Keep `connect()`'s `url` parameter for backward compatibility          | Drop it and force `SocketComms.connectWebsocket` to change its signature | Keeping the parameter and ignoring it inside WSM (with a warning log on mismatch) is one line of code less to ship. Future cleanup can drop it in a separate PR. Earlier version of this doc said to drop it; changed after testing showed no caller benefits from the change.                                     |
+| Keep `this.coreToken` cached                                           | Also derive fresh                                                        | Token does not rotate mid-session. No observed bug pattern. Scope this PR to the one cached field that actually caused the storm.                                                                                                                                                                                  |
+| `detachAndCloseSocket` awaits close via one-shot listener              | Poll `readyState`; use native bridge                                     | Listener is the correct abstraction. Polling is hacky. Native bridge is over-engineering.                                                                                                                                                                                                                          |
+| 500 ms timeout on close wait                                           | 100 ms, 2 s, no timeout                                                  | 500 ms covers typical TCP close latency (50 to 200 ms) with margin. Short enough not to noticeably delay legitimate reconnects. No timeout would risk hanging on a dead socket.                                                                                                                                    |
+| `WebsocketStatus` uses a React ref to track sustained-disconnected     | New Zustand state                                                        | Local concern to this one component. No other component cares. Ref is the simplest expression.                                                                                                                                                                                                                     |
+| Leave `refreshApplets` call inside the 3s disconnect-then-refresh path | Always refresh on CONNECTED with a 3s debounce                           | The 3s disconnect threshold already encodes the "were we really offline" check. Don't duplicate it.                                                                                                                                                                                                                |
+| Subscription handler guards on `manuallyDisconnected` and `coreToken`  | Always reconnect on any `backend_url` change                             | Without the guards the subscription fights with mid-cleanup flows and fires pointless reconnects pre-auth. Guards make the behavior predictable and debuggable.                                                                                                                                                    |
 
 ---
 
 ## Risks And Open Questions
 
-**Risk: an intermediate caller could pass a URL that doesn't match the settings store.** `socketComms.connectWebsocket()` is the only caller of `ws.connect`, and it now reads from settings itself (passing just the token). If someone adds another caller that passes a URL argument to an older signature, TypeScript will flag the signature change. Low risk.
+**Risk: an intermediate caller could pass a URL that disagrees with the settings store.** The shipped code logs a warning and proceeds with the settings-store value. That's safer than honoring the caller's argument, because the caller might be stale. Low risk today (only one caller: `SocketComms.connectWebsocket`).
 
-**Risk: race between a Zustand `backend_url` write and a pending WS reconnect.** If `backend_url` changes at the exact moment `actuallyReconnect()` is running, the reconnect reads the new URL — good, that's what we want. But if `actuallyReconnect` is mid-flight and then finishes CONNECTED on the old URL before the change is visible, the next REST call will 503 against the new URL and trigger another reconnect cycle. That's one extra cycle max, not a storm. Acceptable.
+**Risk: race between a `backend_url` write and a pending WS reconnect.** If `backend_url` changes at the exact moment `actuallyReconnect()` is running, the reconnect reads the new URL inside `connect()`. That is the desired outcome. If `actuallyReconnect` finishes CONNECTED on the old URL before the Zustand change is visible, the subscription (D2) fires next and triggers a fresh reconnect. One extra cycle maximum, not a storm. Acceptable.
 
-**Open question: should `connect()` read the URL inside the new `installWebSocketHandlers()` helper, or in the body?** Current design reads in the body. Leaves room for someone to later pass a URL override if needed. Keeping the read in the body is fine.
+**Risk: subscription fires during `cleanup()`.** The unsubscribe in `cleanup()` runs before `disconnect()` so the handler cannot fire while we are tearing down. Also guarded by `manuallyDisconnected` check inside the handler.
 
-**Open question: do we want a log line when the URL derived by `connect()` differs from the URL of the currently-open socket?** Useful observability signal: "the WSM just noticed a URL change." Cheap to add. Propose yes, add as a single `logger.info`.
+**Observability: log line on backend_url change.** Shipped. The handler logs the old and new URL plus the currently-connected URL. See sample log sequence in spec.md "Root cause acceptance".
 
 ---
 
 ## Summary
 
-One field removed, two helpers refactored, one component useEffect tightened up. ~80 lines changed. No new dependencies, no new state machines, no new rate limiters or debouncers. Addresses the actual root cause.
+One cached field removed (`this.url`), one Zustand subscription added, two helpers made async, one React component useEffect tightened up. About 300 lines added and 140 removed across 5 files. No new dependencies, no new state machines, no rate limiters, no debouncers. Addresses the actual root cause and closes the dev-settings UX gap that always-derive alone left open.

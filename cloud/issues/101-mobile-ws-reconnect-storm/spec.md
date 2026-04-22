@@ -33,12 +33,13 @@
 - `connect(url, coreToken)` may still exist as a public API to allow explicit callers (e.g. `socketComms.connectWebsocket()` during `mantle.init()`) to pass a URL — but WSM itself does not depend on the argument persisting across calls.
 - When the URL returned by `getWsUrl()` differs from the URL WSM is currently connected against, WSM cleanly disconnects the old socket and connects to the new one. This makes `backend_url` Zustand changes transparent.
 
-Implementation options — either acceptable, picking one in the design:
+Implementation — ship both layers:
 
-- **Option A — reactive subscription.** WSM subscribes to `useSettingsStore` on construction. When `backend_url` changes, WSM disconnects (with a one-shot flag to suppress auto-reconnect during the transition) and reconnects to the new URL.
-- **Option B — always-derive on reconnect.** Remove `this.url`. `reconnectNow()` and the `onclose` reconnect path always call `useSettingsStore.getState().getWsUrl()`. `connect()`'s signature is preserved for backwards compatibility but internally defaults to `getWsUrl()` if not provided.
+- **Always-derive on reconnect** (the base fix). Remove `this.url`. `reconnectNow()`, `actuallyReconnect()`, and any auto-reconnect path read fresh from `useSettingsStore.getState().getWsUrl()` every call. `connect()` keeps its signature (for now) but the URL arg is ignored — the settings store is the single source of truth. This alone fixes the root cause: it becomes structurally impossible for WSM to reconnect to a stale URL, because there is no stale URL to reconnect to.
 
-Option B is simpler and has strictly less state. Pick that unless design finds a reason not to.
+- **Reactive subscription** (the UX layer). WSM subscribes to `useSettingsStore` on construction. When `backend_url` changes, WSM proactively tears down the current socket and reconnects to the new URL. Without this, the WSM would stay on the old backend until a reconnect is triggered by something else (ping timeout, server close, NO_ACTIVE_SESSION retry) — which for a healthy connection could be minutes. Users who hit Save & Test URL in dev settings expect an immediate switch; the subscription delivers that.
+
+Both layers are needed. Always-derive eliminates the root cause; the subscription gives the user-visible behavior they expect when they change backends directly.
 
 ### S2. `coreToken` stays cached (for now)
 

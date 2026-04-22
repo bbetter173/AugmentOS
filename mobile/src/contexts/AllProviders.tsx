@@ -28,6 +28,13 @@ import CoreStatusBar from "@/components/dev/CoreStatusBar"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
+const convertToNativeAnimation = (animation: string) => {
+  if (animation === "zoom") {
+    return "fade"
+  }
+  return animation
+}
+
 // components at the top wrap everything below them in order:
 export const AllProviders = withWrappers(
   // props => {
@@ -164,7 +171,7 @@ export const AllProviders = withWrappers(
         headerShown: false,
         gestureEnabled: forceGestureEnabled || !preventBack,
         gestureDirection: "horizontal" as const,
-        animation: (animation === "zoom" ? "fade" : animation) as any,
+        animation: convertToNativeAnimation(animation) as any,
       }),
       [preventBack, forceGestureEnabled, animation],
     )

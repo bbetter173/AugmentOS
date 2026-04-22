@@ -2243,6 +2243,7 @@ class G2 : SGCManager() {
     override fun disconnect() {
         Bridge.log("G2: disconnect()")
         isDisconnecting = true
+        stopScan()
         stopHeartbeats()
         reconnectionManager.stop()
 

@@ -327,7 +327,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     },
     {
       packageName: notifyPackageName,
-      name: translate("miniApps:offlineCaptions"),
+      name: translate("miniApps:notify"),
       type: "standard", // Foreground app (only one at a time)
       offline: true, // Works without internet connection
       // logoUrl: getCaptionsIcon(isDark),

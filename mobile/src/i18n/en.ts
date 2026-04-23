@@ -978,6 +978,7 @@ const en = {
     mirror: "Glasses Mirror",
     simulated: "Simulated Glasses",
     store: "MiniApp Store",
+    notify: "Notifications",
     feedback: "Give Feedback",
     lmaInstaller: "Local Store",
     lmaLoader: "Side Loader",

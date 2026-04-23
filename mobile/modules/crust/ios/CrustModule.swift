@@ -27,6 +27,28 @@ public class CrustModule: Module {
             ])
         }
 
+        // MARK: - MentraOS Notification Commands
+
+        AsyncFunction("setNotificationConfig") { (_: Bool, _: [String]) in
+            // No-op on iOS
+        }
+
+        AsyncFunction("getInstalledApps") { () -> [[String: Any]] in
+            return []
+        }
+
+        AsyncFunction("getInstalledAppsForNotifications") { () -> [[String: Any]] in
+            return []
+        }
+
+        AsyncFunction("hasNotificationListenerPermission") { () -> Bool in
+            return false
+        }
+
+        AsyncFunction("openNotificationListenerSettings") { () -> Bool in
+            return false
+        }
+
         Function("showAVRoutePicker") { (tintColor: String?) in
             DispatchQueue.main.async {
                 let picker = AVRoutePickerView()

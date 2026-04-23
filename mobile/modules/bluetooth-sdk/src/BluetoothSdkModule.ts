@@ -113,20 +113,6 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   // Beta build detection (TestFlight on iOS, extensible to Google Play Beta on Android)
   isBetaBuild(): Promise<boolean>
 
-  // Android-specific commands
-  getInstalledApps(): Promise<any>
-  hasNotificationListenerPermission(): Promise<boolean>
-
-  // Notification management
-  getInstalledAppsForNotifications(): Promise<
-    Array<{
-      packageName: string
-      appName: string
-      isBlocked: boolean
-      icon: string | null
-    }>
-  >
-
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
   updateBluetoothSettings(values: Record<string, any>): Promise<void>

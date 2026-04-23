@@ -119,9 +119,6 @@ export const bluetoothSdkMock = {
   validateSttModel: jest.fn(() => Promise.resolve(true)),
   extractTarBz2: jest.fn(() => Promise.resolve(true)),
   isBetaBuild: jest.fn(() => Promise.resolve(false)),
-  getInstalledApps: jest.fn(() => Promise.resolve([])),
-  hasNotificationListenerPermission: jest.fn(() => Promise.resolve(false)),
-  getInstalledAppsForNotifications: jest.fn(() => Promise.resolve([])),
 }
 
 export const emitBluetoothSdkEvent = (eventName: string, payload: any) => {

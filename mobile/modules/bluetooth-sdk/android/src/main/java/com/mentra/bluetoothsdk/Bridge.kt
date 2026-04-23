@@ -600,54 +600,6 @@ public class Bridge private constructor() {
             sendTypedMessage("imu_gesture_event", eventBody as Map<String, Any>)
         }
 
-        /** Send phone notification to server (via REST through TypeScript) */
-        @JvmStatic
-        fun sendPhoneNotification(
-                notificationKey: String,
-                packageName: String,
-                appName: String,
-                title: String,
-                text: String,
-                timestamp: Long
-        ) {
-            try {
-                log("NOTIF: Attempting to send notification from $appName: $title")
-                val data = HashMap<String, Any>()
-                data["notificationId"] =
-                        "$packageName-$notificationKey" // Stable ID combining package and Android
-                // key
-                data["app"] = appName
-                data["title"] = title.ifEmpty { appName }
-                data["content"] = text
-                data["priority"] = "normal" // Default priority, could be enhanced later
-                data["timestamp"] = timestamp
-                data["packageName"] = packageName
-
-                sendTypedMessage("phone_notification", data as Map<String, Any>)
-                log("NOTIF: Successfully queued phone notification: $title - $text")
-            } catch (e: Exception) {
-                Log.e(TAG, "NOTIF: Error sending phone notification from $packageName", e)
-            }
-        }
-
-        /** Send phone notification dismissed to server (via REST through TypeScript) */
-        @JvmStatic
-        fun sendPhoneNotificationDismissed(notificationKey: String, packageName: String) {
-            try {
-                log("NOTIF: Attempting to send dismissal for $packageName")
-                val data = HashMap<String, Any>()
-                data["notificationId"] =
-                        "$packageName-$notificationKey" // Same format as posting for correlation
-                data["notificationKey"] = notificationKey // Keep Android key for reference
-                data["packageName"] = packageName
-
-                sendTypedMessage("phone_notification_dismissed", data as Map<String, Any>)
-                log("NOTIF: Successfully queued notification dismissal: $notificationKey")
-            } catch (e: Exception) {
-                Log.e(TAG, "NOTIF: Error sending notification dismissal for $packageName", e)
-            }
-        }
-
         // Arbitrary WS Comms (don't use these, make a dedicated function for your use case):
 
         /** Send WebSocket text message */

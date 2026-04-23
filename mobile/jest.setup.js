@@ -115,5 +115,22 @@ jest.mock("@mentra/bluetooth-sdk", () => ({
   },
 }))
 
+// Mock crust native module to avoid native bridge errors
+jest.mock("crust", () => ({
+  default: {
+    addListener: jest.fn(() => ({remove: jest.fn()})),
+    showAVRoutePicker: jest.fn(),
+    setNotificationConfig: jest.fn(() => Promise.resolve()),
+    getInstalledApps: jest.fn(() => Promise.resolve([])),
+    getInstalledAppsForNotifications: jest.fn(() => Promise.resolve([])),
+    hasNotificationListenerPermission: jest.fn(() => Promise.resolve(false)),
+    openNotificationListenerSettings: jest.fn(() => Promise.resolve(false)),
+    processGalleryImage: jest.fn(() => Promise.resolve({success: true})),
+    mergeHdrBrackets: jest.fn(() => Promise.resolve({success: true})),
+    stabilizeVideo: jest.fn(() => Promise.resolve({success: true})),
+    saveToGalleryWithDate: jest.fn(() => Promise.resolve({success: true})),
+  },
+}))
+
 // Silence the warning: Animated: `useNativeDriver` is not supported
 global.__reanimatedWorkletInit = jest.fn()

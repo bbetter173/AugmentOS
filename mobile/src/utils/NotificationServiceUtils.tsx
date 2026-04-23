@@ -1,15 +1,14 @@
 import {Linking, Platform} from "react-native"
+import CrustModule from "crust"
 
 import showAlert from "@/utils/AlertUtils"
-
-import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 export async function checkAndRequestNotificationAccessSpecialPermission(): Promise<boolean> {
   if (Platform.OS !== "android") {
     return false
   }
 
-  let hasAccess = await BluetoothSdk.hasNotificationListenerPermission()
+  let hasAccess = await CrustModule.hasNotificationListenerPermission()
   if (hasAccess) {
     console.log("Notification access already granted")
     return true
@@ -18,13 +17,13 @@ export async function checkAndRequestNotificationAccessSpecialPermission(): Prom
   return await new Promise<boolean>((resolve) => {
     // useFocusEffect(
     //   useCallback(() => {
-    //     // let hasAccess = await BluetoothSdk.hasNotificationListenerPermission()
+    //     // let hasAccess = await CrustModule.hasNotificationListenerPermission()
     //     // if (hasAccess) {
     //     //   console.log("Notification access already granted")
     //     //   return true
     //     // }
 
-    //     resolve(BluetoothSdk.hasNotificationListenerPermission())
+    //     resolve(CrustModule.hasNotificationListenerPermission())
     //     return async () => {}
     //   }, []),
     // )

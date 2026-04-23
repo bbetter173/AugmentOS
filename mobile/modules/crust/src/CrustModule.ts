@@ -1,11 +1,19 @@
 import {NativeModule, requireNativeModule} from "expo"
 
-import {CrustModuleEvents} from "./Crust.types"
+import {CrustModuleEvents, InstalledApp} from "./Crust.types"
 
 declare class CrustModule extends NativeModule<CrustModuleEvents> {
   PI: number
   hello(): string
   setValueAsync(value: string): Promise<void>
+  showAVRoutePicker(tintColor?: string | null): void
+
+  // MentraOS Notification Commands
+  setNotificationConfig(enabled: boolean, blocklist: string[]): Promise<void>
+  getInstalledApps(): Promise<InstalledApp[]>
+  getInstalledAppsForNotifications(): Promise<InstalledApp[]>
+  hasNotificationListenerPermission(): Promise<boolean>
+  openNotificationListenerSettings(): Promise<boolean>
 
   // Image Processing Commands
   processGalleryImage(

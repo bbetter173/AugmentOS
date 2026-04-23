@@ -2,7 +2,6 @@ package com.mentra.bluetoothsdk
 
 import android.net.wifi.WifiManager
 import android.os.Build
-import com.mentra.bluetoothsdk.services.NotificationListener
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -43,8 +42,6 @@ class BluetoothSdkModule : Module() {
             "audio_connected",
             "audio_disconnected",
             "save_setting",
-            "phone_notification",
-            "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
             "mic_pcm",
@@ -359,32 +356,6 @@ class BluetoothSdkModule : Module() {
 
         AsyncFunction("isBetaBuild") {
             false
-        }
-
-        // MARK: - Android-specific Commands
-
-        AsyncFunction("getInstalledApps") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            NotificationListener.getInstance(context).getInstalledApps()
-        }
-
-        AsyncFunction("hasNotificationListenerPermission") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            NotificationListener.getInstance(context).hasNotificationListenerPermission()
-        }
-
-        AsyncFunction("getInstalledAppsForNotifications") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            NotificationListener.getInstance(context).getInstalledApps()
         }
 
         // MARK: - Settings Navigation

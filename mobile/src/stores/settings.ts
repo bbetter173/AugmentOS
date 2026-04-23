@@ -590,9 +590,6 @@ const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
   SETTINGS.offline_translation_source.key,
   SETTINGS.offline_translation_target.key,
   SETTINGS.gallery_mode.key,
-  // notifications:
-  SETTINGS.notifications_enabled.key,
-  SETTINGS.notifications_blocklist.key,
 ]
 
 // const PER_GLASSES_SETTINGS_KEYS: string[] = [SETTINGS.preferred_mic.key]

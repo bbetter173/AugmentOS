@@ -9,7 +9,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
@@ -20,6 +22,7 @@ import com.mentra.asg_client.io.ota.events.InstallationProgressEvent;
 import com.mentra.asg_client.io.ota.events.MtkOtaProgressEvent;
 import com.mentra.asg_client.io.bes.events.BesOtaProgressEvent;
 import com.mentra.asg_client.io.ota.helpers.OtaHelper;
+import com.mentra.asg_client.io.ota.session.OtaSessionManager;
 import com.mentra.asg_client.events.BatteryStatusEvent;
 import com.mentra.asg_client.SysControl;
 
@@ -298,13 +301,31 @@ public class OtaService extends Service {
         }
     }
 
-    /**
-     * Check if ASG client was just updated and auto-resume OTA for MTK/BES.
-     * This enables single-prompt OTA: user taps install once, APK updates,
-     * then MTK/BES updates happen automatically without another prompt.
-     */
     private void checkAndResumeAfterApkUpdate() {
         try {
+            OtaSessionManager sessionManager = new OtaSessionManager(this);
+
+            if (sessionManager.hasActiveSession() && sessionManager.isInRestartGuard()) {
+                Log.i(TAG, "📱 Active OTA session found in restart guard - auto-continuing");
+                long waitMs = sessionManager.getRestartGuardRemainingMs();
+                // #region agent log
+                Log.i(TAG, "[0a383d] ota_resume_guard branch=restart_guard waitMs=" + waitMs
+                        + " hypothesis=H1_session_resume_delayed");
+                // #endregion
+                if (waitMs > 0) {
+                    Log.i(TAG, "OTA restart guard: waiting " + waitMs + "ms before auto-continuing");
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        // #region agent log
+                        Log.i(TAG, "[0a383d] ota_resume_guard firing resumeFromSession hypothesis=H1");
+                        // #endregion
+                        resumeFromSession(sessionManager);
+                    }, waitMs);
+                    return;
+                }
+                resumeFromSession(sessionManager);
+                return;
+            }
+
             SharedPreferences prefs = getSharedPreferences("ota_state", Context.MODE_PRIVATE);
             long previousVersion = prefs.getLong("last_seen_asg_version", -1);
 
@@ -312,11 +333,6 @@ public class OtaService extends Service {
             long currentVersion = packageInfo.getLongVersionCode();
 
             if (previousVersion == -1) {
-                // First time this feature runs - could be:
-                // 1. Literally first boot ever (factory fresh)
-                // 2. Update from old ASG client that didn't have this code
-                // In both cases, trigger OTA check - harmless if nothing to update,
-                // necessary if we just updated from an old version
                 Log.i(TAG, "📱 First boot with version tracking - recording ASG version: " + currentVersion);
                 prefs.edit().putLong("last_seen_asg_version", currentVersion).apply();
 
@@ -325,7 +341,6 @@ public class OtaService extends Service {
                     otaHelper.startVersionCheck(this);
                 }
             } else if (currentVersion > previousVersion) {
-                // ASG client was updated - auto-trigger OTA check for MTK/BES
                 Log.i(TAG, "📱 ASG client was updated from " + previousVersion + " to " + currentVersion);
                 prefs.edit().putLong("last_seen_asg_version", currentVersion).apply();
 
@@ -338,6 +353,49 @@ public class OtaService extends Service {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error checking for APK update auto-resume", e);
+        }
+    }
+
+    private void resumeFromSession(OtaSessionManager sessionManager) {
+        try {
+            sessionManager.clearRestartGuard();
+            int nextStep = sessionManager.getCurrentStepIndex() + 1;
+
+            if (nextStep >= sessionManager.getTotalSteps()) {
+                Log.i(TAG, "📱 All OTA session steps complete after APK restart");
+                sessionManager.setComplete();
+                // APK-only sessions reach this branch after the process restart.
+                // We suppressed the FINISHED send before installApk() so the phone
+                // still thinks the session is in-progress — explicitly push the
+                // completed session state now.
+                if (otaHelper != null) {
+                    otaHelper.sendCompletionToPhone(sessionManager);
+                }
+                return;
+            }
+
+            sessionManager.advanceStep(nextStep, "download");
+            String stepType = sessionManager.getStepType(nextStep);
+            Log.i(TAG, "📱 Resuming OTA session: step " + (nextStep + 1) + "/" + sessionManager.getTotalSteps() + " type=" + stepType);
+
+            if (otaHelper == null) {
+                Log.e(TAG, "OtaHelper not available - cannot resume OTA session");
+                sessionManager.setFailed("OtaHelper not available after APK restart");
+                return;
+            }
+
+            String versionJsonUrl = sessionManager.getVersionJsonUrl();
+            if (versionJsonUrl == null || versionJsonUrl.isEmpty()) {
+                Log.e(TAG, "No version JSON URL in session - cannot resume");
+                sessionManager.setFailed("Missing version JSON URL");
+                return;
+            }
+
+            otaHelper.setPhoneInitiatedOta(true);
+            otaHelper.startVersionCheckWithUrl(this, versionJsonUrl);
+        } catch (Exception e) {
+            Log.e(TAG, "Error resuming OTA from session", e);
+            sessionManager.setFailed("Resume error: " + e.getMessage());
         }
     }
 }

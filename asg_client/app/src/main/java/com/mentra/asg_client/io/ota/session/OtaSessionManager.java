@@ -1,0 +1,416 @@
+package com.mentra.asg_client.io.ota.session;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.SystemClock;
+import android.util.Log;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.UUID;
+
+public class OtaSessionManager {
+    private static final String TAG = "OtaSessionManager";
+    private static final String PREFS_NAME = "ota_session";
+    private static final String KEY_SESSION_DATA = "ota_session_data";
+    private static final long SESSION_EXPIRY_MS = 30 * 60 * 1000L;
+    /**
+     * Cooldown after APK install before auto-resuming the next OTA step (MTK/BES).
+     * Spec: docs/ota-rearchitecture-spec.md §A / EC-5 — ~10s from process start so the old process can exit.
+     * Must not reuse {@link #SESSION_EXPIRY_MS} (that is idle-session staleness, not restart pacing).
+     */
+    private static final long APK_RESTART_GUARD_MS = 10_000L;
+
+    private final SharedPreferences mPrefs;
+
+    private String mSessionId;
+    private int mTotalSteps;
+    private JSONArray mStepSequence;
+    private int mCurrentStepIndex;
+    private String mCurrentPhase;
+    private int mStepPercent;
+    private String mStatus;
+    private String mErrorMessage;
+    private String mVersionJsonUrl;
+    private long mLastActivityAtElapsed;
+    private long mRestartingSinceElapsed;
+
+    private int mLastPersistedPercent;
+
+    public OtaSessionManager(Context context) {
+        mPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        load();
+    }
+
+    public synchronized boolean createSession(String[] stepSequence, String versionJsonUrl) {
+        if ("in_progress".equals(mStatus) || "step_complete".equals(mStatus)) {
+            if (hasActiveSession()) {
+                return false;
+            }
+        }
+        if ("failed".equals(mStatus) || "complete".equals(mStatus)) {
+            clear();
+        }
+
+        mSessionId = UUID.randomUUID().toString();
+        mTotalSteps = stepSequence.length;
+        mStepSequence = new JSONArray();
+        for (String step : stepSequence) {
+            mStepSequence.put(step);
+        }
+        mCurrentStepIndex = 0;
+        mCurrentPhase = "download";
+        mStepPercent = 0;
+        mStatus = "in_progress";
+        mErrorMessage = null;
+        mVersionJsonUrl = versionJsonUrl;
+        mLastActivityAtElapsed = SystemClock.elapsedRealtime();
+        mRestartingSinceElapsed = -1;
+        mLastPersistedPercent = 0;
+        persist();
+        Log.i(TAG, "Created session " + mSessionId + " with " + mTotalSteps + " steps");
+        return true;
+    }
+
+    public synchronized boolean hasActiveSession() {
+        if (mSessionId == null || mStatus == null) {
+            return false;
+        }
+        if ("failed".equals(mStatus) || "complete".equals(mStatus) || "idle".equals(mStatus)) {
+            return false;
+        }
+        // Skip expiry check during APK restart path
+        if (mRestartingSinceElapsed >= 0) {
+            return true;
+        }
+        long now = SystemClock.elapsedRealtime();
+        // elapsedRealtime resets on reboot — if now < last activity, device rebooted
+        if (now < mLastActivityAtElapsed || (now - mLastActivityAtElapsed) > SESSION_EXPIRY_MS) {
+            Log.w(TAG, "Session expired, clearing");
+            clear();
+            return false;
+        }
+        return true;
+    }
+
+    public synchronized String getStatus() {
+        if (mStatus == null) return "idle";
+        return mStatus;
+    }
+
+    public synchronized JSONObject getSessionState() {
+        if (mSessionId == null) return null;
+        try {
+            JSONObject state = new JSONObject();
+            state.put("session_id", mSessionId);
+            state.put("total_steps", mTotalSteps);
+            state.put("current_step", mCurrentStepIndex + 1);
+            state.put("step_type", getStepType(mCurrentStepIndex));
+            state.put("step_sequence", mStepSequence != null ? mStepSequence : new JSONArray());
+            state.put("phase", mCurrentPhase);
+            state.put("step_percent", mStepPercent);
+            state.put("overall_percent", computeOverallPercent());
+            state.put("status", mStatus);
+            state.put("error_message", mErrorMessage != null ? mErrorMessage : JSONObject.NULL);
+            return state;
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to build session state JSON", e);
+            return null;
+        }
+    }
+
+    public synchronized void advanceStep(int stepIndex, String phase) {
+        mCurrentStepIndex = stepIndex;
+        mCurrentPhase = phase;
+        mStepPercent = 0;
+        mLastPersistedPercent = 0;
+        mLastActivityAtElapsed = SystemClock.elapsedRealtime();
+        persist();
+    }
+
+    public synchronized void updateProgress(int stepPercent) {
+        mLastActivityAtElapsed = SystemClock.elapsedRealtime();
+        mStepPercent = stepPercent;
+        if (Math.abs(stepPercent - mLastPersistedPercent) >= 5) {
+            mLastPersistedPercent = stepPercent;
+            persist();
+        }
+    }
+
+    public synchronized void setFailed(String errorMessage) {
+        mStatus = "failed";
+        mErrorMessage = errorMessage;
+        mLastActivityAtElapsed = SystemClock.elapsedRealtime();
+        persist();
+        Log.e(TAG, "Session failed: " + errorMessage);
+    }
+
+    public synchronized void setComplete() {
+        mStatus = "complete";
+        mStepPercent = 100;
+        mLastActivityAtElapsed = SystemClock.elapsedRealtime();
+        persist();
+        Log.i(TAG, "Session complete: " + mSessionId);
+    }
+
+    public synchronized void setRestarting() {
+        mRestartingSinceElapsed = SystemClock.elapsedRealtime();
+        persist();
+        Log.i(TAG, "Session marked as restarting");
+    }
+
+    public synchronized boolean isInRestartGuard() {
+        return mRestartingSinceElapsed >= 0;
+    }
+
+    public synchronized long getRestartGuardRemainingMs() {
+        if (mRestartingSinceElapsed < 0) return 0;
+        long now = SystemClock.elapsedRealtime();
+        // After reboot, elapsedRealtime resets — wait one full short guard for stack to settle
+        long remaining;
+        if (now < mRestartingSinceElapsed) {
+            remaining = APK_RESTART_GUARD_MS;
+        } else {
+            long elapsed = now - mRestartingSinceElapsed;
+            remaining = Math.max(0, APK_RESTART_GUARD_MS - elapsed);
+        }
+        // #region agent log
+        Log.i(TAG, "[0a383d] restart_guard remainingMs=" + remaining + " now=" + now
+                + " restartingSince=" + mRestartingSinceElapsed + " guardTotal=" + APK_RESTART_GUARD_MS
+                + " hypothesis=H1_wrong_constant_if_remaining_near_18e5");
+        // #endregion
+        return remaining;
+    }
+
+    public synchronized void clearRestartGuard() {
+        mRestartingSinceElapsed = -1;
+        persist();
+    }
+
+    public synchronized void clear() {
+        mSessionId = null;
+        mTotalSteps = 0;
+        mStepSequence = new JSONArray();
+        mCurrentStepIndex = 0;
+        mCurrentPhase = "download";
+        mStepPercent = 0;
+        mStatus = null;
+        mErrorMessage = null;
+        mVersionJsonUrl = null;
+        mLastActivityAtElapsed = 0;
+        mRestartingSinceElapsed = -1;
+        mLastPersistedPercent = 0;
+        mPrefs.edit().remove(KEY_SESSION_DATA).apply();
+    }
+
+    public synchronized String getStepType(int index) {
+        if (mStepSequence == null || index < 0 || index >= mStepSequence.length()) {
+            return null;
+        }
+        try {
+            return mStepSequence.getString(index);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    public synchronized int getTotalSteps() {
+        return mTotalSteps;
+    }
+
+    public synchronized int getCurrentStepIndex() {
+        return mCurrentStepIndex;
+    }
+
+    public synchronized String getVersionJsonUrl() {
+        return mVersionJsonUrl;
+    }
+
+    /**
+     * Compute a weighted overall OTA progress percentage (0–100) that accounts for
+     * the relative cost of each step type.
+     *
+     * Weight table (based on which step types are present in the session):
+     *   [apk, mtk, bes] → 20 / 30 / 50
+     *   [apk, bes]       → 20 / 80
+     *   [apk, mtk]       → 20 / 80
+     *   [mtk, bes]       → 40 / 60
+     *   [bes]            → 100
+     *   [mtk]            → 100
+     *   [apk]            → 100
+     *
+     * Within each step, stepPercent (0–100) maps linearly to that step's weight.
+     * APK install has no granular progress (process kill) so it jumps 0→100 instantly,
+     * but its small fixed weight (20%) means the jump is acceptable.
+     *
+     * NOTE: BES progress that arrives via sr_adota on the phone side bypasses this
+     * method. The MentraLive sr_adota handler must apply the same weight table when
+     * computing the overall_percent it sends to the frontend.
+     */
+    private int computeOverallPercent() {
+        if (mTotalSteps == 0 || mStepSequence == null) return 0;
+
+        int[] weights = computeStepWeights();
+
+        double completed = 0;
+        for (int i = 0; i < mCurrentStepIndex && i < weights.length; i++) {
+            completed += weights[i];
+        }
+
+        int currentWeight = (mCurrentStepIndex < weights.length) ? weights[mCurrentStepIndex] : 0;
+        completed += currentWeight * mStepPercent / 100.0;
+
+        return (int) Math.min(100, Math.max(0, completed));
+    }
+
+    /**
+     * Assign a percentage weight to each step based on which step types are present.
+     * The returned array has one entry per step in {@link #mStepSequence}, in order.
+     */
+    private int[] computeStepWeights() {
+        boolean hasApk = false, hasMtk = false, hasBes = false;
+        for (int i = 0; i < mTotalSteps; i++) {
+            String t = getStepType(i);
+            if ("apk".equals(t)) hasApk = true;
+            else if ("mtk".equals(t)) hasMtk = true;
+            else if ("bes".equals(t)) hasBes = true;
+        }
+
+        int apkW, mtkW, besW;
+        if (hasApk && hasMtk && hasBes) {
+            apkW = 20; mtkW = 30; besW = 50;
+        } else if (hasApk && hasBes) {
+            apkW = 20; mtkW = 0;  besW = 80;
+        } else if (hasApk && hasMtk) {
+            apkW = 20; mtkW = 80; besW = 0;
+        } else if (hasMtk && hasBes) {
+            apkW = 0;  mtkW = 40; besW = 60;
+        } else if (hasBes) {
+            apkW = 0;  mtkW = 0;  besW = 100;
+        } else if (hasMtk) {
+            apkW = 0;  mtkW = 100; besW = 0;
+        } else {
+            apkW = 100; mtkW = 0; besW = 0;
+        }
+
+        int[] weights = new int[mTotalSteps];
+        for (int i = 0; i < mTotalSteps; i++) {
+            String t = getStepType(i);
+            if ("apk".equals(t)) weights[i] = apkW;
+            else if ("mtk".equals(t)) weights[i] = mtkW;
+            else if ("bes".equals(t)) weights[i] = besW;
+            else weights[i] = 100 / mTotalSteps; // fallback for unknown types
+        }
+        return weights;
+    }
+
+    /**
+     * Returns the base overall_percent at the start of the BES step, using the same
+     * weight table as {@link #computeOverallPercent}. Used by MentraLive's sr_adota
+     * handler to compute the correct weighted overall_percent for BES progress events
+     * that arrive directly from the BES chip over BLE (bypassing the glasses session).
+     *
+     * @param totalSteps   total number of OTA steps in this session
+     * @param stepSequence JSON array of step type strings (e.g. ["apk","bes"])
+     * @return base percentage (0–100) at the start of the BES install phase
+     */
+    public static int computeBesOverallBase(int totalSteps, org.json.JSONArray stepSequence) {
+        boolean hasApk = false, hasMtk = false, hasBes = false;
+        for (int i = 0; i < totalSteps; i++) {
+            String t = stepSequence.optString(i, "");
+            if ("apk".equals(t)) hasApk = true;
+            else if ("mtk".equals(t)) hasMtk = true;
+            else if ("bes".equals(t)) hasBes = true;
+        }
+
+        int apkW, mtkW;
+        if (hasApk && hasMtk && hasBes) {
+            apkW = 20; mtkW = 30;
+        } else if (hasApk && hasBes) {
+            apkW = 20; mtkW = 0;
+        } else if (hasMtk && hasBes) {
+            apkW = 0;  mtkW = 40;
+        } else {
+            apkW = 0;  mtkW = 0;
+        }
+
+        // Base = weight of all steps that precede BES
+        int base = 0;
+        for (int i = 0; i < totalSteps; i++) {
+            String t = stepSequence.optString(i, "");
+            if ("bes".equals(t)) break;
+            if ("apk".equals(t)) base += apkW;
+            else if ("mtk".equals(t)) base += mtkW;
+        }
+        return base;
+    }
+
+    /**
+     * Returns the weight allocated to the BES step, using the same weight table.
+     * Companion to {@link #computeBesOverallBase}.
+     */
+    public static int computeBesOverallWeight(int totalSteps, org.json.JSONArray stepSequence) {
+        boolean hasApk = false, hasMtk = false, hasBes = false;
+        for (int i = 0; i < totalSteps; i++) {
+            String t = stepSequence.optString(i, "");
+            if ("apk".equals(t)) hasApk = true;
+            else if ("mtk".equals(t)) hasMtk = true;
+            else if ("bes".equals(t)) hasBes = true;
+        }
+        if (!hasBes) return 0;
+        if (hasApk && hasMtk) return 50;
+        if (hasApk || hasMtk) return 80;
+        return 100; // bes only
+    }
+
+    private void persist() {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("session_id", mSessionId != null ? mSessionId : JSONObject.NULL);
+            json.put("total_steps", mTotalSteps);
+            json.put("step_sequence", mStepSequence != null ? mStepSequence : new JSONArray());
+            json.put("current_step_index", mCurrentStepIndex);
+            json.put("current_phase", mCurrentPhase);
+            json.put("step_percent", mStepPercent);
+            json.put("status", mStatus != null ? mStatus : JSONObject.NULL);
+            json.put("error_message", mErrorMessage != null ? mErrorMessage : JSONObject.NULL);
+            json.put("version_json_url", mVersionJsonUrl != null ? mVersionJsonUrl : JSONObject.NULL);
+            json.put("last_activity_at_elapsed", mLastActivityAtElapsed);
+            json.put("restarting_since_elapsed", mRestartingSinceElapsed);
+            mPrefs.edit().putString(KEY_SESSION_DATA, json.toString()).apply();
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to persist session", e);
+        }
+    }
+
+    private void load() {
+        String data = mPrefs.getString(KEY_SESSION_DATA, null);
+        if (data == null) {
+            mStepSequence = new JSONArray();
+            mRestartingSinceElapsed = -1;
+            return;
+        }
+        try {
+            JSONObject json = new JSONObject(data);
+            mSessionId = json.isNull("session_id") ? null : json.optString("session_id", null);
+            mTotalSteps = json.optInt("total_steps", 0);
+            mStepSequence = json.optJSONArray("step_sequence");
+            if (mStepSequence == null) mStepSequence = new JSONArray();
+            mCurrentStepIndex = json.optInt("current_step_index", 0);
+            mCurrentPhase = json.optString("current_phase", "download");
+            mStepPercent = json.optInt("step_percent", 0);
+            mStatus = json.isNull("status") ? null : json.optString("status", null);
+            mErrorMessage = json.isNull("error_message") ? null : json.optString("error_message", null);
+            mVersionJsonUrl = json.isNull("version_json_url") ? null : json.optString("version_json_url", null);
+            mLastActivityAtElapsed = json.optLong("last_activity_at_elapsed", 0);
+            mRestartingSinceElapsed = json.optLong("restarting_since_elapsed", -1);
+            mLastPersistedPercent = mStepPercent;
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to load session", e);
+            mStepSequence = new JSONArray();
+            mRestartingSinceElapsed = -1;
+        }
+    }
+}

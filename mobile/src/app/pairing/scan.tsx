@@ -1,4 +1,4 @@
-import CoreModule, {DeviceSearchResult} from "core"
+import CoreModule, {DeviceSearchResult} from "@mentra/bluetooth-sdk"
 import {useFocusEffect, useLocalSearchParams} from "expo-router"
 import {useCallback, useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"

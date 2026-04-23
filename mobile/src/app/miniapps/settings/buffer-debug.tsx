@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useState} from "react"
 import {View} from "react-native"
 import Toast from "react-native-toast-message"

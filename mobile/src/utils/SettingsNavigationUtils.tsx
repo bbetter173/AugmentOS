@@ -1,7 +1,7 @@
 import {requireNativeModule} from "expo-modules-core"
 import {Linking, Platform} from "react-native"
 
-const Core = requireNativeModule("Core")
+const Core = requireNativeModule("BluetoothSdk")
 
 /**
  * Utility functions for navigating to system settings pages

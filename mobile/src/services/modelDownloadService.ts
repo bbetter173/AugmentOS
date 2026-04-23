@@ -3,7 +3,7 @@
  * Orchestrates STT model downloads independently of UI lifecycle
  */
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {Platform} from "react-native"
 import * as RNFS from "@dr.pogodin/react-native-fs"
 

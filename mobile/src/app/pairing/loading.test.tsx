@@ -1,4 +1,4 @@
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,
@@ -78,7 +78,7 @@ jest.mock("@/components/glasses/GlassesPairingLoader", () => {
 import {act, render, waitFor} from "@testing-library/react-native"
 import type {ReactNode} from "react"
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useRoute} from "@react-navigation/native"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"

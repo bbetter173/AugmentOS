@@ -10,7 +10,7 @@ import {sortAppsByLastOpenTime, SYSTEM_APPS, useAppletStatusStore, type ClientAp
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 export interface GlassesMenuItem {
   packageName: string

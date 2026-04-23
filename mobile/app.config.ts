@@ -123,7 +123,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       "./plugins/remove-ipad-orientations.js",
       "./plugins/android.ts",
       [
-        "./modules/core/app.plugin.js",
+        "./modules/bluetooth-sdk/app.plugin.js",
         {
           node: true,
         },

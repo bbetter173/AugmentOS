@@ -5,7 +5,7 @@ import {useConnectionStore} from "@/stores/connection"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {WebSocketStatus} from "@/services/ws-types"
 
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,
@@ -108,7 +108,7 @@ describe("RestComms", () => {
   })
 
   it("syncs core tokens to native state", () => {
-    const CoreModule = require("core").default
+    const CoreModule = require("@mentra/bluetooth-sdk").default
     restComms.setCoreToken("new-core-token")
 
     expect(CoreModule.update).toHaveBeenCalledWith("core", {core_token: "new-core-token"})

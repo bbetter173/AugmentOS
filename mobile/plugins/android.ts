@@ -508,7 +508,7 @@ function withGradlePropertiesModifications(config: any) {
 //     if (!settingsGradle.includes("include ':lc3Lib'")) {
 //       settingsGradle += `
 // include ':lc3Lib'
-// project(':lc3Lib').projectDir = new File(rootDir, '../modules/core/android/lc3Lib')
+// project(':lc3Lib').projectDir = new File(rootDir, '../modules/bluetooth-sdk/android/lc3Lib')
 // `
 //     }
 

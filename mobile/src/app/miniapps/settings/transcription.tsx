@@ -1,5 +1,5 @@
 import {useFocusEffect} from "@react-navigation/native"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useState} from "react"
 import {ActivityIndicator, BackHandler, Platform, ScrollView, View} from "react-native"
 

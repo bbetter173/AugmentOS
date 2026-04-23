@@ -1,9 +1,9 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import MockDisplayProcessor from "@/services/DisplayProcessor"
 import {useDisplayStore} from "@/stores/display"
 
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,

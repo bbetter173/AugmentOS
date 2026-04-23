@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useEffect, useState} from "react"
 import {AppState, Platform, ScrollView} from "react-native"
 

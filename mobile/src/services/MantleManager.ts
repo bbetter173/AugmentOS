@@ -1,4 +1,4 @@
-import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "core"
+import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"

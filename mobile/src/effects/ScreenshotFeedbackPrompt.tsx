@@ -5,7 +5,7 @@ import * as ScreenCapture from "expo-screen-capture"
 import {push} from "@/contexts/NavigationHistoryContext"
 import {showAlert} from "@/contexts/ModalContext"
 import {translate} from "@/i18n"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 export function ScreenshotFeedbackPrompt() {
   useEffect(() => {

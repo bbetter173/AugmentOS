@@ -4,7 +4,7 @@ import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/Onboardin
 import {translate} from "@/i18n"
 import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useGlassesStore} from "@/stores/glasses"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
 import {useCoreStore} from "@/stores/core"

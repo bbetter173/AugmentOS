@@ -2,7 +2,7 @@ import {Linking, Platform} from "react-native"
 
 import showAlert from "@/utils/AlertUtils"
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 export async function checkAndRequestNotificationAccessSpecialPermission(): Promise<boolean> {
   if (Platform.OS !== "android") {

@@ -1,10 +1,10 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {createAudioPlayer, setAudioModeAsync} from "expo-audio"
 
 import audioPlaybackService from "./AudioPlaybackService"
 import {resetCoreModuleMock} from "@/test-utils/mockCoreModule"
 
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,

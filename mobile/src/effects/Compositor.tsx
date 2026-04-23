@@ -7,7 +7,7 @@ import {usePathname} from "expo-router"
 import {Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
-import CoreModule, {MicPcmEvent} from "core"
+import CoreModule, {MicPcmEvent} from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
 // import {useCactusSTT} from "cactus-react-native"
 

@@ -11,7 +11,7 @@ import {showAlert} from "@/utils/AlertUtils"
 import {PermissionFeatures, checkConnectivityRequirementsUI, requestFeaturePermissions} from "@/utils/PermissionsUtils"
 import {useState} from "react"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 export default function PairingPrepScreen() {
   const route = useRoute()

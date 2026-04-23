@@ -9,7 +9,7 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {coreModuleMock, emitCoreEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
 
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("../test-utils/mockCoreModule")
   return {
     __esModule: true,

@@ -1,5 +1,5 @@
 import {createAudioPlayer, AudioPlayer, AudioStatus, setAudioModeAsync} from "expo-audio"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {BackgroundTimer} from "@/utils/timers"
 
 interface AudioPlayRequest {

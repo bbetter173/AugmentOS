@@ -64,31 +64,18 @@ class Bridge {
         Bridge.sendTypedMessage("save_setting", body: body)
     }
 
-    static func sendVadStatus(_ isSpeaking: Bool) {
-        let vadMsg: [String: Any] = [
-            "type": "VAD",
-            "status": isSpeaking,
-        ]
-
-        let jsonData = try! JSONSerialization.data(withJSONObject: vadMsg)
-        if let jsonString = String(data: jsonData, encoding: .utf8) {
-            Bridge.sendWSText(jsonString)
-        }
+    static func sendVadEvent(_ isSpeaking: Bool) {
+        let body: [String: Any] = ["status": isSpeaking]
+        Bridge.sendTypedMessage("vad_status", body: body)
     }
 
     static func sendBatteryStatus(level: Int, charging: Bool) {
-        let vadMsg: [String: Any] = [
-            "type": "glasses_battery_update",
+        let body: [String: Any] = [
             "level": level,
             "charging": charging,
             "timestamp": Date().timeIntervalSince1970 * 1000,
-            // TODO: time remaining
         ]
-
-        let jsonData = try! JSONSerialization.data(withJSONObject: vadMsg)
-        if let jsonString = String(data: jsonData, encoding: .utf8) {
-            Bridge.sendWSText(jsonString)
-        }
+        Bridge.sendTypedMessage("battery_status", body: body)
     }
 
     static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String) {
@@ -107,22 +94,6 @@ class Bridge {
                 }.reversed()
                 DeviceStore.shared.set("core", "searchResults", Array(uniqueResults))
             }
-        }
-    }
-
-    static func updateAsrConfig(languages: [[String: Any]]) {
-        do {
-            let configMsg: [String: Any] = [
-                "type": "config",
-                "streams": languages,
-            ]
-
-            let jsonData = try JSONSerialization.data(withJSONObject: configMsg)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                Bridge.sendWSText(jsonString)
-            }
-        } catch {
-            Bridge.log("ServerComms: Error building config message: \(error)")
         }
     }
 
@@ -180,17 +151,6 @@ class Bridge {
         Bridge.sendTypedMessage("rgb_led_control_response", body: body)
     }
 
-    static func sendPhotoResponse(requestId: String, photoUrl: String) {
-        let event: [String: Any] = [
-            "type": "photo_response",
-            "requestId": requestId,
-            "success": true,
-            "photoUrl": photoUrl,
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-        ]
-        Bridge.sendTypedMessage("photo_response", body: event)
-    }
-
     static func sendPhotoError(requestId: String, errorCode: String, errorMessage: String) {
         var event: [String: Any] = [
             "type": "photo_response",
@@ -206,41 +166,6 @@ class Bridge {
             event["errorMessage"] = errorMessage
         }
         Bridge.sendTypedMessage("photo_response", body: event)
-    }
-
-    static func sendVideoStreamResponse(appId: String, streamUrl: String) {
-        do {
-            let event: [String: Any] = [
-                "type": "video_stream_response",
-                "appId": appId,
-                "streamUrl": streamUrl,
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-            ]
-
-            let jsonData = try JSONSerialization.data(withJSONObject: event)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                Bridge.sendWSText(jsonString)
-            }
-        } catch {
-            Bridge.log("ServerComms: Error building video_stream_response JSON: \(error)")
-        }
-    }
-
-    static func sendHeadPosition(isUp: Bool) {
-        do {
-            let event: [String: Any] = [
-                "type": "head_position",
-                "position": isUp ? "up" : "down",
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-            ]
-
-            let jsonData = try JSONSerialization.data(withJSONObject: event)
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                Bridge.sendWSText(jsonString)
-            }
-        } catch {
-            Bridge.log("ServerComms: Error sending head position: \(error)")
-        }
     }
 
     static func sendMiniappSelected(packageName: String) {

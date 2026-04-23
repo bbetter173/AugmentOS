@@ -14,6 +14,7 @@ public class BluetoothSdkModule: Module {
             "button_press",
             "touch_event",
             "head_up",
+            "vad_status",
             "battery_status",
             "wifi_status_change",
             "hotspot_status_change",

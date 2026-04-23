@@ -125,14 +125,14 @@ class SocketComms {
     )
   }
 
-  public sendBatteryStatus(): void {
-    const batteryLevel = useGlassesStore.getState().batteryLevel
-    const charging = useGlassesStore.getState().charging
+  public sendBatteryStatus(level?: number, charging?: boolean, timestamp: number = Date.now()): void {
+    const batteryLevel = level ?? useGlassesStore.getState().batteryLevel
+    const isCharging = charging ?? useGlassesStore.getState().charging
     const msg = {
       type: "glasses_battery_update",
       level: batteryLevel,
-      charging: charging,
-      timestamp: Date.now(),
+      charging: isCharging,
+      timestamp,
     }
     ws.sendText(JSON.stringify(msg))
   }

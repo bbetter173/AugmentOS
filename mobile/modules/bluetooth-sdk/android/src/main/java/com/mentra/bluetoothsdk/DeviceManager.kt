@@ -560,7 +560,7 @@ class DeviceManager {
     private fun checkSetVadStatus(speaking: Boolean) {
         if (speaking != isSpeaking) {
             isSpeaking = speaking
-            Bridge.sendVadStatus(isSpeaking)
+            Bridge.sendVadEvent(isSpeaking)
         }
     }
 

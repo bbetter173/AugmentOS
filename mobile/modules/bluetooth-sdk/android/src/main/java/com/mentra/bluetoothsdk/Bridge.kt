@@ -13,7 +13,6 @@ import java.util.HashMap
 import kotlin.jvm.JvmStatic
 import kotlin.jvm.Synchronized
 import kotlin.jvm.Volatile
-import org.json.JSONObject
 
 /**
  * Bridge class for SDK communication between Expo modules and native Android code This is the
@@ -134,37 +133,20 @@ public class Bridge private constructor() {
 
         /** Send VAD (Voice Activity Detection) status */
         @JvmStatic
-        fun sendVadStatus(isSpeaking: Boolean) {
-            val vadMsg = HashMap<String, Any>()
-            vadMsg["type"] = "VAD"
-            vadMsg["status"] = isSpeaking
-
-            try {
-                val jsonObject = JSONObject(vadMsg as Map<*, *>)
-                val jsonString = jsonObject.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending VAD status", e)
-            }
+        fun sendVadEvent(isSpeaking: Boolean) {
+            val body = HashMap<String, Any>()
+            body["status"] = isSpeaking
+            sendTypedMessage("vad_status", body as Map<String, Any>)
         }
 
         /** Send battery status */
         @JvmStatic
         fun sendBatteryStatus(level: Int, charging: Boolean) {
-            val vadMsg = HashMap<String, Any>()
-            vadMsg["type"] = "glasses_battery_update"
-            vadMsg["level"] = level
-            vadMsg["charging"] = charging
-            vadMsg["timestamp"] = System.currentTimeMillis()
-            // TODO: time remaining
-
-            try {
-                val jsonObject = JSONObject(vadMsg as Map<*, *>)
-                val jsonString = jsonObject.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending battery status", e)
-            }
+            val body = HashMap<String, Any>()
+            body["level"] = level
+            body["charging"] = charging
+            body["timestamp"] = System.currentTimeMillis()
+            sendTypedMessage("battery_status", body as Map<String, Any>)
         }
 
         /** Send discovered device */
@@ -180,60 +162,7 @@ public class Bridge private constructor() {
             DeviceStore.set("core", "searchResults", uniqueResults)
         }
 
-        /** Update ASR config */
-        @JvmStatic
-        fun updateAsrConfig(languages: List<Map<String, Any>>) {
-            try {
-                val configMsg = HashMap<String, Any>()
-                configMsg["type"] = "config"
-                configMsg["streams"] = languages
-
-                val jsonData = JSONObject(configMsg as Map<*, *>)
-                val jsonString = jsonData.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                log("ServerComms: Error building config message: $e")
-            }
-        }
-
-        /** Send Bluetooth status */
-        @JvmStatic
-        fun sendBluetoothStatusUpdate(status: Map<String, Any>) {
-            try {
-                val event = HashMap<String, Any>()
-                event["type"] = "bluetooth_status_update"
-                val statusMap = HashMap<String, Any>()
-                statusMap["status"] = status
-                event["status"] = statusMap
-                event["timestamp"] = System.currentTimeMillis().toInt()
-
-                val jsonData = JSONObject(event as Map<*, *>)
-                val jsonString = jsonData.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                log("ServerComms: Error building bluetooth_status_update JSON: $e")
-            }
-        }
-
         // MARK: - Hardware Events
-
-        /** Send button press to server (WebSocket) */
-        @JvmStatic
-        fun sendButtonPress(buttonId: String, pressType: String) {
-            try {
-                val event = HashMap<String, Any>()
-                event["type"] = "button_press"
-                event["buttonId"] = buttonId
-                event["pressType"] = pressType
-                event["timestamp"] = System.currentTimeMillis().toInt()
-
-                val jsonData = JSONObject(event as Map<*, *>)
-                val jsonString = jsonData.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                log("ServerComms: Error building button_press JSON: $e")
-            }
-        }
 
         /** Send button press event to React Native - matches iOS implementation */
         @JvmStatic
@@ -292,18 +221,6 @@ public class Bridge private constructor() {
             sendTypedMessage("switch_status", body)
         }
 
-        /** Send photo response */
-        @JvmStatic
-        fun sendPhotoResponse(requestId: String, photoUrl: String) {
-            val event = HashMap<String, Any>()
-            event["type"] = "photo_response"
-            event["requestId"] = requestId
-            event["photoUrl"] = photoUrl
-            event["timestamp"] = System.currentTimeMillis().toInt()
-            event["success"] = true
-            sendTypedMessage("photo_response", event as Map<String, Any>)
-        }
-
         @JvmStatic
         fun sendPhotoError(requestId: String, errorCode: String, errorMessage: String) {
             val event = HashMap<String, Any>()
@@ -314,7 +231,6 @@ public class Bridge private constructor() {
             event["errorCode"] = errorCode
             event["errorMessage"] = errorMessage
             event["timestamp"] = System.currentTimeMillis()
-            // sendWSText(JSONObject(event as Map<*, *>).toString())
             sendTypedMessage("photo_response", event as Map<String, Any>)
         }
 
@@ -330,41 +246,6 @@ public class Bridge private constructor() {
                 sendTypedMessage("rgb_led_control_response", body)
             } catch (e: Exception) {
                 log("Bridge: Error sending rgb_led_control_response: $e")
-            }
-        }
-
-        /** Send video stream response */
-        @JvmStatic
-        fun sendVideoStreamResponse(appId: String, streamUrl: String) {
-            try {
-                val event = HashMap<String, Any>()
-                event["type"] = "video_stream_response"
-                event["appId"] = appId
-                event["streamUrl"] = streamUrl
-                event["timestamp"] = System.currentTimeMillis().toInt()
-
-                val jsonData = JSONObject(event as Map<*, *>)
-                val jsonString = jsonData.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                log("ServerComms: Error building video_stream_response JSON: $e")
-            }
-        }
-
-        /** Send head position */
-        @JvmStatic
-        fun sendHeadPosition(isUp: Boolean) {
-            try {
-                val event = HashMap<String, Any>()
-                event["type"] = "head_position"
-                event["position"] = if (isUp) "up" else "down"
-                event["timestamp"] = System.currentTimeMillis().toInt()
-
-                val jsonData = JSONObject(event as Map<*, *>)
-                val jsonString = jsonData.toString()
-                sendWSText(jsonString)
-            } catch (e: Exception) {
-                log("ServerComms: Error sending head position: $e")
             }
         }
 

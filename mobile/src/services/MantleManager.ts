@@ -485,6 +485,18 @@ class MantleManager {
         }),
       )
 
+      this.subs.push(
+        BluetoothSdk.addListener("vad_status", (event) => {
+          socketComms.sendVadStatus(event.status)
+        }),
+      )
+
+      this.subs.push(
+        BluetoothSdk.addListener("battery_status", (event) => {
+          socketComms.sendBatteryStatus(event.level, event.charging, event.timestamp)
+        }),
+      )
+
       // G2 dashboard menu: user selected a miniapp from the glasses swipe menu
       // G2.swift resolves the numeric appId → packageName before sending this event
       this.subs.push(

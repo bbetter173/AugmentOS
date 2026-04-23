@@ -81,9 +81,11 @@ jest.mock("@/services/SocketComms", () => ({
     connectWebsocket: jest.fn(),
     cleanup: jest.fn(),
     sendTouchEvent: jest.fn(),
+    sendBatteryStatus: jest.fn(),
     sendButtonPress: jest.fn(),
     sendHeadPosition: jest.fn(),
     sendLocalTranscription: jest.fn(),
+    sendVadStatus: jest.fn(),
     sendSwipeVolumeStatus: jest.fn(),
     sendSwitchStatus: jest.fn(),
     sendRgbLedControlResponse: jest.fn(),
@@ -274,6 +276,17 @@ describe("MantleManager", () => {
     await waitFor(() => {
       expect(useDisplayStore.getState().view).toBe("dashboard")
     })
+
+    emitBluetoothSdkEvent("vad_status", {type: "vad_status", status: true})
+    expect(socketComms.sendVadStatus).toHaveBeenCalledWith(true)
+
+    emitBluetoothSdkEvent("battery_status", {
+      type: "battery_status",
+      level: 88,
+      charging: true,
+      timestamp: 123456,
+    })
+    expect(socketComms.sendBatteryStatus).toHaveBeenCalledWith(88, true, 123456)
     ;(bluetoothSdkMock.updateBluetoothSettings as jest.Mock).mockClear()
     await useSettingsStore.getState().setSetting(SETTINGS.core_token.key, "new-token", false)
     expect(bluetoothSdkMock.updateBluetoothSettings).toHaveBeenCalledWith(

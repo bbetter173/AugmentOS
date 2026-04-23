@@ -22,7 +22,13 @@ export type HeadUpEvent = {
   up: boolean
 }
 
+export type VadStatusEvent = {
+  type: "vad_status"
+  status: boolean
+}
+
 export type BatteryStatusEvent = {
+  type: "battery_status"
   level: number
   charging: boolean
   timestamp: number
@@ -252,6 +258,7 @@ export type BluetoothSdkModuleEvents = {
   button_press: (event: ButtonPressEvent) => void
   touch_event: (event: TouchEvent) => void
   head_up: (event: HeadUpEvent) => void
+  vad_status: (event: VadStatusEvent) => void
   battery_status: (event: BatteryStatusEvent) => void
   local_transcription: (event: LocalTranscriptionEvent) => void
   wifi_status_change: (event: WifiStatusChangeEvent) => void

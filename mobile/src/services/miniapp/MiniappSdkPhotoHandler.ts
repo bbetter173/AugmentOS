@@ -1,7 +1,8 @@
 /**
- * MiniappPhotoHandler — handles Phase 5 photo requests from local miniapps.
- * Calls POST /api/client/miniapp-photo/request on the cloud, then waits for
+ * MiniappSdkPhotoHandler — handles takePhoto() requests from local miniapps.
+ * Calls POST /api/client/miniapp-sdk-photo/request on the cloud, then waits for
  * phone_photo_ready over the WS (handled by SocketComms -> LocalMiniappRuntime).
+ * The photoUrl on phone_photo_ready is a short-TTL signed R2 URL.
  */
 
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
@@ -15,7 +16,7 @@ interface PhotoRequestParams {
   sound?: boolean
 }
 
-export async function requestMiniappPhoto(params: PhotoRequestParams): Promise<{accepted: boolean; requestId: string}> {
+export async function requestMiniappSdkPhoto(params: PhotoRequestParams): Promise<{accepted: boolean; requestId: string}> {
   const backendUrl = useSettingsStore.getState().getSetting(SETTINGS.backend_url.key)
   const coreToken = useSettingsStore.getState().getSetting(SETTINGS.core_token.key)
 
@@ -23,7 +24,7 @@ export async function requestMiniappPhoto(params: PhotoRequestParams): Promise<{
     throw new Error("Missing backend_url or core_token")
   }
 
-  const response = await fetch(`${backendUrl}/api/client/miniapp-photo/request`, {
+  const response = await fetch(`${backendUrl}/api/client/miniapp-sdk-photo/request`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

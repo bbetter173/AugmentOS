@@ -1,29 +1,30 @@
 /**
- * @fileoverview PhonePhotoManager — handles photo requests from local miniapps.
+ * @fileoverview MiniappSdkPhotoManager — handles camera SDK photo requests
+ * from local miniapps (takePhoto() on @mentra/miniapp camera module).
  *
- * Parallel to PhotoManager but scoped to phone-initiated requests via the
- * __phone__ subscriber. The phone sends a REST request to mint a signed upload
- * URL, cloud sends PHOTO_REQUEST to glasses with that URL, glasses (or BLE
- * fallback through the phone's BlePhotoUploadService) uploads to the cloud
- * endpoint, cloud writes to R2 and notifies the phone via phone_photo_ready
+ * Parallel to PhotoManager (cloud-SDK photos) but scoped to phone-initiated
+ * requests via the __phone__ subscriber. The phone sends a REST request to
+ * mint a signed upload URL, cloud sends PHOTO_REQUEST to glasses with that URL,
+ * glasses (or BLE fallback through the phone's BlePhotoUploadService) upload
+ * to the cloud endpoint, cloud writes the photo to a private R2 bucket, mints
+ * a short-TTL signed download URL, and notifies the phone via phone_photo_ready
  * over the existing client WebSocket.
  *
- * Owned by UserSession, not by PhoneSession — PhonePhotoManager needs direct
- * access to userSession.websocket for sending PHOTO_REQUEST to glasses and
+ * Owned by UserSession, not by PhoneSession — this manager needs direct access
+ * to userSession.websocket for sending PHOTO_REQUEST to glasses and
  * phone_photo_ready back to the phone.
  */
 
 import { Logger } from "pino";
 import jwt from "jsonwebtoken";
-import { v4 as uuidv4 } from "uuid";
 
 import { CloudToGlassesMessageType } from "@mentra/sdk";
 
 import { ConnectionValidator } from "../validators/ConnectionValidator";
 import UserSession from "./UserSession";
 
-const MINIAPP_PHOTO_UPLOAD_SECRET =
-  process.env.MINIAPP_PHOTO_UPLOAD_SECRET || "miniapp-photo-dev-secret";
+const MINIAPP_SDK_PHOTO_UPLOAD_SECRET =
+  process.env.MINIAPP_SDK_PHOTO_UPLOAD_SECRET || "miniapp-sdk-photo-dev-secret";
 
 const UPLOAD_TOKEN_TTL_SECONDS = 120; // 2 minutes
 const REQUEST_TIMEOUT_MS = 30_000; // 30 seconds
@@ -36,15 +37,15 @@ interface PendingPhotoRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
-export class PhonePhotoManager {
+export class MiniappSdkPhotoManager {
   private userSession: UserSession;
   private logger: Logger;
   private pendingRequests = new Map<string, PendingPhotoRequest>();
 
   constructor(userSession: UserSession) {
     this.userSession = userSession;
-    this.logger = userSession.logger.child({ service: "PhonePhotoManager" });
-    this.logger.info("PhonePhotoManager initialized");
+    this.logger = userSession.logger.child({ service: "MiniappSdkPhotoManager" });
+    this.logger.info("MiniappSdkPhotoManager initialized");
   }
 
   /**
@@ -63,7 +64,7 @@ export class PhonePhotoManager {
     saveToGallery?: boolean;
     sound?: boolean;
   }): Promise<{ accepted: true; requestId: string }> {
-    const { requestId, packageName, size = "medium", compress = "none", saveToGallery = false, sound = true } = params;
+    const { requestId, packageName, size = "medium", compress = "none", sound = true } = params;
 
     // Validate glasses connection
     const validation = ConnectionValidator.validateForHardwareRequest(this.userSession, "photo");
@@ -73,15 +74,15 @@ export class PhonePhotoManager {
 
     // Mint upload token (JWT scoped to this requestId)
     const uploadToken = jwt.sign(
-      { requestId, userId: this.userSession.userId, purpose: "miniapp_photo_upload" },
-      MINIAPP_PHOTO_UPLOAD_SECRET,
+      { requestId, userId: this.userSession.userId, purpose: "miniapp_sdk_photo_upload" },
+      MINIAPP_SDK_PHOTO_UPLOAD_SECRET,
       { expiresIn: UPLOAD_TOKEN_TTL_SECONDS },
     );
 
     // Construct the upload URL
     const cloudHost = process.env.CLOUD_PUBLIC_HOST_NAME || "localhost:8002";
     const protocol = cloudHost.includes("localhost") ? "http" : "https";
-    const uploadUrl = `${protocol}://${cloudHost}/api/client/miniapp-photo/upload/${requestId}`;
+    const uploadUrl = `${protocol}://${cloudHost}/api/client/miniapp-sdk-photo/upload/${requestId}`;
 
     // Register as pending
     const timer = setTimeout(() => {
@@ -116,7 +117,7 @@ export class PhonePhotoManager {
       this.userSession.websocket.send(JSON.stringify(messageToGlasses));
       this.logger.info(
         { requestId, packageName, uploadUrl },
-        "Sent PHOTO_REQUEST to glasses for miniapp photo",
+        "Sent PHOTO_REQUEST to glasses for miniapp SDK photo",
       );
     } catch (error) {
       this.pendingRequests.delete(requestId);
@@ -128,8 +129,9 @@ export class PhonePhotoManager {
   }
 
   /**
-   * Called by the upload endpoint when the photo has been stored in R2.
-   * Sends phone_photo_ready to the phone client.
+   * Called by the upload endpoint once the photo has been stored in R2 and
+   * a signed download URL has been minted. Sends phone_photo_ready to the
+   * phone client carrying the signed URL.
    */
   handleUploadComplete(requestId: string, photoUrl: string, mimeType: string, size: number): void {
     const pending = this.pendingRequests.get(requestId);
@@ -141,7 +143,9 @@ export class PhonePhotoManager {
     this.pendingRequests.delete(requestId);
     clearTimeout(pending.timer);
 
-    // Send phone_photo_ready over the client WebSocket
+    // Wire message type stays `phone_photo_ready` — it's the existing contract
+    // with the mobile client. Only the storage destination (and URL shape) has
+    // changed: photoUrl is now a short-TTL signed R2 URL instead of a public URL.
     const message = {
       type: "phone_photo_ready",
       requestId,
@@ -154,7 +158,7 @@ export class PhonePhotoManager {
     try {
       this.userSession.websocket.send(JSON.stringify(message));
       this.logger.info(
-        { requestId, photoUrl, packageName: pending.packageName },
+        { requestId, packageName: pending.packageName },
         "Sent phone_photo_ready to phone client",
       );
     } catch (error) {
@@ -191,8 +195,8 @@ export class PhonePhotoManager {
    */
   verifyUploadToken(token: string): { requestId: string; userId: string } | null {
     try {
-      const decoded = jwt.verify(token, MINIAPP_PHOTO_UPLOAD_SECRET) as jwt.JwtPayload;
-      if (decoded.purpose !== "miniapp_photo_upload") return null;
+      const decoded = jwt.verify(token, MINIAPP_SDK_PHOTO_UPLOAD_SECRET) as jwt.JwtPayload;
+      if (decoded.purpose !== "miniapp_sdk_photo_upload") return null;
       return {
         requestId: decoded.requestId as string,
         userId: decoded.userId as string,
@@ -207,9 +211,11 @@ export class PhonePhotoManager {
     if (!pending) return;
 
     this.pendingRequests.delete(requestId);
-    this.logger.warn({ requestId, packageName: pending.packageName }, "Miniapp photo request timed out");
+    this.logger.warn(
+      { requestId, packageName: pending.packageName },
+      "Miniapp SDK photo request timed out",
+    );
 
-    // Notify phone of timeout
     const message = {
       type: "phone_photo_ready",
       requestId,
@@ -225,7 +231,7 @@ export class PhonePhotoManager {
   }
 
   cleanup(): void {
-    for (const [requestId, pending] of this.pendingRequests) {
+    for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
     }
     this.pendingRequests.clear();

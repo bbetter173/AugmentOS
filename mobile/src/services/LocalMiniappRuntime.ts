@@ -1102,13 +1102,13 @@ class LocalMiniappRuntime {
     }
 
     try {
-      const {requestMiniappPhoto} = await import("@/services/miniapp/MiniappPhotoHandler")
+      const {requestMiniappSdkPhoto} = await import("@/services/miniapp/MiniappSdkPhotoHandler")
       const photoRequestId = requestId || `photo_${Date.now()}`
 
       // Register so handleCloudMessage can route phone_photo_ready back
       this.registerPendingCloudRequest(photoRequestId, packageName, requestId)
 
-      await requestMiniappPhoto({
+      await requestMiniappSdkPhoto({
         requestId: photoRequestId,
         packageName,
         size: (payload.size as string) || "medium",

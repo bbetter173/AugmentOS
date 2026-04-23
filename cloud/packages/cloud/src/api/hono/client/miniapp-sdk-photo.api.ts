@@ -1,11 +1,13 @@
 /**
- * @fileoverview Hono miniapp photo routes.
- * Handles photo requests from local miniapps (phone-initiated).
- * Mounted at: /api/client/miniapp-photo
+ * @fileoverview Hono miniapp SDK camera photo routes.
+ * Handles photo requests from local miniapps' takePhoto() SDK call (phone-initiated).
+ * Mounted at: /api/client/miniapp-sdk-photo
  *
  * Two endpoints:
- *   POST /request    — phone requests a photo (mints signed upload URL, sends to glasses)
- *   POST /upload/:requestId — glasses (or BLE fallback) uploads the photo here
+ *   POST /request              — phone requests a photo (mints signed upload URL, sends to glasses)
+ *   POST /upload/:requestId    — glasses (or BLE fallback) upload the photo here;
+ *                                stored in a private R2 bucket; signed download URL
+ *                                returned to phone via phone_photo_ready.
  */
 
 import { Hono } from "hono";
@@ -13,9 +15,10 @@ import { v4 as uuidv4 } from "uuid";
 
 import { logger as rootLogger } from "../../../services/logging/pino-logger";
 import UserSession from "../../../services/session/UserSession";
+import { miniappSdkPhotoStorage } from "../../../services/storage/miniapp-sdk-photo-storage.service";
 import type { AppEnv, AppContext } from "../../../types/hono";
 
-const logger = rootLogger.child({ service: "miniapp-photo.api" });
+const logger = rootLogger.child({ service: "miniapp-sdk-photo.api" });
 
 const app = new Hono<AppEnv>();
 
@@ -31,7 +34,7 @@ app.post("/upload/:requestId", uploadPhoto);
 // ============================================================================
 
 /**
- * POST /api/client/miniapp-photo/request
+ * POST /api/client/miniapp-sdk-photo/request
  *
  * Phone calls this to initiate a photo capture. Cloud mints a signed upload URL
  * and sends PHOTO_REQUEST to the glasses. Phone just gets { accepted: true, requestId }
@@ -62,7 +65,7 @@ async function requestPhoto(c: AppContext) {
       return c.json({ error: "User session not found — ensure coreToken auth middleware ran" }, 401);
     }
 
-    const result = await userSession.phonePhotoManager.requestPhoto({
+    const result = await userSession.miniappSdkPhotoManager.requestPhoto({
       requestId,
       packageName: body.packageName,
       size: body.size,
@@ -74,7 +77,7 @@ async function requestPhoto(c: AppContext) {
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error({ error: message }, "Error processing miniapp photo request");
+    logger.error({ error: message }, "Error processing miniapp SDK photo request");
 
     if (message.includes("not connected") || message.includes("Glasses not connected")) {
       return c.json({ error: message }, 503);
@@ -85,10 +88,11 @@ async function requestPhoto(c: AppContext) {
 }
 
 /**
- * POST /api/client/miniapp-photo/upload/:requestId
+ * POST /api/client/miniapp-sdk-photo/upload/:requestId
  *
  * Glasses (direct WiFi) or phone's BlePhotoUploadService (BLE fallback) uploads
- * the captured photo here.
+ * the captured photo here. Photo is stored in a private R2 bucket; a short-TTL
+ * signed download URL is minted and sent to the phone via phone_photo_ready.
  *
  * Auth: Bearer <uploadToken> (single-use JWT minted during the /request call).
  */
@@ -110,9 +114,9 @@ async function uploadPhoto(c: AppContext) {
       const allSessions = UserSession.getAllSessions();
       for (const session of allSessions) {
         if (errorToken) {
-          const result = session.phonePhotoManager.verifyUploadToken(errorToken);
+          const result = session.miniappSdkPhotoManager.verifyUploadToken(errorToken);
           if (result && result.requestId === requestId) {
-            session.phonePhotoManager.handleUploadError(requestId, errorParam);
+            session.miniappSdkPhotoManager.handleUploadError(requestId, errorParam);
             break;
           }
         }
@@ -128,16 +132,15 @@ async function uploadPhoto(c: AppContext) {
 
     const token = authHeader.substring(7);
 
-    // We need to find the right user session to verify the token.
-    // The token itself contains the userId, so we can decode it first.
-    // NOTE: In production, you'd have a centralized token verification service.
-    // For v1, iterate sessions to find the matching one.
+    // Find the user session that owns this token.
+    // The token carries userId + requestId; iterate sessions until one verifies.
+    // In production this would be centralized token verification.
     const allSessions = UserSession.getAllSessions();
     let matchedSession = null;
     let tokenPayload = null;
 
     for (const session of allSessions) {
-      const result = session.phonePhotoManager.verifyUploadToken(token);
+      const result = session.miniappSdkPhotoManager.verifyUploadToken(token);
       if (result && result.requestId === requestId) {
         matchedSession = session;
         tokenPayload = result;
@@ -160,43 +163,37 @@ async function uploadPhoto(c: AppContext) {
     const photoBuffer = Buffer.from(await photoFile.arrayBuffer());
     const mimeType = photoFile.type || "image/jpeg";
 
-    // Upload to R2 (or local storage for dev)
-    // For v1, write to local disk. R2 integration is documented in the plan
-    // but requires R2 credentials to be configured.
-    const fs = await import("fs");
-    const path = await import("path");
-    const uploadDir = path.join(process.cwd(), "packages", "uploads", "miniapp-photos");
+    // Store in the private R2 bucket
+    const { key, sizeBytes } = await miniappSdkPhotoStorage.putPhoto({
+      userId: tokenPayload.userId,
+      requestId,
+      buffer: photoBuffer,
+      mimeType,
+    });
 
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const filename = `${tokenPayload.userId}-${requestId}-${Date.now()}.jpg`;
-    const filePath = path.join(uploadDir, filename);
-    fs.writeFileSync(filePath, photoBuffer);
-
-    // Construct the public URL
-    const cloudHost = process.env.CLOUD_PUBLIC_HOST_NAME || "localhost:8002";
-    const protocol = cloudHost.includes("localhost") ? "http" : "https";
-    const photoUrl = `${protocol}://${cloudHost}/api/photos/miniapp/${filename}`;
+    // Mint a short-TTL signed download URL for the miniapp to fetch
+    const photoUrl = await miniappSdkPhotoStorage.getSignedDownloadUrl(key);
 
     logger.info(
-      { requestId, filename, size: photoBuffer.length, mimeType },
-      "Miniapp photo uploaded successfully",
+      { requestId, key, size: sizeBytes, mimeType },
+      "Miniapp SDK photo uploaded and signed URL minted",
     );
 
     // Notify the phone
-    matchedSession.phonePhotoManager.handleUploadComplete(
+    matchedSession.miniappSdkPhotoManager.handleUploadComplete(
       requestId,
       photoUrl,
       mimeType,
-      photoBuffer.length,
+      sizeBytes,
     );
 
     return c.json({ success: true, photoUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error({ error: message, requestId: c.req.param("requestId") }, "Error uploading miniapp photo");
+    logger.error(
+      { error: message, requestId: c.req.param("requestId") },
+      "Error uploading miniapp SDK photo",
+    );
     return c.json({ error: message }, 500);
   }
 }

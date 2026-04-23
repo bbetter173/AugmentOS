@@ -5,6 +5,8 @@
 - Execution plan (phone-side, V1-V4 by Linear issue): `agents/local-miniapp-execution-plan.md`
 - Technical implementation plan (phone-side, full spec): `agents/local-app-runtime-plan.md`
 - Cloud shrinkage plan (what stays in cloud vs moves to phone, Redis retrofit): `agents/cloud-shrinkage-plan.md`
+- Miniapp store backend plan (dev console upload, publish, sharing, signed-URL install): `agents/miniapp-store-backend-plan.md`
+- Miniapp SDK photo cleanup plan (private bucket + signed URLs + rename for `takePhoto()` path): `agents/miniapp-sdk-photo-cleanup-plan.md`
 
 ## What this is
 

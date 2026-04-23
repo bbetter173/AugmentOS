@@ -32,7 +32,7 @@ import {
   locationApi,
   notificationsApi,
   photoApi,
-  miniappPhotoApi,
+  miniappSdkPhotoApi,
   deviceStateApi,
   // SDK APIs (third-party apps)
   sdkVersionApi,
@@ -314,7 +314,7 @@ app.route("/api/client/calendar", calendarApi);
 app.route("/api/client/location", locationApi);
 app.route("/api/client/notifications", notificationsApi);
 app.route("/api/client/photo", photoApi);
-app.route("/api/client/miniapp-photo", miniappPhotoApi);
+app.route("/api/client/miniapp-sdk-photo", miniappSdkPhotoApi);
 app.route("/api/client/device/state", deviceStateApi);
 app.route("/api/client/audio/configure", audioConfigApi);
 

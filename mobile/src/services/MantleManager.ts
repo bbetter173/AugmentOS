@@ -255,18 +255,18 @@ class MantleManager {
     this.subs = []
 
     // Forward Bluetooth SDK status changes to the zustand Bluetooth store.
-    this.subs.push(
-      BluetoothSdk.addListener("bluetooth_status", (changed: Partial<BluetoothStatus>) => {
+    this.subs.push({
+      remove: BluetoothSdk.onBluetoothStatus((changed: Partial<BluetoothStatus>) => {
         // console.log("MANTLE: Bluetooth SDK status changed", changed)
         useBluetoothStore.getState().setBluetoothStatus(changed)
       }),
-    )
-    this.subs.push(
-      BluetoothSdk.addListener("glasses_status", (changed) => {
+    })
+    this.subs.push({
+      remove: BluetoothSdk.onGlassesStatus((changed) => {
         // console.log("MANTLE: Glasses status changed", changed)
         useGlassesStore.getState().setGlassesInfo(changed)
       }),
-    )
+    })
 
     // Subscribe to individual core events
     {

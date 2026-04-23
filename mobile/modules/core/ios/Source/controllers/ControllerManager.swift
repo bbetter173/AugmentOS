@@ -79,6 +79,7 @@ protocol ControllerManager {
     func forgetWifiNetwork(_ ssid: String)
     func sendHotspotState(_ enabled: Bool)
     func sendOtaStart()
+    func sendOtaQueryStatus()
 
     // MARK: - User Context (for crash reporting)
 

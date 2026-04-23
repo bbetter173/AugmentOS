@@ -162,28 +162,31 @@ These bugs exist in the current codebase and should be fixed regardless of the r
 
 ### High (wrong decisions / misleading UX)
 
-| #   | Bug                                                                                                                | File                               | Fix                                            | Status                              |
-| --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------- | ---------------------------------------------- | ----------------------------------- |
-| 5   | MTK/BES download failures never reported to phone — suppression filter blocks `FAILED` status                      | `OtaHelper.java` lines 2469-2474   | Exempt `FAILED`/`FINISHED` from suppression    | `[I]` Fix independently (quick win) |
-| 6   | BES segment verify failure doesn't call `cleanup()` — `isBesOtaInProgress` stays true, blocking future BES updates | `BesOtaManager.java` lines 714-716 | Add `cleanup()` call                           | `[I]` Fix independently             |
-| 7   | BES `send()` failure during data transfer only logs — no FAILED event, no cleanup                                  | `BesOtaManager.java` lines 767-769 | Post `createFailed(...)` and call `cleanup()`  | `[I]` Fix independently             |
-| 8   | Missing deps in check-for-updates `useEffect` — `mtkFwVersion`/`besFwVersion` not in dependency array              | `check-for-updates.tsx` line 206   | Add to deps, guarded by `hasInitiatedCheckRef` | `[I]` Fix independently             |
-| 9   | No wakelock on queued install path — `startOtaFromPhone` sets `pendingPhoneInstall` without acquiring wakelock     | `OtaHelper.java` lines 454-461     | Acquire wakelock in queued path                | `[I]` Fix independently             |
+| #   | Bug                                                                                                                                                          | File                               | Fix                                                             | Status                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- | --------------------------------------------------------------- | ----------------------------------- |
+| 5   | MTK/BES download failures never reported to phone — suppression filter blocks `FAILED` status                                                                | `OtaHelper.java` lines 2469-2474   | Exempt `FAILED`/`FINISHED` from suppression                     | `[I]` Fix independently (quick win) |
+| 6   | BES segment verify failure doesn't call `cleanup()` — `isBesOtaInProgress` stays true, blocking future BES updates                                           | `BesOtaManager.java` lines 714-716 | Add `cleanup()` call                                            | `[I]` Fix independently             |
+| 7   | BES `send()` failure during data transfer only logs — no FAILED event, no cleanup                                                                            | `BesOtaManager.java` lines 767-769 | Post `createFailed(...)` and call `cleanup()`                   | `[I]` Fix independently             |
+| 8   | Missing deps in check-for-updates `useEffect` — `mtkFwVersion`/`besFwVersion` not in dependency array                                                        | `check-for-updates.tsx` line 206   | Add to deps, guarded by `hasInitiatedCheckRef`                  | `[I]` Fix independently             |
+| 9   | No wakelock on queued install path — `startOtaFromPhone` sets `pendingPhoneInstall` without acquiring wakelock                                               | `OtaHelper.java` lines 454-461     | Acquire wakelock in queued path                                 | `[I]` Fix independently             |
+| 20  | `wifiStatusKnown` never cleared on BLE disconnect — stale `true` from previous session causes premature wifi-gating before fresh status arrives on reconnect | `glasses.ts` `setGlassesInfo`      | Reset `wifiStatusKnown: false` when `connected` becomes `false` | `[I]` Fix independently             |
 
 ### Medium (suboptimal UX / operational)
 
-| #   | Bug                                                                                                                        | File                                                  | Fix                                                               | Status                                           |
-| --- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| 10  | MTK/BES firmware downloads have no retry logic (APK retries 3x)                                                            | `OtaHelper.java`                                      | Extract retry pattern, apply to firmware downloads (2 retries)    | `[I]` Fix as part of rearchitecture              |
-| 11  | APK integrity verification disabled (`verifyApkFile` returns `true`)                                                       | `OtaHelper.java` lines 1283-1294                      | Re-enable SHA256 when manifest supports hashes                    | `[I]` Tech debt                                  |
-| 12  | Revalidation race — async version fetch mid-OTA can prematurely set `completed`                                            | `progress.tsx` lines 350-425                          | Guard to only run in `starting`/`restarting`                      | `[R]` Eliminated — no revalidation in new design |
-| 13  | BES wakelock too short (120s) — large transfers may outlive it                                                             | `BesOtaManager.java` lines 33-34                      | Increase to 5 min or refresh periodically                         | `[I]` Fix independently                          |
-| 18  | BES protocol has no total operation timeout — if chip hangs mid-UART, glasses wait forever with wakelock held              | `BesOtaManager.java` `dealOtaRecvCmd()`               | Add 5-min total timeout; call `cleanup()` + post FAILED on expiry | `[I]` Fix independently                          |
-| 19  | Cache pruning on startup only checks file existence, not integrity — truncated/corrupted files from crashes pass the check | `OtaHelper.java` lines 421-443 `pruneOneCacheEntry()` | Verify file size against cached metadata and/or SHA256 hash       | `[I]` Fix independently                          |
-| 14  | Stale `connected` after BES wait in OtaUpdateChecker — doesn't re-read from store after async wait                         | `OtaUpdateChecker.tsx` lines 567-571                  | Re-read `useGlassesStore.getState().connected`                    | `[I]` Fix independently                          |
-| 15  | `waitingForMtkComplete` ref is never set to `true` — `mtk_update_complete` handler is dead code                            | `progress.tsx` lines 891-908                          | Remove dead code or wire up the ref                               | `[R]` Eliminated                                 |
-| 16  | Misleading log: "Started periodic OTA checks every 15 minutes" but constant is 30 minutes                                  | `OtaHelper.java` line 502                             | Fix log message                                                   | `[I]` Fix independently                          |
-| 17  | `FileInputStream.available()` used as file length in BES — unreliable on Android                                           | `BesOtaManager.java` lines 198-204                    | Use `File.length()` instead                                       | `[I]` Fix independently                          |
+| #   | Bug                                                                                                                                      | File                                                  | Fix                                                                              | Status                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 10  | MTK/BES firmware downloads have no retry logic (APK retries 3x)                                                                          | `OtaHelper.java`                                      | Extract retry pattern, apply to firmware downloads (2 retries)                   | `[I]` Fix as part of rearchitecture              |
+| 11  | APK integrity verification disabled (`verifyApkFile` returns `true`)                                                                     | `OtaHelper.java` lines 1283-1294                      | Re-enable SHA256 when manifest supports hashes                                   | `[I]` Tech debt                                  |
+| 12  | Revalidation race — async version fetch mid-OTA can prematurely set `completed`                                                          | `progress.tsx` lines 350-425                          | Guard to only run in `starting`/`restarting`                                     | `[R]` Eliminated — no revalidation in new design |
+| 13  | BES wakelock too short (120s) — large transfers may outlive it                                                                           | `BesOtaManager.java` lines 33-34                      | Increase to 5 min or refresh periodically                                        | `[I]` Fix independently                          |
+| 18  | BES protocol has no total operation timeout — if chip hangs mid-UART, glasses wait forever with wakelock held                            | `BesOtaManager.java` `dealOtaRecvCmd()`               | Add 5-min total timeout; call `cleanup()` + post FAILED on expiry                | `[I]` Fix independently                          |
+| 19  | Cache pruning on startup only checks file existence, not integrity — truncated/corrupted files from crashes pass the check               | `OtaHelper.java` lines 421-443 `pruneOneCacheEntry()` | Verify file size against cached metadata and/or SHA256 hash                      | `[I]` Fix independently                          |
+| 14  | Stale `connected` after BES wait in OtaUpdateChecker — doesn't re-read from store after async wait                                       | `OtaUpdateChecker.tsx` lines 567-571                  | Re-read `useGlassesStore.getState().connected`                                   | `[I]` Fix independently                          |
+| 15  | `waitingForMtkComplete` ref is never set to `true` — `mtk_update_complete` handler is dead code                                          | `progress.tsx` lines 891-908                          | Remove dead code or wire up the ref                                              | `[R]` Eliminated                                 |
+| 16  | Misleading log: "Started periodic OTA checks every 15 minutes" but constant is 30 minutes                                                | `OtaHelper.java` line 502                             | Fix log message                                                                  | `[I]` Fix independently                          |
+| 17  | `FileInputStream.available()` used as file length in BES — unreliable on Android                                                         | `BesOtaManager.java` lines 198-204                    | Use `File.length()` instead                                                      | `[I]` Fix independently                          |
+| 21  | No internet reachability check — WiFi-connected hotspot with no upstream causes 15-75s of silent "Downloading..." before generic failure | `OtaHelper.java` `startOtaFromPhone()`                | Add pre-flight HEAD request to CDN before starting OTA                           | `[R]` Fixed in rearchitecture (Section F2)       |
+| 22  | Download errors are generic — user sees "Download failed" whether the cause is no internet, DNS failure, SSL error, or server issue      | `OtaHelper.java` download catch blocks                | Classify exceptions into semantic error codes (`no_internet`, `ssl_error`, etc.) | `[R]` Fixed in rearchitecture (Section F3)       |
 
 ---
 
@@ -272,8 +275,8 @@ For a 3-step update, the user sees:
   "status": "in_progress",
   "error_message": null,
   "version_json_url": "https://...",
-  "last_activity_at": 1713045600000,
-  "restarting_since": null
+  "last_activity_at_elapsed": 123456789,
+  "restarting_since_elapsed": null
 }
 ```
 
@@ -282,20 +285,43 @@ For a 3-step update, the user sees:
 - On `ota_start` received: create session with full step list from version manifest. If an active session already exists, resume it instead of creating a new one (see Edge Case: `ota_start` vs `ota_query_status` race below).
 - Before each step begins: update `current_step_index` and `current_phase`
 - On progress updates: update `step_percent` (throttled, every 5%)
-- On step completion: increment `current_step_index`, reset `step_percent` to 0, update `last_activity_at`
+- On step completion: increment `current_step_index`, reset `step_percent` to 0, update `last_activity_at_elapsed`
 - On session end (all complete or fatal failure): clear session
-- Before APK install: set `restarting_since` to current timestamp, then persist session (install kills the process)
+- Before APK install: set `restarting_since_elapsed` to current `elapsedRealtime()`, then persist session (install kills the process)
 
 **Read points:**
 
 - On `ota_query_status`: return current session state
 - On app restart in `OtaService.checkAndResumeAfterApkUpdate()`: check for active session
 
-**Session expiry:** If `last_activity_at` is more than 30 minutes old on read, consider the session stale and clear it. Expiry is based on last activity (step completion, progress update) — not session creation time. This prevents long multi-step updates from expiring mid-flow while still cleaning up zombie sessions.
+**Timestamps — use monotonic clock:** All timestamps in the session use `SystemClock.elapsedRealtime()` (milliseconds since boot), **not** `System.currentTimeMillis()`. This is critical because Mentra Live syncs its system clock with the internet after connecting to WiFi — if we used wall-clock time, a session created before NTP sync would have a timestamp hours or years in the past, and would appear "expired" the moment the clock jumps forward after sync. `elapsedRealtime()` is monotonic and unaffected by NTP sync or user clock changes.
 
-**APK restart guard:** Before APK install, set `restarting_since` to the current timestamp. On app restart, if `restarting_since` is set and less than 10 seconds have elapsed, wait for the remainder before auto-continuing. This prevents the edge case where the old process hasn't fully died yet when the new process starts. After the wait, clear `restarting_since` and proceed.
+**Caveat:** `elapsedRealtime()` resets on device reboot. OTA sessions don't survive full reboots (only APK install restarts), so this is acceptable. For the APK restart path specifically, see the restart guard below.
 
-**Session locking:** `ota_start` must check `hasActiveSession()` before creating a new session. If an active session exists, treat `ota_start` as a resume (re-send current `ota_status`) rather than resetting to step 1. This prevents duplicate APK installs if the phone sends `ota_start` while a session is mid-flight.
+**Session expiry:** If `last_activity_at_elapsed` is more than 30 minutes older than current `SystemClock.elapsedRealtime()`, consider the session stale and clear it. Expiry is based on last activity (step completion, progress update) — not session creation time. This prevents long multi-step updates from expiring mid-flow while still cleaning up zombie sessions.
+
+**APK restart guard:** Before APK install, set `restarting_since_elapsed` to current `SystemClock.elapsedRealtime()`. On app restart, if `restarting_since_elapsed` is set, **skip the normal expiry check** (since `elapsedRealtime()` may have reset across the process kill) and instead just enforce the 10-second delay: if the session's `restarting_since_elapsed` is set, wait 10 seconds from process start before auto-continuing. After the wait, clear `restarting_since_elapsed` and proceed. This prevents the edge case where the old process hasn't fully died yet when the new process starts.
+
+**Session locking:** `ota_start` must check `hasActiveSession()` before creating a new session. The behavior depends on the session's current status:
+
+```java
+if (sessionManager.hasActiveSession()) {
+    String status = sessionManager.getStatus();
+    if ("failed".equals(status) || "complete".equals(status)) {
+        // Terminal state — clear stale session and start fresh
+        sessionManager.clear();
+        // Fall through to create new session below
+    } else {
+        // In-progress session — resume, don't restart
+        sendOtaStatus(sessionManager.getCurrentStatus());
+        return;
+    }
+}
+// Create new session from version manifest
+sessionManager.createSession(stepSequence, versionJsonUrl);
+```
+
+This prevents duplicate APK installs if the phone sends `ota_start` while a session is mid-flight, while still allowing the user to retry after a failure (failed sessions are cleared on the next `ota_start`). "Retry" on the phone always sends `ota_start` — no separate `ota_resume` command is needed.
 
 ### B. Glasses: Unified `ota_status` Message
 
@@ -336,7 +362,14 @@ int computeOverallPercent(int stepIndex, int totalSteps, String phase, int stepP
 }
 ```
 
-When firmware download is cached (cache hit), the download phase is skipped entirely and the step jumps straight to install.
+**Cache-hit optimization:** When a firmware download is cached, the download phase can be skipped — but only after validation. Before skipping, the glasses must:
+
+1. Check cached file exists on disk
+2. Validate file size against expected size (stored `Content-Length` from the original download, or `expectedSizeBytes` from the version manifest)
+3. If valid → skip download phase, jump straight to install
+4. If invalid or missing → delete cached file, proceed with full download
+
+This ordering ensures the cache-skip optimization never bypasses the corruption check described in EC-1.
 
 **Delivery:**
 
@@ -417,6 +450,73 @@ This applies to both old `ota_progress` and the new `sendOtaStatus()` path.
 Extract retry logic from `downloadApk` into a shared `downloadWithRetry(url, outputFile, connectTimeoutMs, readTimeoutMs, maxRetries, retryDelayMs)` method.
 
 Apply to `downloadMtkFirmware` and `downloadBesFirmware` with 2 retries and 10s delay.
+
+### F2. Glasses: Pre-flight Internet Reachability Check
+
+**Modified:** `OtaHelper.java`
+
+Before starting any downloads, perform a lightweight internet reachability check. This catches "WiFi connected but no internet" (e.g., captive portals, hotspots without upstream, misconfigured networks) within seconds instead of waiting for download timeouts.
+
+```java
+private static final int REACHABILITY_TIMEOUT_MS = 5000;
+
+private boolean checkInternetReachable() {
+    try {
+        HttpURLConnection conn = (HttpURLConnection)
+            new URL("https://cdn.mentra.glass/ping").openConnection();
+        conn.setConnectTimeout(REACHABILITY_TIMEOUT_MS);
+        conn.setReadTimeout(REACHABILITY_TIMEOUT_MS);
+        conn.setRequestMethod("HEAD");
+        conn.connect();
+        int code = conn.getResponseCode();
+        conn.disconnect();
+        return code >= 200 && code < 400;
+    } catch (Exception e) {
+        Log.w(TAG, "Internet reachability check failed: " + e.getMessage());
+        return false;
+    }
+}
+```
+
+**Call site:** At the start of `startOtaFromPhone()`, before creating the OTA session. If `checkInternetReachable()` returns `false`:
+
+- Send `ota_status` with `status: "failed"` and `error_message: "no_internet"`
+- Do not create a session or begin downloads
+- The phone shows a specific "WiFi has no internet" error screen with options to change WiFi or retry
+
+**Fallback:** If the reachability endpoint is unreachable but downloads succeed (e.g., endpoint is down but CDN works), this is a false negative. To handle this, also apply the semantic error classification in F3 below — so even if the pre-flight check is skipped or passes, download failures still get actionable error messages.
+
+### F3. Glasses: Semantic Download Error Classification
+
+**Modified:** `OtaHelper.java` — download catch blocks
+
+When a download fails, classify the exception type into a semantic error code included in the `ota_status` `error_message`:
+
+```java
+private String classifyDownloadError(Exception e) {
+    if (e instanceof java.net.SocketTimeoutException) {
+        return "no_internet";       // timeout → likely no connectivity
+    } else if (e instanceof java.net.UnknownHostException) {
+        return "no_internet";       // DNS failure → no internet
+    } else if (e instanceof java.net.ConnectException) {
+        return "no_internet";       // connection refused → no route
+    } else if (e instanceof javax.net.ssl.SSLException) {
+        return "ssl_error";         // certificate / TLS issue
+    } else {
+        return "download_failed";   // generic fallback
+    }
+}
+```
+
+**Phone-side handling:** The `progress.tsx` rewrite (Section N) maps these error codes to user-facing messages:
+
+| `error_message`     | Phone UI                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `"no_internet"`     | "Glasses are connected to WiFi but can't reach the internet. Try a different network." + "Change WiFi" / "Retry" buttons |
+| `"ssl_error"`       | "Secure connection failed. This can happen on public WiFi with captive portals. Try a different network."                |
+| `"download_failed"` | Generic "Update failed. Tap Retry to try again."                                                                         |
+
+This ensures the user gets actionable guidance regardless of whether the pre-flight check (F2) caught the issue.
 
 ### G. Glasses: BES Reliability Fixes
 
@@ -643,13 +743,9 @@ Fix the stale `connected` bug: re-read from `useGlassesStore.getState().connecte
 3. If glasses is old: fall back to current `progress.tsx` (kept as `progress-legacy.tsx`).
 4. Feature flag: `useNewOtaFlow` based on glasses firmware version.
 
-### Phase 3: Cleanup
+### Permanent: Dual-Send Stays
 
-Once all glasses in the field are updated:
-
-1. Remove `ota_progress` sending from glasses.
-2. Remove `progress-legacy.tsx` from phone.
-3. Remove old `otaProgress` from store.
+Dual-send of `ota_progress` + `ota_status` from glasses is intentionally permanent. Old glasses in the field will continue sending only `ota_progress`, and the phone must support both formats indefinitely. `progress-legacy.tsx` and the old `otaProgress` / `otaInProgress` store fields remain in the codebase for backwards compatibility.
 
 ---
 
@@ -657,15 +753,15 @@ Once all glasses in the field are updated:
 
 ### Glasses (`asg_client`)
 
-| File                                                        | Change                                                                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **NEW** `io/ota/session/OtaSessionManager.java`             | OTA session persistence (SharedPreferences wrapper)                                                                 |
-| `io/ota/helpers/OtaHelper.java`                             | Add `sendOtaStatus()`, update `sendProgressToPhone()` suppression, use `OtaSessionManager`, firmware download retry |
-| `io/ota/services/OtaService.java`                           | Auto-continue from persisted session in `checkAndResumeAfterApkUpdate()`                                            |
-| `service/core/handlers/OtaCommandHandler.java`              | Add `ota_query_status` handler                                                                                      |
-| `service/communication/managers/CommunicationManager.java`  | Route terminal `ota_status` via `ReliableMessageManager`                                                            |
-| `io/bes/BesOtaManager.java`                                 | Cleanup on segment verify failure, send() failure, wakelock increase, file size fix                                 |
-| `service/communication/reliability/MessageReliability.java` | Add `"ota_status"` to `RELIABLE_TYPES` for terminal events                                                          |
+| File                                                        | Change                                                                                                                                                                                  |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **NEW** `io/ota/session/OtaSessionManager.java`             | OTA session persistence (SharedPreferences wrapper)                                                                                                                                     |
+| `io/ota/helpers/OtaHelper.java`                             | Add `sendOtaStatus()`, update `sendProgressToPhone()` suppression, use `OtaSessionManager`, firmware download retry, pre-flight internet check (F2), semantic error classification (F3) |
+| `io/ota/services/OtaService.java`                           | Auto-continue from persisted session in `checkAndResumeAfterApkUpdate()`                                                                                                                |
+| `service/core/handlers/OtaCommandHandler.java`              | Add `ota_query_status` handler                                                                                                                                                          |
+| `service/communication/managers/CommunicationManager.java`  | Route terminal `ota_status` via `ReliableMessageManager`                                                                                                                                |
+| `io/bes/BesOtaManager.java`                                 | Cleanup on segment verify failure, send() failure, wakelock increase, file size fix                                                                                                     |
+| `service/communication/reliability/MessageReliability.java` | Add `"ota_status"` to `RELIABLE_TYPES` for terminal events                                                                                                                              |
 
 ### Phone Native Bridge
 
@@ -678,22 +774,20 @@ Once all glasses in the field are updated:
 
 ### Phone App
 
-| File                                               | Change                                                          |
-| -------------------------------------------------- | --------------------------------------------------------------- |
-| `mobile/src/stores/glasses.ts`                     | Add `otaStatus` / `setOtaStatus`, keep `otaProgress` for legacy |
-| `mobile/src/services/MantleManager.ts`             | Add `ota_status` event handler                                  |
-| `mobile/src/app/ota/progress.tsx`                  | Rewrite (~200 lines)                                            |
-| `mobile/src/app/ota/check-for-updates.tsx`         | Minor: fix dependency array, use `otaStatus`                    |
-| `mobile/src/contexts/ConnectionOverlayContext.tsx` | Add `suppressOverlay` support                                   |
-| `mobile/src/effects/OtaUpdateChecker.tsx`          | Simplify, fix stale connected bug                               |
+| File                                               | Change                                                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `mobile/src/stores/glasses.ts`                     | Add `otaStatus` / `setOtaStatus`, keep `otaProgress` for legacy                          |
+| `mobile/src/services/MantleManager.ts`             | Add `ota_status` event handler                                                           |
+| `mobile/src/app/ota/progress.tsx`                  | Rewrite (~200 lines), map semantic error codes to user-facing messages (Section F3)      |
+| `mobile/src/app/ota/check-for-updates.tsx`         | Minor: fix dependency array, use `otaStatus`, handle `no_internet` from pre-flight check |
+| `mobile/src/contexts/ConnectionOverlayContext.tsx` | Add `suppressOverlay` support                                                            |
+| `mobile/src/effects/OtaUpdateChecker.tsx`          | Simplify, fix stale connected bug                                                        |
 
 ---
 
-## Phased Rollout
+## Implementation Checklist
 
-### Sprint 1: Independent Bug Fixes (no architecture changes)
-
-Fix items marked `[I]` in the Known Bugs table. These are safe, isolated fixes:
+### Glasses — Bug Fixes
 
 - [ ] Fix download suppression for `FAILED`/`FINISHED` (OtaHelper.java line 2471)
 - [ ] BES `cleanup()` on segment verify failure (BesOtaManager.java)
@@ -701,42 +795,57 @@ Fix items marked `[I]` in the Known Bugs table. These are safe, isolated fixes:
 - [ ] BES wakelock increase to 5 min (BesOtaManager.java)
 - [ ] BES `FileInputStream.available()` → `File.length()` (BesOtaManager.java)
 - [ ] BES total operation timeout — 5 min guard in `dealOtaRecvCmd()` (BesOtaManager.java) **(EC-4)**
+- [ ] BES authorization 30s timeout on `isWaitingForAuthorization` (BesOtaManager.java)
+- [ ] MTK install 10-min timeout clearing `isMtkOtaInProgress` (OtaHelper.java)
 - [ ] Wakelock on queued install path (OtaHelper.java)
-- [ ] Connection overlay suppression during OTA (ConnectionOverlayContext.tsx)
-- [ ] Fix check-for-updates dependency array (check-for-updates.tsx)
-- [ ] Fix stale connected in OtaUpdateChecker (OtaUpdateChecker.tsx)
 - [ ] Fix misleading 15-minute log (OtaHelper.java)
 - [ ] Add cache file integrity validation in `pruneOneCacheEntry()` (OtaHelper.java) **(EC-1)**
+- [ ] Add pre-flight internet reachability check in `startOtaFromPhone()` (OtaHelper.java) **(Bug #21 / Section F2)**
+- [ ] Add semantic download error classification in download catch blocks (OtaHelper.java) **(Bug #22 / Section F3)**
 
-### Sprint 2: Glasses-Side Rearchitecture
+### Glasses — Rearchitecture
 
-- [ ] Implement `OtaSessionManager.java` with `last_activity_at` expiry and `restarting_since` guard **(EC-3, EC-5)**
-- [ ] Add session locking — `ota_start` resumes if active session exists **(EC-2)**
-- [ ] Add `sendOtaStatus()` to `OtaHelper.java` (send alongside `ota_progress`)
+- [ ] Implement `OtaSessionManager.java` with `elapsedRealtime()`-based expiry, `restarting_since_elapsed` guard, and terminal-state clearing **(EC-3, EC-5)**
+- [ ] Add session locking — `ota_start` resumes if active in-progress session; clears terminal sessions **(EC-2)**
+- [ ] Add `sendOtaStatus()` to `OtaHelper.java` (permanent dual-send alongside `ota_progress`)
 - [ ] Add `ota_query_status` handler to `OtaCommandHandler.java`
 - [ ] Modify `OtaService.checkAndResumeAfterApkUpdate()` for auto-continue with restart guard **(EC-5)**
 - [ ] Add reliable delivery for terminal `ota_status` events
-- [ ] Add firmware download retry logic
-- [ ] Test: full 3-step OTA with new glasses, old phone (verify backwards compat)
+- [ ] Extract `downloadWithRetry()`, apply to MTK/BES firmware downloads (2 retries, 10s delay)
 
-### Sprint 3: Phone-Side Rearchitecture
+### Phone — Bug Fixes
+
+- [ ] Reset `wifiStatusKnown` to `false` on BLE disconnect (glasses.ts) **(Bug #20)**
+- [ ] Connection overlay suppression during OTA (ConnectionOverlayContext.tsx)
+- [ ] Fix check-for-updates dependency array (check-for-updates.tsx)
+- [ ] Fix stale connected in OtaUpdateChecker (OtaUpdateChecker.tsx)
+
+### Phone — Rearchitecture
 
 - [ ] Add `sendOtaQueryStatus()` to native bridges (Android + iOS)
 - [ ] Add `ota_status` event handling to native bridges
+- [ ] Merge `sr_adota` BES progress into `ota_status` format in native bridges
 - [ ] Add `OtaStatus` types to `Core.types.ts`
-- [ ] Add `otaStatus` to glasses store
-- [ ] Add `ota_status` handler to `MantleManager.ts`
-- [ ] Rewrite `progress.tsx` with `sessionStarted` ref and reconnect-safe logic **(EC-2)**
+- [ ] Add `otaStatus` to glasses store (keep `otaProgress` permanently for legacy)
+- [ ] Add `ota_status` handler to `MantleManager.ts` (keep `ota_progress` handler permanently)
+- [ ] Rename current `progress.tsx` to `progress-legacy.tsx` (permanent, for old glasses)
+- [ ] New `progress.tsx` (~200 lines) with `sessionStarted` ref, semantic error mapping, reconnect-safe logic **(EC-2)**
 - [ ] Add firmware version gating (new vs legacy progress screen)
+- [ ] Simplify `OtaUpdateChecker.tsx` to use `otaStatus`
+
+### Testing
+
 - [ ] Test: full 3-step OTA with new glasses + new phone
-- [ ] Test: old glasses + new phone (verify legacy fallback)
+- [ ] Test: new glasses + old phone (verify backwards compat via dual-send)
+- [ ] Test: old glasses + new phone (verify legacy fallback via version gating)
+- [ ] Test: BLE drop mid-update → reconnect → `ota_query_status` resync
+- [ ] Test: WiFi with no internet → pre-flight check → "no internet" error
 
-### Sprint 4: Cleanup
+### Future Tech Debt
 
-- [ ] Remove dual-send of `ota_progress` from glasses (once field rollout confirms stability)
-- [ ] Remove `progress-legacy.tsx`
-- [ ] Remove old `otaProgress` from store
-- [ ] Re-enable APK SHA256 verification
+- [ ] Re-enable APK SHA256 verification when manifest supports hashes
+
+**Note:** Dual-send of `ota_progress` + `ota_status` from glasses is intentionally permanent. Old glasses in the field will continue sending only `ota_progress`, and the phone must support both formats indefinitely. `progress-legacy.tsx` and the old `otaProgress` / `otaInProgress` store fields remain in the codebase for backwards compatibility.
 
 ---
 
@@ -768,11 +877,12 @@ These edge cases are realistic field conditions that the rearchitecture must add
 
 **Scenario:** Glasses are installing MTK firmware. The install takes 20 minutes (slow device, large firmware). The session's `created_at` timestamp was 25 minutes ago. A step completion or progress event triggers `OtaSessionManager` to read the session, which finds it "expired" (>30 min since creation) and clears it — killing the active OTA mid-flow.
 
-**Mitigation (Section A — `last_activity_at`):**
+**Mitigation (Section A — `last_activity_at_elapsed`):**
 
-- Session expiry is based on `last_activity_at`, not `created_at`. The session is refreshed on every progress update, step transition, and phase change.
+- Session expiry is based on `last_activity_at_elapsed` (monotonic `SystemClock.elapsedRealtime()`), not wall-clock creation time. The session is refreshed on every progress update, step transition, and phase change.
 - The 30-minute expiry window means: "no activity for 30 minutes." As long as progress events flow (even slowly), the session stays alive.
-- On step completion, `last_activity_at` is explicitly updated before checking expiry.
+- On step completion, `last_activity_at_elapsed` is explicitly updated before checking expiry.
+- Using monotonic time also prevents NTP clock sync from artificially aging the session (see Section A — Timestamps).
 
 ### EC-4: BES Chip Hangs During UART Protocol
 
@@ -791,9 +901,9 @@ These edge cases are realistic field conditions that the rearchitecture must add
 
 **Mitigation (Section A — APK restart guard):**
 
-- Before triggering APK install, write `restarting_since = System.currentTimeMillis()` to the session.
-- On app restart, if `restarting_since` is set and fewer than 10 seconds have elapsed, sleep for the remainder before proceeding. This gives the old process time to die and release file locks.
-- After the wait, clear `restarting_since` and continue with `checkAndResumeAfterApkUpdate()`.
+- Before triggering APK install, write `restarting_since_elapsed = SystemClock.elapsedRealtime()` to the session.
+- On app restart, if `restarting_since_elapsed` is set, skip expiry checks and wait 10 seconds from process start before proceeding. This gives the old process time to die and release file locks.
+- After the wait, clear `restarting_since_elapsed` and continue with `checkAndResumeAfterApkUpdate()`.
 
 ---
 
@@ -823,13 +933,13 @@ These are plausible but lower-frequency scenarios. They should be tracked but do
 
 ## Open Questions
 
-1. **Session expiry duration:** 30 minutes is proposed (based on `last_activity_at`). Should it be longer for very slow connections (e.g., rural WiFi)?
+1. **Session expiry duration:** 30 minutes is proposed (based on `last_activity_at_elapsed`). Should it be longer for very slow connections (e.g., rural WiFi)?
 
 2. **Step weight distribution:** Equal weight per step (33/33/33 for 3 steps) is simple but may not match perceived time. APK downloads are fast; MTK install is slow. Should weights be configurable per step type?
 
 3. **BES `sr_adota` session context:** The phone needs to merge BES chip progress into the `ota_status` format. Should the glasses pre-send the session info before BES install starts (while UART is still available), or should the phone cache the last `ota_status` and overlay BES progress?
 
-4. **Retry semantics on phone:** If the user taps "Retry" after failure, should the phone send `ota_start` (which creates a new session on glasses) or `ota_resume` (which continues the existing session)? New session is simpler; resume avoids re-downloading cached artifacts. Note: with session locking (EC-2), sending `ota_start` to glasses with an active session already acts as a resume.
+4. ~~**Retry semantics on phone:**~~ **RESOLVED.** "Retry" sends `ota_start`. Session locking (Section A) handles the rest: if the previous session failed, it gets cleared and a fresh session starts. If somehow still in-progress, the glasses resume instead of restarting. No separate `ota_resume` command needed.
 
 5. **OTA simulation mode for testing:** Should the glasses support a `DEBUG_SIMULATE_OTA` flag that fakes the entire 3-step flow with delays and progress events, so the phone UI can be tested without real firmware?
 

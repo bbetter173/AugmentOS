@@ -9,6 +9,13 @@ import Foundation
 
 @MainActor
 class ObservableStore {
+    nonisolated static let bluetoothCategory = "bluetooth"
+    private nonisolated static let legacyCoreCategory = "core"
+
+    nonisolated static func normalizeCategory(_ category: String) -> String {
+        category == legacyCoreCategory ? bluetoothCategory : category
+    }
+
     private nonisolated(unsafe) var values: [String: Any] = [:]
     private var onEmit: ((String, [String: Any]) -> Void)?
 
@@ -17,7 +24,8 @@ class ObservableStore {
     }
 
     func set(_ category: String, _ key: String, _ value: Any) {
-        let fullKey = "\(category).\(key)"
+        let normalizedCategory = Self.normalizeCategory(category)
+        let fullKey = "\(normalizedCategory).\(key)"
         let oldValue = values[fullKey]
 
         // Skip if unchanged
@@ -28,16 +36,16 @@ class ObservableStore {
         values[fullKey] = value
 
         // Emit immediately
-        onEmit?(category, [key: value])
+        onEmit?(normalizedCategory, [key: value])
     }
 
     nonisolated func get(_ category: String, _ key: String) -> Any? {
-        values["\(category).\(key)"]
+        values["\(Self.normalizeCategory(category)).\(key)"]
     }
 
     func getCategory(_ category: String) -> [String: Any] {
         var result: [String: Any] = [:]
-        let prefix = "\(category)."
+        let prefix = "\(Self.normalizeCategory(category))."
         for (key, value) in values where key.hasPrefix(prefix) {
             let shortKey = String(key.dropFirst(prefix.count))
             result[shortKey] = value

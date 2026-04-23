@@ -51,13 +51,13 @@ abstract class SGCManager {
 
     /** Default: full [setDashboardPosition] (e.g. G1 single command). Nex overrides to height protobuf only. */
     open fun setDashboardHeightOnly(height: Int) {
-        val depth = (DeviceStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
+        val depth = (DeviceStore.store.get("bluetooth", "dashboard_depth") as? Number)?.toInt() ?: 2
         setDashboardPosition(height, depth)
     }
 
     /** Default: full [setDashboardPosition]. Nex overrides to display_distance only. */
     open fun setDashboardDepthOnly(depth: Int) {
-        val height = (DeviceStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
+        val height = (DeviceStore.store.get("bluetooth", "dashboard_height") as? Number)?.toInt() ?: 4
         setDashboardPosition(height, depth)
     }
 

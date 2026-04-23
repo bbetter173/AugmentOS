@@ -1561,7 +1561,7 @@ class G2 : SGCManager() {
                                                             if (idNumber != null) {
                                                                 val deviceId = "$idNumber"
                                                                 DeviceStore.apply(
-                                                                        "core",
+                                                                        "bluetooth",
                                                                         "device_name",
                                                                         deviceId
                                                                 )

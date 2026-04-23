@@ -73,101 +73,101 @@ class DeviceManager {
 
     // settings:
     private var defaultWearable: String
-        get() = DeviceStore.store.get("core", "default_wearable") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "default_wearable", value)
+        get() = DeviceStore.store.get("bluetooth", "default_wearable") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "default_wearable", value)
 
     private var pendingWearable: String
-        get() = DeviceStore.store.get("core", "pending_wearable") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "pending_wearable", value)
+        get() = DeviceStore.store.get("bluetooth", "pending_wearable") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "pending_wearable", value)
 
     public var deviceName: String
-        get() = DeviceStore.store.get("core", "device_name") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "device_name", value)
+        get() = DeviceStore.store.get("bluetooth", "device_name") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "device_name", value)
 
     public var deviceAddress: String
-        get() = DeviceStore.store.get("core", "device_address") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "device_address", value)
+        get() = DeviceStore.store.get("bluetooth", "device_address") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "device_address", value)
 
     private var defaultController: String
-        get() = DeviceStore.store.get("core", "default_controller") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "default_controller", value)
+        get() = DeviceStore.store.get("bluetooth", "default_controller") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "default_controller", value)
 
     private var pendingController: String
-        get() = DeviceStore.store.get("core", "pending_controller") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "pending_controller", value)
+        get() = DeviceStore.store.get("bluetooth", "pending_controller") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "pending_controller", value)
 
     private var controllerDeviceName: String
-        get() = DeviceStore.store.get("core", "controller_device_name") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "controller_device_name", value)
+        get() = DeviceStore.store.get("bluetooth", "controller_device_name") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "controller_device_name", value)
 
     private var searchingController: Boolean
-        get() = DeviceStore.store.get("core", "searchingController") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "searchingController", value)
+        get() = DeviceStore.store.get("bluetooth", "searchingController") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "searchingController", value)
 
     private var screenDisabled: Boolean
-        get() = DeviceStore.store.get("core", "screen_disabled") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "screen_disabled", value)
+        get() = DeviceStore.store.get("bluetooth", "screen_disabled") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "screen_disabled", value)
 
     private var preferredMic: String
-        get() = DeviceStore.store.get("core", "preferred_mic") as? String ?: "auto"
-        set(value) = DeviceStore.apply("core", "preferred_mic", value)
+        get() = DeviceStore.store.get("bluetooth", "preferred_mic") as? String ?: "auto"
+        set(value) = DeviceStore.apply("bluetooth", "preferred_mic", value)
 
     private var autoBrightness: Boolean
-        get() = DeviceStore.store.get("core", "auto_brightness") as? Boolean ?: true
-        set(value) = DeviceStore.apply("core", "auto_brightness", value)
+        get() = DeviceStore.store.get("bluetooth", "auto_brightness") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "auto_brightness", value)
 
     private var brightness: Int
-        get() = DeviceStore.store.get("core", "brightness") as? Int ?: 50
-        set(value) = DeviceStore.apply("core", "brightness", value)
+        get() = DeviceStore.store.get("bluetooth", "brightness") as? Int ?: 50
+        set(value) = DeviceStore.apply("bluetooth", "brightness", value)
 
     private var headUpAngle: Int
-        get() = DeviceStore.store.get("core", "head_up_angle") as? Int ?: 30
-        set(value) = DeviceStore.apply("core", "head_up_angle", value)
+        get() = DeviceStore.store.get("bluetooth", "head_up_angle") as? Int ?: 30
+        set(value) = DeviceStore.apply("bluetooth", "head_up_angle", value)
 
     private var sensingEnabled: Boolean
-        get() = DeviceStore.store.get("core", "sensing_enabled") as? Boolean ?: true
-        set(value) = DeviceStore.apply("core", "sensing_enabled", value)
+        get() = DeviceStore.store.get("bluetooth", "sensing_enabled") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "sensing_enabled", value)
 
     private var bypassVad: Boolean
-        get() = DeviceStore.store.get("core", "bypass_vad") as? Boolean ?: true
-        set(value) = DeviceStore.apply("core", "bypass_vad", value)
+        get() = DeviceStore.store.get("bluetooth", "bypass_vad") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "bypass_vad", value)
 
     private var offlineCaptionsRunning: Boolean
-        get() = DeviceStore.store.get("core", "offline_captions_running") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "offline_captions_running", value)
+        get() = DeviceStore.store.get("bluetooth", "offline_captions_running") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "offline_captions_running", value)
 
     private var shouldSendPcm: Boolean
-        get() = DeviceStore.store.get("core", "should_send_pcm") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "should_send_pcm", value)
+        get() = DeviceStore.store.get("bluetooth", "should_send_pcm") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "should_send_pcm", value)
 
     private var shouldSendLc3: Boolean
-        get() = DeviceStore.store.get("core", "should_send_lc3") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "should_send_lc3", value)
+        get() = DeviceStore.store.get("bluetooth", "should_send_lc3") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "should_send_lc3", value)
 
     private var shouldSendTranscript: Boolean
-        get() = DeviceStore.store.get("core", "should_send_transcript") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "should_send_transcript", value)
+        get() = DeviceStore.store.get("bluetooth", "should_send_transcript") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "should_send_transcript", value)
 
     private var contextualDashboard: Boolean
-        get() = DeviceStore.store.get("core", "contextual_dashboard") as? Boolean ?: true
-        set(value) = DeviceStore.apply("core", "contextual_dashboard", value)
+        get() = DeviceStore.store.get("bluetooth", "contextual_dashboard") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "contextual_dashboard", value)
 
     private var dashboardHeight: Int
-        get() = (DeviceStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
-        set(value) = DeviceStore.apply("core", "dashboard_height", value)
+        get() = (DeviceStore.store.get("bluetooth", "dashboard_height") as? Number)?.toInt() ?: 4
+        set(value) = DeviceStore.apply("bluetooth", "dashboard_height", value)
 
     private var dashboardDepth: Int
-        get() = (DeviceStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
-        set(value) = DeviceStore.apply("core", "dashboard_depth", value)
+        get() = (DeviceStore.store.get("bluetooth", "dashboard_depth") as? Number)?.toInt() ?: 2
+        set(value) = DeviceStore.apply("bluetooth", "dashboard_depth", value)
 
     private var galleryMode: Boolean
-        get() = DeviceStore.store.get("core", "gallery_mode") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "gallery_mode", value)
+        get() = DeviceStore.store.get("bluetooth", "gallery_mode") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "gallery_mode", value)
 
     // state:
     private var searching: Boolean
-        get() = DeviceStore.store.get("core", "searching") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "searching", value)
+        get() = DeviceStore.store.get("bluetooth", "searching") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "searching", value)
 
     private var glassesBtcConnected: Boolean
         get() = DeviceStore.store.get("glasses", "btcConnected") as? Boolean ?: false
@@ -175,47 +175,47 @@ class DeviceManager {
 
     public var micRanking: MutableList<String>
         get() =
-                (DeviceStore.store.get("core", "micRanking") as? List<*>)
+                (DeviceStore.store.get("bluetooth", "micRanking") as? List<*>)
                         ?.mapNotNull { it as? String }
                         ?.toMutableList()
                         ?: MicMap.map["auto"]?.toMutableList() ?: mutableListOf()
-        set(value) = DeviceStore.apply("core", "micRanking", value)
+        set(value) = DeviceStore.apply("bluetooth", "micRanking", value)
 
     private var shouldSendBootingMessage: Boolean
-        get() = DeviceStore.store.get("core", "shouldSendBootingMessage") as? Boolean ?: true
-        set(value) = DeviceStore.apply("core", "shouldSendBootingMessage", value)
+        get() = DeviceStore.store.get("bluetooth", "shouldSendBootingMessage") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "shouldSendBootingMessage", value)
 
     // Guard against duplicate ready callbacks firing back-to-back.
     private var lastReadyHandledAtMs: Long = 0L
     private var lastReadyHandledKey: String = ""
 
     private var systemMicUnavailable: Boolean
-        get() = DeviceStore.store.get("core", "systemMicUnavailable") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "systemMicUnavailable", value)
+        get() = DeviceStore.store.get("bluetooth", "systemMicUnavailable") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "systemMicUnavailable", value)
 
     public var headUp: Boolean
         get() = DeviceStore.store.get("glasses", "headUp") as? Boolean ?: false
         set(value) = DeviceStore.apply("glasses", "headUp", value)
 
     private var micEnabled: Boolean
-        get() = DeviceStore.store.get("core", "micEnabled") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "micEnabled", value)
+        get() = DeviceStore.store.get("bluetooth", "micEnabled") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "micEnabled", value)
 
     private var currentMic: String
-        get() = DeviceStore.store.get("core", "currentMic") as? String ?: ""
-        set(value) = DeviceStore.apply("core", "currentMic", value)
+        get() = DeviceStore.store.get("bluetooth", "currentMic") as? String ?: ""
+        set(value) = DeviceStore.apply("bluetooth", "currentMic", value)
 
     private var searchResults: List<Any>
-        get() = DeviceStore.store.get("core", "searchResults") as? List<Any> ?: emptyList()
-        set(value) = DeviceStore.apply("core", "searchResults", value)
+        get() = DeviceStore.store.get("bluetooth", "searchResults") as? List<Any> ?: emptyList()
+        set(value) = DeviceStore.apply("bluetooth", "searchResults", value)
 
     private var wifiScanResults: List<Any>
-        get() = DeviceStore.store.get("core", "wifiScanResults") as? List<Any> ?: emptyList()
-        set(value) = DeviceStore.apply("core", "wifiScanResults", value)
+        get() = DeviceStore.store.get("bluetooth", "wifiScanResults") as? List<Any> ?: emptyList()
+        set(value) = DeviceStore.apply("bluetooth", "wifiScanResults", value)
 
     private var lastLog: MutableList<String>
-        get() = DeviceStore.store.get("core", "lastLog") as? MutableList<String> ?: mutableListOf()
-        set(value) = DeviceStore.apply("core", "lastLog", value)
+        get() = DeviceStore.store.get("bluetooth", "lastLog") as? MutableList<String> ?: mutableListOf()
+        set(value) = DeviceStore.apply("bluetooth", "lastLog", value)
 
     // LC3 Audio Encoding
     // Audio output format enum
@@ -570,7 +570,7 @@ class DeviceManager {
                 Bridge.log("MAN: ERROR - LC3 encoder not initialized but format is LC3")
                 return
             }
-            val lc3FrameSize = (DeviceStore.store.get("core", "lc3_frame_size") as Number).toInt()
+            val lc3FrameSize = (DeviceStore.store.get("bluetooth", "lc3_frame_size") as Number).toInt()
             val lc3Data = Lc3Cpp.encodeLC3(lc3EncoderPtr, pcmData, lc3FrameSize)
             if (lc3Data == null || lc3Data.isEmpty()) {
                 Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
@@ -1188,7 +1188,7 @@ class DeviceManager {
 
     fun requestWifiScan() {
         Bridge.log("MAN: Requesting wifi scan")
-        DeviceStore.apply("core", "wifiScanResults", emptyList<Any>())
+        DeviceStore.apply("bluetooth", "wifiScanResults", emptyList<Any>())
         sgc?.requestWifiScan()
     }
 

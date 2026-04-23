@@ -127,7 +127,7 @@ NativeBluetoothSdkModule.updateGlasses = function (values: Partial<GlassesStatus
 }
 
 NativeBluetoothSdkModule.updateBluetoothSettings = function (values: Record<string, any>) {
-  return this.update("core", values)
+  return this.update("bluetooth", values)
 }
 
 NativeBluetoothSdkModule.onGlassesStatus = function (callback: GlassesListener) {

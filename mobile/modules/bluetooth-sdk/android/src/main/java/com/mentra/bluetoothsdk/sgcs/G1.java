@@ -220,7 +220,7 @@ public class G1 extends SGCManager {
         loadPairedDeviceNames();
         // goHomeHandler = new Handler();
         // this.smartGlassesDevice = smartGlassesDevice;
-        preferredG1DeviceId = (String) DeviceStore.INSTANCE.get("core", "device_name");
+        preferredG1DeviceId = (String) DeviceStore.INSTANCE.get("bluetooth", "device_name");
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         this.shouldUseGlassesMic = false;
 
@@ -700,8 +700,8 @@ public class G1 extends SGCManager {
                 queryBatteryStatusHandler.postDelayed(() -> queryBatteryStatus(), 10);
 
                 // setup brightness
-                int brightnessValue = ((Number) DeviceStore.INSTANCE.get("core", "brightness")).intValue();
-                Boolean shouldUseAutoBrightness = (Boolean) DeviceStore.INSTANCE.get("core", "auto_brightness");
+                int brightnessValue = ((Number) DeviceStore.INSTANCE.get("bluetooth", "brightness")).intValue();
+                Boolean shouldUseAutoBrightness = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "auto_brightness");
                 sendBrightnessCommandHandler
                         .postDelayed(() -> sendBrightnessCommand(brightnessValue, shouldUseAutoBrightness), 10);
 
@@ -1325,7 +1325,7 @@ public class G1 extends SGCManager {
         context.registerReceiver(bondingReceiver, filter);
         isBondingReceiverRegistered = true;
 
-        preferredG1DeviceId = (String) DeviceStore.INSTANCE.get("core", "device_name");
+        preferredG1DeviceId = (String) DeviceStore.INSTANCE.get("bluetooth", "device_name");
 
         if (!bluetoothAdapter.isEnabled()) {
             return;

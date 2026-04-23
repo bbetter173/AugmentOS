@@ -16,7 +16,7 @@ object DeviceStore {
     val store = ObservableStore()
 
     /**
-     * [BluetoothSdkModule] applies batched `update("core", map)` key-by-key. Post to Main so the store has
+     * [BluetoothSdkModule] applies batched `update("bluetooth", map)` key-by-key. Post to Main so the store has
      * the latest value before BLE. Height and depth schedule independently so Nex sends one protobuf per change.
      */
     private val dashboardBleHandler = Handler(Looper.getMainLooper())
@@ -34,7 +34,7 @@ object DeviceStore {
         pendingDashboardHeightRunnable?.let { dashboardBleHandler.removeCallbacks(it) }
         val r = Runnable {
             pendingDashboardHeightRunnable = null
-            val h = (store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
+            val h = (store.get("bluetooth", "dashboard_height") as? Number)?.toInt() ?: 4
             DeviceManager.getInstance().sgc?.setDashboardHeightOnly(h)
         }
         pendingDashboardHeightRunnable = r
@@ -45,7 +45,7 @@ object DeviceStore {
         pendingDashboardDepthRunnable?.let { dashboardBleHandler.removeCallbacks(it) }
         val r = Runnable {
             pendingDashboardDepthRunnable = null
-            val d = (store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
+            val d = (store.get("bluetooth", "dashboard_depth") as? Number)?.toInt() ?: 2
             DeviceManager.getInstance().sgc?.setDashboardDepthOnly(d)
         }
         pendingDashboardDepthRunnable = r
@@ -90,51 +90,51 @@ object DeviceStore {
         store.set("glasses", "ringSignalStrength", -1)
 
         // BLUETOOTH SDK STATE:
-        store.set("core", "systemMicUnavailable", false)
-        store.set("core", "searching", false)
-        store.set("core", "searchingController", false)
-        store.set("core", "micEnabled", false)
-        store.set("core", "currentMic", "")
-        store.set("core", "searchResults", emptyList<Any>())
-        store.set("core", "wifiScanResults", emptyList<Any>())
-        store.set("core", "micRanking", MicMap.map["auto"]!!)
-        store.set("core", "lastLog", mutableListOf<String>())
+        store.set("bluetooth", "systemMicUnavailable", false)
+        store.set("bluetooth", "searching", false)
+        store.set("bluetooth", "searchingController", false)
+        store.set("bluetooth", "micEnabled", false)
+        store.set("bluetooth", "currentMic", "")
+        store.set("bluetooth", "searchResults", emptyList<Any>())
+        store.set("bluetooth", "wifiScanResults", emptyList<Any>())
+        store.set("bluetooth", "micRanking", MicMap.map["auto"]!!)
+        store.set("bluetooth", "lastLog", mutableListOf<String>())
 
-        // CORE SETTINGS:
-        store.set("core", "default_wearable", "")
-        store.set("core", "pending_wearable", "")
-        store.set("core", "device_name", "")
-        store.set("core", "device_address", "")
-        store.set("core", "default_controller", "")
-        store.set("core", "pending_controller", "")
-        store.set("core", "controller_device_name", "")
-        store.set("core", "screen_disabled", false)
-        store.set("core", "preferred_mic", "auto")
-        store.set("core", "sensing_enabled", true)
-        store.set("core", "brightness", 50)
-        store.set("core", "auto_brightness", true)
-        store.set("core", "dashboard_height", 4)
-        store.set("core", "dashboard_depth", 2)
-        store.set("core", "head_up_angle", 30)
-        store.set("core", "contextual_dashboard", true)
-        store.set("core", "gallery_mode", false)
-        store.set("core", "screen_disabled", false)
-        store.set("core", "button_mode", "photo")
-        store.set("core", "button_photo_size", "medium")
-        store.set("core", "button_camera_led", true)
-        store.set("core", "button_max_recording_time", 10)
-        store.set("core", "camera_fov", mapOf("fov" to 118, "roi_position" to 0))
-        store.set("core", "button_video_width", 1280)
-        store.set("core", "button_video_height", 720)
-        store.set("core", "button_video_fps", 30)
-        store.set("core", "preferred_mic", "auto")
-        store.set("core", "lc3_frame_size", 60)
-        store.set("core", "auth_email", "")
-        store.set("core", "core_token", "")
-        store.set("core", "should_send_pcm", false)
-        store.set("core", "should_send_lc3", false)
-        store.set("core", "should_send_transcript", false)
-        store.set("core", "bypass_vad", false)
+        // BLUETOOTH SETTINGS:
+        store.set("bluetooth", "default_wearable", "")
+        store.set("bluetooth", "pending_wearable", "")
+        store.set("bluetooth", "device_name", "")
+        store.set("bluetooth", "device_address", "")
+        store.set("bluetooth", "default_controller", "")
+        store.set("bluetooth", "pending_controller", "")
+        store.set("bluetooth", "controller_device_name", "")
+        store.set("bluetooth", "screen_disabled", false)
+        store.set("bluetooth", "preferred_mic", "auto")
+        store.set("bluetooth", "sensing_enabled", true)
+        store.set("bluetooth", "brightness", 50)
+        store.set("bluetooth", "auto_brightness", true)
+        store.set("bluetooth", "dashboard_height", 4)
+        store.set("bluetooth", "dashboard_depth", 2)
+        store.set("bluetooth", "head_up_angle", 30)
+        store.set("bluetooth", "contextual_dashboard", true)
+        store.set("bluetooth", "gallery_mode", false)
+        store.set("bluetooth", "screen_disabled", false)
+        store.set("bluetooth", "button_mode", "photo")
+        store.set("bluetooth", "button_photo_size", "medium")
+        store.set("bluetooth", "button_camera_led", true)
+        store.set("bluetooth", "button_max_recording_time", 10)
+        store.set("bluetooth", "camera_fov", mapOf("fov" to 118, "roi_position" to 0))
+        store.set("bluetooth", "button_video_width", 1280)
+        store.set("bluetooth", "button_video_height", 720)
+        store.set("bluetooth", "button_video_fps", 30)
+        store.set("bluetooth", "preferred_mic", "auto")
+        store.set("bluetooth", "lc3_frame_size", 60)
+        store.set("bluetooth", "auth_email", "")
+        store.set("bluetooth", "core_token", "")
+        store.set("bluetooth", "should_send_pcm", false)
+        store.set("bluetooth", "should_send_lc3", false)
+        store.set("bluetooth", "should_send_transcript", false)
+        store.set("bluetooth", "bypass_vad", false)
     }
 
     fun get(category: String, key: String): Any? {
@@ -147,14 +147,15 @@ object DeviceStore {
 
     /** Apply changes with side effects */
     fun apply(category: String, key: String, value: Any) {
-        val oldValue = store.get(category, key)
-        store.set(category, key, value)
+        val normalizedCategory = ObservableStore.normalizeCategory(category)
+        val oldValue = store.get(normalizedCategory, key)
+        store.set(normalizedCategory, key, value)
         if (observableStoreWouldHaveSkipped(oldValue, value)) {
             return
         }
 
         // Trigger hardware updates based on setting changes
-        when (category to key) {
+        when (normalizedCategory to key) {
             "glasses" to "fullyBooted" -> {
                 if (value is Boolean) {
                     if (value) {
@@ -190,10 +191,10 @@ object DeviceStore {
                 }
             }
 
-            // CORE:
-            "core" to "brightness" -> {
+            // BLUETOOTH:
+            "bluetooth" to "brightness" -> {
                 val b = (value as? Number)?.toInt()  ?: 50
-                val auto = (store.get("core", "auto_brightness") as? Boolean) ?: true
+                val auto = (store.get("bluetooth", "auto_brightness") as? Boolean) ?: true
                 CoroutineScope(Dispatchers.Main).launch {
                     DeviceManager.getInstance().sgc?.setBrightness(b, auto)
                     DeviceManager.getInstance().sgc?.sendTextWall("Set brightness to $b%")
@@ -201,8 +202,8 @@ object DeviceStore {
                     DeviceManager.getInstance().sgc?.clearDisplay()
                 }
             }
-            "core" to "auto_brightness" -> {
-                val b = (store.get("core", "brightness") as? Int) ?: 50
+            "bluetooth" to "auto_brightness" -> {
+                val b = (store.get("bluetooth", "brightness") as? Int) ?: 50
                 val auto = (value as? Boolean) ?: true
                 val autoBrightnessChanged = (oldValue as? Boolean) != auto
                 CoroutineScope(Dispatchers.Main).launch {
@@ -219,27 +220,27 @@ object DeviceStore {
                     }
                 }
             }
-            "core" to "dashboard_height" -> {
+            "bluetooth" to "dashboard_height" -> {
                 scheduleDashboardHeightToGlasses()
             }
-            "core" to "dashboard_depth" -> {
+            "bluetooth" to "dashboard_depth" -> {
                 scheduleDashboardDepthToGlasses()
             }
-            "core" to "head_up_angle" -> {
+            "bluetooth" to "head_up_angle" -> {
                 (value as? Int)?.let { angle ->
                     DeviceManager.getInstance().sgc?.setHeadUpAngle(angle)
                 }
             }
-            "core" to "dashboard_menu_apps" -> {
+            "bluetooth" to "dashboard_menu_apps" -> {
                 @Suppress("UNCHECKED_CAST")
                 (value as? List<Map<String, Any>>)?.let { items ->
                     DeviceManager.getInstance().sgc?.setDashboardMenu(items)
                 }
             }
-            "core" to "gallery_mode" -> {
+            "bluetooth" to "gallery_mode" -> {
                 DeviceManager.getInstance().sgc?.sendGalleryMode()
             }
-            "core" to "screen_disabled" -> {
+            "bluetooth" to "screen_disabled" -> {
                 (value as? Boolean)?.let { disabled ->
                     if (disabled) {
                         DeviceManager.getInstance().sgc?.exit()
@@ -248,54 +249,54 @@ object DeviceStore {
                     }
                 }
             }
-            "core" to "button_mode" -> {
+            "bluetooth" to "button_mode" -> {
                 DeviceManager.getInstance().sgc?.sendButtonModeSetting()
             }
-            "core" to "button_photo_size" -> {
+            "bluetooth" to "button_photo_size" -> {
                 DeviceManager.getInstance().sgc?.sendButtonPhotoSettings()
             }
-            "core" to "button_camera_led" -> {
+            "bluetooth" to "button_camera_led" -> {
                 DeviceManager.getInstance().sgc?.sendButtonCameraLedSetting()
             }
-            "core" to "button_max_recording_time" -> {
+            "bluetooth" to "button_max_recording_time" -> {
                 DeviceManager.getInstance().sgc?.sendButtonMaxRecordingTime()
             }
-            "core" to "camera_fov" -> {
+            "bluetooth" to "camera_fov" -> {
                 DeviceManager.getInstance().sgc?.sendCameraFovSetting()
             }
-            "core" to "button_video_width",
-            "core" to "button_video_height",
-            "core" to "button_video_fps" -> {
+            "bluetooth" to "button_video_width",
+            "bluetooth" to "button_video_height",
+            "bluetooth" to "button_video_fps" -> {
                 DeviceManager.getInstance().sgc?.sendButtonVideoRecordingSettings()
             }
-            "core" to "preferred_mic" -> {
+            "bluetooth" to "preferred_mic" -> {
                 (value as? String)?.let { mic ->
-                    apply("core", "micRanking", MicMap.map[mic] ?: MicMap.map["auto"]!!)
+                    apply("bluetooth", "micRanking", MicMap.map[mic] ?: MicMap.map["auto"]!!)
                     DeviceManager.getInstance().setMicState()
                 }
             }
-            "core" to "offline_captions_running" -> {
+            "bluetooth" to "offline_captions_running" -> {
                 (value as? Boolean)?.let { running ->
                     Bridge.log("DeviceStore: offline_captions_running changed to $running")
                     DeviceManager.getInstance().setMicState()
                 }
             }
-            "core" to "should_send_pcm" -> {
+            "bluetooth" to "should_send_pcm" -> {
                 (value as? Boolean)?.let { pcm ->
                     DeviceManager.getInstance().setMicState()
                 }
             }
-            "core" to "should_send_lc3" -> {
+            "bluetooth" to "should_send_lc3" -> {
                 (value as? Boolean)?.let { lc3 ->
                     DeviceManager.getInstance().setMicState()
                 }
             }
-            "core" to "should_send_transcript" -> {
+            "bluetooth" to "should_send_transcript" -> {
                 (value as? Boolean)?.let { transcript ->
                     DeviceManager.getInstance().setMicState()
                 }
             }
-            "core" to "default_wearable" -> {
+            "bluetooth" to "default_wearable" -> {
                 (value as? String)?.let { wearable ->
                     Bridge.saveSetting("default_wearable", wearable)
                     if (wearable.contains(DeviceTypes.SIMULATED)) {

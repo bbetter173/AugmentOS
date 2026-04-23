@@ -104,110 +104,110 @@ struct ViewState {
 
     /// settings:
     private var defaultWearable: String {
-        get { DeviceStore.shared.get("core", "default_wearable") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "default_wearable", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "default_wearable") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "default_wearable", newValue) }
     }
 
     private var pendingWearable: String {
-        get { DeviceStore.shared.get("core", "pending_wearable") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "pending_wearable", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "pending_wearable") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "pending_wearable", newValue) }
     }
 
     private var deviceName: String {
-        get { DeviceStore.shared.get("core", "device_name") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "device_name", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "device_name") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "device_name", newValue) }
     }
 
     private var deviceAddress: String {
-        get { DeviceStore.shared.get("core", "device_address") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "device_address", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "device_address") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "device_address", newValue) }
     }
 
     private var defaultController: String {
-        get { DeviceStore.shared.get("core", "default_controller") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "default_controller", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "default_controller") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "default_controller", newValue) }
     }
 
     private var pendingController: String {
-        get { DeviceStore.shared.get("core", "pending_controller") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "pending_controller", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "pending_controller") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "pending_controller", newValue) }
     }
 
     private var controllerDeviceName: String {
-        get { DeviceStore.shared.get("core", "controller_device_name") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "controller_device_name", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "controller_device_name") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "controller_device_name", newValue) }
     }
 
     private var screenDisabled: Bool {
-        get { DeviceStore.shared.get("core", "screen_disabled") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "screen_disabled", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "screen_disabled") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "screen_disabled", newValue) }
     }
 
     private var preferredMic: String {
-        get { DeviceStore.shared.get("core", "preferred_mic") as? String ?? "auto" }
-        set { DeviceStore.shared.apply("core", "preferred_mic", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "preferred_mic") as? String ?? "auto" }
+        set { DeviceStore.shared.apply("bluetooth", "preferred_mic", newValue) }
     }
 
     private var autoBrightness: Bool {
-        get { DeviceStore.shared.get("core", "auto_brightness") as? Bool ?? true }
-        set { DeviceStore.shared.apply("core", "auto_brightness", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "auto_brightness") as? Bool ?? true }
+        set { DeviceStore.shared.apply("bluetooth", "auto_brightness", newValue) }
     }
 
     private var brightness: Int {
-        get { DeviceStore.shared.get("core", "brightness") as? Int ?? 50 }
-        set { DeviceStore.shared.apply("core", "brightness", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "brightness") as? Int ?? 50 }
+        set { DeviceStore.shared.apply("bluetooth", "brightness", newValue) }
     }
 
     private var headUpAngle: Int {
-        get { DeviceStore.shared.get("core", "head_up_angle") as? Int ?? 30 }
-        set { DeviceStore.shared.apply("core", "head_up_angle", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "head_up_angle") as? Int ?? 30 }
+        set { DeviceStore.shared.apply("bluetooth", "head_up_angle", newValue) }
     }
 
     private var sensingEnabled: Bool {
-        get { DeviceStore.shared.get("core", "sensing_enabled") as? Bool ?? true }
-        set { DeviceStore.shared.apply("core", "sensing_enabled", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "sensing_enabled") as? Bool ?? true }
+        set { DeviceStore.shared.apply("bluetooth", "sensing_enabled", newValue) }
     }
 
     private var bypassVad: Bool {
-        get { DeviceStore.shared.get("core", "bypass_vad") as? Bool ?? true }
-        set { DeviceStore.shared.apply("core", "bypass_vad", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "bypass_vad") as? Bool ?? true }
+        set { DeviceStore.shared.apply("bluetooth", "bypass_vad", newValue) }
     }
 
     private var offlineCaptionsRunning: Bool {
-        get { DeviceStore.shared.get("core", "offline_captions_running") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "offline_captions_running", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "offline_captions_running") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "offline_captions_running", newValue) }
     }
 
     private var shouldSendPcm: Bool {
-        get { DeviceStore.shared.get("core", "should_send_pcm") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "should_send_pcm", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "should_send_pcm") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "should_send_pcm", newValue) }
     }
 
     private var shouldSendLc3: Bool {
-        get { DeviceStore.shared.get("core", "should_send_lc3") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "should_send_lc3", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "should_send_lc3") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "should_send_lc3", newValue) }
     }
 
     private var shouldSendTranscript: Bool {
-        get { DeviceStore.shared.get("core", "should_send_transcript") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "should_send_transcript", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "should_send_transcript") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "should_send_transcript", newValue) }
     }
 
     private var contextualDashboard: Bool {
-        get { DeviceStore.shared.get("core", "contextual_dashboard") as? Bool ?? true }
-        set { DeviceStore.shared.apply("core", "contextual_dashboard", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "contextual_dashboard") as? Bool ?? true }
+        set { DeviceStore.shared.apply("bluetooth", "contextual_dashboard", newValue) }
     }
 
     // state:
 
     private var searching: Bool {
-        get { DeviceStore.shared.get("core", "searching") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "searching", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "searching") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "searching", newValue) }
     }
 
     private var searchingController: Bool {
-        get { DeviceStore.shared.get("core", "searchingController") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "searchingController", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "searchingController") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "searchingController", newValue) }
     }
 
     private var glassesBtcConnected: Bool {
@@ -217,19 +217,19 @@ struct ViewState {
 
     private var micRanking: [String] {
         get {
-            DeviceStore.shared.get("core", "micRanking") as? [String] ?? MicMap.map["auto"]!
+            DeviceStore.shared.get("bluetooth", "micRanking") as? [String] ?? MicMap.map["auto"]!
         }
-        set { DeviceStore.shared.apply("core", "micRanking", newValue) }
+        set { DeviceStore.shared.apply("bluetooth", "micRanking", newValue) }
     }
 
     private var shouldSendBootingMessage: Bool {
-        get { DeviceStore.shared.get("core", "shouldSendBootingMessage") as? Bool ?? true }
-        set { DeviceStore.shared.apply("core", "shouldSendBootingMessage", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "shouldSendBootingMessage") as? Bool ?? true }
+        set { DeviceStore.shared.apply("bluetooth", "shouldSendBootingMessage", newValue) }
     }
 
     private var systemMicUnavailable: Bool {
-        get { DeviceStore.shared.get("core", "systemMicUnavailable") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "systemMicUnavailable", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "systemMicUnavailable") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "systemMicUnavailable", newValue) }
     }
 
     private var headUp: Bool {
@@ -238,33 +238,33 @@ struct ViewState {
     }
 
     private var micEnabled: Bool {
-        get { DeviceStore.shared.get("core", "micEnabled") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "micEnabled", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "micEnabled") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "micEnabled", newValue) }
     }
 
     private var currentMic: String {
-        get { DeviceStore.shared.get("core", "currentMic") as? String ?? "" }
-        set { DeviceStore.shared.apply("core", "currentMic", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "currentMic") as? String ?? "" }
+        set { DeviceStore.shared.apply("bluetooth", "currentMic", newValue) }
     }
 
     private var searchResults: [[String: Any]] {
-        get { DeviceStore.shared.get("core", "searchResults") as? [[String: Any]] ?? [] }
-        set { DeviceStore.shared.apply("core", "searchResults", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "searchResults") as? [[String: Any]] ?? [] }
+        set { DeviceStore.shared.apply("bluetooth", "searchResults", newValue) }
     }
 
     private var wifiScanResults: [[String: Any]] {
-        get { DeviceStore.shared.get("core", "wifiScanResults") as? [[String: Any]] ?? [] }
-        set { DeviceStore.shared.apply("core", "wifiScanResults", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "wifiScanResults") as? [[String: Any]] ?? [] }
+        set { DeviceStore.shared.apply("bluetooth", "wifiScanResults", newValue) }
     }
 
     private var lastLog: [String] {
-        get { DeviceStore.shared.get("core", "lastLog") as? [String] ?? [] }
-        set { DeviceStore.shared.apply("core", "lastLog", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "lastLog") as? [String] ?? [] }
+        set { DeviceStore.shared.apply("bluetooth", "lastLog", newValue) }
     }
 
     private var otherBtConnected: Bool {
-        get { DeviceStore.shared.get("core", "otherBtConnected") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "otherBtConnected", newValue) }
+        get { DeviceStore.shared.get("bluetooth", "otherBtConnected") as? Bool ?? false }
+        set { DeviceStore.shared.apply("bluetooth", "otherBtConnected", newValue) }
     }
 
     /// LC3 Audio Encoding
@@ -357,7 +357,7 @@ struct ViewState {
             Bridge.log("MAN: ERROR - LC3 converter not initialized but format is LC3")
             return
         }
-        let frameSize = DeviceStore.shared.get("core", "lc3_frame_size") as! Int
+        let frameSize = DeviceStore.shared.get("bluetooth", "lc3_frame_size") as! Int
         let lc3Data = lc3Converter.encode(pcmData, frameSize: frameSize) as Data
         guard lc3Data.count > 0 else {
             Bridge.log("MAN: ERROR - LC3 encoding returned empty data")
@@ -929,9 +929,9 @@ struct ViewState {
         Bridge.saveSetting("device_address", deviceAddress)
 
         // Re-apply display height after reconnection
-        let h = DeviceStore.shared.get("core", "dashboard_height") as? Int ?? 4
+        let h = DeviceStore.shared.get("bluetooth", "dashboard_height") as? Int ?? 4
         let d = NexDashboardDisplayWire.clampDepthFromStore(
-            DeviceStore.shared.get("core", "dashboard_depth")
+            DeviceStore.shared.get("bluetooth", "dashboard_depth")
         )
         sgc.setDashboardPosition(h, d)
     }
@@ -1103,7 +1103,7 @@ struct ViewState {
 
     func requestWifiScan() {
         Bridge.log("MAN: Requesting wifi scan")
-        DeviceStore.shared.apply("core", "wifiScanResults", [])
+        DeviceStore.shared.apply("bluetooth", "wifiScanResults", [])
         sgc?.requestWifiScan()
     }
 

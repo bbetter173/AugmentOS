@@ -153,13 +153,13 @@ public class Bridge private constructor() {
         @JvmStatic
         fun sendDiscoveredDevice(deviceModel: String, deviceName: String) {
             val searchResults =
-                    DeviceStore.store.getCategory("core")["searchResults"] as?
+                    DeviceStore.store.getCategory("bluetooth")["searchResults"] as?
                             List<Map<String, String>>
                             ?: emptyList()
             val newResult = mapOf("deviceModel" to deviceModel, "deviceName" to deviceName)
             val allResults = searchResults + newResult
             val uniqueResults = allResults.associateBy { it["deviceName"] }.values.toList()
-            DeviceStore.set("core", "searchResults", uniqueResults)
+            DeviceStore.set("bluetooth", "searchResults", uniqueResults)
         }
 
         // MARK: - Hardware Events
@@ -320,7 +320,7 @@ public class Bridge private constructor() {
         @JvmStatic
         fun updateWifiScanResults(networks: List<Map<String, Any>>) {
             var storedNetworks: List<Map<String, Any>> =
-                    DeviceStore.get("core", "wifiScanResults") as? List<Map<String, Any>>
+                    DeviceStore.get("bluetooth", "wifiScanResults") as? List<Map<String, Any>>
                             ?: emptyList()
             // add the networks to the storedNetworks array, removing duplicates by ssid
             val updatedNetworks = storedNetworks.toMutableList()
@@ -329,7 +329,7 @@ public class Bridge private constructor() {
                     updatedNetworks.add(network)
                 }
             }
-            DeviceStore.apply("core", "wifiScanResults", updatedNetworks)
+            DeviceStore.apply("bluetooth", "wifiScanResults", updatedNetworks)
         }
 
         /** Send gallery status - matches iOS MentraLive.swift handleGalleryStatus pattern */

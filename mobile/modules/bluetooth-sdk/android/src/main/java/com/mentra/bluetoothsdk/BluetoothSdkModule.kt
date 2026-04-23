@@ -72,9 +72,9 @@ class BluetoothSdkModule : Module() {
 
             // Configure observable store event emission
             DeviceStore.store.configure { category, changes ->
-                when (category) {
+                when (ObservableStore.normalizeCategory(category)) {
                     "glasses" -> sendEvent("glasses_status", changes)
-                    "core" -> sendEvent("bluetooth_status", changes)
+                    ObservableStore.BLUETOOTH_CATEGORY -> sendEvent("bluetooth_status", changes)
                 }
             }
         }
@@ -83,20 +83,23 @@ class BluetoothSdkModule : Module() {
 
         Function("getGlassesStatus") { DeviceStore.store.getCategory("glasses") }
 
-        Function("getBluetoothStatus") { DeviceStore.store.getCategory("core") }
+        Function("getBluetoothStatus") {
+            DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+        }
 
         Function("set") { category: String, key: String, value: Any ->
             DeviceStore.apply(category, key, value)
         }
 
         Function("update") { category: String, values: Map<String, Any> ->
-            values.forEach { (key, value) -> DeviceStore.apply(category, key, value) }
+            val normalizedCategory = ObservableStore.normalizeCategory(category)
+            values.forEach { (key, value) -> DeviceStore.apply(normalizedCategory, key, value) }
             // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
-            if (category == "core") {
+            if (normalizedCategory == ObservableStore.BLUETOOTH_CATEGORY) {
                 values["core_token"]?.let { token ->
                     val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("BluetoothSdkModule", "update(core) core_token received, len=$len")
+                    android.util.Log.d("BluetoothSdkModule", "update(bluetooth) core_token received, len=$len")
                     if (token is String && token.isNotEmpty()) {
                         val ctx = appContext.reactContext ?: appContext.currentActivity
                         ctx?.let {

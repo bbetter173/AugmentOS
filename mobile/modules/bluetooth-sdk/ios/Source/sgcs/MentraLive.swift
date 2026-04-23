@@ -624,7 +624,7 @@ extension MentraLive: CBCentralManagerDelegate {
             DeviceStore.shared.apply("glasses", "bluetoothName", name)
         }
         // Persist peripheral UUID so DeviceManager can sync it to RN settings
-        DeviceStore.shared.apply("core", "device_address", peripheral.identifier.uuidString)
+        DeviceStore.shared.apply("bluetooth", "device_address", peripheral.identifier.uuidString)
 
         // Audio Pairing: Setup Bluetooth audio after BLE connection
         if let deviceName = peripheral.name {
@@ -2338,7 +2338,7 @@ class MentraLive: NSObject, SGCManager {
     }
 
     func sendGalleryMode() {
-        let active = DeviceStore.shared.get("core", "gallery_mode") as! Bool
+        let active = DeviceStore.shared.get("bluetooth", "gallery_mode") as! Bool
         Bridge.log("LIVE: 📸 Sending gallery mode active to glasses: \(active)")
 
         let json: [String: Any] = [
@@ -2935,7 +2935,7 @@ class MentraLive: NSObject, SGCManager {
     private func uploadBleIncidentLogRelay(
         relay: BleIncidentLogRelayEntry, fileName: String, data: Data
     ) {
-        let token = DeviceStore.shared.get("core", "core_token") as? String ?? ""
+        let token = DeviceStore.shared.get("bluetooth", "core_token") as? String ?? ""
         guard !token.isEmpty else {
             sendTransferCompleteConfirmation(fileName: fileName, success: false)
             if let existing = bleIncidentLogRelays[relay.fileBaseKey] {
@@ -3140,7 +3140,7 @@ class MentraLive: NSObject, SGCManager {
     private func sendCoreTokenToAsgClient() {
         Bridge.log("Preparing to send coreToken to ASG client")
 
-        let coreToken = DeviceStore.shared.get("core", "core_token") as? String ?? ""
+        let coreToken = DeviceStore.shared.get("bluetooth", "core_token") as? String ?? ""
         if coreToken.isEmpty {
             Bridge.log("LIVE: No coreToken available to send to ASG client")
             return
@@ -3157,7 +3157,7 @@ class MentraLive: NSObject, SGCManager {
 
     /// Send stored user email to the ASG client for Sentry crash reporting
     private func sendStoredUserEmailToAsgClient() {
-        let storedEmail = DeviceStore.shared.store.get("core", "auth_email") as? String ?? ""
+        let storedEmail = DeviceStore.shared.store.get("bluetooth", "auth_email") as? String ?? ""
 
         guard !storedEmail.isEmpty else {
             Bridge.log("LIVE: No stored user email to send to ASG client")
@@ -4300,7 +4300,7 @@ extension MentraLive {
     // MARK: - Button Mode Settings
 
     func sendButtonModeSetting() {
-        let mode = DeviceStore.shared.get("core", "button_mode") as! String
+        let mode = DeviceStore.shared.get("bluetooth", "button_mode") as! String
         Bridge.log("Sending button mode setting to glasses: \(mode)")
 
         guard connectionState == ConnTypes.CONNECTED else {
@@ -4371,7 +4371,7 @@ extension MentraLive {
         sendButtonVideoRecordingSettings()
 
         // Send button max recording time
-        let maxTime = DeviceStore.shared.get("core", "button_max_recording_time") as! Int
+        let maxTime = DeviceStore.shared.get("bluetooth", "button_max_recording_time") as! Int
         sendButtonMaxRecordingTime(maxTime)
 
         // Send button photo settings
@@ -4389,7 +4389,7 @@ extension MentraLive {
 
     func sendButtonVideoRecordingSettings() {
         let settings =
-            DeviceStore.shared.get("core", "button_video_settings") as? [String: Any] ?? [
+            DeviceStore.shared.get("bluetooth", "button_video_settings") as? [String: Any] ?? [
                 "width": 1280,
                 "height": 720,
                 "fps": 30,
@@ -4424,7 +4424,7 @@ extension MentraLive {
     }
 
     func sendButtonMaxRecordingTime() {
-        let maxTime = DeviceStore.shared.get("core", "button_max_recording_time") as? Int ?? 10
+        let maxTime = DeviceStore.shared.get("bluetooth", "button_max_recording_time") as? Int ?? 10
         Bridge.log("Sending button max recording time: \(maxTime) minutes")
 
         guard connectionState == ConnTypes.CONNECTED else {
@@ -4440,7 +4440,7 @@ extension MentraLive {
     }
 
     func sendButtonPhotoSettings() {
-        let size = DeviceStore.shared.get("core", "button_photo_size") as! String
+        let size = DeviceStore.shared.get("bluetooth", "button_photo_size") as! String
 
         Bridge.log("Sending button photo setting: \(size)")
 
@@ -4457,7 +4457,7 @@ extension MentraLive {
     }
 
     func sendButtonCameraLedSetting() {
-        let enabled = DeviceStore.shared.get("core", "button_camera_led") as! Bool
+        let enabled = DeviceStore.shared.get("bluetooth", "button_camera_led") as! Bool
 
         Bridge.log("Sending button camera LED setting: \(enabled)")
 
@@ -4474,7 +4474,7 @@ extension MentraLive {
     }
 
     func sendCameraFovSetting() {
-        let settings = DeviceStore.shared.get("core", "camera_fov") as? [String: Any] ?? ["fov": 118, "roi_position": 0]
+        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roi_position": 0]
         let fov = settings["fov"] as? Int ?? 118
         let roiPosition = settings["roi_position"] as? Int ?? 0
 

@@ -1433,7 +1433,7 @@ class G2: NSObject, SGCManager {
                             let idNumber = self.extractIdNumber(peripheralName)
                         {
                             let deviceId = "\(idNumber)"
-                            DeviceStore.shared.apply("core", "device_name", deviceId)
+                            DeviceStore.shared.apply("bluetooth", "device_name", deviceId)
                             Bridge.log("G2: Set device_name to \(deviceId)")
                         }
 

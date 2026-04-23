@@ -1,5 +1,5 @@
 import {AppletInterface, AppletPermission} from "@/../../cloud/packages/types/src"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {Alert, Linking, PermissionsAndroid, Platform} from "react-native"
 import BleManager from "react-native-ble-manager"
 import {check, PERMISSIONS, request, RESULTS} from "react-native-permissions"
@@ -500,7 +500,7 @@ export const requestFeaturePermissions = async (featureKey: string): Promise<boo
 
   // For special case of Android notification access
   if (featureKey === PermissionFeatures.READ_NOTIFICATIONS && Platform.OS === "android") {
-    const notificationAccess = await CoreModule.hasNotificationListenerPermission()
+    const notificationAccess = await BluetoothSdk.hasNotificationListenerPermission()
     if (!notificationAccess) {
       allGranted = false
     }
@@ -670,7 +670,7 @@ export const checkFeaturePermissions = async (featureKey: string): Promise<boole
 
   // Special case for notifications on Android
   if (featureKey === PermissionFeatures.READ_NOTIFICATIONS && Platform.OS === "android") {
-    return await CoreModule.hasNotificationListenerPermission()
+    return await BluetoothSdk.hasNotificationListenerPermission()
   }
 
   return false
@@ -794,7 +794,7 @@ export const checkPermissionsUI = async (app: AppletInterface) => {
         if (Platform.OS == "ios") {
           break
         }
-        const hasNotificationAccess = await CoreModule.hasNotificationListenerPermission()
+        const hasNotificationAccess = await BluetoothSdk.hasNotificationListenerPermission()
         if (!hasNotificationAccess) {
           neededPermissions.push(PermissionFeatures.READ_NOTIFICATIONS)
         }
@@ -864,7 +864,7 @@ async function isLocationServicesEnabled(): Promise<boolean> {
   try {
     if (Platform.OS === "android") {
       // Use our native module to check if location services are enabled
-      const locationServicesEnabled = await CoreModule.isLocationServicesEnabled()
+      const locationServicesEnabled = await BluetoothSdk.isLocationServicesEnabled()
       console.log("Location services enabled (native check):", locationServicesEnabled)
       return locationServicesEnabled
     } else if (Platform.OS === "ios") {

@@ -7,7 +7,7 @@ import {usePathname} from "expo-router"
 import {Screen} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
-import CoreModule, {MicPcmEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {MicPcmEvent} from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
 // import {useCactusSTT} from "cactus-react-native"
 
@@ -155,7 +155,7 @@ function Compositor() {
 
   useEffect(() => {
     const initSTT = async () => {
-      // await CoreModule.update("core", {
+      // await BluetoothSdk.update("core", {
       //   should_send_pcm: true,
       // })
 
@@ -170,7 +170,7 @@ function Compositor() {
       //   minChunkSize: 32000,
       // })
 
-      const pcmSub = CoreModule.addListener("mic_pcm", (event: MicPcmEvent) => {
+      const pcmSub = BluetoothSdk.addListener("mic_pcm", (event: MicPcmEvent) => {
         // console.log("COMPOSITOR: Received mic pcm:", event.base64)
         // const samples = decodePcm16Base64ToFloat32(event.base64)
         // sttModule.streamInsert(samples)

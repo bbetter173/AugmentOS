@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {ActivityIndicator, Image, TouchableOpacity, View} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
@@ -28,9 +28,9 @@ export const ControllerStatus = () => {
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await CoreModule.disconnectController()
+      await BluetoothSdk.disconnectController()
     } else {
-      await CoreModule.connectDefaultController()
+      await BluetoothSdk.connectDefaultController()
     }
   }
 

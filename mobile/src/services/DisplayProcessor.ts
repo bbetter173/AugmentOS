@@ -30,7 +30,7 @@ import {
 
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import CoreModule, {GlassesStatus} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {GlassesStatus} from "@mentra/bluetooth-sdk"
 
 // =============================================================================
 // Types
@@ -292,7 +292,7 @@ export class DisplayProcessor {
     }
 
     // subscribe to core status changes:
-    CoreModule.addListener("glasses_status", (changed: Partial<GlassesStatus>) => {
+    BluetoothSdk.addListener("glasses_status", (changed: Partial<GlassesStatus>) => {
       if (changed.deviceModel) {
         this.setDeviceModel(changed.deviceModel)
       }

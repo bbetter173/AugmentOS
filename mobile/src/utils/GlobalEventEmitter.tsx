@@ -1,7 +1,7 @@
 import {EventEmitter} from "events"
 
 /**
- * @deprecated Use CoreModule subscriptions directly instead.
+ * @deprecated Use BluetoothSdk subscriptions directly instead.
  */
 const GlobalEventEmitter = new EventEmitter()
 

@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react-native"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {FC, createContext, useEffect, useState, useContext} from "react"
 
 import mentraAuth from "@/utils/auth/authClient"
@@ -68,7 +68,7 @@ class LogoutUtils {
 
     try {
       // First try to disconnect any connected glasses
-      await CoreModule.disconnect()
+      await BluetoothSdk.disconnect()
       console.log(`${this.TAG}: Disconnected glasses`)
     } catch (error) {
       console.warn(`${this.TAG}: Error disconnecting glasses:`, error)
@@ -76,7 +76,7 @@ class LogoutUtils {
 
     try {
       // Then forget the glasses completely
-      await CoreModule.forget()
+      await BluetoothSdk.forget()
       console.log(`${this.TAG}: Forgot glasses pairing`)
     } catch (error) {
       console.warn(`${this.TAG}: Error forgetting glasses:`, error)

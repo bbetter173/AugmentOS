@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect} from "react"
 import {View, ViewStyle, TextStyle} from "react-native"
@@ -32,7 +32,7 @@ export default function PairingFailureScreen() {
   }, [])
 
   const handleRetry = () => {
-    CoreModule.forget()
+    BluetoothSdk.forget()
     clearHistory()
     replace("/pairing/select-glasses-model")
   }

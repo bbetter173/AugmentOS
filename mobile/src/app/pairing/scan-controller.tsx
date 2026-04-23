@@ -1,4 +1,4 @@
-import CoreModule, {DeviceSearchResult} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {DeviceSearchResult} from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"
@@ -37,8 +37,8 @@ export default function SelectGlassesBluetoothScreen() {
   // )
 
   focusEffectPreventBack(() => {
-    CoreModule.disconnectController()
-    CoreModule.forgetController()
+    BluetoothSdk.disconnectController()
+    BluetoothSdk.forgetController()
     goBack()
   }, true)
 
@@ -51,7 +51,7 @@ export default function SelectGlassesBluetoothScreen() {
 
   useEffect(() => {
     const initializeAndSearchForDevices = async () => {
-      CoreModule.findCompatibleDevices(deviceModel)
+      BluetoothSdk.findCompatibleDevices(deviceModel)
     }
 
     initializeAndSearchForDevices()
@@ -89,7 +89,7 @@ export default function SelectGlassesBluetoothScreen() {
     const deviceTypesWithBtClassic = [DeviceTypes.LIVE]
     if (Platform.OS === "android" || btcConnected || !deviceTypesWithBtClassic.includes(deviceModel as DeviceTypes)) {
       setTimeout(() => {
-        CoreModule.connectByName(deviceName)
+        BluetoothSdk.connectByName(deviceName)
       }, 2000)
       replace("/pairing/loading", {deviceModel: deviceModel, deviceName: deviceName})
       return

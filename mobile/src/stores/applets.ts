@@ -13,7 +13,7 @@ import * as Sentry from "@sentry/react-native"
 
 import {getCurrentRoute, push} from "@/contexts/NavigationHistoryContext"
 import {translate} from "@/i18n"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {submitMiniappStartFailedBugReport} from "@/services/bugReport/miniappStartBugReport"
 import restComms from "@/services/RestComms"
 import STTModelManager from "@/services/STTModelManager"
@@ -276,7 +276,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           if (modelAvailable) {
             await storage.save(`${captionsPackageName}_running`, true)
             // ensure transcriber is initialized with the current model:
-            await CoreModule.restartTranscriber()
+            await BluetoothSdk.restartTranscriber()
             // tell the core:
             await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
             return undefined
@@ -333,7 +333,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           // if (modelAvailable) {
           //   await storage.save(`${captionsPackageName}_running`, true)
           //   // ensure transcriber is initialized with the current model:
-          //   await CoreModule.restartTranscriber()
+          //   await BluetoothSdk.restartTranscriber()
           //   // tell the core:
           //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
           //   return undefined
@@ -387,7 +387,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     //       if (modelAvailable) {
     //         await storage.save(`${captionsPackageName}_running`, true)
     //         // ensure transcriber is initialized with the current model:
-    //         await CoreModule.restartTranscriber()
+    //         await BluetoothSdk.restartTranscriber()
     //         // tell the core:
     //         await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
     //         return undefined

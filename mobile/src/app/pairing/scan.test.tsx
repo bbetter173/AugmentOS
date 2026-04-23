@@ -134,7 +134,7 @@ import {render, fireEvent, waitFor} from "@testing-library/react-native"
 import type {ReactNode} from "react"
 import {Platform} from "react-native"
 
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {requestFeaturePermissions} from "@/utils/PermissionsUtils"
@@ -172,7 +172,7 @@ describe("pairing scan screen", () => {
     const {getByText} = render(<SelectGlassesBluetoothScreen />)
 
     await waitFor(() => {
-      expect(CoreModule.findCompatibleDevices).toHaveBeenCalledWith("Mentra Live")
+      expect(BluetoothSdk.findCompatibleDevices).toHaveBeenCalledWith("Mentra Live")
     })
 
     fireEvent.press(getByText("001"))
@@ -202,7 +202,7 @@ describe("pairing scan screen", () => {
         deviceModel: "Mentra Live",
         deviceName: "NOTREQUIREDSKIP",
       })
-      expect(CoreModule.connectByName).not.toHaveBeenCalled()
+      expect(BluetoothSdk.connectByName).not.toHaveBeenCalled()
     })
   })
 })

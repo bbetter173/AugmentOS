@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import NetInfo from "@react-native-community/netinfo"
 import Constants from "expo-constants"
 import * as ImagePicker from "expo-image-picker"
@@ -246,7 +246,7 @@ export async function submitBugIncident(
 
   const glassesConnected = useGlassesStore.getState().connected
   if (glassesConnected) {
-    CoreModule.sendIncidentId(incidentId, phoneBackendUrl)
+    BluetoothSdk.sendIncidentId(incidentId, phoneBackendUrl)
   }
 
   if (options?.screenshots && options.screenshots.length > 0) {

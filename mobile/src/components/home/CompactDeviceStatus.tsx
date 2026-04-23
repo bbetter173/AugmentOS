@@ -1,5 +1,5 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
 import {useState, useEffect} from "react"
 import {ActivityIndicator, Image, ImageStyle, Linking, TextStyle, TouchableOpacity, View, ViewStyle} from "react-native"
 
@@ -62,7 +62,7 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   // Listen for glasses_not_ready event to know when glasses are actually booting
   useEffect(() => {
-    const sub = CoreModule.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
+    const sub = BluetoothSdk.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
       setShowGlassesBooting(true)
     })
     return () => {
@@ -103,12 +103,12 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
     } finally {
       // setIsCheckingConnectivity(false)
     }
-    await CoreModule.connectDefault()
+    await BluetoothSdk.connectDefault()
   }
 
   const handleConnectOrDisconnect = async () => {
     if (searching || nativeLinkBusy) {
-      await CoreModule.disconnect()
+      await BluetoothSdk.disconnect()
       setIsCheckingConnectivity(false)
       resetSearching()
     } else {

@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useState} from "react"
 import {View} from "react-native"
 import Toast from "react-native-toast-message"
@@ -18,7 +18,7 @@ export default function BufferDebugPage() {
 
   const handleStartStop = async () => {
     if (isBufferRecording) {
-      await CoreModule.stopBufferRecording()
+      await BluetoothSdk.stopBufferRecording()
       setIsBufferRecording(false)
       Toast.show({
         type: "success",
@@ -27,7 +27,7 @@ export default function BufferDebugPage() {
         visibilityTime: 2000,
       })
     } else {
-      await CoreModule.startBufferRecording()
+      await BluetoothSdk.startBufferRecording()
       setIsBufferRecording(true)
       Toast.show({
         type: "success",
@@ -52,7 +52,7 @@ export default function BufferDebugPage() {
     }
 
     const requestId = `buffer_${Date.now()}`
-    await CoreModule.sendSaveBufferVideo(requestId, seconds)
+    await BluetoothSdk.sendSaveBufferVideo(requestId, seconds)
     Toast.show({
       type: "success",
       text1: "Saving buffer video",
@@ -65,7 +65,7 @@ export default function BufferDebugPage() {
   const handleVideoStartStop = async () => {
     if (isVideoRecording) {
       if (videoRequestId) {
-        await CoreModule.sendStopVideoRecording(videoRequestId)
+        await BluetoothSdk.sendStopVideoRecording(videoRequestId)
         setIsVideoRecording(false)
         setVideoRequestId(null)
         Toast.show({
@@ -78,7 +78,7 @@ export default function BufferDebugPage() {
     } else {
       const requestId = `video_${Date.now()}`
       setVideoRequestId(requestId)
-      await CoreModule.sendStartVideoRecording(requestId, true)
+      await BluetoothSdk.sendStartVideoRecording(requestId, true)
       setIsVideoRecording(true)
       Toast.show({
         type: "success",

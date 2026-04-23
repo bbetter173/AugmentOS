@@ -1,5 +1,5 @@
 import {Capabilities, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useEffect, useState} from "react"
 import {ScrollView, TextInput, TextStyle, TouchableOpacity, View, ViewStyle} from "react-native"
 
@@ -338,7 +338,7 @@ export default function NexDeveloperSettings() {
         ])
         return
       }
-      await CoreModule.displayText({
+      await BluetoothSdk.displayText({
         text,
         x: parseInt(positionX, 0),
         y: parseInt(positionY, 0),
@@ -364,7 +364,7 @@ export default function NexDeveloperSettings() {
 
   const onSendImageClick = async () => {
     if (glassesConnected) {
-      await CoreModule.displayImage(selectedImageType, selectedImageSize)
+      await BluetoothSdk.displayImage(selectedImageType, selectedImageSize)
     } else {
       showAlert("Please connect to the device", "Please connect to the device", [
         {
@@ -378,7 +378,7 @@ export default function NexDeveloperSettings() {
 
   const onClearDisplayClick = async () => {
     if (glassesConnected) {
-      await CoreModule.clearDisplay()
+      await BluetoothSdk.clearDisplay()
     } else {
       showAlert("Please connect to the device", "Please connect to the device", [
         {
@@ -393,7 +393,7 @@ export default function NexDeveloperSettings() {
   const onLc3AudioToggle = async (enabled: boolean) => {
     setLc3AudioEnabled(enabled)
     if (glassesConnected) {
-      await CoreModule.setLc3AudioEnabled(enabled)
+      await BluetoothSdk.setLc3AudioEnabled(enabled)
     }
   }
 

@@ -8,7 +8,7 @@ import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import CoreModule, {TouchEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {TouchEvent} from "@mentra/bluetooth-sdk"
 import {BackgroundTimer} from "@/utils/timers"
 
 function Tag({icon, label, bg}: {icon: string; label: string; bg: string}) {
@@ -38,7 +38,7 @@ export default function CoreStatusBar() {
 
   const touchEventTimer = useRef<number | null>(null)
   useEffect(() => {
-    let sub = CoreModule.addListener("touch_event", (event: TouchEvent) => {
+    let sub = BluetoothSdk.addListener("touch_event", (event: TouchEvent) => {
       setTouchEvent(event)
       BackgroundTimer.clearTimeout(touchEventTimer.current ?? 0)
       touchEventTimer.current = BackgroundTimer.setTimeout(() => {

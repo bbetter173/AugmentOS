@@ -191,23 +191,6 @@ object DeviceStore {
             }
 
             // CORE:
-            "core" to "auth_email" -> {
-                if (value is String) {
-                    // DeviceManager.getInstance().sgc?.sendAuthEmail(value)
-                }
-            }
-            "core" to "core_token" -> {
-                if (value is String) {
-                    // DeviceManager.getInstance().sgc?.sendAuthToken(value)
-                }
-            }
-            "core" to "isHeadUp" -> {
-                (value as? Boolean)?.let { isHeadUp ->
-                    // sendCurrentState()
-                    DeviceManager.getInstance().sendCurrentState()
-                    Bridge.sendHeadUp(isHeadUp)
-                }
-            }
             "core" to "brightness" -> {
                 val b = (value as? Number)?.toInt()  ?: 50
                 val auto = (store.get("core", "auto_brightness") as? Boolean) ?: true
@@ -318,18 +301,6 @@ object DeviceStore {
                     if (wearable.contains(DeviceTypes.SIMULATED)) {
                         DeviceManager.getInstance().initSGC(wearable)
                     }
-                }
-            }
-            "core" to "device_name" -> {
-                // Device name changed - no additional action needed
-            }
-            "core" to "lastLog" -> {
-                (value as? MutableList<String>)?.let { logs ->
-                    // ensure the list is trimmed to 100 items (remove oldest items)
-                    // if (logs.size > 100) {
-                    //     logs.subList(0, logs.size - 100)
-                    // }
-                    // DeviceStore.store.set("core", "lastLog", logs)
                 }
             }
         }

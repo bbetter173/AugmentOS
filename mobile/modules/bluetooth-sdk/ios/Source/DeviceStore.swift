@@ -172,17 +172,6 @@ class DeviceStore {
 
         // CORE:
 
-        case ("core", "auth_email"):
-            if let email = value as? String {
-                // DeviceManager.shared.sgc?.sendAuthEmail(email)
-            }
-
-        case ("core", "core_token"):
-            if let token = value as? String {
-                _ = token
-                // DeviceManager.shared.sgc?.sendAuthToken(token)
-            }
-
         case ("core", "brightness"):
             let b = value as? Int ?? 50
             let auto = store.get("core", "auto_brightness") as? Bool ?? true
@@ -294,14 +283,6 @@ class DeviceStore {
                 DeviceManager.shared.checkCurrentAudioDevice()
                 // listen for when the audio device is paired and connected
                 // DeviceManager.shared.setupAudioPairing(deviceName: name)
-            }
-
-        case ("core", "lastLog"):
-            if let logs = value as? [String] {
-                // ensure the list is trimmed to 100 items (remove oldest items)
-                // if logs.count > 100 {
-                // store.set("core", "lastLog", logs.subList(0, logs.count - 100))
-                // }
             }
 
         default:

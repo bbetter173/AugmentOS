@@ -298,13 +298,13 @@ Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function
 "core" to "default_wearable" -> initSGC(...)
 
 // Explicit Phase 2 exceptions
-"core" to "auth_email" -> keep for MentraLive plumbing
-"core" to "core_token" -> keep for MentraLive plumbing
 "core" to "offline_captions_running" -> setMicState(...)
 "core" to "should_send_pcm" -> setMicState(...)
 "core" to "should_send_lc3" -> setMicState(...)
 "core" to "should_send_transcript" -> setMicState(...)
 ```
+
+`auth_email` and `core_token` remain Bluetooth SDK state for MentraLive plumbing, but they do not need `apply()` side-effect branches because hardware paths read the latest values directly from `DeviceStore`.
 
 **Offline STT Note:**
 

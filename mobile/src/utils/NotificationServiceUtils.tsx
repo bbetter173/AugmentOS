@@ -1,4 +1,4 @@
-import {Linking, Platform} from "react-native"
+import {Platform} from "react-native"
 import CrustModule from "crust"
 
 import showAlert from "@/utils/AlertUtils"
@@ -45,7 +45,7 @@ export async function checkAndRequestNotificationAccessSpecialPermission(): Prom
         {
           text: "Go to Settings",
           onPress: async () => {
-            Linking.sendIntent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").catch((err: any) => {
+            CrustModule.openNotificationListenerSettings().catch((err: any) => {
               console.error("Error opening notification settings:", err)
               showAlert(
                 "Error",

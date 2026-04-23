@@ -260,6 +260,7 @@ Crust handles listening to phone notifications and emits MentraOS events to the 
 Keep the state split practical in this branch:
 
 - Move obvious MentraOS-only native features to Crust, especially notification listening / permission management
+- Move app/build-environment native helpers such as beta-build detection to Crust
 - Keep hardware-driven state and settings in Bluetooth SDK
 - Keep `contextual_dashboard`, `auth_email`, `core_token`, and incident plumbing in Bluetooth SDK for now because current hardware paths still depend on them
 - Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this workstream

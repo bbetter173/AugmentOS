@@ -24,6 +24,9 @@ class CrustModule extends NativeModule<CrustModuleEvents> {
   async openNotificationListenerSettings() {
     return false
   }
+  async isBetaBuild() {
+    return false
+  }
 }
 
 export default registerWebModule(CrustModule, "CrustModule")

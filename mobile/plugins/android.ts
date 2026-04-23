@@ -259,7 +259,6 @@ function withAndroidManifestModifications(config: any) {
 
     // Add permissions that need to be added
     const permissionsToAdd = [
-      {name: "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"},
       {name: "android.permission.BLUETOOTH", maxSdkVersion: 30},
       {name: "android.permission.BLUETOOTH_ADMIN", maxSdkVersion: 30},
       {name: "android.permission.BLUETOOTH_ADVERTISE"},

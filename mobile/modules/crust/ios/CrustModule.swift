@@ -49,6 +49,16 @@ public class CrustModule: Module {
             return false
         }
 
+        // MARK: - Build Environment
+
+        AsyncFunction("isBetaBuild") { () -> Bool in
+            #if targetEnvironment(simulator)
+                return false
+            #else
+                return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            #endif
+        }
+
         Function("showAVRoutePicker") { (tintColor: String?) in
             DispatchQueue.main.async {
                 let picker = AVRoutePickerView()

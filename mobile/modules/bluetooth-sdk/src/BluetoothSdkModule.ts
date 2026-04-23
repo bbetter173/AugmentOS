@@ -110,9 +110,6 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   validateSttModel(path: string): Promise<boolean>
   extractTarBz2(sourcePath: string, destinationPath: string): Promise<boolean>
 
-  // Beta build detection (TestFlight on iOS, extensible to Google Play Beta on Android)
-  isBetaBuild(): Promise<boolean>
-
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
   updateBluetoothSettings(values: Record<string, any>): Promise<void>

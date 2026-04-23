@@ -14,6 +14,7 @@ declare class CrustModule extends NativeModule<CrustModuleEvents> {
   getInstalledAppsForNotifications(): Promise<InstalledApp[]>
   hasNotificationListenerPermission(): Promise<boolean>
   openNotificationListenerSettings(): Promise<boolean>
+  isBetaBuild(): Promise<boolean>
 
   // Image Processing Commands
   processGalleryImage(

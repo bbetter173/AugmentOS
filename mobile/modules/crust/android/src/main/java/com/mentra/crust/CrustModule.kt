@@ -111,6 +111,12 @@ class CrustModule : Module() {
       true
     }
 
+    // MARK: - Build Environment
+
+    AsyncFunction("isBetaBuild") {
+      false
+    }
+
     View(CrustView::class) {
       Prop("url") { view: CrustView, url: URL ->
         view.webView.loadUrl(url.toString())

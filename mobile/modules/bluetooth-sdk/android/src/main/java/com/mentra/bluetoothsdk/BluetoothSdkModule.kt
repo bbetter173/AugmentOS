@@ -352,12 +352,6 @@ class BluetoothSdkModule : Module() {
             com.mentra.bluetoothsdk.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
 
-        // MARK: - Beta Build Detection (TestFlight on iOS; TODO: Google Play Beta on Android)
-
-        AsyncFunction("isBetaBuild") {
-            false
-        }
-
         // MARK: - Settings Navigation
 
         AsyncFunction("openBluetoothSettings") {

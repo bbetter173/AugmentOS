@@ -253,6 +253,10 @@ class Simulated: SGCManager {
         Bridge.log("sendOtaStart")
     }
 
+    func sendOtaQueryStatus() {
+        Bridge.log("sendOtaQueryStatus")
+    }
+
     // MARK: - Gallery
 
     func queryGalleryStatus() {

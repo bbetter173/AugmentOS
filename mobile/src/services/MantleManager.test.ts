@@ -213,6 +213,13 @@ describe("MantleManager", () => {
         notifications_enabled: expect.anything(),
       }),
     )
+    for (const nonSdkKey of ["power_saving_mode", "always_on_status_bar", "metric_system"]) {
+      expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          [nonSdkKey]: expect.anything(),
+        }),
+      )
+    }
     expect(crustModuleMock.setNotificationConfig).toHaveBeenCalledWith(true, [])
 
     emitBluetoothSdkEvent("bluetooth_status", {searching: true, otherBtConnected: true})
@@ -296,6 +303,33 @@ describe("MantleManager", () => {
         notifications_blocklist: expect.anything(),
       }),
     )
+  })
+
+  it("keeps non-SDK settings out of Bluetooth SDK sync", async () => {
+    const nonSdkSettings = {
+      power_saving_mode: true,
+      always_on_status_bar: true,
+      bypass_vad_for_debugging: false,
+      bypass_audio_encoding_for_debugging: true,
+      metric_system: true,
+      enforce_local_transcription: true,
+      offline_translation_running: true,
+      offline_translation_source: "fr",
+      offline_translation_target: "de",
+    }
+
+    for (const key of Object.keys(nonSdkSettings)) {
+      expect(useSettingsStore.getState().getBluetoothSdkSettings()).not.toHaveProperty(key)
+    }
+    ;(bluetoothSdkMock.updateBluetoothSettings as jest.Mock).mockClear()
+    for (const [key, value] of Object.entries(nonSdkSettings)) {
+      await useSettingsStore.getState().setSetting(key, value, false)
+    }
+
+    for (const key of Object.keys(nonSdkSettings)) {
+      expect(useSettingsStore.getState().getBluetoothSdkSettings()).not.toHaveProperty(key)
+    }
+    expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalled()
   })
 
   it("renders offline local transcription locally instead of forwarding it to cloud", async () => {

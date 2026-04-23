@@ -545,16 +545,11 @@ export const SETTINGS: Record<string, Setting> = {
 
 export const OFFLINE_APPLETS: string[] = ["com.mentra.livecaptions", "com.mentra.camera"]
 
-// these settings are automatically synced to the Bluetooth SDK:
+// These settings are automatically synced to the Bluetooth SDK.
+// Keep this list hardware-facing; app/UI/cloud-only preferences should stay in JS/Crust.
 const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
   // Bluetooth SDK settings:
   SETTINGS.sensing_enabled.key,
-  SETTINGS.power_saving_mode.key,
-  SETTINGS.always_on_status_bar.key,
-  SETTINGS.bypass_vad_for_debugging.key,
-  SETTINGS.bypass_audio_encoding_for_debugging.key,
-  SETTINGS.metric_system.key,
-  SETTINGS.enforce_local_transcription.key,
   SETTINGS.lc3_frame_size.key,
   SETTINGS.preferred_mic.key,
   SETTINGS.screen_disabled.key,
@@ -570,6 +565,7 @@ const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
   // button:
   SETTINGS.button_mode.key,
   SETTINGS.button_photo_size.key,
+  // Legacy MentraLive native code reads the object form when syncing video settings.
   SETTINGS.button_video_settings.key,
   SETTINGS.button_camera_led.key,
   SETTINGS.button_max_recording_time.key,
@@ -586,9 +582,6 @@ const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
   // offline applets:
   SETTINGS.offline_mode.key,
   SETTINGS.offline_captions_running.key,
-  SETTINGS.offline_translation_running.key,
-  SETTINGS.offline_translation_source.key,
-  SETTINGS.offline_translation_target.key,
   SETTINGS.gallery_mode.key,
 ]
 

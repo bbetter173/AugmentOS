@@ -271,16 +271,39 @@ Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function
 **Keep in Bluetooth SDK:**
 
 ```kotlin
+// Hardware lifecycle/state side effects
+"glasses" to "fullyBooted" -> handleDeviceReady()/handleDeviceDisconnected()
+"glasses" to "controllerFullyBooted" -> handleControllerReady()/handleControllerDisconnected()
+"glasses" to "controllerMacAddress" -> sgc?.connectController()
+"glasses" to "headUp" -> sendCurrentState(); sendHeadUp(...)
+
+// Hardware settings
 "core" to "brightness" -> sgc?.setBrightness(...)
 "core" to "auto_brightness" -> sgc?.setBrightness(...)
 "core" to "dashboard_height" -> sgc?.setDashboardHeightOnly(...)
 "core" to "dashboard_depth" -> sgc?.setDashboardDepthOnly(...)
 "core" to "head_up_angle" -> sgc?.setHeadUpAngle(...)
+"core" to "dashboard_menu_apps" -> sgc?.setDashboardMenu(...)
 "core" to "gallery_mode" -> sgc?.sendGalleryMode()
+"core" to "screen_disabled" -> sgc?.exit()/clearDisplay()
 "core" to "button_mode" -> sgc?.sendButtonModeSetting()
 "core" to "button_photo_size" -> sgc?.sendButtonPhotoSettings()
+"core" to "button_camera_led" -> sgc?.sendButtonCameraLedSetting()
+"core" to "button_max_recording_time" -> sgc?.sendButtonMaxRecordingTime()
+"core" to "camera_fov" -> sgc?.sendCameraFovSetting()
+"core" to "button_video_width" -> sgc?.sendButtonVideoRecordingSettings()
+"core" to "button_video_height" -> sgc?.sendButtonVideoRecordingSettings()
+"core" to "button_video_fps" -> sgc?.sendButtonVideoRecordingSettings()
 "core" to "preferred_mic" -> setMicState(...)
 "core" to "default_wearable" -> initSGC(...)
+
+// Explicit Phase 2 exceptions
+"core" to "auth_email" -> keep for MentraLive plumbing
+"core" to "core_token" -> keep for MentraLive plumbing
+"core" to "offline_captions_running" -> setMicState(...)
+"core" to "should_send_pcm" -> setMicState(...)
+"core" to "should_send_lc3" -> setMicState(...)
+"core" to "should_send_transcript" -> setMicState(...)
 ```
 
 **Offline STT Note:**

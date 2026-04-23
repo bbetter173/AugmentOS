@@ -1,5 +1,14 @@
 import {waitFor} from "@testing-library/react-native"
 
+import restComms from "@/services/RestComms"
+import socketComms from "@/services/SocketComms"
+import mantle from "./MantleManager"
+import {useCoreStore} from "@/stores/core"
+import {useDisplayStore} from "@/stores/display"
+import {useGlassesStore} from "@/stores/glasses"
+import {SETTINGS, useSettingsStore} from "@/stores/settings"
+import {coreModuleMock, emitCoreEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
+
 jest.mock("core", () => {
   const {coreModuleMock} = require("../test-utils/mockCoreModule")
   return {
@@ -165,15 +174,6 @@ jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
 }))
 
-import restComms from "@/services/RestComms"
-import socketComms from "@/services/SocketComms"
-import mantle from "./MantleManager"
-import {useCoreStore} from "@/stores/core"
-import {useDisplayStore} from "@/stores/display"
-import {useGlassesStore} from "@/stores/glasses"
-import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import {coreModuleMock, emitCoreEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
-
 describe("MantleManager", () => {
   beforeAll(async () => {
     jest.useFakeTimers()
@@ -258,5 +258,127 @@ describe("MantleManager", () => {
         core_token: "new-token",
       }),
     )
+  })
+
+  it("renders offline local transcription locally instead of forwarding it to cloud", async () => {
+    ;(socketComms.sendLocalTranscription as jest.Mock).mockClear()
+    ;(socketComms.handle_display_event as jest.Mock).mockClear()
+
+    await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true, false)
+
+    emitCoreEvent("local_transcription", {
+      text: "offline words",
+      isFinal: true,
+      transcribeLanguage: "en-US",
+    })
+
+    await waitFor(() => {
+      expect(socketComms.handle_display_event).toHaveBeenCalledWith(
+        expect.objectContaining({
+          view: "main",
+          layout: expect.objectContaining({
+            layoutType: "text_wall",
+            text: expect.stringContaining("offline words"),
+          }),
+        }),
+      )
+    })
+    expect(socketComms.sendLocalTranscription).not.toHaveBeenCalled()
+
+    await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false, false)
+  })
+
+  it("maps notification events to REST payloads", async () => {
+    ;(restComms.sendPhoneNotification as jest.Mock).mockClear()
+    ;(restComms.sendPhoneNotificationDismissed as jest.Mock).mockClear()
+
+    emitCoreEvent("phone_notification", {
+      notificationId: "n-1",
+      app: "Calendar",
+      title: "Standup",
+      content: "Daily sync",
+      priority: 4,
+      timestamp: "12345",
+      packageName: "com.calendar",
+    })
+    emitCoreEvent("phone_notification_dismissed", {
+      notificationId: "n-1",
+      notificationKey: "key-1",
+      packageName: "com.calendar",
+    })
+
+    await waitFor(() => {
+      expect(restComms.sendPhoneNotification).toHaveBeenCalledWith({
+        notificationId: "n-1",
+        app: "Calendar",
+        title: "Standup",
+        content: "Daily sync",
+        priority: "4",
+        timestamp: 12345,
+        packageName: "com.calendar",
+      })
+      expect(restComms.sendPhoneNotificationDismissed).toHaveBeenCalledWith({
+        notificationId: "n-1",
+        notificationKey: "key-1",
+        packageName: "com.calendar",
+      })
+    })
+  })
+
+  it("tracks OTA events without accepting disconnected update availability", async () => {
+    useGlassesStore.getState().setGlassesInfo({connected: false})
+    useGlassesStore.getState().setOtaUpdateAvailable(null)
+
+    emitCoreEvent("ota_update_available", {
+      version_code: 101,
+      version_name: "1.0.1",
+      updates: ["apk"],
+      total_size: 2048,
+    })
+    expect(useGlassesStore.getState().otaUpdateAvailable).toBeNull()
+
+    useGlassesStore.getState().setGlassesInfo({connected: true})
+    emitCoreEvent("ota_update_available", {
+      version_code: 101,
+      version_name: "1.0.1",
+      updates: ["apk"],
+      total_size: 2048,
+    })
+    expect(useGlassesStore.getState().otaUpdateAvailable).toEqual({
+      available: true,
+      versionCode: 101,
+      versionName: "1.0.1",
+      updates: ["apk"],
+      totalSize: 2048,
+    })
+
+    emitCoreEvent("ota_progress", {
+      stage: "download",
+      status: "PROGRESS",
+      progress: 80,
+      bytes_downloaded: 800,
+      total_bytes: 1000,
+      current_update: "apk",
+    })
+    emitCoreEvent("ota_progress", {
+      stage: "download",
+      status: "PROGRESS",
+      progress: 50,
+      bytes_downloaded: 500,
+      total_bytes: 1000,
+      current_update: "apk",
+    })
+    expect(useGlassesStore.getState().otaProgress?.progress).toBe(80)
+
+    emitCoreEvent("ota_progress", {
+      stage: "install",
+      status: "FINISHED",
+      progress: 100,
+      bytes_downloaded: 1000,
+      total_bytes: 1000,
+      current_update: "apk",
+    })
+    expect(useGlassesStore.getState().otaUpdateAvailable).toBeNull()
+    expect(useGlassesStore.getState().otaInProgress).toBe(false)
   })
 })

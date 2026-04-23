@@ -124,12 +124,12 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   let isSearching = searching || isCheckingConnectivity || wasSearching || nativeLinkBusy
-  let connectingText = translate("home:connectingGlasses")
+  let _connectingText = translate("home:connectingGlasses")
   // Only show booting message when we've received a glasses_not_ready event
   if (showGlassesBooting) {
-    connectingText = "Glasses are booting..."
+    _connectingText = "Glasses are booting..."
   } else if (nativeLinkBusy && !searching) {
-    connectingText = translate("glasses:glassesAreReconnecting")
+    _connectingText = translate("glasses:glassesAreReconnecting")
   }
 
   const features = getModelCapabilities(defaultWearable)

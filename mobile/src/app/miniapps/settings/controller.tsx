@@ -1,7 +1,6 @@
 import {ScrollView, Image, View} from "react-native"
 
 import {ConnectControllerButton} from "@/components/glasses/ConnectDeviceButton"
-import {NotConnectedInfo} from "@/components/glasses/info/NotConnectedInfo"
 import {Header, Screen, Icon} from "@/components/ignite"
 import {Spacer} from "@/components/ui/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"

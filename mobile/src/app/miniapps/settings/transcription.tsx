@@ -35,7 +35,7 @@ export default function TranscriptionSettingsScreen() {
 
   const stopAllApps = useStopAllApplets()
 
-  const handleToggleOfflineMode = () => {
+  const _handleToggleOfflineMode = () => {
     const title = offlineMode ? "Disable Offline Mode?" : "Enable Offline Mode?"
     const message = offlineMode
       ? "Switching to online mode will close all offline-only apps and allow you to use all online apps."

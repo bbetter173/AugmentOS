@@ -123,9 +123,7 @@ export default function SelectGlassesBluetoothScreen() {
     })
   }, [searchResults])
 
-  const visibleResults = rememberedSearchResults.filter(
-    (r) => r.deviceModel === deviceModel,
-  )
+  const visibleResults = rememberedSearchResults.filter((r) => r.deviceModel === deviceModel)
 
   return (
     <Screen preset="fixed" safeAreaEdges={["bottom"]} extraAndroidInsets>

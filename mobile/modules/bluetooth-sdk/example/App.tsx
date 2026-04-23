@@ -1,5 +1,7 @@
 import BluetoothSdk from "@mentra/bluetooth-sdk"
 import type {ReactNode} from "react"
+// The SDK example intentionally uses plain React Native primitives outside the mobile app shell.
+// eslint-disable-next-line no-restricted-imports
 import {Button, SafeAreaView, ScrollView, Text, View} from "react-native"
 
 export default function App() {

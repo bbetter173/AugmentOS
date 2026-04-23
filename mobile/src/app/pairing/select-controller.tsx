@@ -1,8 +1,7 @@
 import {DeviceTypes, ControllerTypes} from "@/../../cloud/packages/types/src"
-import CoreModule from "@mentra/bluetooth-sdk"
 import {useFocusEffect} from "expo-router"
 import {useCallback} from "react"
-import {View, TouchableOpacity, Platform, ScrollView, Image, ViewStyle, ImageStyle, TextStyle} from "react-native"
+import {View, TouchableOpacity, Platform, ScrollView, Image} from "react-native"
 
 import {EvenRealitiesLogo} from "@/components/brands/EvenRealitiesLogo"
 import {MentraLogo} from "@/components/brands/MentraLogo"
@@ -13,7 +12,6 @@ import {Screen} from "@/components/ignite/Screen"
 import {Spacer} from "@/components/ui/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {SETTINGS, useSetting} from "@/stores/settings"
 import {getGlassesImage} from "@/utils/getGlassesImage"
 import GlassView from "@/components/ui/GlassView"
 

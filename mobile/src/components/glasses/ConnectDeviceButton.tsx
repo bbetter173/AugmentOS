@@ -1,8 +1,8 @@
-import {ControllerTypes, DeviceTypes} from "@/../../cloud/packages/types/src"
+import {DeviceTypes} from "@/../../cloud/packages/types/src"
 import CoreModule from "@mentra/bluetooth-sdk"
 import {ActivityIndicator, View} from "react-native"
 
-import {Button, Icon} from "@/components/ignite"
+import {Button} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useGlassesStore} from "@/stores/glasses"

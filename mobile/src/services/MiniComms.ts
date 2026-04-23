@@ -213,7 +213,7 @@ class MiniComms {
     }
   }
 
-  private handleRequestTranscription(packageName: string, message: MiniAppMessage) {
+  private handleRequestTranscription(_packageName: string, _message: MiniAppMessage) {
     // composer
   }
 

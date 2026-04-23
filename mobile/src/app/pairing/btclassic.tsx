@@ -9,7 +9,6 @@ import {SETTINGS, useSetting} from "@/stores/settings"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
 import {useCoreStore} from "@/stores/core"
 import {View} from "react-native"
-import {ExpoAvRoutePickerView} from "@douglowder/expo-av-route-picker-view"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import CrustModule from "crust"
 

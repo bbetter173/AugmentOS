@@ -4,7 +4,7 @@ import {useLocalMiniApps} from "@/stores/applets"
 import LocalMiniApp from "@/components/home/LocalMiniApp"
 import composer from "@/services/Composer"
 import {usePathname} from "expo-router"
-import {Screen, Text} from "@/components/ignite"
+import {Screen} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import CoreModule, {MicPcmEvent} from "@mentra/bluetooth-sdk"
@@ -59,8 +59,10 @@ function Compositor() {
   const viewShotRef = useRef<View>(null)
   const [packageName, setPackageName] = useState<string | null>(null)
   const {getCurrentParams} = useNavigationHistory()
-  const [offlineCaptionsRunning, setOfflineCaptionsRunning] = useSetting(SETTINGS.offline_captions_running.key)
-  const [offlineTranslationRunning, setOfflineTranslationRunning] = useSetting(SETTINGS.offline_translation_running.key)
+  const [offlineCaptionsRunning, _setOfflineCaptionsRunning] = useSetting(SETTINGS.offline_captions_running.key)
+  const [offlineTranslationRunning, _setOfflineTranslationRunning] = useSetting(
+    SETTINGS.offline_translation_running.key,
+  )
 
   useEffect(() => {
     if (pathname.includes("/applet/local")) {
@@ -114,12 +116,12 @@ function Compositor() {
   //   },
   // })
 
-  const transcription = useRef<string>("")
-  let useExecutorch = false
-  let useCactus = false
-  let useExpoSpeech = true
+  const _transcription = useRef<string>("")
+  let _useExecutorch = false
+  let _useCactus = false
+  let _useExpoSpeech = true
 
-  const handlePcm = async (pcm: ArrayBuffer) => {
+  const handlePcm = async (_pcm: ArrayBuffer) => {
     // if (useExpoSpeech) {
     //   const audioChunk = decodePcm16ToFloat32(pcm)
     //   SpeechTranscriber.realtimeBufferTranscribe(

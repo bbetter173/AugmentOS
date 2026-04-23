@@ -1,8 +1,8 @@
 jest.mock("@mentra/bluetooth-sdk", () => {
-  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
+  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
-    default: coreModuleMock,
+    default: bluetoothSdkMock,
   }
 })
 
@@ -84,7 +84,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import GlassesPairingLoadingScreen from "./loading"
 import {useGlassesStore} from "@/stores/glasses"
-import {emitCoreEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
+import {emitBluetoothSdkEvent, resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 describe("pairing loading screen", () => {
   const replace = jest.fn()
@@ -92,7 +92,7 @@ describe("pairing loading screen", () => {
 
   beforeEach(() => {
     jest.useFakeTimers()
-    resetCoreModuleMock()
+    resetBluetoothSdkMock()
     jest.clearAllMocks()
     useGlassesStore.getState().reset()
     ;(useRoute as jest.Mock).mockReturnValue({
@@ -111,12 +111,12 @@ describe("pairing loading screen", () => {
     expect(getByText("waiting")).toBeTruthy()
 
     act(() => {
-      emitCoreEvent("glasses_not_ready", {message: "booting"})
+      emitBluetoothSdkEvent("glasses_not_ready", {message: "booting"})
     })
     expect(getByText("booting")).toBeTruthy()
 
     act(() => {
-      emitCoreEvent("pair_failure", {error: "pairing:failed"})
+      emitBluetoothSdkEvent("pair_failure", {error: "pairing:failed"})
     })
 
     await waitFor(() => {

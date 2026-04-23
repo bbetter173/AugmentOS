@@ -2,19 +2,19 @@ import {NativeModule, requireNativeModule} from "expo"
 
 import {
   BluetoothSdkModuleEvents,
-  CoreStatus,
+  BluetoothStatus,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
 } from "./BluetoothSdk.types"
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void
-type CoreListener = (changed: Partial<CoreStatus>) => void
+type BluetoothStatusListener = (changed: Partial<BluetoothStatus>) => void
 
 declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): GlassesStatus
-  getCoreStatus(): CoreStatus
+  getBluetoothStatus(): BluetoothStatus
   update(category: string, values: Record<string, any>): Promise<void>
 
   // Display Commands
@@ -129,9 +129,9 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
 
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
-  updateCore(values: Partial<CoreStatus>): Promise<void>
+  updateBluetoothSettings(values: Record<string, any>): Promise<void>
   onGlassesStatus(callback: GlassesListener): () => void
-  onCoreStatus(callback: CoreListener): () => void
+  onBluetoothStatus(callback: BluetoothStatusListener): () => void
 }
 
 // This call loads the native module object from the JSI.
@@ -143,7 +143,7 @@ NativeBluetoothSdkModule.updateGlasses = function (values: Partial<GlassesStatus
   return this.update("glasses", values)
 }
 
-NativeBluetoothSdkModule.updateCore = function (values: Partial<CoreStatus>) {
+NativeBluetoothSdkModule.updateBluetoothSettings = function (values: Record<string, any>) {
   return this.update("core", values)
 }
 

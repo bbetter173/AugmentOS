@@ -15,11 +15,10 @@ const addListener = jest.fn((eventName: string, listener: Listener) => {
   }
 })
 
-export const coreModuleMock = {
+export const bluetoothSdkMock = {
   addListener,
-  getBluetoothStatus: jest.fn(() => Promise.resolve("disabled")),
   requestBluetoothPermissions: jest.fn(() => Promise.resolve(true)),
-  getCoreStatus: jest.fn(() =>
+  getBluetoothStatus: jest.fn(() =>
     Promise.resolve({
       searching: false,
       micRanking: ["glasses", "phone", "bluetooth"],
@@ -73,7 +72,7 @@ export const coreModuleMock = {
     }),
   ),
   update: jest.fn(() => Promise.resolve()),
-  updateCore: jest.fn(() => Promise.resolve()),
+  updateBluetoothSettings: jest.fn(() => Promise.resolve()),
   updateGlasses: jest.fn(() => Promise.resolve()),
   displayEvent: jest.fn(() => Promise.resolve()),
   displayText: jest.fn(() => Promise.resolve()),
@@ -125,13 +124,13 @@ export const coreModuleMock = {
   getInstalledAppsForNotifications: jest.fn(() => Promise.resolve([])),
 }
 
-export const emitCoreEvent = (eventName: string, payload: any) => {
+export const emitBluetoothSdkEvent = (eventName: string, payload: any) => {
   listeners.get(eventName)?.forEach((listener) => listener(payload))
 }
 
-export const resetCoreModuleMock = () => {
+export const resetBluetoothSdkMock = () => {
   listeners.clear()
-  Object.values(coreModuleMock).forEach((value) => {
+  Object.values(bluetoothSdkMock).forEach((value) => {
     if (typeof value === "function" && "mockClear" in value) {
       value.mockClear()
     }

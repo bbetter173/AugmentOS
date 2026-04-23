@@ -50,7 +50,7 @@ class RestComms {
 
     // Sync to native DeviceStore (and persist to SharedPreferences in BluetoothSdkModule when bridge runs)
     const value = token ?? ""
-    const updateResult = BluetoothSdk.update("core", {core_token: value})
+    const updateResult = BluetoothSdk.updateBluetoothSettings({core_token: value})
     if (updateResult != null && typeof (updateResult as Promise<void>).then === "function") {
       ;(updateResult as Promise<void>).catch(() => {})
     }

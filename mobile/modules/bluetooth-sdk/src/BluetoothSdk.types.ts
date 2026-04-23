@@ -1,4 +1,4 @@
-// Core Event Types
+// Bluetooth SDK Event Types
 export type GlassesNotReadyEvent = {
   type: "glasses_not_ready"
   message: string
@@ -258,12 +258,12 @@ export type MiniappSelectedEvent = {
   packageName: string
 }
 
-// Union type of all core events
-export type CoreEvent = Parameters<BluetoothSdkModuleEvents[keyof BluetoothSdkModuleEvents]>[0]
+// Union type of all Bluetooth SDK events
+export type BluetoothSdkEvent = Parameters<BluetoothSdkModuleEvents[keyof BluetoothSdkModuleEvents]>[0]
 
 export type BluetoothSdkModuleEvents = {
   glasses_status: (changed: Partial<GlassesStatus>) => void
-  core_status: (changed: Partial<CoreStatus>) => void
+  bluetooth_status: (changed: Partial<BluetoothStatus>) => void
   log: (event: LogEvent) => void
   // Individual event handlers
   glasses_not_ready: (event: GlassesNotReadyEvent) => void
@@ -396,7 +396,7 @@ export interface WifiSearchResult {
   frequency?: number
 }
 
-export interface CoreStatus {
+export interface BluetoothStatus {
   // state:
   searching: boolean
   searchingController: boolean

@@ -7,7 +7,7 @@ public class BluetoothSdkModule: Module {
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "core_status",
+            "bluetooth_status",
             "log",
             // Individual event handlers
             "glasses_not_ready",
@@ -62,7 +62,7 @@ public class BluetoothSdkModule: Module {
                     case "glasses":
                         self?.sendEvent("glasses_status", changes)
                     case "core":
-                        self?.sendEvent("core_status", changes)
+                        self?.sendEvent("bluetooth_status", changes)
                     default:
                         break
                     }
@@ -78,7 +78,7 @@ public class BluetoothSdkModule: Module {
             }
         }
 
-        AsyncFunction("getCoreStatus") {
+        AsyncFunction("getBluetoothStatus") {
             await MainActor.run {
                 DeviceStore.shared.store.getCategory("core")
             }

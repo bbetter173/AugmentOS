@@ -155,7 +155,7 @@ function Compositor() {
 
   useEffect(() => {
     const initSTT = async () => {
-      // await BluetoothSdk.update("core", {
+      // await BluetoothSdk.updateBluetoothSettings({
       //   should_send_pcm: true,
       // })
 

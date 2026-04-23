@@ -1,8 +1,8 @@
 jest.mock("@mentra/bluetooth-sdk", () => {
-  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
+  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
-    default: coreModuleMock,
+    default: bluetoothSdkMock,
   }
 })
 
@@ -142,7 +142,7 @@ import SelectGlassesBluetoothScreen from "./scan"
 import {useCoreStore} from "@/stores/core"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import {resetCoreModuleMock} from "@/test-utils/mockCoreModule"
+import {resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 describe("pairing scan screen", () => {
   const replace = jest.fn()
@@ -150,7 +150,7 @@ describe("pairing scan screen", () => {
   const goBack = jest.fn()
 
   beforeEach(() => {
-    resetCoreModuleMock()
+    resetBluetoothSdkMock()
     jest.clearAllMocks()
     useCoreStore.getState().reset()
     useGlassesStore.getState().reset()

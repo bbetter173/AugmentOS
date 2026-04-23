@@ -59,7 +59,7 @@
 
 //     // console.log("COMPOSITOR: Is recording:", recorder.isRecording());
 
-//     await BluetoothSdk.update("core", {
+//     await BluetoothSdk.updateBluetoothSettings({
 //       should_send_pcm: true,
 //     })
 

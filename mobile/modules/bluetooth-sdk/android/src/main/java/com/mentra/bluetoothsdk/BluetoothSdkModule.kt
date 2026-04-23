@@ -16,7 +16,7 @@ class BluetoothSdkModule : Module() {
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "core_status",
+            "bluetooth_status",
             "log",
             // Individual event handlers
             "glasses_not_ready",
@@ -76,7 +76,7 @@ class BluetoothSdkModule : Module() {
             DeviceStore.store.configure { category, changes ->
                 when (category) {
                     "glasses" -> sendEvent("glasses_status", changes)
-                    "core" -> sendEvent("core_status", changes)
+                    "core" -> sendEvent("bluetooth_status", changes)
                 }
             }
         }
@@ -85,7 +85,7 @@ class BluetoothSdkModule : Module() {
 
         Function("getGlassesStatus") { DeviceStore.store.getCategory("glasses") }
 
-        Function("getCoreStatus") { DeviceStore.store.getCategory("core") }
+        Function("getBluetoothStatus") { DeviceStore.store.getCategory("core") }
 
         Function("set") { category: String, key: String, value: Any ->
             DeviceStore.apply(category, key, value)

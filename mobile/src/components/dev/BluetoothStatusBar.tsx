@@ -1,7 +1,7 @@
 import {View} from "react-native"
 import {useRef, useEffect, useState} from "react"
 
-import {Icon, Text} from "@/components/ignite"
+import {Icon, IconTypes, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useConnectionStore} from "@/stores/connection"
 import {useCoreStore} from "@/stores/core"
@@ -11,7 +11,7 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import BluetoothSdk, {TouchEvent} from "@mentra/bluetooth-sdk"
 import {BackgroundTimer} from "@/utils/timers"
 
-function Tag({icon, label, bg}: {icon: string; label: string; bg: string}) {
+function Tag({icon, label, bg}: {icon: IconTypes; label: string; bg: string}) {
   const {theme} = useAppTheme()
   return (
     <View className={`flex-row items-center px-1.5 rounded-full ${bg} mx-0.5`}>
@@ -23,7 +23,7 @@ function Tag({icon, label, bg}: {icon: string; label: string; bg: string}) {
   )
 }
 
-export default function CoreStatusBar() {
+export default function BluetoothStatusBar() {
   const searching = useCoreStore((state) => state.searching)
   const micRanking = useCoreStore((state) => state.micRanking)
   const currentMic = useCoreStore((state) => state.currentMic)

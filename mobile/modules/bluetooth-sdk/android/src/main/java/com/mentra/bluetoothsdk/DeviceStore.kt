@@ -10,7 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-/** Centralized observable state store for glasses and core settings */
+/** Centralized observable state store for glasses and Bluetooth SDK settings */
 object DeviceStore {
 
     val store = ObservableStore()

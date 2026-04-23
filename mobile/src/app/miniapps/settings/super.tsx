@@ -14,7 +14,9 @@ export default function SuperSettingsScreen() {
   const [debugNavigationHistoryEnabled, setDebugNavigationHistoryEnabled] = useSetting(
     SETTINGS.debug_navigation_history.key,
   )
-  const [debugCoreStatusBarEnabled, setDebugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
+  const [debugBluetoothStatusBarEnabled, setDebugBluetoothStatusBarEnabled] = useSetting(
+    SETTINGS.debug_bluetooth_status_bar.key,
+  )
   const {push} = useNavigationHistory()
 
   return (
@@ -38,9 +40,9 @@ export default function SuperSettingsScreen() {
             />
 
             <ToggleSetting
-              label="Debug Core Status Bar"
-              value={debugCoreStatusBarEnabled}
-              onValueChange={(value) => setDebugCoreStatusBarEnabled(value)}
+              label="Debug Bluetooth Status Bar"
+              value={debugBluetoothStatusBarEnabled}
+              onValueChange={(value) => setDebugBluetoothStatusBarEnabled(value)}
             />
           </Group>
 

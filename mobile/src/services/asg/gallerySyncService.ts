@@ -910,7 +910,7 @@ class GallerySyncService {
             const finalSSID = await WifiManager.getCurrentWifiSSID()
             console.log(`[GallerySyncService] 📶 Final SSID check before download: "${finalSSID}"`)
             if (Platform.OS === "android") {
-              // Some local builds can have stale generated typings for the core module.
+              // Some local builds can have stale generated typings for the Bluetooth SDK module.
               ;(BluetoothSdk as any).logCurrentWifiFrequency?.()
             }
             if (finalSSID !== hotspotInfo.ssid) {

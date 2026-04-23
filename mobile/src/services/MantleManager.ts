@@ -1,4 +1,4 @@
-import BluetoothSdk, {ButtonPressEvent, CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {ButtonPressEvent, BluetoothStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"
@@ -108,8 +108,8 @@ class MantleManager {
     this.syncTimezone()
 
     const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
-    await BluetoothSdk.updateCore(initialCoreSettings) // send settings to core
-    console.log("MANTLE: Settings sent to core")
+    await BluetoothSdk.updateBluetoothSettings(initialCoreSettings)
+    console.log("MANTLE: Settings sent to Bluetooth SDK")
 
     this.initServices()
     this.setupPeriodicTasks()
@@ -209,7 +209,7 @@ class MantleManager {
       {equalityFn: shallow},
     )
 
-    // subscribe to core settings changes and update the core:
+    // subscribe to settings changes and update Bluetooth SDK settings:
     useSettingsStore.subscribe(
       (state) => state.getCoreSettings(),
       (state: Record<string, any>, previousState: Record<string, any>) => {
@@ -221,8 +221,8 @@ class MantleManager {
             coreSettingsObj[k] = state[k] as any
           }
         }
-        // console.log("MANTLE: core settings changed", coreSettingsObj)
-        BluetoothSdk.updateCore(coreSettingsObj)
+        // console.log("MANTLE: Bluetooth settings changed", coreSettingsObj)
+        BluetoothSdk.updateBluetoothSettings(coreSettingsObj)
       },
       {equalityFn: shallow},
     )
@@ -231,10 +231,10 @@ class MantleManager {
     this.subs.forEach((sub) => sub.remove())
     this.subs = []
 
-    // forward core status changes to the zustand core store:
+    // forward Bluetooth status changes to the zustand core store:
     this.subs.push(
-      BluetoothSdk.addListener("core_status", (changed: Partial<CoreStatus>) => {
-        // console.log("MANTLE: Core status changed", changed)
+      BluetoothSdk.addListener("bluetooth_status", (changed: Partial<BluetoothStatus>) => {
+        // console.log("MANTLE: Bluetooth status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
     )
@@ -681,8 +681,8 @@ class MantleManager {
     }
 
     // one time get all:
-    const coreStatus = await BluetoothSdk.getCoreStatus()
-    // console.log("MANTLE: core status:", coreStatus)
+    const coreStatus = await BluetoothSdk.getBluetoothStatus()
+    // console.log("MANTLE: Bluetooth status:", coreStatus)
     useCoreStore.getState().setCoreInfo(coreStatus)
 
     const glassesStatus = await BluetoothSdk.getGlassesStatus()

@@ -2,13 +2,13 @@ import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {createAudioPlayer, setAudioModeAsync} from "expo-audio"
 
 import audioPlaybackService from "./AudioPlaybackService"
-import {resetCoreModuleMock} from "@/test-utils/mockCoreModule"
+import {resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 jest.mock("@mentra/bluetooth-sdk", () => {
-  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
+  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
-    default: coreModuleMock,
+    default: bluetoothSdkMock,
   }
 })
 
@@ -30,7 +30,7 @@ describe("AudioPlaybackService", () => {
   beforeEach(() => {
     jest.useFakeTimers()
     jest.clearAllMocks()
-    resetCoreModuleMock()
+    resetBluetoothSdkMock()
     mockPlayer.volume = 1
     ;(BluetoothSdk.getGlassesMediaVolume as jest.Mock).mockResolvedValue({vol: 1, statusCode: 0})
   })

@@ -65,8 +65,8 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
-  debug_core_status_bar: {
-    key: "debug_core_status_bar",
+  debug_bluetooth_status_bar: {
+    key: "debug_bluetooth_status_bar",
     defaultValue: () => false,
     writable: true,
     saveOnServer: true,

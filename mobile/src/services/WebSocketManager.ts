@@ -50,16 +50,25 @@ class WebSocketManager extends EventEmitter {
   private awaitingPong: boolean = false
   private pingInterval: ReturnType<typeof BackgroundTimer.setInterval> = 0
 
-  // Serializes concurrent connect() calls so callers cannot race.
-  // Three paths can trigger connect(): backend_url subscription,
-  // NO_ACTIVE_SESSION event, and the reconnect interval's actuallyReconnect.
-  // Without serialization, if two fire while detachAndCloseSocket() is
-  // awaiting the 500ms close, the second caller sees this.webSocket === null,
-  // proceeds, and assigns its own new WebSocket; the first caller then
-  // resumes after the close-wait and overwrites this.webSocket, orphaning
-  // the second WebSocket on the server (the exact overlap this PR is
-  // supposed to prevent). The in-flight promise ensures callers serialize.
-  private connectInFlight: Promise<void> | null = null
+  // Serializes concurrent connect() calls via a promise chain: each caller
+  // appends performConnect() onto the tail so only one runs at a time. Three
+  // paths can trigger connect(): backend_url subscription, NO_ACTIVE_SESSION,
+  // and actuallyReconnect. The earlier single-slot connectInFlight let
+  // multiple callers await the same promise and then all resume past it —
+  // each calling performConnect in parallel, each constructing a new
+  // WebSocket while detachAndCloseSocket early-returned on a null socket,
+  // and orphaning whichever one lost the race to assign this.webSocket. A
+  // chain forces real serialization across any number of concurrent callers.
+  private connectChain: Promise<void> = Promise.resolve()
+
+  // Monotonic token that lets an in-flight performConnect detect it has been
+  // superseded (by a newer connect() or by disconnect() / cleanup()) while
+  // awaiting detachAndCloseSocket()'s up-to-500ms close. After the await the
+  // attempt compares its captured token to the current one and bails if they
+  // differ, rather than pressing on to open a socket that's already stale —
+  // or, worse, reopening a socket the user just explicitly tore down. Same
+  // pattern used in mediaProcessingQueue.ts.
+  private connectGeneration: number = 0
 
   // Zustand subscription — fires when Zustand backend_url changes so we can
   // proactively tear down the old WS and reconnect to the new backend.
@@ -232,36 +241,48 @@ class WebSocketManager extends EventEmitter {
    * the current setting, we log a warning and still use the setting.
    */
   public async connect(_urlDeprecated: string | null | undefined, coreToken: string): Promise<void> {
-    // Serialize. If a previous connect() is still running (e.g. awaiting
-    // detachAndCloseSocket()'s 500ms close timer), wait for it to finish
-    // before starting this one. Otherwise two in-flight connects can race
-    // and the second can overwrite this.webSocket, orphaning the first
-    // socket server-side.
-    if (this.connectInFlight) {
-      try {
-        await this.connectInFlight
-      } catch {
-        // Prior connect failed; proceed with this attempt.
-      }
-    }
-
-    const attempt = this.performConnect(_urlDeprecated, coreToken)
-    this.connectInFlight = attempt
-    try {
-      await attempt
-    } finally {
-      // Only clear if this attempt is still the registered one. A later
-      // connect() may have chained after us and replaced connectInFlight;
-      // don't null theirs.
-      if (this.connectInFlight === attempt) {
-        this.connectInFlight = null
-      }
-    }
-  }
-
-  private async performConnect(_urlDeprecated: string | null | undefined, coreToken: string): Promise<void> {
+    // A connect() call is an explicit intent to be online — clear any prior
+    // manual-disconnect flag. Doing this here (not inside performConnect)
+    // means a later disconnect() that runs while our attempt is still
+    // queued can set manuallyDisconnected=true and have the queued attempt
+    // observe it after its await, rather than our attempt clobbering that
+    // signal back to false when it finally gets its turn.
     this.manuallyDisconnected = false
     this.coreToken = coreToken
+
+    // Claim a generation now so that if a newer connect() or a disconnect()
+    // fires before our turn on the chain, performConnect sees the bump and
+    // bails out instead of opening a socket that's already stale.
+    const myGeneration = ++this.connectGeneration
+
+    // Append onto the chain tail: every caller waits for the current attempt
+    // to finish before running its own. One performConnect body at a time,
+    // no matter how many callers pile up.
+    const run = this.connectChain
+      .catch(() => {
+        // Swallow the prior attempt's failure — each attempt is independent.
+      })
+      .then(() => this.performConnect(_urlDeprecated, coreToken, myGeneration))
+    this.connectChain = run
+    await run
+  }
+
+  private async performConnect(
+    _urlDeprecated: string | null | undefined,
+    coreToken: string,
+    myGeneration: number,
+  ): Promise<void> {
+    // Superseded before we even started (a newer connect() was queued after
+    // us, or disconnect() bumped the generation while we waited our turn):
+    // skip the whole attempt — no teardown, no new socket.
+    if (this.connectGeneration !== myGeneration) {
+      console.log(`WSM: connect gen ${myGeneration} superseded before start, skipping`)
+      return
+    }
+    if (this.manuallyDisconnected) {
+      console.log(`WSM: connect gen ${myGeneration} cancelled by disconnect before start, skipping`)
+      return
+    }
 
     const url = this.getCurrentWsUrl()
     if (!url) {
@@ -279,6 +300,20 @@ class WebSocketManager extends EventEmitter {
     // so the cloud never sees two active sockets for the same user.
     this.stopLivenessMonitor()
     await this.detachAndCloseSocket()
+
+    // Re-check after the awaited teardown: disconnect() or a newer connect()
+    // may have fired during the up-to-500ms close wait. Opening a socket
+    // past either of those is exactly the race called out in PR review — a
+    // logout would be undone, or a stale URL's socket would race the new
+    // one. Bail here instead.
+    if (this.connectGeneration !== myGeneration) {
+      console.log(`WSM: connect gen ${myGeneration} superseded during teardown, skipping`)
+      return
+    }
+    if (this.manuallyDisconnected) {
+      console.log(`WSM: connect gen ${myGeneration} cancelled by disconnect during teardown, skipping`)
+      return
+    }
 
     // Update status and record the URL in the connection store for observability.
     this.updateStatus(WebSocketStatus.CONNECTING)
@@ -391,6 +426,11 @@ class WebSocketManager extends EventEmitter {
 
   public async disconnect(): Promise<void> {
     this.manuallyDisconnected = true
+    // Bump so any in-flight performConnect currently awaiting
+    // detachAndCloseSocket() — or any queued attempt still waiting its turn
+    // on the connect chain — sees the generation change and bails out
+    // instead of opening a fresh socket right after we tore one down.
+    this.connectGeneration++
 
     if (this.reconnectInterval) {
       BackgroundTimer.clearInterval(this.reconnectInterval)

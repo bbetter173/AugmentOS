@@ -475,13 +475,13 @@ await BluetoothSdk.extractTarBz2(sourcePath, destinationPath)
 **Typed store helpers:**
 
 ```ts
-await BluetoothSdk.update("core", values)
-await BluetoothSdk.update("glasses", values)
 await BluetoothSdk.updateBluetoothSettings(values)
 await BluetoothSdk.updateGlasses(values)
 BluetoothSdk.onBluetoothStatus(callback)
 BluetoothSdk.onGlassesStatus(callback)
 ```
+
+`BluetoothSdk.update(category, values)` remains the low-level native store bridge used by these typed helpers. External callers should prefer `updateBluetoothSettings()` and `updateGlasses()` so the internal native store category names (`"core"` / `"glasses"`) do not become part of the partner-facing API.
 
 **Typed hardware/app events emitted to JavaScript:**
 

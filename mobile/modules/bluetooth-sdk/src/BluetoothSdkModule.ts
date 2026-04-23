@@ -130,4 +130,14 @@ NativeBluetoothSdkModule.updateBluetoothSettings = function (values: Record<stri
   return this.update("core", values)
 }
 
+NativeBluetoothSdkModule.onGlassesStatus = function (callback: GlassesListener) {
+  const subscription = this.addListener("glasses_status", callback)
+  return () => subscription.remove()
+}
+
+NativeBluetoothSdkModule.onBluetoothStatus = function (callback: BluetoothStatusListener) {
+  const subscription = this.addListener("bluetooth_status", callback)
+  return () => subscription.remove()
+}
+
 export default NativeBluetoothSdkModule

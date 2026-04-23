@@ -30,6 +30,13 @@ export type {
 
 export {MiniappErrorCode, MiniappRequestType, MiniappResponseType, MiniappStreamType} from "./protocol"
 
+// Hardware requirement types — re-exported from @mentra/types so miniapp
+// authors can type their miniapp.json manifest without pulling in the types
+// package directly. Keep explicit exports (enums as value, interfaces as
+// type) per @mentra/types' Bun-compat convention.
+export {HardwareType, HardwareRequirementLevel} from "@mentra/types"
+export type {HardwareRequirement} from "@mentra/types"
+
 // Transports — exported for advanced uses (forced transport injection, tests)
 export {createTransport} from "./transport/auto"
 export type {CreateTransportOptions} from "./transport/auto"

@@ -4,7 +4,7 @@
  * phone_photo_ready over the WS (handled by SocketComms -> LocalMiniappRuntime).
  */
 
-import {useSettingsStore, SETTINGS} from '@/stores/settings'
+import {useSettingsStore, SETTINGS} from "@/stores/settings"
 
 interface PhotoRequestParams {
   requestId: string
@@ -15,21 +15,19 @@ interface PhotoRequestParams {
   sound?: boolean
 }
 
-export async function requestMiniappPhoto(
-  params: PhotoRequestParams,
-): Promise<{accepted: boolean; requestId: string}> {
+export async function requestMiniappPhoto(params: PhotoRequestParams): Promise<{accepted: boolean; requestId: string}> {
   const backendUrl = useSettingsStore.getState().getSetting(SETTINGS.backend_url.key)
   const coreToken = useSettingsStore.getState().getSetting(SETTINGS.core_token.key)
 
   if (!backendUrl || !coreToken) {
-    throw new Error('Missing backend_url or core_token')
+    throw new Error("Missing backend_url or core_token")
   }
 
   const response = await fetch(`${backendUrl}/api/client/miniapp-photo/request`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${coreToken}`,
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${coreToken}`,
     },
     body: JSON.stringify(params),
   })

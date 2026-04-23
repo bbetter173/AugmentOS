@@ -9,7 +9,9 @@
   "scripts": {
     "build": "echo 'No build needed — runs via bun'"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@clack/prompts": "^1.2.0"
+  },
   "devDependencies": {
     "typescript": "^5.0.0"
   },

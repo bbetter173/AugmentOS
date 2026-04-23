@@ -593,7 +593,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     },
     [themed, theme, startApplet, wiggleEnabled, handlePress, showAllApps],
   )
-  
+
   return (
     <View className="flex-1 mt-3">
       <View ref={containerRef}>

@@ -30,11 +30,11 @@ import type {MiniappEnvelope} from "@mentra/miniapp"
 
 import {getModelCapabilities, DeviceTypes} from "@/../../cloud/packages/types/src"
 import audioPlaybackService from "@/services/AudioPlaybackService"
+import localDisplayManager from "@/services/LocalDisplayManager"
+import type {DisplayPayload} from "@/services/LocalDisplayManager"
 import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
 import micStateCoordinator from "@/services/MicStateCoordinator"
 import socketComms from "@/services/SocketComms"
-import displayProcessor from "@/services/DisplayProcessor"
-import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import {BackgroundTimer} from "@/utils/timers"
@@ -43,11 +43,16 @@ import {BackgroundTimer} from "@/utils/timers"
 // Types
 // =============================================================================
 
+export interface InstalledMiniappManifest {
+  permissions?: Array<{type: string; required?: boolean; description?: string}>
+  hardwareRequirements?: Array<{type: string; level: string; description?: string}>
+}
+
 interface ConnectedMiniapp {
   subscriptions: Set<string>
   sendMessage: (raw: string) => void
   lastPongAt: number
-  installedManifest?: {permissions?: Array<{type: string; description?: string}>}
+  installedManifest?: InstalledMiniappManifest
 }
 
 const LOG_TAG = "LOCAL_MINIAPP"
@@ -287,7 +292,7 @@ class LocalMiniappRuntime {
   public registerApp(
     packageName: string,
     sendFn: (raw: string) => void,
-    installedManifest?: {permissions?: Array<{type: string; description?: string}>},
+    installedManifest?: InstalledMiniappManifest,
   ): void {
     console.log(`${LOG_TAG}: registerApp(${packageName})`)
     // If the app is already registered (e.g. QR scanned again for same package),
@@ -321,7 +326,7 @@ class LocalMiniappRuntime {
    */
   public setInstalledManifest(
     packageName: string,
-    installedManifest: {permissions?: Array<{type: string; description?: string}>},
+    installedManifest: InstalledMiniappManifest,
   ): void {
     const app = this.connectedApps.get(packageName)
     if (!app) return
@@ -530,9 +535,7 @@ class LocalMiniappRuntime {
     // Gate each stream on the permission type its data requires. The manifest
     // must declare the permission (miniapp.json -> permissions) or we reject
     // the whole subscribe with PERMISSION_NOT_DECLARED.
-    const declaredTypes = new Set(
-      (app.installedManifest?.permissions ?? []).map((p) => p.type?.toUpperCase()),
-    )
+    const declaredTypes = new Set((app.installedManifest?.permissions ?? []).map((p) => p.type?.toUpperCase()))
 
     const permissionForStream = (s: string): string | null => {
       if (s === "audio_chunk" || s === "vad") return "MICROPHONE"
@@ -592,8 +595,7 @@ class LocalMiniappRuntime {
    */
   private emitInitialSnapshots(packageName: string, streams: string[]): void {
     const glassesState = useGlassesStore.getState()
-    const isSimulated =
-      (glassesState.deviceModel || "").toLowerCase().includes("simulated")
+    const isSimulated = (glassesState.deviceModel || "").toLowerCase().includes("simulated")
 
     for (const stream of streams) {
       if (stream === "glasses_battery") {
@@ -648,8 +650,7 @@ class LocalMiniappRuntime {
     try {
       const level = await Battery.getBatteryLevelAsync()
       const state = await Battery.getBatteryStateAsync()
-      const charging =
-        state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
+      const charging = state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
       this.sendToMiniapp(packageName, {
         type: MiniappResponseType.EVENT,
         streamType,
@@ -666,17 +667,7 @@ class LocalMiniappRuntime {
 
   private handleDisplay(packageName: string, payload: Record<string, unknown>, requestId?: string): void {
     try {
-      // Miniapp SDK sends the cloud-SDK-compatible shape:
-      //   { type: "DISPLAY", view, layout: {layoutType, ...}, durationMs? }
-      // Native CoreModule.displayEvent expects the same shape (reads event.view
-      // and event.layout.layoutType).
-      const displayEvent: Record<string, unknown> = {
-        view: payload.view ?? "main",
-        layout: payload.layout,
-        durationMs: payload.durationMs,
-      }
-
-      if (!displayEvent.layout || typeof displayEvent.layout !== "object") {
+      if (!payload.layout || typeof payload.layout !== "object") {
         this.sendResult(packageName, requestId, false, undefined, {
           code: MiniappErrorCode.INTERNAL,
           message: "display request missing layout object",
@@ -684,17 +675,13 @@ class LocalMiniappRuntime {
         return
       }
 
-      let processedEvent
-      try {
-        processedEvent = displayProcessor.processDisplayEvent(displayEvent as any)
-      } catch (err) {
-        console.error(`${LOG_TAG}: DisplayProcessor error, using raw event:`, err)
-        processedEvent = displayEvent
-      }
-
-      CoreModule.displayEvent(processedEvent)
-      const displayEventStr = JSON.stringify(processedEvent)
-      useDisplayStore.getState().setDisplayEvent(displayEventStr)
+      // Hand off to LocalDisplayManager — it owns boot/throttle/arbitration/
+      // expiry + the native CoreModule.displayEvent call + useDisplayStore.
+      localDisplayManager.request(packageName, {
+        view: (payload.view as DisplayPayload["view"]) ?? "main",
+        layout: payload.layout as DisplayPayload["layout"],
+        durationMs: payload.durationMs as number | undefined,
+      })
 
       this.sendResult(packageName, requestId, true)
     } catch (err) {
@@ -1378,7 +1365,9 @@ class LocalMiniappRuntime {
 
     const serialized = serializeEnvelope(envelope)
     if ((payload as Record<string, unknown>)?.streamType?.toString().startsWith("transcription")) {
-      console.log(`${LOG_TAG}: sendToMiniapp → ${packageName} streamType=${(payload as Record<string, unknown>).streamType}`)
+      console.log(
+        `${LOG_TAG}: sendToMiniapp → ${packageName} streamType=${(payload as Record<string, unknown>).streamType}`,
+      )
     }
 
     try {

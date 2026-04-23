@@ -57,8 +57,8 @@ export default function GlassesMenuScreen() {
 
   const removeItem = useCallback(
     (packageName: string) => {
-      setMenuItems(current => {
-        const updated = current.filter(item => item.packageName !== packageName)
+      setMenuItems((current) => {
+        const updated = current.filter((item) => item.packageName !== packageName)
         setSavedMenuApps(updated)
         syncDashboardMenu()
         return updated

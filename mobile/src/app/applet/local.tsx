@@ -4,8 +4,9 @@ import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import composer from "@/services/Composer"
+import composer, {buildHardwareRequirements} from "@/services/Composer"
 import {useAppletStatusStore} from "@/stores/applets"
+import {HardwareType} from "@/../../cloud/packages/types/src"
 
 export default function LocalMiniAppPage() {
   const {appName, packageName, version, devUrl, iconUrl} = useLocalSearchParams<{
@@ -51,13 +52,24 @@ export default function LocalMiniAppPage() {
     let cancelled = false
     ;(async () => {
       if (devUrl) {
-        await miniappHost.mountDev(packageName, devUrl, {developerMode: true, appName, iconUrl})
+        const manifest = await miniappHost.mountDev(packageName, devUrl, {
+          developerMode: true,
+          appName,
+          iconUrl,
+        })
+        // buildHardwareRequirements drops malformed entries and appends the
+        // EXIST requirement; registerDevApplet appends EXIST again but the
+        // compatibility check dedups it via the HardwareType.EXIST lookup,
+        // so the duplicate is harmless. Strip it here so the list stays clean.
+        const hwFromManifest = buildHardwareRequirements(manifest?.hardwareRequirements, packageName)
+        const hwWithoutExist = hwFromManifest.filter((h) => h.type !== HardwareType.EXIST)
         // Register a dev applet entry so the app shows up in the switcher.
         useAppletStatusStore.getState().registerDevApplet({
           packageName,
           name: appName || packageName,
           devUrl,
           iconUrl,
+          hardwareRequirements: hwWithoutExist,
         })
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)

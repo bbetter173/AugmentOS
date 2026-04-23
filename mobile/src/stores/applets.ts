@@ -2,6 +2,7 @@ import {
   AppletInterface,
   DeviceTypes,
   getModelCapabilities,
+  HardwareRequirement,
   HardwareRequirementLevel,
   HardwareType,
 } from "@/../../cloud/packages/types/src"
@@ -57,7 +58,13 @@ interface AppStatusState {
    * so it shows up in the app switcher as a running app. Idempotent — calling
    * again updates the existing entry.
    */
-  registerDevApplet: (args: {packageName: string; name: string; devUrl: string; iconUrl?: string}) => void
+  registerDevApplet: (args: {
+    packageName: string
+    name: string
+    devUrl: string
+    iconUrl?: string
+    hardwareRequirements?: HardwareRequirement[]
+  }) => void
   /** Remove a dev-loaded miniapp from the switcher. */
   unregisterDevApplet: (packageName: string) => void
   saveScreenshot: (packageName: string, screenshot: string) => Promise<void>
@@ -998,9 +1005,20 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     }))
   },
 
-  registerDevApplet: ({packageName, name, devUrl, iconUrl}) => {
+  registerDevApplet: ({packageName, name, devUrl, iconUrl, hardwareRequirements}) => {
     set((state) => {
       const existing = state.apps.find((a) => a.packageName === packageName)
+      // Always require EXIST for local miniapps so "no glasses connected"
+      // surfaces the same "Glasses Required" dialog cloud apps get.
+      const hwReqs: HardwareRequirement[] = [
+        ...(hardwareRequirements ?? []),
+        {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
+      ]
+      // Compute compatibility immediately so the icon isn't briefly shown as
+      // compatible before the next refreshApplets() run.
+      const defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
+      const capabilities = getModelCapabilities(defaultWearable || DeviceTypes.NONE)
+      const compatibility = HardwareCompatibility.checkCompatibility(hwReqs, capabilities)
       const devEntry: ClientAppletInterface = {
         packageName,
         name,
@@ -1017,14 +1035,13 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
         local: true,
         isMiniappDev: true,
         devUrl,
-        hardwareRequirements: [],
+        hardwareRequirements: hwReqs,
+        compatibility,
       }
       if (existing) {
         return {
           apps: state.apps.map((a) =>
-            a.packageName === packageName
-              ? {...a, ...devEntry, screenshot: a.screenshot}
-              : a,
+            a.packageName === packageName ? {...a, ...devEntry, screenshot: a.screenshot} : a,
           ),
         }
       }
@@ -1035,9 +1052,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
 
   unregisterDevApplet: (packageName: string) => {
     set((state) => ({
-      apps: state.apps.filter(
-        (a) => !(a.packageName === packageName && a.isMiniappDev),
-      ),
+      apps: state.apps.filter((a) => !(a.packageName === packageName && a.isMiniappDev)),
     }))
   },
 

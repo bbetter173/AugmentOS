@@ -2,6 +2,7 @@ import os from 'os';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { printQR } from './qr.js';
+import { validateManifest } from './manifest.js';
 
 function getLanIp(): string | null {
   const interfaces = os.networkInterfaces();
@@ -35,10 +36,30 @@ export async function dev(): Promise<void> {
     process.exit(1);
   }
 
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
-  const name: string = manifest.name ?? 'unnamed';
-  const packageName: string = manifest.packageName ?? 'unknown';
-  const port: number = manifest.port ?? 3000;
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+  } catch {
+    console.error('Error: miniapp.json is not valid JSON');
+    process.exit(1);
+  }
+
+  // Validate the manifest before launching the dev server. Dev miniapps are
+  // served directly (not packed), so without this check a typo in permissions
+  // or hardwareRequirements wouldn't surface until the miniapp tried to
+  // subscribe on the phone — and the developer would have no idea why.
+  const { valid, errors } = validateManifest(manifest);
+  if (!valid) {
+    console.error('miniapp.json validation failed:');
+    for (const err of errors) {
+      console.error(`  - ${err}`);
+    }
+    process.exit(1);
+  }
+
+  const name: string = (manifest.name as string) ?? 'unnamed';
+  const packageName: string = (manifest.packageName as string) ?? 'unknown';
+  const port: number = (manifest.port as number) ?? 3000;
 
   console.log(`Starting dev server for ${name} (${packageName}) on port ${port}...`);
 
@@ -64,9 +85,24 @@ export async function dev(): Promise<void> {
     process.exit(1);
   }
 
-  const devUrl = `mentra-miniapp://dev?url=${encodeURIComponent(`http://${lanIp}:${port}`)}&name=${encodeURIComponent(name)}&package=${encodeURIComponent(packageName)}`;
+  const buildDevUrl = (ip: string) =>
+    `mentra-miniapp://dev?url=${encodeURIComponent(`http://${ip}:${port}`)}&name=${encodeURIComponent(name)}&package=${encodeURIComponent(packageName)}`;
 
-  console.log('\n--- Dev server ready ---\n');
+  const printBanner = (): void => {
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║  To test your mini app on glasses:                           ║');
+    console.log('║                                                              ║');
+    console.log('║    1. Open the Mentra app on your phone                      ║');
+    console.log('║    2. Settings → Developer settings                          ║');
+    console.log('║    3. Under "Mini App Development", tap                      ║');
+    console.log('║       "Scan Mini App QR Code" and scan the QR below          ║');
+    console.log('║                                                              ║');
+    console.log('║  Your phone must be on the same Wi-Fi as this computer.      ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝\n');
+  };
+
+  printBanner();
+  const devUrl = buildDevUrl(lanIp);
   printQR(devUrl);
   console.log(`\n${devUrl}\n`);
 
@@ -75,8 +111,9 @@ export async function dev(): Promise<void> {
     const newIp = getLanIp();
     if (newIp && newIp !== lanIp) {
       lanIp = newIp;
-      const newDevUrl = `mentra-miniapp://dev?url=${encodeURIComponent(`http://${newIp}:${port}`)}&name=${encodeURIComponent(name)}&package=${encodeURIComponent(packageName)}`;
-      console.log(`\nLAN IP changed to ${newIp}. New QR:\n`);
+      console.log(`\nLAN IP changed to ${newIp}. New QR:`);
+      printBanner();
+      const newDevUrl = buildDevUrl(newIp);
       printQR(newDevUrl);
       console.log(`\n${newDevUrl}\n`);
     }

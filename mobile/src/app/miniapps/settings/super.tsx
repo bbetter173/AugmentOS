@@ -53,7 +53,7 @@ export default function SuperSettingsScreen() {
             <RouteButton label="Miniapp Developer" onPress={() => push("/miniapps/settings/miniapp-developer")} />
           </Group>
         </View>
-        <View className="flex h-16"/>
+        <View className="flex h-16" />
       </ScrollView>
     </Screen>
   )

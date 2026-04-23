@@ -11,7 +11,7 @@
 
 import CoreModule from "core"
 
-const LOG_TAG = 'MIC_COORDINATOR'
+const LOG_TAG = "MIC_COORDINATOR"
 
 class MicStateCoordinator {
   private static instance: MicStateCoordinator | null = null
@@ -39,17 +39,14 @@ class MicStateCoordinator {
    * Update cloud-side requirements. Called by SocketComms when the cloud
    * sends a mic_state_change message.
    */
-  public setCloudRequirements(req: {
-    pcm: boolean,
-    lc3: boolean,
-    transcript: boolean,
-    bypass_vad: boolean,
-  }): void {
+  public setCloudRequirements(req: {pcm: boolean; lc3: boolean; transcript: boolean; bypass_vad: boolean}): void {
     this.cloudWantsPcm = req.pcm
     this.cloudWantsLc3 = req.lc3
     this.cloudWantsTranscript = req.transcript
     this.cloudBypassVad = req.bypass_vad
-    console.log(`${LOG_TAG}: cloud requirements updated — pcm=${req.pcm} lc3=${req.lc3} transcript=${req.transcript} bypass_vad=${req.bypass_vad}`)
+    console.log(
+      `${LOG_TAG}: cloud requirements updated — pcm=${req.pcm} lc3=${req.lc3} transcript=${req.transcript} bypass_vad=${req.bypass_vad}`,
+    )
     this.applyUnion()
   }
 
@@ -57,7 +54,7 @@ class MicStateCoordinator {
    * Update local miniapp requirements. Called by LocalMiniappRuntime when
    * the aggregated set of local subscriptions changes.
    */
-  public setLocalRequirements(req: {pcm: boolean, lc3: boolean}): void {
+  public setLocalRequirements(req: {pcm: boolean; lc3: boolean}): void {
     this.localWantsPcm = req.pcm
     this.localWantsLc3 = req.lc3
     console.log(`${LOG_TAG}: local requirements updated — pcm=${req.pcm} lc3=${req.lc3}`)
@@ -73,9 +70,11 @@ class MicStateCoordinator {
     const shouldSendTranscript = this.cloudWantsTranscript
     const bypassVad = this.cloudBypassVad
 
-    console.log(`${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`)
+    console.log(
+      `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`,
+    )
 
-    CoreModule.update('core', {
+    CoreModule.update("core", {
       should_send_pcm: shouldSendPcm,
       should_send_lc3: shouldSendLc3,
       should_send_transcript: shouldSendTranscript,

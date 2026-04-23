@@ -271,7 +271,7 @@ class MantleManager {
       CoreModule.addListener("glasses_status", (changed) => {
         // console.log("MANTLE: Glasses status changed", changed)
         useGlassesStore.getState().setGlassesInfo(changed)
-        localMiniappRuntime.forwardEvent('glasses_connection_state', changed)
+        localMiniappRuntime.forwardEvent("glasses_connection_state", changed)
       }),
     )
 
@@ -347,7 +347,7 @@ class MantleManager {
         CoreModule.addListener("button_press", (event) => {
           console.log("MANTLE: BUTTON_PRESS event received:", event)
           this.handle_button_press(event)
-          localMiniappRuntime.forwardEvent('button_press', event)
+          localMiniappRuntime.forwardEvent("button_press", event)
         }),
       )
 
@@ -361,7 +361,7 @@ class MantleManager {
             gesture_name: gestureName,
             timestamp,
           })
-          localMiniappRuntime.forwardEvent('touch_event', event)
+          localMiniappRuntime.forwardEvent("touch_event", event)
         }),
       )
 
@@ -476,7 +476,7 @@ class MantleManager {
         CoreModule.addListener("head_up", (event) => {
           mantle.handle_head_up(event.up)
           // Translate native {up: boolean} → cloud-SDK shape {position: "up" | "down"}
-          localMiniappRuntime.forwardEvent('head_up', {
+          localMiniappRuntime.forwardEvent("head_up", {
             position: event.up ? "up" : "down",
             timestamp: Date.now(),
           })
@@ -485,7 +485,7 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("glasses_battery_update", (event) => {
-          localMiniappRuntime.forwardEvent('glasses_battery_update', event)
+          localMiniappRuntime.forwardEvent("glasses_battery_update", event)
         }),
       )
 
@@ -497,18 +497,17 @@ class MantleManager {
         try {
           const level = await Battery.getBatteryLevelAsync()
           const state = await Battery.getBatteryStateAsync()
-          const charging =
-            state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
+          const charging = state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL
           const payload = {
             level: Math.round(level * 100),
             charging,
             timestamp: Date.now(),
           }
-          localMiniappRuntime.forwardEvent('phone_battery', payload)
+          localMiniappRuntime.forwardEvent("phone_battery", payload)
 
           const deviceModel = useGlassesStore.getState().deviceModel || ""
           if (deviceModel.toLowerCase().includes("simulated")) {
-            localMiniappRuntime.forwardEvent('glasses_battery_update', payload)
+            localMiniappRuntime.forwardEvent("glasses_battery_update", payload)
           }
         } catch (err) {
           console.log("MANTLE: phone battery read failed", err)
@@ -522,14 +521,14 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("vad", (event) => {
-          localMiniappRuntime.forwardEvent('VAD', event)
+          localMiniappRuntime.forwardEvent("VAD", event)
           localSttFallbackCoordinator.onVad(!!event?.status)
         }),
       )
 
       this.subs.push(
         CoreModule.addListener("audio_chunk", (event) => {
-          localMiniappRuntime.forwardEvent('audio_chunk', event)
+          localMiniappRuntime.forwardEvent("audio_chunk", event)
         }),
       )
 

@@ -89,11 +89,7 @@ export default function MiniappDeveloperUrlScreen() {
 
   return (
     <Screen preset="fixed">
-      <Header
-        title={translate("devSettings:miniappUrlTitle")}
-        leftIcon="chevron-left"
-        onLeftPress={() => goBack()}
-      />
+      <Header title={translate("devSettings:miniappUrlTitle")} leftIcon="chevron-left" onLeftPress={() => goBack()} />
 
       <ScrollView className="flex px-6 -mx-6">
         <View className="flex gap-6">
@@ -179,4 +175,3 @@ const $urlInput: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
   marginBottom: 6,
   color: colors.text,
 })
-

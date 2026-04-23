@@ -1,4 +1,4 @@
-import { AppState } from "react-native"
+import {AppState} from "react-native"
 import TcpSocket from "react-native-tcp-socket"
 
 const MINISOCKET_PORT = 8765
@@ -149,11 +149,11 @@ class MiniSockets {
     })
 
     // Handle app background/foreground lifecycle
-    this.appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'background' || nextState === 'inactive') {
+    this.appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "background" || nextState === "inactive") {
         // iOS may suspend the socket; stop to free resources
         this.stop()
-      } else if (nextState === 'active' && !this.running) {
+      } else if (nextState === "active" && !this.running) {
         // Restart on foreground return
         this.start()
       }

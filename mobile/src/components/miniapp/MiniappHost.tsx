@@ -1,15 +1,16 @@
-import {useEffect, useState, useCallback, useRef} from 'react'
-import {View, StyleSheet, Alert, Platform} from 'react-native'
-import {useSafeAreaInsets} from 'react-native-safe-area-context'
-import {WebView, WebViewMessageEvent} from 'react-native-webview'
+import {useEffect, useState, useCallback, useRef} from "react"
+import {View, StyleSheet, Alert, Platform} from "react-native"
+import {useSafeAreaInsets} from "react-native-safe-area-context"
+import {WebView, WebViewMessageEvent} from "react-native-webview"
 
-import LeftEdgeBackSwipe from '@/components/miniapp/LeftEdgeBackSwipe'
-import MiniappSplash from '@/components/miniapp/MiniappSplash'
-import {MiniAppCapsuleMenu} from '@/components/miniapps/CapsuleMenu'
-import {useAppTheme} from '@/contexts/ThemeContext'
-import localMiniappRuntime from '@/services/LocalMiniappRuntime'
-import miniComms from '@/services/MiniComms'
-import {buildMiniappGlobalsScript} from '@/utils/miniappGlobals'
+import LeftEdgeBackSwipe from "@/components/miniapp/LeftEdgeBackSwipe"
+import MiniappSplash from "@/components/miniapp/MiniappSplash"
+import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
+import {useAppTheme} from "@/contexts/ThemeContext"
+import localDisplayManager from "@/services/LocalDisplayManager"
+import localMiniappRuntime from "@/services/LocalMiniappRuntime"
+import miniComms from "@/services/MiniComms"
+import {buildMiniappGlobalsScript} from "@/utils/miniappGlobals"
 
 const BEFORE_EVICT_TIMEOUT_MS = 500
 
@@ -44,9 +45,18 @@ type CanGoBackListener = (canGoBack: boolean) => void
 
 type MiniappMountOptions = {developerMode?: boolean; appName?: string; iconUrl?: string}
 
+export type MountDevManifest = {
+  permissions?: Array<{type: string; required?: boolean; description?: string}>
+  hardwareRequirements?: Array<{type: string; level: string; description?: string}>
+}
+
 type MiniappHostAPI = {
   mount(packageName: string, bundleUri: string, options?: MiniappMountOptions): void
-  mountDev(packageName: string, devUrl: string, options?: MiniappMountOptions): Promise<void>
+  mountDev(
+    packageName: string,
+    devUrl: string,
+    options?: MiniappMountOptions,
+  ): Promise<MountDevManifest | undefined>
   unmount(packageName: string): void
   setForeground(packageName: string, callbacks?: {onClose?: () => void; onBack?: () => void}): void
   setBackground(packageName: string): void
@@ -62,19 +72,20 @@ type MiniappHostAPI = {
 // Stubs that get replaced once the React component mounts.
 export const miniappHost: MiniappHostAPI = {
   mount: (_packageName: string, _bundleUri: string, _options?: MiniappMountOptions) => {
-    console.warn('MiniappHost: mount() called before component mounted')
+    console.warn("MiniappHost: mount() called before component mounted")
   },
   mountDev: async (_packageName: string, _devUrl: string, _options?: MiniappMountOptions) => {
-    console.warn('MiniappHost: mountDev() called before component mounted')
+    console.warn("MiniappHost: mountDev() called before component mounted")
+    return undefined
   },
   unmount: () => {
-    console.warn('MiniappHost: unmount() called before component mounted')
+    console.warn("MiniappHost: unmount() called before component mounted")
   },
   setForeground: () => {
-    console.warn('MiniappHost: setForeground() called before component mounted')
+    console.warn("MiniappHost: setForeground() called before component mounted")
   },
   setBackground: () => {
-    console.warn('MiniappHost: setBackground() called before component mounted')
+    console.warn("MiniappHost: setBackground() called before component mounted")
   },
   isRunning: () => false,
   goBackInWebView: () => false,
@@ -93,7 +104,7 @@ export default function MiniappHost() {
   const canGoBackListeners = useRef<Map<string, Set<CanGoBackListener>>>(new Map())
   const insets = useSafeAreaInsets()
   const {theme} = useAppTheme()
-  const colorScheme = theme.isDark ? 'dark' : 'light'
+  const colorScheme = theme.isDark ? "dark" : "light"
 
   // -- helpers that operate on the map via setApps --------------------------
 
@@ -131,26 +142,31 @@ export default function MiniappHost() {
       webViewRefs.current.delete(packageName)
       canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
+      localDisplayManager.onMount(packageName, options?.appName ?? packageName)
     },
     [registerRuntime],
   )
 
   const mountDev = useCallback(
-    async (packageName: string, devUrl: string, options?: MiniappMountOptions) => {
+    async (
+      packageName: string,
+      devUrl: string,
+      options?: MiniappMountOptions,
+    ): Promise<MountDevManifest | undefined> => {
       // Fetch the dev miniapp.json BEFORE mounting so its declared permissions
-      // are registered with the runtime before the miniapp's JS runs and issues
-      // its first SUBSCRIBE. Otherwise subscribe() races the fetch and may be
-      // rejected with PERMISSION_NOT_DECLARED.
+      // and hardwareRequirements are registered with the runtime before the
+      // miniapp's JS runs and issues its first SUBSCRIBE. Otherwise subscribe()
+      // races the fetch and may be rejected with PERMISSION_NOT_DECLARED.
       //
       // miniapp.json permissions MUST use the AppletPermission shape:
       // [{type: "MICROPHONE"}, ...] — plain strings are not supported.
-      let manifestPerms: Array<{type: string; description?: string}> | undefined
+      //
+      // Returns the parsed manifest (if fetch succeeded) so callers can feed
+      // hardwareRequirements into the applets store for compatibility checks.
+      let manifest: MountDevManifest | undefined
       try {
-        const res = await fetch(`${devUrl.replace(/\/$/, '')}/miniapp.json`)
-        const manifest = (await res.json()) as {
-          permissions?: Array<{type: string; description?: string}>
-        }
-        manifestPerms = manifest.permissions
+        const res = await fetch(`${devUrl.replace(/\/$/, "")}/miniapp.json`)
+        manifest = (await res.json()) as MountDevManifest
       } catch (err) {
         console.warn(`MiniappHost: failed to fetch ${devUrl}/miniapp.json`, err)
       }
@@ -176,7 +192,12 @@ export default function MiniappHost() {
       webViewRefs.current.delete(packageName)
       canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
-      localMiniappRuntime.setInstalledManifest(packageName, {permissions: manifestPerms})
+      localMiniappRuntime.setInstalledManifest(packageName, {
+        permissions: manifest?.permissions,
+        hardwareRequirements: manifest?.hardwareRequirements,
+      })
+      localDisplayManager.onMount(packageName, options?.appName ?? packageName)
+      return manifest
     },
     [registerRuntime],
   )
@@ -209,6 +230,7 @@ export default function MiniappHost() {
     })
     miniComms.setWebViewMessageHandler(packageName, undefined)
     localMiniappRuntime.unregisterApp(packageName)
+    localDisplayManager.onUnmount(packageName)
   }, [])
 
   const goBackInWebView = useCallback((packageName: string): boolean => {
@@ -245,37 +267,32 @@ export default function MiniappHost() {
   // when it changes. External subscribers still use the ref + listener fanout.
   const [canGoBackState, setCanGoBackState] = useState<Map<string, boolean>>(new Map())
 
-  const handleNavStateChange = useCallback(
-    (packageName: string, canGo: boolean) => {
-      const prev = canGoBackMap.current.get(packageName) ?? false
-      if (prev === canGo) return
-      canGoBackMap.current.set(packageName, canGo)
-      setCanGoBackState((m) => {
-        const next = new Map(m)
-        next.set(packageName, canGo)
-        return next
-      })
-      const listeners = canGoBackListeners.current.get(packageName)
-      if (listeners) {
-        for (const l of listeners) l(canGo)
-      }
-    },
-    [],
-  )
+  const handleNavStateChange = useCallback((packageName: string, canGo: boolean) => {
+    const prev = canGoBackMap.current.get(packageName) ?? false
+    if (prev === canGo) return
+    canGoBackMap.current.set(packageName, canGo)
+    setCanGoBackState((m) => {
+      const next = new Map(m)
+      next.set(packageName, canGo)
+      return next
+    })
+    const listeners = canGoBackListeners.current.get(packageName)
+    if (listeners) {
+      for (const l of listeners) l(canGo)
+    }
+  }, [])
 
-  const setForeground = useCallback(
-    (packageName: string, callbacks?: {onClose?: () => void; onBack?: () => void}) => {
-      setApps((prev) => {
-        const next = new Map(prev)
-        const entry = next.get(packageName)
-        if (entry) {
-          next.set(packageName, {...entry, isForeground: true, onClose: callbacks?.onClose, onBack: callbacks?.onBack})
-        }
-        return next
-      })
-    },
-    [],
-  )
+  const setForeground = useCallback((packageName: string, callbacks?: {onClose?: () => void; onBack?: () => void}) => {
+    setApps((prev) => {
+      const next = new Map(prev)
+      const entry = next.get(packageName)
+      if (entry) {
+        next.set(packageName, {...entry, isForeground: true, onClose: callbacks?.onClose, onBack: callbacks?.onBack})
+      }
+      return next
+    })
+    localDisplayManager.onCoreAppChange(packageName)
+  }, [])
 
   const setBackground = useCallback((packageName: string) => {
     setApps((prev) => {
@@ -283,6 +300,12 @@ export default function MiniappHost() {
       const entry = next.get(packageName)
       if (entry) {
         next.set(packageName, {...entry, isForeground: false})
+        // Only clear the core app if this one was holding it. Another app may
+        // have already taken foreground, in which case onCoreAppChange was
+        // called with its packageName and we must not overwrite it with null.
+        if (entry.isForeground) {
+          localDisplayManager.onCoreAppChange(null)
+        }
       }
       return next
     })
@@ -310,19 +333,30 @@ export default function MiniappHost() {
 
     return () => {
       // Restore stubs on unmount so callers get a clear warning.
-      miniappHost.mount = () => console.warn('MiniappHost: mount() called after unmount')
+      miniappHost.mount = () => console.warn("MiniappHost: mount() called after unmount")
       miniappHost.mountDev = async () => {
-        console.warn('MiniappHost: mountDev() called after unmount')
+        console.warn("MiniappHost: mountDev() called after unmount")
+        return undefined
       }
-      miniappHost.unmount = () => console.warn('MiniappHost: unmount() called after unmount')
-      miniappHost.setForeground = () => console.warn('MiniappHost: setForeground() called after unmount')
-      miniappHost.setBackground = () => console.warn('MiniappHost: setBackground() called after unmount')
+      miniappHost.unmount = () => console.warn("MiniappHost: unmount() called after unmount")
+      miniappHost.setForeground = () => console.warn("MiniappHost: setForeground() called after unmount")
+      miniappHost.setBackground = () => console.warn("MiniappHost: setBackground() called after unmount")
       miniappHost.isRunning = () => false
       miniappHost.goBackInWebView = () => false
       miniappHost.canGoBack = () => false
       miniappHost.subscribeCanGoBack = () => () => {}
     }
-  }, [mount, mountDev, unmount, setForeground, setBackground, isRunning, goBackInWebView, canGoBack, subscribeCanGoBack])
+  }, [
+    mount,
+    mountDev,
+    unmount,
+    setForeground,
+    setBackground,
+    isRunning,
+    goBackInWebView,
+    canGoBack,
+    subscribeCanGoBack,
+  ])
 
   // -- WebView event handlers -----------------------------------------------
 
@@ -336,31 +370,28 @@ export default function MiniappHost() {
    * flush state to session.storage. Best-effort — if the WebView is already
    * dead the inject will fail silently and we proceed to unmount.
    */
-  const sendBeforeEvict = useCallback(
-    async (packageName: string): Promise<void> => {
-      const ref = webViewRefs.current.get(packageName)
-      if (!ref) return
-      try {
-        const envelope = JSON.stringify({
-          payload: {type: 'miniapp_before_evict'},
-        })
-        ref.injectJavaScript(
-          `window.dispatchEvent(new MessageEvent('message', {data: ${JSON.stringify(envelope)}})); true;`,
-        )
-        // Give the miniapp up to BEFORE_EVICT_TIMEOUT_MS to persist state
-        await new Promise((resolve) => setTimeout(resolve, BEFORE_EVICT_TIMEOUT_MS))
-      } catch {
-        // WebView may already be dead — proceed to unmount
-      }
-    },
-    [],
-  )
+  const sendBeforeEvict = useCallback(async (packageName: string): Promise<void> => {
+    const ref = webViewRefs.current.get(packageName)
+    if (!ref) return
+    try {
+      const envelope = JSON.stringify({
+        payload: {type: "miniapp_before_evict"},
+      })
+      ref.injectJavaScript(
+        `window.dispatchEvent(new MessageEvent('message', {data: ${JSON.stringify(envelope)}})); true;`,
+      )
+      // Give the miniapp up to BEFORE_EVICT_TIMEOUT_MS to persist state
+      await new Promise((resolve) => setTimeout(resolve, BEFORE_EVICT_TIMEOUT_MS))
+    } catch {
+      // WebView may already be dead — proceed to unmount
+    }
+  }, [])
 
   const handleTerminate = useCallback(
     async (packageName: string) => {
       if (__DEV__) {
         Alert.alert(
-          'Miniapp Terminated',
+          "Miniapp Terminated",
           `"${packageName}" was killed by the OS (out of memory). It has been unregistered.`,
         )
       }
@@ -374,7 +405,7 @@ export default function MiniappHost() {
   const handleError = useCallback(
     async (packageName: string) => {
       if (__DEV__) {
-        Alert.alert('Miniapp Error', `"${packageName}" encountered a fatal error and has been unregistered.`)
+        Alert.alert("Miniapp Error", `"${packageName}" encountered a fatal error and has been unregistered.`)
       }
       await sendBeforeEvict(packageName)
       unmount(packageName)
@@ -398,7 +429,7 @@ export default function MiniappHost() {
   // Broadcast COLOR_SCHEME_CHANGE to every mounted miniapp when the host theme flips.
   useEffect(() => {
     const envelope = JSON.stringify({
-      payload: {type: 'miniapp_color_scheme_change', colorScheme},
+      payload: {type: "miniapp_color_scheme_change", colorScheme},
     })
     for (const [, ref] of webViewRefs.current) {
       try {
@@ -417,7 +448,7 @@ export default function MiniappHost() {
 
   console.log(
     `MINIAPP_HOST: render — ${entries.length} apps:`,
-    entries.map((a) => `${a.packageName}[fg=${a.isForeground}]`).join(', '),
+    entries.map((a) => `${a.packageName}[fg=${a.isForeground}]`).join(", "),
   )
 
   return (
@@ -445,7 +476,7 @@ export default function MiniappHost() {
           miniappDeveloperMode: app.developerMode,
           safeAreaInsets: {
             top: insets.top,
-            bottom: Platform.OS === 'android' ? insets.bottom : 0,
+            bottom: Platform.OS === "android" ? insets.bottom : 0,
             left: insets.left,
             right: insets.right,
           },
@@ -457,8 +488,7 @@ export default function MiniappHost() {
           <View
             key={app.packageName}
             style={isFg ? [styles.foreground, fgPadding] : styles.background}
-            pointerEvents={isFg ? 'auto' : 'none'}
-          >
+            pointerEvents={isFg ? "auto" : "none"}>
             <WebView
               // Remount on every mount/mountDev (mountKey bumps) so a QR
               // re-scan reloads the dev miniapp from scratch instead of
@@ -470,7 +500,7 @@ export default function MiniappHost() {
                 }
               }}
               source={app.source}
-              originWhitelist={['*']}
+              originWhitelist={["*"]}
               allowFileAccess={true}
               allowFileAccessFromFileURLs={true}
               javaScriptEnabled={true}
@@ -492,9 +522,7 @@ export default function MiniappHost() {
               contentInsetAdjustmentBehavior="never"
               style={styles.webview}
             />
-            {isFg && !app.isLoaded && (
-              <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />
-            )}
+            {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}
             {isFg && <LeftEdgeBackSwipe packageName={app.packageName} onBack={app.onBack} />}
             {isFg && (
               <MiniAppCapsuleMenu
@@ -532,7 +560,7 @@ const styles = StyleSheet.create({
   // Off-screen holder for backgrounded WebViews. 1×1 opaque-invisible rectangle
   // keeps them mounted without affecting layout or receiving touches.
   background: {
-    position: 'absolute',
+    position: "absolute",
     left: -10000,
     top: -10000,
     width: 1,

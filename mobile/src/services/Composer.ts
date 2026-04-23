@@ -5,9 +5,106 @@ import {Directory, Paths, File} from "expo-file-system"
 import {unzip} from "react-native-zip-archive"
 import {AsyncResult, Result, result as Res} from "typesafe-ts"
 import semver from "semver"
+import type {AppletPermission, AppPermissionType} from "@/../../cloud/packages/types/src"
+import {HardwareRequirement, HardwareRequirementLevel, HardwareType} from "@/../../cloud/packages/types/src"
+
+const ALLOWED_PERMISSION_TYPES: ReadonlySet<AppPermissionType> = new Set<AppPermissionType>([
+  "MICROPHONE",
+  "CAMERA",
+  "CALENDAR",
+  "LOCATION",
+  "BACKGROUND_LOCATION",
+  "READ_NOTIFICATIONS",
+  "POST_NOTIFICATIONS",
+])
 export interface LmaPermission {
   type: string
   description: string
+}
+
+/**
+ * Normalize the `permissions` field from a miniapp.json manifest.
+ *
+ * New miniapps ship `[{type, required?, description?}]` objects. A few older
+ * installed bundles may have `["MICROPHONE", ...]` plain strings. Accept both.
+ */
+export function normalizeManifestPermissions(
+  raw: Array<string | {type: string; required?: boolean; description?: string}> | undefined,
+): AppletPermission[] {
+  if (!Array.isArray(raw)) return []
+  const out: AppletPermission[] = []
+  for (const p of raw) {
+    if (typeof p === "string") {
+      if (ALLOWED_PERMISSION_TYPES.has(p as AppPermissionType)) {
+        out.push({type: p as AppPermissionType, required: true})
+      }
+    } else if (p && typeof p === "object" && typeof p.type === "string") {
+      if (ALLOWED_PERMISSION_TYPES.has(p.type as AppPermissionType)) {
+        out.push({
+          type: p.type as AppPermissionType,
+          ...(typeof p.required === "boolean" ? {required: p.required} : {}),
+          ...(typeof p.description === "string" ? {description: p.description} : {}),
+        })
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Convert declared hardwareRequirements from a miniapp.json manifest into the
+ * runtime `HardwareRequirement[]` shape, and always append `{EXIST, REQUIRED}`
+ * so the launcher shows "Glasses Required" for local miniapps when no glasses
+ * are connected (matches cloud behavior at refreshApplets for remote apps).
+ *
+ * Malformed entries are dropped with a single warning per package so the rest
+ * of the manifest still works.
+ */
+export function buildHardwareRequirements(
+  raw: Array<{type: string; level: string; description?: string}> | undefined,
+  packageName: string,
+): HardwareRequirement[] {
+  const out: HardwareRequirement[] = []
+  const validTypes = new Set(Object.values(HardwareType) as string[])
+  const validLevels = new Set(Object.values(HardwareRequirementLevel) as string[])
+
+  if (!Array.isArray(raw)) {
+    if (raw !== undefined) {
+      console.warn(
+        `COMPOSER: ${packageName} has invalid hardwareRequirements (not an array); treating as []`,
+      )
+    }
+  } else {
+    let warned = false
+    for (const r of raw) {
+      if (
+        !r ||
+        typeof r !== "object" ||
+        typeof r.type !== "string" ||
+        typeof r.level !== "string" ||
+        !validTypes.has(r.type) ||
+        !validLevels.has(r.level)
+      ) {
+        if (!warned) {
+          console.warn(
+            `COMPOSER: ${packageName} has malformed hardwareRequirements entry; skipping invalid entries`,
+            r,
+          )
+          warned = true
+        }
+        continue
+      }
+      out.push({
+        type: r.type as HardwareType,
+        level: r.level as HardwareRequirementLevel,
+        ...(typeof r.description === "string" ? {description: r.description} : {}),
+      })
+    }
+  }
+
+  // Always require glasses to be connected for any local miniapp.
+  out.push({type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED})
+  return out
 }
 
 interface InstalledInfo {
@@ -358,24 +455,20 @@ class Composer {
         let versionString = await this.getActiveAppletVersion(lmaInfo.packageName)
         let versionInfo = lmaInfo.versions[versionString]
 
-        // Read permissions from miniapp.json (with app.json fallback)
-        let permissions: any[] = []
-        try {
-          const miniappJsonFile = new File(new Directory(Paths.document, "lmas", lmaInfo.packageName, versionString), "miniapp.json")
-          if (miniappJsonFile.exists) {
-            const manifest = JSON.parse(miniappJsonFile.textSync())
-            permissions = (manifest.permissions || []).map((type: string) => ({type, required: true}))
-          }
-        } catch (e) {
-          // Fall back to app.json
-          try {
-            const appJsonFile = new File(new Directory(Paths.document, "lmas", lmaInfo.packageName, versionString), "app.json")
-            if (appJsonFile.exists) {
-              const appJson = JSON.parse(appJsonFile.textSync())
-              permissions = (appJson.permissions || []).map((type: string) => ({type, required: true}))
+        // Read manifest (miniapp.json with app.json fallback, via the shared
+        // helper). Extract permissions + hardwareRequirements.
+        const manifest = this.getMiniappManifest(lmaInfo.packageName, versionString) as
+          | {
+              permissions?: Array<string | {type: string; required?: boolean; description?: string}>
+              hardwareRequirements?: Array<{type: string; level: string; description?: string}>
             }
-          } catch {}
-        }
+          | null
+
+        const permissions = normalizeManifestPermissions(manifest?.permissions)
+        const hardwareRequirements = buildHardwareRequirements(
+          manifest?.hardwareRequirements,
+          lmaInfo.packageName,
+        )
 
         lmas.push({
           packageName: lmaInfo.packageName,
@@ -392,7 +485,7 @@ class Composer {
           logoUrl: versionInfo.logoUrl,
           type: "standard",
           permissions,
-          hardwareRequirements: [],
+          hardwareRequirements,
           onStart: () => saveLocalAppRunningState(lmaInfo.packageName, true),
           onStop: () => saveLocalAppRunningState(lmaInfo.packageName, false),
         })

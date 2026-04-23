@@ -74,12 +74,7 @@ export async function submitAutomaticBugIncident(params: SubmitAutomaticBugIncid
     const now = Date.now()
     const dedupeWindowMs = params.dedupeWindowMs ?? DEFAULT_AUTOMATIC_INCIDENT_DEDUPE_MS
     if (
-      automaticIncidentReportDedupeShouldSkip(
-        params.dedupeKey,
-        now,
-        dedupeWindowMs,
-        automaticIncidentDedupeRegistry,
-      )
+      automaticIncidentReportDedupeShouldSkip(params.dedupeKey, now, dedupeWindowMs, automaticIncidentDedupeRegistry)
     ) {
       console.log(`[${logTag}] Skipping duplicate within window:`, params.dedupeKey)
       return
@@ -98,4 +93,3 @@ export async function submitAutomaticBugIncident(params: SubmitAutomaticBugIncid
     console.error(`[${logTag}] Unexpected error:`, error)
   }
 }
-

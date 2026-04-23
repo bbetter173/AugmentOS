@@ -11,7 +11,7 @@ jest.doMock("core", () => ({
 }))
 
 // Import AFTER the mock is registered
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const MicStateCoordinator = require("../MicStateCoordinator").default
 
 describe("MicStateCoordinator", () => {

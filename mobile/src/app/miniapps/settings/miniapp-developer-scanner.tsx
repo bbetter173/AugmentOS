@@ -39,9 +39,11 @@ export default function MiniappDeveloperScannerScreen() {
       } else if (data.startsWith("http://") || data.startsWith("https://")) {
         devUrl = data
       } else {
-        showAlert(translate("devSettings:miniappScanInvalidQrTitle"), translate("devSettings:miniappScanInvalidQrBody"), [
-          {text: "OK", onPress: () => setScanned(false)},
-        ])
+        showAlert(
+          translate("devSettings:miniappScanInvalidQrTitle"),
+          translate("devSettings:miniappScanInvalidQrBody"),
+          [{text: "OK", onPress: () => setScanned(false)}],
+        )
         return
       }
 
@@ -70,7 +72,9 @@ export default function MiniappDeveloperScannerScreen() {
       // a relative path ("icon.png") or an absolute URL.
       let iconUrl: string | undefined
       if (iconPath) {
-        iconUrl = /^https?:\/\//.test(iconPath) ? iconPath : `${devUrl.replace(/\/$/, "")}/${iconPath.replace(/^\//, "")}`
+        iconUrl = /^https?:\/\//.test(iconPath)
+          ? iconPath
+          : `${devUrl.replace(/\/$/, "")}/${iconPath.replace(/^\//, "")}`
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
@@ -108,11 +112,7 @@ export default function MiniappDeveloperScannerScreen() {
             <Text style={themed($permissionTitle)} tx="devSettings:miniappScanPermissionTitle" />
             <Text style={themed($permissionBody)} tx="devSettings:miniappScanPermissionBody" />
             <Button
-              tx={
-                permission.canAskAgain
-                  ? "devSettings:miniappScanGrantAccess"
-                  : "devSettings:miniappScanOpenSettings"
-              }
+              tx={permission.canAskAgain ? "devSettings:miniappScanGrantAccess" : "devSettings:miniappScanOpenSettings"}
               onPress={async () => {
                 if (permission.canAskAgain) {
                   await requestPermission()
@@ -135,11 +135,7 @@ export default function MiniappDeveloperScannerScreen() {
 
   return (
     <Screen preset="fixed">
-      <Header
-        title={translate("devSettings:miniappScanTitle")}
-        leftIcon="chevron-left"
-        onLeftPress={() => goBack()}
-      />
+      <Header title={translate("devSettings:miniappScanTitle")} leftIcon="chevron-left" onLeftPress={() => goBack()} />
 
       <View style={themed($instructions)}>
         <Text style={themed($instructionsHeadline)} tx="devSettings:miniappScanHeadline" />
@@ -270,5 +266,3 @@ const $hintText: ThemedStyle<TextStyle> = () => ({
   borderRadius: 999,
   overflow: "hidden",
 })
-
-

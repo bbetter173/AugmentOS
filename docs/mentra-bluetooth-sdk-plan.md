@@ -253,7 +253,7 @@ import {BluetoothSdk} from "@mentra/bluetooth-sdk"
 </service>
 ```
 
-The Bluetooth SDK will expose a generic "send notification to display" API. Crust will handle listening to phone notifications and calling that API.
+Crust handles listening to phone notifications and emits MentraOS events to the mobile TypeScript layer for cloud reporting. We intentionally are not adding a generic Bluetooth SDK "send notification to display" API in this phase.
 
 ### 2.2 Move OS-Specific State
 

@@ -795,24 +795,6 @@ class G1: NSObject, SGCManager {
     }
 
     func sendTextWall(_ text: String) {
-        // // clear the screen with the exit command after 3 seconds if the text is empty or a space:
-        // let powerSavingMode = DeviceStore.shared.get("core", "power_saving_mode") as! Bool
-        // if powerSavingMode && (text.isEmpty || text == " ") {
-        //     DeviceManager.shared.sendStateWorkItem?.cancel()
-        //     Bridge.log("Mentra: Clearing display after 3 seconds")
-        //     // if we're clearing the display, after a delay, send a clear command if not cancelled with another
-        //     let workItem = DispatchWorkItem { [weak self] in
-        //         guard let self = self else { return }
-        //         let isHeadUp = DeviceStore.shared.get("core", "is_head_up") as! Bool
-        //         if isHeadUp {
-        //             return
-        //         }
-        //         self.exit()
-        //     }
-        //     DeviceManager.shared.sendStateWorkItem = workItem
-        //     DeviceManager.shared.sendStateQueue.asyncAfter(deadline: .now() + 3, execute: workItem)
-        // }
-
         let chunks = textHelper.createTextWallChunks(text)
         queueChunks(chunks, sleepAfterMs: 10)
     }

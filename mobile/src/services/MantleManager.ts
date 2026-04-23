@@ -15,7 +15,7 @@ import {useGlassesStore, getGlasesInfoPartial} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import udp from "@/services/UdpManager"
 import {BackgroundTimer} from "@/utils/timers"
 import {useDebugStore} from "@/stores/debug"
@@ -107,8 +107,8 @@ class MantleManager {
     // Send device timezone to cloud (used for calendar/time display)
     this.syncTimezone()
 
-    const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
-    await BluetoothSdk.updateBluetoothSettings(initialCoreSettings)
+    const initialBluetoothSdkSettings = useSettingsStore.getState().getBluetoothSdkSettings()
+    await BluetoothSdk.updateBluetoothSettings(initialBluetoothSdkSettings)
     console.log("MANTLE: Settings sent to Bluetooth SDK")
 
     this.initServices()
@@ -211,18 +211,18 @@ class MantleManager {
 
     // subscribe to settings changes and update Bluetooth SDK settings:
     useSettingsStore.subscribe(
-      (state) => state.getCoreSettings(),
+      (state) => state.getBluetoothSdkSettings(),
       (state: Record<string, any>, previousState: Record<string, any>) => {
-        const coreSettingsObj: Record<string, any> = {}
+        const bluetoothSdkSettingsObj: Record<string, any> = {}
 
         for (const key in state) {
           const k = key as keyof Record<string, any>
           if (state[k] !== previousState[k]) {
-            coreSettingsObj[k] = state[k] as any
+            bluetoothSdkSettingsObj[k] = state[k] as any
           }
         }
-        // console.log("MANTLE: Bluetooth settings changed", coreSettingsObj)
-        BluetoothSdk.updateBluetoothSettings(coreSettingsObj)
+        // console.log("MANTLE: Bluetooth settings changed", bluetoothSdkSettingsObj)
+        BluetoothSdk.updateBluetoothSettings(bluetoothSdkSettingsObj)
       },
       {equalityFn: shallow},
     )
@@ -231,11 +231,11 @@ class MantleManager {
     this.subs.forEach((sub) => sub.remove())
     this.subs = []
 
-    // forward Bluetooth status changes to the zustand core store:
+    // forward Bluetooth status changes to the Zustand Bluetooth store:
     this.subs.push(
       BluetoothSdk.addListener("bluetooth_status", (changed: Partial<BluetoothStatus>) => {
         // console.log("MANTLE: Bluetooth status changed", changed)
-        useCoreStore.getState().setCoreInfo(changed)
+        useBluetoothStore.getState().setBluetoothStatus(changed)
       }),
     )
     this.subs.push(
@@ -245,11 +245,11 @@ class MantleManager {
       }),
     )
 
-    // Subscribe to individual core events
+    // Subscribe to individual Bluetooth SDK events
     {
       this.subs.push(
         BluetoothSdk.addListener("log", (event) => {
-          console.log("CORE:", event.message)
+          console.log("BLUETOOTH_SDK:", event.message)
         }),
       )
 
@@ -295,7 +295,7 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("heartbeat_sent", (event) => {
-          console.log("MANTLE: received heartbeat_sent event from Core", event.heartbeat_sent)
+          console.log("MANTLE: received heartbeat_sent event from Bluetooth SDK", event.heartbeat_sent)
           // TODO: remove the global event emitter and sub directly in the component where needed
           GlobalEventEmitter.emit("heartbeat_sent", {
             timestamp: event.heartbeat_sent.timestamp,
@@ -305,7 +305,7 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("heartbeat_received", (event) => {
-          console.log("MANTLE: received heartbeat_received event from Core", event.heartbeat_received)
+          console.log("MANTLE: received heartbeat_received event from Bluetooth SDK", event.heartbeat_received)
           // TODO: remove the global event emitter and sub directly in the component where needed
           GlobalEventEmitter.emit("heartbeat_received", {
             timestamp: event.heartbeat_received.timestamp,
@@ -448,10 +448,10 @@ class MantleManager {
         }),
       )
 
-      // allow the core to change settings so it can persist state:
+      // allow the Bluetooth SDK to change settings so it can persist state:
       this.subs.push(
         BluetoothSdk.addListener("save_setting", async (event) => {
-          console.log("MANTLE: Received save_setting event from Core:", event)
+          console.log("MANTLE: Received save_setting event from Bluetooth SDK:", event)
           await useSettingsStore.getState().setSetting(event.key, event.value)
         }),
       )
@@ -565,7 +565,7 @@ class MantleManager {
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
 
-          // console.log("MANTLE: Received mic_lc3 event from Core", event.lc3.length)
+          // console.log("MANTLE: Received mic_lc3 event from Bluetooth SDK", event.lc3.length)
 
           // Route audio to: UDP (if enabled) -> WebSocket (fallback)
           if (udp.enabledAndReady()) {
@@ -681,9 +681,9 @@ class MantleManager {
     }
 
     // one time get all:
-    const coreStatus = await BluetoothSdk.getBluetoothStatus()
-    // console.log("MANTLE: Bluetooth status:", coreStatus)
-    useCoreStore.getState().setCoreInfo(coreStatus)
+    const bluetoothStatus = await BluetoothSdk.getBluetoothStatus()
+    // console.log("MANTLE: Bluetooth status:", bluetoothStatus)
+    useBluetoothStore.getState().setBluetoothStatus(bluetoothStatus)
 
     const glassesStatus = await BluetoothSdk.getGlassesStatus()
     // console.log("MANTLE: glasses status:", glassesStatus)

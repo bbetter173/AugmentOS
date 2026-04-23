@@ -7,7 +7,7 @@ import {useGlassesStore} from "@/stores/glasses"
 import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {View} from "react-native"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import CrustModule from "crust"
@@ -15,7 +15,7 @@ import CrustModule from "crust"
 export default function BtClassicPairingScreen() {
   const {pushPrevious, goBack} = useNavigationHistory()
   const btcConnected = useGlassesStore((state) => state.btcConnected)
-  const otherBtConnected = useCoreStore((state) => state.otherBtConnected)
+  const otherBtConnected = useBluetoothStore((state) => state.otherBtConnected)
   const [deviceName] = useSetting(SETTINGS.device_name.key)
   const {theme} = useAppTheme()
 

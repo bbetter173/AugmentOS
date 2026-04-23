@@ -74,7 +74,7 @@ caseCharging, caseBatteryLevel, headUp, serialNumber, style, color
 wifiSsid, wifiConnected, wifiLocalIp, hotspotEnabled, hotspotSsid
 hotspotPassword, hotspotGatewayIp, bluetoothName, fullyBooted
 
-# CORE STATE (SDK state):
+# BLUETOOTH SDK STATE:
 systemMicUnavailable, searching, micEnabled, currentMic
 searchResults, wifiScanResults, micRanking, lastLog
 
@@ -97,7 +97,7 @@ button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 - Vuzix Z100
 - Simulated
 
-**Core Functionality:**
+**Bluetooth SDK Functionality:**
 
 - BLE connection management
 - Audio streaming (LC3/PCM) - LC3 codec included
@@ -164,7 +164,7 @@ Everything that's about the MentraOS application layer.
 These duplicate functions format data for MentraOS cloud protocol. They will be DELETED from native code entirely. The TypeScript layer will handle cloud formatting instead (see Phase 3).
 
 - `sendVadStatus()` - DELETE (TypeScript will format)
-- `sendCoreStatus()` - DELETE (TypeScript will format)
+- `sendBluetoothStatusUpdate()` - DELETE (TypeScript will format)
 - Button press helper naming/path should be standardized, but keep the current typed event behavior on both platforms
 - `sendPhotoResponse()` - DELETE (TypeScript will format)
 - `sendHeadPosition()` - DELETE (use `sendHeadUp()` instead)
@@ -338,7 +338,7 @@ These functions are duplicates that format data for MentraOS cloud protocol. The
 ```kotlin
 // These are redundant - raw events already go to JS, format in TypeScript instead
 fun sendVadStatus(isSpeaking: Boolean)        // DELETE - use raw VAD event
-fun sendCoreStatus(status: Map<String, Any>)  // DELETE - format in TS
+fun sendBluetoothStatusUpdate(status: Map<String, Any>)  // DELETE - format in TS
 fun sendPhotoResponse(...)                     // DELETE - format in TS
 fun sendHeadPosition(...)                      // DELETE - sendHeadUp() exists
 fun sendVideoStreamResponse(...)              // DELETE - format in TS
@@ -603,7 +603,7 @@ pod 'MentraBluetoothSDK'
 import BluetoothSdk from '@mentra/bluetooth-sdk';
 
 const buttonSub = BluetoothSdk.addListener('button_press', (event) => {
-  console.log('Button pressed:', event.buttonId);
+console.log('Button pressed:', event.buttonId);
 });
 
 // Find compatible devices for a model
@@ -614,10 +614,10 @@ await BluetoothSdk.connectDefault();
 
 // Display text
 await BluetoothSdk.displayText({
-  text: 'Hello World',
-  x: 0,
-  y: 0,
-  size: 24,
+text: 'Hello World',
+x: 0,
+y: 0,
+size: 24,
 });
 
 // Later

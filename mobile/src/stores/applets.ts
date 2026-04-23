@@ -236,7 +236,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStart: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${cameraPackageName}_running`, true)
-          // tell the core:
+          // tell the Bluetooth SDK:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, true)
           return undefined
         })
@@ -244,7 +244,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStop: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${cameraPackageName}_running`, false)
-          // tell the core:
+          // tell the Bluetooth SDK:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, false)
           return undefined
         })
@@ -277,7 +277,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
             await storage.save(`${captionsPackageName}_running`, true)
             // ensure transcriber is initialized with the current model:
             await BluetoothSdk.restartTranscriber()
-            // tell the core:
+            // tell the Bluetooth SDK:
             await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
             return undefined
           }
@@ -301,7 +301,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStop: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${captionsPackageName}_running`, false)
-          // tell the core:
+          // tell the Bluetooth SDK:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
           return undefined
         })
@@ -334,7 +334,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           //   await storage.save(`${captionsPackageName}_running`, true)
           //   // ensure transcriber is initialized with the current model:
           //   await BluetoothSdk.restartTranscriber()
-          //   // tell the core:
+          //   // tell the Bluetooth SDK:
           //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
           //   return undefined
           // }
@@ -355,7 +355,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStop: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${captionsPackageName}_running`, false)
-          // tell the core:
+          // tell the Bluetooth SDK:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
           return undefined
         })
@@ -388,7 +388,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     //         await storage.save(`${captionsPackageName}_running`, true)
     //         // ensure transcriber is initialized with the current model:
     //         await BluetoothSdk.restartTranscriber()
-    //         // tell the core:
+    //         // tell the Bluetooth SDK:
     //         await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
     //         return undefined
     //       }
@@ -412,7 +412,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     //   onStop: (): AsyncResult<void, Error> => {
     //     return Res.try_async(async () => {
     //       await storage.save(`${captionsPackageName}_running`, false)
-    //       // tell the core:
+    //       // tell the Bluetooth SDK:
     //       await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
     //       return undefined
     //     })

@@ -139,7 +139,7 @@ import {useLocalSearchParams} from "expo-router"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {requestFeaturePermissions} from "@/utils/PermissionsUtils"
 import SelectGlassesBluetoothScreen from "./scan"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
@@ -152,7 +152,7 @@ describe("pairing scan screen", () => {
   beforeEach(() => {
     resetBluetoothSdkMock()
     jest.clearAllMocks()
-    useCoreStore.getState().reset()
+    useBluetoothStore.getState().reset()
     useGlassesStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
     ;(useLocalSearchParams as jest.Mock).mockReturnValue({deviceModel: "Mentra Live"})
@@ -162,7 +162,7 @@ describe("pairing scan screen", () => {
   })
 
   it("starts a compatible-device search and routes Mentra Live through btclassic on iOS", async () => {
-    useCoreStore.setState({
+    useBluetoothStore.setState({
       searchResults: [
         {deviceModel: "Mentra Live", deviceName: "MENTRA_LIVE_BLE_001", deviceAddress: "a"},
         {deviceModel: "Even Realities G1", deviceName: "OTHER", deviceAddress: "b"},
@@ -191,7 +191,7 @@ describe("pairing scan screen", () => {
   it("auto-skips directly into pairing when NOTREQUIREDSKIP is discovered", async () => {
     Object.defineProperty(Platform, "OS", {value: "android"})
     useGlassesStore.getState().setGlassesInfo({btcConnected: false})
-    useCoreStore.setState({
+    useBluetoothStore.setState({
       searchResults: [{deviceModel: "Mentra Live", deviceName: "NOTREQUIREDSKIP", deviceAddress: "skip"}],
     })
 

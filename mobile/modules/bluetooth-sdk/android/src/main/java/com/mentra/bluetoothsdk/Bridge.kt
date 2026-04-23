@@ -196,12 +196,12 @@ public class Bridge private constructor() {
             }
         }
 
-        /** Send core status */
+        /** Send Bluetooth status */
         @JvmStatic
-        fun sendCoreStatus(status: Map<String, Any>) {
+        fun sendBluetoothStatusUpdate(status: Map<String, Any>) {
             try {
                 val event = HashMap<String, Any>()
-                event["type"] = "core_status_update"
+                event["type"] = "bluetooth_status_update"
                 val statusMap = HashMap<String, Any>()
                 statusMap["status"] = status
                 event["status"] = statusMap
@@ -211,7 +211,7 @@ public class Bridge private constructor() {
                 val jsonString = jsonData.toString()
                 sendWSText(jsonString)
             } catch (e: Exception) {
-                log("ServerComms: Error building core_status_update JSON: $e")
+                log("ServerComms: Error building bluetooth_status_update JSON: $e")
             }
         }
 
@@ -402,14 +402,14 @@ public class Bridge private constructor() {
             sendTypedMessage("local_transcription", transcription)
         }
 
-        // Core bridge funcs:
+        // Bluetooth SDK bridge funcs:
 
         /** Send status update */
         @JvmStatic
         fun sendStatus(statusObj: Map<String, Any>) {
             val body = HashMap<String, Any>()
-            body["core_status"] = statusObj
-            sendTypedMessage("core_status_update", body as Map<String, Any>)
+            body["bluetooth_status"] = statusObj
+            sendTypedMessage("bluetooth_status_update", body as Map<String, Any>)
         }
 
         /** Send glasses serial number */

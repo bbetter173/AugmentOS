@@ -8,7 +8,7 @@ import {Platform} from "react-native"
 import restComms from "@/services/RestComms"
 import {useAppletStatusStore} from "@/stores/applets"
 import {useConnectionStore} from "@/stores/connection"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
@@ -29,7 +29,11 @@ export interface BuildBugReportFeedbackDataForBugParams {
 export function buildBugReportPhoneState(): Record<string, unknown> {
   const appletState = useAppletStatusStore.getState()
   const settingsState = useSettingsStore.getState()
-  const {setCoreInfo: _setCoreInfo, reset: _resetCore, ...coreState} = useCoreStore.getState()
+  const {
+    setBluetoothStatus: _setBluetoothStatus,
+    reset: _resetBluetooth,
+    ...bluetoothState
+  } = useBluetoothStore.getState()
   const {setDebugInfo: _setDebugInfo, reset: _resetDebug, ...debugState} = useDebugStore.getState()
   const {
     setStatus: _setConnectionStatus,
@@ -78,7 +82,7 @@ export function buildBugReportPhoneState(): Record<string, unknown> {
 
   return {
     glasses: filteredGlasses,
-    core: coreState,
+    core: bluetoothState,
     debug: debugState,
     connection: connectionState,
     applets: {

@@ -8,7 +8,7 @@ import {translate} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {getGlassesImage} from "@/utils/getGlassesImage"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -24,7 +24,7 @@ export const ControllerStatus = () => {
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const controllerFullyBooted = useGlassesStore((state) => state.controllerFullyBooted)
   const controllerBatteryLevel = useGlassesStore((state) => state.controllerBatteryLevel)
-  const isSearching = useCoreStore((state) => state.searchingController)
+  const isSearching = useBluetoothStore((state) => state.searchingController)
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {

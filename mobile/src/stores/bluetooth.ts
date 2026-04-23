@@ -2,8 +2,8 @@ import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 import {BluetoothStatus} from "@mentra/bluetooth-sdk"
 
-interface CoreState extends BluetoothStatus {
-  setCoreInfo: (info: Partial<BluetoothStatus>) => void
+interface BluetoothState extends BluetoothStatus {
+  setBluetoothStatus: (info: Partial<BluetoothStatus>) => void
   reset: () => void
 }
 
@@ -20,11 +20,11 @@ const initialState: BluetoothStatus = {
   otherBtConnected: false,
 }
 
-export const useCoreStore = create<CoreState>()(
+export const useBluetoothStore = create<BluetoothState>()(
   subscribeWithSelector((set) => ({
     ...initialState,
 
-    setCoreInfo: (info) => set((state) => ({...state, ...info})),
+    setBluetoothStatus: (info) => set((state) => ({...state, ...info})),
 
     reset: () => set(initialState),
   })),

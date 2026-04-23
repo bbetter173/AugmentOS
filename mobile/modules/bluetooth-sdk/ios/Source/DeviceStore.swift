@@ -17,7 +17,7 @@ class DeviceStore {
 
     private init() {
         // SETTINGS are snake_case
-        // CORE STATE is camelCase
+        // BLUETOOTH SDK STATE is camelCase
 
         // GLASSES STATE:
         store.set("glasses", "fullyBooted", false)
@@ -52,7 +52,7 @@ class DeviceStore {
         store.set("glasses", "signalStrength", -1)
         store.set("glasses", "ringSignalStrength", -1)
 
-        // CORE STATE:
+        // BLUETOOTH SDK STATE:
         store.set("core", "systemMicUnavailable", false)
         store.set("core", "searching", false)
         store.set("core", "searchingController", false)

@@ -3,7 +3,7 @@ import {waitFor} from "@testing-library/react-native"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
 import mantle from "./MantleManager"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
@@ -178,7 +178,7 @@ describe("MantleManager", () => {
   beforeAll(async () => {
     jest.useFakeTimers()
     resetBluetoothSdkMock()
-    useCoreStore.getState().reset()
+    useBluetoothStore.getState().reset()
     useGlassesStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
     useDisplayStore.setState({view: "main"})
@@ -202,8 +202,8 @@ describe("MantleManager", () => {
     emitBluetoothSdkEvent("bluetooth_status", {searching: true, otherBtConnected: true})
     emitBluetoothSdkEvent("glasses_status", {connected: true, deviceModel: "Mentra Live", batteryLevel: 77})
 
-    expect(useCoreStore.getState().searching).toBe(true)
-    expect(useCoreStore.getState().otherBtConnected).toBe(true)
+    expect(useBluetoothStore.getState().searching).toBe(true)
+    expect(useBluetoothStore.getState().otherBtConnected).toBe(true)
     expect(useGlassesStore.getState().connected).toBe(true)
     expect(useGlassesStore.getState().deviceModel).toBe("Mentra Live")
     expect(useGlassesStore.getState().batteryLevel).toBe(77)

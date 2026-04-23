@@ -9,14 +9,14 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
 import {checkConnectivityRequirementsUI} from "@/utils/PermissionsUtils"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 export const ConnectDeviceButton = () => {
   const {theme} = useAppTheme()
   const {push} = useNavigationHistory()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
-  const isSearching = useCoreStore((state) => state.searching)
+  const isSearching = useBluetoothStore((state) => state.searching)
 
   if (glassesConnected) {
     return null
@@ -103,7 +103,7 @@ export const ConnectControllerButton = () => {
   const {push} = useNavigationHistory()
   const [defaultController] = useSetting(SETTINGS.default_controller.key)
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
-  const isSearching = useCoreStore((state) => state.searchingController)
+  const isSearching = useBluetoothStore((state) => state.searchingController)
 
   if (controllerConnected) {
     return null

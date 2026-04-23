@@ -17,7 +17,7 @@ import showAlert from "@/utils/AlertUtils"
 import {PermissionFeatures, requestFeaturePermissions} from "@/utils/PermissionsUtils"
 import {getGlassesOpenImage} from "@/utils/getGlassesImage"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import GlassView from "@/components/ui/GlassView"
 
 export default function SelectGlassesBluetoothScreen() {
@@ -27,7 +27,7 @@ export default function SelectGlassesBluetoothScreen() {
   const [showTroubleshootingModal, setShowTroubleshootingModal] = useState(false)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const [_deviceName, setDeviceName] = useSetting(SETTINGS.device_name.key)
-  const searchResults = useCoreStore((state) => state.searchResults)
+  const searchResults = useBluetoothStore((state) => state.searchResults)
   const [rememberedSearchResults, setRememberedSearchResults] = useState<DeviceSearchResult[]>(searchResults)
 
   // useFocusEffect(

@@ -5,7 +5,8 @@ import {File, Paths} from "expo-file-system"
 import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 type MiniAppMessageType =
-  | "core_fn"
+  | "bluetooth_sdk_fn"
+  | "core_fn" // Legacy alias for bluetooth_sdk_fn
   | "request_mic_audio"
   | "request_transcription"
   | "display_event"
@@ -79,9 +80,9 @@ class MiniComms {
     }
   }
 
-  private handleCoreFn(message: MiniAppMessage) {
+  private handleBluetoothSdkFn(message: MiniAppMessage) {
     const {fn, args} = message.payload
-    console.log(`MINICOM: Core function:`, fn, args)
+    console.log(`MINICOM: Bluetooth SDK function:`, fn, args)
     // @ts-ignore
     BluetoothSdk[fn]({...args})
   }
@@ -228,8 +229,9 @@ class MiniComms {
   // process the message from the mini app
   private handleMessageFromMiniApp(packageName: string, message: MiniAppMessage) {
     switch (message.type) {
+      case "bluetooth_sdk_fn":
       case "core_fn":
-        this.handleCoreFn(message)
+        this.handleBluetoothSdkFn(message)
         break
       case "queue_display_event":
         break

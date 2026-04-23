@@ -21,7 +21,7 @@ import {
 } from "@/utils/getGlassesImage"
 
 import MicIcon from "assets/icons/component/MicIcon"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -46,7 +46,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
   const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const searching = useCoreStore((state) => state.searching)
+  const searching = useBluetoothStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
   // Listen for glasses_not_ready event to know when glasses are actually booting

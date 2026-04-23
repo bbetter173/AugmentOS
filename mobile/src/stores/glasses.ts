@@ -2,7 +2,7 @@ import {GlassesStatus, OtaProgress, OtaUpdateInfo} from "@mentra/bluetooth-sdk"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 
-/** Native Core ConnTypes (uppercase); RN default may be lowercase. */
+/** Native Bluetooth SDK ConnTypes (uppercase); RN default may be lowercase. */
 export function isGlassesLinkLayerBusy(connectionState: string | undefined): boolean {
   const u = (connectionState ?? "").toUpperCase()
   return u === "CONNECTING" || u === "SCANNING" || u === "BONDING"

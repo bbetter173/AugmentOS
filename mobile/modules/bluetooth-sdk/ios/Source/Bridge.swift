@@ -7,8 +7,8 @@
 
 import Foundation
 
-/// Bridge for core communication between Expo modules and native iOS code
-/// Has commands for the core to use to send messages to JavaScript
+/// Bridge for Bluetooth SDK communication between Expo modules and native iOS code
+/// Has commands for the Bluetooth SDK to use to send messages to JavaScript
 class Bridge {
     /// Event callback for sending events to JS
     static var eventCallback: ((String, [String: Any]) -> Void)?
@@ -264,7 +264,7 @@ class Bridge {
         Bridge.sendTypedMessage("local_transcription", body: transcription)
     }
 
-    // core bridge funcs:
+    // Bluetooth SDK bridge funcs:
 
     static func sendserialNumber(_ serialNumber: String, style: String, color: String) {
         let body = [

@@ -13,7 +13,7 @@ import {Group} from "@/components/ui"
 import {useRefreshApplets} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useGlassesStore} from "@/stores/glasses"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import AppSwitcherButton from "@/components/home/AppSwitcherButtton"
 import AppSwitcher from "@/components/home/AppSwitcher"
 import {DeviceStatus} from "@/components/home/DeviceStatus"
@@ -28,7 +28,7 @@ export default function Homepage() {
   const refreshApplets = useRefreshApplets()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
-  const isSearching = useCoreStore((state) => state.searching)
+  const isSearching = useBluetoothStore((state) => state.searching)
   const hasAttemptedInitialConnect = useRef(false)
   const swipeProgress = useSharedValue(0)
   const insets = useSaferAreaInsets()

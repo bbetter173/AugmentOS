@@ -5,7 +5,7 @@ import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {checkConnectivityRequirementsUI} from "@/utils/PermissionsUtils"
 import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useGlassesStore} from "@/stores/glasses"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
 
 export async function attemptReconnectToDefaultWearable(): Promise<boolean> {
@@ -18,7 +18,7 @@ export async function attemptReconnectToDefaultWearable(): Promise<boolean> {
 
   const defaultWearable = await useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
   const glassesConnected = await useGlassesStore.getState().connected
-  const isSearching = await useCoreStore.getState().searching
+  const isSearching = await useBluetoothStore.getState().searching
 
   // Don't try to reconnect if no glasses have been paired yet (skip simulated glasses)
   if (!defaultWearable || defaultWearable.includes(DeviceTypes.SIMULATED)) {
@@ -40,7 +40,7 @@ export async function attemptReconnectToDefaultWearable(): Promise<boolean> {
 
 export function Reconnect() {
   const glassesConnected = useGlassesStore((state) => state.connected)
-  const isSearching = useCoreStore((state) => state.searching)
+  const isSearching = useBluetoothStore((state) => state.searching)
   const defaultWearable = useSetting(SETTINGS.default_wearable.key)
 
   // Add a listener for app state changes to detect when the app comes back from background

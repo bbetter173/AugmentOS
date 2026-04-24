@@ -37,6 +37,9 @@ describe("WebSocketManager", () => {
         onerror: null,
         onclose: null,
       }
+      instance.close.mockImplementation(() => {
+        instance.onclose?.({code: 1000})
+      })
       instances.push(instance)
       return instance as unknown as WebSocket
     }) as unknown as typeof WebSocket
@@ -51,19 +54,31 @@ describe("WebSocketManager", () => {
     manager = jest.requireActual("./WebSocketManager").default
   })
 
-  afterEach(() => {
-    manager?.cleanup?.()
+  afterEach(async () => {
+    await manager?.cleanup?.()
     jest.clearAllTimers()
     jest.useRealTimers()
   })
 
-  it("reconnects when the pong timeout is missed", async () => {
-    manager.connect("wss://example.com/socket", "secret-token")
+  async function flushPromises() {
+    for (let i = 0; i < 10; i += 1) {
+      await Promise.resolve()
+    }
+  }
+
+  async function connectAndOpen() {
+    await manager.connect("wss://example.com/socket", "secret-token")
+    expect(instances[0]).toBeDefined()
     instances[0].onopen?.()
+  }
+
+  it("reconnects when the pong timeout is missed", async () => {
+    await connectAndOpen()
 
     expect(instances[0].send).toHaveBeenCalledWith(JSON.stringify({type: "ping"}))
 
     jest.advanceTimersByTime(5_000)
+    await flushPromises()
 
     expect(global.WebSocket).toHaveBeenCalledTimes(2)
     expect(instances[0].close).toHaveBeenCalled()
@@ -72,24 +87,24 @@ describe("WebSocketManager", () => {
     expect(restComms.updateGlassesState).toHaveBeenCalled()
   })
 
-  it("reconnects after an error even if close never fires", () => {
-    manager.connect("wss://example.com/socket", "secret-token")
-    instances[0].onopen?.()
+  it("reconnects after an error even if close never fires", async () => {
+    await connectAndOpen()
     instances[0].onerror?.(new Error("boom"))
 
     expect(useConnectionStore.getState().status).toBe("error")
 
     jest.advanceTimersByTime(5_000)
+    await flushPromises()
 
     expect(global.WebSocket).toHaveBeenCalledTimes(2)
   })
 
-  it("does not reconnect after a manual disconnect", () => {
-    manager.connect("wss://example.com/socket", "secret-token")
-    instances[0].onopen?.()
-    manager.disconnect()
+  it("does not reconnect after a manual disconnect", async () => {
+    await connectAndOpen()
+    await manager.disconnect()
 
     jest.advanceTimersByTime(15_000)
+    await flushPromises()
 
     expect(global.WebSocket).toHaveBeenCalledTimes(1)
     expect(useConnectionStore.getState().status).toBe("disconnected")

@@ -2,7 +2,7 @@
   <application>
     <service
       android:name="com.mentra.crust.services.NotificationListenerServiceImpl"
-      android:label="@string/app_name"
+      android:label="@string/mentra_crust_notification_listener_label"
       android:exported="false"
       android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
       <intent-filter>

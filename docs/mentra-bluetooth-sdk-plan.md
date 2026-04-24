@@ -145,7 +145,30 @@ Everything that's about the MentraOS application layer.
 
 **Note:** `contextual_dashboard` STAYS in Bluetooth SDK - it's actually used in `sendCurrentState()` and `displayEvent()` to control whether dashboard content shows when user looks up.
 
-**Note:** `auth_email` and `core_token` stay in Bluetooth SDK. MentraLive currently reads them from `GlassesStore` and sends them down to hardware / the ASG client during init, so they cannot move cleanly to Crust yet.
+### Compatibility Credential Plumbing
+
+`auth_email` and `core_token` stay in Bluetooth SDK for now, but they should be treated as legacy MentraOS compatibility plumbing rather than as the public Bluetooth SDK authentication model.
+
+These values are not BLE transport credentials. They are MentraOS account/cloud values that current MentraLive / ASG companion paths still expect to receive through the device path:
+
+- MentraOS TypeScript owns the user/session settings in `useSettingsStore`.
+- `MantleManager` forwards the initial Bluetooth SDK setting subset and later setting diffs with `BluetoothSdk.updateBluetoothSettings(...)`.
+- `RestComms.setCoreToken(...)` also syncs refreshed `core_token` values into Bluetooth SDK state.
+- The native bridge writes these values into the native `DeviceStore` `bluetooth` category. Android also persists a non-empty `core_token` to SharedPreferences as a retry/backward-compatibility fallback.
+- MentraLive reads `core_token` / `auth_email` from `DeviceStore` and sends the relevant values to the ASG client. `core_token` is also used by current incident-log relay paths.
+
+External/native customer guidance:
+
+- Apps that only use local BLE, display, camera, audio, and device-control APIs should leave these values empty.
+- Partner apps that intentionally use Mentra-hosted cloud or ASG companion features may need to provide equivalent credentials through the current compatibility bridge until Phase 6 introduces an explicit native configuration API.
+- Do not document `auth_email` or `core_token` as generally required Partner Kit setup fields.
+- Do not add `DeviceStore.apply()` side-effect branches for these keys; the current hardware paths read the latest stored values directly.
+
+Future cleanup:
+
+- Replace this key/value path with an explicit optional native API, such as `configureCloudCredentials(...)` or a `MentraBluetoothSdkConfiguration.cloudCredentials` field.
+- Make the Mentra-hosted-cloud dependency opt-in and clearly separate from local Bluetooth functionality.
+- Clear persisted credentials on logout and remove Android SharedPreferences fallback once native authentication configuration is explicit.
 
 **Note:** Leave `offline_mode` and `offline_captions_running` unchanged in this plan. That STT control refactor is being handled separately.
 
@@ -960,6 +983,52 @@ Phase 6 is not complete until:
 
 ---
 
+## Cross-Phase Testing Strategy
+
+The SDK split should be tested as an API boundary change, not just a package rename. Each phase should keep the affected regression tests close to the behavior being moved so later native extraction can change implementation details without rewriting the test intent.
+
+### Unit Tests
+
+- TypeScript adapter tests should cover MentraOS store-to-SDK sync, including initial setting sync, setting diffs, ignored non-SDK settings, typed status callbacks, and cloud-formatting ownership in TypeScript.
+- Native store/manager tests should cover `DeviceStore` defaults, `apply()` side effects, event serialization, device manager lifecycle, and hardware command dispatch where platform test infrastructure exists.
+- Mock SDK utilities should be reset between tests that mount/unmount screens or services so listener leakage does not hide regressions.
+- Compatibility tests should keep `auth_email`, `core_token`, offline STT settings, and `"core"` category normalization behavior stable until their explicit migration phases remove them.
+
+### Integration Tests
+
+- Bridge tests should verify native events reach TypeScript as typed hardware events, including `glasses_status`, `bluetooth_status`, `button_press`, `head_up`, audio frames, display/gallery events, OTA events, and `save_setting`.
+- BLE connection tests should cover scan, connect, reconnect, forget, default wearable selection, and failure routing for the main supported device families.
+- Native package integration should validate fresh external installs: Maven local publication for Android, CocoaPods install for iOS, and MentraOS Expo adapter autolinking.
+- Crust integration tests should cover MentraOS-only phone notification listening/permission behavior separately from Bluetooth SDK hardware tests.
+
+### Regression Suites
+
+Keep focused regressions for the flows most likely to break during the refactor:
+
+- Pairing screens: scan, loading, success, failure, BT classic transition, and automatic incident filing.
+- Audio: LC3/PCM streaming, mic state toggles, playback volume bump/restore, local transcription, and offline STT compatibility settings.
+- Display: dashboard rendering, display text/images, clear display, head-up state, dashboard menu sync, and contextual dashboard behavior.
+- Camera/gallery: photo response, video/RTMP status, gallery mode, gallery sync, and BLE transfer completion.
+- Cloud ownership: typed hardware events should be formatted for MentraOS websocket/rest protocols in TypeScript, not in the native Bluetooth SDK.
+
+### CI Gates
+
+- Refactor PRs should run the touched focused suites with `cd mobile && bun run test -- <paths> --runInBand`, plus `git diff --check`.
+- Native Android changes should run the relevant Gradle compile/test tasks and, for publishing changes, local Maven publication for both `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib`.
+- Native iOS changes should validate podspec syntax / CocoaPods install behavior and a MentraOS iOS build when the bridge, podspec, or native Swift/Obj-C files change.
+- Full `bun lint` should become a required gate once the repo lint baseline is clean. Until then, lint-staged and focused lint checks should be required for touched files.
+- Publishing/release PRs should additionally test a fresh bare Android app and bare iOS app consuming the SDK artifact, not only the monorepo MentraOS app.
+
+### Device And OS Matrix
+
+- Always keep the simulated device path useful for CI and local smoke tests.
+- Hardware validation before release should include MentraLive plus at least one display-only family such as MentraNex/MentraDisplay, G1/G2, Mach1, or Vuzix Z100.
+- Android validation should include the minimum supported Android version, the current common production version, and at least one OEM/device with stricter background BLE behavior.
+- iOS validation should include the minimum deployment target and the current App Store-supported iOS version.
+- Record device model, OS version, firmware version, and whether the run used MentraOS cloud features or local-only SDK features.
+
+---
+
 ## Implementation Checklist
 
 ### Phase 1: Rename (Week 1)
@@ -1015,6 +1084,7 @@ Phase 6 is not complete until:
 - [x] Write private repo main README
 - [x] Create initial private getting started guide
 - [x] Document initial private API reference
+- [x] Document cross-phase SDK testing strategy
 - [ ] Rewrite Partner Kit docs around bare Android and bare iOS first
 - [ ] Replace React Native example focus with bare Android and bare iOS samples
 - [x] Create initial private example app demonstrating current wrapper path:

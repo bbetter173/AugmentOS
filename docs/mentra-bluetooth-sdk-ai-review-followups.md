@@ -220,8 +220,8 @@ Validation:
 - Source: CodeRabbit on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#discussion_r3132995750)
 - Priority: medium
 - File: `docs/mentra-bluetooth-sdk-plan.md`
-- Current status: partially addressed, but can be clearer for non-MentraOS
-  customers.
+- Current status: fixed in the working tree with a compatibility credential
+  plumbing section.
 
 The plan says MentraLive reads these values and sends them down to hardware, but
 it should explicitly state whether they are hardware protocol requirements or
@@ -240,7 +240,8 @@ Recommended doc update:
 - Source: CodeRabbit on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#discussion_r3132995760)
 - Priority: medium
 - File: `docs/mentra-bluetooth-sdk-plan.md`
-- Current status: still relevant.
+- Current status: fixed in the working tree with a dedicated cross-phase testing
+  strategy section.
 
 The plan has validation bullets, but not a cohesive testing strategy for the SDK
 split.

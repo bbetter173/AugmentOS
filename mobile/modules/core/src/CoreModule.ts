@@ -62,6 +62,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
 
   // OTA Commands
   sendOtaStart(): Promise<void>
+  sendOtaQueryStatus(): Promise<void>
 
   // Version Info Commands
   requestVersionInfo(): Promise<void>

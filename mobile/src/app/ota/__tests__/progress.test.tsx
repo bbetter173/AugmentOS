@@ -416,7 +416,6 @@ describe("progress.tsx watchdog timers", () => {
     })
     expect(CoreModule.ping).toHaveBeenCalled()
   })
-})
 
   it("fails global session after GLOBAL_OTA_TIMEOUT_MS when only ack received", () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})

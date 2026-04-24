@@ -32,8 +32,6 @@ public class BluetoothSdkModule: Module {
             "audio_disconnected",
             "save_setting",
             "local_transcription",
-            "phone_notification",
-            "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
             "mic_pcm",
@@ -402,47 +400,6 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
             return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
-        }
-
-        // MARK: - Beta Build Detection
-
-        AsyncFunction("isBetaBuild") { () -> Bool in
-            #if targetEnvironment(simulator)
-                return false
-            #else
-                return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
-            #endif
-        }
-
-        // MARK: - Android Stubs
-
-        AsyncFunction("getInstalledApps") { () -> Any in
-            return false
-        }
-
-        AsyncFunction("hasNotificationListenerPermission") { () -> Any in
-            return false
-        }
-
-        // Notification management stubs (iOS doesn't support these features)
-        Function("setNotificationsEnabled") { (_: Bool) in
-            // No-op on iOS
-        }
-
-        Function("getNotificationsEnabled") { () -> Bool in
-            return false
-        }
-
-        Function("setNotificationsBlocklist") { (_: [String]) in
-            // No-op on iOS
-        }
-
-        Function("getNotificationsBlocklist") { () -> [String] in
-            return []
-        }
-
-        AsyncFunction("getInstalledAppsForNotifications") { () -> [[String: Any]] in
-            return []
         }
     }
 }

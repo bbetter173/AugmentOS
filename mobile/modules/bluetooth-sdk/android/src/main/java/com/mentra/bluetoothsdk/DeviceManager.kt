@@ -128,14 +128,6 @@ class DeviceManager {
         get() = DeviceStore.store.get("core", "sensing_enabled") as? Boolean ?: true
         set(value) = DeviceStore.apply("core", "sensing_enabled", value)
 
-    public var powerSavingMode: Boolean
-        get() = DeviceStore.store.get("core", "power_saving_mode") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "power_saving_mode", value)
-
-    private var alwaysOnStatusBar: Boolean
-        get() = DeviceStore.store.get("core", "always_on_status_bar") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "always_on_status_bar", value)
-
     private var bypassVad: Boolean
         get() = DeviceStore.store.get("core", "bypass_vad") as? Boolean ?: true
         set(value) = DeviceStore.apply("core", "bypass_vad", value)
@@ -155,10 +147,6 @@ class DeviceManager {
     private var shouldSendTranscript: Boolean
         get() = DeviceStore.store.get("core", "should_send_transcript") as? Boolean ?: false
         set(value) = DeviceStore.apply("core", "should_send_transcript", value)
-
-    private var metricSystem: Boolean
-        get() = DeviceStore.store.get("core", "metric_system") as? Boolean ?: false
-        set(value) = DeviceStore.apply("core", "metric_system", value)
 
     private var contextualDashboard: Boolean
         get() = DeviceStore.store.get("core", "contextual_dashboard") as? Boolean ?: true

@@ -1,10 +1,46 @@
 package com.mentra.crust
 
+import com.mentra.crust.services.NotificationListener
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.net.URL
 
 class CrustModule : Module() {
+  companion object {
+    @Volatile private var eventEmitter: ((String, Map<String, Any>) -> Unit)? = null
+
+    fun emitPhoneNotification(
+      notificationKey: String,
+      packageName: String,
+      appName: String,
+      title: String,
+      text: String,
+      timestamp: Long,
+    ) {
+      val data =
+        mapOf(
+          "notificationId" to "$packageName-$notificationKey",
+          "app" to appName,
+          "title" to title.ifEmpty { appName },
+          "content" to text,
+          "priority" to "normal",
+          "timestamp" to timestamp,
+          "packageName" to packageName,
+        )
+      eventEmitter?.invoke("phone_notification", data)
+    }
+
+    fun emitPhoneNotificationDismissed(notificationKey: String, packageName: String) {
+      val data =
+        mapOf(
+          "notificationId" to "$packageName-$notificationKey",
+          "notificationKey" to notificationKey,
+          "packageName" to packageName,
+        )
+      eventEmitter?.invoke("phone_notification_dismissed", data)
+    }
+  }
+
   override fun definition() = ModuleDefinition {
     Name("Crust")
 
@@ -12,7 +48,11 @@ class CrustModule : Module() {
       Math.PI
     }
 
-    Events("onChange")
+    Events("onChange", "phone_notification", "phone_notification_dismissed")
+
+    OnCreate {
+      eventEmitter = { eventName, data -> sendEvent(eventName, data) }
+    }
 
     Function("hello") {
       "Hello world! 👋"
@@ -22,6 +62,59 @@ class CrustModule : Module() {
       sendEvent("onChange", mapOf(
         "value" to value
       ))
+    }
+
+    Function("showAVRoutePicker") { _: String? ->
+      // iOS-only; Android uses system Bluetooth settings / Crust where appropriate.
+    }
+
+    // MARK: - MentraOS Notification Commands
+
+    AsyncFunction("setNotificationConfig") { enabled: Boolean, blocklist: List<String> ->
+      val context =
+        appContext.reactContext
+          ?: appContext.currentActivity
+            ?: throw IllegalStateException("No context available")
+      NotificationListener.getInstance(context).setNotificationConfig(enabled, blocklist)
+    }
+
+    AsyncFunction("getInstalledApps") {
+      val context =
+        appContext.reactContext
+          ?: appContext.currentActivity
+            ?: throw IllegalStateException("No context available")
+      NotificationListener.getInstance(context).getInstalledApps()
+    }
+
+    AsyncFunction("getInstalledAppsForNotifications") {
+      val context =
+        appContext.reactContext
+          ?: appContext.currentActivity
+            ?: throw IllegalStateException("No context available")
+      NotificationListener.getInstance(context).getInstalledApps()
+    }
+
+    AsyncFunction("hasNotificationListenerPermission") {
+      val context =
+        appContext.reactContext
+          ?: appContext.currentActivity
+            ?: throw IllegalStateException("No context available")
+      NotificationListener.getInstance(context).hasNotificationListenerPermission()
+    }
+
+    AsyncFunction("openNotificationListenerSettings") {
+      val context =
+        appContext.reactContext
+          ?: appContext.currentActivity
+            ?: throw IllegalStateException("No context available")
+      NotificationListener.getInstance(context).openNotificationListenerSettings()
+      true
+    }
+
+    // MARK: - Build Environment
+
+    AsyncFunction("isBetaBuild") {
+      false
     }
 
     View(CrustView::class) {

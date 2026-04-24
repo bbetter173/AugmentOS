@@ -1,4 +1,5 @@
 import BluetoothSdk, {ButtonPressEvent, BluetoothStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
+import CrustModule from "crust"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"
@@ -109,6 +110,7 @@ class MantleManager {
 
     const initialBluetoothSdkSettings = useSettingsStore.getState().getBluetoothSdkSettings()
     await BluetoothSdk.updateBluetoothSettings(initialBluetoothSdkSettings)
+    await this.syncNotificationSettingsToCrust()
     console.log("MANTLE: Settings sent to Bluetooth SDK")
 
     this.initServices()
@@ -147,6 +149,16 @@ class MantleManager {
   private initServices() {
     socketComms.connectWebsocket()
     gallerySyncService.initialize()
+  }
+
+  private async syncNotificationSettingsToCrust() {
+    const settings = useSettingsStore.getState()
+    const notificationsEnabled = Boolean(settings.getSetting(SETTINGS.notifications_enabled.key))
+    const notificationsBlocklist = settings.getSetting(SETTINGS.notifications_blocklist.key)
+    await CrustModule.setNotificationConfig(
+      notificationsEnabled,
+      Array.isArray(notificationsBlocklist) ? notificationsBlocklist : [],
+    )
   }
 
   private async setupPeriodicTasks() {
@@ -209,7 +221,7 @@ class MantleManager {
       {equalityFn: shallow},
     )
 
-    // subscribe to settings changes and update Bluetooth SDK settings:
+    // Subscribe to settings owned by the Bluetooth SDK and forward changes.
     useSettingsStore.subscribe(
       (state) => state.getBluetoothSdkSettings(),
       (state: Record<string, any>, previousState: Record<string, any>) => {
@@ -221,8 +233,19 @@ class MantleManager {
             bluetoothSdkSettingsObj[k] = state[k] as any
           }
         }
-        // console.log("MANTLE: Bluetooth settings changed", bluetoothSdkSettingsObj)
+        // console.log("MANTLE: Bluetooth SDK settings changed", bluetoothSdkSettingsObj)
         BluetoothSdk.updateBluetoothSettings(bluetoothSdkSettingsObj)
+      },
+      {equalityFn: shallow},
+    )
+
+    useSettingsStore.subscribe(
+      (state) => ({
+        notificationsEnabled: state.getSetting(SETTINGS.notifications_enabled.key),
+        notificationsBlocklist: state.getSetting(SETTINGS.notifications_blocklist.key),
+      }),
+      async () => {
+        await this.syncNotificationSettingsToCrust()
       },
       {equalityFn: shallow},
     )
@@ -231,10 +254,10 @@ class MantleManager {
     this.subs.forEach((sub) => sub.remove())
     this.subs = []
 
-    // forward Bluetooth status changes to the Zustand Bluetooth store:
+    // Forward Bluetooth SDK status changes to the zustand Bluetooth store.
     this.subs.push(
       BluetoothSdk.addListener("bluetooth_status", (changed: Partial<BluetoothStatus>) => {
-        // console.log("MANTLE: Bluetooth status changed", changed)
+        // console.log("MANTLE: Bluetooth SDK status changed", changed)
         useBluetoothStore.getState().setBluetoothStatus(changed)
       }),
     )
@@ -245,11 +268,11 @@ class MantleManager {
       }),
     )
 
-    // Subscribe to individual Bluetooth SDK events
+    // Subscribe to individual core events
     {
       this.subs.push(
         BluetoothSdk.addListener("log", (event) => {
-          console.log("BLUETOOTH_SDK:", event.message)
+          console.log("CORE:", event.message)
         }),
       )
 
@@ -448,7 +471,7 @@ class MantleManager {
         }),
       )
 
-      // allow the Bluetooth SDK to change settings so it can persist state:
+      // Allow the Bluetooth SDK to persist hardware-originated setting changes.
       this.subs.push(
         BluetoothSdk.addListener("save_setting", async (event) => {
           console.log("MANTLE: Received save_setting event from Bluetooth SDK:", event)
@@ -509,7 +532,7 @@ class MantleManager {
       )
 
       this.subs.push(
-        BluetoothSdk.addListener("phone_notification", async (event) => {
+        CrustModule.addListener("phone_notification", async (event) => {
           const res = await restComms.sendPhoneNotification({
             notificationId: event.notificationId,
             app: event.app,
@@ -526,7 +549,7 @@ class MantleManager {
       )
 
       this.subs.push(
-        BluetoothSdk.addListener("phone_notification_dismissed", async (event) => {
+        CrustModule.addListener("phone_notification_dismissed", async (event) => {
           const res = await restComms.sendPhoneNotificationDismissed({
             notificationKey: event.notificationKey,
             packageName: event.packageName,
@@ -682,7 +705,7 @@ class MantleManager {
 
     // one time get all:
     const bluetoothStatus = await BluetoothSdk.getBluetoothStatus()
-    // console.log("MANTLE: Bluetooth status:", bluetoothStatus)
+    // console.log("MANTLE: core status:", bluetoothStatus)
     useBluetoothStore.getState().setBluetoothStatus(bluetoothStatus)
 
     const glassesStatus = await BluetoothSdk.getGlassesStatus()

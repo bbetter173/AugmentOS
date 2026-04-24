@@ -7,6 +7,7 @@ import {useBluetoothStore} from "@/stores/bluetooth"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
+import {crustModuleMock, emitCrustEvent, resetCrustModuleMock} from "@/test-utils/mockCrustModule"
 import {bluetoothSdkMock, emitBluetoothSdkEvent, resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 jest.mock("@mentra/bluetooth-sdk", () => {
@@ -14,6 +15,14 @@ jest.mock("@mentra/bluetooth-sdk", () => {
   return {
     __esModule: true,
     default: bluetoothSdkMock,
+  }
+})
+
+jest.mock("crust", () => {
+  const {crustModuleMock} = require("../test-utils/mockCrustModule")
+  return {
+    __esModule: true,
+    default: crustModuleMock,
   }
 })
 
@@ -178,6 +187,7 @@ describe("MantleManager", () => {
   beforeAll(async () => {
     jest.useFakeTimers()
     resetBluetoothSdkMock()
+    resetCrustModuleMock()
     useBluetoothStore.getState().reset()
     useGlassesStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
@@ -190,7 +200,7 @@ describe("MantleManager", () => {
     jest.useRealTimers()
   })
 
-  it("syncs native status, routes events, and forwards core setting changes", async () => {
+  it("syncs native status, routes events, and forwards Bluetooth SDK setting changes", async () => {
     expect(bluetoothSdkMock.updateBluetoothSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         contextual_dashboard: true,
@@ -198,6 +208,19 @@ describe("MantleManager", () => {
         auth_email: "from-server@example.com",
       }),
     )
+    expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        notifications_enabled: expect.anything(),
+      }),
+    )
+    for (const nonSdkKey of ["power_saving_mode", "always_on_status_bar", "metric_system"]) {
+      expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          [nonSdkKey]: expect.anything(),
+        }),
+      )
+    }
+    expect(crustModuleMock.setNotificationConfig).toHaveBeenCalledWith(true, [])
 
     emitBluetoothSdkEvent("bluetooth_status", {searching: true, otherBtConnected: true})
     emitBluetoothSdkEvent("glasses_status", {connected: true, deviceModel: "Mentra Live", batteryLevel: 77})
@@ -260,6 +283,55 @@ describe("MantleManager", () => {
     )
   })
 
+  it("syncs notification enablement and blocklist settings to Crust only", async () => {
+    ;(bluetoothSdkMock.updateBluetoothSettings as jest.Mock).mockClear()
+    ;(crustModuleMock.setNotificationConfig as jest.Mock).mockClear()
+
+    await useSettingsStore.getState().setSetting(SETTINGS.notifications_enabled.key, false, false)
+    await useSettingsStore.getState().setSetting(SETTINGS.notifications_blocklist.key, ["com.blocked"], false)
+
+    await waitFor(() => {
+      expect(crustModuleMock.setNotificationConfig).toHaveBeenLastCalledWith(false, ["com.blocked"])
+    })
+    expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        notifications_enabled: expect.anything(),
+      }),
+    )
+    expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        notifications_blocklist: expect.anything(),
+      }),
+    )
+  })
+
+  it("keeps non-SDK settings out of Bluetooth SDK sync", async () => {
+    const nonSdkSettings = {
+      power_saving_mode: true,
+      always_on_status_bar: true,
+      bypass_vad_for_debugging: false,
+      bypass_audio_encoding_for_debugging: true,
+      metric_system: true,
+      enforce_local_transcription: true,
+      offline_translation_running: true,
+      offline_translation_source: "fr",
+      offline_translation_target: "de",
+    }
+
+    for (const key of Object.keys(nonSdkSettings)) {
+      expect(useSettingsStore.getState().getBluetoothSdkSettings()).not.toHaveProperty(key)
+    }
+    ;(bluetoothSdkMock.updateBluetoothSettings as jest.Mock).mockClear()
+    for (const [key, value] of Object.entries(nonSdkSettings)) {
+      await useSettingsStore.getState().setSetting(key, value, false)
+    }
+
+    for (const key of Object.keys(nonSdkSettings)) {
+      expect(useSettingsStore.getState().getBluetoothSdkSettings()).not.toHaveProperty(key)
+    }
+    expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalled()
+  })
+
   it("renders offline local transcription locally instead of forwarding it to cloud", async () => {
     ;(socketComms.sendLocalTranscription as jest.Mock).mockClear()
     ;(socketComms.handle_display_event as jest.Mock).mockClear()
@@ -292,7 +364,7 @@ describe("MantleManager", () => {
     ;(restComms.sendPhoneNotification as jest.Mock).mockClear()
     ;(restComms.sendPhoneNotificationDismissed as jest.Mock).mockClear()
 
-    emitBluetoothSdkEvent("phone_notification", {
+    emitCrustEvent("phone_notification", {
       notificationId: "n-1",
       app: "Calendar",
       title: "Standup",
@@ -301,7 +373,7 @@ describe("MantleManager", () => {
       timestamp: "12345",
       packageName: "com.calendar",
     })
-    emitBluetoothSdkEvent("phone_notification_dismissed", {
+    emitCrustEvent("phone_notification_dismissed", {
       notificationId: "n-1",
       notificationKey: "key-1",
       packageName: "com.calendar",

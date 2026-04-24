@@ -253,13 +253,14 @@ import {BluetoothSdk} from "@mentra/bluetooth-sdk"
 </service>
 ```
 
-The Bluetooth SDK will expose a generic "send notification to display" API. Crust will handle listening to phone notifications and calling that API.
+Crust handles listening to phone notifications and emits MentraOS events to the mobile TypeScript layer for cloud reporting. We intentionally are not adding a generic Bluetooth SDK "send notification to display" API in this phase.
 
 ### 2.2 Move OS-Specific State
 
 Keep the state split practical in this branch:
 
 - Move obvious MentraOS-only native features to Crust, especially notification listening / permission management
+- Move app/build-environment native helpers such as beta-build detection to Crust
 - Keep hardware-driven state and settings in Bluetooth SDK
 - Keep `contextual_dashboard`, `auth_email`, `core_token`, and incident plumbing in Bluetooth SDK for now because current hardware paths still depend on them
 - Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this workstream
@@ -271,17 +272,40 @@ Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function
 **Keep in Bluetooth SDK:**
 
 ```kotlin
+// Hardware lifecycle/state side effects
+"glasses" to "fullyBooted" -> handleDeviceReady()/handleDeviceDisconnected()
+"glasses" to "controllerFullyBooted" -> handleControllerReady()/handleControllerDisconnected()
+"glasses" to "controllerMacAddress" -> sgc?.connectController()
+"glasses" to "headUp" -> sendCurrentState(); sendHeadUp(...)
+
+// Hardware settings
 "core" to "brightness" -> sgc?.setBrightness(...)
 "core" to "auto_brightness" -> sgc?.setBrightness(...)
 "core" to "dashboard_height" -> sgc?.setDashboardHeightOnly(...)
 "core" to "dashboard_depth" -> sgc?.setDashboardDepthOnly(...)
 "core" to "head_up_angle" -> sgc?.setHeadUpAngle(...)
+"core" to "dashboard_menu_apps" -> sgc?.setDashboardMenu(...)
 "core" to "gallery_mode" -> sgc?.sendGalleryMode()
+"core" to "screen_disabled" -> sgc?.exit()/clearDisplay()
 "core" to "button_mode" -> sgc?.sendButtonModeSetting()
 "core" to "button_photo_size" -> sgc?.sendButtonPhotoSettings()
+"core" to "button_camera_led" -> sgc?.sendButtonCameraLedSetting()
+"core" to "button_max_recording_time" -> sgc?.sendButtonMaxRecordingTime()
+"core" to "camera_fov" -> sgc?.sendCameraFovSetting()
+"core" to "button_video_width" -> sgc?.sendButtonVideoRecordingSettings()
+"core" to "button_video_height" -> sgc?.sendButtonVideoRecordingSettings()
+"core" to "button_video_fps" -> sgc?.sendButtonVideoRecordingSettings()
 "core" to "preferred_mic" -> setMicState(...)
 "core" to "default_wearable" -> initSGC(...)
+
+// Explicit Phase 2 exceptions
+"core" to "offline_captions_running" -> setMicState(...)
+"core" to "should_send_pcm" -> setMicState(...)
+"core" to "should_send_lc3" -> setMicState(...)
+"core" to "should_send_transcript" -> setMicState(...)
 ```
+
+`auth_email` and `core_token` remain Bluetooth SDK state for MentraLive plumbing, but they do not need `apply()` side-effect branches because hardware paths read the latest values directly from `DeviceStore`.
 
 **Offline STT Note:**
 

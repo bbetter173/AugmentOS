@@ -166,24 +166,6 @@ export type SaveSettingEvent = {
   value: any
 }
 
-export type PhoneNotificationEvent = {
-  type: "phone_notification"
-  notificationId: string
-  app: string
-  title: string
-  content: string
-  priority: number
-  timestamp: number
-  packageName: string
-}
-
-export type PhoneNotificationDismissedEvent = {
-  type: "phone_notification_dismissed"
-  notificationKey: string
-  packageName: string
-  notificationId: string
-}
-
 export type WsTextEvent = {
   type: "ws_text"
   text: string
@@ -288,8 +270,6 @@ export type BluetoothSdkModuleEvents = {
   audio_connected: (event: AudioConnectedEvent) => void
   audio_disconnected: (event: AudioDisconnectedEvent) => void
   save_setting: (event: SaveSettingEvent) => void
-  phone_notification: (event: PhoneNotificationEvent) => void
-  phone_notification_dismissed: (event: PhoneNotificationDismissedEvent) => void
   ws_text: (event: WsTextEvent) => void
   ws_bin: (event: WsBinEvent) => void
   mic_pcm: (event: MicPcmEvent) => void

@@ -168,16 +168,6 @@ struct ViewState {
         set { DeviceStore.shared.apply("core", "sensing_enabled", newValue) }
     }
 
-    var powerSavingMode: Bool {
-        get { DeviceStore.shared.get("core", "power_saving_mode") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "power_saving_mode", newValue) }
-    }
-
-    private var alwaysOnStatusBar: Bool {
-        get { DeviceStore.shared.get("core", "always_on_status_bar") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "always_on_status_bar", newValue) }
-    }
-
     private var bypassVad: Bool {
         get { DeviceStore.shared.get("core", "bypass_vad") as? Bool ?? true }
         set { DeviceStore.shared.apply("core", "bypass_vad", newValue) }
@@ -201,11 +191,6 @@ struct ViewState {
     private var shouldSendTranscript: Bool {
         get { DeviceStore.shared.get("core", "should_send_transcript") as? Bool ?? false }
         set { DeviceStore.shared.apply("core", "should_send_transcript", newValue) }
-    }
-
-    private var metricSystem: Bool {
-        get { DeviceStore.shared.get("core", "metric_system") as? Bool ?? false }
-        set { DeviceStore.shared.apply("core", "metric_system", newValue) }
     }
 
     private var contextualDashboard: Bool {

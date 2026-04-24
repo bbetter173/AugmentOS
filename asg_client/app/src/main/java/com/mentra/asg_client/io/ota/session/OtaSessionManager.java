@@ -15,6 +15,12 @@ public class OtaSessionManager {
     private static final String TAG = "OtaSessionManager";
     private static final String PREFS_NAME = "ota_session";
     private static final String KEY_SESSION_DATA = "ota_session_data";
+    /**
+     * SharedPrefs key for the APK-done signal that must be sent on the next phone reconnect.
+     * Stored as a string: "step_complete" (more steps remain) or "complete" (APK-only session).
+     * Set by OtaService.resumeFromSession() and consumed by OtaHelper.onPhoneConnected().
+     */
+    private static final String KEY_PENDING_APK_STATUS = "pending_apk_status";
     private static final long SESSION_EXPIRY_MS = 30 * 60 * 1000L;
     /**
      * Cooldown after APK install before auto-resuming the next OTA step (MTK/BES).
@@ -204,6 +210,62 @@ public class OtaSessionManager {
     public synchronized void clearRestartGuard() {
         mRestartingSinceElapsed = -1;
         persist();
+    }
+
+    /**
+     * Persists the APK step completion status so it can be sent the next time the phone
+     * connects via BLE. Must be called BEFORE advancing/completing the session so that
+     * {@link #buildApkDoneJson} can still read the correct session fields.
+     *
+     * @param status "step_complete" if more OTA steps follow; "complete" for APK-only sessions.
+     */
+    public void setPendingApkStatus(String status) {
+        mPrefs.edit().putString(KEY_PENDING_APK_STATUS, status).apply();
+        Log.i(TAG, "Pending APK status queued for next phone reconnect: " + status);
+    }
+
+    /**
+     * Retrieves and clears the pending APK status. Returns null if none is queued.
+     * Intended to be called from OtaHelper.onPhoneConnected().
+     */
+    public String consumePendingApkStatus() {
+        String status = mPrefs.getString(KEY_PENDING_APK_STATUS, null);
+        if (status != null) {
+            mPrefs.edit().remove(KEY_PENDING_APK_STATUS).apply();
+            Log.i(TAG, "Consumed pending APK status: " + status);
+        }
+        return status;
+    }
+
+    /**
+     * Builds the {@code ota_status} JSON representing the just-completed APK step.
+     * Uses the persisted session fields so the signal carries correct session context
+     * even after the process has restarted.
+     *
+     * @param status "step_complete" or "complete"
+     */
+    public synchronized JSONObject buildApkDoneJson(String status) {
+        try {
+            int[] weights = computeStepWeights();
+            int apkWeight = weights.length > 0 ? weights[0] : 100;
+            int op = "step_complete".equals(status) ? apkWeight : 100;
+
+            JSONObject json = new JSONObject();
+            json.put("sid", mSessionId != null ? mSessionId : "");
+            json.put("ts", mTotalSteps);
+            json.put("cs", 1); // APK is always the first step (index 0, reported as 1)
+            json.put("st", "apk");
+            json.put("sq", mStepSequence != null ? mStepSequence : new JSONArray());
+            json.put("phase", "install");
+            json.put("sp", 100);
+            json.put("op", op);
+            json.put("status", status);
+            json.put("type", "ota_status");
+            return json;
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to build APK done JSON", e);
+            return null;
+        }
     }
 
     public synchronized void clear() {

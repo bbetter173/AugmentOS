@@ -286,6 +286,30 @@ public class OtaHelper {
         Log.i(TAG, "PhoneConnectionProvider set: " + (provider != null ? "enabled" : "disabled"));
     }
 
+    /**
+     * Called by AsgClientService when the phone connects via BLE.
+     *
+     * Sends the pending APK-done signal if one was queued by OtaService.resumeFromSession()
+     * during the previous startup. This is the primary mechanism for the phone to learn that
+     * the APK updated successfully — replaces the phone's build-number-bump heuristic.
+     *
+     * The signal is sent before any other OTA status so the phone UI transitions correctly:
+     *   "step_complete" → stays on progress screen, continues to MTK/BES
+     *   "complete"      → shows "Update installed"
+     */
+    public void onPhoneConnected() {
+        if (sessionManager == null || phoneConnectionProvider == null) return;
+        String pendingStatus = sessionManager.consumePendingApkStatus();
+        if (pendingStatus == null) return;
+        JSONObject apkDoneJson = sessionManager.buildApkDoneJson(pendingStatus);
+        if (apkDoneJson == null) {
+            Log.w(TAG, "onPhoneConnected: buildApkDoneJson returned null, skipping APK done signal");
+            return;
+        }
+        Log.i(TAG, "onPhoneConnected: sending explicit APK done signal status=" + pendingStatus);
+        phoneConnectionProvider.sendOtaStatus(apkDoneJson);
+    }
+
     public JSONObject getOtaSessionState() {
         try {
             // Phone bridge (MentraLive.java) reads all fields from the top level, so we flatten

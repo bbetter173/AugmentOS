@@ -363,17 +363,22 @@ public class OtaService extends Service {
 
             if (nextStep >= sessionManager.getTotalSteps()) {
                 Log.i(TAG, "📱 All OTA session steps complete after APK restart");
+                // Queue the APK-done signal BEFORE setComplete() so buildApkDoneJson()
+                // can still read the correct session fields (total_steps, step_sequence, etc.).
+                sessionManager.setPendingApkStatus("complete");
                 sessionManager.setComplete();
-                // APK-only sessions reach this branch after the process restart.
-                // We suppressed the FINISHED send before installApk() so the phone
-                // still thinks the session is in-progress — explicitly push the
-                // completed session state now.
+                // onPhoneConnected() is the primary delivery path for the APK done signal.
+                // sendCompletionToPhone() here is a fallback for the case where the phone
+                // is already connected when this code runs (unlikely but possible).
                 if (otaHelper != null) {
                     otaHelper.sendCompletionToPhone(sessionManager);
                 }
                 return;
             }
 
+            // Multi-step (APK + MTK/BES): queue the APK step_complete signal BEFORE advancing
+            // so buildApkDoneJson() captures the correct pre-advance session fields.
+            sessionManager.setPendingApkStatus("step_complete");
             sessionManager.advanceStep(nextStep, "download");
             String stepType = sessionManager.getStepType(nextStep);
             Log.i(TAG, "📱 Resuming OTA session: step " + (nextStep + 1) + "/" + sessionManager.getTotalSteps() + " type=" + stepType);

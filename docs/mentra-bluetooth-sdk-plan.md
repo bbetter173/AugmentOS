@@ -960,6 +960,59 @@ MentraOS should continue to work, but it should use the native SDK through a thi
 - Generic store blob syncing should be deprecated once MentraOS has moved to typed calls.
 - Existing regression tests should continue to pass with little/no changes.
 
+#### 6.3.1 Current MentraOS Owners
+
+These are the files to preserve behavior from while extracting the adapter:
+
+- `mobile/src/services/MantleManager.ts` currently owns Bluetooth SDK startup, initial settings sync, Zustand setting subscriptions, native status callbacks, `save_setting`, hardware event subscriptions, and most native-event-to-MentraOS routing.
+- `mobile/src/stores/settings.ts` owns MentraOS setting definitions and the `getBluetoothSdkSettings()` selector that feeds the current native store blob.
+- `mobile/src/stores/bluetooth.ts` and `mobile/src/stores/glasses.ts` own MentraOS state snapshots that UI and cloud reporting read.
+- `mobile/src/services/SocketComms.ts` owns MentraOS websocket protocol formatting and cloud-command handling, including VAD, battery, touch, switch, RGB LED, audio frames, stream status, display events, camera/video commands, and mic-state commands.
+- `mobile/src/services/RestComms.ts` owns MentraOS REST protocol formatting, including glasses status updates, photo responses, phone notifications, calendar/location data, token refresh, and incident/reporting endpoints.
+- `mobile/src/services/DisplayProcessor.ts` owns MentraOS cloud display payload normalization before payloads reach Bluetooth SDK display APIs.
+- Feature-level files such as pairing screens, Wi-Fi screens, OTA screens, `gallerySyncService`, `AudioPlaybackService`, and settings screens currently call `BluetoothSdk` directly for hardware commands.
+
+#### 6.3.2 Target TypeScript Adapter Files
+
+Create the adapter under a Bluetooth-specific services folder so MentraOS can migrate direct SDK usage gradually without exposing native store plumbing:
+
+- `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts`
+  - Owns MentraOS initialization/cleanup for the Bluetooth SDK.
+  - Owns the native facade instance or the Expo adapter module.
+  - Provides typed MentraOS-facing command wrappers for common hardware operations.
+  - Owns compatibility calls to `updateBluetoothSettings(...)` until each setting group has a typed native method.
+- `mobile/src/services/bluetooth/BluetoothSettingsSync.ts`
+  - Extracts the current `useSettingsStore.getBluetoothSdkSettings()` subscription from `MantleManager`.
+  - Translates setting diffs into typed calls in phases.
+  - Keeps compatibility handling for `auth_email`, `core_token`, offline STT settings, and `"core"` category normalization until their explicit removal phases.
+- `mobile/src/services/bluetooth/BluetoothEventBridge.ts`
+  - Owns typed native hardware event subscriptions.
+  - Updates `useBluetoothStore` / `useGlassesStore`.
+  - Calls MentraOS cloud services where needed, but does not build native SDK payloads.
+- `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.test.ts`
+  - Covers initial setting sync, setting diffs, ignored non-SDK settings, status callback routing, event routing, cleanup, and compatibility keys.
+
+If the implementation stays small, `BluetoothSettingsSync.ts` and `BluetoothEventBridge.ts` can start as private helpers inside `MentraBluetoothSdkAdapter.ts`; the important boundary is that `MantleManager.ts` stops owning generic native store sync directly.
+
+#### 6.3.3 Migration Order
+
+1. Extract the current `MantleManager` Bluetooth initialization, status listeners, `save_setting`, and settings subscription into `MentraBluetoothSdkAdapter` without changing behavior.
+2. Replace `BluetoothSdk.updateBluetoothSettings(...)` by typed adapter calls setting group by setting group: display settings, camera/button settings, mic/audio flags, default wearable, dashboard menu, then compatibility-only credentials.
+3. Move native hardware event subscriptions into `BluetoothEventBridge`, keeping the same calls into `SocketComms`, `RestComms`, Zustand stores, and `GlobalEventEmitter`.
+4. Migrate feature-level direct `BluetoothSdk` imports to `MentraBluetoothSdkAdapter` wrappers when MentraOS state, compatibility settings, or cloud side effects are involved. Pure hardware-only feature calls can later call the typed SDK facade directly if that stays clearer.
+5. Once no MentraOS TypeScript caller needs blob sync, remove `updateBluetoothSettings(...)`, `"core"` category normalization, and `save_setting` from customer-facing docs and eventually from the adapter compatibility layer.
+
+#### 6.3.4 Cloud Formatting Boundary
+
+Phase 6 must not move MentraOS cloud protocol formatting back into native SDK code:
+
+- Native Android/iOS Bluetooth SDK emits typed hardware events and accepts typed hardware commands only.
+- `SocketComms.ts` remains the owner for websocket JSON sent to MentraOS cloud.
+- `RestComms.ts` remains the owner for REST payloads sent to MentraOS cloud.
+- `DisplayProcessor.ts` remains the owner for MentraOS display payload normalization before display commands reach the SDK.
+- `MentraBluetoothSdkAdapter` may route events to those services, but it should not introduce native-formatted MentraOS cloud payloads.
+- Partner Kit/native SDK docs should describe typed hardware events, not MentraOS websocket message formats.
+
 ### 6.4 Native API Documentation
 
 Update `Mentra-Bluetooth-SDK-Partner-Kit` to lead with:
@@ -1106,7 +1159,10 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [ ] Define public iOS facade and delegate/event types
 - [ ] Document native `DeviceStore` as internal-only and keep it out of public API docs
 - [ ] Move Expo module initialization/event forwarding behind native facades
-- [ ] Add/define MentraOS TypeScript adapter that translates Zustand settings into typed SDK calls
+- [ ] Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts`
+- [ ] Add/extract `mobile/src/services/bluetooth/BluetoothSettingsSync.ts`
+- [ ] Add/extract `mobile/src/services/bluetooth/BluetoothEventBridge.ts`
+- [ ] Translate Zustand settings into typed SDK calls while preserving compatibility keys
 - [ ] Keep `updateBluetoothSettings` as temporary compatibility plumbing only
 - [ ] Keep `DeviceManager` / `DeviceStore` internal implementation details
 - [ ] Remove Expo module dependency from bare Android publication artifact

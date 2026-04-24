@@ -184,8 +184,9 @@ MentraOS should keep its TypeScript API stable. `BluetoothSdkModule.kt` becomes 
 - Creates `MentraBluetoothSdk` in `OnCreate`.
 - Maps `MentraBluetoothSdkListener` callbacks back to existing Expo event names such as `glasses_status`, `bluetooth_status`, `button_press`, `mic_pcm`, and `save_setting`.
 - Translates existing stringly typed `update("core" | "bluetooth", values)` calls into typed facade calls or internal settings updates while MentraOS migrates.
-- Lets a MentraOS TypeScript service watch Zustand settings and call typed SDK methods directly over time.
+- Lets `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` watch Zustand settings and call typed SDK methods directly over time, with `BluetoothSettingsSync.ts` and `BluetoothEventBridge.ts` extracted as helpers if the adapter grows.
 - Keeps legacy `"core"` category normalization inside the adapter/store compatibility layer, not in the public native API.
+- Keeps MentraOS cloud formatting in TypeScript services such as `SocketComms.ts`, `RestComms.ts`, and `DisplayProcessor.ts`; Android should emit typed hardware events, not MentraOS websocket or REST payloads.
 
 This lets MentraOS keep using the SDK while external customers use the native Android facade.
 
@@ -197,7 +198,7 @@ This lets MentraOS keep using the SDK while external customers use the native An
 4. Move `Bridge.getContext()` dependencies behind constructor or initializer injection so the native facade controls lifecycle.
 5. Keep `DeviceManager`, `DeviceStore`, `ObservableStore`, and `SGCManager` internal implementation details.
 6. Keep `updateBluetoothSettings`, `"core"` normalization, and `save_setting` as MentraOS compatibility plumbing only.
-7. Add a MentraOS TypeScript adapter/service that translates Zustand changes into typed SDK calls.
+7. Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` and translate Zustand changes into typed SDK calls.
 8. Split packaging so the bare Android artifact does not depend on Expo module Gradle plugins.
 9. Keep a separate Expo adapter artifact/module that depends on the bare SDK artifact.
 10. Resolve `lc3Lib` publication so an external Gradle project can consume the SDK without monorepo project dependencies.

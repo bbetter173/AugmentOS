@@ -175,8 +175,9 @@ MentraOS should keep its TypeScript API stable. `BluetoothSdkModule.swift` becom
 - Implements `MentraBluetoothSDKDelegate`.
 - Maps typed delegate callbacks back to existing Expo event names such as `glasses_status`, `bluetooth_status`, `button_press`, `mic_pcm`, and `save_setting`.
 - Translates existing stringly typed `update("core" | "bluetooth", values)` calls into typed facade calls or internal settings updates while MentraOS migrates.
-- Lets a MentraOS TypeScript service watch Zustand settings and call typed SDK methods directly over time.
+- Lets `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` watch Zustand settings and call typed SDK methods directly over time, with `BluetoothSettingsSync.ts` and `BluetoothEventBridge.ts` extracted as helpers if the adapter grows.
 - Keeps legacy `"core"` category normalization inside the adapter/store compatibility layer, not in the public native API.
+- Keeps MentraOS cloud formatting in TypeScript services such as `SocketComms.ts`, `RestComms.ts`, and `DisplayProcessor.ts`; iOS should emit typed hardware events, not MentraOS websocket or REST payloads.
 
 This lets MentraOS keep using the SDK while external customers use the native iOS facade.
 
@@ -198,7 +199,7 @@ The public podspec must include the native dependencies and privacy manifest, bu
 3. Replace the static `Bridge` callback with an internal event sink that can fan out to the Swift facade and the Expo adapter.
 4. Keep `DeviceManager`, `DeviceStore`, `ObservableStore`, and `SGCManager` internal implementation details.
 5. Keep `updateBluetoothSettings`, `"core"` normalization, and `save_setting` as MentraOS compatibility plumbing only.
-6. Add a MentraOS TypeScript adapter/service that translates Zustand changes into typed SDK calls.
+6. Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` and translate Zustand changes into typed SDK calls.
 7. Move `BluetoothSdkModule.swift` into the adapter layer so the bare SDK pod can remove `ExpoModulesCore`.
 8. Update `MentraBluetoothSDK.podspec` so a clean iOS app can run `pod install` without Expo.
 9. Add a bare iOS sample app that initializes the SDK, scans, connects, displays text, clears display, and logs status events.

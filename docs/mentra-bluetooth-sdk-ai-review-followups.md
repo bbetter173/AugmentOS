@@ -260,8 +260,8 @@ Recommended doc update:
 - Source: CodeRabbit on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#discussion_r3132995766)
 - Priority: low/medium
 - File: `docs/mentra-bluetooth-sdk-plan.md`
-- Current status: mostly addressed by the new Phase 6 section and native Android
-  / iOS API planning docs.
+- Current status: fixed in the working tree by naming the MentraOS TypeScript
+  adapter files and clarifying cloud formatting ownership.
 
 Recommended follow-up:
 

@@ -1,4 +1,4 @@
-import {GlassesStatus, OtaProgress, OtaUpdateInfo} from "core"
+import {GlassesStatus, OtaProgress, OtaStatus, OtaUpdateInfo} from "core"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 
@@ -15,6 +15,8 @@ interface GlassesState extends GlassesStatus {
   setWifiInfo: (connected: boolean, ssid: string) => void
   setHotspotInfo: (enabled: boolean, ssid: string, password: string, ip: string) => void
   // OTA methods
+  otaStatus: OtaStatus | null
+  setOtaStatus: (status: OtaStatus | null) => void
   setOtaUpdateAvailable: (info: OtaUpdateInfo | null) => void
   setOtaProgress: (progress: OtaProgress | null) => void
   setOtaInProgress: (inProgress: boolean) => void
@@ -43,6 +45,7 @@ export const getGlasesInfoPartial = (state: GlassesStatus) => {
 interface GlassesStore extends GlassesStatus {
   mtkUpdatedThisSession: boolean
   wifiStatusKnown: boolean
+  otaStatus: OtaStatus | null
 }
 
 const initialState: GlassesStore = {
@@ -85,6 +88,7 @@ const initialState: GlassesStore = {
   hotspotPassword: "",
   hotspotGatewayIp: "",
   // OTA update info
+  otaStatus: null,
   otaUpdateAvailable: null,
   otaProgress: null,
   otaInProgress: false,
@@ -111,12 +115,9 @@ export const useGlassesStore = create<GlassesState>()(
           ...info,
           ...(hasWifiInfoUpdate ? {wifiStatusKnown: true} : {}),
         }
-        // When glasses disconnect, reset all glasses state to initial values
-        // This prevents stale device info, firmware versions, battery, wifi, etc. from persisting
-        // console.log("GLASSES: setGlassesInfo called with: next.connected =", next.connected)
-        // if (next.connected === false) {
-        //   return {...initialState, ...info}
-        // }
+        if (next.connected === false) {
+          next.wifiStatusKnown = false
+        }
         return next
       }),
 
@@ -144,6 +145,8 @@ export const useGlassesStore = create<GlassesState>()(
       }),
 
     // OTA methods
+    setOtaStatus: (status: OtaStatus | null) => set({otaStatus: status}),
+
     setOtaUpdateAvailable: (info: OtaUpdateInfo | null) => set({otaUpdateAvailable: info}),
 
     setOtaProgress: (progress: OtaProgress | null) =>

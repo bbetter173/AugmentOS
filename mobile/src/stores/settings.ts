@@ -550,6 +550,7 @@ export const OFFLINE_APPLETS: string[] = ["com.mentra.livecaptions", "com.mentra
 const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
   // Bluetooth SDK settings:
   SETTINGS.sensing_enabled.key,
+  SETTINGS.power_saving_mode.key,
   SETTINGS.lc3_frame_size.key,
   SETTINGS.preferred_mic.key,
   SETTINGS.screen_disabled.key,

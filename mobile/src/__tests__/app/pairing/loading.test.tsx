@@ -82,7 +82,7 @@ import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useRoute} from "@react-navigation/native"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
-import GlassesPairingLoadingScreen from "./loading"
+import GlassesPairingLoadingScreen from "@/app/pairing/loading"
 import {useGlassesStore} from "@/stores/glasses"
 import {emitBluetoothSdkEvent, resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 

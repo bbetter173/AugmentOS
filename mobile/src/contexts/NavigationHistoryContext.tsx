@@ -545,6 +545,7 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
   if (Platform.OS === "ios") {
     useFocusEffect(
       useCallback(() => {
+        if (iosDontPreventBack) return // No listener needed; native gesture handles back
         const unsubscribe = navigation.addListener("beforeRemove", (e) => {
           backFn?.()
         })

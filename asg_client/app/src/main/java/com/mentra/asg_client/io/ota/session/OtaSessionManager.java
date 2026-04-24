@@ -54,7 +54,7 @@ public class OtaSessionManager {
             clear();
         }
 
-        mSessionId = UUID.randomUUID().toString();
+        mSessionId = UUID.randomUUID().toString().substring(0, 8);
         mTotalSteps = stepSequence.length;
         mStepSequence = new JSONArray();
         for (String step : stepSequence) {
@@ -100,20 +100,37 @@ public class OtaSessionManager {
         return mStatus;
     }
 
+    /**
+     * Builds the JSON payload sent to the phone via BLE as an {@code ota_status} message.
+     *
+     * Key names are intentionally abbreviated to keep the payload small — the K900 serial/BLE
+     * path drops packets that exceed its buffer limit. The phone (MentraLive.java) reads both
+     * the short and legacy verbose names so older firmware still works.
+     *
+     * Abbreviation map:
+     *   sid = session_id       ts  = total_steps      cs  = current_step
+     *   st  = step_type        sq  = step_sequence     sp  = step_percent
+     *   op  = overall_percent  err = error_message
+     *
+     * {@code error_message} is omitted entirely when null — the phone defaults to null via
+     * {@code optString("err", null)}, so an explicit null key is unnecessary overhead.
+     */
     public synchronized JSONObject getSessionState() {
         if (mSessionId == null) return null;
         try {
             JSONObject state = new JSONObject();
-            state.put("session_id", mSessionId);
-            state.put("total_steps", mTotalSteps);
-            state.put("current_step", mCurrentStepIndex + 1);
-            state.put("step_type", getStepType(mCurrentStepIndex));
-            state.put("step_sequence", mStepSequence != null ? mStepSequence : new JSONArray());
+            state.put("sid", mSessionId);
+            state.put("ts", mTotalSteps);
+            state.put("cs", mCurrentStepIndex + 1);
+            state.put("st", getStepType(mCurrentStepIndex));
+            state.put("sq", mStepSequence != null ? mStepSequence : new JSONArray());
             state.put("phase", mCurrentPhase);
-            state.put("step_percent", mStepPercent);
-            state.put("overall_percent", computeOverallPercent());
+            state.put("sp", mStepPercent);
+            state.put("op", computeOverallPercent());
             state.put("status", mStatus);
-            state.put("error_message", mErrorMessage != null ? mErrorMessage : JSONObject.NULL);
+            if (mErrorMessage != null) {
+                state.put("err", mErrorMessage);
+            }
             return state;
         } catch (JSONException e) {
             Log.e(TAG, "Failed to build session state JSON", e);

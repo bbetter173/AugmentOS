@@ -1919,20 +1919,22 @@ class MentraLive: NSObject, SGCManager {
             Bridge.sendOtaStartAck()
 
         case "ota_status":
-            let osSessionId = json["session_id"] as? String ?? ""
-            let osTotalSteps = json["total_steps"] as? Int ?? 0
-            let osCurrentStep = json["current_step"] as? Int ?? 0
-            let osStepType = json["step_type"] as? String ?? "apk"
+            // Short keys (sid/ts/cs/st/sq/sp/op/err) are used by new firmware to keep BLE payload small.
+            // Verbose keys (session_id/total_steps/…) are the fallback for older firmware.
+            let osSessionId = json["sid"] as? String ?? json["session_id"] as? String ?? ""
+            let osTotalSteps = json["ts"] as? Int ?? json["total_steps"] as? Int ?? 0
+            let osCurrentStep = json["cs"] as? Int ?? json["current_step"] as? Int ?? 0
+            let osStepType = json["st"] as? String ?? json["step_type"] as? String ?? "apk"
             let osPhase = json["phase"] as? String ?? "download"
-            let osStepPercent = json["step_percent"] as? Int ?? 0
-            let osOverallPercent = json["overall_percent"] as? Int ?? 0
+            let osStepPercent = json["sp"] as? Int ?? json["step_percent"] as? Int ?? 0
+            let osOverallPercent = json["op"] as? Int ?? json["overall_percent"] as? Int ?? 0
             let osStatus = json["status"] as? String ?? "idle"
-            let osErrorMessage = json["error_message"] as? String
+            let osErrorMessage = json["err"] as? String ?? json["error_message"] as? String
 
             cachedOtaSessionId = osSessionId
             cachedOtaTotalSteps = osTotalSteps
             cachedOtaCurrentStep = osCurrentStep
-            if let seq = json["step_sequence"] as? [String], !seq.isEmpty {
+            if let seq = json["sq"] as? [String] ?? json["step_sequence"] as? [String], !seq.isEmpty {
                 cachedOtaStepSequence = seq
             }
 

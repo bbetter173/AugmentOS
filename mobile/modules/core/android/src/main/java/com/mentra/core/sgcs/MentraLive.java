@@ -2342,20 +2342,21 @@ public class MentraLive extends SGCManager {
                 break;
 
             case "ota_status":
-                String osSessionId = json.optString("session_id", "");
-                int osTotalSteps = json.optInt("total_steps", 0);
-                int osCurrentStep = json.optInt("current_step", 0);
-                String osStepType = json.optString("step_type", "apk");
+                String osSessionId = json.optString("sid", json.optString("session_id", ""));
+                int osTotalSteps = json.optInt("ts", json.optInt("total_steps", 0));
+                int osCurrentStep = json.optInt("cs", json.optInt("current_step", 0));
+                String osStepType = json.optString("st", json.optString("step_type", "apk"));
                 String osPhase = json.optString("phase", "download");
-                int osStepPercent = json.optInt("step_percent", 0);
-                int osOverallPercent = json.optInt("overall_percent", 0);
+                int osStepPercent = json.optInt("sp", json.optInt("step_percent", 0));
+                int osOverallPercent = json.optInt("op", json.optInt("overall_percent", 0));
                 String osStatus = json.optString("status", "idle");
-                String osErrorMessage = json.optString("error_message", null);
+                String osErrorMessage = json.optString("err", json.optString("error_message", null));
 
                 cachedOtaSessionId = osSessionId;
                 cachedOtaTotalSteps = osTotalSteps;
                 cachedOtaCurrentStep = osCurrentStep;
-                JSONArray osStepSequence = json.optJSONArray("step_sequence");
+                JSONArray osStepSequence = json.optJSONArray("sq");
+                if (osStepSequence == null) osStepSequence = json.optJSONArray("step_sequence");
                 if (osStepSequence != null && osStepSequence.length() > 0) {
                     cachedOtaStepSequence = osStepSequence;
                 }

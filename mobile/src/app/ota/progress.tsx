@@ -3,6 +3,7 @@ import type {OtaProgress, OtaStatus} from "core"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {View, ActivityIndicator} from "react-native"
 
+import {deriveDisplayState, type DisplayState} from "@/app/ota/deriveOtaDisplayState"
 import {
   DOWNLOAD_STUCK_TIMEOUT_MS,
   GLOBAL_OTA_TIMEOUT_MS,
@@ -23,22 +24,11 @@ import {useGlassesStore} from "@/stores/glasses"
 import {getOtaErrorMessage} from "@/utils/otaErrorMapping"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 
-type DisplayState =
-  | "starting"
-  | "updating"
-  | "complete"
-  | "failed"
-  | "disconnected"
-  /** BES install finished; glasses are rebooting — expected BLE drop, show "Update Installed" + Continue */
-  | "restarting"
-
-// OtaSessionManager was introduced in build 36. Glasses on older builds use progress-legacy.tsx.
+// OtaSessionManager was introduced in build 36. Older builds use progress-legacy.tsx.
 const MINIMUM_OTA_STATUS_BUILD = 36
 
-const getErrorMessage = getOtaErrorMessage
-
-function terminalForGlobalTimeoutClear(d: DisplayState): boolean {
-  return d === "complete" || d === "failed" || d === "disconnected" || d === "restarting"
+function isTerminalForWatchdog(d: DisplayState): boolean {
+  return d === "complete" || d === "failed" || d === "restarting"
 }
 
 /** Non-empty when glasses are actively reporting work — drives stall timeout reset. */
@@ -47,14 +37,7 @@ function buildProgressStalenessSignature(
   otaProgress: OtaProgress | null,
   displayState: DisplayState,
 ): string {
-  if (
-    displayState === "restarting" ||
-    displayState === "complete" ||
-    displayState === "failed" ||
-    displayState === "disconnected"
-  ) {
-    return ""
-  }
+  if (displayState !== "starting" && displayState !== "updating") return ""
   if (otaStatus && (otaStatus.status === "in_progress" || otaStatus.status === "step_complete")) {
     return `s:${otaStatus.sessionId}|${otaStatus.status}|${otaStatus.phase}|${otaStatus.stepType}|${otaStatus.stepPercent}|${otaStatus.overallPercent}`
   }
@@ -86,20 +69,24 @@ export default function OtaProgressScreen() {
   const otaStatus = useGlassesStore((s) => s.otaStatus)
   const otaProgress = useGlassesStore((s) => s.otaProgress)
 
-  const [displayState, setDisplayState] = useState<DisplayState>("starting")
+  // Genuinely local UI state
   const [errorMsg, setErrorMsg] = useState("")
+  const [sawReconnectEdge, setSawReconnectEdge] = useState(false)
+  const [continueButtonDisabled, setContinueButtonDisabled] = useState(false)
 
-  const displayStateRef = useRef<DisplayState>(displayState)
+  // Ref mirrors for synchronous reads inside setTimeout callbacks.
+  const errorMsgRef = useRef(errorMsg)
   useEffect(() => {
-    displayStateRef.current = displayState
-  }, [displayState])
+    errorMsgRef.current = errorMsg
+  }, [errorMsg])
+  const sawReconnectEdgeRef = useRef(sawReconnectEdge)
+  useEffect(() => {
+    sawReconnectEdgeRef.current = sawReconnectEdge
+  }, [sawReconnectEdge])
 
-  const sessionStarted = useRef(false)
-  const wasConnected = useRef(connected)
-  const wasBesUpdateRef = useRef(false)
-  const sawDisconnectDuringRestartRef = useRef(false)
-  const besLastStatusRef = useRef<"step_complete" | "complete" | null>(null)
+  const prevConnectedRef = useRef(connected)
 
+  // Timer handles
   const globalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const globalTimeoutStartedRef = useRef(false)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -108,26 +95,54 @@ export default function OtaProgressScreen() {
   const postApkDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Retry / ack bookkeeping (no glasses source)
   const hasReceivedAckRef = useRef(false)
   const hasFirstActivityRef = useRef(false)
   const retryCountRef = useRef(0)
-  /** APK step finished with more steps to go — next ota_start after BLE reconnect uses POST_APK delay */
-  const postApkAwaitingReconnectRef = useRef(false)
-  const latestOtaStatusRef = useRef<OtaStatus | null>(null)
-  const latestOtaProgressRef = useRef<OtaProgress | null>(null)
-
-  useEffect(() => {
-    latestOtaStatusRef.current = otaStatus
-  }, [otaStatus])
-  useEffect(() => {
-    latestOtaProgressRef.current = otaProgress
-  }, [otaProgress])
-
-  const [continueButtonDisabled, setContinueButtonDisabled] = useState(false)
 
   focusEffectPreventBack()
 
-  const isFirmwareCompleting = wasBesUpdateRef.current && !connected && displayState === "restarting"
+  // Derived UI state — the glasses data IS the source of truth.
+  const displayState = deriveDisplayState({
+    otaStatus,
+    otaProgress,
+    connected,
+    errorMsg,
+    sawReconnectEdge,
+  })
+
+  // Log displayState transitions only (not every render).
+  const prevDisplayStateRef = useRef<DisplayState | null>(null)
+  if (prevDisplayStateRef.current !== displayState) {
+    console.log(
+      `[OTA_PROGRESS] displayState ${prevDisplayStateRef.current ?? "<init>"} -> ${displayState}`,
+      JSON.stringify({
+        connected,
+        sawReconnectEdge,
+        errorMsg: errorMsg || null,
+        otaStatus: otaStatus
+          ? {
+              stepType: otaStatus.stepType,
+              phase: otaStatus.phase,
+              status: otaStatus.status,
+              step: `${otaStatus.currentStep}/${otaStatus.totalSteps}`,
+              pct: otaStatus.overallPercent,
+            }
+          : null,
+        otaProgress: otaProgress
+          ? {
+              currentUpdate: otaProgress.currentUpdate,
+              stage: otaProgress.stage,
+              status: otaProgress.status,
+              progress: otaProgress.progress,
+            }
+          : null,
+      }),
+    )
+    prevDisplayStateRef.current = displayState
+  }
+
+  const isFirmwareCompleting = !connected && displayState === "restarting"
 
   const {setConfig, clearConfig} = useConnectionOverlayConfig()
   useEffect(() => {
@@ -151,6 +166,8 @@ export default function OtaProgressScreen() {
       replace("/ota/progress-legacy")
     }
   }, [buildNum, replace])
+
+  // --- Timer cleanup helpers ---
 
   const clearProgressTimeout = useCallback(() => {
     if (progressTimeoutRef.current) {
@@ -208,6 +225,22 @@ export default function OtaProgressScreen() {
     clearPingInterval()
   }, [clearGlobalTimeout, clearPerStepTimers, clearPingInterval])
 
+  /**
+   * Read the current derived display state from the store + ref mirrors
+   * synchronously — used inside setTimeout callbacks where we cannot use
+   * the render-time `displayState`.
+   */
+  const computeDisplayStateNow = useCallback((): DisplayState => {
+    const s = useGlassesStore.getState()
+    return deriveDisplayState({
+      otaStatus: s.otaStatus,
+      otaProgress: s.otaProgress,
+      connected: s.connected,
+      errorMsg: errorMsgRef.current,
+      sawReconnectEdge: sawReconnectEdgeRef.current,
+    })
+  }, [])
+
   const onFirstActivity = useCallback(() => {
     if (hasFirstActivityRef.current) return
     hasFirstActivityRef.current = true
@@ -221,13 +254,12 @@ export default function OtaProgressScreen() {
     globalTimeoutRef.current = setTimeout(() => {
       globalTimeoutRef.current = null
       globalTimeoutStartedRef.current = false
-      const d = displayStateRef.current
-      if (terminalForGlobalTimeoutClear(d)) return
+      if (isTerminalForWatchdog(computeDisplayStateNow())) return
+      console.log("[OTA_PROGRESS] watchdog: global timeout fired, failing session")
       clearPerStepTimers()
       setErrorMsg(OtaProgressMessages.globalTimeout)
-      setDisplayState("failed")
     }, GLOBAL_OTA_TIMEOUT_MS)
-  }, [clearPerStepTimers])
+  }, [clearPerStepTimers, computeDisplayStateNow])
 
   const sendOtaStartRef = useRef<() => Promise<void>>(async () => {})
 
@@ -238,34 +270,38 @@ export default function OtaProgressScreen() {
     retryTimeoutRef.current = setTimeout(() => {
       retryTimeoutRef.current = null
       if (hasReceivedAckRef.current || hasFirstActivityRef.current) return
-      if (displayStateRef.current !== "starting") return
+      if (computeDisplayStateNow() !== "starting") return
       if (retryCountRef.current < MAX_RETRIES - 1) {
         retryCountRef.current += 1
         hasReceivedAckRef.current = false
+        console.log(
+          `[OTA_PROGRESS] watchdog: no ack in ${RETRY_INTERVAL_MS}ms, retrying ota_start (attempt ${retryCountRef.current})`,
+        )
         void CoreModule.sendOtaStart()
           .then(() => {
             armAckAndStuckWatchdogsOnly()
           })
           .catch(() => {})
       } else {
+        console.log(`[OTA_PROGRESS] watchdog: ota_start ack never received after ${MAX_RETRIES} attempts, failing`)
         setErrorMsg(OtaProgressMessages.noAckResponse)
-        setDisplayState("failed")
       }
     }, RETRY_INTERVAL_MS)
 
     stuckTimeoutRef.current = setTimeout(() => {
       stuckTimeoutRef.current = null
-      const d = displayStateRef.current
-      if (d !== "starting" && !(d === "updating" && latestOtaStatusRef.current?.phase === "download")) {
+      const d = computeDisplayStateNow()
+      const s = useGlassesStore.getState()
+      if (d !== "starting" && !(d === "updating" && s.otaStatus?.phase === "download")) {
         return
       }
-      const pct = latestPercentForStuck(latestOtaStatusRef.current, latestOtaProgressRef.current)
+      const pct = latestPercentForStuck(s.otaStatus, s.otaProgress)
       if (pct !== 0) return
+      console.log(`[OTA_PROGRESS] watchdog: stuck at 0% for ${DOWNLOAD_STUCK_TIMEOUT_MS}ms, failing`)
       clearRetryTimeout()
       setErrorMsg(OtaProgressMessages.stalledOrStuck)
-      setDisplayState("failed")
     }, DOWNLOAD_STUCK_TIMEOUT_MS)
-  }, [clearRetryTimeout, clearStuckTimeout])
+  }, [clearRetryTimeout, clearStuckTimeout, computeDisplayStateNow])
 
   const sendOtaStartWithWatchdogs = useCallback(async () => {
     maybeStartGlobalTimeout()
@@ -273,7 +309,8 @@ export default function OtaProgressScreen() {
     armAckAndStuckWatchdogsOnly()
     try {
       await CoreModule.sendOtaStart()
-    } catch {
+    } catch (err) {
+      console.warn("[OTA_PROGRESS] sendOtaStart threw", err)
       clearRetryTimeout()
       clearStuckTimeout()
       if (retryCountRef.current < MAX_RETRIES - 1) {
@@ -283,50 +320,76 @@ export default function OtaProgressScreen() {
           void sendOtaStartRef.current()
         }, RETRY_INTERVAL_MS)
       } else {
+        console.log("[OTA_PROGRESS] sendOtaStart failed after max retries, failing session")
         setErrorMsg(OtaProgressMessages.sendOtaStartFailed)
-        setDisplayState("failed")
       }
     }
   }, [armAckAndStuckWatchdogsOnly, clearRetryTimeout, clearStuckTimeout, maybeStartGlobalTimeout])
 
   sendOtaStartRef.current = sendOtaStartWithWatchdogs
 
+  /**
+   * Connect-edge effect — the only place that decides to send ota_start /
+   * ota_query_status, handles POST_APK delay, and flips sawReconnectEdge
+   * on the false -> true transition that signals the BES reboot completed.
+   */
   useEffect(() => {
+    const prev = prevConnectedRef.current
+    prevConnectedRef.current = connected
+
     if (!connected) {
+      console.log("[OTA_PROGRESS] connect-edge: disconnected")
       clearPostApkDelay()
-      wasConnected.current = false
       return
     }
 
-    const becameConnected = !wasConnected.current && connected
-    wasConnected.current = connected
+    const becameConnected = prev === false && connected === true
+    if (becameConnected) {
+      console.log("[OTA_PROGRESS] connect-edge: false->true, flipping sawReconnectEdge=true")
+      setSawReconnectEdge(true)
+    }
 
-    if (becameConnected && postApkAwaitingReconnectRef.current) {
-      postApkAwaitingReconnectRef.current = false
+    const storeSnapshot = useGlassesStore.getState()
+    const s = storeSnapshot.otaStatus
+    const postApkAwaiting =
+      s?.stepType === "apk" && (s?.totalSteps ?? 0) > 1 && (s.status === "step_complete" || s.status === "complete")
+
+    if (becameConnected && postApkAwaiting) {
+      console.log("[OTA_PROGRESS] connect-edge: post-APK reboot detected, arming POST_APK delay for sendOtaStart")
       clearPostApkDelay()
       postApkDelayRef.current = setTimeout(() => {
         postApkDelayRef.current = null
         retryCountRef.current = 0
         hasFirstActivityRef.current = false
         hasReceivedAckRef.current = false
+        console.log("[OTA_PROGRESS] POST_APK delay fired, sending ota_start")
         void sendOtaStartWithWatchdogs()
       }, POST_APK_OTA_START_DELAY_MS)
+      return
+    }
+
+    if (becameConnected) {
+      console.log("[OTA_PROGRESS] connect-edge: reconnected, sending ota_query_status")
+      void CoreModule.sendOtaQueryStatus()
+      return
+    }
+
+    // Initial mount (prev === current === true). If no session yet, kick off ota_start.
+    const noSessionYet = !storeSnapshot.otaStatus && !storeSnapshot.otaProgress
+    if (noSessionYet) {
+      console.log("[OTA_PROGRESS] initial mount, no session in store, sending ota_start")
+      retryCountRef.current = 0
+      hasFirstActivityRef.current = false
+      hasReceivedAckRef.current = false
+      void sendOtaStartWithWatchdogs()
     } else {
-      if (becameConnected) {
-        void CoreModule.sendOtaQueryStatus()
-      } else if (!sessionStarted.current) {
-        retryCountRef.current = 0
-        hasFirstActivityRef.current = false
-        hasReceivedAckRef.current = false
-        void sendOtaStartWithWatchdogs()
-      } else {
-        void CoreModule.sendOtaQueryStatus()
-      }
+      console.log("[OTA_PROGRESS] initial mount, session exists, sending ota_query_status")
+      void CoreModule.sendOtaQueryStatus()
     }
   }, [connected, sendOtaStartWithWatchdogs, clearPostApkDelay])
 
   useEffect(() => {
-    if (terminalForGlobalTimeoutClear(displayState)) {
+    if (isTerminalForWatchdog(displayState)) {
       clearGlobalTimeout()
     }
   }, [displayState, clearGlobalTimeout])
@@ -334,10 +397,12 @@ export default function OtaProgressScreen() {
   useEffect(() => {
     const handleAck = () => {
       if (hasReceivedAckRef.current) return
+      console.log("[OTA_PROGRESS] ota_start_ack received")
       hasReceivedAckRef.current = true
       clearRetryTimeout()
     }
     const handleMtkComplete = () => {
+      console.log("[OTA_PROGRESS] mtk_update_complete received")
       clearProgressTimeout()
       onFirstActivity()
       void CoreModule.sendOtaQueryStatus()
@@ -351,6 +416,7 @@ export default function OtaProgressScreen() {
     }
   }, [clearProgressTimeout, clearRetryTimeout, onFirstActivity])
 
+  // Ping keepalive while an OTA is actively running
   useEffect(() => {
     const active = connected && (displayState === "starting" || displayState === "updating")
     if (active) {
@@ -366,77 +432,16 @@ export default function OtaProgressScreen() {
     return undefined
   }, [connected, displayState, clearPingInterval])
 
+  // First glasses activity clears the "no-ack / stuck-at-zero" watchdogs.
   useEffect(() => {
-    if (!otaStatus) {
-      return
-    }
-    if (postApkAwaitingReconnectRef.current && connected && otaStatus.stepType === "mtk") {
-      postApkAwaitingReconnectRef.current = false
-    }
-
-    if (otaStatus.stepType === "apk" && otaStatus.totalSteps > 1) {
-      if (otaStatus.status === "complete" || otaStatus.status === "step_complete") {
-        postApkAwaitingReconnectRef.current = true
-      }
-    }
-
-    const statusShowsWork =
-      otaStatus.status === "in_progress" ||
-      otaStatus.status === "step_complete" ||
-      otaStatus.status === "complete" ||
-      otaStatus.status === "failed"
-    if (statusShowsWork) {
-      sessionStarted.current = true
+    if (otaStatus || otaProgress) {
       onFirstActivity()
     }
+  }, [otaStatus, otaProgress, onFirstActivity])
 
-    if (otaStatus.stepType === "bes" && (otaStatus.status === "step_complete" || otaStatus.status === "complete")) {
-      sessionStarted.current = true
-      wasBesUpdateRef.current = true
-      besLastStatusRef.current = otaStatus.status
-      setDisplayState("restarting")
-      return
-    }
-
-    switch (otaStatus.status) {
-      case "in_progress":
-      case "step_complete":
-        setDisplayState("updating")
-        break
-      case "complete":
-        setDisplayState("complete")
-        break
-      case "failed":
-        setErrorMsg(getErrorMessage(otaStatus.error))
-        setDisplayState("failed")
-        break
-      default:
-        break
-    }
-  }, [otaStatus, onFirstActivity, connected])
-
+  // Progress stall watchdog — fails the update if glasses go silent mid-step.
   useEffect(() => {
-    if (otaProgress?.currentUpdate !== "bes") return
-    if (otaProgress.stage !== "install") return
-    wasBesUpdateRef.current = true
-    sessionStarted.current = true
-    onFirstActivity()
-    if (otaProgress.status === "PROGRESS" || otaProgress.status === "STARTED") {
-      // BES sr_adota path — counts as activity for ack/stuck
-    }
-    if (otaProgress.status === "FINISHED") {
-      besLastStatusRef.current = "complete"
-      setDisplayState("restarting")
-    }
-  }, [otaProgress, onFirstActivity])
-
-  useEffect(() => {
-    if (
-      displayState === "restarting" ||
-      displayState === "complete" ||
-      displayState === "failed" ||
-      displayState === "disconnected"
-    ) {
+    if (displayState !== "starting" && displayState !== "updating") {
       clearProgressTimeout()
       return
     }
@@ -449,53 +454,22 @@ export default function OtaProgressScreen() {
     clearProgressTimeout()
     progressTimeoutRef.current = setTimeout(() => {
       progressTimeoutRef.current = null
-      if (terminalForGlobalTimeoutClear(displayStateRef.current)) return
+      if (isTerminalForWatchdog(computeDisplayStateNow())) return
+      console.log(`[OTA_PROGRESS] watchdog: progress stalled for ${duration}ms, failing`)
       setErrorMsg(OtaProgressMessages.stalledOrStuck)
-      setDisplayState("failed")
     }, duration)
     return () => {
       clearProgressTimeout()
     }
-  }, [otaStatus, otaProgress, displayState, clearProgressTimeout])
+  }, [otaStatus, otaProgress, displayState, clearProgressTimeout, computeDisplayStateNow])
 
-  useEffect(() => {
-    if (!connected && displayState !== "complete" && displayState !== "failed") {
-      if (displayState === "restarting" || wasBesUpdateRef.current) {
-        sawDisconnectDuringRestartRef.current = true
-        setDisplayState("restarting")
-      } else {
-        setDisplayState("disconnected")
-      }
-    }
-    if (connected && displayState === "disconnected") {
-      setDisplayState(sessionStarted.current ? "updating" : "starting")
-    }
-  }, [connected, displayState])
-
+  // 15s lockout on Continue button after BES restart to prevent accidental tap.
   useEffect(() => {
     if (displayState !== "restarting") return
-    if (!connected) return
-    if (!sawDisconnectDuringRestartRef.current) return
-
-    if (besLastStatusRef.current === "complete") {
-      setDisplayState("complete")
-    } else {
-      void CoreModule.sendOtaQueryStatus()
-    }
-  }, [connected, displayState])
-
-  useEffect(() => {
-    if (displayState !== "restarting" || !wasBesUpdateRef.current) return
     setContinueButtonDisabled(true)
     const t = setTimeout(() => setContinueButtonDisabled(false), 15_000)
     return () => clearTimeout(t)
   }, [displayState])
-
-  useEffect(() => {
-    return () => {
-      clearAllOtaTimers()
-    }
-  }, [clearAllOtaTimers])
 
   useEffect(() => {
     if (displayState === "failed") {
@@ -503,19 +477,27 @@ export default function OtaProgressScreen() {
     }
   }, [displayState, clearPerStepTimers])
 
+  useEffect(() => {
+    return () => {
+      clearAllOtaTimers()
+    }
+  }, [clearAllOtaTimers])
+
   const handleContinue = () => {
     replace("/ota/check-for-updates")
   }
 
   const handleRetry = () => {
+    console.log("[OTA_PROGRESS] retry pressed, clearing state and re-sending ota_start")
     clearPerStepTimers()
     retryCountRef.current = 0
     hasFirstActivityRef.current = false
     hasReceivedAckRef.current = false
-    sessionStarted.current = false
-    setDisplayState("starting")
+    setSawReconnectEdge(false)
     setErrorMsg("")
-    useGlassesStore.getState().setOtaStatus(null)
+    const store = useGlassesStore.getState()
+    store.setOtaStatus(null)
+    store.setOtaProgress(null)
     if (connected) {
       void sendOtaStartWithWatchdogs()
     }
@@ -636,6 +618,7 @@ export default function OtaProgressScreen() {
     }
 
     if (displayState === "failed") {
+      const displayedError = errorMsg || getOtaErrorMessage(otaStatus?.error)
       return (
         <>
           <View className="flex-1 items-center justify-center px-6">
@@ -643,7 +626,7 @@ export default function OtaProgressScreen() {
             <View className="h-6" />
             <Text text="Update Failed" className="font-semibold text-xl text-center" />
             <View className="h-2" />
-            <Text text={errorMsg} className="text-sm text-center text-secondary-foreground" />
+            <Text text={displayedError} className="text-sm text-center text-secondary-foreground" />
           </View>
           <View className="gap-3">
             <Button preset="primary" text="Retry" flexContainer onPress={handleRetry} />

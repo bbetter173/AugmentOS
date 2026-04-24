@@ -6,6 +6,17 @@
   "react-native": "src/index.ts",
   "app.plugin": "plugin/src/index",
   "types": "build/index.d.ts",
+  "files": [
+    "android",
+    "app.plugin.js",
+    "build",
+    "expo-module.config.json",
+    "ios",
+    "plugin/build",
+    "README.md",
+    "src",
+    "!src/__tests__"
+  ],
   "scripts": {
     "build": "expo-module build",
     "build:plugin": "expo-module build plugin",
@@ -37,15 +48,19 @@
   "author": "Mentra",
   "license": "MIT",
   "homepage": "https://github.com/Mentra-Community/MentraOS/tree/main/mobile/modules/bluetooth-sdk#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {},
   "devDependencies": {
     "expo-module-scripts": "^55.0.2"
   },
   "peerDependencies": {
-    "expo": "*",
-    "react": "*",
-    "react-native": "*",
-    "@types/react": "*",
-    "@expo/config-plugins": "*"
+    "@expo/config-plugins": ">=8.0.0",
+    "@types/react": ">=18.0.0",
+    "expo": ">=49.0.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.72.0"
   }
 }

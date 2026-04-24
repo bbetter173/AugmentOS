@@ -570,6 +570,18 @@ Publishing is not just opening registry accounts. Before release we still need t
 - Remove or generalize monorepo-specific assumptions in Expo config plugins, Gradle paths, and Podfile modifications so the package installs cleanly outside MentraOS
 - Verify the external install flow end-to-end for React Native, Maven Central, and CocoaPods before first release
 
+Implemented in this phase:
+
+- npm publish metadata now includes explicit files, public publish config, and peer dependency ranges.
+- Android Gradle now has Maven publication metadata for `com.mentra:bluetooth-sdk`.
+- CocoaPods metadata is package-driven, includes privacy resources, and no longer relies on monorepo user target paths.
+- Expo config plugins no longer mutate host Podfiles with MentraOS-specific project names, Firebase pods, or privacy exclusions.
+
+Still intentionally not done in-code:
+
+- Registry/account setup, signing secrets, and automated release CI.
+- Swift Package Manager support and pure native iOS/Android consumption. The current module still depends on React Native / Expo module packaging and bundled native assets, so this needs a separate design pass rather than a cosmetic `Package.swift`.
+
 ### 4.1 Package Configuration
 
 **bluetooth-sdk/package.json:**
@@ -577,11 +589,26 @@ Publishing is not just opening registry accounts. Before release we still need t
 ```json
 {
   "name": "@mentra/bluetooth-sdk",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "SDK for communicating with smart glasses",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "react-native": "src/index.ts",
+  "files": [
+    "android",
+    "app.plugin.js",
+    "build",
+    "expo-module.config.json",
+    "ios",
+    "plugin/build",
+    "README.md",
+    "src",
+    "!src/__tests__"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Mentra-Community/MentraOS.git",
@@ -601,10 +628,11 @@ Publishing is not just opening registry accounts. Before release we still need t
 **bluetooth-sdk/android/build.gradle additions:**
 
 ```gradle
-plugins {
-    id 'maven-publish'
-    id 'signing'
-}
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+group = 'com.mentra'
+version = packageJson.version
 
 android {
     namespace 'com.mentra.bluetoothsdk'
@@ -624,9 +652,7 @@ publishing {
             artifactId = 'bluetooth-sdk'
             version = project.version
 
-            afterEvaluate {
-                from components.release
-            }
+            from components.release
 
             pom {
                 name = 'Mentra Bluetooth SDK'
@@ -651,19 +677,19 @@ publishing {
 ```ruby
 Pod::Spec.new do |s|
   s.name             = 'MentraBluetoothSDK'
-  s.version          = '1.0.0'
+  s.version          = package['version']
   s.summary          = 'SDK for communicating with smart glasses'
   s.homepage         = 'https://github.com/Mentra-Community/MentraOS'
-  s.license          = { :type => 'MIT' }
-  s.author           = { 'Mentra' => 'dev@mentra.glass' }
-  s.source           = { :git => 'https://github.com/Mentra-Community/MentraOS.git', :tag => s.version.to_s }
+  s.license          = 'MIT'
+  s.author           = 'Mentra'
+  s.source           = { :git => 'https://github.com/Mentra-Community/MentraOS.git', :tag => "bluetooth-sdk-v#{s.version}" }
 
-  s.ios.deployment_target = '13.0'
-  s.swift_version = '5.0'
-  s.source_files = 'ios/Source/**/*.swift'
+  s.ios.deployment_target = '15.1'
+  s.swift_version = '5.9'
+  s.source_files = '**/*.{h,m,mm,swift,hpp,cpp,c}'
   s.frameworks = 'CoreBluetooth', 'AVFoundation'
   s.resource_bundles = {
-    'MentraBluetoothSDK' => ['ios/Source/PrivacyInfo.xcprivacy']
+    'MentraBluetoothSDKPrivacy' => ['Source/PrivacyInfo.xcprivacy']
   }
 end
 ```
@@ -804,11 +830,11 @@ buttonSub.remove();
 ### Phase 4: Publishing Setup (Week 3)
 
 - [ ] Set up Sonatype OSSRH account
-- [ ] Configure Gradle for Maven Central publishing
-- [ ] Create CocoaPods podspec
+- [x] Configure Gradle for Maven Central publishing metadata
+- [x] Update CocoaPods podspec for external publishing
 - [ ] Create Swift Package Manager manifest
-- [ ] Create iOS PrivacyInfo.xcprivacy manifest
-- [ ] Configure npm publishing
+- [x] Create iOS PrivacyInfo.xcprivacy manifest
+- [x] Configure npm publishing metadata
 - [ ] Set up CI/CD for automated publishing
 - [ ] Ensure native library is usable without Expo (pure Android/iOS apps)
 

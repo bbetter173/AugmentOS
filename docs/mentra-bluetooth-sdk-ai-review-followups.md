@@ -52,7 +52,8 @@ Validation:
 - Source: Codex on [#2600](https://github.com/Mentra-Community/MentraOS/pull/2600#discussion_r3134757101)
 - Priority: P1
 - File: `mobile/modules/bluetooth-sdk/android/build.gradle`
-- Current status: still relevant for external Maven consumers.
+- Current status: fixed in the working tree by making `lc3Lib` publishable as a
+  companion Maven artifact.
 
 The Bluetooth SDK publishes `components.release`, but Android still depends on
 `implementation project(':lc3Lib')`. That works for monorepo or npm/path-based
@@ -60,14 +61,12 @@ integration where the local Gradle project is injected, but a Maven consumer of
 `com.mentra:bluetooth-sdk` will not have `:lc3Lib`, making the published Android
 artifact unusable outside the monorepo.
 
-Decision needed before production Maven release:
+Decision made:
 
-- Publish `lc3Lib` as its own stable Maven artifact and depend on that
-  coordinate.
-- Or bundle the LC3 implementation into the Bluetooth SDK AAR in a way Maven
-  consumers receive automatically.
-- Or mark Maven publishing as not production-ready and defer external Android
-  Maven release until native SDK packaging is completed.
+- Publish `lc3Lib` as its own stable Maven artifact with the same version as
+  `com.mentra:bluetooth-sdk`.
+- Keep the local `project(':lc3Lib')` dependency for monorepo/npm-path builds so
+  MentraOS and Expo prebuild behavior do not change.
 
 Validation:
 

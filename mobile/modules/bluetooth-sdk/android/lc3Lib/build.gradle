@@ -1,6 +1,19 @@
+import groovy.json.JsonSlurper
+
 plugins {
     id 'com.android.library'
     id 'com.google.protobuf' version '0.9.4'
+    id 'maven-publish'
+    id 'signing'
+}
+
+def packageJson = new JsonSlurper().parse(file("../../package.json"))
+
+group = 'com.mentra'
+version = packageJson.version
+
+def isPublishTask = {
+    gradle.taskGraph.allTasks.any { it.name.toLowerCase().contains("publish") }
 }
 
 ext {
@@ -14,6 +27,13 @@ ext {
 android {
     namespace "com.mentra.lc3Lib"
     compileSdk 33
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 
     packagingOptions {
         exclude 'META-INF/proguard/androidx-annotations.pro'
@@ -152,5 +172,50 @@ protobuf {
                 }
             }
         }
+    }
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                groupId = 'com.mentra'
+                artifactId = 'lc3Lib'
+                version = project.version
+
+                from components.release
+
+                pom {
+                    name = 'Mentra LC3 Android Library'
+                    description = 'LC3 audio codec support for Mentra Bluetooth SDK'
+                    url = 'https://github.com/Mentra-Community/MentraOS'
+                    licenses {
+                        license {
+                            name = 'MIT License'
+                            url = 'https://opensource.org/licenses/MIT'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = 'mentra'
+                            name = 'Mentra'
+                            email = 'dev@mentra.glass'
+                        }
+                    }
+                    scm {
+                        connection = 'scm:git:https://github.com/Mentra-Community/MentraOS.git'
+                        developerConnection = 'scm:git:ssh://git@github.com:Mentra-Community/MentraOS.git'
+                        url = 'https://github.com/Mentra-Community/MentraOS'
+                    }
+                }
+            }
+        }
+    }
+
+    signing {
+        required {
+            isPublishTask() && (findProperty("signing.keyId") || findProperty("signingKey"))
+        }
+        sign publishing.publications.release
     }
 }

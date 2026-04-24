@@ -633,6 +633,16 @@ Still intentionally not done in-code:
 
 ### 4.2 Android Publishing (Maven Central)
 
+Android publishing includes two Maven artifacts:
+
+- `com.mentra:bluetooth-sdk` - primary Android SDK artifact
+- `com.mentra:lc3Lib` - companion LC3 codec artifact required by the SDK
+
+The monorepo/npm integration can keep using `implementation project(':lc3Lib')`
+so local Expo prebuilds continue to work, but Maven release validation must
+publish both artifacts with the same version before testing a fresh external
+consumer project.
+
 **bluetooth-sdk/android/build.gradle additions:**
 
 ```gradle

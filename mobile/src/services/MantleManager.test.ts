@@ -208,6 +208,7 @@ describe("MantleManager", () => {
         contextual_dashboard: true,
         core_token: "server-token",
         auth_email: "from-server@example.com",
+        power_saving_mode: false,
       }),
     )
     expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
@@ -215,7 +216,7 @@ describe("MantleManager", () => {
         notifications_enabled: expect.anything(),
       }),
     )
-    for (const nonSdkKey of ["power_saving_mode", "always_on_status_bar", "metric_system"]) {
+    for (const nonSdkKey of ["always_on_status_bar", "metric_system"]) {
       expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
         expect.objectContaining({
           [nonSdkKey]: expect.anything(),
@@ -320,7 +321,6 @@ describe("MantleManager", () => {
 
   it("keeps non-SDK settings out of Bluetooth SDK sync", async () => {
     const nonSdkSettings = {
-      power_saving_mode: true,
       always_on_status_bar: true,
       bypass_vad_for_debugging: false,
       bypass_audio_encoding_for_debugging: true,
@@ -343,6 +343,14 @@ describe("MantleManager", () => {
       expect(useSettingsStore.getState().getBluetoothSdkSettings()).not.toHaveProperty(key)
     }
     expect(bluetoothSdkMock.updateBluetoothSettings).not.toHaveBeenCalled()
+
+    expect(useSettingsStore.getState().getBluetoothSdkSettings()).toHaveProperty("power_saving_mode")
+    await useSettingsStore.getState().setSetting(SETTINGS.power_saving_mode.key, true, false)
+    expect(bluetoothSdkMock.updateBluetoothSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        power_saving_mode: true,
+      }),
+    )
   })
 
   it("renders offline local transcription locally instead of forwarding it to cloud", async () => {

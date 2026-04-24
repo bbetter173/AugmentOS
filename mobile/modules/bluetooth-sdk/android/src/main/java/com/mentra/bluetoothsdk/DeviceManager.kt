@@ -128,6 +128,10 @@ class DeviceManager {
         get() = DeviceStore.store.get("bluetooth", "sensing_enabled") as? Boolean ?: true
         set(value) = DeviceStore.apply("bluetooth", "sensing_enabled", value)
 
+    public var powerSavingMode: Boolean
+        get() = DeviceStore.store.get("bluetooth", "power_saving_mode") as? Boolean ?: false
+        set(value) = DeviceStore.apply("bluetooth", "power_saving_mode", value)
+
     private var bypassVad: Boolean
         get() = DeviceStore.store.get("bluetooth", "bypass_vad") as? Boolean ?: true
         set(value) = DeviceStore.apply("bluetooth", "bypass_vad", value)

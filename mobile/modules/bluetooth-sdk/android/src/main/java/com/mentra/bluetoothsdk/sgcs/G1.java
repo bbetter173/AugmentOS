@@ -2324,11 +2324,7 @@ public class G1 extends SGCManager {
     }
 
     public void showHomeScreen() {
-        // if (DeviceManager.getInstance().getPowerSavingMode()) {
-            // sendExitCommand();
-        // } else {
-            displayTextWall(" ");
-        // }
+        displayTextWall(" ");
 
         // if (lastThingDisplayedWasAnImage) {
         //     // clearG1Screen();

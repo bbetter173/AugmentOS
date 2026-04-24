@@ -111,6 +111,7 @@ object DeviceStore {
         store.set("bluetooth", "screen_disabled", false)
         store.set("bluetooth", "preferred_mic", "auto")
         store.set("bluetooth", "sensing_enabled", true)
+        store.set("bluetooth", "power_saving_mode", false)
         store.set("bluetooth", "brightness", 50)
         store.set("bluetooth", "auto_brightness", true)
         store.set("bluetooth", "dashboard_height", 4)

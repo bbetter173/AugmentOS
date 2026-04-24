@@ -4,7 +4,7 @@ import {Platform} from "react-native"
 
 import {useRoute} from "@react-navigation/native"
 
-import PairingSuccessScreen from "./success"
+import PairingSuccessScreen from "@/app/pairing/success"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {waitForGlassesState} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"

@@ -57,10 +57,10 @@ public class BluetoothSdkModule: Module {
             // Configure observable store event emission
             Task { @MainActor [weak self] in
                 DeviceStore.shared.store.configure { [weak self] category, changes in
-                    switch category {
+                    switch ObservableStore.normalizeCategory(category) {
                     case "glasses":
                         self?.sendEvent("glasses_status", changes)
-                    case "core":
+                    case ObservableStore.bluetoothCategory:
                         self?.sendEvent("bluetooth_status", changes)
                     default:
                         break
@@ -79,14 +79,15 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("getBluetoothStatus") {
             await MainActor.run {
-                DeviceStore.shared.store.getCategory("core")
+                DeviceStore.shared.store.getCategory(ObservableStore.bluetoothCategory)
             }
         }
 
         AsyncFunction("update") { (category: String, values: [String: Any]) in
             await MainActor.run {
+                let normalizedCategory = ObservableStore.normalizeCategory(category)
                 for (key, value) in values {
-                    DeviceStore.shared.apply(category, key, value)
+                    DeviceStore.shared.apply(normalizedCategory, key, value)
                 }
             }
         }

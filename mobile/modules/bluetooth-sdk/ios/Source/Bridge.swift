@@ -81,7 +81,7 @@ class Bridge {
     static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String) {
         Task {
             await MainActor.run {
-                let searchResults = DeviceStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
+                let searchResults = DeviceStore.shared.get("bluetooth", "searchResults") as? [[String: Any]] ?? []
                 let newResult: [String: Any] = [
                     "deviceModel": deviceModel,
                     "deviceName": deviceName,
@@ -92,7 +92,7 @@ class Bridge {
                     guard let name = $0["deviceName"] as? String else { return false }
                     return seen.insert(name).inserted
                 }.reversed()
-                DeviceStore.shared.set("core", "searchResults", Array(uniqueResults))
+                DeviceStore.shared.set("bluetooth", "searchResults", Array(uniqueResults))
             }
         }
     }
@@ -215,7 +215,7 @@ class Bridge {
         Task {
             await MainActor.run {
                 var storedNetworks: [[String: Any]] =
-                    DeviceStore.shared.get("core", "wifiScanResults") as? [[String: Any]] ?? []
+                    DeviceStore.shared.get("bluetooth", "wifiScanResults") as? [[String: Any]] ?? []
                 // add the networks to the storedNetworks array, removing duplicates by ssid
                 for network in networks {
                     if !storedNetworks.contains(where: {
@@ -224,7 +224,7 @@ class Bridge {
                         storedNetworks.append(network)
                     }
                 }
-                DeviceStore.shared.apply("core", "wifiScanResults", storedNetworks)
+                DeviceStore.shared.apply("bluetooth", "wifiScanResults", storedNetworks)
             }
         }
     }

@@ -353,7 +353,7 @@ class R1 : ControllerManager() {
         val connectedName = try { gatt?.device?.name } catch (e: SecurityException) { null }
         if (connectedName != null) {
             extractRingId(connectedName)?.let {
-                DeviceStore.apply("core", "controller_device_name", it)
+                DeviceStore.apply("bluetooth", "controller_device_name", it)
             }
         }
 

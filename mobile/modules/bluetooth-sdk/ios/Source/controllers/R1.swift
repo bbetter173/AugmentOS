@@ -263,7 +263,7 @@ class R1: NSObject, ControllerManager {
         Bridge.log("R1: Ring ready")
 
         if let name = ringPeripheral?.name, let id = extractRingId(name) {
-            DeviceStore.shared.apply("core", "controller_device_name", id)
+            DeviceStore.shared.apply("bluetooth", "controller_device_name", id)
         }
 
         // TODO: uncomment

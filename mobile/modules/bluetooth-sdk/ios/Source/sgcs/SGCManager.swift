@@ -116,12 +116,12 @@ extension SGCManager {
     // MARK: - Dashboard (default: combined wire format; Nex implements single-field)
 
     func setDashboardHeightOnly(_ height: Int) {
-        let d = DeviceStore.shared.get("core", "dashboard_depth") as? Int ?? 2
+        let d = DeviceStore.shared.get("bluetooth", "dashboard_depth") as? Int ?? 2
         setDashboardPosition(height, d)
     }
 
     func setDashboardDepthOnly(_ depth: Int) {
-        let h = DeviceStore.shared.get("core", "dashboard_height") as? Int ?? 4
+        let h = DeviceStore.shared.get("bluetooth", "dashboard_height") as? Int ?? 4
         setDashboardPosition(h, depth)
     }
 

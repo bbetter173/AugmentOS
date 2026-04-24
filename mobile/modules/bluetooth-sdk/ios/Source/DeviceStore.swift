@@ -53,49 +53,49 @@ class DeviceStore {
         store.set("glasses", "ringSignalStrength", -1)
 
         // BLUETOOTH SDK STATE:
-        store.set("core", "systemMicUnavailable", false)
-        store.set("core", "searching", false)
-        store.set("core", "searchingController", false)
-        store.set("core", "micEnabled", false)
-        store.set("core", "currentMic", "")
-        store.set("core", "searchResults", [])
-        store.set("core", "wifiScanResults", [])
-        store.set("core", "micRanking", MicMap.map["auto"]!)
-        store.set("core", "lastLog", [])
-        store.set("core", "otherBtConnected", false)
+        store.set("bluetooth", "systemMicUnavailable", false)
+        store.set("bluetooth", "searching", false)
+        store.set("bluetooth", "searchingController", false)
+        store.set("bluetooth", "micEnabled", false)
+        store.set("bluetooth", "currentMic", "")
+        store.set("bluetooth", "searchResults", [])
+        store.set("bluetooth", "wifiScanResults", [])
+        store.set("bluetooth", "micRanking", MicMap.map["auto"]!)
+        store.set("bluetooth", "lastLog", [])
+        store.set("bluetooth", "otherBtConnected", false)
 
-        // CORE SETTINGS:
-        store.set("core", "default_wearable", "")
-        store.set("core", "pending_wearable", "")
-        store.set("core", "device_name", "")
-        store.set("core", "device_address", "")
-        store.set("core", "screen_disabled", false)
-        store.set("core", "preferred_mic", "auto")
-        store.set("core", "sensing_enabled", true)
-        store.set("core", "brightness", 50)
-        store.set("core", "auto_brightness", true)
-        store.set("core", "dashboard_height", 4)
-        store.set("core", "dashboard_depth", 2)
-        store.set("core", "head_up_angle", 30)
-        store.set("core", "contextual_dashboard", true)
-        store.set("core", "gallery_mode", false)
-        store.set("core", "screen_disabled", false)
-        store.set("core", "button_mode", "photo")
-        store.set("core", "button_photo_size", "medium")
-        store.set("core", "button_camera_led", true)
-        store.set("core", "button_max_recording_time", 10)
-        store.set("core", "camera_fov", ["fov": 118, "roi_position": 0])
-        store.set("core", "button_video_width", 1280)
-        store.set("core", "button_video_height", 720)
-        store.set("core", "button_video_fps", 30)
-        store.set("core", "preferred_mic", "auto")
-        store.set("core", "lc3_frame_size", 60)
-        store.set("core", "auth_email", "")
-        store.set("core", "core_token", "")
-        store.set("core", "should_send_pcm", false)
-        store.set("core", "should_send_lc3", false)
-        store.set("core", "should_send_transcript", false)
-        store.set("core", "bypass_vad", false)
+        // BLUETOOTH SETTINGS:
+        store.set("bluetooth", "default_wearable", "")
+        store.set("bluetooth", "pending_wearable", "")
+        store.set("bluetooth", "device_name", "")
+        store.set("bluetooth", "device_address", "")
+        store.set("bluetooth", "screen_disabled", false)
+        store.set("bluetooth", "preferred_mic", "auto")
+        store.set("bluetooth", "sensing_enabled", true)
+        store.set("bluetooth", "brightness", 50)
+        store.set("bluetooth", "auto_brightness", true)
+        store.set("bluetooth", "dashboard_height", 4)
+        store.set("bluetooth", "dashboard_depth", 2)
+        store.set("bluetooth", "head_up_angle", 30)
+        store.set("bluetooth", "contextual_dashboard", true)
+        store.set("bluetooth", "gallery_mode", false)
+        store.set("bluetooth", "screen_disabled", false)
+        store.set("bluetooth", "button_mode", "photo")
+        store.set("bluetooth", "button_photo_size", "medium")
+        store.set("bluetooth", "button_camera_led", true)
+        store.set("bluetooth", "button_max_recording_time", 10)
+        store.set("bluetooth", "camera_fov", ["fov": 118, "roi_position": 0])
+        store.set("bluetooth", "button_video_width", 1280)
+        store.set("bluetooth", "button_video_height", 720)
+        store.set("bluetooth", "button_video_fps", 30)
+        store.set("bluetooth", "preferred_mic", "auto")
+        store.set("bluetooth", "lc3_frame_size", 60)
+        store.set("bluetooth", "auth_email", "")
+        store.set("bluetooth", "core_token", "")
+        store.set("bluetooth", "should_send_pcm", false)
+        store.set("bluetooth", "should_send_lc3", false)
+        store.set("bluetooth", "should_send_transcript", false)
+        store.set("bluetooth", "bypass_vad", false)
     }
 
     func get(_ category: String, _ key: String) -> Any? {
@@ -110,7 +110,7 @@ class DeviceStore {
         dashboardHeightDebounceTask?.cancel()
         dashboardHeightDebounceTask = Task { @MainActor in
             try? await Task.yield()
-            let h = store.get("core", "dashboard_height") as? Int ?? 4
+            let h = store.get("bluetooth", "dashboard_height") as? Int ?? 4
             DeviceManager.shared.sgc?.setDashboardHeightOnly(h)
         }
     }
@@ -119,18 +119,19 @@ class DeviceStore {
         dashboardDepthDebounceTask?.cancel()
         dashboardDepthDebounceTask = Task { @MainActor in
             try? await Task.yield()
-            let d = store.get("core", "dashboard_depth") as? Int ?? 2
+            let d = store.get("bluetooth", "dashboard_depth") as? Int ?? 2
             DeviceManager.shared.sgc?.setDashboardDepthOnly(d)
         }
     }
 
     /// Apply changes with side effects
     func apply(_ category: String, _ key: String, _ value: Any) {
-        let oldValue = store.get(category, key)
-        store.set(category, key, value)
+        let normalizedCategory = ObservableStore.normalizeCategory(category)
+        let oldValue = store.get(normalizedCategory, key)
+        store.set(normalizedCategory, key, value)
 
         // Trigger hardware updates based on setting changes
-        switch (category, key) {
+        switch (normalizedCategory, key) {
         case ("glasses", "fullyBooted"):
             Bridge.log("STORE: Glasses fullyBooted changed to \(value)")
             // skip if the value is the same as the old value:
@@ -170,11 +171,11 @@ class DeviceStore {
                 Bridge.sendHeadUp(headUp)
             }
 
-        // CORE:
+        // BLUETOOTH:
 
-        case ("core", "brightness"):
+        case ("bluetooth", "brightness"):
             let b = value as? Int ?? 50
-            let auto = store.get("core", "auto_brightness") as? Bool ?? true
+            let auto = store.get("bluetooth", "auto_brightness") as? Bool ?? true
             Task {
                 DeviceManager.shared.sgc?.setBrightness(b, autoMode: auto)
                 DeviceManager.shared.sgc?.sendTextWall("Set brightness to \(b)%")
@@ -182,8 +183,8 @@ class DeviceStore {
                 DeviceManager.shared.sgc?.clearDisplay()
             }
 
-        case ("core", "auto_brightness"):
-            let b = store.get("core", "brightness") as? Int ?? 50
+        case ("bluetooth", "auto_brightness"):
+            let b = store.get("bluetooth", "brightness") as? Int ?? 50
             let auto = value as? Bool ?? true
             let autoBrightnessChanged = (oldValue as? Bool) != auto
             Task {
@@ -197,26 +198,26 @@ class DeviceStore {
                 }
             }
 
-        case ("core", "dashboard_height"):
+        case ("bluetooth", "dashboard_height"):
             scheduleDashboardHeightToGlasses()
 
-        case ("core", "dashboard_depth"):
+        case ("bluetooth", "dashboard_depth"):
             scheduleDashboardDepthToGlasses()
 
-        case ("core", "head_up_angle"):
+        case ("bluetooth", "head_up_angle"):
             if let angle = value as? Int {
                 DeviceManager.shared.sgc?.setHeadUpAngle(angle)
             }
 
-        case ("core", "dashboard_menu_apps"):
+        case ("bluetooth", "dashboard_menu_apps"):
             if let items = value as? [[String: Any]] {
                 DeviceManager.shared.sgc?.setDashboardMenu(items)
             }
 
-        case ("core", "gallery_mode"):
+        case ("bluetooth", "gallery_mode"):
             DeviceManager.shared.sgc?.sendGalleryMode()
 
-        case ("core", "screen_disabled"):
+        case ("bluetooth", "screen_disabled"):
             if let disabled = value as? Bool {
                 if disabled {
                     DeviceManager.shared.sgc?.exit()
@@ -225,52 +226,52 @@ class DeviceStore {
                 }
             }
 
-        case ("core", "button_mode"):
+        case ("bluetooth", "button_mode"):
             DeviceManager.shared.sgc?.sendButtonModeSetting()
 
-        case ("core", "button_photo_size"):
+        case ("bluetooth", "button_photo_size"):
             DeviceManager.shared.sgc?.sendButtonPhotoSettings()
 
-        case ("core", "button_camera_led"):
+        case ("bluetooth", "button_camera_led"):
             DeviceManager.shared.sgc?.sendButtonCameraLedSetting()
 
-        case ("core", "button_max_recording_time"):
+        case ("bluetooth", "button_max_recording_time"):
             DeviceManager.shared.sgc?.sendButtonMaxRecordingTime()
 
-        case ("core", "camera_fov"):
+        case ("bluetooth", "camera_fov"):
             DeviceManager.shared.sgc?.sendCameraFovSetting()
 
-        case ("core", "button_video_width"), ("core", "button_video_height"),
-             ("core", "button_video_fps"):
+        case ("bluetooth", "button_video_width"), ("bluetooth", "button_video_height"),
+             ("bluetooth", "button_video_fps"):
             DeviceManager.shared.sgc?.sendButtonVideoRecordingSettings()
 
-        case ("core", "preferred_mic"):
+        case ("bluetooth", "preferred_mic"):
             if let mic = value as? String {
-                apply("core", "micRanking", MicMap.map[mic] ?? MicMap.map["auto"]!)
+                apply("bluetooth", "micRanking", MicMap.map[mic] ?? MicMap.map["auto"]!)
                 DeviceManager.shared.setMicState()
             }
 
-        case ("core", "offline_captions_running"):
+        case ("bluetooth", "offline_captions_running"):
             if let running = value as? Bool {
                 DeviceManager.shared.setMicState()
             }
 
-        case ("core", "should_send_pcm"):
+        case ("bluetooth", "should_send_pcm"):
             if let pcm = value as? Bool {
                 DeviceManager.shared.setMicState()
             }
 
-        case ("core", "should_send_lc3"):
+        case ("bluetooth", "should_send_lc3"):
             if let lc3 = value as? Bool {
                 DeviceManager.shared.setMicState()
             }
 
-        case ("core", "should_send_transcript"):
+        case ("bluetooth", "should_send_transcript"):
             if let transcript = value as? Bool {
                 DeviceManager.shared.setMicState()
             }
 
-        case ("core", "default_wearable"):
+        case ("bluetooth", "default_wearable"):
             if let wearable = value as? String {
                 Bridge.saveSetting("default_wearable", wearable)
                 if wearable == DeviceTypes.SIMULATED {
@@ -278,7 +279,7 @@ class DeviceStore {
                 }
             }
 
-        case ("core", "device_name"):
+        case ("bluetooth", "device_name"):
             if let name = value as? String {
                 DeviceManager.shared.checkCurrentAudioDevice()
                 // listen for when the audio device is paired and connected

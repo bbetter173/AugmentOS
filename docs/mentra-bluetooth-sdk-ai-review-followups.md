@@ -83,7 +83,8 @@ Validation:
 - Files:
   - `mobile/src/__tests__/app/pairing/scan.test.tsx`
   - `mobile/src/__tests__/app/pairing/success.test.tsx`
-- Current status: still relevant.
+- Current status: fixed in the working tree by making `Platform.OS` overrides
+  configurable and restoring the original value after each test.
 
 The tests redefine `Platform.OS` with `Object.defineProperty(...)` without
 `configurable: true` or `writable: true`. The first redefine can make the

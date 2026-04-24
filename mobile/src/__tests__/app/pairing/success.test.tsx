@@ -72,6 +72,12 @@ jest.mock("@/components/onboarding/OnboardingGuide", () => {
   return {OnboardingGuide: MockOnboardingGuide}
 })
 
+const originalPlatformOS = Platform.OS
+
+function setPlatformOS(os: typeof Platform.OS) {
+  Object.defineProperty(Platform, "OS", {value: os, configurable: true, writable: true})
+}
+
 describe("pairing success screen", () => {
   const clearHistoryAndGoHome = jest.fn()
   const push = jest.fn()
@@ -80,9 +86,13 @@ describe("pairing success screen", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     useSettingsStore.getState().resetAllSettingsLocally()
-    Object.defineProperty(Platform, "OS", {value: "ios"})
+    setPlatformOS("ios")
     ;(useRoute as jest.Mock).mockReturnValue({params: {deviceModel: "Mentra Live"}})
     ;(useNavigationHistory as jest.Mock).mockReturnValue({clearHistoryAndGoHome, push, pushUnder})
+  })
+
+  afterEach(() => {
+    setPlatformOS(originalPlatformOS)
   })
 
   it("stacks missing Mentra Live setup steps in the expected order", async () => {

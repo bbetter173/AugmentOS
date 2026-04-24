@@ -144,6 +144,12 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
+const originalPlatformOS = Platform.OS
+
+function setPlatformOS(os: typeof Platform.OS) {
+  Object.defineProperty(Platform, "OS", {value: os, configurable: true, writable: true})
+}
+
 describe("pairing scan screen", () => {
   const replace = jest.fn()
   const pushUnder = jest.fn()
@@ -158,7 +164,11 @@ describe("pairing scan screen", () => {
     ;(useLocalSearchParams as jest.Mock).mockReturnValue({deviceModel: "Mentra Live"})
     ;(useNavigationHistory as jest.Mock).mockReturnValue({replace, pushUnder, goBack})
     ;(requestFeaturePermissions as jest.Mock).mockResolvedValue(true)
-    Object.defineProperty(Platform, "OS", {value: "ios"})
+    setPlatformOS("ios")
+  })
+
+  afterEach(() => {
+    setPlatformOS(originalPlatformOS)
   })
 
   it("starts a compatible-device search and routes Mentra Live through btclassic on iOS", async () => {
@@ -189,7 +199,7 @@ describe("pairing scan screen", () => {
   })
 
   it("auto-skips directly into pairing when NOTREQUIREDSKIP is discovered", async () => {
-    Object.defineProperty(Platform, "OS", {value: "android"})
+    setPlatformOS("android")
     useGlassesStore.getState().setGlassesInfo({btcConnected: false})
     useBluetoothStore.setState({
       searchResults: [{deviceModel: "Mentra Live", deviceName: "NOTREQUIREDSKIP", deviceAddress: "skip"}],

@@ -1,4 +1,4 @@
-import CoreModule, {WifiSearchResult} from "core"
+import BluetoothSdk, {WifiSearchResult} from "@mentra/bluetooth-sdk"
 import {useFocusEffect} from "expo-router"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {ActivityIndicator, ScrollView, TouchableOpacity, View} from "react-native"
@@ -17,7 +17,7 @@ import showAlert from "@/utils/AlertUtils"
 import WifiCredentialsService from "@/utils/wifi/WifiCredentialsService"
 import {translate} from "@/i18n"
 import {BackgroundTimer} from "@/utils/timers"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 export default function WifiScanScreen() {
   const {theme} = useAppTheme()
@@ -32,7 +32,7 @@ export default function WifiScanScreen() {
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
   const {push, goBack, pushPrevious, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
     useNavigationHistory()
-  const wifiScanResults: WifiSearchResult[] = useCoreStore((state) => state.wifiScanResults)
+  const wifiScanResults: WifiSearchResult[] = useBluetoothStore((state) => state.wifiScanResults)
 
   // if the previous route is in this list, or the second to last route is in this list
   // show / allow the back button:
@@ -124,7 +124,7 @@ export default function WifiScanScreen() {
     }, 15000)
 
     try {
-      await CoreModule.requestWifiScan()
+      await BluetoothSdk.requestWifiScan()
       console.log("WIFI_SCAN: WiFi scan request sent successfully")
     } catch (error) {
       console.error("WIFI_SCAN: Error scanning for WiFi networks:", error)
@@ -156,7 +156,7 @@ export default function WifiScanScreen() {
             onPress: async () => {
               try {
                 console.log(`WIFI_SCAN: Forgetting network: ${selectedNetwork.ssid}`)
-                await CoreModule.forgetWifiNetwork(selectedNetwork.ssid)
+                await BluetoothSdk.forgetWifiNetwork(selectedNetwork.ssid)
                 // Also remove from local saved credentials
                 WifiCredentialsService.removeCredentials(selectedNetwork.ssid)
                 Toast.show({

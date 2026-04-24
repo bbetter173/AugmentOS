@@ -1,13 +1,13 @@
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 import MockDisplayProcessor from "@/services/DisplayProcessor"
 import {useDisplayStore} from "@/stores/display"
 
-jest.mock("core", () => {
-  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
+jest.mock("@mentra/bluetooth-sdk", () => {
+  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
-    default: coreModuleMock,
+    default: bluetoothSdkMock,
   }
 })
 
@@ -92,7 +92,7 @@ describe("SocketComms display events", () => {
         view: "main",
       }),
     )
-    expect(CoreModule.displayEvent).toHaveBeenCalledWith(
+    expect(BluetoothSdk.displayEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         _processed: true,
         view: "main",
@@ -123,7 +123,7 @@ describe("SocketComms display events", () => {
 
     socketComms.handle_display_event(rawEvent)
 
-    expect(CoreModule.displayEvent).toHaveBeenCalledWith(rawEvent)
+    expect(BluetoothSdk.displayEvent).toHaveBeenCalledWith(rawEvent)
     expect(useDisplayStore.getState().dashboardEvent).toEqual(rawEvent)
     expect(consoleErrorSpy).toHaveBeenCalledWith("SOCKET: DisplayProcessor error, using raw event:", expect.any(Error))
     consoleErrorSpy.mockRestore()

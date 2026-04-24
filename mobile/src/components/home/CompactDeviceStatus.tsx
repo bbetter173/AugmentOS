@@ -1,5 +1,5 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule, {GlassesNotReadyEvent} from "core"
+import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
 import {useState, useEffect} from "react"
 import {ActivityIndicator, Image, ImageStyle, Linking, TextStyle, TouchableOpacity, View, ViewStyle} from "react-native"
 
@@ -27,7 +27,7 @@ import {
 } from "@/utils/getGlassesImage"
 
 import MicIcon from "assets/icons/component/MicIcon"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 const getBatteryIcon = (batteryLevel: number): "battery-3" | "battery-2" | "battery-1" | "battery-0" => {
   if (batteryLevel >= 75) return "battery-3"
@@ -57,12 +57,12 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
   const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
   const wifiSsid = useGlassesStore((state) => state.wifiSsid)
-  const searching = useCoreStore((state) => state.searching)
+  const searching = useBluetoothStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
   // Listen for glasses_not_ready event to know when glasses are actually booting
   useEffect(() => {
-    const sub = CoreModule.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
+    const sub = BluetoothSdk.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
       setShowGlassesBooting(true)
     })
     return () => {
@@ -103,12 +103,12 @@ export const CompactDeviceStatus = ({style}: {style?: ViewStyle}) => {
     } finally {
       // setIsCheckingConnectivity(false)
     }
-    await CoreModule.connectDefault()
+    await BluetoothSdk.connectDefault()
   }
 
   const handleConnectOrDisconnect = async () => {
     if (searching || nativeLinkBusy) {
-      await CoreModule.disconnect()
+      await BluetoothSdk.disconnect()
       setIsCheckingConnectivity(false)
       resetSearching()
     } else {

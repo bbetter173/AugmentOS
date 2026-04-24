@@ -4,19 +4,18 @@ import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/Onboardin
 import {translate} from "@/i18n"
 import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useGlassesStore} from "@/stores/glasses"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {View} from "react-native"
-import {ExpoAvRoutePickerView} from "@douglowder/expo-av-route-picker-view"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import CrustModule from "crust"
 
 export default function BtClassicPairingScreen() {
   const {pushPrevious, goBack} = useNavigationHistory()
   const btcConnected = useGlassesStore((state) => state.btcConnected)
-  const otherBtConnected = useCoreStore((state) => state.otherBtConnected)
+  const otherBtConnected = useBluetoothStore((state) => state.otherBtConnected)
   const [deviceName] = useSetting(SETTINGS.device_name.key)
   const {theme} = useAppTheme()
 
@@ -24,7 +23,7 @@ export default function BtClassicPairingScreen() {
 
   const handleSuccess = () => {
     // we should have a device name saved in the core:
-    CoreModule.connectByName(deviceName)
+    BluetoothSdk.connectByName(deviceName)
     pushPrevious()
   }
 

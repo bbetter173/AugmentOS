@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useEffect, useState, useRef, useCallback} from "react"
 import {View, ActivityIndicator} from "react-native"
 
@@ -268,11 +268,11 @@ export default function OtaProgressScreen() {
 
     if (isOtaActive && glassesConnected) {
       // Send initial ping immediately
-      CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
+      BluetoothSdk.ping().catch((err) => console.log("OTA: ping failed:", err))
 
       // Set up interval to ping every 10 seconds
       pingIntervalRef.current = setInterval(() => {
-        CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
+        BluetoothSdk.ping().catch((err) => console.log("OTA: ping failed:", err))
       }, 10000) as unknown as number
 
       return () => {
@@ -562,7 +562,7 @@ export default function OtaProgressScreen() {
         "OTA_TRACK: send_ota_start",
         JSON.stringify({attempt: retryCount + 1, maxRetries: MAX_RETRIES, sequence: [...updateSequenceRef.current]}),
       )
-      await CoreModule.sendOtaStart()
+      await BluetoothSdk.sendOtaStart()
       setOtaStartTime(Date.now())
 
       // Start global session timeout once (covers whole multi-step OTA)
@@ -1403,7 +1403,7 @@ export default function OtaProgressScreen() {
     const completedUpdate = updateSequenceRef.current[currentUpdateIndex]
     if (completedUpdate === "apk") {
       // Clear native store so future version_info events aren't deduped by ObservableStore
-      CoreModule.updateGlasses({buildNumber: ""})
+      BluetoothSdk.updateGlasses({buildNumber: ""})
       // Clear RN store synchronously so check-for-updates sees empty buildNumber on mount
       // (the native bridge call is async and may not complete before navigation)
       useGlassesStore.getState().setGlassesInfo({buildNumber: ""})

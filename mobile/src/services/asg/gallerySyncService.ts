@@ -5,7 +5,7 @@
 
 import * as RNFS from "@dr.pogodin/react-native-fs"
 import NetInfo from "@react-native-community/netinfo"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {AppState, AppStateStatus, Platform} from "react-native"
 import WifiManager from "react-native-wifi-reborn"
 
@@ -652,7 +652,7 @@ class GallerySyncService {
 
     try {
       console.log("[GallerySyncService]   📤 Sending hotspot enable command to glasses...")
-      await CoreModule.setHotspotState(true)
+      await BluetoothSdk.setHotspotState(true)
       console.log("[GallerySyncService]   ✅ Hotspot request sent successfully")
       console.log("[GallerySyncService]   ⏳ Waiting for hotspot_status_change event (timeout: 30s)...")
     } catch (error) {
@@ -910,8 +910,8 @@ class GallerySyncService {
             const finalSSID = await WifiManager.getCurrentWifiSSID()
             console.log(`[GallerySyncService] 📶 Final SSID check before download: "${finalSSID}"`)
             if (Platform.OS === "android") {
-              // Some local builds can have stale generated typings for the core module.
-              ;(CoreModule as any).logCurrentWifiFrequency?.()
+              // Some local builds can have stale generated typings for the Bluetooth SDK module.
+              ;(BluetoothSdk as any).logCurrentWifiFrequency?.()
             }
             if (finalSSID !== hotspotInfo.ssid) {
               console.error(
@@ -1681,9 +1681,7 @@ class GallerySyncService {
       // captures succeeded. If any failed, set it just before the oldest failure
       // so those captures are retried on the next sync.
       const syncWatermark =
-        failedCount > 0 && oldestFailedTimestamp < Infinity
-          ? Math.max(0, oldestFailedTimestamp - 1)
-          : serverTime
+        failedCount > 0 && oldestFailedTimestamp < Infinity ? Math.max(0, oldestFailedTimestamp - 1) : serverTime
       const currentSyncState = await localStorageService.getSyncState()
       await localStorageService.updateSyncState({
         last_sync_time: syncWatermark,
@@ -1941,7 +1939,7 @@ class GallerySyncService {
 
     try {
       console.log("[GallerySyncService] Closing hotspot...")
-      await CoreModule.setHotspotState(false)
+      await BluetoothSdk.setHotspotState(false)
       store.setSyncServiceOpenedHotspot(false)
       store.setHotspotInfo(null)
       console.log("[GallerySyncService] Hotspot closed")
@@ -2000,7 +1998,7 @@ class GallerySyncService {
    */
   async queryGlassesGalleryStatus(): Promise<void> {
     try {
-      await CoreModule.queryGalleryStatus()
+      await BluetoothSdk.queryGalleryStatus()
     } catch (error) {
       console.error("[GallerySyncService] Failed to query gallery status:", error)
     }

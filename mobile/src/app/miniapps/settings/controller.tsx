@@ -1,7 +1,6 @@
 import {ScrollView, Image, View} from "react-native"
 
 import {ConnectControllerButton} from "@/components/glasses/ConnectDeviceButton"
-import {NotConnectedInfo} from "@/components/glasses/info/NotConnectedInfo"
 import {Header, Screen, Icon} from "@/components/ignite"
 import {Spacer} from "@/components/ui/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -14,7 +13,7 @@ import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
 
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 import {EmptyState} from "@/components/glasses/info/EmptyState"
 import {showAlert} from "@/contexts/ModalContext"
@@ -36,7 +35,7 @@ function DeviceSettings() {
     })
     if (result === 1) {
       try {
-        CoreModule.forgetController()
+        BluetoothSdk.forgetController()
       } catch (e) {
         console.log(e)
       }
@@ -56,7 +55,7 @@ function DeviceSettings() {
     })
 
     if (result === 1) {
-      CoreModule.disconnectController()
+      BluetoothSdk.disconnectController()
     }
   }
 

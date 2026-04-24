@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useState, useEffect, useCallback, useMemo, useRef} from "react"
 import {View, Platform, TextInput, FlatList, ActivityIndicator, Image} from "react-native"
 import Toast from "react-native-toast-message"
@@ -36,7 +36,7 @@ export default function NotificationSettingsScreen() {
 
   const loadInstalledApps = async () => {
     try {
-      const installedApps = await CoreModule.getInstalledApps()
+      const installedApps = await BluetoothSdk.getInstalledApps()
 
       // Sort alphabetically by app name
       let sortedApps = installedApps.sort((a: InstalledApp, b: InstalledApp) => a.appName.localeCompare(b.appName))

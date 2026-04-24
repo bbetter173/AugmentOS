@@ -3,17 +3,17 @@ import {waitFor} from "@testing-library/react-native"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
 import mantle from "./MantleManager"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import {coreModuleMock, emitCoreEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
+import {bluetoothSdkMock, emitBluetoothSdkEvent, resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
-jest.mock("core", () => {
-  const {coreModuleMock} = require("../test-utils/mockCoreModule")
+jest.mock("@mentra/bluetooth-sdk", () => {
+  const {bluetoothSdkMock} = require("../test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
-    default: coreModuleMock,
+    default: bluetoothSdkMock,
   }
 })
 
@@ -177,8 +177,8 @@ jest.mock("expo-task-manager", () => ({
 describe("MantleManager", () => {
   beforeAll(async () => {
     jest.useFakeTimers()
-    resetCoreModuleMock()
-    useCoreStore.getState().reset()
+    resetBluetoothSdkMock()
+    useBluetoothStore.getState().reset()
     useGlassesStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
     useDisplayStore.setState({view: "main"})
@@ -191,7 +191,7 @@ describe("MantleManager", () => {
   })
 
   it("syncs native status, routes events, and forwards core setting changes", async () => {
-    expect(coreModuleMock.updateCore).toHaveBeenCalledWith(
+    expect(bluetoothSdkMock.updateBluetoothSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         contextual_dashboard: true,
         core_token: "server-token",
@@ -199,16 +199,16 @@ describe("MantleManager", () => {
       }),
     )
 
-    emitCoreEvent("core_status", {searching: true, otherBtConnected: true})
-    emitCoreEvent("glasses_status", {connected: true, deviceModel: "Mentra Live", batteryLevel: 77})
+    emitBluetoothSdkEvent("bluetooth_status", {searching: true, otherBtConnected: true})
+    emitBluetoothSdkEvent("glasses_status", {connected: true, deviceModel: "Mentra Live", batteryLevel: 77})
 
-    expect(useCoreStore.getState().searching).toBe(true)
-    expect(useCoreStore.getState().otherBtConnected).toBe(true)
+    expect(useBluetoothStore.getState().searching).toBe(true)
+    expect(useBluetoothStore.getState().otherBtConnected).toBe(true)
     expect(useGlassesStore.getState().connected).toBe(true)
     expect(useGlassesStore.getState().deviceModel).toBe("Mentra Live")
     expect(useGlassesStore.getState().batteryLevel).toBe(77)
 
-    emitCoreEvent("photo_response", {
+    emitBluetoothSdkEvent("photo_response", {
       type: "photo_response",
       requestId: "req-1",
       photoUrl: "https://example.com/photo.jpg",
@@ -222,7 +222,7 @@ describe("MantleManager", () => {
       }),
     )
 
-    emitCoreEvent("touch_event", {
+    emitBluetoothSdkEvent("touch_event", {
       gesture_name: "tap",
       timestamp: 999,
     })
@@ -232,7 +232,7 @@ describe("MantleManager", () => {
       timestamp: 999,
     })
 
-    emitCoreEvent("local_transcription", {
+    emitBluetoothSdkEvent("local_transcription", {
       text: "hello world",
       isFinal: true,
       transcribeLanguage: "en-US",
@@ -246,14 +246,14 @@ describe("MantleManager", () => {
       )
     })
 
-    emitCoreEvent("head_up", {up: true})
+    emitBluetoothSdkEvent("head_up", {up: true})
     expect(socketComms.sendHeadPosition).toHaveBeenCalledWith(true)
     await waitFor(() => {
       expect(useDisplayStore.getState().view).toBe("dashboard")
     })
-    ;(coreModuleMock.updateCore as jest.Mock).mockClear()
+    ;(bluetoothSdkMock.updateBluetoothSettings as jest.Mock).mockClear()
     await useSettingsStore.getState().setSetting(SETTINGS.core_token.key, "new-token", false)
-    expect(coreModuleMock.updateCore).toHaveBeenCalledWith(
+    expect(bluetoothSdkMock.updateBluetoothSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         core_token: "new-token",
       }),
@@ -266,7 +266,7 @@ describe("MantleManager", () => {
 
     await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true, false)
 
-    emitCoreEvent("local_transcription", {
+    emitBluetoothSdkEvent("local_transcription", {
       text: "offline words",
       isFinal: true,
       transcribeLanguage: "en-US",
@@ -292,7 +292,7 @@ describe("MantleManager", () => {
     ;(restComms.sendPhoneNotification as jest.Mock).mockClear()
     ;(restComms.sendPhoneNotificationDismissed as jest.Mock).mockClear()
 
-    emitCoreEvent("phone_notification", {
+    emitBluetoothSdkEvent("phone_notification", {
       notificationId: "n-1",
       app: "Calendar",
       title: "Standup",
@@ -301,7 +301,7 @@ describe("MantleManager", () => {
       timestamp: "12345",
       packageName: "com.calendar",
     })
-    emitCoreEvent("phone_notification_dismissed", {
+    emitBluetoothSdkEvent("phone_notification_dismissed", {
       notificationId: "n-1",
       notificationKey: "key-1",
       packageName: "com.calendar",
@@ -329,7 +329,7 @@ describe("MantleManager", () => {
     useGlassesStore.getState().setGlassesInfo({connected: false})
     useGlassesStore.getState().setOtaUpdateAvailable(null)
 
-    emitCoreEvent("ota_update_available", {
+    emitBluetoothSdkEvent("ota_update_available", {
       version_code: 101,
       version_name: "1.0.1",
       updates: ["apk"],
@@ -338,7 +338,7 @@ describe("MantleManager", () => {
     expect(useGlassesStore.getState().otaUpdateAvailable).toBeNull()
 
     useGlassesStore.getState().setGlassesInfo({connected: true})
-    emitCoreEvent("ota_update_available", {
+    emitBluetoothSdkEvent("ota_update_available", {
       version_code: 101,
       version_name: "1.0.1",
       updates: ["apk"],
@@ -352,7 +352,7 @@ describe("MantleManager", () => {
       totalSize: 2048,
     })
 
-    emitCoreEvent("ota_progress", {
+    emitBluetoothSdkEvent("ota_progress", {
       stage: "download",
       status: "PROGRESS",
       progress: 80,
@@ -360,7 +360,7 @@ describe("MantleManager", () => {
       total_bytes: 1000,
       current_update: "apk",
     })
-    emitCoreEvent("ota_progress", {
+    emitBluetoothSdkEvent("ota_progress", {
       stage: "download",
       status: "PROGRESS",
       progress: 50,
@@ -370,7 +370,7 @@ describe("MantleManager", () => {
     })
     expect(useGlassesStore.getState().otaProgress?.progress).toBe(80)
 
-    emitCoreEvent("ota_progress", {
+    emitBluetoothSdkEvent("ota_progress", {
       stage: "install",
       status: "FINISHED",
       progress: 100,

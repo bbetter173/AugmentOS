@@ -3,13 +3,15 @@
  * Orchestrates STT model downloads independently of UI lifecycle
  */
 
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {Platform} from "react-native"
 import * as RNFS from "@dr.pogodin/react-native-fs"
 
+// eslint-disable-next-line import/no-unresolved
 import {useModelDownloadStore, selectCanStartDownload} from "@/stores/modelDownload"
 
 import STTModelManager, {ModelConfig} from "./STTModelManager"
+// eslint-disable-next-line import/no-unresolved
 import {modelDownloadNotifications} from "./modelDownloadNotifications"
 
 class ModelDownloadService {
@@ -201,7 +203,7 @@ class ModelDownloadService {
 
     // Extract using native module
     console.log(`[ModelDownloadService] Calling native extractTarBz2 for ${Platform.OS}...`)
-    const extractionResult = await CoreModule.extractTarBz2(tempPath, finalPath)
+    const extractionResult = await BluetoothSdk.extractTarBz2(tempPath, finalPath)
 
     if (!extractionResult) {
       throw new Error("Native extraction returned failure status")
@@ -227,7 +229,7 @@ class ModelDownloadService {
 
     // Validate model
     const modelPath = STTModelManager.getModelPath(model.id)
-    const isValid = await CoreModule.validateSttModel(modelPath)
+    const isValid = await BluetoothSdk.validateSttModel(modelPath)
 
     if (!isValid) {
       throw new Error("Model validation failed")
@@ -235,10 +237,10 @@ class ModelDownloadService {
 
     // Set as current model
     STTModelManager.setCurrentModelId(model.id)
-    CoreModule.setSttModelDetails(modelPath, model.languageCode)
+    BluetoothSdk.setSttModelDetails(modelPath, model.languageCode)
 
     // Restart transcriber to initialize with the new model
-    await CoreModule.restartTranscriber()
+    await BluetoothSdk.restartTranscriber()
 
     console.log("[ModelDownloadService] Model activated")
   }

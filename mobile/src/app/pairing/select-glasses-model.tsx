@@ -1,5 +1,5 @@
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useFocusEffect} from "expo-router"
 import {useCallback} from "react"
 import {View, TouchableOpacity, Platform, ScrollView, Image} from "react-native"
@@ -20,14 +20,14 @@ import GlassView from "@/components/ui/GlassView"
 // import {useLocalSearchParams} from "expo-router"
 
 export default function SelectGlassesModelScreen() {
-  const {theme, themed} = useAppTheme()
+  const {theme} = useAppTheme()
   const {push, goBack} = useNavigationHistory()
   const [superMode] = useSetting(SETTINGS.super_mode.key)
 
   // when this screen is focused, forget any glasses that may be paired:
   useFocusEffect(
     useCallback(() => {
-      CoreModule.forget()
+      BluetoothSdk.forget()
       return () => {}
     }, []),
   )
@@ -105,9 +105,7 @@ export default function SelectGlassesModelScreen() {
                 <GlassView className="bg-primary-foreground flex-col items-center justify-center p-6 rounded-2xl overflow-hidden">
                   <View className="flex-row gap-4">
                     <View className="flex-col flex-1 justify-center">
-                      <View className="justify-center min-h-6">
-                        {getManufacturerLogo(glasses.deviceModel)}
-                      </View>
+                      <View className="justify-center min-h-6">{getManufacturerLogo(glasses.deviceModel)}</View>
                       <Text className="text-2xl text-foreground" text={glasses.deviceModel} />
                     </View>
                     <Image

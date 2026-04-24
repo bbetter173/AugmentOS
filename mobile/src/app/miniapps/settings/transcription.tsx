@@ -1,5 +1,5 @@
 import {useFocusEffect} from "@react-navigation/native"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useState} from "react"
 import {ActivityIndicator, BackHandler, Platform, ScrollView, View} from "react-native"
 
@@ -35,7 +35,7 @@ export default function TranscriptionSettingsScreen() {
 
   const stopAllApps = useStopAllApplets()
 
-  const handleToggleOfflineMode = () => {
+  const _handleToggleOfflineMode = () => {
     const title = offlineMode ? "Disable Offline Mode?" : "Enable Offline Mode?"
     const message = offlineMode
       ? "Switching to online mode will close all offline-only apps and allow you to use all online apps."
@@ -140,7 +140,7 @@ export default function TranscriptionSettingsScreen() {
     const now = Date.now()
     setLastRestartTime(now)
     await STTModelManager.activateModel(modelId)
-    await CoreModule.restartTranscriber()
+    await BluetoothSdk.restartTranscriber()
   }
 
   const handleModelChange = async (modelId: string) => {

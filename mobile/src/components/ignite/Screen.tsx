@@ -288,7 +288,7 @@ export function Screen(props: ScreenProps & {ref?: any; className?: string}) {
           style={[$styles.flex1, KeyboardAvoidingViewProps?.style]}>
           {isNonScrolling(props.preset) ? <ScreenWithoutScrolling {...props} /> : <ScreenWithScrolling {...props} />}
         </KeyboardAvoidingView>
-        {/* {debugCoreStatusBarEnabled && <CoreStatusBar />} */}
+        {/* {debugBluetoothStatusBarEnabled && <BluetoothStatusBar />} */}
       </View>
     </View>
   )

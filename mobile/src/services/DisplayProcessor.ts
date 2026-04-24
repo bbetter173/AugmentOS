@@ -30,7 +30,7 @@ import {
 
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import CoreModule, {GlassesStatus} from "core"
+import BluetoothSdk, {GlassesStatus} from "@mentra/bluetooth-sdk"
 
 // =============================================================================
 // Types
@@ -116,7 +116,7 @@ export interface DisplayProcessorOptions {
 
 /**
  * Placeholder values that can be replaced in display text.
- * These match the placeholders used in CoreManager.kt/CoreManager.swift
+ * These match the placeholders used in DeviceManager.kt/DeviceManager.swift
  */
 interface PlaceholderValues {
   /** Current time in 12-hour format (e.g., "2:30 PM") */
@@ -291,8 +291,8 @@ export class DisplayProcessor {
       console.log(`DISPLAY_PROCESSOR: Initialized DisplayProcessor with default wearable: ${defaultWearable}`)
     }
 
-    // subscribe to core status changes:
-    CoreModule.addListener("glasses_status", (changed: Partial<GlassesStatus>) => {
+    // subscribe to Bluetooth status changes:
+    BluetoothSdk.addListener("glasses_status", (changed: Partial<GlassesStatus>) => {
       if (changed.deviceModel) {
         this.setDeviceModel(changed.deviceModel)
       }

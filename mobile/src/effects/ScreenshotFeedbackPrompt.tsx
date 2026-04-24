@@ -5,7 +5,7 @@ import * as ScreenCapture from "expo-screen-capture"
 import {push} from "@/contexts/NavigationHistoryContext"
 import {showAlert} from "@/contexts/ModalContext"
 import {translate} from "@/i18n"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 export function ScreenshotFeedbackPrompt() {
   useEffect(() => {
@@ -13,7 +13,7 @@ export function ScreenshotFeedbackPrompt() {
 
     let subscription: ReturnType<typeof ScreenCapture.addScreenshotListener> | null = null
 
-    CoreModule.isBetaBuild().then((isBeta) => {
+    BluetoothSdk.isBetaBuild().then((isBeta) => {
       if (!isBeta) return
 
       subscription = ScreenCapture.addScreenshotListener(async () => {

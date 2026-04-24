@@ -31,7 +31,7 @@ config.resolver.assetExts = [...config.resolver.assetExts, "html"]
 
 // Watch the core and cloud modules for changes
 config.watchFolders = [
-  path.resolve(__dirname, "./modules/core"),
+  path.resolve(__dirname, "./modules/bluetooth-sdk"),
   path.resolve(__dirname, "../cloud/packages/types/src"),
   path.resolve(__dirname, "../cloud/packages/display-utils/src"),
 ]

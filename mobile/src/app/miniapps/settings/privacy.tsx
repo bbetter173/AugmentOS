@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useEffect, useState} from "react"
 import {AppState, Platform, ScrollView} from "react-native"
 
@@ -30,7 +30,7 @@ export default function PrivacySettingsScreen() {
       console.log("Checking permissions in PrivacySettingsScreen")
       // Check notification permissions
       if (Platform.OS === "android") {
-        const hasNotificationAccess = await CoreModule.hasNotificationListenerPermission()
+        const hasNotificationAccess = await BluetoothSdk.hasNotificationListenerPermission()
         setNotificationsEnabled(hasNotificationAccess)
       }
 
@@ -48,7 +48,7 @@ export default function PrivacySettingsScreen() {
 
   const checkPermissions = async () => {
     if (Platform.OS === "android") {
-      const hasNotificationAccess = await CoreModule.hasNotificationListenerPermission()
+      const hasNotificationAccess = await BluetoothSdk.hasNotificationListenerPermission()
 
       // If permission was granted while away, enable notifications and start service
       if (hasNotificationAccess && !notificationsEnabled) {
@@ -137,7 +137,7 @@ export default function PrivacySettingsScreen() {
       await checkAndRequestNotificationAccessSpecialPermission()
 
       // Re-check permissions after the request
-      const hasAccess = await CoreModule.hasNotificationListenerPermission()
+      const hasAccess = await BluetoothSdk.hasNotificationListenerPermission()
       if (hasAccess) {
         setNotificationsEnabled(true)
       }

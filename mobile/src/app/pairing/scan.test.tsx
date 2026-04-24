@@ -1,8 +1,8 @@
-jest.mock("core", () => {
-  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
+jest.mock("@mentra/bluetooth-sdk", () => {
+  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
-    default: coreModuleMock,
+    default: bluetoothSdkMock,
   }
 })
 
@@ -134,15 +134,15 @@ import {render, fireEvent, waitFor} from "@testing-library/react-native"
 import type {ReactNode} from "react"
 import {Platform} from "react-native"
 
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {requestFeaturePermissions} from "@/utils/PermissionsUtils"
 import SelectGlassesBluetoothScreen from "./scan"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import {resetCoreModuleMock} from "@/test-utils/mockCoreModule"
+import {resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 describe("pairing scan screen", () => {
   const replace = jest.fn()
@@ -150,9 +150,9 @@ describe("pairing scan screen", () => {
   const goBack = jest.fn()
 
   beforeEach(() => {
-    resetCoreModuleMock()
+    resetBluetoothSdkMock()
     jest.clearAllMocks()
-    useCoreStore.getState().reset()
+    useBluetoothStore.getState().reset()
     useGlassesStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
     ;(useLocalSearchParams as jest.Mock).mockReturnValue({deviceModel: "Mentra Live"})
@@ -162,7 +162,7 @@ describe("pairing scan screen", () => {
   })
 
   it("starts a compatible-device search and routes Mentra Live through btclassic on iOS", async () => {
-    useCoreStore.setState({
+    useBluetoothStore.setState({
       searchResults: [
         {deviceModel: "Mentra Live", deviceName: "MENTRA_LIVE_BLE_001", deviceAddress: "a"},
         {deviceModel: "Even Realities G1", deviceName: "OTHER", deviceAddress: "b"},
@@ -172,7 +172,7 @@ describe("pairing scan screen", () => {
     const {getByText} = render(<SelectGlassesBluetoothScreen />)
 
     await waitFor(() => {
-      expect(CoreModule.findCompatibleDevices).toHaveBeenCalledWith("Mentra Live")
+      expect(BluetoothSdk.findCompatibleDevices).toHaveBeenCalledWith("Mentra Live")
     })
 
     fireEvent.press(getByText("001"))
@@ -191,7 +191,7 @@ describe("pairing scan screen", () => {
   it("auto-skips directly into pairing when NOTREQUIREDSKIP is discovered", async () => {
     Object.defineProperty(Platform, "OS", {value: "android"})
     useGlassesStore.getState().setGlassesInfo({btcConnected: false})
-    useCoreStore.setState({
+    useBluetoothStore.setState({
       searchResults: [{deviceModel: "Mentra Live", deviceName: "NOTREQUIREDSKIP", deviceAddress: "skip"}],
     })
 
@@ -202,7 +202,7 @@ describe("pairing scan screen", () => {
         deviceModel: "Mentra Live",
         deviceName: "NOTREQUIREDSKIP",
       })
-      expect(CoreModule.connectByName).not.toHaveBeenCalled()
+      expect(BluetoothSdk.connectByName).not.toHaveBeenCalled()
     })
   })
 })

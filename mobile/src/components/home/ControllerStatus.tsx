@@ -1,26 +1,14 @@
-import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule, {GlassesNotReadyEvent} from "core"
-import {useState, useEffect} from "react"
-import {ActivityIndicator, Image, Linking, TouchableOpacity, View, ViewStyle} from "react-native"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
+import {ActivityIndicator, Image, TouchableOpacity, View} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
-import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {showAlert} from "@/utils/AlertUtils"
-import {checkConnectivityRequirementsUI} from "@/utils/PermissionsUtils"
-import {
-  getEvenRealitiesG1Image,
-  getGlassesClosedImage,
-  getGlassesImage,
-  getGlassesOpenImage,
-} from "@/utils/getGlassesImage"
-
-import MicIcon from "assets/icons/component/MicIcon"
-import {useCoreStore} from "@/stores/core"
+import {getGlassesImage} from "@/utils/getGlassesImage"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -29,21 +17,20 @@ const getBatteryIcon = (batteryLevel: number): string => {
   return "battery-0"
 }
 
-export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
-  const {themed, theme} = useAppTheme()
+export const ControllerStatus = () => {
+  const {theme} = useAppTheme()
   const {push} = useNavigationHistory()
   const [defaultController] = useSetting(SETTINGS.default_controller.key)
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const controllerFullyBooted = useGlassesStore((state) => state.controllerFullyBooted)
-  const features = getModelCapabilities(defaultController)
   const controllerBatteryLevel = useGlassesStore((state) => state.controllerBatteryLevel)
-  const isSearching = useCoreStore((state) => state.searchingController)
+  const isSearching = useBluetoothStore((state) => state.searchingController)
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await CoreModule.disconnectController()
+      await BluetoothSdk.disconnectController()
     } else {
-      await CoreModule.connectDefaultController()
+      await BluetoothSdk.connectDefaultController()
     }
   }
 

@@ -14,14 +14,14 @@ import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
 
 import {Capabilities, DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 import OtaProgressSection from "@/components/glasses/OtaProgressSection"
 import {BatteryStatus} from "@/components/glasses/info/BatteryStatus"
 import {EmptyState} from "@/components/glasses/info/EmptyState"
 import {ButtonSettings} from "@/components/glasses/settings/ButtonSettings"
 import BrightnessSetting from "@/components/settings/BrightnessSetting"
-import {useApplets, useAppletStatusStore} from "@/stores/applets"
+import {useApplets} from "@/stores/applets"
 // import showAlert from "@/utils/AlertUtils"
 import {showAlert} from "@/contexts/ModalContext"
 
@@ -37,7 +37,7 @@ function DeviceSettings() {
   const [defaultButtonActionApp, setDefaultButtonActionApp] = useSetting(SETTINGS.default_button_action_app.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
 
-  const {push, goBack} = useNavigationHistory()
+  const {push} = useNavigationHistory()
   const applets = useApplets()
   const features: Capabilities = getModelCapabilities(defaultWearable)
 
@@ -56,7 +56,7 @@ function DeviceSettings() {
       options: {allowDismiss: false},
     })
     if (result === 1) {
-      CoreModule.forget()
+      BluetoothSdk.forget()
       // useAppletStatusStore.getState().stopAllApplets()
       // useAppletStatusStore.getState().refreshApplets()
       // // give us a second to forget the glasses before going back
@@ -75,7 +75,7 @@ function DeviceSettings() {
     })
 
     if (result === 1) {
-      CoreModule.disconnect()
+      BluetoothSdk.disconnect()
     }
   }
 

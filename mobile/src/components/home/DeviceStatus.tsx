@@ -1,5 +1,5 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule, {GlassesNotReadyEvent} from "core"
+import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
 import {useState, useEffect} from "react"
 import {ActivityIndicator, Image, TouchableOpacity, View, ViewStyle} from "react-native"
 import GlassView from "@/components/ui/GlassView"
@@ -21,7 +21,7 @@ import {
 } from "@/utils/getGlassesImage"
 
 import MicIcon from "assets/icons/component/MicIcon"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -46,12 +46,12 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
   const charging = useGlassesStore((state) => state.charging)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const searching = useCoreStore((state) => state.searching)
+  const searching = useBluetoothStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
   // Listen for glasses_not_ready event to know when glasses are actually booting
   useEffect(() => {
-    const sub = CoreModule.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
+    const sub = BluetoothSdk.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
       setShowGlassesBooting(true)
     })
     return () => {
@@ -92,12 +92,12 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
     } finally {
       // setIsCheckingConnectivity(false)
     }
-    await CoreModule.connectDefault()
+    await BluetoothSdk.connectDefault()
   }
 
   const handleConnectOrDisconnect = async () => {
     if (searching || nativeLinkBusy) {
-      await CoreModule.disconnect()
+      await BluetoothSdk.disconnect()
       setIsCheckingConnectivity(false)
       resetSearching()
     } else {
@@ -124,12 +124,12 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   let isSearching = searching || isCheckingConnectivity || wasSearching || nativeLinkBusy
-  let connectingText = translate("home:connectingGlasses")
+  let _connectingText = translate("home:connectingGlasses")
   // Only show booting message when we've received a glasses_not_ready event
   if (showGlassesBooting) {
-    connectingText = "Glasses are booting..."
+    _connectingText = "Glasses are booting..."
   } else if (nativeLinkBusy && !searching) {
-    connectingText = translate("glasses:glassesAreReconnecting")
+    _connectingText = translate("glasses:glassesAreReconnecting")
   }
 
   const features = getModelCapabilities(defaultWearable)

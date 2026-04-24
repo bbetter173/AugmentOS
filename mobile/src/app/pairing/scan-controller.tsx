@@ -1,4 +1,4 @@
-import CoreModule, {DeviceSearchResult} from "core"
+import BluetoothSdk, {DeviceSearchResult} from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"
@@ -17,7 +17,7 @@ import showAlert from "@/utils/AlertUtils"
 import {PermissionFeatures, requestFeaturePermissions} from "@/utils/PermissionsUtils"
 import {getGlassesOpenImage} from "@/utils/getGlassesImage"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {useCoreStore} from "@/stores/core"
+import {useBluetoothStore} from "@/stores/bluetooth"
 import GlassView from "@/components/ui/GlassView"
 
 export default function SelectGlassesBluetoothScreen() {
@@ -27,7 +27,7 @@ export default function SelectGlassesBluetoothScreen() {
   const [showTroubleshootingModal, setShowTroubleshootingModal] = useState(false)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const [_deviceName, setDeviceName] = useSetting(SETTINGS.device_name.key)
-  const searchResults = useCoreStore((state) => state.searchResults)
+  const searchResults = useBluetoothStore((state) => state.searchResults)
   const [rememberedSearchResults, setRememberedSearchResults] = useState<DeviceSearchResult[]>(searchResults)
 
   // useFocusEffect(
@@ -37,8 +37,8 @@ export default function SelectGlassesBluetoothScreen() {
   // )
 
   focusEffectPreventBack(() => {
-    CoreModule.disconnectController()
-    CoreModule.forgetController()
+    BluetoothSdk.disconnectController()
+    BluetoothSdk.forgetController()
     goBack()
   }, true)
 
@@ -51,7 +51,7 @@ export default function SelectGlassesBluetoothScreen() {
 
   useEffect(() => {
     const initializeAndSearchForDevices = async () => {
-      CoreModule.findCompatibleDevices(deviceModel)
+      BluetoothSdk.findCompatibleDevices(deviceModel)
     }
 
     initializeAndSearchForDevices()
@@ -89,7 +89,7 @@ export default function SelectGlassesBluetoothScreen() {
     const deviceTypesWithBtClassic = [DeviceTypes.LIVE]
     if (Platform.OS === "android" || btcConnected || !deviceTypesWithBtClassic.includes(deviceModel as DeviceTypes)) {
       setTimeout(() => {
-        CoreModule.connectByName(deviceName)
+        BluetoothSdk.connectByName(deviceName)
       }, 2000)
       replace("/pairing/loading", {deviceModel: deviceModel, deviceName: deviceName})
       return
@@ -123,9 +123,7 @@ export default function SelectGlassesBluetoothScreen() {
     })
   }, [searchResults])
 
-  const visibleResults = rememberedSearchResults.filter(
-    (r) => r.deviceModel === deviceModel,
-  )
+  const visibleResults = rememberedSearchResults.filter((r) => r.deviceModel === deviceModel)
 
   return (
     <Screen preset="fixed" safeAreaEdges={["bottom"]} extraAndroidInsets>

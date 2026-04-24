@@ -65,8 +65,8 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
-  debug_core_status_bar: {
-    key: "debug_core_status_bar",
+  debug_bluetooth_status_bar: {
+    key: "debug_bluetooth_status_bar",
     defaultValue: () => false,
     writable: true,
     saveOnServer: true,
@@ -256,7 +256,7 @@ export const SETTINGS: Record<string, Setting> = {
     persist: true,
   },
 
-  // core settings:
+  // Bluetooth SDK settings:
   sensing_enabled: {
     key: "sensing_enabled",
     defaultValue: () => true,
@@ -545,9 +545,9 @@ export const SETTINGS: Record<string, Setting> = {
 
 export const OFFLINE_APPLETS: string[] = ["com.mentra.livecaptions", "com.mentra.camera"]
 
-// these settings are automatically synced to the core:
-const CORE_SETTINGS_KEYS: string[] = [
-  // core settings:
+// these settings are automatically synced to the Bluetooth SDK:
+const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
+  // Bluetooth SDK settings:
   SETTINGS.sensing_enabled.key,
   SETTINGS.power_saving_mode.key,
   SETTINGS.always_on_status_bar.key,
@@ -611,7 +611,7 @@ interface SettingsState {
   // Utility methods
   getRestUrl: () => string
   getWsUrl: () => string
-  getCoreSettings: () => Record<string, any>
+  getBluetoothSdkSettings: () => Record<string, any>
   resetAllSettingsLocally: () => void
 }
 
@@ -794,15 +794,15 @@ export const useSettingsStore = create<SettingsState>()(
       const secure = url.protocol === "https:"
       return `${secure ? "wss" : "ws"}://${url.hostname}:${url.port || (secure ? 443 : 80)}/glasses-ws`
     },
-    getCoreSettings: () => {
+    getBluetoothSdkSettings: () => {
       const state = get()
-      const coreSettings: Record<string, any> = {}
+      const bluetoothSdkSettings: Record<string, any> = {}
       Object.values(SETTINGS).forEach((setting) => {
-        if (CORE_SETTINGS_KEYS.includes(setting.key)) {
-          coreSettings[setting.key] = state.getSetting(setting.key)
+        if (BLUETOOTH_SDK_SETTINGS_KEYS.includes(setting.key)) {
+          bluetoothSdkSettings[setting.key] = state.getSetting(setting.key)
         }
       })
-      return coreSettings
+      return bluetoothSdkSettings
     },
     resetAllSettingsLocally: () => {
       set((_state) => ({

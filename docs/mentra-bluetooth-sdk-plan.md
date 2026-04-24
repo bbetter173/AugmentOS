@@ -803,7 +803,9 @@ Initial contents:
 - `docs/hardware-integration.md`
 - `docs/troubleshooting.md`
 - `docs/production-checklist.md`
-- `examples/react-native`
+- `examples/android`
+- `examples/ios`
+- `examples/react-native` only if React Native becomes a customer-facing target again
 
 The private repo should be the customer-facing source of truth for:
 
@@ -819,7 +821,7 @@ The private repo should be the customer-facing source of truth for:
 
 ### 5.3 Example App
 
-The private repo should include bare native examples demonstrating:
+The private repo should include bare native examples demonstrating the first-principles customer contract:
 
 - Device scanning/discovery
 - Connection management
@@ -827,6 +829,8 @@ The private repo should include bare native examples demonstrating:
 - Display clearing
 - Status subscriptions
 - Button/battery event handling
+
+These examples live in `Mentra-Bluetooth-SDK-Partner-Kit`, not this monorepo. This repo owns SDK implementation, native artifact publishing, and MentraOS adapter/regression tests. If this repo needs local sample projects for CI mechanics, they should mirror the Partner Kit examples rather than becoming the customer-facing source of truth.
 
 React Native / Expo docs can remain a small MentraOS adapter note unless/until React Native becomes an external product requirement.
 
@@ -840,6 +844,8 @@ Detailed platform plans:
 
 - Android: [Mentra Bluetooth SDK Android Native API Plan](./mentra-bluetooth-sdk-android-native-api-plan.md)
 - iOS: [Mentra Bluetooth SDK iOS Native API Plan](./mentra-bluetooth-sdk-ios-native-api-plan.md)
+
+The platform-specific docs are the authoritative source for native API shape. The main plan should describe boundaries, migration order, and validation requirements so we do not accidentally maintain three drifting method lists.
 
 ### 6.0 Store Sync Decision
 
@@ -865,88 +871,61 @@ Phase 6 should move toward this boundary:
 - Keep `updateBluetoothSettings(...)`, `"core"` category normalization, and `save_setting` only as compatibility plumbing while MentraOS migrates.
 - Do not document store blob syncing in the Partner Kit or customer-facing native API docs.
 
+### 6.0.1 Native Packaging Boundary
+
+The native SDK must be packaged as native artifacts first, with React Native / Expo as an adapter:
+
+- Android bare artifact: `com.mentra:bluetooth-sdk`, with no Expo Gradle plugin, no `expo-modules-core` project dependency, and no React Native lifecycle assumptions.
+- Android Expo adapter: an Expo module / npm package that depends on the bare artifact and forwards events to MentraOS.
+- iOS bare artifact: `MentraBluetoothSDK` CocoaPod, with no `ExpoModulesCore` dependency and source globs that exclude Expo module files.
+- iOS Expo adapter: a pod/subspec/module that includes `BluetoothSdkModule.swift`, depends on `MentraBluetoothSDK`, and owns Expo event forwarding.
+- React Native / Expo docs stay internal to MentraOS unless React Native becomes a customer-facing SDK target again.
+
+Packaging validation must use fresh bare apps that consume the native artifacts, not only monorepo project references.
+
 ### 6.1 Public Android API
 
-Create a stable Kotlin/Java facade, for example:
+Create a stable Kotlin/Java facade, as detailed in the Android native API plan. At this level, the contract is:
 
-```kotlin
-class MentraBluetoothSdk private constructor(
-    private val context: Context,
-    private val listener: MentraBluetoothSdkListener,
-) {
-    companion object {
-        fun initialize(context: Context, listener: MentraBluetoothSdkListener): MentraBluetoothSdk
-    }
-
-    fun getGlassesStatus(): GlassesStatus
-    fun getBluetoothStatus(): BluetoothStatus
-    fun scan(model: String)
-    fun connectDefault()
-    fun connectByName(deviceName: String)
-    fun disconnect()
-    fun forget()
-    fun displayText(request: DisplayTextRequest)
-    fun clearDisplay()
-    fun setMicState(sendPcmData: Boolean, sendTranscript: Boolean, bypassVad: Boolean)
-}
-
-interface MentraBluetoothSdkListener {
-    fun onGlassesStatusChanged(status: GlassesStatusUpdate)
-    fun onBluetoothStatusChanged(status: BluetoothStatusUpdate)
-    fun onEvent(event: MentraBluetoothEvent)
-    fun onLog(message: String)
-}
-```
+- Native apps initialize a `MentraBluetoothSdk` facade with an Android application context and listener.
+- Public callers use typed commands and typed callbacks, not `DeviceManager`, `DeviceStore`, `Bridge`, raw categories, or `update("bluetooth", ...)`.
+- The base v1 API should cover scan/connect/disconnect/forget, status snapshots, display text/event/clear/dashboard, core display settings, mic state, and permission helpers.
+- Advanced features such as camera/gallery, media streaming, OTA, local STT, RGB LEDs, controller pairing, and diagnostics should be clearly grouped behind capability APIs or advanced methods.
+- Settings currently driven by `DeviceStore.apply()` need typed methods or typed settings objects before blob sync can be removed: brightness, auto brightness, dashboard height/depth/menu, head-up angle, screen disabled, gallery mode, button mode, button photo settings, button video settings, button camera LED, button max recording time, camera FOV, preferred mic, mic routing, and offline caption/STT flags.
 
 Android extraction tasks:
 
 - Add public Kotlin data classes for status, search results, display requests, and events.
-- Move SDK initialization out of `BluetoothSdkModule` and into the native facade.
-- Make `Bridge.initialize(context, callback)` usable without Expo/React Native.
+- Add an internal event sink abstraction before changing behavior so native listeners and the Expo adapter can share the same event stream.
+- Move SDK initialization out of `BluetoothSdkModule` and into the native facade with explicit application-context ownership.
+- Remove process-wide `Bridge.getContext()` dependencies where practical by passing context through SDK-owned lifecycle objects.
 - Ensure `DeviceManager` is controlled through the facade, not exposed as public API.
 - Remove Android Gradle dependency on Expo module build plugins from the bare SDK artifact.
 - Keep an Expo/RN adapter module that depends on the native SDK facade.
-- Create a tiny bare Android sample app that uses Maven/local Gradle dependency and the public facade.
+- Ensure the published Maven POM resolves SDK dependencies, including `lc3Lib`, without monorepo `project(...)` dependencies.
+- Create a tiny bare Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit` that uses Maven/local Gradle dependency and the public facade.
 
 ### 6.2 Public iOS API
 
-Create a stable Swift facade, for example:
+Create a stable Swift facade, as detailed in the iOS native API plan. At this level, the contract is:
 
-```swift
-public final class MentraBluetoothSDK {
-    public weak var delegate: MentraBluetoothSDKDelegate?
-
-    public init(configuration: MentraBluetoothSDKConfiguration = .default)
-
-    public func getGlassesStatus() async -> GlassesStatus
-    public func getBluetoothStatus() async -> BluetoothStatus
-    public func scan(model: String)
-    public func connectDefault()
-    public func connectByName(_ deviceName: String)
-    public func disconnect()
-    public func forget()
-    public func displayText(_ request: DisplayTextRequest)
-    public func clearDisplay()
-    public func setMicState(sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool)
-}
-
-public protocol MentraBluetoothSDKDelegate: AnyObject {
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceiveEvent event: MentraBluetoothEvent)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didLog message: String)
-}
-```
+- Native apps initialize `MentraBluetoothSDK`, set a delegate, and optionally consume an async event stream.
+- Public callers use Swift structs/enums and delegate callbacks, not `DeviceManager`, `DeviceStore`, `Bridge`, raw categories, or `update("bluetooth", ...)`.
+- The base v1 API should cover scan/connect/disconnect/forget, status snapshots, display text/event/clear/dashboard, core display settings, mic state, and permission/capability helpers.
+- Advanced features such as camera/gallery, media streaming, OTA, local STT, RGB LEDs, controller pairing, and diagnostics should be clearly grouped behind capability APIs or advanced methods.
+- Settings currently driven by `DeviceStore.apply()` need typed methods or typed settings objects before blob sync can be removed: brightness, auto brightness, dashboard height/depth/menu, head-up angle, screen disabled, gallery mode, button mode, button photo settings, button video settings, button camera LED, button max recording time, camera FOV, preferred mic, mic routing, and offline caption/STT flags.
 
 iOS extraction tasks:
 
 - Add public Swift structs/enums for status, search results, display requests, and events.
+- Add an internal event sink abstraction before changing behavior so the Swift facade and Expo adapter can share the same event stream.
 - Make the public facade the only supported external API; keep `DeviceManager` internal.
 - Make event emission work through delegate/closure callbacks without Expo/React Native.
 - Remove `ExpoModulesCore` from the bare SDK podspec.
+- Split pod source globs so the bare pod excludes `BluetoothSdkModule.swift` and any Expo-only files.
 - Keep an Expo/RN adapter pod/module that depends on the native SDK facade.
 - Add or defer SPM support based on dependency feasibility; CocoaPods is the first native target.
-- Create a tiny bare iOS sample app that uses the CocoaPod and public facade.
+- Create a tiny bare iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit` that uses the CocoaPod and public facade.
 
 ### 6.3 MentraOS Adapter
 
@@ -1021,17 +1000,40 @@ Update `Mentra-Bluetooth-SDK-Partner-Kit` to lead with:
 - Bare iOS getting started
 - Native API reference
 - Permission setup by platform
-- Native sample apps
+- Native sample apps under `examples/android` and `examples/ios`
 - React Native/Expo adapter note for MentraOS only
+
+#### 6.4.1 Partner Kit Example App Coverage
+
+The Partner Kit native examples are customer-facing examples, but they should also act as early integration smoke tests for the public native API shape. They should stay intentionally small and verify the base SDK path before advanced features:
+
+- Initialize the native SDK from a normal bare Android or bare iOS app.
+- Declare platform permissions and request runtime permissions where the OS requires it.
+- Subscribe to typed status, discovery, log, and error callbacks.
+- Scan for Mentra Live glasses.
+- Connect to a discovered device or fall back to the saved/default device.
+- Display a simple text payload.
+- Apply at least one typed core hardware setting, currently brightness and dashboard position.
+- Clear the display.
+- Disconnect and release SDK resources through `close()` / `invalidate()`.
+- Avoid React Native / Expo APIs and avoid raw native store sync.
+
+Until the native facades exist, validation is limited to static project checks such as Android XML parsing, iOS plist/project parsing, Podfile syntax, and Xcode project discovery. Once the facades and local artifacts exist, the examples become real build gates:
+
+- Android: publish `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib` to Maven local, then run the Partner Kit Android example `assembleDebug`.
+- iOS: point the Partner Kit Podfile at the local `MentraBluetoothSDK` podspec, run `pod install`, then run `xcodebuild` for the iOS example.
 
 ### 6.5 Validation
 
 Phase 6 is not complete until:
 
-- Bare Android sample app builds and can initialize the SDK.
-- Bare iOS sample app runs `pod install`, builds, and can initialize the SDK.
+- Bare Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit` builds and can initialize the SDK.
+- Bare iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit` runs `pod install`, builds, and can initialize the SDK.
 - MentraOS still builds and uses the SDK through the Expo adapter.
 - `podspec` and Gradle publication no longer require Expo modules for native consumers.
+- Published/local Android artifacts resolve without monorepo-only `project(...)` dependencies.
+- The bare iOS pod source list excludes Expo adapter files.
+- Advanced/heavy features are either explicitly part of v1 or documented as optional capability surfaces.
 - Partner Kit docs match the native-first integration path.
 
 ---
@@ -1157,7 +1159,10 @@ Keep focused regressions for the flows most likely to break during the refactor:
 
 - [ ] Define public Android facade and listener/event types
 - [ ] Define public iOS facade and delegate/event types
+- [ ] Define base vs advanced native capability surfaces
+- [ ] Define typed settings APIs for current `DeviceStore.apply()` side effects
 - [ ] Document native `DeviceStore` as internal-only and keep it out of public API docs
+- [ ] Add internal native event sink abstractions before changing bridge behavior
 - [ ] Move Expo module initialization/event forwarding behind native facades
 - [ ] Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts`
 - [ ] Add/extract `mobile/src/services/bluetooth/BluetoothSettingsSync.ts`
@@ -1167,9 +1172,11 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [ ] Keep `DeviceManager` / `DeviceStore` internal implementation details
 - [ ] Remove Expo module dependency from bare Android publication artifact
 - [ ] Remove `ExpoModulesCore` dependency from bare iOS podspec
+- [ ] Split iOS pod source globs so the bare pod excludes Expo adapter files
+- [ ] Ensure Android Maven publication resolves `lc3Lib` without monorepo project dependencies
 - [ ] Keep MentraOS Expo adapter working on top of native facades
-- [ ] Create bare Android sample app
-- [ ] Create bare iOS sample app
+- [ ] Create bare Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit`
+- [ ] Create bare iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit`
 - [ ] Update Partner Kit docs for native-first setup
 - [ ] Validate bare Android sample build
 - [ ] Validate bare iOS `pod install` and build

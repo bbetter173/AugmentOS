@@ -63,6 +63,20 @@ class MentraBluetoothSdk private constructor(
     fun clearDisplay()
     fun showDashboard()
 
+    @JvmOverloads fun setBrightness(level: Int, autoMode: Boolean? = null)
+    fun setAutoBrightness(enabled: Boolean)
+    fun setDashboardPosition(request: MentraDashboardPositionRequest)
+    fun setDashboardMenu(items: List<MentraDashboardMenuItem>)
+    fun setHeadUpAngle(angleDegrees: Int)
+    fun setScreenDisabled(disabled: Boolean)
+    fun setGalleryMode(mode: MentraGalleryMode)
+    fun setButtonMode(mode: MentraButtonMode)
+    fun setButtonPhotoSettings(settings: MentraButtonPhotoSettings)
+    fun setButtonVideoRecordingSettings(settings: MentraButtonVideoRecordingSettings)
+    fun setButtonCameraLed(enabled: Boolean)
+    fun setButtonMaxRecordingTime(minutes: Int)
+    fun setCameraFov(fov: MentraCameraFov)
+
     fun setMicState(config: MentraMicConfig)
     fun setPreferredMic(preferredMic: MentraMicPreference)
     fun setOwnAppAudioPlaying(playing: Boolean)
@@ -94,6 +108,27 @@ class MentraBluetoothSdk private constructor(
 ```
 
 The core API should be Java-friendly. Avoid requiring coroutines, Flow, or AndroidX lifecycle owners in the base artifact. A later `mentra-bluetooth-sdk-ktx` artifact can add suspend functions and Flow wrappers.
+
+## Capability Shape
+
+The facade can be implemented as one class initially, but the customer-facing docs should not imply every feature is part of the minimum SDK contract.
+
+Base v1 should include:
+
+- Initialization, cleanup, permission helpers, scan, connect, disconnect, forget, default-device handling, and status snapshots.
+- Display primitives: display text, display events/images as supported, clear display, and show dashboard.
+- Core hardware settings: brightness, auto brightness, dashboard height/depth/menu, head-up angle, screen disable, gallery mode, button/camera settings, preferred mic, mic routing, and own-app-audio state.
+- Common device events: status, discovered devices, button/touch/head-up, battery, Wi-Fi status, logs, and errors.
+
+Advanced or capability-gated APIs should include:
+
+- Camera/gallery commands and media transfer state.
+- RTMP/video streaming and buffer recording.
+- OTA, shutdown, reboot, and version/diagnostic commands.
+- Local STT, VAD/model management, and raw mic frame delivery.
+- Controller pairing and RGB LED controls.
+
+The SDK should expose capability state per connected device so customers can disable unsupported UI without relying on no-op behavior. Unsupported operations should either return a typed failure or emit a typed error, not silently appear to succeed.
 
 ## Listener API
 
@@ -132,7 +167,8 @@ Add typed public models before exposing the facade:
 - `MentraDiscoveredDevice`: `model`, `name`, optional `address`, optional `rssi`.
 - `MentraGlassesStatus`: current snapshot of connected, fully booted, battery, charging, model, firmware, serial, Wi-Fi, hotspot, head-up, controller, and signal state.
 - `MentraBluetoothStatus`: current snapshot of searching, mic, current mic, search results, Wi-Fi scan results, permission availability, and audio availability.
-- `MentraDisplayTextRequest`, `MentraDisplayEventRequest`, `MentraPhotoRequest`, `MentraStreamRequest`, `MentraVideoRecordingRequest`, `MentraMicConfig`, `MentraBluetoothError`.
+- `MentraDisplayTextRequest`, `MentraDisplayEventRequest`, `MentraDashboardPositionRequest`, `MentraDashboardMenuItem`, `MentraPhotoRequest`, `MentraStreamRequest`, `MentraVideoRecordingRequest`, `MentraMicConfig`, `MentraBluetoothError`.
+- Settings models/enums for values currently routed through `DeviceStore.apply()`: `MentraGalleryMode`, `MentraButtonMode`, `MentraButtonPhotoSettings`, `MentraButtonVideoRecordingSettings`, `MentraCameraFov`, and `MentraMicPreference`.
 
 For Java ergonomics, models with many optional fields should have builders instead of huge constructors.
 
@@ -149,6 +185,7 @@ The target boundary is:
 
 - Public SDK callers use typed methods such as `setBrightness`, `setPreferredMic`, `startScan`, `connect`, `displayText`, and `setMicState`.
 - Public SDK callers receive typed callbacks such as `onGlassesStatusChanged`, `onBluetoothStatusChanged`, `onDeviceDiscovered`, and `onButtonPress`.
+- All hardware side effects currently hidden inside `DeviceStore.apply()` should have a typed public or adapter-only entrypoint before MentraOS removes blob sync.
 - `DeviceStore` remains an implementation detail behind `MentraBluetoothSdk`.
 - SDK-owned persistence should use a typed storage/config abstraction or default SharedPreferences storage. It should not ask external apps to persist arbitrary MentraOS setting keys.
 - `onDefaultDeviceChanged` can notify apps that the remembered device changed, but the SDK should own the default storage path unless the app provides a custom storage implementation.
@@ -177,6 +214,18 @@ The SDK artifact can still merge manifest permissions and the foreground service
 
 The facade must retain an application context internally, not an Activity context. `close()` should unregister receivers, stop scan/reconnect loops where appropriate, stop mic capture, stop/settle the foreground service, and release listener references.
 
+## Packaging Plan
+
+The bare Android SDK should publish as a normal Android library artifact:
+
+- `com.mentra:bluetooth-sdk`: bare Android artifact with no Expo Gradle plugin, no `expo-modules-core` dependency, and no React Native lifecycle assumptions.
+- Expo adapter artifact/module: owns `BluetoothSdkModule.kt`, depends on `com.mentra:bluetooth-sdk`, and forwards native events to Expo event names.
+- `com.mentra:lc3Lib`: companion artifact required by audio paths; the Bluetooth SDK POM must resolve it as a Maven dependency rather than as `project(':lc3Lib')`.
+
+The current module still applies Expo module Gradle helpers, so implementation should split the build before claiming bare Android support. A good first target is a local Maven publish plus a fresh bare Android sample in `Mentra-Bluetooth-SDK-Partner-Kit` that depends only on the published artifacts.
+
+Heavy dependencies should be audited before release. Local STT, ONNX/VAD, Vuzix support, and media streaming may remain in the initial artifact if that is fastest, but the plan should keep a path open for optional feature artifacts if binary size or transitive dependency conflicts become a customer problem.
+
 ## MentraOS Adapter
 
 MentraOS should keep its TypeScript API stable. `BluetoothSdkModule.kt` becomes an adapter that:
@@ -192,26 +241,29 @@ This lets MentraOS keep using the SDK while external customers use the native An
 
 ## Extraction Plan
 
-1. Add the public model package and listener interfaces without changing behavior.
-2. Add `MentraBluetoothSdk` facade that delegates to the existing `DeviceManager`, `DeviceStore`, and `Bridge` internals.
-3. Replace the process-wide `Bridge` callback with an internal `MentraEventSink` that can fan out to native listeners and the Expo adapter.
-4. Move `Bridge.getContext()` dependencies behind constructor or initializer injection so the native facade controls lifecycle.
+1. Add an internal `MentraEventSink` behind the current `Bridge` behavior so events can fan out to native listeners and the Expo adapter without changing emitted event names.
+2. Move `Bridge.getContext()` dependencies behind constructor or initializer injection so the native facade controls lifecycle through an application context.
+3. Add the public model package, settings models, listener interfaces, and error types without changing behavior.
+4. Add `MentraBluetoothSdk` facade that delegates to the existing `DeviceManager`, `DeviceStore`, and SGC internals.
 5. Keep `DeviceManager`, `DeviceStore`, `ObservableStore`, and `SGCManager` internal implementation details.
 6. Keep `updateBluetoothSettings`, `"core"` normalization, and `save_setting` as MentraOS compatibility plumbing only.
-7. Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` and translate Zustand changes into typed SDK calls.
+7. Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` and translate Zustand changes into typed SDK calls setting group by setting group.
 8. Split packaging so the bare Android artifact does not depend on Expo module Gradle plugins.
 9. Keep a separate Expo adapter artifact/module that depends on the bare SDK artifact.
 10. Resolve `lc3Lib` publication so an external Gradle project can consume the SDK without monorepo project dependencies.
-11. Add a bare Android sample app that initializes the SDK, scans, connects, displays text, clears display, and logs status events.
+11. Add a bare Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit` that initializes the SDK, scans, connects, displays text, clears display, applies a core setting, and logs status events.
 12. Keep the existing mobile regression tests passing with little or no TypeScript test changes.
 
 ## Acceptance Criteria
 
 - A new bare Android app can depend on the SDK artifact without Expo or React Native.
 - Kotlin and Java callers can initialize the SDK, subscribe to events, scan, connect, display text, and disconnect.
+- Kotlin and Java callers can apply the core hardware settings currently handled by `DeviceStore.apply()` without using raw setting keys.
 - MentraOS still builds and uses the same implementation through `BluetoothSdkModule.kt`.
 - Public docs never tell customers to call `DeviceManager`, `DeviceStore`, `Bridge`, `update("bluetooth", ...)`, or handle `save_setting`.
-- The Android sample app builds from a clean checkout and exercises the public facade.
+- The Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit` builds from a clean checkout and exercises the public facade.
+- The Android sample app covers SDK initialization, permission declarations/prompts, scan, discovery callback, connect discovered/default, status/log/error callbacks, display text, brightness/dashboard settings, clear display, disconnect, and `close()`.
+- Local Maven publication verifies both `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib` can be consumed without monorepo project references.
 - The foreground service, runtime permissions, audio capture, and BLE receiver lifecycle have explicit cleanup coverage.
 
 ## Open Questions

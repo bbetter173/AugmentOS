@@ -52,6 +52,20 @@ public final class MentraBluetoothSDK {
     public func clearDisplay() async throws
     public func showDashboard()
 
+    public func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws
+    public func setAutoBrightness(enabled: Bool) async throws
+    public func setDashboardPosition(_ request: MentraDashboardPositionRequest) async throws
+    public func setDashboardMenu(_ items: [MentraDashboardMenuItem]) async throws
+    public func setHeadUpAngle(_ angleDegrees: Int) async throws
+    public func setScreenDisabled(_ disabled: Bool) async throws
+    public func setGalleryMode(_ mode: MentraGalleryMode) async throws
+    public func setButtonMode(_ mode: MentraButtonMode) async throws
+    public func setButtonPhotoSettings(_ settings: MentraButtonPhotoSettings) async throws
+    public func setButtonVideoRecordingSettings(_ settings: MentraButtonVideoRecordingSettings) async throws
+    public func setButtonCameraLed(enabled: Bool) async throws
+    public func setButtonMaxRecordingTime(minutes: Int) async throws
+    public func setCameraFov(_ fov: MentraCameraFov) async throws
+
     public func setMicState(_ config: MentraMicConfiguration)
     public func setPreferredMic(_ preferredMic: MentraMicPreference)
     public func setOwnAppAudioPlaying(_ playing: Bool)
@@ -83,6 +97,27 @@ public final class MentraBluetoothSDK {
 ```
 
 `@MainActor` matches the current `DeviceManager` isolation and is idiomatic for a facade that interacts with CoreBluetooth state, audio state, and delegate callbacks. Long-running work should still happen inside the existing managers, not block the main actor.
+
+## Capability Shape
+
+The facade can be implemented as one class initially, but the customer-facing docs should not imply every feature is part of the minimum SDK contract.
+
+Base v1 should include:
+
+- Initialization, invalidation, permission/capability helpers, scan, connect, disconnect, forget, default-device handling, and status snapshots.
+- Display primitives: display text, display events/images as supported, clear display, and show dashboard.
+- Core hardware settings: brightness, auto brightness, dashboard height/depth/menu, head-up angle, screen disable, gallery mode, button/camera settings, preferred mic, mic routing, and own-app-audio state.
+- Common device events: status, discovered devices, button/touch/head-up, battery, Wi-Fi status, logs, and errors.
+
+Advanced or capability-gated APIs should include:
+
+- Camera/gallery commands and media transfer state.
+- RTMP/video streaming and buffer recording.
+- OTA, shutdown, reboot, and version/diagnostic commands.
+- Local STT, VAD/model management, and raw mic frame delivery.
+- Controller pairing and RGB LED controls.
+
+The SDK should expose capability state per connected device so customers can disable unsupported UI without relying on no-op behavior. Unsupported operations should either throw a typed `MentraBluetoothError` or emit a delegate failure, not silently appear to succeed.
 
 ## Delegate API
 
@@ -120,7 +155,8 @@ Add typed public models before exposing the facade:
 - `MentraDiscoveredDevice`: `model`, `name`, optional `identifier`, optional `rssi`.
 - `MentraGlassesStatus`: current snapshot of connected, fully booted, battery, charging, model, firmware, serial, Wi-Fi, hotspot, head-up, controller, and signal state.
 - `MentraBluetoothStatus`: current snapshot of searching, mic, current mic, search results, Wi-Fi scan results, permission availability, and audio availability.
-- `MentraDisplayTextRequest`, `MentraDisplayEventRequest`, `MentraPhotoRequest`, `MentraStreamRequest`, `MentraVideoRecordingRequest`, `MentraMicConfiguration`, `MentraBluetoothError`.
+- `MentraDisplayTextRequest`, `MentraDisplayEventRequest`, `MentraDashboardPositionRequest`, `MentraDashboardMenuItem`, `MentraPhotoRequest`, `MentraStreamRequest`, `MentraVideoRecordingRequest`, `MentraMicConfiguration`, `MentraBluetoothError`.
+- Settings models/enums for values currently routed through `DeviceStore.apply()`: `MentraGalleryMode`, `MentraButtonMode`, `MentraButtonPhotoSettings`, `MentraButtonVideoRecordingSettings`, `MentraCameraFov`, and `MentraMicPreference`.
 
 Prefer Swift structs and enums with clear defaults. Objective-C compatibility is not a v1 requirement unless a customer asks for it.
 
@@ -137,6 +173,7 @@ The target boundary is:
 
 - Public SDK callers use typed methods such as `setBrightness`, `setPreferredMic`, `startScan`, `connect`, `displayText`, and `setMicState`.
 - Public SDK callers receive typed delegate callbacks such as `didUpdateGlassesStatus`, `didUpdateBluetoothStatus`, `didDiscover`, and `didReceive`.
+- All hardware side effects currently hidden inside `DeviceStore.apply()` should have a typed public or adapter-only entrypoint before MentraOS removes blob sync.
 - `DeviceStore` remains an implementation detail behind `MentraBluetoothSDK`.
 - SDK-owned persistence should use a typed storage/config abstraction or default UserDefaults storage. It should not ask external apps to persist arbitrary MentraOS setting keys.
 - `didChangeDefaultDevice` can notify apps that the remembered device changed, but the SDK should own the default storage path unless the app provides a custom storage implementation.
@@ -188,30 +225,40 @@ The bare iOS SDK should be available through CocoaPods first:
 - `MentraBluetoothSDK`: bare native pod with no `ExpoModulesCore` dependency.
 - `MentraBluetoothSDKExpoAdapter` or the existing Expo module target: adapter layer that depends on `MentraBluetoothSDK` and `ExpoModulesCore`.
 
+The bare podspec must not use a broad source glob that accidentally includes Expo adapter files. Source ownership should be explicit:
+
+- Bare pod: `Source/**`, required `Packages/**` native sources, resources, vendored frameworks, and privacy manifest.
+- Expo adapter pod/subspec/module: `BluetoothSdkModule.swift`, Expo config, and any adapter-only source files.
+
 Swift Package Manager support should be evaluated after CocoaPods is working because the current implementation includes vendored frameworks, ONNX runtime, UltraliteSDK, resources, C/C++ headers, and local model files.
 
 The public podspec must include the native dependencies and privacy manifest, but not require the host app to be an Expo or React Native project.
 
+Heavy dependencies should be audited before release. Local STT, ONNX/VAD, UltraliteSDK, and media streaming may remain in the initial pod if that is fastest, but the plan should keep a path open for subspecs or optional artifacts if binary size or dependency conflicts become a customer problem.
+
 ## Extraction Plan
 
-1. Add the public model files, delegate protocol, configuration type, and error enum without changing behavior.
-2. Add `MentraBluetoothSDK` facade that delegates to the existing `DeviceManager`, `DeviceStore`, and `Bridge` internals.
-3. Replace the static `Bridge` callback with an internal event sink that can fan out to the Swift facade and the Expo adapter.
-4. Keep `DeviceManager`, `DeviceStore`, `ObservableStore`, and `SGCManager` internal implementation details.
+1. Add an internal event sink behind the current `Bridge` behavior so events can fan out to the Swift facade and the Expo adapter without changing emitted event names.
+2. Keep `DeviceManager`, `DeviceStore`, `ObservableStore`, and `SGCManager` internal implementation details while making lifecycle ownership explicit through the facade.
+3. Add the public model files, settings models, delegate protocol, configuration type, and error enum without changing behavior.
+4. Add `MentraBluetoothSDK` facade that delegates to the existing `DeviceManager`, `DeviceStore`, and SGC internals.
 5. Keep `updateBluetoothSettings`, `"core"` normalization, and `save_setting` as MentraOS compatibility plumbing only.
-6. Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` and translate Zustand changes into typed SDK calls.
+6. Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts` and translate Zustand changes into typed SDK calls setting group by setting group.
 7. Move `BluetoothSdkModule.swift` into the adapter layer so the bare SDK pod can remove `ExpoModulesCore`.
-8. Update `MentraBluetoothSDK.podspec` so a clean iOS app can run `pod install` without Expo.
-9. Add a bare iOS sample app that initializes the SDK, scans, connects, displays text, clears display, and logs status events.
+8. Update `MentraBluetoothSDK.podspec` so a clean iOS app can run `pod install` without Expo and without compiling Expo adapter files.
+9. Add a bare iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit` that initializes the SDK, scans, connects, displays text, clears display, applies a core setting, and logs status events.
 10. Keep the existing mobile regression tests passing with little or no TypeScript test changes.
 
 ## Acceptance Criteria
 
 - A new bare iOS app can depend on the pod without Expo or React Native.
 - Swift callers can initialize the SDK, set a delegate, scan, connect, display text, and disconnect.
+- Swift callers can apply the core hardware settings currently handled by `DeviceStore.apply()` without using raw setting keys.
 - MentraOS still builds and uses the same implementation through `BluetoothSdkModule.swift`.
 - Public docs never tell customers to call `DeviceManager`, `DeviceStore`, `Bridge`, `update("bluetooth", ...)`, or handle `save_setting`.
-- The iOS sample app builds from a clean checkout and exercises the public facade.
+- The iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit` builds from a clean checkout and exercises the public facade.
+- The iOS sample app covers SDK initialization, permission declarations, scan, discovery delegate, connect discovered/default, status/log/error delegates, display text, brightness/dashboard settings, clear display, disconnect, and `invalidate()`.
+- `pod install` verifies the bare pod source list excludes Expo adapter files and has no `ExpoModulesCore` dependency.
 - Cleanup is explicit for scans, active connections, phone mic, local transcription, and event delivery.
 
 ## Open Questions

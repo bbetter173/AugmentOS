@@ -11,16 +11,18 @@ Pod::Spec.new do |s|
   s.author         = package['author']
   s.homepage       = package['homepage']
   s.platforms      = {
-    :ios => '15.1',
-    :tvos => '15.1'
+    :ios => '15.1'
   }
   s.swift_version  = '5.9'
-  s.source         = { git: 'https://github.com/Mentra-Community/MentraOS' }
+  s.source         = {
+    :git => 'https://github.com/Mentra-Community/MentraOS.git',
+    :tag => "bluetooth-sdk-v#{s.version}"
+  }
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
 
-  # External dependencies required by MentraOS native code
+  # External dependencies required by Bluetooth SDK native code
   s.dependency 'SWCompression', '~> 4.8.0'
   s.dependency 'SwiftProtobuf', '~> 1.0'
   s.dependency 'onnxruntime-objc', '1.18.0'
@@ -34,12 +36,7 @@ Pod::Spec.new do |s|
     'SWIFT_INCLUDE_PATHS' => '$(PODS_TARGET_SRCROOT)/Packages/libbz2'
   }
 
-  # Propagate libbz2 module map path to consuming targets
-  s.user_target_xcconfig = {
-    'SWIFT_INCLUDE_PATHS' => '$(PODS_ROOT)/../../modules/bluetooth-sdk/ios/Packages/libbz2'
-  }
-
-  # iOS frameworks required by MentraOS
+  # iOS frameworks required by Bluetooth SDK
   s.frameworks = 'AVFoundation', 'CoreBluetooth', 'UIKit', 'CoreGraphics'
 
   # System libraries required by MentraOS
@@ -50,6 +47,9 @@ Pod::Spec.new do |s|
 
   # Resources (model files)
   s.resources = 'Packages/VAD/Silero/Model/*.onnx'
+  s.resource_bundles = {
+    'MentraBluetoothSDKPrivacy' => ['Source/PrivacyInfo.xcprivacy']
+  }
 
   # Include all Swift, Objective-C, and C/C++ source files
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp,c}"

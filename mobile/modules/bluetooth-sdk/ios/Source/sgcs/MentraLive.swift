@@ -15,7 +15,6 @@
 import Combine
 import CoreBluetooth
 import Foundation
-import React
 import UIKit
 
 // MARK: - Supporting Types

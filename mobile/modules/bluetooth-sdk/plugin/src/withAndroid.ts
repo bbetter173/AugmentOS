@@ -3,6 +3,14 @@ import path from "path"
 
 import {type ConfigPlugin, withSettingsGradle, withGradleProperties} from "expo/config-plugins"
 
+function getBluetoothSdkRoot(): string {
+  return path.dirname(require.resolve("../../package.json"))
+}
+
+function toGroovyString(value: string): string {
+  return JSON.stringify(value)
+}
+
 /**
  * Modify settings.gradle to include lc3Lib module
  */
@@ -12,9 +20,10 @@ function withSettingsGradleModifications(config: any) {
 
     // Add lc3Lib module if not present
     if (!settingsGradle.includes("include ':lc3Lib'")) {
+      const bluetoothSdkRoot = getBluetoothSdkRoot()
       settingsGradle += `
   include ':lc3Lib'
-  project(':lc3Lib').projectDir = new File(rootDir, '../modules/bluetooth-sdk/android/lc3Lib')
+  project(':lc3Lib').projectDir = new File(${toGroovyString(bluetoothSdkRoot)}, 'android/lc3Lib')
   `
     }
 
@@ -24,7 +33,7 @@ function withSettingsGradleModifications(config: any) {
 }
 
 /**
- * Modify gradle.properties to add Sentry configuration and node path
+ * Modify gradle.properties to add node path for native builds launched outside a shell.
  */
 function withGradlePropertiesModifications(config: any) {
   return withGradleProperties(config, (config) => {

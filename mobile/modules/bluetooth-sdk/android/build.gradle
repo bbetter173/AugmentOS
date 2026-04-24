@@ -1,7 +1,13 @@
-apply plugin: 'com.android.library'
+import groovy.json.JsonSlurper
 
-group = 'com.mentra.bluetoothsdk'
-version = '0.1.0'
+apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+def packageJson = new JsonSlurper().parse(file("../package.json"))
+
+group = 'com.mentra'
+version = packageJson.version
 
 def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
 apply from: expoModulesCorePlugin
@@ -35,7 +41,13 @@ android {
   namespace "com.mentra.bluetoothsdk"
   defaultConfig {
     versionCode 1
-    versionName "0.1.0"
+    versionName packageJson.version
+  }
+  publishing {
+    singleVariant("release") {
+      withSourcesJar()
+      withJavadocJar()
+    }
   }
   buildTypes {
     internal {
@@ -107,5 +119,51 @@ configurations.all {
         details.because('Force override vad\'s transitive version')
       }
     }
+  }
+}
+
+afterEvaluate {
+  publishing {
+    publications {
+      release(MavenPublication) {
+        groupId = 'com.mentra'
+        artifactId = 'bluetooth-sdk'
+        version = project.version
+
+        from components.release
+
+        pom {
+          name = 'Mentra Bluetooth SDK'
+          description = 'SDK for communicating with smart glasses'
+          url = 'https://github.com/Mentra-Community/MentraOS'
+          licenses {
+            license {
+              name = 'MIT License'
+              url = 'https://opensource.org/licenses/MIT'
+            }
+          }
+          developers {
+            developer {
+              id = 'mentra'
+              name = 'Mentra'
+              email = 'dev@mentra.glass'
+            }
+          }
+          scm {
+            connection = 'scm:git:https://github.com/Mentra-Community/MentraOS.git'
+            developerConnection = 'scm:git:ssh://git@github.com:Mentra-Community/MentraOS.git'
+            url = 'https://github.com/Mentra-Community/MentraOS'
+          }
+        }
+      }
+    }
+  }
+
+  signing {
+    required {
+      gradle.taskGraph.allTasks.any { it.name.toLowerCase().contains("publish") } &&
+        (findProperty("signing.keyId") || findProperty("signingKey"))
+    }
+    sign publishing.publications.release
   }
 }

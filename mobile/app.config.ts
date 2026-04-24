@@ -195,6 +195,30 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
             deploymentTarget: "15.5", // for react-native-zip-archive
             extraPods: [
               {
+                name: "FirebaseCore",
+                modular_headers: true,
+              },
+              {
+                name: "FirebaseCoreInternal",
+                modular_headers: true,
+              },
+              {
+                name: "FirebaseInstallations",
+                modular_headers: true,
+              },
+              {
+                name: "GoogleAppMeasurement",
+                modular_headers: true,
+              },
+              {
+                name: "GoogleUtilities",
+                modular_headers: true,
+              },
+              {
+                name: "nanopb",
+                modular_headers: true,
+              },
+              {
                 name: "SDWebImage",
                 modular_headers: true,
               },

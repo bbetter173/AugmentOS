@@ -9,7 +9,6 @@
 import Combine
 import CoreBluetooth
 import Foundation
-import React
 
 // MARK: - R1 BLE Constants
 

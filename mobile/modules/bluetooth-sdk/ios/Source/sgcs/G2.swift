@@ -9,7 +9,6 @@
 import Combine
 import CoreBluetooth
 import Foundation
-import React
 import UIKit
 
 // MARK: - Data Little-Endian Helpers (for BMP construction)

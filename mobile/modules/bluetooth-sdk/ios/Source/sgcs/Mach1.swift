@@ -8,7 +8,6 @@
 import Combine
 import CoreBluetooth
 import Foundation
-import React
 import UIKit
 import UltraliteSDK
 

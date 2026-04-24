@@ -333,8 +333,9 @@ export default function OtaProgressScreen() {
 
   useEffect(() => {
     const handleAck = () => {
+      if (hasReceivedAckRef.current) return
       hasReceivedAckRef.current = true
-      onFirstActivity()
+      clearRetryTimeout()
     }
     const handleMtkComplete = () => {
       clearProgressTimeout()
@@ -348,7 +349,7 @@ export default function OtaProgressScreen() {
       GlobalEventEmitter.off("ota_start_ack", handleAck)
       GlobalEventEmitter.off("mtk_update_complete", handleMtkComplete)
     }
-  }, [clearProgressTimeout, onFirstActivity])
+  }, [clearProgressTimeout, clearRetryTimeout, onFirstActivity])
 
   useEffect(() => {
     const active = connected && (displayState === "starting" || displayState === "updating")

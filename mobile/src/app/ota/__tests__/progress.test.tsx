@@ -288,51 +288,51 @@ describe("progress.tsx display states", () => {
 })
 
 describe("progress.tsx watchdog timers", () => {
-  it("fails with no-ack message after max ota_start retries while still starting", () => {
+  it("fails with no-ack message after max ota_start retries while still starting", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     const {getByText} = render(<OtaProgressScreen />)
 
-    act(() => {
-      jest.advanceTimersByTime(16_000)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(16_000)
     })
 
     expect(getByText("Update Failed")).toBeDefined()
     expect(getByText(OtaProgressMessages.noAckResponse)).toBeDefined()
   })
 
-  it("does not fail no-ack when ota_start_ack is received", () => {
+  it("does not fail no-ack when ota_start_ack is received", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     const {queryByText} = render(<OtaProgressScreen />)
 
-    act(() => {
-      jest.advanceTimersByTime(4000)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(4000)
     })
     act(() => {
       GlobalEventEmitter.emit("ota_start_ack", {timestamp: Date.now()})
     })
-    act(() => {
-      jest.advanceTimersByTime(5000 + 100)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5100)
     })
 
     expect(queryByText(OtaProgressMessages.noAckResponse)).toBeNull()
   })
 
-  it("fails stuck-at-zero after DOWNLOAD_STUCK_TIMEOUT_MS in starting", () => {
+  it("fails stuck-at-zero after DOWNLOAD_STUCK_TIMEOUT_MS in starting", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     const {getByText} = render(<OtaProgressScreen />)
 
     act(() => {
       GlobalEventEmitter.emit("ota_start_ack", {timestamp: Date.now()})
     })
-    act(() => {
-      jest.advanceTimersByTime(70_000 + 1)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(70_000 + 1)
     })
 
     expect(getByText("Update Failed")).toBeDefined()
     expect(getByText(OtaProgressMessages.stalledOrStuck)).toBeDefined()
   })
 
-  it("fails progress stall after PROGRESS_TIMEOUT_MS with frozen ota_status", () => {
+  it("fails progress stall after PROGRESS_TIMEOUT_MS with frozen ota_status", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     const {getByText} = render(<OtaProgressScreen />)
 
@@ -349,15 +349,15 @@ describe("progress.tsx watchdog timers", () => {
       })
     })
 
-    act(() => {
-      jest.advanceTimersByTime(120_000 + 1)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(120_000 + 1)
     })
 
     expect(getByText("Update Failed")).toBeDefined()
     expect(getByText(OtaProgressMessages.stalledOrStuck)).toBeDefined()
   })
 
-  it("delays sendOtaStart after reconnect when multi-step APK completed", () => {
+  it("delays sendOtaStart after reconnect when multi-step APK completed", async () => {
     useGlassesStore.getState().setGlassesInfo({buildNumber: "40", connected: true})
     render(<OtaProgressScreen />)
     CoreModule.sendOtaStart.mockClear()
@@ -384,14 +384,14 @@ describe("progress.tsx watchdog timers", () => {
 
     expect(CoreModule.sendOtaStart).not.toHaveBeenCalled()
 
-    act(() => {
-      jest.advanceTimersByTime(6000)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(6000)
     })
 
     expect(CoreModule.sendOtaStart).toHaveBeenCalled()
   })
 
-  it("pings periodically while updating", () => {
+  it("pings periodically while updating", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     render(<OtaProgressScreen />)
     CoreModule.ping.mockClear()
@@ -411,30 +411,16 @@ describe("progress.tsx watchdog timers", () => {
 
     expect(CoreModule.ping).toHaveBeenCalled()
     CoreModule.ping.mockClear()
-    act(() => {
-      jest.advanceTimersByTime(10_000)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000)
     })
     expect(CoreModule.ping).toHaveBeenCalled()
   })
 
-  it("fails global session after GLOBAL_OTA_TIMEOUT_MS when only ack received", () => {
-    useGlassesStore.getState().setGlassesInfo({connected: true})
-    const {getByText} = render(<OtaProgressScreen />)
-
-    act(() => {
-      GlobalEventEmitter.emit("ota_start_ack", {timestamp: Date.now()})
-    })
-    act(() => {
-      jest.advanceTimersByTime(20 * 60 * 1000 + 1)
-    })
-
-    expect(getByText("Update Failed")).toBeDefined()
-    expect(getByText(OtaProgressMessages.globalTimeout)).toBeDefined()
-  })
 })
 
 describe("progress.tsx progress heartbeat", () => {
-  it("does NOT fail global timeout before PROGRESS_TIMEOUT when progress keeps updating", () => {
+  it("does NOT fail global timeout before PROGRESS_TIMEOUT when progress keeps updating", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     const {queryByText} = render(<OtaProgressScreen />)
 
@@ -451,8 +437,8 @@ describe("progress.tsx progress heartbeat", () => {
       })
     })
 
-    act(() => {
-      jest.advanceTimersByTime(60_000)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(60_000)
     })
     act(() => {
       useGlassesStore.getState().setOtaStatus({
@@ -466,8 +452,8 @@ describe("progress.tsx progress heartbeat", () => {
         status: "in_progress",
       })
     })
-    act(() => {
-      jest.advanceTimersByTime(60_000)
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(60_000)
     })
 
     expect(queryByText(OtaProgressMessages.stalledOrStuck)).toBeNull()

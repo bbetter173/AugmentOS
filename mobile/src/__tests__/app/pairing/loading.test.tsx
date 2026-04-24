@@ -143,6 +143,7 @@ describe("pairing loading screen", () => {
     })
 
     first.unmount()
+    resetBluetoothSdkMock()
     replace.mockClear()
     useGlassesStore.getState().reset()
     render(<GlassesPairingLoadingScreen />)

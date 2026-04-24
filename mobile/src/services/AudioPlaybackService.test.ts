@@ -1,7 +1,7 @@
 import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {createAudioPlayer, setAudioModeAsync} from "expo-audio"
 
-import audioPlaybackService from "./AudioPlaybackService"
+import audioPlaybackService from "@/services/AudioPlaybackService"
 import {resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 jest.mock("@mentra/bluetooth-sdk", () => {

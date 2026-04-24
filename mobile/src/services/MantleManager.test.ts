@@ -1,8 +1,8 @@
 import {waitFor} from "@testing-library/react-native"
 
+import mantle from "@/services/MantleManager"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
-import mantle from "./MantleManager"
 import {useBluetoothStore} from "@/stores/bluetooth"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
@@ -11,7 +11,7 @@ import {crustModuleMock, emitCrustEvent, resetCrustModuleMock} from "@/test-util
 import {bluetoothSdkMock, emitBluetoothSdkEvent, resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
 
 jest.mock("@mentra/bluetooth-sdk", () => {
-  const {bluetoothSdkMock} = require("../test-utils/mockBluetoothSdk")
+  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
   return {
     __esModule: true,
     default: bluetoothSdkMock,
@@ -19,7 +19,7 @@ jest.mock("@mentra/bluetooth-sdk", () => {
 })
 
 jest.mock("crust", () => {
-  const {crustModuleMock} = require("../test-utils/mockCrustModule")
+  const {crustModuleMock} = require("@/test-utils/mockCrustModule")
   return {
     __esModule: true,
     default: crustModuleMock,
@@ -185,16 +185,26 @@ jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
 }))
 
+function resetMantleTestState() {
+  useBluetoothStore.getState().reset()
+  useGlassesStore.getState().reset()
+  useSettingsStore.getState().resetAllSettingsLocally()
+  useDisplayStore.setState({view: "main"})
+}
+
 describe("MantleManager", () => {
   beforeAll(async () => {
     jest.useFakeTimers()
     resetBluetoothSdkMock()
     resetCrustModuleMock()
-    useBluetoothStore.getState().reset()
-    useGlassesStore.getState().reset()
-    useSettingsStore.getState().resetAllSettingsLocally()
-    useDisplayStore.setState({view: "main"})
+    resetMantleTestState()
     await mantle.init()
+  })
+
+  afterEach(() => {
+    resetMantleTestState()
+    jest.clearAllTimers()
+    jest.clearAllMocks()
   })
 
   afterAll(() => {

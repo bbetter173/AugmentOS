@@ -32,10 +32,18 @@ jest.mock("axios", () => {
 
 jest.mock("@/../../cloud/packages/types/src", () => ({}))
 
-const restComms = jest.requireActual("./RestComms").default
+const restComms = jest.requireActual("@/services/RestComms").default
+
+let fakeTimersEnabled = false
+
+function useScopedFakeTimers() {
+  jest.useFakeTimers()
+  fakeTimersEnabled = true
+}
 
 describe("RestComms", () => {
   beforeEach(() => {
+    fakeTimersEnabled = false
     mockRequest.mockReset()
     useConnectionStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
@@ -43,8 +51,10 @@ describe("RestComms", () => {
   })
 
   afterEach(() => {
-    jest.clearAllTimers()
-    jest.useRealTimers()
+    if (fakeTimersEnabled) {
+      jest.clearAllTimers()
+      jest.useRealTimers()
+    }
   })
 
   it("retries once after NO_ACTIVE_SESSION and waits for the next connected transition", async () => {
@@ -85,7 +95,7 @@ describe("RestComms", () => {
   })
 
   it("does not resolve against a stale already-connected state", async () => {
-    jest.useFakeTimers()
+    useScopedFakeTimers()
     useConnectionStore.getState().setStatus(WebSocketStatus.CONNECTED)
     mockRequest.mockRejectedValueOnce({
       isAxiosError: true,

@@ -129,7 +129,7 @@ Validation:
 - Source: CodeRabbit on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#discussion_r3132995797)
 - Priority: medium
 - File: `mobile/src/services/MantleManager.test.ts`
-- Current status: still relevant.
+- Current status: fixed in the working tree with per-test store/mock cleanup.
 
 `mantle.init()` and store setup currently run in `beforeAll`, while tests mutate
 Zustand stores and mocks. This creates order coupling and makes future test
@@ -152,7 +152,8 @@ Validation:
 - Source: CodeRabbit review summary on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#pullrequestreview-4164945267)
 - Priority: low/medium
 - File: `mobile/src/__tests__/app/pairing/loading.test.tsx`
-- Current status: still relevant as a defensive cleanup.
+- Current status: fixed in the working tree by resetting the Bluetooth SDK mock
+  between the two mounts.
 
 The test unmounts and remounts the loading screen. Production cleanup should
 remove event listeners, but a defensive `resetBluetoothSdkMock()` between mounts
@@ -172,7 +173,8 @@ Validation:
 - Source: CodeRabbit review summary on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#pullrequestreview-4164945267)
 - Priority: low
 - File: `mobile/src/services/RestComms.test.ts`
-- Current status: still relevant, but not a runtime bug.
+- Current status: fixed in the working tree by scoping fake timer cleanup to
+  the test that enables fake timers.
 
 The global `afterEach` clears timers and restores real timers even though only
 one test installs fake timers. It is harmless today but slightly confusing.
@@ -195,7 +197,7 @@ Validation:
 - Files:
   - `mobile/src/services/AudioPlaybackService.test.ts`
   - `mobile/src/services/MantleManager.test.ts`
-- Current status: still relevant.
+- Current status: fixed in the working tree.
 
 The tests still use a few relative imports/requires where the mobile codebase
 prefers the `@/` alias.

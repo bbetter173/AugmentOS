@@ -223,16 +223,20 @@ public class OtaService extends Service {
                 updateNotification("MTK firmware updated successfully");
                 Log.i(TAG, "📱 MTK system SUCCESS received - staged for next reboot");
 
-                // Send FINISHED to phone now that MTK install is complete.
-                // The phone UI will show "completed" and let the user tap Continue,
-                // which re-checks for remaining updates (e.g. BES) and starts a new round.
                 if (otaHelper != null) {
                     otaHelper.sendMtkInstallProgressToPhone("FINISHED", 100, null);
-                    Log.i(TAG, "📱 MTK complete - phone will re-check for remaining updates");
+                    // Session-based path: auto-advance to the next step (e.g. BES) immediately
+                    // so BES starts without waiting for a phone-side re-check or user tap.
+                    boolean advanced = otaHelper.continueSessionAfterStepComplete(this);
+                    if (!advanced) {
+                        // Legacy path (no active session): tell the phone MTK is done so it
+                        // can decide whether to start another round.
+                        Log.i(TAG, "📱 MTK complete (no session) - notifying phone via legacy broadcast");
+                        sendMtkUpdateCompleteMessage();
+                    }
+                } else {
+                    sendMtkUpdateCompleteMessage();
                 }
-
-                // Send broadcast to notify app that MTK update is complete
-                sendMtkUpdateCompleteMessage();
                 break;
             case ERROR:
                 updateNotification("MTK firmware update failed: " + event.getMessage());

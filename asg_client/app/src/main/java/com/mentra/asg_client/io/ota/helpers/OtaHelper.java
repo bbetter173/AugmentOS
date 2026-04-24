@@ -284,6 +284,11 @@ public class OtaHelper {
     public void setPhoneConnectionProvider(PhoneConnectionProvider provider) {
         this.phoneConnectionProvider = provider;
         Log.i(TAG, "PhoneConnectionProvider set: " + (provider != null ? "enabled" : "disabled"));
+        // If BLE connected before the provider was wired (startup race), consume any pending
+        // APK-done flag immediately — onConnectionStateChanged fired too early to catch it.
+        if (provider != null && provider.isPhoneConnected()) {
+            onPhoneConnected();
+        }
     }
 
     /**
@@ -2902,6 +2907,53 @@ public class OtaHelper {
         if (sm == null) return;
         this.sessionManager = sm;
         sendOtaStatus();
+    }
+
+    /**
+     * Called by OtaService when a non-final OTA step (e.g. MTK) completes successfully.
+     *
+     * If the session has a next step (e.g. BES after MTK), advances the session and
+     * restarts the version-check/install pipeline automatically so BES starts immediately
+     * without requiring a phone-side re-check or user tap.
+     *
+     * If the completed step was the last one, marks the session complete and notifies the phone.
+     *
+     * @param context Android context for the version-check service call.
+     * @return true if auto-advance to next step was triggered; false if the session is done
+     *         or there is no active session (caller should fall back to legacy path).
+     */
+    public boolean continueSessionAfterStepComplete(Context context) {
+        if (sessionManager == null || !sessionManager.hasActiveSession()) {
+            Log.d(TAG, "continueSessionAfterStepComplete: no active session — using legacy path");
+            return false;
+        }
+        int currentIndex = sessionManager.getCurrentStepIndex();
+        int nextStep = currentIndex + 1;
+
+        if (nextStep >= sessionManager.getTotalSteps()) {
+            Log.i(TAG, "continueSessionAfterStepComplete: step " + currentIndex + " was last — marking complete");
+            sessionManager.setComplete();
+            sendOtaStatus();
+            return true;
+        }
+
+        String nextType = sessionManager.getStepType(nextStep);
+        String versionJsonUrl = sessionManager.getVersionJsonUrl();
+        Log.i(TAG, "continueSessionAfterStepComplete: auto-advancing from step "
+                + currentIndex + " to step " + nextStep + " type=" + nextType);
+
+        // Advance the session record so the phone sees the new current step immediately.
+        sessionManager.advanceStep(nextStep, "download");
+        sendOtaStatus();
+
+        // Kick off the next step's download/install cycle.
+        setPhoneInitiatedOta(true);
+        if (versionJsonUrl != null && !versionJsonUrl.isEmpty()) {
+            startVersionCheckWithUrl(context, versionJsonUrl);
+        } else {
+            startVersionCheck(context);
+        }
+        return true;
     }
 
     private void sendOtaStatus() {

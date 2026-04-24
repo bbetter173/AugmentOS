@@ -2,30 +2,36 @@
 
 SDK for communicating with Mentra smart glasses from React Native and Expo apps.
 
-# API documentation
+## Documentation
 
-- Documentation for this package will live in the MentraOS repository alongside the SDK source.
+This package README is intentionally brief. Full partner documentation, getting started guides, production checklists, and example apps live in the private `Mentra-Bluetooth-SDK-Partner-Kit` repository for licensed partners.
 
-# Installation in managed Expo projects
+## Installation
 
-For [managed](https://docs.expo.dev/archive/managed-vs-bare/) Expo projects, please follow the installation instructions in the [API documentation for the latest stable release](#api-documentation). If you follow the link and there is no documentation available then this library is not yet usable within managed projects &mdash; it is likely to be included in an upcoming Expo SDK release.
+The SDK contains native code and requires a React Native or Expo development build. It does not run inside Expo Go.
 
-# Installation in bare React Native projects
-
-For bare React Native projects, you must ensure that you have [installed and configured the `expo` package](https://docs.expo.dev/bare/installing-expo-modules/) before continuing.
-
-### Add the package to your npm dependencies
-
-```
+```sh
 npm install @mentra/bluetooth-sdk
+npx expo prebuild
+npx pod-install
 ```
 
-### Configure for Android
+## Minimal Usage
 
-### Configure for iOS
+```ts
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
-Run `npx pod-install` after installing the npm package.
+const removeStatusListener = BluetoothSdk.onGlassesStatus((status) => {
+  console.log("Glasses status changed", status)
+})
 
-# Contributing
+await BluetoothSdk.findCompatibleDevices("Mentra Live")
+await BluetoothSdk.connectDefault()
+await BluetoothSdk.displayText({text: "Hello from Mentra", x: 0, y: 0, size: 24})
 
-Contributions are very welcome! Please refer to guidelines described in the [contributing guide](https://github.com/expo/expo#contributing).
+removeStatusListener()
+```
+
+## Support
+
+For integration support, request access to the private partner documentation repo from Mentra.

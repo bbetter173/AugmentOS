@@ -733,61 +733,58 @@ Bluetooth SDK and Crust versions will be kept in sync for simplicity. When eithe
 
 ## Phase 5: Documentation
 
-### 5.1 README for Bluetooth SDK
+Phase 5 documentation should be split by audience:
 
-```markdown
-# Mentra Bluetooth SDK
+- The public package README stays intentionally thin: install, minimal usage, and partner support pointer.
+- Detailed getting started material, API reference, production checklist, troubleshooting, and example apps live in a new private partner repo so they can be bundled with partner/commercial SDK access.
 
-SDK for communicating with smart glasses.
+Private repo name: `Mentra-Bluetooth-SDK-Partner-Kit`.
 
-## Installation
+### 5.1 Public README for Bluetooth SDK
 
-### React Native / Expo
+The npm/package README should not become the full customer playbook. Keep it short:
 
-npm install @mentra/bluetooth-sdk
+- Package purpose
+- Development-build requirement
+- Install commands
+- Minimal connect/display snippet
+- Pointer to private partner docs for full onboarding and support
 
-### Android (Maven)
+### 5.2 Private Partner Documentation Repo
 
-implementation 'com.mentra:bluetooth-sdk:1.0.0'
+Initial contents:
 
-### iOS (CocoaPods)
+- `README.md`
+- `docs/getting-started.md`
+- `docs/api-reference.md`
+- `docs/display-guide.md`
+- `docs/audio-guide.md`
+- `docs/hardware-integration.md`
+- `docs/troubleshooting.md`
+- `docs/production-checklist.md`
+- `examples/react-native`
 
-pod 'MentraBluetoothSDK'
+The private repo should be the customer-facing source of truth for:
 
-## Quick Start
+- React Native / Expo setup
+- Device scanning/discovery
+- Connection management
+- Display text/images
+- Audio streaming and local transcription
+- Button/gesture/head-up events
+- Camera/gallery/streaming APIs
+- OTA and production release validation
 
-import BluetoothSdk from '@mentra/bluetooth-sdk';
+### 5.3 Example App
 
-const buttonSub = BluetoothSdk.addListener('button_press', (event) => {
-console.log('Button pressed:', event.buttonId);
-});
+The private repo should include a runnable React Native development-build example demonstrating:
 
-// Find compatible devices for a model
-await BluetoothSdk.findCompatibleDevices('Mentra Live');
-
-// Connect using the saved/default device, or use connectByName(...)
-await BluetoothSdk.connectDefault();
-
-// Display text
-await BluetoothSdk.displayText({
-text: 'Hello World',
-x: 0,
-y: 0,
-size: 24,
-});
-
-// Later
-buttonSub.remove();
-```
-
-### 5.2 Documentation Site
-
-- Getting Started (Android, iOS, React Native)
-- API Reference
-- Hardware Integration Notes
-- Audio Streaming Guide
-- Display Control Guide
-- Camera Control Guide
+- Device scanning/discovery
+- Connection management
+- Display text
+- Display clearing
+- Status subscriptions
+- Button/battery event handling
 
 ---
 
@@ -840,15 +837,24 @@ buttonSub.remove();
 
 ### Phase 5: Documentation & Example (Week 4)
 
-- [ ] Write main README
-- [ ] Create getting started guide (React Native focus)
-- [ ] Document API reference
-- [ ] Create React Native example app demonstrating:
+- [ ] Create private GitHub partner docs repo and push scaffold
+- [x] Draft private partner docs repo scaffold locally
+- [x] Write thin public package README
+- [x] Write private repo main README
+- [x] Create private getting started guide (React Native focus)
+- [x] Document initial private API reference
+- [x] Create initial private React Native example app demonstrating:
   - Device scanning/discovery
   - Connection management
-  - Display text/images
+  - Display text
+  - Display clearing
+  - Status subscriptions
+  - Button/battery events
+- [ ] Expand private example app with:
+  - Display images
   - Audio streaming
-  - Button/gesture events
+  - Camera/gallery flows
+- [ ] Validate a fresh third-party Expo/RN consumer app can install the published package, prebuild iOS/Android, and run `pod install`
 
 ### Phase 6: MentraOS Migration
 

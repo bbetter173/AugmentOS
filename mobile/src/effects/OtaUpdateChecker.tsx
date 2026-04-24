@@ -1,4 +1,5 @@
 import {Capabilities, getModelCapabilities} from "@/../../cloud/packages/types/src"
+
 import {useEffect, useRef} from "react"
 
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -46,7 +47,7 @@ interface VersionJson {
 }
 
 // OTA version URL constant
-export const OTA_VERSION_URL_PROD = "https://ota.mentraglass.com/prod_live_version.json"
+export const OTA_VERSION_URL_PROD = "https://ota.mentraglass.com/test_bes_ota_prod_live_version.json"
 
 export async function fetchVersionInfo(url: string): Promise<VersionJson | null> {
   try {
@@ -564,7 +565,7 @@ export function OtaUpdateChecker() {
         } else {
           console.log("OTA: BES version still unknown after extended wait - proceeding without it")
         }
-        // Re-check connection after waiting
+        connected = useGlassesStore.getState().connected
         if (!connected) {
           console.log("OTA: check cancelled - glasses disconnected while waiting for BES version")
           return

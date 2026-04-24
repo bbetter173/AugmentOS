@@ -1,4 +1,4 @@
-import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "core"
+import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus, OtaStatus} from "core"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"
@@ -16,6 +16,11 @@ import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
 import {useCoreStore} from "@/stores/core"
 import udp from "@/services/UdpManager"
+import {
+  legacyOtaProgressFromOtaStatusEvent,
+  normalizeOtaStatusEvent,
+  otaStatusFromNormalized,
+} from "@/utils/otaLegacyMapping"
 import {BackgroundTimer} from "@/utils/timers"
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
@@ -229,6 +234,9 @@ class MantleManager {
       CoreModule.addListener("glasses_status", (changed) => {
         // console.log("MANTLE: Glasses status changed", changed)
         useGlassesStore.getState().setGlassesInfo(changed)
+        if (changed.connected === false) {
+          useGlassesStore.getState().setOtaUpdateAvailable(null)
+        }
       }),
     )
 
@@ -516,6 +524,7 @@ class MantleManager {
             versionName: event.version_name ?? "",
             updates: event.updates ?? [],
             totalSize: event.total_size ?? 0,
+            cacheReady: event.cache_ready === true,
           })
           GlobalEventEmitter.emit("ota_update_available", {
             versionCode: event.version_code,
@@ -544,28 +553,20 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("ota_progress", (event) => {
-          console.log("📱 MANTLE: OTA progress:", event.stage, event.status, event.progress + "%")
-          useGlassesStore.getState().setOtaProgress({
-            stage: event.stage ?? "download",
-            status: event.status ?? "PROGRESS",
-            progress: event.progress ?? 0,
-            bytesDownloaded: event.bytes_downloaded ?? 0,
-            totalBytes: event.total_bytes ?? 0,
-            currentUpdate: event.current_update ?? "apk",
-            errorMessage: event.error_message,
-          })
-          GlobalEventEmitter.emit("ota_progress", {
-            stage: event.stage,
-            status: event.status,
-            progress: event.progress,
-            bytesDownloaded: event.bytes_downloaded,
-            totalBytes: event.total_bytes,
-            currentUpdate: event.current_update,
-            errorMessage: event.error_message,
-          })
-          // Clear OTA update available when finished or failed
-          if (event.status === "FINISHED" || event.status === "FAILED") {
+        CoreModule.addListener("ota_status", (event) => {
+          const normalized = normalizeOtaStatusEvent(event as Record<string, unknown>)
+          const status: OtaStatus = otaStatusFromNormalized(normalized)
+          useGlassesStore.getState().setOtaStatus(status)
+          // Emit before legacy progress: setOtaProgress can throw (e.g. JSON.stringify in store);
+          // native logs would still show while RN UI would stay on "Starting update…".
+          GlobalEventEmitter.emit("ota_status", status)
+          try {
+            useGlassesStore.getState().setOtaProgress(legacyOtaProgressFromOtaStatusEvent(normalized))
+          } catch (err) {
+            console.warn("MANTLE: ota_status legacy otaProgress mapping failed", err)
+          }
+
+          if (status.status === "complete" || status.status === "failed") {
             useGlassesStore.getState().setOtaUpdateAvailable(null)
           }
         }),

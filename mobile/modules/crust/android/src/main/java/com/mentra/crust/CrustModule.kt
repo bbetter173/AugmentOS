@@ -1,5 +1,6 @@
 package com.mentra.crust
 
+import android.util.Log
 import com.mentra.crust.services.NotificationListener
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -7,6 +8,8 @@ import java.net.URL
 
 class CrustModule : Module() {
   companion object {
+    private const val TAG = "CrustModule"
+
     @Volatile private var eventEmitter: ((String, Map<String, Any>) -> Unit)? = null
 
     fun emitPhoneNotification(
@@ -27,7 +30,7 @@ class CrustModule : Module() {
           "timestamp" to timestamp,
           "packageName" to packageName,
         )
-      eventEmitter?.invoke("phone_notification", data)
+      emitEvent("phone_notification", data)
     }
 
     fun emitPhoneNotificationDismissed(notificationKey: String, packageName: String) {
@@ -37,7 +40,21 @@ class CrustModule : Module() {
           "notificationKey" to notificationKey,
           "packageName" to packageName,
         )
-      eventEmitter?.invoke("phone_notification_dismissed", data)
+      emitEvent("phone_notification_dismissed", data)
+    }
+
+    private fun emitEvent(eventName: String, data: Map<String, Any>) {
+      val emitter = eventEmitter
+      if (emitter == null) {
+        Log.w(TAG, "Cannot emit $eventName: event emitter is not available")
+        return
+      }
+
+      try {
+        emitter.invoke(eventName, data)
+      } catch (e: Exception) {
+        Log.e(TAG, "Error emitting $eventName event", e)
+      }
     }
   }
 

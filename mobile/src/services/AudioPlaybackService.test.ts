@@ -21,6 +21,18 @@ const mockPlayer = {
   volume: 1,
 }
 
+type MockPlaybackStatus = {
+  didJustFinish: boolean
+  duration: number
+}
+
+function getLatestStatusListener() {
+  const calls = mockPlayer.addListener.mock.calls
+  const statusListener = calls[calls.length - 1]?.[1]
+  expect(statusListener).toBeDefined()
+  return statusListener as (status: MockPlaybackStatus) => void
+}
+
 jest.mock("expo-audio", () => ({
   createAudioPlayer: jest.fn(() => mockPlayer),
   setAudioModeAsync: jest.fn(() => Promise.resolve()),
@@ -64,7 +76,7 @@ describe("AudioPlaybackService", () => {
     expect(mockPlayer.play).toHaveBeenCalled()
     expect(BluetoothSdk.setOwnAppAudioPlaying).toHaveBeenCalledWith(true)
 
-    const statusListener = mockPlayer.addListener.mock.calls[0][1]
+    const statusListener = getLatestStatusListener()
     statusListener({didJustFinish: true, duration: 2})
 
     expect(onComplete).toHaveBeenCalledWith("audio-1", true, null, 2000)
@@ -86,7 +98,7 @@ describe("AudioPlaybackService", () => {
     expect(BluetoothSdk.setGlassesMediaVolume).toHaveBeenCalledTimes(1)
     expect(createAudioPlayer).toHaveBeenCalledTimes(1)
 
-    const statusListener = mockPlayer.addListener.mock.calls[0][1]
+    const statusListener = getLatestStatusListener()
     statusListener({didJustFinish: true, duration: 1})
 
     expect(secondComplete).toHaveBeenCalledWith("second", true, null, 1000)

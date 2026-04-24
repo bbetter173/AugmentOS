@@ -106,7 +106,8 @@ Validation:
 - Source: CodeRabbit on [#2595](https://github.com/Mentra-Community/MentraOS/pull/2595#discussion_r3132995791)
 - Priority: medium
 - File: `mobile/src/services/AudioPlaybackService.test.ts`
-- Current status: still relevant.
+- Current status: fixed in the working tree by asserting and invoking the latest
+  registered playback status listener.
 
 The tests call `mockPlayer.addListener.mock.calls[0][1]`, assuming listener
 registration always happens in the same test and in the first call. That is

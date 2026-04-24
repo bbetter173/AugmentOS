@@ -10,6 +10,7 @@ package com.mentra.bluetoothsdk
 import android.util.Base64
 import android.util.Log
 import java.util.HashMap
+import java.util.UUID
 import kotlin.jvm.JvmStatic
 import kotlin.jvm.Synchronized
 import kotlin.jvm.Volatile
@@ -26,8 +27,10 @@ public class Bridge private constructor() {
 
         @Volatile private var instance: Bridge? = null
 
-        // Event callback for sending events to JS
-        private var eventCallback: ((String, Map<String, Any>) -> Unit)? = null
+        private const val DEFAULT_EVENT_SINK_ID = "default"
+
+        // Event sinks for JS and native consumers.
+        private val eventSinks = linkedMapOf<String, (String, Map<String, Any>) -> Unit>()
 
         // Android Context for native operations
         private var appContext: android.content.Context? = null
@@ -51,8 +54,37 @@ public class Bridge private constructor() {
                 callback: (String, Map<String, Any>) -> Unit
         ) {
             Log.d(TAG, "Initializing Bridge with context and event callback")
+            initialize(context)
+            setEventSink(DEFAULT_EVENT_SINK_ID, callback)
+        }
+
+        @JvmStatic
+        fun initialize(context: android.content.Context) {
             appContext = context
-            eventCallback = callback
+        }
+
+        @JvmStatic
+        @Synchronized
+        fun addEventSink(callback: (String, Map<String, Any>) -> Unit): String {
+            val id = UUID.randomUUID().toString()
+            setEventSink(id, callback)
+            return id
+        }
+
+        @JvmStatic
+        @Synchronized
+        fun removeEventSink(id: String) {
+            eventSinks.remove(id)
+        }
+
+        @Synchronized
+        private fun setEventSink(id: String, callback: (String, Map<String, Any>) -> Unit) {
+            eventSinks[id] = callback
+        }
+
+        @Synchronized
+        private fun getEventSinks(): List<(String, Map<String, Any>) -> Unit> {
+            return eventSinks.values.toList()
         }
 
         /** Get the Android context for native operations */
@@ -513,25 +545,27 @@ public class Bridge private constructor() {
             (mutableBody as HashMap<String, Any>)["type"] = type
 
             try {
-                // Check if event callback is available before proceeding
-                if (eventCallback == null) {
+                val sinks = getEventSinks()
+                if (sinks.isEmpty()) {
                     Log.w(
                             TAG,
-                            "Cannot send typed message '$type': eventCallback is null (app may be killed/backgrounded)"
+                            "Cannot send typed message '$type': no event sinks registered (app may be killed/backgrounded)"
                     )
                     return
                 }
 
                 // Send directly using type as event name - no JSON serialization
-                try {
-                    eventCallback?.invoke(type, mutableBody as Map<String, Any>)
-                } catch (e: Exception) {
-                    Log.e(
-                            TAG,
-                            "Error invoking eventCallback for type '$type' (React Native may be dead)",
-                            e
-                    )
-                    // Don't rethrow - this prevents crashes when RN context is destroyed
+                sinks.forEach { sink ->
+                    try {
+                        sink(type, mutableBody as Map<String, Any>)
+                    } catch (e: Exception) {
+                        Log.e(
+                                TAG,
+                                "Error invoking event sink for type '$type' (listener may be dead)",
+                                e
+                        )
+                        // Don't rethrow - one dead listener should not break other consumers.
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending typed message of type '$type'", e)

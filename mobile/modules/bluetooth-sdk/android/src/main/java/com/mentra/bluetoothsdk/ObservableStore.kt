@@ -1,5 +1,6 @@
 package com.mentra.bluetoothsdk
 
+import java.util.UUID
 import org.json.JSONObject
 
 /** Observable state management with immediate event emission */
@@ -13,10 +14,28 @@ class ObservableStore {
     }
 
     private val values = mutableMapOf<String, Any>()
-    private var onEmit: ((String, Map<String, Any>) -> Unit)? = null
+    private val emitListeners = linkedMapOf<String, (String, Map<String, Any>) -> Unit>()
 
+    @Synchronized
     fun configure(onEmit: (String, Map<String, Any>) -> Unit) {
-        this.onEmit = onEmit
+        emitListeners["default"] = onEmit
+    }
+
+    @Synchronized
+    fun addListener(onEmit: (String, Map<String, Any>) -> Unit): String {
+        val id = UUID.randomUUID().toString()
+        emitListeners[id] = onEmit
+        return id
+    }
+
+    @Synchronized
+    fun removeListener(id: String) {
+        emitListeners.remove(id)
+    }
+
+    @Synchronized
+    private fun getEmitListeners(): List<(String, Map<String, Any>) -> Unit> {
+        return emitListeners.values.toList()
     }
 
     fun set(category: String, key: String, value: Any) {
@@ -30,7 +49,7 @@ class ObservableStore {
         values[fullKey] = value
 
         // Emit immediately
-        onEmit?.invoke(normalizedCategory, mapOf(key to value))
+        getEmitListeners().forEach { it(normalizedCategory, mapOf(key to value)) }
     }
 
     fun get(category: String, key: String): Any? = values["${normalizeCategory(category)}.$key"]

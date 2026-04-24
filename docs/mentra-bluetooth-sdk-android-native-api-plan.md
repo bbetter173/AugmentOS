@@ -159,11 +159,13 @@ interface MentraBluetoothSdkListener {
 
 Callbacks should be delivered on the Android main thread by default. If we need background delivery later, add `callbackExecutor` to `MentraBluetoothSdkConfig`.
 
+Java consumers should be able to extend `MentraBluetoothSdkCallback`, a no-op base class implementing `MentraBluetoothSdkListener`, and override only the callbacks they use.
+
 ## Public Models
 
 Add typed public models before exposing the facade:
 
-- `MentraDeviceModel`: `G1`, `G2`, `MENTRA_LIVE`, `MENTRA_NEX`, `MACH1`, `Z100`, `SIMULATED`, `R1`.
+- `MentraDeviceModel`: `G1`, `G2`, `MENTRA_LIVE`, `MENTRA_NEX`, `MACH1`, `Z100`, `FRAME`, `SIMULATED`, `R1`.
 - `MentraDiscoveredDevice`: `model`, `name`, optional `address`, optional `rssi`.
 - `MentraGlassesStatus`: current snapshot of connected, fully booted, battery, charging, model, firmware, serial, Wi-Fi, hotspot, head-up, controller, and signal state.
 - `MentraBluetoothStatus`: current snapshot of searching, mic, current mic, search results, Wi-Fi scan results, permission availability, and audio availability.

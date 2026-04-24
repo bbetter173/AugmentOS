@@ -151,7 +151,7 @@ Do not make `AsyncStream` the only integration path in v1. Delegates are still t
 
 Add typed public models before exposing the facade:
 
-- `MentraDeviceModel`: `g1`, `g2`, `mentraLive`, `mentraNex`, `mach1`, `z100`, `simulated`, `r1`.
+- `MentraDeviceModel`: `g1`, `g2`, `mentraLive`, `mentraNex`, `mach1`, `z100`, `frame`, `simulated`, `r1`.
 - `MentraDiscoveredDevice`: `model`, `name`, optional `identifier`, optional `rssi`.
 - `MentraGlassesStatus`: current snapshot of connected, fully booted, battery, charging, model, firmware, serial, Wi-Fi, hotspot, head-up, controller, and signal state.
 - `MentraBluetoothStatus`: current snapshot of searching, mic, current mic, search results, Wi-Fi scan results, permission availability, and audio availability.

@@ -10,22 +10,49 @@ import Foundation
 /// Bridge for Bluetooth SDK communication between Expo modules and native iOS code
 /// Has commands for the Bluetooth SDK to use to send messages to JavaScript
 class Bridge {
-    /// Event callback for sending events to JS
-    static var eventCallback: ((String, [String: Any]) -> Void)?
+    private static let eventSinkLock = NSLock()
+    private static let defaultEventSinkId = "default"
+    private static var eventSinks: [String: (String, [String: Any]) -> Void] = [:]
 
     static func initialize(callback: @escaping (String, [String: Any]) -> Void) {
-        eventCallback = callback
+        setEventSink(defaultEventSinkId, callback)
+    }
+
+    static func addEventSink(callback: @escaping (String, [String: Any]) -> Void) -> String {
+        let id = UUID().uuidString
+        setEventSink(id, callback)
+        return id
+    }
+
+    static func removeEventSink(_ id: String) {
+        eventSinkLock.lock()
+        eventSinks.removeValue(forKey: id)
+        eventSinkLock.unlock()
+    }
+
+    private static func setEventSink(_ id: String, _ callback: @escaping (String, [String: Any]) -> Void) {
+        eventSinkLock.lock()
+        eventSinks[id] = callback
+        eventSinkLock.unlock()
+    }
+
+    private static func currentEventSinks() -> [(String, [String: Any]) -> Void] {
+        eventSinkLock.lock()
+        let sinks = Array(eventSinks.values)
+        eventSinkLock.unlock()
+        return sinks
     }
 
     /// Thread-safe event dispatch - ensures callback is invoked on main thread
     /// to avoid React Native bridge threading issues that can cause EXC_BREAKPOINT
     private static func dispatchEvent(_ eventName: String, _ data: [String: Any]) {
-        guard let callback = eventCallback else { return }
+        let sinks = currentEventSinks()
+        guard !sinks.isEmpty else { return }
         if Thread.isMainThread {
-            callback(eventName, data)
+            sinks.forEach { $0(eventName, data) }
         } else {
             DispatchQueue.main.async {
-                callback(eventName, data)
+                sinks.forEach { $0(eventName, data) }
             }
         }
     }

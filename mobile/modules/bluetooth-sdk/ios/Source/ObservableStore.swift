@@ -17,10 +17,20 @@ class ObservableStore {
     }
 
     private nonisolated(unsafe) var values: [String: Any] = [:]
-    private var onEmit: ((String, [String: Any]) -> Void)?
+    private var emitListeners: [String: (String, [String: Any]) -> Void] = [:]
 
     func configure(onEmit: @escaping (String, [String: Any]) -> Void) {
-        self.onEmit = onEmit
+        emitListeners["default"] = onEmit
+    }
+
+    func addListener(onEmit: @escaping (String, [String: Any]) -> Void) -> String {
+        let id = UUID().uuidString
+        emitListeners[id] = onEmit
+        return id
+    }
+
+    func removeListener(_ id: String) {
+        emitListeners.removeValue(forKey: id)
     }
 
     func set(_ category: String, _ key: String, _ value: Any) {
@@ -36,7 +46,7 @@ class ObservableStore {
         values[fullKey] = value
 
         // Emit immediately
-        onEmit?(normalizedCategory, [key: value])
+        emitListeners.values.forEach { $0(normalizedCategory, [key: value]) }
     }
 
     nonisolated func get(_ category: String, _ key: String) -> Any? {

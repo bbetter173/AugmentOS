@@ -22,6 +22,7 @@ class BluetoothSdkModule : Module() {
             "button_press",
             "touch_event",
             "head_up",
+            "vad_status",
             "battery_status",
             "local_transcription",
             "wifi_status_change",

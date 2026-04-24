@@ -348,7 +348,7 @@ struct ViewState {
     private func checkSetVadStatus(speaking: Bool) {
         if speaking != isSpeaking {
             isSpeaking = speaking
-            Bridge.sendVadStatus(isSpeaking)
+            Bridge.sendVadEvent(isSpeaking)
         }
     }
 

@@ -379,9 +379,8 @@ fun sendPhoneNotificationDismissed(...)       // MOVE to Crust with Notification
 
 **Battery Cleanup:**
 
-- `sendBatteryStatus()` does not yet match that clean end state on both platforms
-- Today it still formats a `glasses_battery_update` payload over `ws_text`
-- Decide during cleanup whether to replace that with a typed battery event path or keep it as an explicit passthrough on purpose
+- `sendBatteryStatus()` emits the typed `battery_status` event on both platforms
+- MentraOS app code formats the cloud `glasses_battery_update` payload in TypeScript
 
 **KEEP typed/raw hardware event emitters:**
 
@@ -412,6 +411,113 @@ fun sendHeadUp()           // Raw hardware event to app
 fun sendWSText(msg: String)
 fun sendWSBinary(data: ByteArray)
 ```
+
+### 3.4 Public API Surface After Phase 3
+
+The Bluetooth SDK public React Native surface is the Expo module exported by `@mentra/bluetooth-sdk`. External app code should interact with it through typed async methods and typed event subscriptions, not native `Bridge.kt` / `Bridge.swift` helpers.
+
+**Connection and status methods:**
+
+```ts
+await BluetoothSdk.getBluetoothStatus()
+await BluetoothSdk.getGlassesStatus()
+await BluetoothSdk.findCompatibleDevices()
+await BluetoothSdk.requestStatus()
+await BluetoothSdk.connectDefault()
+await BluetoothSdk.connectByName(deviceName)
+await BluetoothSdk.connectDefaultController()
+await BluetoothSdk.disconnectController()
+await BluetoothSdk.connectSimulated()
+await BluetoothSdk.disconnect()
+await BluetoothSdk.forget()
+await BluetoothSdk.forgetController()
+await BluetoothSdk.showDashboard()
+await BluetoothSdk.ping()
+```
+
+**Display, camera, WiFi, OTA, audio, and streaming commands:**
+
+```ts
+await BluetoothSdk.displayEvent(params)
+await BluetoothSdk.displayText(params)
+await BluetoothSdk.clearDisplay()
+await BluetoothSdk.sendIncidentId(incidentId, apiBaseUrl)
+await BluetoothSdk.photoRequest(...)
+await BluetoothSdk.queryGalleryStatus()
+await BluetoothSdk.requestWifiScan()
+await BluetoothSdk.sendWifiCredentials(ssid, password)
+await BluetoothSdk.forgetWifiNetwork(ssid)
+await BluetoothSdk.setHotspotState(enabled)
+await BluetoothSdk.logCurrentWifiFrequency()
+await BluetoothSdk.sendOtaStart()
+await BluetoothSdk.requestVersionInfo()
+await BluetoothSdk.startBufferRecording()
+await BluetoothSdk.stopBufferRecording()
+await BluetoothSdk.saveBufferVideo(requestId, durationSeconds)
+await BluetoothSdk.startVideoRecording(requestId, save, flash, sound)
+await BluetoothSdk.stopVideoRecording(requestId)
+await BluetoothSdk.startStream(...)
+await BluetoothSdk.stopStream()
+await BluetoothSdk.keepStreamAlive(...)
+await BluetoothSdk.setMicState(sendPcmData, sendTranscript, bypassVad)
+await BluetoothSdk.restartTranscriber()
+await BluetoothSdk.setOwnAppAudioPlaying(playing)
+await BluetoothSdk.getGlassesMediaVolume()
+await BluetoothSdk.setGlassesMediaVolume(level)
+await BluetoothSdk.rgbLedControl(...)
+await BluetoothSdk.setSttModelDetails(path, languageCode)
+await BluetoothSdk.getSttModelPath()
+await BluetoothSdk.checkSttModelAvailable()
+await BluetoothSdk.validateSttModel(path)
+await BluetoothSdk.extractTarBz2(sourcePath, destinationPath)
+```
+
+**Typed store helpers:**
+
+```ts
+await BluetoothSdk.updateBluetoothSettings(values)
+await BluetoothSdk.updateGlasses(values)
+BluetoothSdk.onBluetoothStatus(callback)
+BluetoothSdk.onGlassesStatus(callback)
+```
+
+`BluetoothSdk.update(category, values)` remains the low-level native store bridge used by these typed helpers. External callers should prefer `updateBluetoothSettings()` and `updateGlasses()` so the internal native store category names (`"core"` / `"glasses"`) do not become part of the partner-facing API.
+
+**Typed hardware/app events emitted to JavaScript:**
+
+```ts
+BluetoothSdk.addListener("bluetooth_status", handler)
+BluetoothSdk.addListener("glasses_status", handler)
+BluetoothSdk.addListener("button_press", handler)
+BluetoothSdk.addListener("touch_event", handler)
+BluetoothSdk.addListener("head_up", handler)
+BluetoothSdk.addListener("vad_status", handler)
+BluetoothSdk.addListener("battery_status", handler)
+BluetoothSdk.addListener("photo_response", handler)
+BluetoothSdk.addListener("gallery_status", handler)
+BluetoothSdk.addListener("wifi_status_change", handler)
+BluetoothSdk.addListener("hotspot_status_change", handler)
+BluetoothSdk.addListener("stream_status", handler)
+BluetoothSdk.addListener("keep_alive_ack", handler)
+BluetoothSdk.addListener("ota_update_available", handler)
+BluetoothSdk.addListener("ota_progress", handler)
+BluetoothSdk.addListener("save_setting", handler)
+```
+
+**MentraOS app-layer formatting:**
+
+The SDK emits raw/typed events. MentraOS-specific cloud protocol messages stay in the app layer:
+
+```ts
+BluetoothSdk.addListener("head_up", (event) => socketComms.sendHeadPosition(event.up))
+BluetoothSdk.addListener("vad_status", (event) => socketComms.sendVadStatus(event.status))
+BluetoothSdk.addListener("battery_status", (event) =>
+  socketComms.sendBatteryStatus(event.level, event.charging, event.timestamp),
+)
+BluetoothSdk.addListener("photo_response", (event) => restComms.sendPhotoResponse(event))
+```
+
+`ws_text` and `ws_bin` remain available as generic passthrough events for current legacy streaming/websocket paths, but new features should prefer dedicated typed events.
 
 ---
 
@@ -687,13 +793,13 @@ buttonSub.remove();
 
 ### Phase 3: Clean Up Bridge - Delete Duplicates (Week 2-3)
 
-- [ ] Audit all Bridge functions for duplicates
-- [ ] Find call sites of cloud-formatting functions in native code
-- [ ] Update call sites to use raw event emitters
-- [ ] Move cloud protocol formatting to TypeScript layer
-- [ ] Delete duplicate functions from Bridge.kt and Bridge.swift
-- [ ] Keep only raw hardware event emitters in Bluetooth SDK
-- [ ] Document public API surface
+- [x] Audit all Bridge functions for duplicates
+- [x] Find call sites of cloud-formatting functions in native code
+- [x] Update call sites to use raw event emitters
+- [x] Move cloud protocol formatting to TypeScript layer
+- [x] Delete duplicate functions from Bridge.kt and Bridge.swift
+- [x] Keep only raw hardware event emitters in Bluetooth SDK
+- [x] Document public API surface
 
 ### Phase 4: Publishing Setup (Week 3)
 

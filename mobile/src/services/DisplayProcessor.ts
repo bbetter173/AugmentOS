@@ -291,8 +291,8 @@ export class DisplayProcessor {
       console.log(`DISPLAY_PROCESSOR: Initialized DisplayProcessor with default wearable: ${defaultWearable}`)
     }
 
-    // subscribe to Bluetooth status changes:
-    BluetoothSdk.addListener("glasses_status", (changed: Partial<GlassesStatus>) => {
+    // subscribe to glasses status changes:
+    BluetoothSdk.onGlassesStatus((changed: Partial<GlassesStatus>) => {
       if (changed.deviceModel) {
         this.setDeviceModel(changed.deviceModel)
       }

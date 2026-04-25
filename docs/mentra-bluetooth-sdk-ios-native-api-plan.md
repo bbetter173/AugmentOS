@@ -241,6 +241,7 @@ Current implementation status:
 - The podspec defaults to a bare CocoaPods artifact with `SWCompression`, `SwiftProtobuf`, `onnxruntime-objc`, and `UltraliteSDK`, and no `ExpoModulesCore`.
 - The bare source list is explicit: `Source/**`, `Packages/CoreObjC/**`, Sherpa ONNX Swift/header files, VAD Swift files, and the libbz2 shim header. It does not use a broad catch-all that would accidentally compile the Expo adapter.
 - `BluetoothSdkModule.swift` and `ExpoModulesCore` are included only when `MENTRA_BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER=1` is set, which MentraOS does from `mobile/ios/Podfile`.
+- The MentraOS Expo module now owns a `MentraBluetoothSDK` instance and maps delegate callbacks back to the existing Expo event names. Adapter-only commands such as controller pairing, debug helpers, media volume, RGB LED control, and STT model utilities still call the current internals until the public facade grows those APIs.
 - `pod ipc spec` verifies both podspec modes, the Partner Kit iOS example runs `pod install` without Expo, and the example app builds for iOS Simulator against the public Swift facade.
 - MentraOS `pod install` and the `MentraBluetoothSDK` iOS scheme build with the Expo adapter enabled.
 

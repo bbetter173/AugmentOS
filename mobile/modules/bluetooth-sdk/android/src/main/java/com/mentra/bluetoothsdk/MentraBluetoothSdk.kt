@@ -77,6 +77,10 @@ class MentraBluetoothSdk private constructor(
         deviceManager.connectByName(deviceName)
     }
 
+    fun connectByName(deviceName: String) {
+        deviceManager.connectByName(deviceName)
+    }
+
     fun connectDefault() {
         deviceManager.connectDefault()
     }
@@ -364,6 +368,7 @@ class MentraBluetoothSdk private constructor(
                         )
                     )
                 }
+            else -> dispatchToListeners { it.onRawEvent(eventName, data) }
         }
     }
 

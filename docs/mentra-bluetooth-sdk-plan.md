@@ -1163,7 +1163,7 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [x] Define typed settings APIs for current `DeviceStore.apply()` side effects
 - [x] Document native `DeviceStore` as internal-only and keep it out of public API docs
 - [x] Add internal native event sink abstractions before changing bridge behavior
-- [ ] Move Expo module initialization/event forwarding behind native facades
+- [x] Move Expo module initialization/event forwarding behind native facades
 - [ ] Add `mobile/src/services/bluetooth/MentraBluetoothSdkAdapter.ts`
 - [ ] Add/extract `mobile/src/services/bluetooth/BluetoothSettingsSync.ts`
 - [ ] Add/extract `mobile/src/services/bluetooth/BluetoothEventBridge.ts`
@@ -1174,25 +1174,28 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [x] Remove `ExpoModulesCore` dependency from bare iOS podspec
 - [x] Gate the iOS pod source list so the bare pod excludes Expo adapter files
 - [x] Ensure Android Maven publication resolves `lc3Lib` without monorepo project dependencies
-- [ ] Keep MentraOS Expo adapter working on top of native facades
+- [x] Keep MentraOS Expo adapter working on top of native facades
 - [x] Create bare Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit`
 - [x] Create bare iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit`
 - [x] Update Partner Kit docs for native-first setup
 - [x] Validate bare Android sample build
 - [x] Validate bare iOS `pod install` and build
-- [ ] Validate MentraOS mobile app still passes relevant regression tests
+- [x] Validate MentraOS mobile app still passes relevant regression tests
 
 Current Phase 6 validation status:
 
 - Android `:mentra-bluetooth-sdk:compileReleaseKotlin` passes with the new native facade and event/store fanout.
+- Android `:mentra-bluetooth-sdk:compileDebugKotlin` passes with the Expo module now owning `MentraBluetoothSdk` for shared commands and event forwarding.
 - Android `:app:processDebugMainManifest` passes after moving the Vuzix min-SDK override to the Bluetooth SDK manifest and stripping unrelated permissions/dependencies from the LC3 companion artifact.
 - MentraOS Android `:app:assembleDebug` passes with the cleaned Android publication/manifest setup.
 - iOS `MentraBluetoothSDK` scheme builds for iOS simulator with the new Swift facade and event/store fanout.
+- iOS `BluetoothSdkModule.swift` now owns a `MentraBluetoothSDK` instance, forwards delegate callbacks to the existing Expo event names, and keeps adapter-only calls direct until those APIs are added to the public facade.
 - Local Maven publication succeeds for `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib`; the Bluetooth SDK POM resolves `lc3Lib` as `com.mentra:lc3Lib:0.1.0`, no longer exposes `host.exp.exponent:expo-modules-core`, and the LC3 POM no longer publishes legacy app/cloud dependencies.
 - The Partner Kit Android example builds against Maven local with the public facade and the documented ONNX Runtime native packaging `pickFirst` rule.
 - The bare iOS podspec defaults to the native SDK only: no `ExpoModulesCore` dependency and no `BluetoothSdkModule.swift` adapter source unless `MENTRA_BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER=1` is set.
-- MentraOS opts into the Expo adapter from `mobile/ios/Podfile`, preserving the current Expo module path while bare CocoaPods consumers get the native SDK surface. Moving that adapter to call the Swift facade directly remains a separate migration step.
+- MentraOS opts into the Expo adapter from `mobile/ios/Podfile`, preserving the current Expo module path while bare CocoaPods consumers get the native SDK surface.
 - The Partner Kit iOS example installs the local podspec with CocoaPods and builds for iOS Simulator against the public Swift facade.
+- Mobile `bun run test` passes with the adapter migration in place.
 
 ### Phase 7: MentraOS Migration
 

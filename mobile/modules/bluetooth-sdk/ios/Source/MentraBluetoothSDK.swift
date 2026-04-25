@@ -491,6 +491,10 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.connectByName(name)
     }
 
+    public func connectByName(_ name: String) {
+        DeviceManager.shared.connectByName(name)
+    }
+
     public func connectDefault() {
         DeviceManager.shared.connectDefault()
     }

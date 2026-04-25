@@ -1,6 +1,8 @@
 import ExpoModulesCore
 
-public class BluetoothSdkModule: Module {
+public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
+    private var sdk: MentraBluetoothSDK?
+
     public func definition() -> ModuleDefinition {
         Name("BluetoothSdk")
 
@@ -49,23 +51,15 @@ public class BluetoothSdkModule: Module {
         )
 
         OnCreate {
-            // Initialize Bridge with event callback
-            Bridge.initialize { [weak self] eventName, data in
-                self?.sendEvent(eventName, data)
-            }
-
-            // Configure observable store event emission
             Task { @MainActor [weak self] in
-                DeviceStore.shared.store.configure { [weak self] category, changes in
-                    switch ObservableStore.normalizeCategory(category) {
-                    case "glasses":
-                        self?.sendEvent("glasses_status", changes)
-                    case ObservableStore.bluetoothCategory:
-                        self?.sendEvent("bluetooth_status", changes)
-                    default:
-                        break
-                    }
-                }
+                _ = self?.bluetoothSdk()
+            }
+        }
+
+        OnDestroy {
+            Task { @MainActor [weak self] in
+                self?.sdk?.invalidate()
+                self?.sdk = nil
             }
         }
 
@@ -73,13 +67,13 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("getGlassesStatus") {
             await MainActor.run {
-                DeviceStore.shared.store.getCategory("glasses")
+                self.bluetoothSdk().glassesStatus.values
             }
         }
 
         AsyncFunction("getBluetoothStatus") {
             await MainActor.run {
-                DeviceStore.shared.store.getCategory(ObservableStore.bluetoothCategory)
+                self.bluetoothSdk().bluetoothStatus.values
             }
         }
 
@@ -95,28 +89,32 @@ public class BluetoothSdkModule: Module {
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { (params: [String: Any]) in
-            await MainActor.run {
-                DeviceManager.shared.displayEvent(params)
-            }
+            let sdk = await MainActor.run { self.bluetoothSdk() }
+            try? await sdk.displayEvent(MentraDisplayEventRequest(values: params))
         }
 
         AsyncFunction("displayText") { (params: [String: Any]) in
-            await MainActor.run {
-                DeviceManager.shared.displayText(params)
-            }
+            let request = MentraDisplayTextRequest(
+                text: params["text"] as? String ?? "",
+                x: intValue(params["x"], defaultValue: 0),
+                y: intValue(params["y"], defaultValue: 0),
+                size: intValue(params["size"], defaultValue: 24)
+            )
+            let sdk = await MainActor.run { self.bluetoothSdk() }
+            try? await sdk.displayText(request)
         }
 
         // MARK: - Connection Commands
 
         AsyncFunction("connectDefault") {
             await MainActor.run {
-                DeviceManager.shared.connectDefault()
+                self.bluetoothSdk().connectDefault()
             }
         }
 
         AsyncFunction("connectByName") { (deviceName: String) in
             await MainActor.run {
-                DeviceManager.shared.connectByName(deviceName)
+                self.bluetoothSdk().connectByName(deviceName)
             }
         }
 
@@ -128,13 +126,13 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("connectSimulated") {
             await MainActor.run {
-                DeviceManager.shared.connectSimulated()
+                self.bluetoothSdk().connectSimulated()
             }
         }
 
         AsyncFunction("disconnect") {
             await MainActor.run {
-                DeviceManager.shared.disconnect()
+                self.bluetoothSdk().disconnect()
             }
         }
 
@@ -146,7 +144,7 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("forget") {
             await MainActor.run {
-                DeviceManager.shared.forget()
+                self.bluetoothSdk().forget()
             }
         }
 
@@ -158,13 +156,13 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("findCompatibleDevices") { (deviceModel: String) in
             await MainActor.run {
-                DeviceManager.shared.findCompatibleDevices(deviceModel)
+                self.bluetoothSdk().startScan(model: MentraDeviceModel.fromDeviceType(deviceModel))
             }
         }
 
         AsyncFunction("showDashboard") {
             await MainActor.run {
-                DeviceManager.shared.showDashboard()
+                self.bluetoothSdk().showDashboard()
             }
         }
 
@@ -192,7 +190,7 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in
             await MainActor.run {
-                DeviceManager.shared.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
+                self.bluetoothSdk().sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
             }
         }
 
@@ -200,25 +198,25 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("requestWifiScan") {
             await MainActor.run {
-                DeviceManager.shared.requestWifiScan()
+                self.bluetoothSdk().requestWifiScan()
             }
         }
 
         AsyncFunction("sendWifiCredentials") { (ssid: String, password: String) in
             await MainActor.run {
-                DeviceManager.shared.sendWifiCredentials(ssid, password)
+                self.bluetoothSdk().sendWifiCredentials(ssid: ssid, password: password)
             }
         }
 
         AsyncFunction("forgetWifiNetwork") { (ssid: String) in
             await MainActor.run {
-                DeviceManager.shared.forgetWifiNetwork(ssid)
+                self.bluetoothSdk().forgetWifiNetwork(ssid: ssid)
             }
         }
 
         AsyncFunction("setHotspotState") { (enabled: Bool) in
             await MainActor.run {
-                DeviceManager.shared.setHotspotState(enabled)
+                self.bluetoothSdk().setHotspotState(enabled: enabled)
             }
         }
 
@@ -226,7 +224,7 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("queryGalleryStatus") {
             await MainActor.run {
-                DeviceManager.shared.queryGalleryStatus()
+                self.bluetoothSdk().queryGalleryStatus()
             }
         }
 
@@ -236,8 +234,17 @@ public class BluetoothSdkModule: Module {
                 authToken: String?, compress: String?, flash: Bool, sound: Bool
             ) in
             await MainActor.run {
-                DeviceManager.shared.photoRequest(
-                    requestId, appId, size, webhookUrl, authToken, compress, flash, sound
+                self.bluetoothSdk().requestPhoto(
+                    MentraPhotoRequest(
+                        requestId: requestId,
+                        appId: appId,
+                        size: size,
+                        webhookUrl: webhookUrl,
+                        authToken: authToken,
+                        compress: compress,
+                        flash: flash,
+                        sound: sound
+                    )
                 )
             }
         }
@@ -246,7 +253,7 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("sendOtaStart") {
             await MainActor.run {
-                DeviceManager.shared.sendOtaStart()
+                self.bluetoothSdk().sendOtaStart()
             }
         }
 
@@ -254,7 +261,7 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("requestVersionInfo") {
             await MainActor.run {
-                DeviceManager.shared.requestVersionInfo()
+                self.bluetoothSdk().requestVersionInfo()
             }
         }
 
@@ -262,13 +269,13 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("sendShutdown") {
             await MainActor.run {
-                DeviceManager.shared.sendShutdown()
+                self.bluetoothSdk().sendShutdown()
             }
         }
 
         AsyncFunction("sendReboot") {
             await MainActor.run {
-                DeviceManager.shared.sendReboot()
+                self.bluetoothSdk().sendReboot()
             }
         }
 
@@ -276,31 +283,33 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("startBufferRecording") {
             await MainActor.run {
-                DeviceManager.shared.startBufferRecording()
+                self.bluetoothSdk().startBufferRecording()
             }
         }
 
         AsyncFunction("stopBufferRecording") {
             await MainActor.run {
-                DeviceManager.shared.stopBufferRecording()
+                self.bluetoothSdk().stopBufferRecording()
             }
         }
 
         AsyncFunction("saveBufferVideo") { (requestId: String, durationSeconds: Int) in
             await MainActor.run {
-                DeviceManager.shared.saveBufferVideo(requestId, durationSeconds)
+                self.bluetoothSdk().saveBufferVideo(requestId: requestId, durationSeconds: durationSeconds)
             }
         }
 
         AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
             await MainActor.run {
-                DeviceManager.shared.startVideoRecording(requestId, save, flash, sound)
+                self.bluetoothSdk().startVideoRecording(
+                    MentraVideoRecordingRequest(requestId: requestId, save: save, flash: flash, sound: sound)
+                )
             }
         }
 
         AsyncFunction("stopVideoRecording") { (requestId: String) in
             await MainActor.run {
-                DeviceManager.shared.stopVideoRecording(requestId)
+                self.bluetoothSdk().stopVideoRecording(requestId: requestId)
             }
         }
 
@@ -308,28 +317,28 @@ public class BluetoothSdkModule: Module {
 
         AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                DeviceManager.shared.startStream(params)
+                self.bluetoothSdk().startStream(MentraStreamRequest(values: params))
             }
         }
 
         AsyncFunction("stopStream") {
             await MainActor.run {
-                DeviceManager.shared.stopStream()
+                self.bluetoothSdk().stopStream()
             }
         }
 
         AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                DeviceManager.shared.keepStreamAlive(params)
+                self.bluetoothSdk().keepStreamAlive(MentraStreamKeepAliveRequest(values: params))
             }
         }
 
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { (playing: Bool) in
-            // Notify PhoneAudioMonitor that our app started/stopped playing audio
-            // This is used to suspend LC3 mic during audio playback to avoid MCU overload
-            PhoneAudioMonitor.getInstance().setOwnAppAudioPlaying(playing)
+            await MainActor.run {
+                self.bluetoothSdk().setOwnAppAudioPlaying(playing)
+            }
         }
 
         AsyncFunction("getGlassesMediaVolume") { () async throws -> [String: Any] in
@@ -377,9 +386,8 @@ public class BluetoothSdkModule: Module {
         // MARK: - Display Commands
 
         AsyncFunction("clearDisplay") {
-            await MainActor.run {
-                DeviceManager.shared.sgc?.clearDisplay()
-            }
+            let sdk = await MainActor.run { self.bluetoothSdk() }
+            try? await sdk.clearDisplay()
         }
 
         // MARK: - STT Model Management
@@ -403,5 +411,82 @@ public class BluetoothSdkModule: Module {
         AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
             return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
         }
+    }
+
+    @MainActor
+    private func bluetoothSdk() -> MentraBluetoothSDK {
+        if let sdk {
+            return sdk
+        }
+
+        let sdk = MentraBluetoothSDK()
+        sdk.delegate = self
+        self.sdk = sdk
+        return sdk
+    }
+
+    private func intValue(_ value: Any?, defaultValue: Int) -> Int {
+        switch value {
+        case let value as Int:
+            return value
+        case let value as Double:
+            return Int(value)
+        case let value as NSNumber:
+            return value.intValue
+        default:
+            return defaultValue
+        }
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus status: MentraGlassesStatusUpdate) {
+        sendEvent("glasses_status", status.values)
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus status: MentraBluetoothStatusUpdate) {
+        sendEvent("bluetooth_status", status.values)
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didDiscover _: MentraDiscoveredDevice) {}
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan reason: MentraScanStopReason) {
+        guard reason == .completed else { return }
+        sendEvent("compatible_glasses_search_stop", ["type": "compatible_glasses_search_stop"])
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive event: MentraBluetoothEvent) {
+        switch event {
+        case let .localTranscription(transcription):
+            sendEvent("local_transcription", transcription.values)
+        case let .raw(name, values):
+            sendEvent(name, values)
+        }
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicPcm frame: Data) {
+        sendEvent("mic_pcm", ["pcm": frame])
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicLc3 frame: Data) {
+        sendEvent("mic_lc3", ["lc3": frame])
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didChangeDefaultDevice _: MentraPairedDevice?) {}
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didLog message: String) {
+        sendEvent("log", ["message": message])
+    }
+
+    @MainActor
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail error: MentraBluetoothError) {
+        sendEvent("pair_failure", ["error": error.message])
     }
 }

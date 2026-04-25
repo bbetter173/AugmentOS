@@ -234,6 +234,7 @@ interface MentraBluetoothSdkListener {
     fun onDefaultDeviceChanged(device: MentraPairedDevice?) {}
     fun onLog(message: String) {}
     fun onError(error: MentraBluetoothError) {}
+    fun onRawEvent(eventName: String, values: Map<String, Any>) {}
 }
 
 abstract class MentraBluetoothSdkCallback : MentraBluetoothSdkListener

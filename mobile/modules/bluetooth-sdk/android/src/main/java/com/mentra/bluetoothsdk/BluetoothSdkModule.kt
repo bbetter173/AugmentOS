@@ -6,8 +6,87 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class BluetoothSdkModule : Module() {
-    private val bridge: Bridge by lazy { Bridge.getInstance() }
+    private var sdk: MentraBluetoothSdk? = null
     private var deviceManager: DeviceManager? = null
+    private val sdkListener =
+            object : MentraBluetoothSdkListener {
+                override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
+                    sendEvent("glasses_status", status.values)
+                }
+
+                override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
+                    sendEvent("bluetooth_status", status.values)
+                }
+
+                override fun onScanStopped(reason: MentraScanStopReason) {
+                    if (reason == MentraScanStopReason.COMPLETED) {
+                        sendEvent("compatible_glasses_search_stop", mapOf("type" to "compatible_glasses_search_stop"))
+                    }
+                }
+
+                override fun onButtonPress(event: MentraButtonPressEvent) {
+                    sendEvent(
+                            "button_press",
+                            mapOf(
+                                    "buttonId" to event.buttonId,
+                                    "pressType" to event.pressType,
+                                    "timestamp" to (event.timestamp ?: System.currentTimeMillis())
+                            )
+                    )
+                }
+
+                override fun onTouch(event: MentraTouchEvent) {
+                    sendEvent("touch_event", event.values)
+                }
+
+                override fun onHeadUpChanged(headUp: Boolean) {
+                    sendEvent("head_up", mapOf("up" to headUp))
+                }
+
+                override fun onBatteryStatus(event: MentraBatteryStatusEvent) {
+                    sendEvent("battery_status", event.values)
+                }
+
+                override fun onWifiStatusChanged(event: MentraWifiStatusEvent) {
+                    sendEvent("wifi_status_change", event.values)
+                }
+
+                override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
+                    sendEvent("gallery_status", event.values)
+                }
+
+                override fun onPhotoResponse(event: MentraPhotoResponseEvent) {
+                    sendEvent("photo_response", event.values)
+                }
+
+                override fun onStreamStatus(event: MentraStreamStatusEvent) {
+                    sendEvent("stream_status", event.values)
+                }
+
+                override fun onMicPcm(frame: ByteArray) {
+                    sendEvent("mic_pcm", mapOf("pcm" to frame))
+                }
+
+                override fun onMicLc3(frame: ByteArray) {
+                    sendEvent("mic_lc3", mapOf("lc3" to frame))
+                }
+
+                override fun onLocalTranscription(event: MentraLocalTranscriptionEvent) {
+                    sendEvent("local_transcription", event.values)
+                }
+
+                override fun onLog(message: String) {
+                    sendEvent("log", mapOf("message" to message))
+                }
+
+                override fun onError(error: MentraBluetoothError) {
+                    sendEvent("pair_failure", mapOf("error" to error.message))
+                }
+
+                override fun onRawEvent(eventName: String, values: Map<String, Any>) {
+                    sendEvent(eventName, values)
+                }
+            }
 
     override fun definition() = ModuleDefinition {
         Name("BluetoothSdk")
@@ -60,31 +139,26 @@ class BluetoothSdkModule : Module() {
         )
 
         OnCreate {
-            // Initialize Bridge with Android context and event callback
-            Bridge.initialize(
+            val context =
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            ) { eventName, data -> sendEvent(eventName, data) }
-
-            // initialize DeviceManager after Bridge is ready
+            sdk = MentraBluetoothSdk.create(context, sdkListener)
             deviceManager = DeviceManager.getInstance()
+        }
 
-            // Configure observable store event emission
-            DeviceStore.store.configure { category, changes ->
-                when (ObservableStore.normalizeCategory(category)) {
-                    "glasses" -> sendEvent("glasses_status", changes)
-                    ObservableStore.BLUETOOTH_CATEGORY -> sendEvent("bluetooth_status", changes)
-                }
-            }
+        OnDestroy {
+            sdk?.close()
+            sdk = null
+            deviceManager = null
         }
 
         // MARK: - Observable Store Functions
 
-        Function("getGlassesStatus") { DeviceStore.store.getCategory("glasses") }
+        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.values ?: DeviceStore.store.getCategory("glasses") }
 
         Function("getBluetoothStatus") {
-            DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+            sdk?.getBluetoothStatus()?.values ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
         }
 
         Function("set") { category: String, key: String, value: Any ->
@@ -117,28 +191,35 @@ class BluetoothSdkModule : Module() {
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { params: Map<String, Any> ->
-            deviceManager?.displayEvent(params)
+            sdk?.displayEvent(MentraDisplayEventRequest(params))
         }
 
         AsyncFunction("displayText") { params: Map<String, Any> ->
-            deviceManager?.displayText(params)
+            sdk?.displayText(
+                    MentraDisplayTextRequest(
+                            text = params["text"] as? String ?: "",
+                            x = (params["x"] as? Number)?.toInt() ?: 0,
+                            y = (params["y"] as? Number)?.toInt() ?: 0,
+                            size = (params["size"] as? Number)?.toInt() ?: 24,
+                    )
+            )
         }
 
-        AsyncFunction("clearDisplay") { deviceManager?.clearDisplay() }
+        AsyncFunction("clearDisplay") { sdk?.clearDisplay() }
 
         // MARK: - Connection Commands
 
-        AsyncFunction("connectDefault") { deviceManager?.connectDefault() }
+        AsyncFunction("connectDefault") { sdk?.connectDefault() }
 
         AsyncFunction("connectByName") { deviceName: String ->
-            deviceManager?.connectByName(deviceName)
+            sdk?.connectByName(deviceName)
         }
 
-        AsyncFunction("connectSimulated") { deviceManager?.connectSimulated() }
+        AsyncFunction("connectSimulated") { sdk?.connectSimulated() }
 
-        AsyncFunction("disconnect") { deviceManager?.disconnect() }
+        AsyncFunction("disconnect") { sdk?.disconnect() }
 
-        AsyncFunction("forget") { deviceManager?.forget() }
+        AsyncFunction("forget") { sdk?.forget() }
 
         AsyncFunction("connectDefaultController") { deviceManager?.connectDefaultController() }
 
@@ -147,10 +228,10 @@ class BluetoothSdkModule : Module() {
         AsyncFunction("forgetController") { deviceManager?.forgetController() }
 
         AsyncFunction("findCompatibleDevices") { deviceModel: String ->
-            deviceManager?.findCompatibleDevices(deviceModel)
+            sdk?.startScan(MentraDeviceModel.fromDeviceType(deviceModel))
         }
 
-        AsyncFunction("showDashboard") { deviceManager?.showDashboard() }
+        AsyncFunction("showDashboard") { sdk?.showDashboard() }
 
         AsyncFunction("ping") { deviceManager?.ping() }
 
@@ -166,21 +247,21 @@ class BluetoothSdkModule : Module() {
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
-            deviceManager?.sendIncidentId(incidentId, apiBaseUrl)
+            sdk?.sendIncidentId(incidentId, apiBaseUrl)
         }
 
         // MARK: - WiFi Commands
 
-        AsyncFunction("requestWifiScan") { deviceManager?.requestWifiScan() }
+        AsyncFunction("requestWifiScan") { sdk?.requestWifiScan() }
 
         AsyncFunction("sendWifiCredentials") { ssid: String, password: String ->
-            deviceManager?.sendWifiCredentials(ssid, password)
+            sdk?.sendWifiCredentials(ssid, password)
         }
 
-        AsyncFunction("forgetWifiNetwork") { ssid: String -> deviceManager?.forgetWifiNetwork(ssid) }
+        AsyncFunction("forgetWifiNetwork") { ssid: String -> sdk?.forgetWifiNetwork(ssid) }
 
         AsyncFunction("setHotspotState") { enabled: Boolean ->
-            deviceManager?.setHotspotState(enabled)
+            sdk?.setHotspotState(enabled)
         }
 
         AsyncFunction("logCurrentWifiFrequency") {
@@ -204,7 +285,7 @@ class BluetoothSdkModule : Module() {
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("queryGalleryStatus") { deviceManager?.queryGalleryStatus() }
+        AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
 
         AsyncFunction("photoRequest") {
                 requestId: String,
@@ -215,60 +296,62 @@ class BluetoothSdkModule : Module() {
                 compress: String,
                 flash: Boolean,
                 sound: Boolean ->
-            deviceManager?.photoRequest(
-                    requestId,
-                    appId,
-                    size,
-                    webhookUrl,
-                    authToken,
-                    compress,
-                    flash,
-                    sound
+            sdk?.requestPhoto(
+                    MentraPhotoRequest(
+                            requestId = requestId,
+                            appId = appId,
+                            size = size,
+                            webhookUrl = webhookUrl,
+                            authToken = authToken,
+                            compress = compress,
+                            flash = flash,
+                            sound = sound,
+                    )
             )
         }
 
         // MARK: - OTA Commands
 
-        AsyncFunction("sendOtaStart") { deviceManager?.sendOtaStart() }
+        AsyncFunction("sendOtaStart") { sdk?.sendOtaStart() }
 
         // MARK: - Version Info Commands
 
-        AsyncFunction("requestVersionInfo") { deviceManager?.requestVersionInfo() }
+        AsyncFunction("requestVersionInfo") { sdk?.requestVersionInfo() }
 
         // MARK: - Power Control Commands
 
-        AsyncFunction("sendShutdown") { deviceManager?.sendShutdown() }
+        AsyncFunction("sendShutdown") { sdk?.sendShutdown() }
 
-        AsyncFunction("sendReboot") { deviceManager?.sendReboot() }
+        AsyncFunction("sendReboot") { sdk?.sendReboot() }
 
         // MARK: - Video Recording Commands
 
-        AsyncFunction("startBufferRecording") { deviceManager?.startBufferRecording() }
+        AsyncFunction("startBufferRecording") { sdk?.startBufferRecording() }
 
-        AsyncFunction("stopBufferRecording") { deviceManager?.stopBufferRecording() }
+        AsyncFunction("stopBufferRecording") { sdk?.stopBufferRecording() }
 
         AsyncFunction("saveBufferVideo") { requestId: String, durationSeconds: Int ->
-            deviceManager?.saveBufferVideo(requestId, durationSeconds)
+            sdk?.saveBufferVideo(requestId, durationSeconds)
         }
 
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
-            deviceManager?.startVideoRecording(requestId, save, flash, sound)
+            sdk?.startVideoRecording(MentraVideoRecordingRequest(requestId, save, flash, sound))
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
-            deviceManager?.stopVideoRecording(requestId)
+            sdk?.stopVideoRecording(requestId)
         }
 
         // MARK: - Stream Commands
 
         AsyncFunction("startStream") { params: Map<String, Any> ->
-            deviceManager?.startStream(params.toMutableMap())
+            sdk?.startStream(MentraStreamRequest(params))
         }
 
-        AsyncFunction("stopStream") { deviceManager?.stopStream() }
+        AsyncFunction("stopStream") { sdk?.stopStream() }
 
         AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
-            deviceManager?.keepStreamAlive(params.toMutableMap())
+            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest(params))
         }
 
         // MARK: - Microphone Commands
@@ -285,10 +368,7 @@ class BluetoothSdkModule : Module() {
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { playing: Boolean ->
-            // Notify PhoneAudioMonitor that our app started/stopped playing audio
-            // This is used to suspend LC3 mic during audio playback to avoid MCU overload
-            val context = appContext.reactContext ?: return@AsyncFunction
-            com.mentra.bluetoothsdk.utils.PhoneAudioMonitor.getInstance(context).setOwnAppAudioPlaying(playing)
+            sdk?.setOwnAppAudioPlaying(playing)
         }
 
         AsyncFunction("getGlassesMediaVolume") {

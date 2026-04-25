@@ -36,25 +36,32 @@ It also emits four lifecycle events you can subscribe to: `ready`, `disconnect`,
 
 ### Modules on the session
 
-Eight modules, each a thin wrapper over the wire protocol:
+14 modules, each a thin wrapper over the wire protocol. Events live on the module that owns the domain — audio input on `microphone`, audio output on `audio`, button/touch on `input`, etc. Imperative one-shots live alongside their owning surface (`session.audio.speak`, `session.camera.takePhoto`).
 
 | Module | What it does | Key methods |
 |---|---|---|
 | `session.layouts` | Push layouts to the glasses display | `showTextWall`, `showDoubleTextWall`, `showReferenceCard`, `showDashboardCard`, `showBitmapView`, `clearView` |
-| `session.events` | Subscribe to glasses / phone / cloud streams | `onTranscription`, `onTranslation`, `onButtonPress`, `onTouch`, `onHeadPosition`, `onLocation`, `onGlassesBattery`, `onPhoneBattery`, `onGlassesConnection`, `onPhoneNotification`, `onCalendarEvent`, `onVoiceActivity`, `onAudioChunk`, plus a generic `subscribe(stream, handler)` escape hatch |
-| `session.audio` | Phone-side audio output | `play({audioUrl})`, `speak(text, {voice_id, …})` (cloud TTS), `stop()` |
+| `session.audio` | Phone-side audio **output** | `play({audioUrl})`, `speak(text, {voice_id, …})` (cloud TTS), `stop()` |
+| `session.microphone` | Audio **input** events | `onTranscription`, `onTranslation`, `onAudioChunk`, `onVoiceActivity` |
+| `session.input` | Physical control events | `onButtonPress`, `onTouch` |
+| `session.location` | Location events | `onUpdate` |
+| `session.imu` | Head position + motion events | `onHeadPosition` |
+| `session.glasses` | Glasses device-state events | `onBattery`, `onConnection` |
+| `session.phone` | Phone device-state events | `onNotification`, `onCalendarEvent`, `onBattery` |
+| `session.system` | Phone-OS imperative utilities | `share(...)`, `openUrl(url)`, `copyToClipboard(text)`, `download(...)` |
 | `session.camera` | Glasses camera | `takePhoto({size, compress, sound, saveToGallery})`, `setFov({horizontal, vertical})` |
 | `session.led` | Glasses RGB LED | `turnOn({color, ontime, offtime, count})`, `turnOff()`, `blink(color, ontime, offtime, count)`, `solid(color, duration)` |
 | `session.storage` | Phone-local AsyncStorage scoped to `(userId, packageName)` | `get`, `set`, `delete`, `list` (string values only) |
-| `session.system` | OS-level utilities via the phone | `share(...)`, `openUrl(url)`, `copyToClipboard(text)`, `download(...)` |
 | `session.stream` | Video streaming from glasses (Phase 5 — wired but bridged into existing cloud streaming) | `startUnmanaged({streamUrl})`, `startManaged({restreamDestinations})`, `stop(streamId?)` |
 | `session.dashboard` | Dashboard widget surface — **noop in v1**, prints a one-time warning. Cloud DashboardManager still owns dashboard rendering. | `setContent(mode, content)` |
+
+`session.events` is **internal** and exposes only `subscribe(rawStreamType, handler)` — a forward-compat escape hatch for new event types not yet wrapped on a domain module. Authors should not reach for it directly; the typed methods on the modules above are the canonical surface.
 
 Each event subscriber returns an `UnsubscribeFn`. Subscriptions are ref-counted: the SDK only sends `SUBSCRIBE` over the wire when a stream's count transitions 0↔1, so multiple components listening for the same stream don't fan out.
 
 ### Subscriptions: language convention
 
-Transcription/translation streams use a colon-suffixed wire format: `transcription:en-US`, `translation:en-US:fr-FR`. The SDK's `onTranscription(handler)` defaults to `transcription:auto` and the cloud auto-detects. The detected language is in the event payload. There's also a wildcard fan-out: a handler on `transcription:auto` receives any `transcription:<lang>` event, which makes "give me transcripts in whatever language" work without manual wiring.
+Transcription/translation streams use a colon-suffixed wire format: `transcription:en-US`, `translation:en-US:fr-FR`. The SDK's `session.microphone.onTranscription(handler)` defaults to `transcription:auto` and the cloud auto-detects. The detected language is in the event payload. There's also a wildcard fan-out: a handler on `transcription:auto` receives any `transcription:<lang>` event, which makes "give me transcripts in whatever language" work without manual wiring.
 
 ### React bindings (`@mentra/miniapp/react`)
 

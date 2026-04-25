@@ -34,7 +34,7 @@ export default function CaptionsPage() {
 
   useEffect(() => {
     const unsubs = [
-      session.events.onTranscription((data: TranscriptionData) => {
+      session.microphone.onTranscription((data: TranscriptionData) => {
         setLiveTranscript(data.text)
         if (mirrorToGlasses) {
           session.layouts.showTextWall(data.text)
@@ -44,7 +44,7 @@ export default function CaptionsPage() {
           setLiveTranscript("")
         }
       }),
-      session.events.onButtonPress((data: ButtonPressData) => {
+      session.input.onButtonPress((data: ButtonPressData) => {
         setLastButton(`${data.buttonId} (${data.pressType})`)
       }),
     ]

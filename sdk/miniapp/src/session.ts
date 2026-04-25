@@ -27,9 +27,15 @@ import {Transport} from "./transport/types"
 import {AudioModule} from "./modules/audio"
 import {CameraModule} from "./modules/camera"
 import {DashboardAPI} from "./modules/dashboard"
-import {EventManager} from "./modules/events"
+import {EventManager, type UnsubscribeFn} from "./modules/events"
+import {GlassesModule} from "./modules/glasses"
+import {ImuModule} from "./modules/imu"
+import {InputModule} from "./modules/input"
 import {LayoutManager} from "./modules/layouts"
 import {LedModule} from "./modules/led"
+import {LocationModule} from "./modules/location"
+import {MicrophoneModule} from "./modules/microphone"
+import {PhoneModule} from "./modules/phone"
 import {SimpleStorage} from "./modules/storage"
 import {StreamModule} from "./modules/stream"
 import {SystemModule} from "./modules/system"
@@ -97,11 +103,25 @@ type SessionEmitterEvents = {
 
 export class MiniappSession {
   public readonly layouts: LayoutManager
+  /**
+   * Internal subscription registry + escape hatch.
+   *
+   * Domain modules (`session.microphone`, `session.input`, etc.) are the
+   * canonical surface for typed event subscriptions. `events.subscribe(...)`
+   * remains as a forward-compat escape hatch for new event types not yet
+   * wrapped on a domain module.
+   */
   public readonly events: EventManager
   public readonly audio: AudioModule
   public readonly camera: CameraModule
   public readonly dashboard: DashboardAPI
+  public readonly glasses: GlassesModule
+  public readonly imu: ImuModule
+  public readonly input: InputModule
   public readonly led: LedModule
+  public readonly location: LocationModule
+  public readonly microphone: MicrophoneModule
+  public readonly phone: PhoneModule
   public readonly storage: SimpleStorage
   public readonly stream: StreamModule
   public readonly system: SystemModule
@@ -140,15 +160,31 @@ export class MiniappSession {
       this.colorScheme = injected.colorScheme
     }
 
-    this.layouts = new LayoutManager(this)
     this.events = new EventManager(this)
     this.audio = new AudioModule(this)
     this.camera = new CameraModule(this)
     this.dashboard = new DashboardAPI(this)
+    this.glasses = new GlassesModule(this)
+    this.imu = new ImuModule(this)
+    this.input = new InputModule(this)
+    this.layouts = new LayoutManager(this)
     this.led = new LedModule(this)
+    this.location = new LocationModule(this)
+    this.microphone = new MicrophoneModule(this)
+    this.phone = new PhoneModule(this)
     this.storage = new SimpleStorage(this)
     this.stream = new StreamModule(this)
     this.system = new SystemModule(this)
+  }
+
+  /**
+   * @internal — subscribe to a raw stream type. Domain modules call this; it
+   * delegates to the EventManager registry. Underscore prefix signals "not
+   * part of the public SDK surface — use session.microphone.onTranscription
+   * etc. instead."
+   */
+  _subscribe(streamType: string, handler: (data: unknown) => void): UnsubscribeFn {
+    return this.events.subscribe(streamType, handler)
   }
 
   // -------------------------------------------------------------------------

@@ -88,3 +88,12 @@ export type {DashboardMode} from "./modules/dashboard"
 export type {LedColor, LedControlOptions} from "./modules/led"
 export type {StartUnmanagedOptions, StartManagedOptions, ManagedStreamResult, StreamStatus} from "./modules/stream"
 export type {ShareOptions, ShareResult, DownloadOptions, DownloadResult} from "./modules/system"
+
+// Domain module types — exported so consumers can type module references
+// (rare; most authors interact via session.<module>.<method> directly).
+export type {GlassesModule} from "./modules/glasses"
+export type {ImuModule} from "./modules/imu"
+export type {InputModule} from "./modules/input"
+export type {LocationModule} from "./modules/location"
+export type {MicrophoneModule} from "./modules/microphone"
+export type {PhoneModule} from "./modules/phone"

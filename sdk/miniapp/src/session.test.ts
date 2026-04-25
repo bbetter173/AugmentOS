@@ -213,7 +213,7 @@ describe("MiniappSession event fan-out", () => {
     await connectPromise
 
     const received: unknown[] = []
-    const unsub = session.events.onButtonPress((d) => received.push(d))
+    const unsub = session.input.onButtonPress((d) => received.push(d))
 
     transport.deliverFromPhone({
       type: MiniappResponseType.EVENT,
@@ -239,7 +239,7 @@ describe("MiniappSession event fan-out", () => {
     })
     await connectPromise
 
-    session.events.onButtonPress(() => {})
+    session.input.onButtonPress(() => {})
     const outbound = parseEnvelope(transport.sent[transport.sent.length - 1]!)
     expect((outbound!.payload as {type: string}).type).toBe(MiniappRequestType.SUBSCRIBE)
     expect((outbound!.payload as {subscriptions: string[]}).subscriptions).toContain("button_press")

@@ -22,21 +22,21 @@ export default function EventsPage() {
 
   useEffect(() => {
     const unsubs = [
-      session.events.onButtonPress((d) => setLastButton(`${d.buttonId} (${d.pressType}) — ${new Date().toLocaleTimeString()}`)),
-      session.events.onTouch((d) => setLastTouch(`${JSON.stringify(d)} — ${new Date().toLocaleTimeString()}`)),
-      session.events.onHeadPosition((d) => setHeadPos(`${d.position ?? "?"}`)),
-      session.events.onGlassesBattery((d) => setGlassesBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
-      session.events.onPhoneBattery((d) => setPhoneBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
-      session.events.onGlassesConnection((d) => setConnection(d as unknown as Record<string, unknown>)),
-      session.events.onVoiceActivity((d) => setVad(!!d.status)),
-      session.events.onTranscription((d) => setTranscript(d.text)),
-      session.events.onLocation((d) =>
+      session.input.onButtonPress((d) => setLastButton(`${d.buttonId} (${d.pressType}) — ${new Date().toLocaleTimeString()}`)),
+      session.input.onTouch((d) => setLastTouch(`${JSON.stringify(d)} — ${new Date().toLocaleTimeString()}`)),
+      session.imu.onHeadPosition((d) => setHeadPos(`${d.position ?? "?"}`)),
+      session.glasses.onBattery((d) => setGlassesBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
+      session.phone.onBattery((d) => setPhoneBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
+      session.glasses.onConnection((d) => setConnection(d as unknown as Record<string, unknown>)),
+      session.microphone.onVoiceActivity((d) => setVad(!!d.status)),
+      session.microphone.onTranscription((d) => setTranscript(d.text)),
+      session.location.onUpdate((d) =>
         setLocation(`${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}${d.accuracy ? ` (±${Math.round(d.accuracy)}m)` : ""}`),
       ),
-      session.events.onPhoneNotification((d) =>
+      session.phone.onNotification((d) =>
         setLastNotification(`${d.app}: ${d.title}${d.content ? " — " + d.content : ""}`),
       ),
-      session.events.onCalendarEvent((d) =>
+      session.phone.onCalendarEvent((d) =>
         setLastCalendar(`${d.title} @ ${new Date(d.dtStart).toLocaleString()}`),
       ),
     ]

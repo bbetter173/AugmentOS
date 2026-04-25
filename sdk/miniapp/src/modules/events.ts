@@ -1,24 +1,43 @@
 /**
- * @fileoverview EventManager — subscribes to glasses / phone / cloud streams.
+ * @fileoverview EventManager — internal subscription registry + escape hatch.
  *
- * Each `onXxx(handler)` method:
- *   1. Adds the handler to a local EventEmitter.
- *   2. If this is the first handler for a stream, sends a SUBSCRIBE request
- *      over the bridge with the full current subscription list.
- *   3. Returns an unsubscribe function. Last handler removed → send SUBSCRIBE
- *      with the shortened list.
+ * Most miniapp authors should NOT touch this directly. Use the typed methods
+ * on domain modules instead:
+ *   - session.microphone.onTranscription(...)
+ *   - session.input.onButtonPress(...)
+ *   - session.imu.onHeadPosition(...)
+ *   - session.location.onUpdate(...)
+ *   - session.glasses.onBattery(...) / onConnection(...)
+ *   - session.phone.onNotification(...) / onCalendarEvent(...) / onBattery(...)
  *
- * The phone (LocalMiniappRuntime) de-dupes and aggregates subscriptions across
- * all running miniapps, so multiple miniapps asking for the same stream result
- * in one upstream subscription.
+ * This module's only public method is `subscribe(rawStreamType, handler)` —
+ * a forward-compat escape hatch for new event types not yet wrapped on a
+ * domain module. Officially undocumented; the typed methods on domain
+ * modules are the canonical surface.
+ *
+ * Internally, EventManager owns:
+ *   1. The ref-count map. Outbound SUBSCRIBE is only sent when a stream's
+ *      ref count transitions 0↔1, so multiple components listening for the
+ *      same stream issue one wire-level subscribe.
+ *   2. Inbound event fan-out via `_forwardEvent(streamType, data)`, called
+ *      by MiniappSession.handleIncoming when an EVENT envelope arrives.
+ *
+ * Domain modules call back into the session via session._subscribe(...) which
+ * in turn delegates to this class — the session is the integration point;
+ * domain modules don't see this class directly.
  */
 
 import {EventEmitter} from "eventemitter3"
 
-import {MiniappRequestType, MiniappStreamType} from "../protocol"
+import {MiniappRequestType} from "../protocol"
 import {MiniappSession} from "../session"
 
 export type UnsubscribeFn = () => void
+
+// ---------------------------------------------------------------------------
+// Shared event data shapes — re-exported by index.ts so consumers can type
+// their handlers without importing this internal module.
+// ---------------------------------------------------------------------------
 
 export interface TranscriptionData {
   text: string
@@ -107,6 +126,10 @@ export interface AudioChunkData {
   format?: string
 }
 
+// ---------------------------------------------------------------------------
+// Registry
+// ---------------------------------------------------------------------------
+
 export class EventManager {
   private readonly emitter = new EventEmitter()
   /** Stream -> ref count. Outbound SUBSCRIBE is sent when refs transition 0↔1. */
@@ -114,85 +137,11 @@ export class EventManager {
 
   constructor(private readonly session: MiniappSession) {}
 
-  // ------------------------------------------------------------------
-  // High-level typed helpers
-  // ------------------------------------------------------------------
-
-  /**
-   * Subscribe to live transcription.
-   *
-   * By default subscribes to `transcription:auto` — the cloud auto-detects
-   * the spoken language and delivers transcripts in whatever was detected.
-   * The resulting `data.transcribeLanguage` field tells you what it detected.
-   *
-   * Pass a BCP-47 language tag (e.g. `"en-US"`, `"fr-FR"`) to pin a specific
-   * language.
-   */
-  onTranscription(
-    handler: (data: TranscriptionData) => void,
-    language: string = "auto",
-  ): UnsubscribeFn {
-    return this.subscribe(`${MiniappStreamType.TRANSCRIPTION}:${language}`, handler as (data: unknown) => void)
-  }
-
-  onTranslation(fromLang: string, toLang: string, handler: (data: TranslationData) => void): UnsubscribeFn {
-    return this.subscribe(
-      `${MiniappStreamType.TRANSLATION}:${fromLang}:${toLang}`,
-      handler as (data: unknown) => void,
-    )
-  }
-
-  onButtonPress(handler: (data: ButtonPressData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.BUTTON_PRESS, handler as (data: unknown) => void)
-  }
-
-  onTouch(handler: (data: TouchData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.TOUCH_EVENT, handler as (data: unknown) => void)
-  }
-
-  onHeadPosition(handler: (data: HeadPositionData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.HEAD_POSITION, handler as (data: unknown) => void)
-  }
-
-  onLocation(handler: (data: LocationData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.LOCATION_UPDATE, handler as (data: unknown) => void)
-  }
-
-  onGlassesBattery(handler: (data: BatteryData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.GLASSES_BATTERY, handler as (data: unknown) => void)
-  }
-
-  onPhoneBattery(handler: (data: BatteryData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.PHONE_BATTERY, handler as (data: unknown) => void)
-  }
-
-  onGlassesConnection(handler: (data: ConnectionData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.GLASSES_CONNECTION, handler as (data: unknown) => void)
-  }
-
-  onPhoneNotification(handler: (data: PhoneNotificationData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.PHONE_NOTIFICATION, handler as (data: unknown) => void)
-  }
-
-  onCalendarEvent(handler: (data: CalendarEventData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.CALENDAR_EVENT, handler as (data: unknown) => void)
-  }
-
-  onVoiceActivity(handler: (data: VadData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.VAD, handler as (data: unknown) => void)
-  }
-
-  onAudioChunk(handler: (data: AudioChunkData) => void): UnsubscribeFn {
-    return this.subscribe(MiniappStreamType.AUDIO_CHUNK, handler as (data: unknown) => void)
-  }
-
-  // ------------------------------------------------------------------
-  // Low-level generic subscribe (escape hatch)
-  // ------------------------------------------------------------------
-
   /**
    * Generic subscribe. `stream` is the raw wire value, including any language
-   * suffix like `"transcription:en-US"`.
+   * suffix like `"transcription:en-US"`. Forward-compat escape hatch for new
+   * event types not yet wrapped on a domain module. Most authors should use
+   * typed methods on domain modules instead.
    */
   subscribe(stream: string, handler: (data: unknown) => void): UnsubscribeFn {
     this.emitter.on(stream, handler)
@@ -220,9 +169,9 @@ export class EventManager {
     this.sendSubscriptionUpdate()
   }
 
-  // ------------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // Internal — called by MiniappSession when EVENT arrives from phone
-  // ------------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
   /** @internal */
   _forwardEvent(stream: string, data: unknown): void {

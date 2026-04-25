@@ -90,8 +90,9 @@ describe("MiniappSession queue-before-ACK", () => {
     expect(transport.sent.length).toBe(3)
     const queued1 = parseEnvelope(transport.sent[1]!)
     const queued2 = parseEnvelope(transport.sent[2]!)
-    expect((queued1!.payload as {text: string}).text).toBe("queued-1")
-    expect((queued2!.payload as {text: string}).text).toBe("queued-2")
+    // showTextWall produces {type: DISPLAY, view, layout: {layoutType, text}, durationMs}.
+    expect((queued1!.payload as {layout: {text: string}}).layout.text).toBe("queued-1")
+    expect((queued2!.payload as {layout: {text: string}}).layout.text).toBe("queued-2")
   })
 
   test("post-ACK calls bypass the queue", async () => {

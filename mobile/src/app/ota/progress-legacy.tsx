@@ -315,16 +315,26 @@ export default function OtaProgressScreen() {
     if (sequence.length) {
       updateSequenceRef.current = sequence
     }
+    // CRITICAL: only clear `otaProgress` on mount if there is no in-flight progress
+    // already in the store. If a background prefetch (or a re-mount during an active
+    // OTA — e.g. user navigated away and back) has already populated otaProgress,
+    // wiping it here resets the visible progress bar to 0% and confuses the watchdog.
+    const inFlight =
+      otaProgress &&
+      otaProgress.status !== "FINISHED" &&
+      otaProgress.status !== "FAILED"
     console.log(
       "OTA_TRACK: screen_mounted",
       JSON.stringify({
         sequence: [...updateSequenceRef.current],
         otaUpdateAvailable: otaUpdateAvailable ? {updates: otaUpdateAvailable.updates} : null,
         initialOtaProgress: otaProgress ? {currentUpdate: otaProgress.currentUpdate, status: otaProgress.status} : null,
-        action: "clearing_otaProgress",
+        action: inFlight ? "preserving_in_flight_otaProgress" : "clearing_otaProgress",
       }),
     )
-    useGlassesStore.getState().setOtaProgress(null)
+    if (!inFlight) {
+      useGlassesStore.getState().setOtaProgress(null)
+    }
     downloadedUpdatesRef.current = new Set()
 
     return () => {
@@ -664,9 +674,6 @@ export default function OtaProgressScreen() {
   // We call sendOtaStartCommand() directly (not setRetryCount(0)) because retryCount was already
   // reset to 0 in advanceToNextStep, so the effect that sends on retryCount would not re-run.
   useEffect(() => {
-    // #region agent log [0a383d] H-E: log every evaluation of the reconnect-watch effect
-    console.log("🔬 [0a383d][H-E] reconnect_watch waitingForReconnect="+waitingForReconnectRef.current+" progressState="+progressState+" currentUpdateIndex="+currentUpdateIndex+" glassesConnected="+glassesConnected+" buildNumber="+buildNumber)
-    // #endregion
     if (!waitingForReconnectRef.current) return
     if (progressState !== "starting") return
     if (currentUpdateIndex === 0) return // initial mount — existing logic handles this
@@ -674,9 +681,6 @@ export default function OtaProgressScreen() {
     const prevUpdate = updateSequenceRef.current[currentUpdateIndex - 1]
     const readyCondition = prevUpdate === "apk" ? glassesConnected && !!buildNumber : glassesConnected
 
-    // #region agent log [0a383d] H-E: log gate evaluation
-    console.log("🔬 [0a383d][H-E] reconnect_watch gate prevUpdate="+prevUpdate+" readyCondition="+readyCondition)
-    // #endregion
     if (!readyCondition) return
 
     // Cancel any pre-existing delay (e.g. buildNumber changed twice quickly)
@@ -721,9 +725,6 @@ export default function OtaProgressScreen() {
   // send ota_start so the next step (e.g. BES) starts. Reconnect effect only runs when
   // waitingForReconnectRef is true, which is lost on unmount. Skip when reconnect path will send.
   useEffect(() => {
-    // #region agent log [0a383d] H-E: log every evaluation of mid-sequence remount send
-    console.log("🔬 [0a383d][H-E] remount_mid_seq waitingForReconnect="+waitingForReconnectRef.current+" currentUpdateIndex="+currentUpdateIndex+" progressState="+progressState+" connected="+glassesConnected+" hasSentMidSeq="+hasSentOtaStartMidSequenceRef.current+" seqLen="+updateSequenceRef.current.length)
-    // #endregion
     if (waitingForReconnectRef.current) return
     if (currentUpdateIndex === 0) return
     if (progressState !== "starting" && progressState !== "installing") return
@@ -815,9 +816,6 @@ export default function OtaProgressScreen() {
 
   // Watch for BLE disconnection
   useEffect(() => {
-    // #region agent log [0a383d] H-B: log every disconnect effect evaluation
-    console.log("🔬 [0a383d][H-B] disconnect_effect glassesConnected="+glassesConnected+" progressState="+progressState+" waitingForReconnect="+waitingForReconnectRef.current+" currentUpdateIndex="+currentUpdateIndex+" expectedStep="+updateSequenceRef.current[currentUpdateIndex])
-    // #endregion
     // Don't fail on disconnect during certain states - glasses will reboot/power off
     if (
       !glassesConnected &&
@@ -1115,9 +1113,6 @@ export default function OtaProgressScreen() {
           sequence: [...sequence],
         }),
       )
-      // #region agent log [0a383d] H-A/H-B: after skip, what is the phone's full ref state?
-      console.log("🔬 [0a383d][H-A/B] wrong_step_skip full_state", JSON.stringify({waitingForReconnect:waitingForReconnectRef.current,hasReceivedProgress:hasReceivedProgress.current,hasSentOtaStartMidSequence:hasSentOtaStartMidSequenceRef.current,progressState:progressStateRef.current,expectedStep,receivedStep:currentUpdate,receivedStatus:status}))
-      // #endregion
       return
     }
 
@@ -1833,9 +1828,6 @@ export default function OtaProgressScreen() {
 
   // When glasses reconnect after the observed restart disconnect, transition to completed.
   useEffect(() => {
-    // #region agent log [0a383d] H-B: log every evaluation of the post-restart reconnect effect
-    console.log("🔬 [0a383d][H-B] post_restart_reconnect progressState="+progressState+" glassesConnected="+glassesConnected+" sawDisconnectDuringRestart="+sawDisconnectDuringRestartRef.current+" waitingForReconnect="+waitingForReconnectRef.current+" currentUpdateIndex="+currentUpdateIndex)
-    // #endregion
     if (progressState === "restarting" && glassesConnected && sawDisconnectDuringRestartRef.current) {
       console.log(
         "OTA_TRACK: state_transition",

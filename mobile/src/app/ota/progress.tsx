@@ -13,6 +13,7 @@ import {
   PING_INTERVAL_MS,
   POST_APK_OTA_START_DELAY_MS,
   PROGRESS_TIMEOUT_MS,
+  QUERY_REPLY_TIMEOUT_MS,
   RETRY_INTERVAL_MS,
 } from "@/app/ota/otaProgressTimeouts"
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
@@ -94,10 +95,14 @@ export default function OtaProgressScreen() {
   const progressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const postApkDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const queryReplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Retry / ack bookkeeping (no glasses source)
   const hasReceivedAckRef = useRef(false)
   const hasFirstActivityRef = useRef(false)
+  // Stuck-at-zero watchdog clears only on first NON-ZERO progress; "first activity"
+  // alone (e.g. ota_status with stepPercent=0) used to clear it too eagerly.
+  const hasFirstNonZeroProgressRef = useRef(false)
   const retryCountRef = useRef(0)
 
   focusEffectPreventBack()
@@ -212,12 +217,20 @@ export default function OtaProgressScreen() {
     }
   }, [])
 
+  const clearQueryReplyTimeout = useCallback(() => {
+    if (queryReplyTimeoutRef.current) {
+      clearTimeout(queryReplyTimeoutRef.current)
+      queryReplyTimeoutRef.current = null
+    }
+  }, [])
+
   const clearPerStepTimers = useCallback(() => {
     clearRetryTimeout()
     clearStuckTimeout()
     clearProgressTimeout()
     clearPostApkDelay()
-  }, [clearProgressTimeout, clearPostApkDelay, clearRetryTimeout, clearStuckTimeout])
+    clearQueryReplyTimeout()
+  }, [clearProgressTimeout, clearPostApkDelay, clearRetryTimeout, clearStuckTimeout, clearQueryReplyTimeout])
 
   const clearAllOtaTimers = useCallback(() => {
     clearPerStepTimers()
@@ -241,12 +254,29 @@ export default function OtaProgressScreen() {
     })
   }, [])
 
+  /**
+   * "Glasses are talking to us" — clears the no-ack retry watchdog only.
+   * Important: this does NOT clear the stuck-at-zero watchdog; that one fires
+   * on real progress > 0% (see {@link onFirstNonZeroProgress}).
+   */
   const onFirstActivity = useCallback(() => {
     if (hasFirstActivityRef.current) return
     hasFirstActivityRef.current = true
     clearRetryTimeout()
+  }, [clearRetryTimeout])
+
+  /**
+   * "Real download progress arrived" — clears the stuck-at-zero watchdog. We
+   * deliberately wait for non-zero progress before clearing this so that an
+   * ota_status reply with stepPercent: 0 (which is "first activity" but not
+   * "real progress") doesn't disable the only watchdog that catches a wedged
+   * download.
+   */
+  const onFirstNonZeroProgress = useCallback(() => {
+    if (hasFirstNonZeroProgressRef.current) return
+    hasFirstNonZeroProgressRef.current = true
     clearStuckTimeout()
-  }, [clearRetryTimeout, clearStuckTimeout])
+  }, [clearStuckTimeout])
 
   const maybeStartGlobalTimeout = useCallback(() => {
     if (globalTimeoutStartedRef.current) return
@@ -329,6 +359,45 @@ export default function OtaProgressScreen() {
   sendOtaStartRef.current = sendOtaStartWithWatchdogs
 
   /**
+   * After sending ota_query_status, wait QUERY_REPLY_TIMEOUT_MS for the glasses
+   * to reply with an ota_status. If nothing arrives (e.g. the glasses' OTA
+   * session was wiped between mount and reconnect), fall back to ota_start so
+   * the user doesn't sit on a spinner forever.
+   *
+   * Cleared as soon as ANY otaStatus or otaProgress lands in the store
+   * (see effect below).
+   */
+  const armQueryReplyFallback = useCallback(
+    (reason: "reconnect" | "initial-mount") => {
+      clearQueryReplyTimeout()
+      queryReplyTimeoutRef.current = setTimeout(() => {
+        queryReplyTimeoutRef.current = null
+        const s = useGlassesStore.getState()
+        // If we already got a reply, we'd have been cleared. Defensive re-check:
+        if (s.otaStatus || s.otaProgress) return
+        // Don't fire if we've left the active phase (e.g. user backed out, error overlay).
+        if (isTerminalForWatchdog(computeDisplayStateNow())) return
+        console.log(
+          `[OTA_PROGRESS] watchdog: ota_query_status got no reply in ${QUERY_REPLY_TIMEOUT_MS}ms (reason=${reason}), falling back to ota_start`,
+        )
+        retryCountRef.current = 0
+        hasFirstActivityRef.current = false
+        hasFirstNonZeroProgressRef.current = false
+        hasReceivedAckRef.current = false
+        void sendOtaStartRef.current()
+      }, QUERY_REPLY_TIMEOUT_MS)
+    },
+    [clearQueryReplyTimeout, computeDisplayStateNow],
+  )
+
+  // Cancel the query-reply fallback as soon as the glasses reply with anything.
+  useEffect(() => {
+    if (queryReplyTimeoutRef.current && (otaStatus || otaProgress)) {
+      clearQueryReplyTimeout()
+    }
+  }, [otaStatus, otaProgress, clearQueryReplyTimeout])
+
+  /**
    * Connect-edge effect — the only place that decides to send ota_start /
    * ota_query_status, handles POST_APK delay, and flips sawReconnectEdge
    * on the false -> true transition that signals the BES reboot completed.
@@ -361,6 +430,7 @@ export default function OtaProgressScreen() {
         postApkDelayRef.current = null
         retryCountRef.current = 0
         hasFirstActivityRef.current = false
+        hasFirstNonZeroProgressRef.current = false
         hasReceivedAckRef.current = false
         console.log("[OTA_PROGRESS] POST_APK delay fired, sending ota_start")
         void sendOtaStartWithWatchdogs()
@@ -371,6 +441,7 @@ export default function OtaProgressScreen() {
     if (becameConnected) {
       console.log("[OTA_PROGRESS] connect-edge: reconnected, sending ota_query_status")
       void CoreModule.sendOtaQueryStatus()
+      armQueryReplyFallback("reconnect")
       return
     }
 
@@ -387,13 +458,15 @@ export default function OtaProgressScreen() {
       )
       retryCountRef.current = 0
       hasFirstActivityRef.current = false
+      hasFirstNonZeroProgressRef.current = false
       hasReceivedAckRef.current = false
       void sendOtaStartWithWatchdogs()
     } else {
       console.log("[OTA_PROGRESS] initial mount, session exists, sending ota_query_status")
       void CoreModule.sendOtaQueryStatus()
+      armQueryReplyFallback("initial-mount")
     }
-  }, [connected, sendOtaStartWithWatchdogs, clearPostApkDelay])
+  }, [connected, sendOtaStartWithWatchdogs, clearPostApkDelay, armQueryReplyFallback])
 
   useEffect(() => {
     if (isTerminalForWatchdog(displayState)) {
@@ -412,6 +485,7 @@ export default function OtaProgressScreen() {
       console.log("[OTA_PROGRESS] mtk_update_complete received")
       clearProgressTimeout()
       onFirstActivity()
+      onFirstNonZeroProgress()
       void CoreModule.sendOtaQueryStatus()
       useGlassesStore.getState().setMtkUpdatedThisSession(true)
     }
@@ -421,7 +495,7 @@ export default function OtaProgressScreen() {
       GlobalEventEmitter.off("ota_start_ack", handleAck)
       GlobalEventEmitter.off("mtk_update_complete", handleMtkComplete)
     }
-  }, [clearProgressTimeout, clearRetryTimeout, onFirstActivity])
+  }, [clearProgressTimeout, clearRetryTimeout, onFirstActivity, onFirstNonZeroProgress])
 
   // Ping keepalive while an OTA is actively running
   useEffect(() => {
@@ -439,25 +513,51 @@ export default function OtaProgressScreen() {
     return undefined
   }, [connected, displayState, clearPingInterval])
 
-  // First glasses activity clears the "no-ack / stuck-at-zero" watchdogs.
+  // Any glasses activity (ota_status or otaProgress) clears the no-ack retry watchdog.
   useEffect(() => {
     if (otaStatus || otaProgress) {
       onFirstActivity()
     }
   }, [otaStatus, otaProgress, onFirstActivity])
 
+  // The stuck-at-zero watchdog clears only on the FIRST real (>0%) progress.
+  // Without this distinction, an ota_status reply with stepPercent=0 would
+  // disable the watchdog before any download had actually started, hiding
+  // wedged downloads from the user.
+  useEffect(() => {
+    const stepPct = otaStatus?.stepPercent ?? 0
+    const overallPct = otaStatus?.overallPercent ?? 0
+    const legacyPct = otaProgress?.progress ?? 0
+    if (stepPct > 0 || overallPct > 0 || legacyPct > 0) {
+      onFirstNonZeroProgress()
+    }
+  }, [otaStatus, otaProgress, onFirstNonZeroProgress])
+
   // Progress stall watchdog — fails the update if glasses go silent mid-step.
+  //
+  // The effect was previously re-keyed on the full otaStatus/otaProgress object refs,
+  // which meant every store update (even ones that didn't change the staleness signature
+  // — e.g. an unrelated `connected` re-render or an ota_status with the same values)
+  // would clear and re-arm the timer. Net result: the watchdog could never actually fire
+  // because we kept re-extending its deadline.
+  //
+  // Fix: memoize the staleness signature (a string) and only run the (clear+arm) effect
+  // when the SIGNATURE changes. Same value between renders => same timer keeps running.
+  const stallSig = buildProgressStalenessSignature(otaStatus, otaProgress, displayState)
+  const stallDuration = progressTimeoutDurationMs(otaStatus, otaProgress)
+  // Stash the latest duration so the effect always uses the current value when arming.
+  const stallDurationRef = useRef(stallDuration)
+  stallDurationRef.current = stallDuration
   useEffect(() => {
     if (displayState !== "starting" && displayState !== "updating") {
       clearProgressTimeout()
       return
     }
-    const sig = buildProgressStalenessSignature(otaStatus, otaProgress, displayState)
-    if (!sig) {
+    if (!stallSig) {
       clearProgressTimeout()
       return
     }
-    const duration = progressTimeoutDurationMs(otaStatus, otaProgress)
+    const duration = stallDurationRef.current
     clearProgressTimeout()
     progressTimeoutRef.current = setTimeout(() => {
       progressTimeoutRef.current = null
@@ -468,7 +568,7 @@ export default function OtaProgressScreen() {
     return () => {
       clearProgressTimeout()
     }
-  }, [otaStatus, otaProgress, displayState, clearProgressTimeout, computeDisplayStateNow])
+  }, [stallSig, displayState, clearProgressTimeout, computeDisplayStateNow])
 
   // 15s lockout on Continue button after BES restart to prevent accidental tap.
   useEffect(() => {

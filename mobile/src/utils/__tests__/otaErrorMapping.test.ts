@@ -13,6 +13,22 @@ describe("getOtaErrorMessage", () => {
     expect(getOtaErrorMessage("download_failed")).toBe("Download failed — check glasses WiFi connection")
   })
 
+  it("maps firmware_too_large to size message", () => {
+    expect(getOtaErrorMessage("firmware_too_large")).toBe(
+      "Firmware file is unexpectedly large — please contact support",
+    )
+  })
+
+  it("maps firmware_verify_failed to verify message", () => {
+    expect(getOtaErrorMessage("firmware_verify_failed")).toBe(
+      "Firmware verification failed — please try again or contact support",
+    )
+  })
+
+  it("maps install_failed to install message", () => {
+    expect(getOtaErrorMessage("install_failed")).toBe("Install failed — please try again")
+  })
+
   it("returns generic message for undefined error", () => {
     expect(getOtaErrorMessage(undefined)).toBe("Update failed")
   })

@@ -47,6 +47,20 @@ interface VersionJson {
 }
 
 // OTA version URL constant
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!  WARNING: THIS URL POINTS AT THE *TEST* MANIFEST.                        !!
+// !!  Production phones currently fetch from a "test_" prefixed file.         !!
+// !!  Before swapping to https://ota.mentraglass.com/prod_live_version.json,  !!
+// !!  confirm the manifest carries the same schema this code expects:         !!
+// !!    apps: { "com.mentra.asg_client": { versionCode, downloadUrl, sha256 } }
+// !!    mtk_patches: [...]                                                    !!
+// !!    bes_firmware: { version, url }                                        !!
+// !!  Same warning applies to the other 3 call sites on the glasses:          !!
+// !!    - asg_client/.../io/ota/utils/OtaConstants.java                       !!
+// !!    - asg_client/ota_updater/.../helper/Constants.java                    !!
+// !!    - asg_client/.../io/ota/helpers/OtaHelper.java::checkInternetReachable
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 export const OTA_VERSION_URL_PROD = "https://ota.mentraglass.com/test_bes_ota_prod_live_version.json"
 
 export async function fetchVersionInfo(url: string): Promise<VersionJson | null> {

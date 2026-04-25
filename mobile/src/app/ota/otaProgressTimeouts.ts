@@ -14,6 +14,14 @@ export const GLOBAL_OTA_TIMEOUT_MS = 20 * 60 * 1000
 export const POST_APK_OTA_START_DELAY_MS = 6000
 /** BLE keepalive during OTA */
 export const PING_INTERVAL_MS = 10_000
+/**
+ * If we sent ota_query_status (e.g. on reconnect) and the glasses haven't
+ * replied with an ota_status by then, fall back to ota_start. This recovers
+ * from the case where the glasses process restarted between mount and
+ * reconnect — the session is gone, ota_query_status returns nothing, and
+ * the user would otherwise sit on the spinner forever.
+ */
+export const QUERY_REPLY_TIMEOUT_MS = 6000
 
 export const OtaProgressMessages = {
   noAckResponse: "Unable to start update. Glasses did not respond.",

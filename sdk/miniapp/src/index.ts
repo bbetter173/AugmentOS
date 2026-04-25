@@ -8,6 +8,13 @@
  *   import {MiniappRequestType} from "@mentra/miniapp/protocol"
  */
 
+import {installDevReloadListenerIfDevMode} from "./dev-reload"
+
+// Auto-install the dev-reload listener on module import so authors get live
+// reload for free in dev builds. No-op in production (gated on
+// window.MentraOS.miniappDeveloperMode).
+installDevReloadListenerIfDevMode()
+
 export {MiniappSession, NotConnectedError} from "./session"
 export type {
   ConnectAckPayload,
@@ -43,6 +50,8 @@ export type {CreateTransportOptions} from "./transport/auto"
 export {PostMessageTransport} from "./transport/postmessage"
 export {LocalSocketTransport} from "./transport/local-socket"
 export type {LocalSocketTransportOptions} from "./transport/local-socket"
+export {MockTransport, isMockExplicitlyRequested} from "./transport/mock"
+export type {MockTransportOptions} from "./transport/mock"
 export type {Transport, TransportDisconnectHandler, TransportMessageHandler} from "./transport/types"
 
 // Module types — useful for typing handlers in consumer code

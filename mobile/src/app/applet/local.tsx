@@ -123,6 +123,7 @@ export default function LocalMiniAppPage() {
               developerMode: true,
               appName,
               iconUrl,
+              cachedMode: true,
             })
             // Register the entry so it appears in the switcher even though
             // the manifest came from disk (we don't re-read it here; the

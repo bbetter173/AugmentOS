@@ -9,6 +9,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
+import {storage} from "@/utils/storage/storage"
 
 export default function MiniappDeveloperScannerScreen() {
   const {themed} = useAppTheme()
@@ -79,6 +80,20 @@ export default function MiniappDeveloperScannerScreen() {
         iconUrl = /^https?:\/\//.test(iconPath)
           ? iconPath
           : `${devUrl.replace(/\/$/, "")}/${iconPath.replace(/^\//, "")}`
+      }
+
+      // Persist the dev URL keyed on packageName so a relaunched MentraOS
+      // can route the home-tile tap back to the live server (via the
+      // freshness-check + cached-fallback path in /applet/local). Composer's
+      // getLocalApplets reads this key when populating the applet store.
+      if (packageName) {
+        storage.save(`${packageName}_dev_url`, devUrl)
+        if (devPort) {
+          const portNum = parseInt(devPort, 10)
+          if (Number.isFinite(portNum)) {
+            storage.save(`${packageName}_dev_port`, portNum)
+          }
+        }
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})

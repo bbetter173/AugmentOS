@@ -75,6 +75,10 @@ export default function MiniappDeveloperUrlScreen() {
       }
       const updated = [entry, ...recent.filter((r) => r.url !== entry.url)].slice(0, MAX_RECENT)
       saveRecent(updated)
+      // Persist the dev URL keyed on packageName so Composer's
+      // getLocalApplets sees it and so home-tile taps after a phone
+      // restart can route to the live server.
+      storage.save(`${entry.packageName}_dev_url`, entry.url)
       launchDevMiniapp(entry)
     } catch {
       showAlert(

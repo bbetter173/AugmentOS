@@ -1,6 +1,6 @@
 import Compression
 import Foundation
-import libbz2
+@_implementationOnly import libbz2
 import SWCompression
 
 @objc(TarBz2Extractor)

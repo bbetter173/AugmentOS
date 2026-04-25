@@ -14,13 +14,13 @@ The current iOS entrypoint is `BluetoothSdkModule.swift`, which imports `ExpoMod
 - Configures `DeviceStore.shared.store.configure` so `"glasses"` updates become `glasses_status` events and `"bluetooth"` updates become `bluetooth_status` events.
 - Exposes Expo `AsyncFunction`s such as `update`, `findCompatibleDevices`, `connectByName`, `connectDefault`, `disconnect`, `displayText`, media commands, Wi-Fi commands, OTA commands, and microphone/STT commands.
 
-The real hardware lifecycle lives under the Expo module:
+The real hardware lifecycle lives under the Expo module adapter:
 
 - `Bridge.swift` is a static event sink. It emits logs, status events, hardware events, mic frames, local transcriptions, and save-setting events back to the current callback.
 - `DeviceManager.swift` is an `@MainActor` singleton. It owns the current glasses manager, current controller manager, display state, connection methods, Wi-Fi commands, media commands, local transcription, phone mic/audio handling, and cleanup.
 - `DeviceStore.swift` is both state and command routing. `apply(category, key, value)` updates observable state and triggers hardware side effects for settings like brightness, dashboard position, gallery mode, button settings, preferred mic, stream flags, and default wearable.
 - `SGCManager.swift` is the per-device abstraction implemented by G1, G2, Mentra Live, Mentra Nex, Mach1/Z100, simulated glasses, and controller classes.
-- `MentraBluetoothSDK.podspec` currently depends on `ExpoModulesCore`, so the pod is not yet a clean bare iOS SDK.
+- `MentraBluetoothSDK.podspec` now defaults to the bare native SDK. MentraOS sets `MENTRA_BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER=1` from its Podfile to include `ExpoModulesCore` and `BluetoothSdkModule.swift`.
 
 This structure is a workable internal implementation, but the public API should be a typed Swift facade.
 
@@ -235,6 +235,14 @@ Swift Package Manager support should be evaluated after CocoaPods is working bec
 The public podspec must include the native dependencies and privacy manifest, but not require the host app to be an Expo or React Native project.
 
 Heavy dependencies should be audited before release. Local STT, ONNX/VAD, UltraliteSDK, and media streaming may remain in the initial pod if that is fastest, but the plan should keep a path open for subspecs or optional artifacts if binary size or dependency conflicts become a customer problem.
+
+Current implementation status:
+
+- The podspec defaults to a bare CocoaPods artifact with `SWCompression`, `SwiftProtobuf`, `onnxruntime-objc`, and `UltraliteSDK`, and no `ExpoModulesCore`.
+- The bare source list is explicit: `Source/**`, `Packages/CoreObjC/**`, Sherpa ONNX Swift/header files, VAD Swift files, and the libbz2 shim header. It does not use a broad catch-all that would accidentally compile the Expo adapter.
+- `BluetoothSdkModule.swift` and `ExpoModulesCore` are included only when `MENTRA_BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER=1` is set, which MentraOS does from `mobile/ios/Podfile`.
+- `pod ipc spec` verifies both podspec modes, the Partner Kit iOS example runs `pod install` without Expo, and the example app builds for iOS Simulator against the public Swift facade.
+- MentraOS `pod install` and the `MentraBluetoothSDK` iOS scheme build with the Expo adapter enabled.
 
 ## Extraction Plan
 

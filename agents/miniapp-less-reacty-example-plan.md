@@ -4,7 +4,7 @@ Implementation plan for [`miniapp-less-reacty-example-spec.md`](./miniapp-less-r
 
 The headline goal: glasses behavior in the example is owned by a session-scoped controller, not by React route lifecycles. Closing the captions page leaves the controller running; the glasses keep showing transcription.
 
-This is a focused example-only refactor. No SDK changes (the v3-aligned `0.3.0` API is the surface we build against). ~1-2 weeks of work — most of it moving code, not designing new pieces.
+This is a focused example-only refactor. No SDK changes (the v3-aligned `0.3.0` API is the surface we build against). ~3-4 days of work — most of it moving code, not designing new pieces.
 
 ---
 
@@ -14,27 +14,28 @@ This is a focused example-only refactor. No SDK changes (the v3-aligned `0.3.0` 
 sdk/example-miniapp/src/
 ├── main.tsx                         entry; instantiates session, controller, renders React
 ├── controller/
-│   └── CaptionsController.ts        ★ owns ALL session subscriptions
+│   └── GlassesController.ts         ★ owns ALL session subscriptions
 │                                      Merge-style: single class, inline handlers
 ├── store/
 │   └── appStore.ts                  Zustand store: bridge controller → React
 ├── pages/
 │   ├── Shell.tsx                    unchanged-ish — layout chrome
 │   ├── CaptionsPage.tsx             reads from store; NEVER subscribes to session
-│   ├── tester/                      diagnostic surfaces — allowed to inline-subscribe
-│   │   ├── TesterMenu.tsx
-│   │   ├── AudioPage.tsx
-│   │   ├── DisplayPage.tsx
-│   │   ├── EventsPage.tsx
-│   │   ├── LedPage.tsx
-│   │   ├── StoragePage.tsx
-│   │   ├── SystemPage.tsx
-│   │   └── ComingSoonPage.tsx
-│   └── settings/                    NEW — settings UI eventually moves here
+│   └── tester/                      diagnostic surfaces — allowed to inline-subscribe
+│       ├── TesterMenu.tsx
+│       ├── AudioPage.tsx
+│       ├── DisplayPage.tsx
+│       ├── EventsPage.tsx
+│       ├── LedPage.tsx
+│       ├── StoragePage.tsx
+│       ├── SystemPage.tsx
+│       └── ComingSoonPage.tsx
 └── ui/                              unchanged
 ```
 
-3 new files (`controller/CaptionsController.ts`, `store/appStore.ts`, restructured `main.tsx`). The 8 tester pages stay inline-subscribe per the spec's exception. CaptionsPage is the one that loses its glasses-state ownership.
+The class is **`GlassesController`** — generic. A developer copying this example as a starting point will keep the name, not rename it to match their app. "What controls the glasses?" → `GlassesController`.
+
+(Earlier draft called it `CaptionsController`. That was wrong: it implies "Captions-app-specific" but is actually meant to be the canonical pattern. `GlassesController` is forkable.)
 
 ---
 
@@ -54,11 +55,12 @@ sdk/example-miniapp/
 ├── icon.png                         unchanged
 ├── server.ts                        unchanged
 ├── index.html                       unchanged
+├── package.json                     EXISTING — add zustand dep
 └── src/
     ├── main.tsx                     REWRITE — instantiate session + controller before React
     ├── App.tsx                      unchanged (HashRouter)
     ├── controller/
-    │   └── CaptionsController.ts    NEW — single class, inline handlers
+    │   └── GlassesController.ts     NEW — single class, inline handlers
     ├── store/
     │   └── appStore.ts              NEW — Zustand store
     ├── pages/
@@ -78,7 +80,11 @@ sdk/example-miniapp/
 
 **Goal:** infrastructure in place, but CaptionsPage still drives glasses. Nothing visible to users yet.
 
-`store/appStore.ts`:
+#### `package.json`
+
+Add `zustand` to deps. Already used elsewhere in the broader codebase, so no new license/dep concerns.
+
+#### `store/appStore.ts`
 
 ```ts
 import {create} from "zustand"
@@ -115,32 +121,49 @@ export const useAppStore = create<AppStore>((set) => ({
 }))
 ```
 
-Zustand is added to `sdk/example-miniapp/package.json` deps.
-
-`controller/CaptionsController.ts`:
+#### `controller/GlassesController.ts`
 
 ```ts
 import type {ButtonPressData, MiniappSession, TranscriptionData} from "@mentra/miniapp"
 import {useAppStore} from "../store/appStore"
 
-export class CaptionsController {
+/**
+ * GlassesController — the always-on logic for this miniapp.
+ *
+ * Owns every subscription to the MiniappSession. Subscriptions are bound
+ * to the session lifetime, NOT to any React component lifecycle. The
+ * controller is instantiated once at module init in main.tsx and never
+ * unmounts.
+ *
+ * React pages read from the appStore and call imperative methods on the
+ * controller — they never subscribe to session events directly.
+ *
+ * Tester pages (src/pages/tester/) are an explicit exception — they're
+ * diagnostic surfaces, ephemeral by design, and may inline-subscribe.
+ *
+ * If your miniapp grows beyond ~5 distinct concerns, consider splitting
+ * the controller into per-concern manager classes (Mentra-AI's pattern).
+ * For 1-3 concerns, keeping everything inline here is clearer.
+ */
+export class GlassesController {
   private unsubs: Array<() => void> = []
   private subscribed = false
 
   constructor(private readonly session: MiniappSession) {}
 
   /**
-   * Wire subscriptions. Called once at module init. Idempotent: noop if
-   * already wired. Subscriptions stay alive for the entire session — they
-   * are NOT bound to any React component's lifecycle.
+   * Wire subscriptions. Idempotent: noop if already wired. Subscriptions
+   * stay alive for the entire session — they are NOT bound to any React
+   * component's lifecycle.
    */
   start(): void {
     if (this.subscribed) return
     this.subscribed = true
 
-    // Subscribe immediately. The session queues outbound calls until
-    // CONNECT_ACK (queue-before-ACK behavior in MiniappSession), so this
-    // works whether the session is connected yet or not.
+    // The session queues outbound calls until CONNECT_ACK
+    // (queue-before-ACK behavior in MiniappSession), so this works
+    // regardless of whether the session is connected yet.
+
     this.unsubs.push(
       this.session.transcription.on((data: TranscriptionData) => {
         const store = useAppStore.getState()
@@ -162,7 +185,8 @@ export class CaptionsController {
     )
   }
 
-  /** Imperative actions exposed to the UI. Called from React components. */
+  // ─── Imperative actions exposed to React UI ─────────────────────────────
+
   clearGlasses(): void {
     useAppStore.getState().clearHistory()
     this.session.display.clearView()
@@ -175,7 +199,7 @@ export class CaptionsController {
     try {
       await this.session.speaker.speak(phrase)
     } catch {
-      /* swallow TTS error */
+      /* swallow TTS error; UI can read session.speaker.state if it cares */
     }
   }
 
@@ -195,38 +219,43 @@ export class CaptionsController {
 
 // Module-level singleton — accessed by main.tsx and any UI that needs to
 // dispatch imperative actions.
-let instance: CaptionsController | null = null
+let instance: GlassesController | null = null
 
-export function getCaptionsController(): CaptionsController {
-  if (!instance) throw new Error("CaptionsController not yet initialized — call initCaptionsController(session) first")
+export function getGlassesController(): GlassesController {
+  if (!instance) {
+    throw new Error(
+      "GlassesController not yet initialized — call initGlassesController(session) first",
+    )
+  }
   return instance
 }
 
-export function initCaptionsController(session: MiniappSession): CaptionsController {
+export function initGlassesController(session: MiniappSession): GlassesController {
   if (instance) return instance
-  instance = new CaptionsController(session)
+  instance = new GlassesController(session)
   instance.start()
   return instance
 }
 ```
 
-`main.tsx` — instantiate before React renders:
+#### `main.tsx`
 
 ```tsx
 import {createRoot} from "react-dom/client"
 import {MentraProvider, useSession} from "@mentra/miniapp/react"
 
 import App from "./App"
-import {initCaptionsController} from "./controller/CaptionsController"
+import {initGlassesController} from "./controller/GlassesController"
 import "./index.css"
 
-// Internal bootstrap component — uses useSession to grab the shared session,
-// initializes the controller once on first render. Render order matters:
-// the controller wires session subs immediately; if React rendered first
-// the page would try to subscribe before the controller exists.
+/**
+ * Bootstrap shim — useSession() only works inside the React tree, so we
+ * grab the shared session here and initialize the GlassesController on
+ * first render (idempotent). Children mount immediately after.
+ */
 function Bootstrap() {
   const session = useSession()
-  initCaptionsController(session)  // idempotent
+  initGlassesController(session)
   return <App />
 }
 
@@ -239,15 +268,15 @@ createRoot(root).render(
 )
 ```
 
-The `Bootstrap` shim is necessary because `useSession()` only returns inside the React tree. The controller is initialized on Bootstrap's first render — synchronous, no waiting. Children mount immediately after.
+The `Bootstrap` shim is necessary because `useSession()` only returns inside the React tree. The controller initializes on Bootstrap's first render — synchronous, no waiting. Children mount immediately after.
 
 **At this stage CaptionsPage still subscribes itself — controller and page both run, the page wins via React state.** That's fine for PR 1; cleanup happens in PR 2.
 
 **Acceptance:**
 - `bun dev` runs without errors.
 - App functions identically to today.
-- `useAppStore.getState().liveTranscript` updates as transcription comes in (controller side wired).
-- Controller's `unsubs` is non-empty after `Bootstrap` mounts.
+- `useAppStore.getState().liveTranscript` updates as transcription arrives (controller is wired).
+- `getGlassesController().clearGlasses()` works from a console eval.
 
 ---
 
@@ -257,21 +286,21 @@ The `Bootstrap` shim is necessary because `useSession()` only returns inside the
 
 CaptionsPage diff:
 
-- Remove `useEffect(() => { const unsubs = [session.transcription.on(...), session.input.onButtonPress(...)]; ... }, [session, mirrorToGlasses])`.
+- Remove the `useEffect(() => { const unsubs = [session.transcription.on(...), session.input.onButtonPress(...)]; ... }, [session, mirrorToGlasses])` block entirely.
 - Replace local `useState` for `liveTranscript`, `history`, `lastButton`, `mirrorToGlasses` with `useAppStore` selectors.
 - Remove inline `session.display.showTextWall(...)` — controller handles mirror-to-glasses based on `mirrorToGlasses` from the store.
-- Replace `clearHistory` and `speakSummary` to call `getCaptionsController().clearGlasses()` and `.speakSummary()`.
+- Replace `clearHistory` and `speakSummary` to call `getGlassesController().clearGlasses()` and `.speakSummary()`.
 
 The `mirrorToGlasses` toggle becomes a Zustand setter: page UI checkbox updates `useAppStore.getState().setMirrorToGlasses(...)`. Controller reads `mirrorToGlasses` synchronously inside its transcription handler — always up-to-date because Zustand state is mutable across the boundary.
 
 ```tsx
-// CaptionsPage.tsx — pseudo-diff
+// CaptionsPage.tsx — after migration
 const liveTranscript = useAppStore((s) => s.liveTranscript)
 const history = useAppStore((s) => s.history)
 const lastButton = useAppStore((s) => s.lastButton)
 const mirrorToGlasses = useAppStore((s) => s.mirrorToGlasses)
 const setMirrorToGlasses = useAppStore((s) => s.setMirrorToGlasses)
-const controller = getCaptionsController()
+const controller = getGlassesController()
 
 // no useEffect with session subs
 
@@ -283,7 +312,7 @@ const onToggleMirror = (v: boolean) => setMirrorToGlasses(v)
 **Verification step (manual):** open CaptionsPage → say a phrase → navigate to TesterMenu → say another phrase. Glasses should keep updating. Today they don't.
 
 **Acceptance:**
-- `grep -n "session\." sdk/example-miniapp/src/pages/CaptionsPage.tsx` returns 0 results except inside an explicitly tester-marked path. (CaptionsPage no longer uses `session` at all.)
+- `grep -n "session\." sdk/example-miniapp/src/pages/CaptionsPage.tsx` returns 0 matches except (if any) inside an explicitly tester-marked path. (CaptionsPage no longer uses `session` at all.)
 - Navigating away from CaptionsPage and back: history is preserved (controller kept it).
 - Mirror-to-glasses toggle works without refresh.
 
@@ -297,7 +326,7 @@ const onToggleMirror = (v: boolean) => setMirrorToGlasses(v)
 
 - The rule.
 - Why the rule exists (always-on glasses logic shouldn't be tied to React lifecycle).
-- The Captions example as the reference.
+- The example as the reference, calling out `GlassesController` by name.
 - The Mentra-AI manager-fleet pattern as the next-level pattern when 5+ concerns.
 
 **Tester-page audit:** every tester page is checked to confirm it does NOT push display layouts, does NOT modify glasses state, only displays events. The current pages already do this — verify and document.
@@ -308,13 +337,11 @@ The tester pages also need a small comment header noting the inline-subscribe ex
 // Tester pages are diagnostic surfaces — by design they subscribe to events
 // directly via `session.*` and tear down on unmount. This is the ONLY place
 // in the example where this pattern is acceptable; user-facing glasses
-// logic must live in src/controller/.
+// logic must live in src/controller/GlassesController.ts.
 ```
 
-**Update `agents/miniapp-sdk-overview.md`** open-questions section to mark the React-y feedback as resolved with the controller pattern.
-
 **Acceptance:**
-- Overview doc has the controller-pattern section.
+- Overview doc has the controller-pattern section, naming `GlassesController` as the reference.
 - All 8 tester pages have the boilerplate exception comment.
 - No tester page calls `session.display.show*` or `session.led.turnOn` etc. — only event subscriptions to display in the page.
 
@@ -348,7 +375,7 @@ Manual verification covers what tests would:
 2. **PR 2 (migrate CaptionsPage)** — drop the page's subs; rely entirely on controller + store. Visibly fixes the navigate-away-loses-glasses bug.
 3. **PR 3 (docs + tester audit)** — pure docs + comments. Lock the rule in.
 
-Each PR is independent enough to review separately. Total: ~3-4 days of focused work.
+Each PR is independent enough to review separately. **Total: 3-4 days of focused work.**
 
 ---
 
@@ -356,4 +383,4 @@ Each PR is independent enough to review separately. Total: ~3-4 days of focused 
 
 **None for SDK consumers.** This is example-internal refactoring.
 
-For anyone copying the example as a starting point: the new structure is the recommended path. Old copies still work because the SDK API is unchanged.
+For anyone copying the example as a starting point: the new structure is the recommended path. The class is named `GlassesController` so a fork can keep the name (it describes what the class does, not what the example does). Old copies still work because the SDK API is unchanged.

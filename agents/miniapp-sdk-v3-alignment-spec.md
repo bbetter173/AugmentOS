@@ -125,7 +125,7 @@ session.phone.calendar.stop()
 
 These are sugar over the existing per-handler unsubscribe-fn pattern. Useful for "clean up everything when route changes" without tracking N unsub functions. Each is a thin wrapper over the registry.
 
-### Decision 6 — `session.permissions` module (locked, scope-bounded)
+### Decision 6 — `session.permissions` module (locked, manifest-scoped to match v3 exactly)
 
 New top-level module mirroring v3:
 
@@ -138,11 +138,28 @@ session.permissions.onPermissionError(handler: (error) => void): UnsubscribeFn
 
 `PermissionType` matches v3: `"location" | "microphone" | "camera" | "notifications" | "calendar"` (canonicalized to lowercase).
 
-Read-only from the app's perspective. Populated from CONNECT_ACK. Re-fired via push when granted/declared state changes (e.g. user grants OS permission after first denying).
+Read-only from the app's perspective. Populated from CONNECT_ACK. Re-fired via push when the **declared** set changes — e.g. when a developer re-scans a dev miniapp with an updated manifest, or when a store-installed miniapp's manifest changes on update.
 
-**Scope-bounded:** v1 of this module is **manifest-declaration tracking only** (matches v3 exactly). It does *not* yet expose OS-level grant state (`navigator.permissions.query()`-style), `requestPermission(...)`, or wire-protocol push for OS-grant changes. Those land later if/when authors ask.
+**What "permission" means here.** Same as v3: this module tracks **manifest-declared** permissions. Its semantics:
 
-What ships:
+| `permissions.has("microphone")` | meaning |
+|---|---|
+| `true` | the miniapp declared `MICROPHONE` in its manifest. SUBSCRIBE for mic-bound streams will not be rejected on declaration grounds. |
+| `false` | the miniapp did NOT declare `MICROPHONE`. Calls that need it will fail with `PERMISSION_NOT_DECLARED`. |
+
+It does **not** answer "did the user grant the OS prompt?" That is OS-grant state, a different concept. For miniapp authors: even when `has(...)` returns `true`, the user can still have denied the OS-level permission, and your subscriptions will simply not receive events. To detect that case in V1, observe whether your subscriptions actually receive data.
+
+This matches v3's semantics by design — for cloud apps there is no OS layer between app and data, so manifest-declaration *is* the access gate. For local miniapps the OS layer exists but is intentionally not modeled in this module to keep the surface identical to v3.
+
+**Out of scope (deferred to a future round if/when authors ask):**
+
+- OS-level grant state (`isGranted(...)`).
+- `request(type)` to trigger an OS prompt.
+- Wire-protocol push for OS-grant changes (e.g. when the user toggles permission in iOS Settings while the miniapp is running).
+
+When that work lands, it will live on this same module — additional methods like `isGranted("microphone")` / `request("microphone")` alongside the existing `has(...)` / `getAll(...)`. The future addition won't rename today's surface; it'll only add to it.
+
+What ships in this round:
 
 - New `MiniappResponseType.PERMISSIONS_UPDATE` envelope from phone (push when CONNECT_ACK or manifest re-registers — covers re-launch of dev miniapps with updated manifest).
 - Phone runtime tracks the declared-permission set per app, sends update push when it changes.
@@ -339,7 +356,7 @@ End-to-end ~1 week of focused work. Steps 1-5 can land as separate PRs if useful
 
 ## Out of scope
 
-- OS-level permission state (granted/denied) and `requestPermission(...)` — `session.permissions` only tracks manifest declarations.
+- **OS-level grant state** and `request(...)` to trigger OS prompts. `session.permissions` only tracks manifest declarations in this round (matches v3's semantics exactly). Future work lands additively on the same module — `isGranted("microphone")` / `request("microphone")` etc. — without renaming the v1 surface. See Decision 6.
 - Speaker stream-state observability (`onStateChange`).
 - Renaming `session.input` / `session.imu` / `session.glasses` to a single `session.device`.
 - `session.transcription`'s wildcard fan-out logic (already covered by today's `transcription:auto` behavior — preserve as-is).

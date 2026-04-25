@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/@mentra/miniapp-cli/schema/miniapp.schema.json",
   "packageName": "com.mentra.example",
   "version": "1.0.0",
   "name": "Live Captions",

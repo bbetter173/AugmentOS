@@ -118,7 +118,21 @@ interface InstalledLma {
   versions: Record<string, InstalledInfo>
 }
 
-async function downloadAndInstallMiniApp(url: string) {
+/**
+ * Download a miniapp zip from `url`, unpack it, and install it under
+ * `lmas/<packageName>/<version>/`.
+ *
+ * The zip is expected to be flat (files at root, no enclosing folder)
+ * with `miniapp.json` at the top level. We're strict on shape so we
+ * fail loudly on malformed bundles instead of silently installing
+ * something broken.
+ *
+ * @param versionOverride  override the manifest's version field. Used by
+ *                         the dev miniapp caching path which stamps
+ *                         `dev-<timestamp>` so multiple snapshots can
+ *                         coexist alongside semver-installed versions.
+ */
+async function downloadAndInstallMiniApp(url: string, versionOverride?: string) {
   let downloadedZipPath: string = ""
 
   // create the download directory if it doesn't exist
@@ -150,71 +164,42 @@ async function downloadAndInstallMiniApp(url: string) {
 
   const unzipDir = new Directory(Paths.cache, "lma_unzip")
   try {
-    if (!unzipDir.exists) {
-      unzipDir.create()
-    } else {
-      // delete the directory, then create it
-      unzipDir.delete()
-      unzipDir.create()
-    }
+    if (unzipDir.exists) unzipDir.delete()
+    unzipDir.create()
   } catch (error) {
     console.error("ZIP: Error creating or deleting the unzip directory", error)
     throw "CREATE_CACHE_DIR_FAILED"
   }
 
-  let res = null
   try {
     console.log("ZIP: unzipping", downloadedZipPath)
-    console.log("ZIP: unzip directory", unzipDir.uri)
-    res = await unzip(downloadedZipPath, unzipDir.uri)
-    // console.log(unzipOutput.exists) // true
-    // console.log(unzipOutput.uri) // path to the unzipped file, e.g., '${cacheDirectory}/pdfs/sample.pdf'
+    await unzip(downloadedZipPath, unzipDir.uri)
   } catch (error) {
     console.error("Error unzipping zip file", error)
     throw "UNZIP_FAILED"
   }
 
-  console.log("ZIP: done unzipping", res)
-
-  // get the package name and info from the app.json file:
-  let packageName = null
-  let version = null
-  let folderName = null
-  let appDir
+  // Strict zip shape: miniapp.json must be at the unzip root. No tolerance
+  // for an enclosing folder or app.json fallback — we own the dev-server
+  // emit format (flat zip, miniapp.json at root) so any deviation indicates
+  // a corrupt bundle that we should refuse rather than half-install.
+  const appDir = unzipDir
+  let packageName: string
+  let manifestVersion: string
   try {
-    // console.log("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-    // printDirectory(unzipDir)
-
-    const firstFile = unzipDir.list()[0] // this should be the folder containing the app.json file
-    folderName = firstFile.name
-    console.log("ZIP: folder name", folderName)
-
-    // TODO: we shouldn't be fault tolerant here, but I can't seem to tell the difference between how these zip files were created
-    // it seems sometimes an extra folder is created, and sometimes it's not.
-    if (folderName === "icon.png" || folderName === "app.json") {
-      // there's no additional folder, so we should use the unzipDir directly
-      appDir = unzipDir
-    } else {
-      appDir = new Directory(unzipDir, folderName)
-    }
+    const miniappJsonFile = new File(appDir, "miniapp.json")
+    if (!miniappJsonFile.exists) throw new Error("miniapp.json missing at zip root")
+    const manifest = JSON.parse(miniappJsonFile.textSync())
+    if (!manifest.packageName) throw new Error("miniapp.json missing packageName")
+    if (!manifest.version) throw new Error("miniapp.json missing version")
+    packageName = manifest.packageName
+    manifestVersion = manifest.version
   } catch (error) {
-    console.error("Error getting the app directory", error)
-    throw "GET_APP_DIR_FAILED"
+    console.error("Error reading miniapp.json from zip:", error)
+    throw "READ_MANIFEST_FAILED"
   }
-
-  try {
-    // read firstFile/app.json:
-    const appJsonFile = new File(appDir, "app.json")
-    const appJson = JSON.parse(appJsonFile.textSync())
-    packageName = appJson.packageName
-    version = appJson.version
-
-    console.log("ZIP: package name", packageName)
-    console.log("ZIP: version", version)
-  } catch (error) {
-    console.error("Error reading the app.json file", error)
-    throw "READ_APP_JSON_FAILED"
-  }
+  const version = versionOverride ?? manifestVersion
+  console.log(`ZIP: installing ${packageName} as version ${version}`)
 
   // move the contents of this folder to Documents/lmas/<version>/<packageName>
 
@@ -328,13 +313,44 @@ class Composer {
   }
 
   // download the mini app from the url and unzip it to the app's cache directory/lma/<packageName>
-  public installMiniApp(url: string): AsyncResult<void, Error> {
+  public installMiniApp(
+    url: string,
+    opts?: {versionOverride?: string},
+  ): AsyncResult<void, Error> {
     return Res.try_async(async () => {
-      await downloadAndInstallMiniApp(url)
+      await downloadAndInstallMiniApp(url, opts?.versionOverride)
       console.log("COMPOSER: Downloaded and installed mini app")
       this.refreshNeeded = true
       await useAppletStatusStore.getState().refreshApplets()
     })
+  }
+
+  /**
+   * Garbage-collect older `dev-*` version directories for this package,
+   * keeping the latest `keep` (by lexicographic sort, which matches
+   * timestamp ordering since dev-<ms> is zero-padded).
+   *
+   * Only touches `dev-*` versions; semver-installed versions are left alone.
+   */
+  public gcDevVersions(packageName: string, keep: number): void {
+    try {
+      const pkgDir = new Directory(Paths.document, "lmas", packageName)
+      if (!pkgDir.exists) return
+      const dirs = pkgDir
+        .list()
+        .filter((d): d is Directory => d instanceof Directory && d.name.startsWith("dev-"))
+        .sort((a, b) => (a.name < b.name ? 1 : -1))
+      for (let i = keep; i < dirs.length; i++) {
+        try {
+          dirs[i].delete()
+        } catch (e) {
+          console.warn(`COMPOSER: failed to delete ${dirs[i].name}:`, e)
+        }
+      }
+      if (dirs.length > keep) this.refreshNeeded = true
+    } catch (e) {
+      console.warn(`COMPOSER: gcDevVersions error for ${packageName}:`, e)
+    }
   }
 
   public uninstallMiniApp(packageName: string, version?: string): AsyncResult<void, Error> {

@@ -12,8 +12,9 @@
 // Designed to coexist with whatever the user's `server.ts` is doing — we don't
 // touch their code, we just listen on a separate port.
 
-import {readdirSync, statSync, watch} from "fs"
+import {readdirSync, readFileSync, statSync, watch} from "fs"
 import {join, relative} from "path"
+import JSZip from "jszip"
 import type {ServerWebSocket} from "bun"
 
 export interface DevServerOptions {
@@ -102,14 +103,24 @@ export function startDevSidecar(options: DevServerOptions): {stop: () => void; p
           headers: {"content-type": "application/json"},
         })
       }
-      if (url.pathname === "/__mentra_dev/files") {
-        // List of project files the phone should snapshot to its bundle cache.
-        // Walked from the watch dir, BFS-bounded depth + count to keep things
-        // sane even on weird projects.
-        const files = listProjectFiles(options.watchDir)
-        return new Response(JSON.stringify({files}), {
-          headers: {"content-type": "application/json"},
-        })
+      if (url.pathname === "/__mentra_dev/bundle.zip") {
+        // Snapshot of the project files for the phone-side bundle cache.
+        // Phone calls Composer.installMiniApp(this URL) to download + unzip
+        // into lmas/<pkg>/dev-<timestamp>/ — same path store-installed
+        // miniapps take, just with a dev-prefixed version directory.
+        //
+        // Files are placed at the zip root (no enclosing folder). The
+        // unpacker on the phone side requires miniapp.json to be at the
+        // top level. Flat structure makes that contract clean.
+        return buildProjectZip(options.watchDir).then(
+          (buf) =>
+            new Response(buf, {
+              headers: {
+                "content-type": "application/zip",
+                "content-length": String(buf.length),
+              },
+            }),
+        )
       }
       if (url.pathname === "/__mentra_dev") {
         const upgraded = srv.upgrade(req, {
@@ -214,14 +225,18 @@ export function startDevSidecar(options: DevServerOptions): {stop: () => void; p
 
 /**
  * Walk the dev project's directory tree and return a list of relative file
- * paths suitable for the phone-side bundle snapshotter to fetch.
+ * paths suitable for inclusion in the bundle zip.
  *
  * BFS-bounded:
  *   - max depth 5 (most miniapp trees are 2-3 levels deep)
  *   - max files 500 (truncates with a warning beyond that)
  *
- * Excludes: node_modules, dist, .git, .next, .env*, hidden files starting
- * with ".", and any path containing __mentra_dev (the sidecar's own paths).
+ * Excludes: node_modules, dist, .git, .next, build, .cache, .turbo, .env*,
+ * any hidden dotfile, and __mentra_dev paths (the sidecar's own).
+ *
+ * Returns paths *without* a leading slash — they're zip-internal entry
+ * names. The phone-side unpacker (Composer.installMiniApp) needs them
+ * exactly that way to reconstruct the directory tree on disk.
  */
 function listProjectFiles(rootDir: string): string[] {
   const MAX_DEPTH = 5
@@ -265,10 +280,8 @@ function listProjectFiles(rootDir: string): string[] {
       if (stat.isDirectory()) {
         if (depth + 1 <= MAX_DEPTH) queue.push({dir: abs, depth: depth + 1})
       } else if (stat.isFile()) {
-        // Return as a leading-slash relative path for direct concatenation
-        // with the dev server's URL on the phone side.
         const rel = relative(rootDir, abs).split("\\").join("/")
-        out.push(`/${rel}`)
+        out.push(rel)
         if (out.length >= MAX_FILES) {
           console.warn(
             `[__mentra_dev] file list truncated at ${MAX_FILES} entries — bundle cache may be incomplete`,
@@ -279,4 +292,28 @@ function listProjectFiles(rootDir: string): string[] {
     }
   }
   return out
+}
+
+/**
+ * Build a flat ZIP of the project files (files at zip root, no enclosing
+ * folder). Returns the encoded buffer.
+ *
+ * The phone-side unpacker (Composer.installMiniApp) requires miniapp.json
+ * to be at the zip's top level. Flat structure keeps the contract clean
+ * — the unpacker can fail loudly if the zip is malformed instead of
+ * tolerating multiple shapes.
+ */
+async function buildProjectZip(rootDir: string): Promise<Uint8Array> {
+  const zip = new JSZip()
+  for (const rel of listProjectFiles(rootDir)) {
+    const abs = join(rootDir, rel)
+    try {
+      const buf = readFileSync(abs)
+      zip.file(rel, buf)
+    } catch (err) {
+      console.warn(`[__mentra_dev] failed to read ${rel}, skipping:`, err)
+    }
+  }
+  // STORE (no compression) — small project trees, deterministic, fast.
+  return zip.generateAsync({type: "uint8array", compression: "STORE"})
 }

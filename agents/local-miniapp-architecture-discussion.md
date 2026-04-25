@@ -8,6 +8,16 @@
 - Miniapp store backend plan (dev console upload, publish, sharing, signed-URL install): `agents/miniapp-store-backend-plan.md`
 - Miniapp SDK photo cleanup plan (private bucket + signed URLs + rename for `takePhoto()` path): `agents/miniapp-sdk-photo-cleanup-plan.md`
 
+## Post-feedback improvements roadmap
+
+After the dev-ex feedback round on this PR, the following spec docs were added. Each is plain markdown; each needs a real brainstorm pass before implementation. Index in `agents/HUMAN-TODO-miniapp-improvements.md`.
+
+- `agents/miniapp-quick-fixes-spec.md` — Tier 1 bundle: live reload, permissions CLI, missing-permission warnings, manifest JSON Schema.
+- `agents/miniapp-dev-applets-as-installed-apps-spec.md` — Persisted dev miniapps with retry-from-devUrl + DEV badge.
+- `agents/miniapp-less-reacty-example-spec.md` — Restructure example so glasses behavior is independent of React routes.
+- `agents/miniapp-sdk-surface-alignment-spec.md` — Move stream events off `session.events` onto domain modules.
+- `agents/miniapp-browser-testing-simulator-spec.md` — Stub for the simulator; needs full design pass.
+
 ## What this is
 
 We're designing how third-party (and first-party) miniapps run on MentraOS. A miniapp is a small program that drives smart glasses — displays text, subscribes to transcription, responds to button presses, takes photos, etc. Today miniapps run as cloud apps: each miniapp is a Node/Bun server somewhere on the internet, the cloud routes events to it over WebSockets, the cloud routes display commands back down to the phone, the phone routes them to the glasses over BLE.

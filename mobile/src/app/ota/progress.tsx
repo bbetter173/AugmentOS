@@ -375,9 +375,16 @@ export default function OtaProgressScreen() {
     }
 
     // Initial mount (prev === current === true). If no session yet, kick off ota_start.
-    const noSessionYet = !storeSnapshot.otaStatus && !storeSnapshot.otaProgress
+    // Also treat a background-prefetch status (empty sessionId) as "no session" so we
+    // send ota_start and convert the prefetch into a phone-initiated install.
+    const isBackgroundPrefetch = !!storeSnapshot.otaStatus && storeSnapshot.otaStatus.sessionId === ""
+    const noSessionYet = (!storeSnapshot.otaStatus && !storeSnapshot.otaProgress) || isBackgroundPrefetch
     if (noSessionYet) {
-      console.log("[OTA_PROGRESS] initial mount, no session in store, sending ota_start")
+      console.log(
+        isBackgroundPrefetch
+          ? "[OTA_PROGRESS] initial mount, background prefetch in progress (no sessionId), sending ota_start to convert to install"
+          : "[OTA_PROGRESS] initial mount, no session in store, sending ota_start",
+      )
       retryCountRef.current = 0
       hasFirstActivityRef.current = false
       hasReceivedAckRef.current = false

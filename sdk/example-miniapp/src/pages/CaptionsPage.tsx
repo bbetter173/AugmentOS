@@ -1,55 +1,50 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useRef} from "react"
 import {useNavigate} from "react-router-dom"
 import {
   MiniappHeader,
   useCapabilities,
   useConnected,
-  useSession,
   useVisibility,
 } from "@mentra/miniapp/react"
-import type {ButtonPressData, TranscriptionData} from "@mentra/miniapp"
 
+import {getGlassesController} from "../controller/GlassesController"
+import {useAppStore} from "../store/appStore"
 import {Button} from "../ui/button"
 import {Card, CardContent, CardHeader, CardTitle} from "../ui/card"
 import {Label} from "../ui/label"
 import {Switch} from "../ui/switch"
 import {Shell} from "./Shell"
 
+/**
+ * CaptionsPage — viewer for the GlassesController's app state.
+ *
+ * Does NOT subscribe to session events. Reads from `useAppStore`; calls
+ * imperative methods on the GlassesController for things the user
+ * triggers (clear, speak summary, mirror toggle).
+ *
+ * Closing this page does NOT stop transcription on the glasses — the
+ * controller keeps running. Tester pages (src/pages/tester/) are the
+ * only place in this example where inline-subscribe to `session.*` is
+ * acceptable, because they're diagnostic surfaces by design.
+ */
 export default function CaptionsPage() {
-  const session = useSession()
   const connected = useConnected()
   const caps = useCapabilities()
   const visibility = useVisibility()
   const navigate = useNavigate()
 
-  const [liveTranscript, setLiveTranscript] = useState("")
-  const [history, setHistory] = useState<string[]>([])
-  const [mirrorToGlasses, setMirrorToGlasses] = useState(true)
-  const [lastButton, setLastButton] = useState("")
+  // Read from the controller-driven store — no session subscriptions.
+  const liveTranscript = useAppStore((s) => s.liveTranscript)
+  const history = useAppStore((s) => s.history)
+  const lastButton = useAppStore((s) => s.lastButton)
+  const mirrorToGlasses = useAppStore((s) => s.mirrorToGlasses)
+  const setMirrorToGlasses = useAppStore((s) => s.setMirrorToGlasses)
+
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({top: scrollRef.current.scrollHeight, behavior: "smooth"})
   }, [history])
-
-  useEffect(() => {
-    const unsubs = [
-      session.transcription.on((data: TranscriptionData) => {
-        setLiveTranscript(data.text)
-        if (mirrorToGlasses) {
-          session.display.showTextWall(data.text)
-        }
-        if (data.isFinal && data.text.trim()) {
-          setHistory((prev) => [...prev, data.text.trim()])
-          setLiveTranscript("")
-        }
-      }),
-      session.input.onButtonPress((data: ButtonPressData) => {
-        setLastButton(`${data.buttonId} (${data.pressType})`)
-      }),
-    ]
-    return () => unsubs.forEach((fn) => fn())
-  }, [session, mirrorToGlasses])
 
   const hasCamera = !!(caps && (caps as Record<string, unknown>).hasCamera)
   const hasMic = !!(caps && (caps as Record<string, unknown>).hasMicrophone)
@@ -58,23 +53,9 @@ export default function CaptionsPage() {
   const hasWifi = !!(caps && (caps as Record<string, unknown>).hasWifi)
   const modelName = (caps as Record<string, unknown>)?.modelName as string | undefined
 
-  const clearHistory = () => {
-    setHistory([])
-    setLiveTranscript("")
-    session.display.clearView()
-  }
-
-  const speakSummary = async () => {
-    const last3 = history.slice(-3).join(". ")
-    const phrase = last3
-      ? `Here's what was said: ${last3}`
-      : "Nothing to summarize yet. Say something first."
-    try {
-      await session.speaker.speak(phrase)
-    } catch {
-      /* TTS error */
-    }
-  }
+  // Imperative actions — delegate to the controller.
+  const onClear = () => getGlassesController().clearGlasses()
+  const onSpeak = () => getGlassesController().speakSummary()
 
   return (
     <Shell>
@@ -129,10 +110,10 @@ export default function CaptionsPage() {
           </Label>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={speakSummary}>
+          <Button variant="outline" size="sm" onClick={onSpeak}>
             Speak Summary
           </Button>
-          <Button variant="destructive" size="sm" onClick={clearHistory}>
+          <Button variant="destructive" size="sm" onClick={onClear}>
             Clear
           </Button>
         </div>

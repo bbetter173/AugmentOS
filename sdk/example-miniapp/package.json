@@ -24,7 +24,8 @@
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.14.1",
     "tailwind-merge": "^3.0.2",
-    "tailwindcss": "^4.0.8"
+    "tailwindcss": "^4.0.8",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@mentra/miniapp-cli": "workspace:*",

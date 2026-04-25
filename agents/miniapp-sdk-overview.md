@@ -64,6 +64,24 @@ Each event subscriber returns an `UnsubscribeFn`. Subscriptions are ref-counted:
 
 **Permissions, scoped.** `session.permissions.has("microphone")` returns whether the manifest declared `MICROPHONE` — same semantics as cloud SDK v3. It does NOT report OS-level grant state; even when `has(...)` returns `true` the user can have denied the OS prompt and your subscriptions will silently receive no events. OS-grant tracking and `request(...)` are deferred; when added they'll land additively (`isGranted(...)`, `request(...)`) on the same module without renaming today's surface.
 
+### Controller pattern (recommended for non-trivial apps)
+
+Smart-glasses miniapps are **always-on services**. The webview is a UI on top of a continuously-running session. If you tie subscriptions to React component lifecycle, you'll find that closing or navigating away from a page also stops the glasses behavior — which is the wrong shape for glasses.
+
+**The rule:** user-facing glasses logic must live in a session-scoped controller, instantiated once at module init. React pages read controller-driven state via a store (Zustand recommended) and call imperative methods on the controller for user-triggered actions. They do NOT subscribe to `session.*` directly.
+
+The reference implementation in `sdk/example-miniapp/src/`:
+
+- **`controller/GlassesController.ts`** — single class. Owns every `session.transcription.on(...)`, `session.input.onButtonPress(...)`, etc. `start()` is called once from `main.tsx`'s Bootstrap shim. Subscriptions live for the entire session.
+- **`store/appStore.ts`** — Zustand store. Controller writes (`store.appendHistory`); pages read (`useAppStore((s) => s.history)`).
+- **`pages/CaptionsPage.tsx`** — viewer. Reads from store, calls `getGlassesController().clearGlasses()` for actions. Zero `session.*` calls.
+
+**Tester pages exception:** `pages/tester/*` are diagnostic surfaces — by design they inline-subscribe to `session.*` (or call imperative methods on user button press) and tear down on unmount. This is the ONLY place where this pattern is acceptable. Each tester file has a header comment calling out the exception.
+
+**Scaling up:** for ~5+ distinct concerns, split the controller into per-concern manager classes (mirrors cloud SDK v3's user-side pattern in `Mentra-AI`, `Merge`). The example's single-class approach is fine for 1-3 concerns.
+
+The class is named `GlassesController` (not `CaptionsController`) so a developer forking the example keeps the name verbatim — it describes what the class does, not what the example uses it for.
+
 ### Subscriptions: language convention
 
 Transcription/translation streams use a colon-suffixed wire format: `transcription:en-US`, `translation:en-US:fr-FR`. The SDK's `session.transcription.on(handler)` subscribes to `transcription:auto` and the cloud auto-detects the language. The detected language is in the event payload. There's also a wildcard fan-out: a handler on `transcription:auto` receives any `transcription:<lang>` event, which makes "give me transcripts in whatever language" work without manual wiring. Use `session.transcription.forLanguage("en-US", handler)` (or an array) to pin specific languages.

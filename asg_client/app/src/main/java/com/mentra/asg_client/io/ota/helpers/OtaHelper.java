@@ -177,7 +177,7 @@ public class OtaHelper {
     // flag the system would try to re-download and re-install the same MTK update
     private static volatile boolean mtkUpdatedThisSession = false;
     private static volatile boolean isBackgroundPrefetchInProgress = false;
-    private volatile boolean suppressPhoneProgress = false;
+
     private volatile boolean pendingPhoneInstall = false;
 
     /** Snapshot for {@link #buildMinimalOtaStatusJson()} when no OTA session exists (aligns with {@link #sendMtkInstallProgress} shape). */
@@ -635,7 +635,6 @@ public class OtaHelper {
         if (versionCheckLock.isLocked()) {
             Log.i(TAG, "📱 OTA prefetch in progress - queuing install to fire after prefetch completes");
             pendingPhoneInstall = true;
-            suppressPhoneProgress = false;
             isPhoneInitiatedOta = true;
             // Acquire wakelock early so CPU stays awake for the queued install pass
             WakeLockManager.acquireCpuWakeLock(context, OTA_WAKELOCK_TIMEOUT_MS);
@@ -912,7 +911,6 @@ public class OtaHelper {
                 if (!isPhoneInitiatedOta) {
                     stage[0] = "background_prefetch_gate";
                     isBackgroundPrefetchInProgress = true;
-                    suppressPhoneProgress = true;
                     Log.i(TAG, "📦 Starting background OTA pre-download pass");
                 }
 
@@ -985,7 +983,6 @@ public class OtaHelper {
                 // Capture before resetting — if the user tapped Install while prefetch was running,
                 // we need to fire a fresh install pass now that the cache is fully populated.
                 boolean shouldInstallNow = pendingPhoneInstall;
-                suppressPhoneProgress = false;
                 isBackgroundPrefetchInProgress = false;
                 isPhoneInitiatedOta = false;
                 pendingPhoneInstall = false;
@@ -1069,16 +1066,13 @@ public class OtaHelper {
         // Process apps in order - important for sequential updates
         String[] orderedPackages = {
             "com.mentra.asg_client",     // Update ASG client first
-            "com.augmentos.otaupdater"      // Then OTA updater
+            // "com.augmentos.otaupdater"      // Then OTA updater
         };
 
         // PHASE 0: Pre-download firmware artifacts BEFORE any APK install.
         // APK install kills the app process, so MTK/BES firmware files must be cached
         // beforehand. After restart the install phase can serve files from cache.
-        // Suppress phone progress so firmware download events don't confuse the phone UI.
         {
-            boolean savedSuppress = suppressPhoneProgress;
-            suppressPhoneProgress = true;
             try {
                 if (!wasMtkUpdatedThisSession() && !isMtkOtaInProgress() && rootJson.has("mtk_patches")) {
                     String currentMtkVersion = SysProp.getProperty(context, "ro.custom.ota.version");
@@ -1104,8 +1098,6 @@ public class OtaHelper {
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Phase 0 firmware prefetch failed (non-fatal) - will retry later", e);
-            } finally {
-                suppressPhoneProgress = savedSuppress;
             }
         }
         
@@ -2127,7 +2119,6 @@ public class OtaHelper {
                 }
 
                 if (attempt < MAX_DOWNLOAD_RETRIES) {
-                    sendProgressToPhone("download", 0, 0, 0, "STARTED", null);
                     Log.i(TAG, "Retrying BES firmware download in " + (RETRY_DELAY_MS / 1000) + "s "
                         + "(attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + ")");
                     try {
@@ -2188,25 +2179,18 @@ public class OtaHelper {
         Log.d(TAG, "Downloading BES firmware, size: " + fileSize + " bytes");
         
         currentUpdateType = "bes";
-        
-        sendProgressToPhone("download", 0, 0, fileSize, "STARTED", null);
-        
+
         while ((len = in.read(buffer)) > 0) {
             out.write(buffer, 0, len);
             total += len;
-            
+
             int progress = fileSize > 0 ? (int) (total * 100 / fileSize) : 0;
             if (progress >= lastProgress + 10 || progress == 100) {
                 Log.d(TAG, "BES firmware download progress: " + progress + "%");
-                
-                sendProgressToPhone("download", progress, total, fileSize, "PROGRESS", null);
-                
                 lastProgress = progress;
             }
         }
-        
-        sendProgressToPhone("download", 100, fileSize, fileSize, "FINISHED", null);
-        
+
         out.close();
         in.close();
         conn.disconnect();
@@ -2429,7 +2413,6 @@ public class OtaHelper {
                 }
 
                 if (attempt < MAX_DOWNLOAD_RETRIES) {
-                    sendProgressToPhone("download", 0, 0, 0, "STARTED", null);
                     Log.i(TAG, "Retrying MTK firmware download in " + (RETRY_DELAY_MS / 1000) + "s "
                         + "(attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + ")");
                     try {
@@ -2494,32 +2477,24 @@ public class OtaHelper {
         Log.d(TAG, "Downloading MTK firmware, size: " + fileSize + " bytes");
         
         currentUpdateType = "mtk";
-        
-        sendProgressToPhone("download", 0, 0, fileSize, "STARTED", null);
-        
+
         while ((len = in.read(buffer)) > 0) {
             out.write(buffer, 0, len);
             total += len;
-            
+
             int progress = fileSize > 0 ? (int) (total * 100 / fileSize) : 0;
             if (progress >= lastProgress + 10 || progress == 100) {
                 Log.d(TAG, "MTK firmware download progress: " + progress + "%");
-                
                 EventBus.getDefault().post(new DownloadProgressEvent(
                     DownloadProgressEvent.DownloadStatus.PROGRESS,
                     progress,
                     total,
                     fileSize
                 ));
-                
-                sendProgressToPhone("download", progress, total, fileSize, "PROGRESS", null);
-                
                 lastProgress = progress;
             }
         }
-        
-        sendProgressToPhone("download", 100, fileSize, fileSize, "FINISHED", null);
-        
+
         out.close();
         in.close();
         conn.disconnect();
@@ -2810,17 +2785,9 @@ public class OtaHelper {
      */
     private void sendProgressToPhone(String stage, int progress, long bytesDownloaded,
                                      long totalBytes, String status, String errorMessage) {
+        
         updateSessionFromProgress(stage, progress, status, errorMessage);
 
-        // Do not send download-stage PROGRESS updates for BES or MTK; phone only needs install progress for firmware.
-        // Always allow FAILED and FINISHED through so the phone can display errors and completion.
-        if ("download".equals(stage) && ("bes".equals(currentUpdateType) || "mtk".equals(currentUpdateType))
-                && !"FAILED".equals(status) && !"FINISHED".equals(status)) {
-            return;
-        }
-        if (suppressPhoneProgress && !"IN_PROGRESS".equals(status) && !"FAILED".equals(status)) {
-            return;
-        }
         // Suppress FINISHED while an install pass is queued. The prefetch thread sends
         // FINISHED(download) for each artifact it completes, but no install follows — only
         // the pending install pass will do that. Letting FINISHED through here would cause

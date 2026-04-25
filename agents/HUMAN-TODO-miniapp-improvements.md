@@ -117,10 +117,13 @@ Multi-week project. Needs its own brainstorm + spec. Scheduled after surface-ali
 - [`miniapp-quick-fixes-1-5-plan.md`](./miniapp-quick-fixes-1-5-plan.md) — Live reload + WebView console bridge. Sidecar dev server (Bun.serve on `<userPort+1>`), DevServerBridge service on phone, console-tap injection in `miniappGlobals.ts`, SDK auto-injected reload listener. 11 files touched, 3 new. ~5-7 days. **Shipped.**
 - [`miniapp-quick-fixes-2-plan.md`](./miniapp-quick-fixes-2-plan.md) — Permission/hardware CLI + manifest wizard. Shared backend (`manifest-mutate.ts`, `manifest-format.ts`); `permission.ts`, `hardware.ts`, `manifest-wizard.ts` for surfaces. ~2-3 days. **Shipped.**
 - [`miniapp-sdk-surface-alignment-plan.md`](./miniapp-sdk-surface-alignment-plan.md) — Round-1 module split. **Shipped at 0.2.0.**
+- [`miniapp-speaker-state-and-notif-dismissed-plan.md`](./miniapp-speaker-state-and-notif-dismissed-plan.md) — `session.speaker.onStateChange` + Android notifications.onDismissed. **Shipped.**
+- [`miniapp-dev-applets-as-installed-apps-plan.md`](./miniapp-dev-applets-as-installed-apps-plan.md) — Persisted dev applets, bundle caching, orange-dot indicator, removal flow. 5 PRs, ~8-12 days. Ready to implement.
+- [`miniapp-less-reacty-example-plan.md`](./miniapp-less-reacty-example-plan.md) — Restructure example with CaptionsController + Zustand store. 3 PRs, ~3-4 days. Ready to implement.
 
 Sections **#3** (PERMISSION_NOT_DECLARED warning), **#4** (JSON Schema), **#6** (MockTransport) don't need plan docs — the spec sections are detailed enough to implement directly. **Shipped.**
 
-`miniapp-sdk-v3-alignment-spec.md` is detailed enough to implement directly without a separate plan doc.
+`miniapp-sdk-v3-alignment-spec.md` was detailed enough to implement directly without a separate plan doc — **shipped at 0.3.0.**
 
 ## Process
 

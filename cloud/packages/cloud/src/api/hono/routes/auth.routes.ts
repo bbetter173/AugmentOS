@@ -10,6 +10,7 @@ import { tokenService } from "../../../services/core/temp-token.service";
 import appService from "../../../services/core/app.service";
 import { logger as rootLogger } from "../../../services/logging/pino-logger";
 import type { AppEnv, AppContext } from "../../../types/hono";
+import { resolveAppApiKeyCredentials } from "./auth.utils";
 
 const logger = rootLogger.child({ service: "auth.routes" });
 
@@ -66,27 +67,25 @@ async function validateCoreTokenMiddleware(c: AppContext, next: () => Promise<vo
 
 /**
  * Middleware to validate App API key.
- * Expects Authorization: Bearer <packageName>:<apiKey>
+ * Accepts:
+ * - Authorization: Bearer <packageName>:<apiKey>
+ * - Authorization: Bearer <apiKey> with packageName provided in the JSON body
  */
 async function validateAppApiKeyMiddleware(c: AppContext, next: () => Promise<void>) {
   const authHeader = c.req.header("authorization");
+  const body = (await c.req.raw
+    .clone()
+    .json()
+    .catch(() => ({}))) as { packageName?: string };
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return c.json({ error: "Missing or invalid Authorization header" }, 401);
+  // Keep the cloud backwards compatible with older SDKs that send
+  // `Bearer <apiKey>` and rely on the JSON body for packageName.
+  const { credentials, error } = resolveAppApiKeyCredentials(authHeader, body.packageName);
+  if (!credentials) {
+    return c.json({ error }, 401);
   }
 
-  const token = authHeader.substring(7);
-  const parts = token.split(":");
-
-  if (parts.length !== 2) {
-    return c.json({ error: "Invalid token format" }, 401);
-  }
-
-  const [packageName, apiKey] = parts;
-
-  if (!packageName || !apiKey) {
-    return c.json({ error: "Invalid credentials" }, 401);
-  }
+  const { packageName, apiKey } = credentials;
 
   // Validate API key
   const { validateApiKey } = await import("../../../services/sdk/sdk.auth.service");
@@ -197,16 +196,23 @@ async function generateWebviewToken(c: AppContext) {
 async function exchangeUserToken(c: AppContext) {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { aos_temp_token, packageName } = body as {
+    const { aos_temp_token } = body as {
       aos_temp_token?: string;
       packageName?: string;
     };
+    const sdk = c.get("sdk");
 
     if (!aos_temp_token) {
       return c.json({ success: false, error: "Missing aos_temp_token" }, 400);
     }
 
-    const result = await tokenService.exchangeTemporaryToken(aos_temp_token, packageName || "");
+    if (!sdk?.packageName) {
+      return c.json({ success: false, error: "Invalid credentials" }, 401);
+    }
+
+    // Use the authenticated packageName so legacy callers and modern callers
+    // both resolve the token against the same validated App identity.
+    const result = await tokenService.exchangeTemporaryToken(aos_temp_token, sdk.packageName);
 
     if (result) {
       return c.json({ success: true, userId: result.userId });

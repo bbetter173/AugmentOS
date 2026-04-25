@@ -97,6 +97,17 @@ export interface PhoneNotificationData {
   packageName: string
 }
 
+export interface NotificationDismissedData {
+  /** Same id as the matching post event from `notifications.on(...)`. */
+  notificationId: string
+  /** Android NotificationKey. More stable than notificationId across reposts. */
+  notificationKey?: string
+  /** Reverse-DNS package/bundle id of the originating app. */
+  packageName?: string
+  /** Unix ms timestamp of the dismissal. */
+  timestamp: number
+}
+
 export interface CalendarEventData {
   eventId: string
   title: string

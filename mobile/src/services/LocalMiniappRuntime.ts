@@ -49,11 +49,15 @@ export interface InstalledMiniappManifest {
   hardwareRequirements?: Array<{type: string; level: string; description?: string}>
 }
 
+type SpeakerStateValue = "idle" | "loading" | "playing" | "stopped" | "error"
+
 interface ConnectedMiniapp {
   subscriptions: Set<string>
   sendMessage: (raw: string) => void
   lastPongAt: number
   installedManifest?: InstalledMiniappManifest
+  /** Last speaker state pushed to this app. Used to dedup SPEAKER_STATE pushes. */
+  speakerState: SpeakerStateValue
 }
 
 const LOG_TAG = "LOCAL_MINIAPP"
@@ -401,6 +405,7 @@ class LocalMiniappRuntime {
       sendMessage: sendFn,
       lastPongAt: Date.now(),
       installedManifest,
+      speakerState: "idle",
     })
     this.ensurePingLoop()
   }
@@ -660,6 +665,7 @@ class LocalMiniappRuntime {
       if (s.startsWith("transcription") || s.startsWith("translation")) return "MICROPHONE"
       if (s === "location_update") return "LOCATION"
       if (s === "phone_notification") return "READ_NOTIFICATIONS"
+      if (s === "phone_notification_dismissed") return "READ_NOTIFICATIONS"
       if (s === "calendar_event") return "CALENDAR"
       return null
     }
@@ -835,9 +841,19 @@ class LocalMiniappRuntime {
     const volume = typeof payload.volume === "number" ? payload.volume : 1.0
     const stopOtherAudio = payload.stopOtherAudio !== false
 
+    this.setSpeakerState(packageName, "loading")
     audioPlaybackService.play(
       {requestId: audioRequestId, audioUrl, appId: packageName, volume, stopOtherAudio},
       (_respId, success, error, duration) => {
+        if (success) {
+          this.setSpeakerState(packageName, "stopped", {durationMs: duration ?? undefined})
+        } else {
+          this.setSpeakerState(packageName, "error", {
+            errorCode: MiniappErrorCode.INTERNAL,
+            errorMessage: error ?? "play failed",
+            durationMs: duration ?? undefined,
+          })
+        }
         this.sendResult(
           packageName,
           requestId,
@@ -852,10 +868,16 @@ class LocalMiniappRuntime {
         )
       },
     )
+    // Optimistic "started playing" transition. The audio service doesn't
+    // have a "playback actually started" callback today; cloud SDK v3 has
+    // the same constraint and uses optimistic timing. Microtask so the
+    // initial "loading" envelope flushes first.
+    queueMicrotask(() => this.setSpeakerState(packageName, "playing"))
   }
 
   private handleStopAudio(packageName: string, _payload: Record<string, unknown>, requestId?: string): void {
     audioPlaybackService.stopForApp(packageName)
+    this.setSpeakerState(packageName, "stopped")
     this.sendResult(packageName, requestId, true)
   }
 
@@ -876,9 +898,19 @@ class LocalMiniappRuntime {
 
       const audioRequestId = requestId || `tts_${Date.now()}`
 
+      this.setSpeakerState(packageName, "loading")
       audioPlaybackService.play(
         {requestId: audioRequestId, audioUrl: ttsUrl, appId: packageName, volume: 1.0, stopOtherAudio: true},
         (_respId, success, error, duration) => {
+          if (success) {
+            this.setSpeakerState(packageName, "stopped", {durationMs: duration ?? undefined})
+          } else {
+            this.setSpeakerState(packageName, "error", {
+              errorCode: MiniappErrorCode.TTS_UPSTREAM_ERROR,
+              errorMessage: error ?? "tts failed",
+              durationMs: duration ?? undefined,
+            })
+          }
           this.sendResult(
             packageName,
             requestId,
@@ -893,11 +925,17 @@ class LocalMiniappRuntime {
           )
         },
       )
+      queueMicrotask(() => this.setSpeakerState(packageName, "playing"))
     } catch (err) {
       console.error(`${LOG_TAG}: speak error:`, err)
+      const message = err instanceof Error ? err.message : "TTS error"
+      this.setSpeakerState(packageName, "error", {
+        errorCode: MiniappErrorCode.TTS_UPSTREAM_ERROR,
+        errorMessage: message,
+      })
       this.sendResult(packageName, requestId, false, undefined, {
         code: MiniappErrorCode.TTS_UPSTREAM_ERROR,
-        message: err instanceof Error ? err.message : "TTS error",
+        message,
       })
     }
   }
@@ -1509,6 +1547,40 @@ class LocalMiniappRuntime {
   /**
    * Send a payload to a connected miniapp, wrapped in an envelope.
    */
+  /**
+   * Push a speaker-state transition to the owning miniapp. Idempotent: if
+   * the new state matches the cached one (and isn't an error), no envelope
+   * is sent. Error events are always sent — they're transient and the SDK
+   * settles back to a non-error state immediately after.
+   */
+  private setSpeakerState(
+    packageName: string,
+    next: SpeakerStateValue,
+    extra?: {errorCode?: string; errorMessage?: string; durationMs?: number},
+  ): void {
+    const app = this.connectedApps.get(packageName)
+    if (!app) return
+    if (app.speakerState === next && next !== "error") return
+    app.speakerState = next === "error" ? "error" : next
+    this.sendToMiniapp(packageName, {
+      type: MiniappResponseType.SPEAKER_STATE,
+      state: next,
+      ...(extra?.errorCode !== undefined ? {errorCode: extra.errorCode} : {}),
+      ...(extra?.errorMessage !== undefined ? {errorMessage: extra.errorMessage} : {}),
+      ...(extra?.durationMs !== undefined ? {durationMs: extra.durationMs} : {}),
+    })
+    // After an error event, immediately transition to "stopped" so the
+    // SDK's isPlaying getter reads false and a new play()/speak() call
+    // starts cleanly from idle/stopped.
+    if (next === "error") {
+      app.speakerState = "stopped"
+      this.sendToMiniapp(packageName, {
+        type: MiniappResponseType.SPEAKER_STATE,
+        state: "stopped",
+      })
+    }
+  }
+
   private sendToMiniapp(packageName: string, payload: Record<string, unknown>, requestId?: string): void {
     const app = this.connectedApps.get(packageName)
     if (!app) {

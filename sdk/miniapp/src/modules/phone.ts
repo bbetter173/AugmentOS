@@ -11,15 +11,20 @@
  * on `session.system` — different shape (one-shot calls vs. event subs) so
  * we don't conflate them.
  *
- * v3 also has a `phone.notifications.onDismissed` event. The local miniapp
- * wire protocol doesn't deliver dismissed events today — adding it requires
- * a new stream type on the phone runtime side. Tracked as future work; the
- * sub-namespace structure makes it a drop-in addition when it lands.
+ * `phone.notifications.onDismissed` is Android-only. iOS doesn't expose
+ * notification-dismiss callbacks to apps (Apple privacy restriction);
+ * subscribing on iOS is a no-op even though the API is present.
  */
 
 import {MiniappStreamType} from "../protocol"
 import {MiniappSession} from "../session"
-import type {BatteryData, CalendarEventData, PhoneNotificationData, UnsubscribeFn} from "./events"
+import type {
+  BatteryData,
+  CalendarEventData,
+  NotificationDismissedData,
+  PhoneNotificationData,
+  UnsubscribeFn,
+} from "./events"
 
 class TrackedSubs {
   private readonly unsubs = new Set<UnsubscribeFn>()
@@ -56,20 +61,21 @@ export class PhoneNotificationsModule extends TrackedSubs {
   }
 
   /**
-   * Subscribe to dismiss events for phone notifications. Wire protocol does
-   * not deliver these today; this method exists for forward compatibility
-   * with cloud SDK v3 and will be a no-op until the phone runtime adds a
-   * stream type for it. Returns an unsubscribe fn that's already a no-op.
+   * Subscribe to dismiss events for phone notifications. Fires when the user
+   * dismisses (swipes away or clears) a notification.
+   *
+   * **Android only.** iOS does not expose dismiss callbacks to apps (Apple
+   * privacy restriction); subscribing on iOS succeeds but no events ever
+   * fire. The matching `notifications.on()` post-event still works on both
+   * platforms.
    */
-  onDismissed(_handler: (data: unknown) => void): UnsubscribeFn {
-    if (typeof console !== "undefined") {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "[mentra-miniapp] phone.notifications.onDismissed: not implemented in this SDK version " +
-          "(wire protocol does not yet deliver dismiss events). No-op.",
-      )
-    }
-    return () => {}
+  onDismissed(handler: (data: NotificationDismissedData) => void): UnsubscribeFn {
+    return this.track(
+      this.session._subscribe(
+        MiniappStreamType.PHONE_NOTIFICATION_DISMISSED,
+        handler as (data: unknown) => void,
+      ),
+    )
   }
 
   /** True iff `READ_NOTIFICATIONS` is declared in the miniapp's manifest. */

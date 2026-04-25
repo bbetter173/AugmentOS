@@ -125,6 +125,7 @@ type SessionEmitterEvents = {
   capabilities: (cap: GlassesCapabilities | null) => void
   colorScheme: (scheme: MiniappColorScheme) => void
   permissions: (perms: PermissionRecord) => void
+  speakerState: (event: import("./modules/speaker").SpeakerStateEvent) => void
 }
 
 export class MiniappSession {
@@ -443,6 +444,26 @@ export class MiniappSession {
       case MiniappResponseType.PERMISSIONS_UPDATE: {
         const next = payload.permissions as PermissionRecord | undefined
         if (next) this.applyPermissions(next)
+        return
+      }
+
+      case MiniappResponseType.SPEAKER_STATE: {
+        const state = payload.state as
+          | "idle"
+          | "loading"
+          | "playing"
+          | "stopped"
+          | "error"
+          | undefined
+        if (!state) return
+        const event = {
+          state,
+          errorCode: payload.errorCode as string | undefined,
+          errorMessage: payload.errorMessage as string | undefined,
+          durationMs: payload.durationMs as number | undefined,
+        }
+        this.speaker._applyState(event)
+        this.emitter.emit("speakerState", event)
         return
       }
 

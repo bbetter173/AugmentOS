@@ -649,6 +649,16 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("phone_notification_dismissed", async (event) => {
+          // Direct forward to local miniapps subscribed to
+          // phone_notification_dismissed (Android only — iOS never emits this).
+          // Gated by READ_NOTIFICATIONS at subscribe time.
+          localMiniappRuntime.forwardEvent("phone_notification_dismissed", {
+            notificationId: event.notificationId,
+            notificationKey: event.notificationKey,
+            packageName: event.packageName,
+            timestamp: Date.now(),
+          })
+
           const res = await restComms.sendPhoneNotificationDismissed({
             notificationKey: event.notificationKey,
             packageName: event.packageName,

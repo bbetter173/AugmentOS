@@ -75,6 +75,7 @@ export type {
   ConnectionData,
   HeadPositionData,
   LocationData,
+  NotificationDismissedData,
   PhoneNotificationData,
   TouchData,
   TranscriptionData,
@@ -82,7 +83,7 @@ export type {
   UnsubscribeFn,
   VadData,
 } from "./modules/events"
-export type {PlayAudioOptions, SpeakOptions, SpeakResult} from "./modules/speaker"
+export type {PlayAudioOptions, SpeakOptions, SpeakResult, SpeakerState, SpeakerStateEvent} from "./modules/speaker"
 export type {PhotoTaken, SetCameraFovOptions, TakePhotoOptions} from "./modules/camera"
 export type {DashboardMode} from "./modules/dashboard"
 export type {LedColor, LedControlOptions} from "./modules/led"

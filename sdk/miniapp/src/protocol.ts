@@ -104,6 +104,13 @@ export enum MiniappResponseType {
   COLOR_SCHEME_CHANGE = "miniapp_color_scheme_change",
 
   /**
+   * Push: speaker playback state transitioned. Per-miniapp; the runtime sends
+   * to the owning miniapp only. Carries {state, errorCode?, errorMessage?,
+   * durationMs?}. See SpeakerModule.onStateChange().
+   */
+  SPEAKER_STATE = "miniapp_speaker_state",
+
+  /**
    * Push: manifest-declared permissions changed (e.g. dev miniapp re-scanned
    * with updated manifest). Carries a full PermissionRecord. SDK caches it
    * and fires session.permissions.onUpdate handlers.
@@ -141,6 +148,14 @@ export enum MiniappStreamType {
   // Phone sensors
   LOCATION_UPDATE = "location_update",
   PHONE_NOTIFICATION = "phone_notification",
+  /**
+   * A previously-posted notification was dismissed by the user.
+   *
+   * Android-only today. iOS does not expose dismiss callbacks to apps
+   * (Apple privacy restriction); subscribing on iOS succeeds but no events
+   * fire. See agents/miniapp-speaker-state-and-notif-dismissed-plan.md.
+   */
+  PHONE_NOTIFICATION_DISMISSED = "phone_notification_dismissed",
   CALENDAR_EVENT = "calendar_event",
 
   // Phase 5

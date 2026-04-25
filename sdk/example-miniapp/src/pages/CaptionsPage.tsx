@@ -34,10 +34,10 @@ export default function CaptionsPage() {
 
   useEffect(() => {
     const unsubs = [
-      session.microphone.onTranscription((data: TranscriptionData) => {
+      session.transcription.on((data: TranscriptionData) => {
         setLiveTranscript(data.text)
         if (mirrorToGlasses) {
-          session.layouts.showTextWall(data.text)
+          session.display.showTextWall(data.text)
         }
         if (data.isFinal && data.text.trim()) {
           setHistory((prev) => [...prev, data.text.trim()])
@@ -61,7 +61,7 @@ export default function CaptionsPage() {
   const clearHistory = () => {
     setHistory([])
     setLiveTranscript("")
-    session.layouts.clearView()
+    session.display.clearView()
   }
 
   const speakSummary = async () => {
@@ -70,7 +70,7 @@ export default function CaptionsPage() {
       ? `Here's what was said: ${last3}`
       : "Nothing to summarize yet. Say something first."
     try {
-      await session.audio.speak(phrase)
+      await session.speaker.speak(phrase)
     } catch {
       /* TTS error */
     }

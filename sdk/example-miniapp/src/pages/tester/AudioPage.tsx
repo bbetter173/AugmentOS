@@ -26,7 +26,7 @@ export default function AudioPage() {
   const handlePlay = async () => {
     setBusy("play")
     try {
-      await session.audio.play({audioUrl})
+      await session.speaker.play({audioUrl})
       appendLog(`play() completed`)
     } catch (err) {
       appendLog(`play error: ${String(err)}`)
@@ -38,7 +38,7 @@ export default function AudioPage() {
   const handleSpeak = async () => {
     setBusy("speak")
     try {
-      const res = await session.audio.speak(tts)
+      const res = await session.speaker.speak(tts)
       appendLog(`speak() completed=${res.completed}`)
     } catch (err: unknown) {
       const e = err as {code?: string; message?: string}
@@ -49,7 +49,7 @@ export default function AudioPage() {
   }
 
   const handleStop = () => {
-    session.audio.stop()
+    session.speaker.stop()
     appendLog(`stop() sent`)
   }
 

@@ -60,6 +60,13 @@ export enum MiniappRequestType {
   /** Phone → miniapp liveness probe. Miniapp SDK auto-replies with PONG. */
   PING = "miniapp_ping",
 
+  /**
+   * Apply transcription configuration (language hints, vocabulary, diarization).
+   * Phone forwards to the cloud STT layer. Fire-and-forget; cached client-side
+   * so future reconnect logic can re-send.
+   */
+  TRANSCRIPTION_CONFIG = "miniapp_transcription_config",
+
   // ----- Deferred in v1 -----
 
   /** Dashboard content update. Noops in v1 — see Phase 2.14 of the plan. */
@@ -95,6 +102,13 @@ export enum MiniappResponseType {
 
   /** Push: host color scheme (light/dark) changed. */
   COLOR_SCHEME_CHANGE = "miniapp_color_scheme_change",
+
+  /**
+   * Push: manifest-declared permissions changed (e.g. dev miniapp re-scanned
+   * with updated manifest). Carries a full PermissionRecord. SDK caches it
+   * and fires session.permissions.onUpdate handlers.
+   */
+  PERMISSIONS_UPDATE = "miniapp_permissions_update",
 
   /** Reply to PING. SDK auto-handles this; developers never see it. */
   PONG = "miniapp_pong",

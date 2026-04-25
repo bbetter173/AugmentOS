@@ -7,7 +7,7 @@
  * Lifecycle:
  *   const session = new MiniappSession()
  *   await session.connect()          // sends CONNECT, resolves on CONNECT_ACK
- *   session.layouts.showTextWall(...)
+ *   session.display.showTextWall(...)
  *   ...
  *   session.disconnect()
  */
@@ -24,19 +24,22 @@ import {getMentraOSGlobals, MiniappColorScheme} from "./globals"
 import {MiniappErrorCode, MiniappRequestType, MiniappResponseType} from "./protocol"
 import {createTransport, CreateTransportOptions} from "./transport/auto"
 import {Transport} from "./transport/types"
-import {AudioModule} from "./modules/audio"
 import {CameraModule} from "./modules/camera"
 import {DashboardAPI} from "./modules/dashboard"
+import {DisplayManager} from "./modules/display"
 import {EventManager, type UnsubscribeFn} from "./modules/events"
 import {GlassesModule} from "./modules/glasses"
 import {ImuModule} from "./modules/imu"
 import {InputModule} from "./modules/input"
-import {LayoutManager} from "./modules/layouts"
 import {LedModule} from "./modules/led"
 import {LocationModule} from "./modules/location"
-import {MicrophoneModule} from "./modules/microphone"
+import {MicModule} from "./modules/mic"
+import {PermissionsModule} from "./modules/permissions"
 import {PhoneModule} from "./modules/phone"
+import {TranscriptionModule} from "./modules/transcription"
+import {TranslationModule} from "./modules/translation"
 import {SimpleStorage} from "./modules/storage"
+import {SpeakerModule} from "./modules/speaker"
 import {StreamModule} from "./modules/stream"
 import {SystemModule} from "./modules/system"
 
@@ -65,7 +68,29 @@ export interface ConnectAckPayload {
   capabilities: GlassesCapabilities | null
   visibility?: MiniappVisibility
   colorScheme?: MiniappColorScheme
+  /**
+   * Manifest-declared permission record. Mirrors cloud SDK v3's PermissionRecord:
+   * `{location, microphone, camera, notifications, calendar}` — booleans
+   * indicating whether the miniapp's manifest declared each. This is
+   * declaration-only; OS-grant state is not modeled.
+   */
+  permissions?: PermissionRecord
 }
+
+/**
+ * Manifest-declared permission record. v3-aligned: lowercase canonical keys.
+ * Booleans indicate whether the miniapp declared each in its manifest.json.
+ */
+export type PermissionType = "location" | "microphone" | "camera" | "notifications" | "calendar"
+export type PermissionRecord = Record<PermissionType, boolean>
+
+const ALL_PERMISSION_TYPES: readonly PermissionType[] = [
+  "location",
+  "microphone",
+  "camera",
+  "notifications",
+  "calendar",
+] as const
 
 export class NotConnectedError extends Error {
   readonly code = MiniappErrorCode.NOT_CONNECTED
@@ -99,20 +124,21 @@ type SessionEmitterEvents = {
   visibility: (v: MiniappVisibility) => void
   capabilities: (cap: GlassesCapabilities | null) => void
   colorScheme: (scheme: MiniappColorScheme) => void
+  permissions: (perms: PermissionRecord) => void
 }
 
 export class MiniappSession {
-  public readonly layouts: LayoutManager
+  public readonly display: DisplayManager
   /**
    * Internal subscription registry + escape hatch.
    *
-   * Domain modules (`session.microphone`, `session.input`, etc.) are the
-   * canonical surface for typed event subscriptions. `events.subscribe(...)`
-   * remains as a forward-compat escape hatch for new event types not yet
-   * wrapped on a domain module.
+   * Domain modules (`session.mic`, `session.input`, etc.) are the canonical
+   * surface for typed event subscriptions. `events.subscribe(...)` remains as
+   * a forward-compat escape hatch for new event types not yet wrapped on a
+   * domain module.
    */
   public readonly events: EventManager
-  public readonly audio: AudioModule
+  public readonly speaker: SpeakerModule
   public readonly camera: CameraModule
   public readonly dashboard: DashboardAPI
   public readonly glasses: GlassesModule
@@ -120,11 +146,14 @@ export class MiniappSession {
   public readonly input: InputModule
   public readonly led: LedModule
   public readonly location: LocationModule
-  public readonly microphone: MicrophoneModule
+  public readonly mic: MicModule
+  public readonly permissions: PermissionsModule
   public readonly phone: PhoneModule
   public readonly storage: SimpleStorage
   public readonly stream: StreamModule
   public readonly system: SystemModule
+  public readonly transcription: TranscriptionModule
+  public readonly translation: TranslationModule
 
   /** Phone-declared glasses capabilities. Null until CONNECT_ACK arrives. */
   public capabilities: GlassesCapabilities | null = null
@@ -150,6 +179,15 @@ export class MiniappSession {
   private connectPromise: Promise<void> | null = null
   private disposed = false
 
+  /** Manifest-declared permission cache. Updated on CONNECT_ACK / PERMISSIONS_UPDATE. */
+  private _permissions: PermissionRecord = {
+    location: false,
+    microphone: false,
+    camera: false,
+    notifications: false,
+    calendar: false,
+  }
+
   constructor(options: MiniappSessionOptions = {}) {
     this.transport = createTransport(options)
     this.connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
@@ -161,26 +199,55 @@ export class MiniappSession {
     }
 
     this.events = new EventManager(this)
-    this.audio = new AudioModule(this)
+    this.speaker = new SpeakerModule(this)
     this.camera = new CameraModule(this)
     this.dashboard = new DashboardAPI(this)
+    this.display = new DisplayManager(this)
     this.glasses = new GlassesModule(this)
     this.imu = new ImuModule(this)
     this.input = new InputModule(this)
-    this.layouts = new LayoutManager(this)
     this.led = new LedModule(this)
     this.location = new LocationModule(this)
-    this.microphone = new MicrophoneModule(this)
+    this.mic = new MicModule(this)
+    this.permissions = new PermissionsModule(this)
     this.phone = new PhoneModule(this)
     this.storage = new SimpleStorage(this)
     this.stream = new StreamModule(this)
     this.system = new SystemModule(this)
+    this.transcription = new TranscriptionModule(this)
+    this.translation = new TranslationModule(this)
+  }
+
+  /**
+   * @internal — synchronous lookup against the cached manifest-declared
+   * permission record from CONNECT_ACK / PERMISSIONS_UPDATE. Domain modules
+   * use this to expose their `hasPermission` getters without going to the
+   * wire. Returns false until CONNECT_ACK arrives.
+   *
+   * `manifestKey` is the manifest's UPPER_CASE permission name
+   * (MICROPHONE, CAMERA, LOCATION, READ_NOTIFICATIONS, etc.). Maps to v3's
+   * lowercase canonical keys internally.
+   */
+  _hasManifestPermission(manifestKey: string): boolean {
+    const canonical = manifestKeyToCanonical(manifestKey)
+    if (!canonical) return false
+    return this._permissions[canonical] === true
+  }
+
+  /**
+   * @internal — read the current manifest-declared permission record.
+   * Powers session.permissions.getAll(). Returns a fresh shallow copy so
+   * callers can't mutate internal state.
+   */
+  _getPermissions(): PermissionRecord {
+    return {...this._permissions}
   }
 
   /**
    * @internal — subscribe to a raw stream type. Domain modules call this; it
    * delegates to the EventManager registry. Underscore prefix signals "not
-   * part of the public SDK surface — use session.microphone.onTranscription
+   * part of the public SDK surface — use session.mic.onAudioChunk /
+   * session.transcription.on(...)
    * etc. instead."
    */
   _subscribe(streamType: string, handler: (data: unknown) => void): UnsubscribeFn {
@@ -362,10 +429,20 @@ export class MiniappSession {
         if (ack.colorScheme === "light" || ack.colorScheme === "dark") {
           this.colorScheme = ack.colorScheme
         }
+        // Populate the manifest-declared permission cache. Older runtimes
+        // that don't send `permissions` leave the all-false default in place
+        // — `hasPermission` getters will simply return false.
+        if (ack.permissions) this.applyPermissions(ack.permissions)
         this.ready = true
         this.flushQueue()
         this.emitter.emit("ready")
         // Don't resolve request correlation here — CONNECT_ACK has no requestId.
+        return
+      }
+
+      case MiniappResponseType.PERMISSIONS_UPDATE: {
+        const next = payload.permissions as PermissionRecord | undefined
+        if (next) this.applyPermissions(next)
         return
       }
 
@@ -458,4 +535,57 @@ export class MiniappSession {
     }
     this.pendingRequests.clear()
   }
+
+  /**
+   * Update the cached permission record. Idempotent: emits "permissions"
+   * only when the record actually changed. Sanitizes incoming objects to
+   * the v3 PermissionType union.
+   */
+  private applyPermissions(next: Partial<PermissionRecord>): void {
+    let changed = false
+    const updated: PermissionRecord = {...this._permissions}
+    for (const k of ALL_PERMISSION_TYPES) {
+      const v = next[k] === true
+      if (updated[k] !== v) {
+        updated[k] = v
+        changed = true
+      }
+    }
+    if (changed) {
+      this._permissions = updated
+      this.emitter.emit("permissions", {...updated})
+    }
+  }
+}
+
+/**
+ * Map a manifest UPPER_CASE permission name to the lowercase canonical key
+ * used by `session.permissions`. Returns null for unknown manifest keys.
+ *
+ * BACKGROUND_LOCATION + POST_NOTIFICATIONS map onto the same canonical keys
+ * as their non-suffixed counterparts (location / notifications) since
+ * `has()` is "do I have *any* form of this permission declared".
+ */
+function manifestKeyToCanonical(manifestKey: string): PermissionType | null {
+  switch (manifestKey.toUpperCase()) {
+    case "MICROPHONE":
+      return "microphone"
+    case "CAMERA":
+      return "camera"
+    case "LOCATION":
+    case "BACKGROUND_LOCATION":
+      return "location"
+    case "READ_NOTIFICATIONS":
+    case "POST_NOTIFICATIONS":
+      return "notifications"
+    case "CALENDAR":
+      return "calendar"
+    default:
+      return null
+  }
+}
+
+/** @internal — for the permissions module's onUpdate plumbing. */
+export function _allPermissionTypes(): readonly PermissionType[] {
+  return ALL_PERMISSION_TYPES
 }

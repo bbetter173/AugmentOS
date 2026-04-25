@@ -1,5 +1,8 @@
 /**
- * @fileoverview LayoutManager — glasses display layouts.
+ * @fileoverview DisplayManager — glasses display layouts.
+ *
+ * Mirrors cloud SDK v3's DisplayManager naming. Was called `LayoutManager` /
+ * `session.layouts` before the v3-alignment round.
  *
  * Wire shape matches the cloud SDK's DisplayRequest:
  *
@@ -71,7 +74,7 @@ export interface DisplayOptions {
   durationMs?: number
 }
 
-export class LayoutManager {
+export class DisplayManager {
   constructor(private readonly session: MiniappSession) {}
 
   private send(layout: Layout, options: DisplayOptions = {}): void {

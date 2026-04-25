@@ -18,7 +18,7 @@ export function useSession(): MiniappSession {
       // Fire-and-forget. Callers that care about readiness can observe
       // session.ready / session.waitForReady(). Queue-before-ACK behavior
       // in MiniappSession ensures no calls are lost if the UI invokes
-      // session.layouts.showTextWall(...) during the initial render.
+      // session.display.showTextWall(...) during the initial render.
       sharedSession.connect().catch((err) => {
         console.error("[@mentra/miniapp] connect failed:", err)
       })

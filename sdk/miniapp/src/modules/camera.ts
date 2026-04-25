@@ -28,6 +28,11 @@ export interface PhotoTaken {
 export class CameraModule {
   constructor(private readonly session: MiniappSession) {}
 
+  /** True iff `CAMERA` is declared in the miniapp's manifest. */
+  get hasPermission(): boolean {
+    return this.session._hasManifestPermission("CAMERA")
+  }
+
   /** Write camera FOV settings. */
   setFov(options: SetCameraFovOptions): void {
     this.session.sendOneShot({

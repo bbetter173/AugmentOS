@@ -28,15 +28,15 @@ export default function EventsPage() {
       session.glasses.onBattery((d) => setGlassesBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
       session.phone.onBattery((d) => setPhoneBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
       session.glasses.onConnection((d) => setConnection(d as unknown as Record<string, unknown>)),
-      session.microphone.onVoiceActivity((d) => setVad(!!d.status)),
-      session.microphone.onTranscription((d) => setTranscript(d.text)),
+      session.mic.onVoiceActivity((d) => setVad(!!d.status)),
+      session.transcription.on((d) => setTranscript(d.text)),
       session.location.onUpdate((d) =>
         setLocation(`${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}${d.accuracy ? ` (±${Math.round(d.accuracy)}m)` : ""}`),
       ),
-      session.phone.onNotification((d) =>
+      session.phone.notifications.on((d) =>
         setLastNotification(`${d.app}: ${d.title}${d.content ? " — " + d.content : ""}`),
       ),
-      session.phone.onCalendarEvent((d) =>
+      session.phone.calendar.on((d) =>
         setLastCalendar(`${d.title} @ ${new Date(d.dtStart).toLocaleString()}`),
       ),
     ]

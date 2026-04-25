@@ -61,6 +61,47 @@ const PING_INTERVAL_MS = 5_000
 const PING_TIMEOUT_THRESHOLD = 3 // unregister after 3 missed pongs (~15s)
 
 // =============================================================================
+// Declared-permission record helper (for CONNECT_ACK / PERMISSIONS_UPDATE)
+// =============================================================================
+
+/**
+ * Map from manifest permission types (uppercase, snake-y) to the lowercase
+ * canonical permission keys the SDK exposes via session.permissions. Mirrors
+ * cloud SDK v3's PermissionType union.
+ *
+ * BACKGROUND_LOCATION + POST_NOTIFICATIONS aren't in v3's surface; they map
+ * onto the same canonical keys (location / notifications) since the SDK's
+ * `has()` is "do I have *any* form of this permission declared".
+ */
+const PERMISSION_TYPE_TO_CANONICAL: Record<string, string> = {
+  MICROPHONE: "microphone",
+  CAMERA: "camera",
+  LOCATION: "location",
+  BACKGROUND_LOCATION: "location",
+  READ_NOTIFICATIONS: "notifications",
+  POST_NOTIFICATIONS: "notifications",
+  CALENDAR: "calendar",
+}
+
+const ALL_CANONICAL_PERMISSIONS = ["location", "microphone", "camera", "notifications", "calendar"] as const
+
+/**
+ * Build the {location, microphone, camera, notifications, calendar} record the
+ * SDK's session.permissions module reads from. Missing types are false.
+ */
+function computeDeclaredPermissionRecord(
+  manifest: InstalledMiniappManifest | undefined,
+): Record<string, boolean> {
+  const record: Record<string, boolean> = {}
+  for (const k of ALL_CANONICAL_PERMISSIONS) record[k] = false
+  for (const perm of manifest?.permissions ?? []) {
+    const canonical = PERMISSION_TYPE_TO_CANONICAL[perm.type?.toUpperCase()]
+    if (canonical) record[canonical] = true
+  }
+  return record
+}
+
+// =============================================================================
 // PERMISSION_NOT_DECLARED warnings — per-session dedup
 // =============================================================================
 //
@@ -376,6 +417,14 @@ class LocalMiniappRuntime {
     const app = this.connectedApps.get(packageName)
     if (!app) return
     app.installedManifest = installedManifest
+
+    // Push declared-permission record to the SDK so session.permissions stays
+    // in sync. Sent regardless of CONNECT_ACK timing — covers the dev-miniapp
+    // case where the manifest is fetched async after the miniapp CONNECTs.
+    this.sendToMiniapp(packageName, {
+      type: MiniappResponseType.PERMISSIONS_UPDATE,
+      permissions: computeDeclaredPermissionRecord(installedManifest),
+    })
   }
 
   public unregisterApp(packageName: string): void {
@@ -566,6 +615,13 @@ class LocalMiniappRuntime {
     const defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
     const capabilities = getModelCapabilities(defaultWearable || DeviceTypes.NONE)
 
+    // Build the declared-permission record for the SDK's session.permissions
+    // module. Lower-cased to match v3's PermissionType union (microphone,
+    // camera, location, notifications, calendar). Missing permissions default
+    // to false; this is manifest-declaration tracking only — OS-grant state
+    // is intentionally not modeled here.
+    const declaredPermissions = computeDeclaredPermissionRecord(existing.installedManifest)
+
     this.sendToMiniapp(
       packageName,
       {
@@ -573,6 +629,7 @@ class LocalMiniappRuntime {
         userId,
         packageName,
         capabilities,
+        permissions: declaredPermissions,
       },
       requestId,
     )
@@ -1377,6 +1434,18 @@ class LocalMiniappRuntime {
       if (autoSubs) for (const p of autoSubs) matchedSubs.add(p)
     }
 
+    // Touch event per-gesture fan-out. SDK-side dispatch is keyed on the
+    // exact streamType, so per-gesture subscribers (`touch_event:click`,
+    // etc.) need their own EVENT envelope with the gesture-tagged streamType.
+    // The bare `touch_event` stream above still catches `onTouch(handler)`.
+    let perGestureStream: string | null = null
+    if (normalizedStream === MiniappStreamType.TOUCH_EVENT) {
+      const kind = (data as {kind?: string} | null)?.kind
+      if (typeof kind === "string" && kind.length > 0) {
+        perGestureStream = `${MiniappStreamType.TOUCH_EVENT}:${kind}`
+      }
+    }
+
     if (normalizedStream.startsWith("transcription:")) {
       const known = Array.from(this.streamSubscribers.keys())
       console.log(
@@ -1384,7 +1453,7 @@ class LocalMiniappRuntime {
       )
     }
 
-    if (matchedSubs.size === 0) return
+    if (matchedSubs.size === 0 && !perGestureStream) return
 
     for (const packageName of matchedSubs) {
       this.sendToMiniapp(packageName, {
@@ -1392,6 +1461,21 @@ class LocalMiniappRuntime {
         streamType: normalizedStream,
         data,
       })
+    }
+
+    // Send a separate envelope to per-gesture subscribers tagged with the
+    // gesture-specific streamType so SDK-side dispatch routes correctly.
+    if (perGestureStream) {
+      const gestureSubs = this.streamSubscribers.get(perGestureStream)
+      if (gestureSubs) {
+        for (const packageName of gestureSubs) {
+          this.sendToMiniapp(packageName, {
+            type: MiniappResponseType.EVENT,
+            streamType: perGestureStream,
+            data,
+          })
+        }
+      }
     }
   }
 

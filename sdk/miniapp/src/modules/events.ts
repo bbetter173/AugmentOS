@@ -3,7 +3,8 @@
  *
  * Most miniapp authors should NOT touch this directly. Use the typed methods
  * on domain modules instead:
- *   - session.microphone.onTranscription(...)
+ *   - session.transcription.on(...)
+ *   - session.mic.onAudioChunk(...) / onVoiceActivity(...)
  *   - session.input.onButtonPress(...)
  *   - session.imu.onHeadPosition(...)
  *   - session.location.onUpdate(...)

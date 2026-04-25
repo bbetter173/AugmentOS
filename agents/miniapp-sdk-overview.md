@@ -36,21 +36,24 @@ It also emits four lifecycle events you can subscribe to: `ready`, `disconnect`,
 
 ### Modules on the session
 
-14 modules, each a thin wrapper over the wire protocol. Events live on the module that owns the domain — audio input on `microphone`, audio output on `audio`, button/touch on `input`, etc. Imperative one-shots live alongside their owning surface (`session.audio.speak`, `session.camera.takePhoto`).
+15 modules, named to mirror cloud SDK v3. Events live on the module that owns the domain. Imperative one-shots live alongside their owning surface (`session.speaker.speak`, `session.camera.takePhoto`).
 
 | Module | What it does | Key methods |
 |---|---|---|
-| `session.layouts` | Push layouts to the glasses display | `showTextWall`, `showDoubleTextWall`, `showReferenceCard`, `showDashboardCard`, `showBitmapView`, `clearView` |
-| `session.audio` | Phone-side audio **output** | `play({audioUrl})`, `speak(text, {voice_id, …})` (cloud TTS), `stop()` |
-| `session.microphone` | Audio **input** events | `onTranscription`, `onTranslation`, `onAudioChunk`, `onVoiceActivity` |
-| `session.input` | Physical control events | `onButtonPress`, `onTouch` |
-| `session.location` | Location events | `onUpdate` |
+| `session.display` | Push layouts to the glasses display | `showTextWall`, `showDoubleTextWall`, `showReferenceCard`, `showDashboardCard`, `showBitmapView`, `clearView` |
+| `session.speaker` | Phone-side audio **output** | `play({audioUrl})`, `speak(text, {voice_id, …})` (cloud TTS), `stop()` |
+| `session.mic` | Low-level audio **input** | `onAudioChunk`, `onVoiceActivity`, `stop()`, `hasPermission` |
+| `session.transcription` | Speech → text | `on(handler)`, `forLanguage(lang \| [langs], handler)`, `configure({languageHints, vocabulary, diarization})`, `stop()`, `hasPermission` |
+| `session.translation` | Cross-language transcription | `forLanguagePair(from, to, handler)`, `stop()`, `hasPermission` |
+| `session.input` | Physical control events | `onButtonPress`, `onTouch(handler)` / `onTouch("click", handler)` / `onTouch(["a","b"], handler)` |
+| `session.location` | Location events | `onUpdate`, `hasPermission` |
 | `session.imu` | Head position + motion events | `onHeadPosition` |
 | `session.glasses` | Glasses device-state events | `onBattery`, `onConnection` |
-| `session.phone` | Phone device-state events | `onNotification`, `onCalendarEvent`, `onBattery` |
+| `session.phone` | Phone device-state events | `notifications.{on, hasPermission, stop}`, `calendar.{on, hasPermission, stop}`, `onBattery` |
 | `session.system` | Phone-OS imperative utilities | `share(...)`, `openUrl(url)`, `copyToClipboard(text)`, `download(...)` |
-| `session.camera` | Glasses camera | `takePhoto({size, compress, sound, saveToGallery})`, `setFov({horizontal, vertical})` |
+| `session.camera` | Glasses camera | `takePhoto({size, compress, sound, saveToGallery})`, `setFov({horizontal, vertical})`, `hasPermission` |
 | `session.led` | Glasses RGB LED | `turnOn({color, ontime, offtime, count})`, `turnOff()`, `blink(color, ontime, offtime, count)`, `solid(color, duration)` |
+| `session.permissions` | Manifest-declared permissions (matches v3 semantics) | `has(type)`, `getAll()`, `onUpdate(handler)`, `onPermissionError(handler)` |
 | `session.storage` | Phone-local AsyncStorage scoped to `(userId, packageName)` | `get`, `set`, `delete`, `list` (string values only) |
 | `session.stream` | Video streaming from glasses (Phase 5 — wired but bridged into existing cloud streaming) | `startUnmanaged({streamUrl})`, `startManaged({restreamDestinations})`, `stop(streamId?)` |
 | `session.dashboard` | Dashboard widget surface — **noop in v1**, prints a one-time warning. Cloud DashboardManager still owns dashboard rendering. | `setContent(mode, content)` |
@@ -59,9 +62,11 @@ It also emits four lifecycle events you can subscribe to: `ready`, `disconnect`,
 
 Each event subscriber returns an `UnsubscribeFn`. Subscriptions are ref-counted: the SDK only sends `SUBSCRIBE` over the wire when a stream's count transitions 0↔1, so multiple components listening for the same stream don't fan out.
 
+**Permissions, scoped.** `session.permissions.has("microphone")` returns whether the manifest declared `MICROPHONE` — same semantics as cloud SDK v3. It does NOT report OS-level grant state; even when `has(...)` returns `true` the user can have denied the OS prompt and your subscriptions will silently receive no events. OS-grant tracking and `request(...)` are deferred; when added they'll land additively (`isGranted(...)`, `request(...)`) on the same module without renaming today's surface.
+
 ### Subscriptions: language convention
 
-Transcription/translation streams use a colon-suffixed wire format: `transcription:en-US`, `translation:en-US:fr-FR`. The SDK's `session.microphone.onTranscription(handler)` defaults to `transcription:auto` and the cloud auto-detects. The detected language is in the event payload. There's also a wildcard fan-out: a handler on `transcription:auto` receives any `transcription:<lang>` event, which makes "give me transcripts in whatever language" work without manual wiring.
+Transcription/translation streams use a colon-suffixed wire format: `transcription:en-US`, `translation:en-US:fr-FR`. The SDK's `session.transcription.on(handler)` subscribes to `transcription:auto` and the cloud auto-detects the language. The detected language is in the event payload. There's also a wildcard fan-out: a handler on `transcription:auto` receives any `transcription:<lang>` event, which makes "give me transcripts in whatever language" work without manual wiring. Use `session.transcription.forLanguage("en-US", handler)` (or an array) to pin specific languages.
 
 ### React bindings (`@mentra/miniapp/react`)
 

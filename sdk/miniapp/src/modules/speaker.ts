@@ -1,5 +1,10 @@
 /**
- * @fileoverview AudioModule — glasses / phone audio output.
+ * @fileoverview SpeakerModule — phone-side audio output.
+ *
+ * Mirrors cloud SDK v3's SpeakerManager naming. Audio *input* (transcription,
+ * audio chunks, VAD) lives on session.mic — the split is by I/O direction.
+ * This module was called `AudioModule` / `session.audio` before the
+ * v3-alignment round.
  *
  * - play({audioUrl}): play an arbitrary URL via the phone's audioPlaybackService.
  * - speak(text): send a SPEAK request. Phone constructs the cloud TTS URL from
@@ -29,7 +34,7 @@ export interface SpeakResult {
   completed: boolean
 }
 
-export class AudioModule {
+export class SpeakerModule {
   constructor(private readonly session: MiniappSession) {}
 
   /** Play a URL. Resolves when playback completes on the phone. */

@@ -62,8 +62,8 @@ describe("MiniappSession queue-before-ACK", () => {
     const connectPromise = session.connect()
 
     // Call things BEFORE the phone responds with CONNECT_ACK. These should queue.
-    session.layouts.showTextWall("queued-1")
-    session.layouts.showTextWall("queued-2")
+    session.display.showTextWall("queued-1")
+    session.display.showTextWall("queued-2")
     expect(session.ready).toBe(false)
 
     // Let the connect() IIFE resume past `await transport.open()` so CONNECT is sent.
@@ -108,7 +108,7 @@ describe("MiniappSession queue-before-ACK", () => {
     await connectPromise
 
     const before = transport.sent.length
-    session.layouts.showTextWall("hello post-ack")
+    session.display.showTextWall("hello post-ack")
     expect(transport.sent.length).toBe(before + 1)
   })
 })

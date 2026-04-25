@@ -23,19 +23,19 @@ export default function DisplayPage() {
     setLog((prev) => [`${new Date().toLocaleTimeString()} — ${msg}`, ...prev].slice(0, 10))
 
   const handleTextWall = () => {
-    session.layouts.showTextWall(wallText)
+    session.display.showTextWall(wallText)
     appendLog(`showTextWall(${wallText.length} chars)`)
   }
   const handleDoubleWall = () => {
-    session.layouts.showDoubleTextWall(topText, bottomText)
+    session.display.showDoubleTextWall(topText, bottomText)
     appendLog(`showDoubleTextWall()`)
   }
   const handleCard = () => {
-    session.layouts.showReferenceCard(cardTitle, cardBody)
+    session.display.showReferenceCard(cardTitle, cardBody)
     appendLog(`showReferenceCard()`)
   }
   const handleClear = () => {
-    session.layouts.clearView()
+    session.display.clearView()
     appendLog(`clearView()`)
   }
 

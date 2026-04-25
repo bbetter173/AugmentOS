@@ -66,7 +66,7 @@ export type {
   ReferenceCard,
   TextWall,
   ViewType,
-} from "./modules/layouts"
+} from "./modules/display"
 export type {
   AudioChunkData,
   BatteryData,
@@ -82,7 +82,7 @@ export type {
   UnsubscribeFn,
   VadData,
 } from "./modules/events"
-export type {PlayAudioOptions, SpeakOptions, SpeakResult} from "./modules/audio"
+export type {PlayAudioOptions, SpeakOptions, SpeakResult} from "./modules/speaker"
 export type {PhotoTaken, SetCameraFovOptions, TakePhotoOptions} from "./modules/camera"
 export type {DashboardMode} from "./modules/dashboard"
 export type {LedColor, LedControlOptions} from "./modules/led"
@@ -91,9 +91,17 @@ export type {ShareOptions, ShareResult, DownloadOptions, DownloadResult} from ".
 
 // Domain module types — exported so consumers can type module references
 // (rare; most authors interact via session.<module>.<method> directly).
+export type {DisplayManager} from "./modules/display"
 export type {GlassesModule} from "./modules/glasses"
 export type {ImuModule} from "./modules/imu"
 export type {InputModule} from "./modules/input"
 export type {LocationModule} from "./modules/location"
-export type {MicrophoneModule} from "./modules/microphone"
-export type {PhoneModule} from "./modules/phone"
+export type {MicModule} from "./modules/mic"
+export type {PermissionsModule, PermissionErrorEvent} from "./modules/permissions"
+export type {PhoneModule, PhoneNotificationsModule, PhoneCalendarModule} from "./modules/phone"
+export type {TranscriptionModule, TranscriptionConfig} from "./modules/transcription"
+export type {TranslationModule} from "./modules/translation"
+export type {SpeakerModule} from "./modules/speaker"
+
+// Permission types
+export type {PermissionType, PermissionRecord} from "./session"

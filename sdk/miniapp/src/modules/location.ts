@@ -18,6 +18,11 @@ import type {LocationData, UnsubscribeFn} from "./events"
 export class LocationModule {
   constructor(private readonly session: MiniappSession) {}
 
+  /** True iff `LOCATION` is declared in the miniapp's manifest. */
+  get hasPermission(): boolean {
+    return this.session._hasManifestPermission("LOCATION")
+  }
+
   /** Subscribe to continuous location updates. */
   onUpdate(handler: (data: LocationData) => void): UnsubscribeFn {
     return this.session._subscribe(MiniappStreamType.LOCATION_UPDATE, handler as (data: unknown) => void)

@@ -396,9 +396,21 @@ class Composer {
       return res.value
     }
     // if no active version is set, set it to the latest version:
-    // get the versions:
     let versions = this.getAppletInstalledVersions(packageName)
-    // make sure they are sorted, newest first
+    // Dev versions take precedence over semver-installed versions — re-scanning
+    // a dev miniapp replaces the package directory entirely in practice, so
+    // having both side-by-side is unusual, but if it happens dev wins. Pick
+    // the newest dev-* by lexicographic sort (timestamp suffix).
+    const devVersions = versions
+      .filter((v) => v.startsWith("dev-"))
+      .sort()
+      .reverse()
+    if (devVersions.length > 0) {
+      await this.setActiveAppletVersion(packageName, devVersions[0])
+      return devVersions[0]
+    }
+    // No dev versions — semver path. Filter out any non-semver entries to be safe.
+    versions = versions.filter((v) => semver.valid(v))
     versions.sort((a, b) => semver.rcompare(a, b))
     await this.setActiveAppletVersion(packageName, versions[0])
     return versions[0]
@@ -411,13 +423,38 @@ class Composer {
   public getAppletMetadata(packageName: string, version: string): InstalledInfo {
     try {
       const lmaDir = new Directory(Paths.document, "lmas", packageName, version)
-      const appJsonFile = new File(lmaDir, "app.json")
-      const appJson = JSON.parse(appJsonFile.textSync())
+      // Read miniapp.json (the new manifest filename). app.json was the old
+      // name; greenfield, no need to fall back.
+      const miniappJsonFile = new File(lmaDir, "miniapp.json")
+      const manifest = JSON.parse(miniappJsonFile.textSync())
       const logoUrl = new File(lmaDir, "icon.png").uri
-      return {name: appJson.name, logoUrl: logoUrl}
+      return {name: manifest.name, logoUrl: logoUrl}
     } catch (error) {
-      console.error("COMPOSER: Error getting local applet metadata", error)
+      console.error("COMPOSER: Error getting local miniapp metadata", error)
       return {name: "error", logoUrl: ""}
+    }
+  }
+
+  /**
+   * Returns the absolute path to the latest `dev-*` version directory for
+   * the given package, or null if none exist. Used by the local route's
+   * cached-fallback mount path when the dev server is unreachable.
+   */
+  public getLatestDevBundlePath(packageName: string): string | null {
+    try {
+      const pkgDir = new Directory(Paths.document, "lmas", packageName)
+      if (!pkgDir.exists) return null
+      const devDirs = pkgDir
+        .list()
+        .filter((d): d is Directory => d instanceof Directory && d.name.startsWith("dev-"))
+        .map((d) => d.name)
+        .sort()
+        .reverse()
+      if (devDirs.length === 0) return null
+      return new Directory(pkgDir, devDirs[0]).uri
+    } catch (error) {
+      console.error("COMPOSER: Error getting latest dev bundle path", error)
+      return null
     }
   }
   // return {packageName: string, versions: string[]}
@@ -470,6 +507,17 @@ class Composer {
           lmaInfo.packageName,
         )
 
+        // Dev miniapps live in the same lmas/ tree as installed ones, but
+        // their version directory name starts with "dev-". Surface them via
+        // the existing applet store with isMiniappDev=true so UI code that
+        // already reads the flag (badge, lifecycle, bug-report skip) works.
+        const isMiniappDev = versionString.startsWith("dev-")
+        let devUrl: string | undefined
+        if (isMiniappDev) {
+          const devUrlRes = storage.load<string>(`${lmaInfo.packageName}_dev_url`)
+          if (devUrlRes.is_ok()) devUrl = devUrlRes.value
+        }
+
         lmas.push({
           packageName: lmaInfo.packageName,
           version: versionString,
@@ -486,6 +534,8 @@ class Composer {
           type: "standard",
           permissions,
           hardwareRequirements,
+          ...(isMiniappDev ? {isMiniappDev: true} : {}),
+          ...(devUrl ? {devUrl} : {}),
           onStart: () => saveLocalAppRunningState(lmaInfo.packageName, true),
           onStop: () => saveLocalAppRunningState(lmaInfo.packageName, false),
         })

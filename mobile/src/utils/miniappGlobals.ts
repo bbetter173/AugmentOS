@@ -125,6 +125,60 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
     .map(([k, v]) => `${k}: ${v};`)
     .join(" ")
 
+  // Console-tap shim for dev miniapps: wrap console.log/warn/error/info/debug
+  // so each call also forwards a `dev_log` envelope back to the phone via
+  // ReactNativeWebView.postMessage. The phone routes those to the laptop's
+  // mentra-miniapp dev terminal so authors see their logs without needing
+  // Metro / adb logcat / Xcode console attached.
+  //
+  // Production miniapps (miniappDeveloperMode === false) never get this shim.
+  const consoleTapBlock = opts.miniappDeveloperMode
+    ? `
+    (function() {
+      try {
+        var levels = ["log", "warn", "error", "info", "debug"];
+        var seen = new WeakSet();
+        function safeSerialize(arg) {
+          if (arg instanceof Error) return {__error: true, message: arg.message, stack: arg.stack};
+          if (arg === null || typeof arg !== "object") return arg;
+          try {
+            return JSON.parse(JSON.stringify(arg, function(k, v) {
+              if (v !== null && typeof v === "object") {
+                if (seen.has(v)) return "[Circular]";
+                seen.add(v);
+              }
+              return v;
+            }));
+          } catch (e) {
+            try { return String(arg); } catch (_) { return "[unserializable]"; }
+          }
+        }
+        levels.forEach(function(level) {
+          var original = console[level];
+          if (typeof original !== "function") return;
+          console[level] = function() {
+            try { original.apply(console, arguments); } catch (_) {}
+            try {
+              var args = Array.prototype.slice.call(arguments).map(safeSerialize);
+              if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  payload: {
+                    type: "dev_log",
+                    level: level,
+                    args: args,
+                    packageName: (window.MentraOS && window.MentraOS.packageName) || null,
+                    timestamp: Date.now()
+                  }
+                }));
+              }
+            } catch (_) { /* swallow */ }
+          };
+        });
+      } catch (_) { /* ignore */ }
+    })();
+  `
+    : ""
+
   return `
     window.MentraOS = ${JSON.stringify(globals)};
     window.receiveNativeMessage = window.receiveNativeMessage || function() {};
@@ -136,6 +190,7 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
         (document.head || document.documentElement).appendChild(styleEl);
       } catch (e) { /* ignore */ }
     })();
+    ${consoleTapBlock}
     true;
   `
 }

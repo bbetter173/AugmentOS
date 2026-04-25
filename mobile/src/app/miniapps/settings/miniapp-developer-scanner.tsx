@@ -30,12 +30,16 @@ export default function MiniappDeveloperScannerScreen() {
       let devUrl: string
       let packageName: string | undefined
       let name: string | undefined
+      let devPort: string | undefined
 
       if (data.startsWith("mentra-miniapp://dev")) {
         const url = new URL(data)
         devUrl = decodeURIComponent(url.searchParams.get("url") || "")
         name = url.searchParams.get("name") || undefined
         packageName = url.searchParams.get("package") || undefined
+        // Optional sidecar port for live reload + console bridge. Older CLI
+        // versions don't include this — phone falls back to no live reload.
+        devPort = url.searchParams.get("dev") || undefined
       } else if (data.startsWith("http://") || data.startsWith("https://")) {
         devUrl = data
       } else {
@@ -78,7 +82,13 @@ export default function MiniappDeveloperScannerScreen() {
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-      replace("/applet/local", {packageName, devUrl, appName: name, iconUrl})
+      replace("/applet/local", {
+        packageName,
+        devUrl,
+        appName: name,
+        iconUrl,
+        ...(devPort ? {devPort} : {}),
+      })
     } catch (error) {
       showAlert("Error", String(error), [{text: "OK", onPress: () => setScanned(false)}])
     }

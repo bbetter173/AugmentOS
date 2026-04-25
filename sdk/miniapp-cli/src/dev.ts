@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { printQR } from './qr.js';
 import { validateManifest } from './manifest.js';
+import { startDevSidecar } from './dev-server.js';
 
 function getLanIp(): string | null {
   const interfaces = os.networkInterfaces();
@@ -85,8 +86,28 @@ export async function dev(): Promise<void> {
     process.exit(1);
   }
 
-  const buildDevUrl = (ip: string) =>
-    `mentra-miniapp://dev?url=${encodeURIComponent(`http://${ip}:${port}`)}&name=${encodeURIComponent(name)}&package=${encodeURIComponent(packageName)}`;
+  // Start the sidecar dev server on userPort + 1 — it hosts the __mentra_dev
+  // WebSocket the phone uses for live reload + console-log forwarding.
+  // Failure here is non-fatal; the miniapp still runs without live reload.
+  let sidecarPort: number | null = null;
+  let sidecar: ReturnType<typeof startDevSidecar> | null = null;
+  try {
+    sidecar = startDevSidecar({
+      port: port + 1,
+      watchDir: process.cwd(),
+    });
+    sidecarPort = sidecar.port;
+  } catch (err) {
+    console.warn(
+      `Warning: dev sidecar failed to start on port ${port + 1} (${(err as Error).message}). ` +
+      `Live reload + console bridge will be disabled.`,
+    );
+  }
+
+  const buildDevUrl = (ip: string) => {
+    const base = `mentra-miniapp://dev?url=${encodeURIComponent(`http://${ip}:${port}`)}&name=${encodeURIComponent(name)}&package=${encodeURIComponent(packageName)}`;
+    return sidecarPort ? `${base}&dev=${sidecarPort}` : base;
+  };
 
   const printBanner = (): void => {
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
@@ -119,15 +140,17 @@ export async function dev(): Promise<void> {
     }
   }, 10_000); // check every 10s
 
-  // Clean up IP monitor on exit
+  // Clean up IP monitor + sidecar on exit
   process.on('SIGINT', () => {
     clearInterval(ipCheckInterval);
+    sidecar?.stop();
     child.kill();
     process.exit(0);
   });
 
   process.on('SIGTERM', () => {
     clearInterval(ipCheckInterval);
+    sidecar?.stop();
     child.kill();
     process.exit(0);
   });

@@ -7,6 +7,7 @@ import LeftEdgeBackSwipe from "@/components/miniapp/LeftEdgeBackSwipe"
 import MiniappSplash from "@/components/miniapp/MiniappSplash"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import devServerBridge from "@/services/DevServerBridge"
 import localDisplayManager from "@/services/LocalDisplayManager"
 import localMiniappRuntime from "@/services/LocalMiniappRuntime"
 import miniComms from "@/services/MiniComms"
@@ -67,6 +68,8 @@ type MiniappHostAPI = {
   canGoBack(packageName: string): boolean
   /** Subscribe to canGoBack changes for a package. Returns an unsubscribe fn. */
   subscribeCanGoBack(packageName: string, listener: CanGoBackListener): () => void
+  /** Reload a mounted miniapp's WebView (used by dev server bridge). */
+  reload(packageName: string): void
 }
 
 // Stubs that get replaced once the React component mounts.
@@ -91,6 +94,9 @@ export const miniappHost: MiniappHostAPI = {
   goBackInWebView: () => false,
   canGoBack: () => false,
   subscribeCanGoBack: () => () => {},
+  reload: () => {
+    console.warn("MiniappHost: reload() called before component mounted")
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +237,7 @@ export default function MiniappHost() {
     miniComms.setWebViewMessageHandler(packageName, undefined)
     localMiniappRuntime.unregisterApp(packageName)
     localDisplayManager.onUnmount(packageName)
+    devServerBridge.disconnect(packageName)
   }, [])
 
   const goBackInWebView = useCallback((packageName: string): boolean => {
@@ -318,6 +325,19 @@ export default function MiniappHost() {
     [apps],
   )
 
+  const reload = useCallback((packageName: string) => {
+    const ref = webViewRefs.current.get(packageName)
+    if (!ref) {
+      console.warn(`MiniappHost: reload(${packageName}) — no WebView ref`)
+      return
+    }
+    try {
+      ref.reload()
+    } catch (e) {
+      console.warn(`MiniappHost: reload(${packageName}) failed:`, e)
+    }
+  }, [])
+
   // -- wire up the module-level singleton on mount --------------------------
 
   useEffect(() => {
@@ -330,6 +350,13 @@ export default function MiniappHost() {
     miniappHost.goBackInWebView = goBackInWebView
     miniappHost.canGoBack = canGoBack
     miniappHost.subscribeCanGoBack = subscribeCanGoBack
+    miniappHost.reload = reload
+
+    // DevServerBridge fires onReload when a dev miniapp's laptop sends a
+    // reload signal. Reload the corresponding WebView.
+    devServerBridge.onReload((packageName) => {
+      reload(packageName)
+    })
 
     return () => {
       // Restore stubs on unmount so callers get a clear warning.
@@ -345,6 +372,7 @@ export default function MiniappHost() {
       miniappHost.goBackInWebView = () => false
       miniappHost.canGoBack = () => false
       miniappHost.subscribeCanGoBack = () => () => {}
+      miniappHost.reload = () => console.warn("MiniappHost: reload() called after unmount")
     }
   }, [
     mount,
@@ -356,6 +384,7 @@ export default function MiniappHost() {
     goBackInWebView,
     canGoBack,
     subscribeCanGoBack,
+    reload,
   ])
 
   // -- WebView event handlers -----------------------------------------------

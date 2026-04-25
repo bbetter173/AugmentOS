@@ -5,16 +5,18 @@ import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import composer, {buildHardwareRequirements} from "@/services/Composer"
+import devServerBridge from "@/services/DevServerBridge"
 import {useAppletStatusStore} from "@/stores/applets"
 import {HardwareType} from "@/../../cloud/packages/types/src"
 
 export default function LocalMiniAppPage() {
-  const {appName, packageName, version, devUrl, iconUrl} = useLocalSearchParams<{
+  const {appName, packageName, version, devUrl, iconUrl, devPort} = useLocalSearchParams<{
     appName: string
     packageName: string
     version?: string
     devUrl?: string
     iconUrl?: string
+    devPort?: string
   }>()
   const {goBack, setForceGestureEnabled} = useNavigationHistory()
 
@@ -57,6 +59,15 @@ export default function LocalMiniAppPage() {
           appName,
           iconUrl,
         })
+        // If the QR carried a `dev=<port>`, open the dev-server bridge so live
+        // reload + console-log forwarding work. Older CLIs don't include the
+        // param — in that case devPort is undefined and we just skip.
+        if (devPort) {
+          const portNum = parseInt(devPort, 10)
+          if (Number.isFinite(portNum)) {
+            devServerBridge.connect(packageName, devUrl, portNum)
+          }
+        }
         // buildHardwareRequirements drops malformed entries and appends the
         // EXIST requirement; registerDevApplet appends EXIST again but the
         // compatibility check dedups it via the HardwareType.EXIST lookup,

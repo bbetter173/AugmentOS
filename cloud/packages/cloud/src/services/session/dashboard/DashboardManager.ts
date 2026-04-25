@@ -36,14 +36,7 @@ import {
   TextWall,
   ViewType,
 } from "@mentra/sdk";
-import {
-  G1_PROFILE,
-  G2_PROFILE,
-  Z100_PROFILE,
-  NEX_PROFILE,
-  TextMeasurer,
-  TextWrapper,
-} from "@mentra/display-utils";
+import { G1_PROFILE, G2_PROFILE, Z100_PROFILE, NEX_PROFILE, TextMeasurer, TextWrapper } from "@mentra/display-utils";
 import type { DisplayProfile } from "@mentra/display-utils";
 
 import { MemoryOwnerStat } from "../../metrics/memory-census";
@@ -70,9 +63,9 @@ const OS_PACKAGE_NAME = "com.mentra.os" as const;
 const MODEL_TO_PROFILE: Record<string, DisplayProfile> = {
   "Even Realities G1": G1_PROFILE,
   "Even Realities G2": G2_PROFILE,
-  "Mentra Display": NEX_PROFILE,       // Mentra Display = Mentra Nex
-  "Mentra Live": G1_PROFILE,           // Same display as G1
-  "Vuzix Z100": Z100_PROFILE,          // Different display width (390px) and font
+  "Mentra Display": NEX_PROFILE, // Mentra Display = Mentra Nex
+  "Mentra Live": G1_PROFILE, // Same display as G1
+  "Vuzix Z100": Z100_PROFILE, // Different display width (390px) and font
   "Simulated Glasses": G1_PROFILE,
 };
 
@@ -118,8 +111,8 @@ const DASHBOARD_CLOCK_FORMAT: "12h" | "24h" = "12h";
  */
 const HEADER_LEFT_MEASUREMENT_TEXT =
   DASHBOARD_CLOCK_FORMAT === "12h"
-    ? "◌ 09/30, 12:00 AM, 100%"   // widest 12h (228px on G1, varies by profile)
-    : "◌ 09/30, 00:00, 100%";     // widest 24h (192px on G1, varies by profile)
+    ? "◌ 09/30, 12:00 AM, 100%" // widest 12h (228px on G1, varies by profile)
+    : "◌ 09/30, 00:00, 100%"; // widest 24h (192px on G1, varies by profile)
 
 /**
  * Pre-computed header metrics per profile. Avoids creating TextMeasurer on every render.
@@ -139,7 +132,6 @@ function getHeaderMetrics(profile: DisplayProfile): { leftMaxWidthPx: number; sp
   }
   return cached;
 }
-
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -652,13 +644,7 @@ export class DashboardManager {
     if (useStackedLayout) {
       // Narrow display: each data element gets its own full-width line.
       // The Z100 has 7 lines, so we have plenty of vertical space.
-      lines = [
-        headerLeft,
-        weather,
-        calendar,
-        notifications,
-        widget,
-      ];
+      lines = [headerLeft, weather, calendar, notifications, widget];
     } else {
       // Wide display: header row uses double-column (date/time | weather).
       // We can't use ColumnComposer because the left column contains tokens
@@ -666,16 +652,9 @@ export class DashboardManager {
       // layer. The server-side pixel width of "$DATE$" (72px) is totally
       // different from the resolved "3/30" (44px). Instead we use a
       // pre-computed worst-case width for pixel-accurate spacing.
-      const composedHeader = weather
-        ? this.composeHeaderRow(headerLeft, weather, profile)
-        : headerLeft;
+      const composedHeader = weather ? this.composeHeaderRow(headerLeft, weather, profile) : headerLeft;
 
-      lines = [
-        composedHeader,
-        calendar,
-        notifications,
-        widget,
-      ];
+      lines = [composedHeader, calendar, notifications, widget];
     }
 
     const text = lines.filter((s) => s.trim().length > 0).join("\n");
@@ -812,8 +791,6 @@ export class DashboardManager {
   // Lifecycle
   // ---------------------------------------------------------------------------
 
-
-
   /**
    * Broadcast a message to all Apps connected to this user session
    * @param message Message to broadcast
@@ -870,8 +847,7 @@ export class DashboardManager {
         scope: "session",
         itemCount: this.mainWidgets.size,
         estimatedBytes: sumEstimatedBytes(this.mainWidgets.values(), (widget) => {
-          const contentBytes = typeof widget.content === "string" ? estimateStringBytes(widget.content) : 64;
-          return estimateStringBytes(widget.packageName) + contentBytes + 32;
+          return estimateStringBytes(widget.packageName) + this.estimateContentBytes(widget.content) + 32;
         }),
         metadata: {
           currentMode: this.getCurrentMode(),
@@ -883,9 +859,7 @@ export class DashboardManager {
         owner: "dashboard.system-data",
         scope: "session",
         itemCount: (this.weatherText ? 1 : 0) + (this.calendarText ? 1 : 0),
-        estimatedBytes:
-          estimateStringBytes(this.weatherText) +
-          estimateStringBytes(this.calendarText),
+        estimatedBytes: estimateStringBytes(this.weatherText) + estimateStringBytes(this.calendarText),
         metadata: {
           currentMode: this.getCurrentMode(),
           alwaysOnEnabled: this.isAlwaysOnEnabled(),
@@ -913,8 +887,6 @@ export class DashboardManager {
 
     this.logger.info({}, "DashboardManager disposed");
   }
-
-
 
   private estimateContentBytes(content: string | Layout): number {
     if (typeof content === "string") {

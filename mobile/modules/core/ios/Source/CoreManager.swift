@@ -213,7 +213,7 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "contextual_dashboard", newValue) }
     }
 
-    /// state:
+    // state:
 
     private var searching: Bool {
         get { GlassesStore.shared.get("core", "searching") as? Bool ?? false }
@@ -491,7 +491,7 @@ struct ViewState {
 
         // allow the sgc to make changes to the micRanking:
         micRanking = sgc?.sortMicRanking(list: micRanking) ?? micRanking
-        Bridge.log("MAN: updateMicState() micRanking: \(micRanking)")
+        // Bridge.log("MAN: updateMicState() micRanking: \(micRanking)")
 
         var phoneMicUnavailable = systemMicUnavailable
 
@@ -688,6 +688,8 @@ struct ViewState {
         } else if wearable.contains(DeviceTypes.FRAME) {
             // sgc = FrameManager()
         }
+        // update device model:
+        GlassesStore.shared.apply("glasses", "deviceModel", sgc?.type ?? "")
     }
 
     func initController(_ controllerModel: String) {
@@ -844,7 +846,8 @@ struct ViewState {
             glassesBtcConnected = false
 
             let isOtherDeviceConnected = AudioSessionMonitor.isOtherAudioDeviceConnected(
-                devicePattern: audioDevicePattern)
+                devicePattern: audioDevicePattern
+            )
             if isOtherDeviceConnected {
                 Bridge.log("MAN: Other device connected, returning")
                 otherBtConnected = true
@@ -911,9 +914,6 @@ struct ViewState {
         defaultWearable = sgc.type
         searching = false
 
-        // Set deviceModel so it flows to RN and cloud alongside connected state
-        GlassesStore.shared.apply("glasses", "deviceModel", sgc.type)
-
         // Show welcome message on first connect for all display glasses
         if shouldSendBootingMessage {
             Task {
@@ -945,7 +945,9 @@ struct ViewState {
 
         // Re-apply display height after reconnection
         let h = GlassesStore.shared.get("core", "dashboard_height") as? Int ?? 4
-        let d = NexDashboardDisplayWire.clampDepthFromStore(GlassesStore.shared.get("core", "dashboard_depth"))
+        let d = NexDashboardDisplayWire.clampDepthFromStore(
+            GlassesStore.shared.get("core", "dashboard_depth")
+        )
         sgc.setDashboardPosition(h, d)
     }
 
@@ -1092,6 +1094,13 @@ struct ViewState {
         sgc?.ping()
     }
 
+    func dbg1() {
+        sgc?.disconnectController()
+        connectDefaultController()
+    }
+
+    func dbg2() {}
+
     func startStream(_ message: [String: Any]) {
         Bridge.log("MAN: startStream: \(message)")
         sgc?.startStream(message)
@@ -1113,9 +1122,9 @@ struct ViewState {
         sgc?.requestWifiScan()
     }
 
-    func sendIncidentId(_ incidentId: String) {
+    func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil) {
         Bridge.log("MAN: Sending incidentId to glasses for log upload: \(incidentId)")
-        sgc?.sendIncidentId(incidentId)
+        sgc?.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
     }
 
     func sendWifiCredentials(_ ssid: String, _ password: String) {
@@ -1357,6 +1366,8 @@ struct ViewState {
         micEnabled = false
         updateMicState()
         shouldSendBootingMessage = true // Reset for next first connect
+        // clear glasses properties:
+        GlassesStore.shared.apply("glasses", "deviceModel", "")
         GlassesStore.shared.apply("glasses", "fullyBooted", false)
         GlassesStore.shared.apply("glasses", "connected", false)
         // disconnect the controller as well:
@@ -1368,7 +1379,8 @@ struct ViewState {
 
     func disconnectController() {
         searchingController = false
-        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        // disconnect the controller from the glasses if applicable:
+        sgc?.disconnectController()
         controller?.disconnect()
         controller = nil // Clear the controller reference after disconnect
     }

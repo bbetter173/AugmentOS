@@ -118,7 +118,7 @@ All evidence below from BetterStack prod logs on April 17, 2026.
 
 User `<redacted>` over 3 seconds on us-central at 23:21:54–23:21:57 UTC:
 
-```
+```text
 23:21:54.086  Updating device state  {"modelName":"Even Realities G1"}
 23:21:54.121  Updating device state  {"modelName":"Even Realities G1"}
 23:21:54.170  Updating device state  {"modelName":"Even Realities G1"}
@@ -142,7 +142,7 @@ User `<redacted>` over 3 seconds on us-central at 23:21:54–23:21:57 UTC:
 
 User `<redacted>` at 23:05:55 UTC:
 
-```
+```text
 23:05:55.028  Updating device state          {"modelName":"Even Realities G1"}
 23:05:55.028  Handling GLASSES_CONNECTION_STATE         (no args — CONNECTED inferred from modelName)
 23:05:55.042  Device state updated successfully
@@ -157,7 +157,7 @@ A single underlying connect/disconnect event on the phone became **two cloud-sid
 
 `device-state` updates per 30 minutes, last 8 hours on us-central:
 
-```
+```text
 15:30 UTC   1024 updates / 45 users /  22.8 per user
 16:00 UTC   1617 updates / 54 users /  29.9 per user
 16:30 UTC   4299 updates / 56 users /  76.8 per user  ← jump starts
@@ -178,7 +178,7 @@ This is ~3x France's per-user rate (France in the same window saw ~8 per user pe
 
 us-central RSS on the same day, same pod (19 h uptime, no restarts):
 
-```
+```text
 13:15 UTC   669 MB RSS / 378 MB heap / 50 sess
 15:45 UTC   725 MB RSS / 234 MB heap / 50 sess     ← healthy, GC sawtooth working
 17:00 UTC   733 MB RSS / 318 MB heap / 58 sess
@@ -195,7 +195,7 @@ GC freed **0 MB** on consecutive probes during the climb. That signature (GC run
 
 Top emitters on us-central in the last 30 minutes:
 
-```
+```text
 user-A          920 updates  30.7 / min
 user-B         520 updates  17.3 / min
 user-C              342 updates  11.4 / min

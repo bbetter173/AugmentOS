@@ -230,66 +230,66 @@ handleConnectionStateChange(status: string): void {
 **Current:**
 
 ```typescript
-app.post("/", clientAuth, requireUserSession, updateDeviceState)
+app.post("/", clientAuth, requireUserSession, updateDeviceState);
 ```
 
 **New:** add a rate-limit middleware between `requireUserSession` and the handler.
 
 ```typescript
 // Module-scoped; shared across all requests on this pod.
-const RATE_LIMIT_MAX_PER_SEC = 10
-const RATE_LIMIT_WINDOW_MS = 1000
-const RATE_LIMIT_WARN_THROTTLE_MS = 60_000
+const RATE_LIMIT_MAX_PER_SEC = 10;
+const RATE_LIMIT_WINDOW_MS = 1000;
+const RATE_LIMIT_WARN_THROTTLE_MS = 60_000;
 
-type RateLimitEntry = {count: number; windowStart: number; lastWarnAt: number}
-const rateLimitState = new Map<string, RateLimitEntry>()
+type RateLimitEntry = { count: number; windowStart: number; lastWarnAt: number };
+const rateLimitState = new Map<string, RateLimitEntry>();
 
-let deviceStateUpdatesRateLimited = 0
+let deviceStateUpdatesRateLimited = 0;
 export function getDeviceStateRateLimitCount() {
-  return deviceStateUpdatesRateLimited
+  return deviceStateUpdatesRateLimited;
 }
 export function resetDeviceStateRateLimitCount() {
-  deviceStateUpdatesRateLimited = 0
+  deviceStateUpdatesRateLimited = 0;
 }
 
 // Periodic cleanup of stale entries so the map doesn't grow unbounded.
 setInterval(() => {
-  const cutoff = Date.now() - 5 * 60_000
+  const cutoff = Date.now() - 5 * 60_000;
   for (const [userId, entry] of rateLimitState) {
-    if (entry.windowStart < cutoff) rateLimitState.delete(userId)
+    if (entry.windowStart < cutoff) rateLimitState.delete(userId);
   }
-}, 60_000).unref()
+}, 60_000).unref();
 
 async function rateLimit(c: AppContext, next: () => Promise<void>) {
-  const userSession = c.get("userSession")!
-  const userId = userSession.userId
-  const now = Date.now()
+  const userSession = c.get("userSession")!;
+  const userId = userSession.userId;
+  const now = Date.now();
 
-  let entry = rateLimitState.get(userId)
+  let entry = rateLimitState.get(userId);
   if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    entry = {count: 1, windowStart: now, lastWarnAt: entry?.lastWarnAt ?? 0}
-    rateLimitState.set(userId, entry)
-    await next()
-    return
+    entry = { count: 1, windowStart: now, lastWarnAt: entry?.lastWarnAt ?? 0 };
+    rateLimitState.set(userId, entry);
+    await next();
+    return;
   }
 
-  entry.count += 1
+  entry.count += 1;
   if (entry.count > RATE_LIMIT_MAX_PER_SEC) {
-    deviceStateUpdatesRateLimited++
+    deviceStateUpdatesRateLimited++;
     if (now - entry.lastWarnAt > RATE_LIMIT_WARN_THROTTLE_MS) {
-      entry.lastWarnAt = now
+      entry.lastWarnAt = now;
       logger.warn(
-        {userId, feature: "device-state", count: entry.count, windowMs: RATE_LIMIT_WINDOW_MS},
+        { userId, feature: "device-state", count: entry.count, windowMs: RATE_LIMIT_WINDOW_MS },
         "Rate-limited /api/client/device/state — client is sending too many updates",
-      )
+      );
     }
-    return c.json({error: "Too Many Requests"}, 429, {"Retry-After": "1"})
+    return c.json({ error: "Too Many Requests" }, 429, { "Retry-After": "1" });
   }
 
-  await next()
+  await next();
 }
 
-app.post("/", clientAuth, requireUserSession, rateLimit, updateDeviceState)
+app.post("/", clientAuth, requireUserSession, rateLimit, updateDeviceState);
 ```
 
 **Why these numbers:**
@@ -312,14 +312,14 @@ app.post("/", clientAuth, requireUserSession, rateLimit, updateDeviceState)
 Import the getters and include the four counters in the vitals payload. Reset them after each sample so the values are deltas per vitals tick (30 s by default).
 
 ```typescript
-import {getDeviceStateCounters, resetDeviceStateCounters} from "../session/DeviceManager"
-import {getDeviceStateRateLimitCount, resetDeviceStateRateLimitCount} from "../../api/hono/client/device-state.api"
+import { getDeviceStateCounters, resetDeviceStateCounters } from "../session/DeviceManager";
+import { getDeviceStateRateLimitCount, resetDeviceStateRateLimitCount } from "../../api/hono/client/device-state.api";
 
 // Inside the periodic vitals tick, alongside existing fields:
-const ds = getDeviceStateCounters()
-const rateLimited = getDeviceStateRateLimitCount()
-resetDeviceStateCounters()
-resetDeviceStateRateLimitCount()
+const ds = getDeviceStateCounters();
+const rateLimited = getDeviceStateRateLimitCount();
+resetDeviceStateCounters();
+resetDeviceStateRateLimitCount();
 
 const vitals = {
   // ...existing fields...
@@ -327,7 +327,7 @@ const vitals = {
   deviceStateUpdatesDeduped: ds.deduped,
   deviceStateUpdatesApplied: ds.applied,
   deviceStateUpdatesRateLimited: rateLimited,
-}
+};
 ```
 
 ### Change 5: Include counters in `/api/admin/memory/now`
@@ -362,11 +362,11 @@ Add a new command between existing commands, registered via the normal dispatch 
 
 ```typescript
 async function cmdDeviceState(flags: Record<string, string>) {
-  const region = getFlag(flags, "region", "us-central")
-  const duration = normalizeDuration(getFlag(flags, "duration", "30 MINUTE"))
-  const source = getSourceForRegion(region)
+  const region = getFlag(flags, "region", "us-central");
+  const duration = normalizeDuration(getFlag(flags, "duration", "30 MINUTE"));
+  const source = getSourceForRegion(region);
 
-  console.log(`📟 Device-State Storm — ${region} (last ${duration})\n`)
+  console.log(`📟 Device-State Storm — ${region} (last ${duration})\n`);
 
   // Pod-wide volume
   const vol = await runSql(`
@@ -384,9 +384,9 @@ async function cmdDeviceState(flags: Record<string, string>) {
     GROUP BY bucket
     ORDER BY bucket DESC
     LIMIT 30
-  `)
-  console.log("Volume by minute (pod-global per-tick counters, avg):")
-  printTable(vol.data)
+  `);
+  console.log("Volume by minute (pod-global per-tick counters, avg):");
+  printTable(vol.data);
 
   // Top emitters (pre-dedup, from device-state 'Updating device state' log)
   const top = await runSql(`
@@ -401,9 +401,9 @@ async function cmdDeviceState(flags: Record<string, string>) {
     GROUP BY userId
     ORDER BY updates DESC
     LIMIT 10
-  `)
-  console.log("\nTop emitters:")
-  printTable(top.data)
+  `);
+  console.log("\nTop emitters:");
+  printTable(top.data);
 }
 ```
 

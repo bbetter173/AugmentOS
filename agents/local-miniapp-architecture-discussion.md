@@ -15,7 +15,8 @@ After the dev-ex feedback round on this PR, the following spec docs were added. 
 - `agents/miniapp-quick-fixes-spec.md` — Tier 1 bundle: live reload, permissions CLI, missing-permission warnings, manifest JSON Schema.
 - `agents/miniapp-dev-applets-as-installed-apps-spec.md` — Persisted dev miniapps with retry-from-devUrl + DEV badge.
 - `agents/miniapp-less-reacty-example-spec.md` — Restructure example so glasses behavior is independent of React routes.
-- `agents/miniapp-sdk-surface-alignment-spec.md` — Move stream events off `session.events` onto domain modules.
+- `agents/miniapp-sdk-surface-alignment-spec.md` — Move stream events off `session.events` onto domain modules. **Shipped at 0.2.0.**
+- `agents/miniapp-sdk-v3-alignment-spec.md` — Round-2 alignment with cloud SDK v3: renames (`audio`→`speaker`, `microphone`→`mic`, `layouts`→`display`), hoist `session.transcription`/`session.translation` to top-level, phone sub-namespacing, new `session.permissions` module, `hasPermission` getters, `stop()` methods, touch gesture-filter overload. Clean break at `0.3.0`.
 - `agents/miniapp-browser-testing-simulator-spec.md` — Stub for the simulator; needs full design pass.
 
 ## What this is

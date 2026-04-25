@@ -13,7 +13,8 @@ This doc is the entry point for the second round of work after the initial minia
 | [`miniapp-quick-fixes-spec.md`](./miniapp-quick-fixes-spec.md) | Tier 1 bundle: live reload, permissions CLI, phone-side missing-permission warning, manifest JSON Schema, MockTransport | **All decided.** Plans: [`#1+#5`](./miniapp-quick-fixes-1-5-plan.md), [`#2`](./miniapp-quick-fixes-2-plan.md) |
 | [`miniapp-dev-applets-as-installed-apps-spec.md`](./miniapp-dev-applets-as-installed-apps-spec.md) | Persisted dev miniapps with retry-from-devUrl + bundle caching. Replaces ad-hoc QR-launch lifecycle. | **All decided** |
 | [`miniapp-less-reacty-example-spec.md`](./miniapp-less-reacty-example-spec.md) | Restructure the example miniapp so glasses behavior isn't tied to React routes | **All decided** |
-| [`miniapp-sdk-surface-alignment-spec.md`](./miniapp-sdk-surface-alignment-spec.md) | Move stream events off `session.events` onto their owning modules. | **All decided** |
+| [`miniapp-sdk-surface-alignment-spec.md`](./miniapp-sdk-surface-alignment-spec.md) | Move stream events off `session.events` onto their owning modules. | **Decided + shipped (0.2.0)** |
+| [`miniapp-sdk-v3-alignment-spec.md`](./miniapp-sdk-v3-alignment-spec.md) | Round-2: rename to v3 names, hoist transcription/translation, sub-namespace phone, add `session.permissions`, hasPermission getters, stop() methods, touch gesture filter | **All decided — ready to implement** |
 | [`miniapp-browser-testing-simulator-spec.md`](./miniapp-browser-testing-simulator-spec.md) | Stage 2 only (Stage 1 MockTransport moved to quick-fixes). Needs full design. | Stub — needs scoping |
 
 ---
@@ -51,7 +52,20 @@ This doc is the entry point for the second round of work after the initial minia
 - **JSON Schema: local-resolved only for V1.** `$schema` points at `./node_modules/@mentra/miniapp-cli/schema/miniapp.schema.json`. No hosted URL infrastructure. Single schema file, no `schemaVersion` field yet.
 - **MockTransport ships in this spec (#6).** Stage-1 stopgap moved out of simulator spec.
 
-### `miniapp-sdk-surface-alignment-spec.md`
+### `miniapp-sdk-v3-alignment-spec.md`
+
+- Renames: `session.audio` → `speaker`, `microphone` → `mic`, `layouts` → `display`. Match v3 names exactly.
+- Hoist `session.transcription` and `session.translation` to top-level. v3-style `on()` / `forLanguage(string | string[], handler)` / `configure({languageHints, vocabulary, diarization})` / `stop()`.
+- Sub-namespace `session.phone.notifications.*` and `session.phone.calendar.*`. `phone.onBattery` stays flat.
+- New `session.permissions` module: `has()`, `getAll()`, `onUpdate()`, `onPermissionError()`. Manifest-declaration tracking only — OS-grant state is out of scope. Adds one new wire-protocol push (`PERMISSIONS_UPDATE`).
+- `hasPermission` getters on every module whose subs need a manifest permission.
+- `stop()` convenience methods to tear down all subs in a module at once.
+- `session.input.onTouch` gains gesture-filter overload (`onTouch("click", h)`, `onTouch(["a", "b"], h)`). Requires phone-runtime fan-out to per-gesture stream variants.
+- Keep three modules (`input`/`imu`/`glasses`) — explicitly reject v3's collapsed `device` shape.
+- Defer speaker stream-state observability (`onStateChange`).
+- Clean break to `0.3.0`. Example migrates in same PR.
+
+### `miniapp-sdk-surface-alignment-spec.md` (shipped at 0.2.0)
 
 - **Audio split: `session.audio` (output) and `session.microphone` (input).** TTS/play/stop on `audio`; transcription/translation/VAD/audio-chunks on `microphone`.
 - **Input combined: `session.input`.** Button + touch under one module. Future input modes (gesture, voice command, eye tracking) extend `input`.
@@ -100,10 +114,13 @@ Multi-week project. Needs its own brainstorm + spec. Scheduled after surface-ali
 
 ## Implementation plans written
 
-- [`miniapp-quick-fixes-1-5-plan.md`](./miniapp-quick-fixes-1-5-plan.md) — Live reload + WebView console bridge. Sidecar dev server (Bun.serve on `<userPort+1>`), DevServerBridge service on phone, console-tap injection in `miniappGlobals.ts`, SDK auto-injected reload listener. 11 files touched, 3 new. ~5-7 days.
-- [`miniapp-quick-fixes-2-plan.md`](./miniapp-quick-fixes-2-plan.md) — Permission/hardware CLI + manifest wizard. Shared backend (`manifest-mutate.ts`, `manifest-format.ts`); `permission.ts`, `hardware.ts`, `manifest-wizard.ts` for surfaces. ~2-3 days.
+- [`miniapp-quick-fixes-1-5-plan.md`](./miniapp-quick-fixes-1-5-plan.md) — Live reload + WebView console bridge. Sidecar dev server (Bun.serve on `<userPort+1>`), DevServerBridge service on phone, console-tap injection in `miniappGlobals.ts`, SDK auto-injected reload listener. 11 files touched, 3 new. ~5-7 days. **Shipped.**
+- [`miniapp-quick-fixes-2-plan.md`](./miniapp-quick-fixes-2-plan.md) — Permission/hardware CLI + manifest wizard. Shared backend (`manifest-mutate.ts`, `manifest-format.ts`); `permission.ts`, `hardware.ts`, `manifest-wizard.ts` for surfaces. ~2-3 days. **Shipped.**
+- [`miniapp-sdk-surface-alignment-plan.md`](./miniapp-sdk-surface-alignment-plan.md) — Round-1 module split. **Shipped at 0.2.0.**
 
-Sections **#3** (PERMISSION_NOT_DECLARED warning), **#4** (JSON Schema), **#6** (MockTransport) don't need plan docs — the spec sections are detailed enough to implement directly. Send them as a single small PR after #1+#5+#2 land.
+Sections **#3** (PERMISSION_NOT_DECLARED warning), **#4** (JSON Schema), **#6** (MockTransport) don't need plan docs — the spec sections are detailed enough to implement directly. **Shipped.**
+
+`miniapp-sdk-v3-alignment-spec.md` is detailed enough to implement directly without a separate plan doc.
 
 ## Process
 

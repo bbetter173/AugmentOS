@@ -685,7 +685,11 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     const startResult = await restComms.startApp(packageName)
     if (startResult.is_error() && applet) {
       console.error(`Failed to retry start applet ${packageName}: ${startResult.error}`)
-      void submitMiniappStartFailedBugReport(applet, startResult.error, "retry_start")
+      // Skip bug-report for dev miniapps — it's the developer's own code,
+      // not actionable in the incident pipeline.
+      if (!applet.isMiniappDev) {
+        void submitMiniappStartFailedBugReport(applet, startResult.error, "retry_start")
+      }
     }
   },
 
@@ -911,7 +915,11 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     const result = await startStopApplet(applet, true)
     if (result.is_error()) {
       console.error(`Failed to start applet ${applet.packageName}: ${result.error}`)
-      void submitMiniappStartFailedBugReport(applet, result.error, "initial_start")
+      // Skip bug-report for dev miniapps — it's the developer's own code,
+      // not actionable in the incident pipeline.
+      if (!applet.isMiniappDev) {
+        void submitMiniappStartFailedBugReport(applet, result.error, "initial_start")
+      }
       set((state) => ({
         apps: state.apps.map((a) => (a.packageName === packageName ? {...a, running: false, loading: false} : a)),
       }))
@@ -959,7 +967,23 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     if (applet.running) {
       await startStopApplet(applet, false)
     }
-    await restComms.uninstallApp(packageName)
+
+    if (applet.isMiniappDev) {
+      // Dev miniapps live entirely on-device: delete the lmas/<pkg>/ tree
+      // (this also wipes any dev-* caches inside it) plus the MMKV keys.
+      // The cloud has no knowledge of dev miniapps, so no restComms call.
+      // composer.uninstallMiniApp already sets refreshNeeded internally.
+      const res = await composer.uninstallMiniApp(packageName)
+      if (res.is_error()) {
+        console.error(`Failed to uninstall dev miniapp ${packageName}:`, res.error)
+      }
+      storage.remove(`${packageName}_dev_url`)
+      storage.remove(`${packageName}_dev_port`)
+      storage.remove(`${packageName}_dev_last_reachable`)
+      storage.remove(`${packageName}_active_version`)
+    } else {
+      await restComms.uninstallApp(packageName)
+    }
     set((state) => ({
       apps: state.apps.filter((a) => a.packageName !== packageName),
     }))

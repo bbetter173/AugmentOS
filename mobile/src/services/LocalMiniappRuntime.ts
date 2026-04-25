@@ -30,6 +30,7 @@ import type {MiniappEnvelope} from "@mentra/miniapp"
 
 import {getModelCapabilities, DeviceTypes} from "@/../../cloud/packages/types/src"
 import audioPlaybackService from "@/services/AudioPlaybackService"
+import devServerBridge from "@/services/DevServerBridge"
 import localDisplayManager from "@/services/LocalDisplayManager"
 import type {DisplayPayload} from "@/services/LocalDisplayManager"
 import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
@@ -58,6 +59,50 @@ interface ConnectedMiniapp {
 const LOG_TAG = "LOCAL_MINIAPP"
 const PING_INTERVAL_MS = 5_000
 const PING_TIMEOUT_THRESHOLD = 3 // unregister after 3 missed pongs (~15s)
+
+// =============================================================================
+// PERMISSION_NOT_DECLARED warnings — per-session dedup
+// =============================================================================
+//
+// When a miniapp tries to subscribe / call something whose required permission
+// isn't declared in miniapp.json, the runtime rejects with
+// PERMISSION_NOT_DECLARED. The error reaches the SDK but most authors don't
+// subscribe to session.on("error", ...), so it's silent in practice.
+//
+// To make the failure discoverable for developers running the MentraOS app
+// from source, log a clear, copy-pasteable message in the phone console that
+// names the offending permission, the offending stream/op, and the JSON
+// snippet to add to miniapp.json. Once-per-session per (packageName, permission)
+// to avoid spam from a tight retry loop.
+//
+// Production users running the App Store build of MentraOS won't see these
+// (they don't watch Metro/adb logcat). For them, the WebView console bridge
+// (#5 of the quick-fixes round) ships the structured error to the miniapp
+// itself, and the miniapp's own console.warn flows to the dev terminal.
+
+const warnedPermission = new Set<string>() // key: `${packageName}::${permission}`
+
+function logPermissionNotDeclared(
+  packageName: string,
+  permission: string,
+  context: string,
+  manifestSnippet: string,
+): void {
+  const key = `${packageName}::${permission}`
+  if (warnedPermission.has(key)) return
+  warnedPermission.add(key)
+  console.warn(
+    `${LOG_TAG}: ${packageName} attempted ${context}, but permission ${permission} is not declared in miniapp.json.\n` +
+      `Add this to the "permissions" array:\n  ${manifestSnippet}`,
+  )
+}
+
+/** Reset the per-session dedup; called when a miniapp unregisters so a fresh launch warns again. */
+function resetPermissionWarnings(packageName: string): void {
+  for (const key of warnedPermission) {
+    if (key.startsWith(`${packageName}::`)) warnedPermission.delete(key)
+  }
+}
 
 // =============================================================================
 // LocalMiniappRuntime
@@ -349,6 +394,9 @@ class LocalMiniappRuntime {
       }
     }
 
+    // Reset per-session warning dedup so a relaunch surfaces issues again.
+    resetPermissionWarnings(packageName)
+
     // Stop audio for this app
     audioPlaybackService.stopForApp(packageName)
 
@@ -385,6 +433,19 @@ class LocalMiniappRuntime {
 
     if (!requestType) {
       console.warn(`${LOG_TAG}: Envelope from ${packageName} missing payload.type`)
+      return
+    }
+
+    // Dev-only console-tap forwarding. The miniapp's own console.log/warn/etc
+    // is wrapped (via injected shim from miniappGlobals.ts when the miniapp is
+    // mounted via mountDev) to also post a `dev_log` envelope. Route those to
+    // the DevServerBridge so the laptop's `mentra-miniapp dev` terminal sees
+    // them. Production miniapps never emit this type.
+    if (requestType === "dev_log") {
+      const level = (payload.level as string | undefined) ?? "log"
+      const args = Array.isArray(payload.args) ? (payload.args as unknown[]) : []
+      const timestamp = (payload.timestamp as number | undefined) ?? Date.now()
+      devServerBridge.forwardLog(packageName, level, args, timestamp)
       return
     }
 
@@ -549,9 +610,19 @@ class LocalMiniappRuntime {
     for (const stream of streams) {
       const required = permissionForStream(stream)
       if (required && !declaredTypes.has(required)) {
+        logPermissionNotDeclared(
+          packageName,
+          required,
+          `to subscribe to "${stream}"`,
+          `{"type": "${required}"}`,
+        )
         this.sendResult(packageName, requestId, false, undefined, {
           code: MiniappErrorCode.PERMISSION_NOT_DECLARED,
-          message: `${required} permission not declared in miniapp.json (required for "${stream}")`,
+          message: `${required} permission not declared in miniapp.json (required for "${stream}"). Add {"type": "${required}"} to the "permissions" array.`,
+          // Extra context fields read by the SDK so authors that subscribe
+          // to session.on("error") can format their own messages.
+          permission: required,
+          subscription: stream,
         })
         return
       }
@@ -1094,9 +1165,12 @@ class LocalMiniappRuntime {
     const app = this.connectedApps.get(packageName)
     const hasCameraPermission = app?.installedManifest?.permissions?.some((p) => p.type === "CAMERA")
     if (!hasCameraPermission) {
+      logPermissionNotDeclared(packageName, "CAMERA", "to take a photo", `{"type": "CAMERA"}`)
       this.sendResult(packageName, requestId, false, undefined, {
         code: MiniappErrorCode.PERMISSION_NOT_DECLARED,
-        message: "CAMERA permission not declared in miniapp.json",
+        message: `CAMERA permission not declared in miniapp.json. Add {"type": "CAMERA"} to the "permissions" array.`,
+        permission: "CAMERA",
+        operation: MiniappRequestType.PHOTO,
       })
       return
     }
@@ -1385,7 +1459,7 @@ class LocalMiniappRuntime {
     requestId: string | undefined,
     ok: boolean,
     data?: unknown,
-    error?: {code: string; message: string},
+    error?: {code: string; message: string} & Record<string, unknown>,
   ): void {
     if (!requestId) return
 

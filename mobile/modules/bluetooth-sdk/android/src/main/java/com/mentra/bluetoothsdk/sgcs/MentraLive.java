@@ -3189,6 +3189,10 @@ public class MentraLive extends SGCManager {
         // Update parent SGCManager fields
         DeviceStore.INSTANCE.apply("glasses", "batteryLevel", level);
         DeviceStore.INSTANCE.apply("glasses", "charging", isCharging);
+
+        if (level >= 0) {
+            Bridge.sendBatteryStatus(level, isCharging);
+        }
     }
 
     /**

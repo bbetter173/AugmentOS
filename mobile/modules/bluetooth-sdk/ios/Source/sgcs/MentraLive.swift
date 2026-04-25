@@ -3363,6 +3363,10 @@ class MentraLive: NSObject, SGCManager {
     private func updateBatteryStatus(level: Int, isCharging: Bool) {
         DeviceStore.shared.apply("glasses", "batteryLevel", level)
         DeviceStore.shared.apply("glasses", "charging", isCharging)
+
+        if level >= 0 {
+            Bridge.sendBatteryStatus(level: level, charging: isCharging)
+        }
     }
 
     private func updateWifiStatus(connected: Bool, ssid: String, ip: String) {

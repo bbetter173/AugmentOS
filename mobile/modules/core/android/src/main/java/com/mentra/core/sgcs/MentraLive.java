@@ -662,7 +662,24 @@ public class MentraLive extends SGCManager {
         if (state.equals(ConnTypes.DISCONNECTED)) {
             GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
             GlassesStore.INSTANCE.apply("glasses", "connected", false);
+            // Drop OTA caches when fully disconnected — avoids leaking session/step state
+            // from a previous pairing into the next one.
+            resetOtaCache();
         }
+    }
+
+    /**
+     * Drops cached OTA session context. Called on disconnect and when a new session id
+     * arrives — without this, stale fields from a previous session would leak into
+     * sr_adota progress messages (wrong totalSteps, wrong stepSequence, stale
+     * lastBesOtaProgress that swallows the first few percent of the new install).
+     */
+    private void resetOtaCache() {
+        cachedOtaSessionId = null;
+        cachedOtaTotalSteps = 0;
+        cachedOtaCurrentStep = 0;
+        cachedOtaStepSequence = null;
+        lastBesOtaProgress = -1;
     }
 
     protected void setFontSizes() {
@@ -2107,7 +2124,13 @@ public class MentraLive extends SGCManager {
      * Process a JSON message
      */
     private void processJsonMessage(JSONObject json) {
-        Bridge.log("LIVE: Got some JSON from glasses: " + json.toString());
+        // Demoted from INFO (Bridge.log) to DEBUG: per-type handlers below already log
+        // the messages that matter, and full payloads can leak PII (wifi SSID, bt_mac,
+        // OTA URLs) into the persisted file logger when they arrive every ~50ms during OTA.
+        // Re-enable on a debugging device via: adb shell setprop log.tag.MentraLive DEBUG
+        if (Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, "LIVE: Got some JSON from glasses: " + json.toString());
+        }
 
         // Check if this is an ACK response
         String type = json.optString("type", "");
@@ -2351,6 +2374,15 @@ public class MentraLive extends SGCManager {
                 int osOverallPercent = json.optInt("op", json.optInt("overall_percent", 0));
                 String osStatus = json.optString("status", "idle");
                 String osErrorMessage = json.optString("err", json.optString("error_message", null));
+
+                // If the glasses started a new session, drop any leftover state from the
+                // old one before caching the new values. Without this, lastBesOtaProgress
+                // would stay at e.g. 95 from the previous session and cause us to silently
+                // skip the first few percent of the new BES install.
+                if (!osSessionId.isEmpty() && cachedOtaSessionId != null
+                        && !cachedOtaSessionId.equals(osSessionId)) {
+                    resetOtaCache();
+                }
 
                 cachedOtaSessionId = osSessionId;
                 cachedOtaTotalSteps = osTotalSteps;
@@ -3059,10 +3091,11 @@ public class MentraLive extends SGCManager {
                         int besOtaProgressVal;
                         String besOtaErrorMessage = null;
                         
-                        if ("update".equals(type)) {
-                            besOtaStatus = "PROGRESS";
-                            besOtaProgressVal = progress;
-                        } else if ("success".equals(type) || rawProgress >= 100) {
+                        // Order matters here: check completion (rawProgress >= 100 OR success) BEFORE
+                        // type=="update", because some BES firmware emits the final 100% tick with
+                        // type=="update" rather than type=="success". Treating that as PROGRESS would
+                        // leave the UI stuck at 100% forever.
+                        if ("success".equals(type) || rawProgress >= 100) {
                             besOtaStatus = "FINISHED";
                             besOtaProgressVal = 100;
                             lastBesOtaProgress = -1; // Reset for next OTA
@@ -3071,6 +3104,9 @@ public class MentraLive extends SGCManager {
                             besOtaProgressVal = progress;
                             besOtaErrorMessage = bodyObj.optString("message", "BES update failed");
                             lastBesOtaProgress = -1; // Reset for next OTA
+                        } else if ("update".equals(type)) {
+                            besOtaStatus = "PROGRESS";
+                            besOtaProgressVal = progress;
                         } else {
                             // Unknown type, treat as progress
                             besOtaStatus = "PROGRESS";

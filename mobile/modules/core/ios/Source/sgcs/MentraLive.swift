@@ -882,6 +882,12 @@ class MentraLive: NSObject, SGCManager {
     private func updateConnectionState(_ state: String) {
         connectionState = state
         GlassesStore.shared.apply("glasses", "connectionState", state)
+        // Drop OTA caches when fully disconnected — avoids leaking session/step state from
+        // a previous pairing into the next one (would otherwise surface as wrong overall_percent
+        // or stale lastBesOtaProgress on the next OTA).
+        if state == ConnTypes.DISCONNECTED {
+            resetOtaCache()
+        }
     }
 
     func setDashboardPosition(_: Int, _: Int) {}
@@ -1931,6 +1937,14 @@ class MentraLive: NSObject, SGCManager {
             let osStatus = json["status"] as? String ?? "idle"
             let osErrorMessage = json["err"] as? String ?? json["error_message"] as? String
 
+            // If the glasses started a new session, drop any leftover state from the old
+            // one before caching the new values. Without this, lastBesOtaProgress would
+            // stay at e.g. 95 from the previous session and cause us to silently skip the
+            // first few percent of the new BES install.
+            if !osSessionId.isEmpty, let prevSid = cachedOtaSessionId, prevSid != osSessionId {
+                resetOtaCache()
+            }
+
             cachedOtaSessionId = osSessionId
             cachedOtaTotalSteps = osTotalSteps
             cachedOtaCurrentStep = osCurrentStep
@@ -2049,6 +2063,18 @@ class MentraLive: NSObject, SGCManager {
     ///   [mtk, bes]       → bes base=40, weight=60
     ///   [bes]            → bes base=0,  weight=100
     ///
+    /// Drops cached OTA session context. Called when the glasses disconnect or when a new
+    /// session id arrives — without this, stale fields from a previous session would leak
+    /// into sr_adota progress messages (wrong totalSteps, wrong stepSequence, stale
+    /// lastBesOtaProgress that swallows the first few percent of the new install).
+    private func resetOtaCache() {
+        cachedOtaSessionId = nil
+        cachedOtaTotalSteps = 0
+        cachedOtaCurrentStep = 0
+        cachedOtaStepSequence = nil
+        lastBesOtaProgress = -1
+    }
+
     /// Falls back to raw besProgress when step sequence is unavailable.
     private func computeBesOverallPercent(besProgress: Int, stepSequence: [String]?) -> Int {
         guard let seq = stepSequence, !seq.isEmpty else { return besProgress }
@@ -2203,10 +2229,11 @@ class MentraLive: NSObject, SGCManager {
                 var besOtaProgressVal: Int
                 var besOtaErrorMessage: String? = nil
 
-                if type == "update" {
-                    besOtaStatus = "PROGRESS"
-                    besOtaProgressVal = progress
-                } else if type == "success" || rawProgress >= 100 {
+                // Order matters here: check completion (rawProgress >= 100 OR success) BEFORE
+                // type=="update", because some BES firmware emits the final 100% tick with
+                // type=="update" rather than type=="success". Treating that as PROGRESS would
+                // leave the UI stuck at 100% forever.
+                if type == "success" || rawProgress >= 100 {
                     besOtaStatus = "FINISHED"
                     besOtaProgressVal = 100
                     lastBesOtaProgress = -1 // Reset for next OTA
@@ -2215,6 +2242,9 @@ class MentraLive: NSObject, SGCManager {
                     besOtaProgressVal = progress
                     besOtaErrorMessage = bodyObj["message"] as? String ?? "BES update failed"
                     lastBesOtaProgress = -1 // Reset for next OTA
+                } else if type == "update" {
+                    besOtaStatus = "PROGRESS"
+                    besOtaProgressVal = progress
                 } else {
                     // Unknown type, treat as progress
                     besOtaStatus = "PROGRESS"

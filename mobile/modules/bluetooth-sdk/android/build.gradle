@@ -12,7 +12,6 @@ version = packageJson.version
 def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
 apply from: expoModulesCorePlugin
 applyKotlinExpoModulesCorePlugin()
-useCoreDependencies()
 useExpoPublishing()
 
 // If you want to use the managed Android SDK versions from expo-modules-core, set this to true.
@@ -31,7 +30,7 @@ if (useManagedAndroidSdkVersions) {
   project.android {
     compileSdkVersion safeExtGet("compileSdkVersion", 36)
     defaultConfig {
-      minSdkVersion safeExtGet("minSdkVersion", 24)
+      minSdkVersion safeExtGet("minSdkVersion", 28)
       targetSdkVersion safeExtGet("targetSdkVersion", 36)
     }
   }
@@ -67,8 +66,13 @@ android {
 }
 
 dependencies {
+  // Expo adapter class is compiled into the MentraOS module, but the bare SDK
+  // artifact should not expose Expo as a runtime dependency.
+  compileOnly project(':expo-modules-core')
+
   // Kotlin standard library (explicitly added for IDE support)
   // Version is managed by Expo modules, but explicit dependency helps IDE indexing
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7"
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
   
   implementation "androidx.lifecycle:lifecycle-service:2.6.1"

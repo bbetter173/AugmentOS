@@ -224,9 +224,9 @@ The bare Android SDK should publish as a normal Android library artifact:
 - Expo adapter artifact/module: owns `BluetoothSdkModule.kt`, depends on `com.mentra:bluetooth-sdk`, and forwards native events to Expo event names.
 - `com.mentra:lc3Lib`: companion artifact required by audio paths; the Bluetooth SDK POM must resolve it as a Maven dependency rather than as `project(':lc3Lib')`.
 
-The current module still applies Expo module Gradle helpers, so implementation should split the build before claiming bare Android support. A good first target is a local Maven publish plus a fresh bare Android sample in `Mentra-Bluetooth-SDK-Partner-Kit` that depends only on the published artifacts.
+The current Maven artifact no longer exposes Expo as a runtime dependency, and the bare Android sample in `Mentra-Bluetooth-SDK-Partner-Kit` builds against the locally published artifacts. The source module still contains the Expo adapter compiled with an Expo `compileOnly` dependency, so a cleaner final split should still move `BluetoothSdkModule.kt` into a dedicated Expo adapter module before public release.
 
-Heavy dependencies should be audited before release. Local STT, ONNX/VAD, Vuzix support, and media streaming may remain in the initial artifact if that is fastest, but the plan should keep a path open for optional feature artifacts if binary size or transitive dependency conflicts become a customer problem.
+Heavy dependencies should be audited before release. Local STT, ONNX/VAD, Vuzix support, and media streaming may remain in the initial artifact if that is fastest, but the plan should keep a path open for optional feature artifacts if binary size or transitive dependency conflicts become a customer problem. The Android sample currently documents the required `lib/**/libonnxruntime.so` packaging `pickFirst` rule for the local audio stack.
 
 ## MentraOS Adapter
 
@@ -265,7 +265,7 @@ This lets MentraOS keep using the SDK while external customers use the native An
 - Public docs never tell customers to call `DeviceManager`, `DeviceStore`, `Bridge`, `update("bluetooth", ...)`, or handle `save_setting`.
 - The Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit` builds from a clean checkout and exercises the public facade.
 - The Android sample app covers SDK initialization, permission declarations/prompts, scan, discovery callback, connect discovered/default, status/log/error callbacks, display text, brightness/dashboard settings, clear display, disconnect, and `close()`.
-- Local Maven publication verifies both `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib` can be consumed without monorepo project references.
+- Local Maven publication verifies both `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib` can be consumed without monorepo project references, without an Expo runtime dependency, and with `lc3Lib` published as a minimal codec companion artifact.
 - The foreground service, runtime permissions, audio capture, and BLE receiver lifecycle have explicit cleanup coverage.
 
 ## Open Questions

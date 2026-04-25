@@ -1018,7 +1018,7 @@ The Partner Kit native examples are customer-facing examples, but they should al
 - Disconnect and release SDK resources through `close()` / `invalidate()`.
 - Avoid React Native / Expo APIs and avoid raw native store sync.
 
-Until the native facades exist, validation is limited to static project checks such as Android XML parsing, iOS plist/project parsing, Podfile syntax, and Xcode project discovery. Once the facades and local artifacts exist, the examples become real build gates:
+Until the native facades exist, validation is limited to static project checks such as Android XML parsing, iOS plist/project parsing, Podfile syntax, and Xcode project discovery. Now that the native facades and local Android artifacts exist, the Android example is a real build gate:
 
 - Android: publish `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib` to Maven local, then run the Partner Kit Android example `assembleDebug`.
 - iOS: point the Partner Kit Podfile at the local `MentraBluetoothSDK` podspec, run `pod install`, then run `xcodebuild` for the iOS example.
@@ -1170,7 +1170,7 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [ ] Translate Zustand settings into typed SDK calls while preserving compatibility keys
 - [ ] Keep `updateBluetoothSettings` as temporary compatibility plumbing only
 - [ ] Keep `DeviceManager` / `DeviceStore` internal implementation details
-- [ ] Remove Expo module dependency from bare Android publication artifact
+- [x] Remove Expo module dependency from bare Android publication artifact
 - [ ] Remove `ExpoModulesCore` dependency from bare iOS podspec
 - [ ] Split iOS pod source globs so the bare pod excludes Expo adapter files
 - [x] Ensure Android Maven publication resolves `lc3Lib` without monorepo project dependencies
@@ -1178,16 +1178,18 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [x] Create bare Android sample app in `Mentra-Bluetooth-SDK-Partner-Kit`
 - [x] Create bare iOS sample app in `Mentra-Bluetooth-SDK-Partner-Kit`
 - [x] Update Partner Kit docs for native-first setup
-- [ ] Validate bare Android sample build
+- [x] Validate bare Android sample build
 - [ ] Validate bare iOS `pod install` and build
 - [ ] Validate MentraOS mobile app still passes relevant regression tests
 
 Current Phase 6 validation status:
 
 - Android `:mentra-bluetooth-sdk:compileReleaseKotlin` passes with the new native facade and event/store fanout.
+- Android `:app:processDebugMainManifest` passes after moving the Vuzix min-SDK override to the Bluetooth SDK manifest and stripping unrelated permissions/dependencies from the LC3 companion artifact.
+- MentraOS Android `:app:assembleDebug` passes with the cleaned Android publication/manifest setup.
 - iOS `MentraBluetoothSDK` scheme builds for iOS simulator with the new Swift facade and event/store fanout.
-- Local Maven publication succeeds for `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib`, and the Bluetooth SDK POM resolves `lc3Lib` as `com.mentra:lc3Lib:0.1.0`.
-- The Partner Kit Android example now reaches dependency resolution against Maven local, but bare Android validation remains blocked until the published Bluetooth SDK artifact no longer depends on `host.exp.exponent:expo-modules-core`.
+- Local Maven publication succeeds for `com.mentra:bluetooth-sdk` and `com.mentra:lc3Lib`; the Bluetooth SDK POM resolves `lc3Lib` as `com.mentra:lc3Lib:0.1.0`, no longer exposes `host.exp.exponent:expo-modules-core`, and the LC3 POM no longer publishes legacy app/cloud dependencies.
+- The Partner Kit Android example builds against Maven local with the public facade and the documented ONNX Runtime native packaging `pickFirst` rule.
 - The Partner Kit iOS example can point at the local podspec, but bare iOS `pod install` remains blocked until the bare podspec no longer depends on `ExpoModulesCore`.
 
 ### Phase 7: MentraOS Migration

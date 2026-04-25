@@ -5,6 +5,7 @@ import {ActivityIndicator, StyleProp, TouchableOpacity, View, ViewStyle} from "r
 import {withUniwind} from "uniwind"
 
 import {Icon} from "@/components/ignite"
+import {DevMiniappBadge} from "@/components/miniapps/DevMiniappBadge"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {ClientAppletInterface} from "@/stores/applets"
 
@@ -73,6 +74,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
           <Icon name="alert" size={theme.spacing.s4} color={theme.colors.error} />
         </View>
       )}
+      {app.isMiniappDev && <DevMiniappBadge />}
       {/* Show wifi-off badge for offline apps (excluding camera app) */}
       {/* disabled for now */}
       {/* {app.offline && app.packageName !== getMoreAppsApplet().packageName && app.packageName !== cameraPackageName && (

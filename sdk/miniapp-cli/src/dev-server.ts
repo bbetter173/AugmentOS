@@ -12,7 +12,8 @@
 // Designed to coexist with whatever the user's `server.ts` is doing — we don't
 // touch their code, we just listen on a separate port.
 
-import {watch} from "fs"
+import {readdirSync, statSync, watch} from "fs"
+import {join, relative} from "path"
 import type {ServerWebSocket} from "bun"
 
 export interface DevServerOptions {
@@ -98,6 +99,15 @@ export function startDevSidecar(options: DevServerOptions): {stop: () => void; p
       const url = new URL(req.url)
       if (url.pathname === "/__mentra_dev/health") {
         return new Response(JSON.stringify({ok: true, protocol: PROTOCOL_VERSION}), {
+          headers: {"content-type": "application/json"},
+        })
+      }
+      if (url.pathname === "/__mentra_dev/files") {
+        // List of project files the phone should snapshot to its bundle cache.
+        // Walked from the watch dir, BFS-bounded depth + count to keep things
+        // sane even on weird projects.
+        const files = listProjectFiles(options.watchDir)
+        return new Response(JSON.stringify({files}), {
           headers: {"content-type": "application/json"},
         })
       }
@@ -200,4 +210,73 @@ export function startDevSidecar(options: DevServerOptions): {stop: () => void; p
       server.stop(true)
     },
   }
+}
+
+/**
+ * Walk the dev project's directory tree and return a list of relative file
+ * paths suitable for the phone-side bundle snapshotter to fetch.
+ *
+ * BFS-bounded:
+ *   - max depth 5 (most miniapp trees are 2-3 levels deep)
+ *   - max files 500 (truncates with a warning beyond that)
+ *
+ * Excludes: node_modules, dist, .git, .next, .env*, hidden files starting
+ * with ".", and any path containing __mentra_dev (the sidecar's own paths).
+ */
+function listProjectFiles(rootDir: string): string[] {
+  const MAX_DEPTH = 5
+  const MAX_FILES = 500
+  const EXCLUDED_DIRS = new Set([
+    "node_modules",
+    "dist",
+    ".git",
+    ".next",
+    "build",
+    ".cache",
+    ".turbo",
+  ])
+
+  const out: string[] = []
+  type Frame = {dir: string; depth: number}
+  const queue: Frame[] = [{dir: rootDir, depth: 0}]
+
+  while (queue.length > 0 && out.length < MAX_FILES) {
+    const {dir, depth} = queue.shift()!
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      // Skip hidden + excluded directories, .env files, and the sidecar's own paths.
+      if (entry.startsWith(".env")) continue
+      if (entry.startsWith(".") && entry !== ".") continue
+      if (EXCLUDED_DIRS.has(entry)) continue
+      if (entry === "__mentra_dev") continue
+
+      const abs = join(dir, entry)
+      let stat
+      try {
+        stat = statSync(abs)
+      } catch {
+        continue
+      }
+      if (stat.isDirectory()) {
+        if (depth + 1 <= MAX_DEPTH) queue.push({dir: abs, depth: depth + 1})
+      } else if (stat.isFile()) {
+        // Return as a leading-slash relative path for direct concatenation
+        // with the dev server's URL on the phone side.
+        const rel = relative(rootDir, abs).split("\\").join("/")
+        out.push(`/${rel}`)
+        if (out.length >= MAX_FILES) {
+          console.warn(
+            `[__mentra_dev] file list truncated at ${MAX_FILES} entries — bundle cache may be incomplete`,
+          )
+          return out
+        }
+      }
+    }
+  }
+  return out
 }

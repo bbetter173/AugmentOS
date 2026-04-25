@@ -6,8 +6,15 @@ import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import composer, {buildHardwareRequirements} from "@/services/Composer"
 import devServerBridge from "@/services/DevServerBridge"
+import {
+  getLatestDevBundlePath,
+  snapshotDevBundle,
+} from "@/services/DevMiniappBundleCache"
 import {useAppletStatusStore} from "@/stores/applets"
+import {storage} from "@/utils/storage/storage"
 import {HardwareType} from "@/../../cloud/packages/types/src"
+
+const REACHABILITY_TIMEOUT_MS = 500
 
 export default function LocalMiniAppPage() {
   const {appName, packageName, version, devUrl, iconUrl, devPort} = useLocalSearchParams<{
@@ -18,24 +25,25 @@ export default function LocalMiniAppPage() {
     iconUrl?: string
     devPort?: string
   }>()
-  const {goBack, setForceGestureEnabled} = useNavigationHistory()
+  const {goBack, replace, setForceGestureEnabled} = useNavigationHistory()
 
   // Keep a stable ref to the latest goBack so we don't re-fire the mount effect
   // every render just because useNavigationHistory returned a new function.
   const goBackRef = useRef(goBack)
   goBackRef.current = goBack
+  const replaceRef = useRef(replace)
+  replaceRef.current = replace
 
   useEffect(() => {
     if (!packageName) return
 
     const handleClose = () => {
-      miniappHost.unmount(packageName)
-      // Dev miniapps have a fake applet entry for the switcher — remove it
-      // when the user explicitly closes. Regular installed miniapps are left
-      // alone (their store entry is permanent).
-      if (devUrl) {
-        useAppletStatusStore.getState().unregisterDevApplet(packageName)
-      }
+      // Background the miniapp the same way installed apps are backgrounded:
+      // WebView lives in 1×1 off-screen holder, JS keeps running, tile stays
+      // visible in switcher / home tray. Dev miniapps are first-class
+      // installed apps now (Composer-backed) so removal happens only via
+      // explicit long-press → Remove, not on close.
+      miniappHost.setBackground(packageName)
       goBackRef.current()
     }
 
@@ -48,45 +56,87 @@ export default function LocalMiniAppPage() {
       }
     }
 
-    // mountDev is async (fetches manifest before registering the app), so we
-    // need to chain setForeground after it resolves — otherwise foreground is
-    // set before the app exists in the map and gets dropped.
     let cancelled = false
     ;(async () => {
-      if (devUrl) {
-        const manifest = await miniappHost.mountDev(packageName, devUrl, {
-          developerMode: true,
-          appName,
-          iconUrl,
-        })
-        // If the QR carried a `dev=<port>`, open the dev-server bridge so live
-        // reload + console-log forwarding work. Older CLIs don't include the
-        // param — in that case devPort is undefined and we just skip.
-        if (devPort) {
-          const portNum = parseInt(devPort, 10)
-          if (Number.isFinite(portNum)) {
+      const isDev = !!devUrl
+
+      if (isDev) {
+        // Live-vs-cached routing for dev miniapps.
+        //
+        //   reachable          → mountDev(devUrl) — live URL, live reload, bg cache refresh
+        //   unreachable + cache → mount(file://lmas/<pkg>/dev-<latest>/index.html)
+        //   unreachable + no cache → push to /applet/dev-offline
+        //
+        // The cache only gets read in the offline path; live URL is always
+        // preferred when available because live reload + console bridge need
+        // the WebView to load from devUrl.
+
+        const portNum = resolveDevPort(devPort, packageName)
+        const reachable = await checkDevServerReachable(devUrl, REACHABILITY_TIMEOUT_MS)
+        if (cancelled) return
+
+        if (reachable) {
+          const manifest = await miniappHost.mountDev(packageName, devUrl, {
+            developerMode: true,
+            appName,
+            iconUrl,
+          })
+          if (portNum !== null) {
             devServerBridge.connect(packageName, devUrl, portNum)
+            // Background snapshot so the cache is fresh for next launch.
+            void snapshotDevBundle(packageName, devUrl, portNum).then((v) => {
+              if (v) void useAppletStatusStore.getState().refreshApplets()
+            })
+          }
+          storage.save(`${packageName}_dev_last_reachable`, Date.now())
+
+          // buildHardwareRequirements drops malformed entries and appends the
+          // EXIST requirement; registerDevApplet appends EXIST again but the
+          // compatibility check dedups it via the HardwareType.EXIST lookup,
+          // so the duplicate is harmless. Strip it here so the list stays clean.
+          const hwFromManifest = buildHardwareRequirements(manifest?.hardwareRequirements, packageName)
+          const hwWithoutExist = hwFromManifest.filter((h) => h.type !== HardwareType.EXIST)
+          useAppletStatusStore.getState().registerDevApplet({
+            packageName,
+            name: appName || packageName,
+            devUrl,
+            iconUrl,
+            hardwareRequirements: hwWithoutExist,
+          })
+        } else {
+          // Cached fallback. Composer's helper resolves to the latest
+          // dev-<timestamp>/ for this package, or null if none.
+          const cachedPath = composer.getLatestDevBundlePath(packageName)
+          if (cachedPath) {
+            const bundleUri = `${cachedPath}/index.html`
+            miniappHost.mount(packageName, bundleUri, {
+              developerMode: true,
+              appName,
+              iconUrl,
+            })
+            // Register the entry so it appears in the switcher even though
+            // the manifest came from disk (we don't re-read it here; the
+            // manifest is in the cached bundle and Composer's getLocalApplets
+            // covers the boot-time path).
+            useAppletStatusStore.getState().registerDevApplet({
+              packageName,
+              name: appName || packageName,
+              devUrl,
+              iconUrl,
+              hardwareRequirements: [],
+            })
+          } else {
+            // No cache, no server — full-screen offline takeover.
+            replaceRef.current("/applet/dev-offline", {packageName, name: appName, iconUrl})
+            return
           }
         }
-        // buildHardwareRequirements drops malformed entries and appends the
-        // EXIST requirement; registerDevApplet appends EXIST again but the
-        // compatibility check dedups it via the HardwareType.EXIST lookup,
-        // so the duplicate is harmless. Strip it here so the list stays clean.
-        const hwFromManifest = buildHardwareRequirements(manifest?.hardwareRequirements, packageName)
-        const hwWithoutExist = hwFromManifest.filter((h) => h.type !== HardwareType.EXIST)
-        // Register a dev applet entry so the app shows up in the switcher.
-        useAppletStatusStore.getState().registerDevApplet({
-          packageName,
-          name: appName || packageName,
-          devUrl,
-          iconUrl,
-          hardwareRequirements: hwWithoutExist,
-        })
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)
-        const bundleUri = `file://${bundleDir}/index.html`
+        const bundleUri = `${bundleDir}/index.html`
         miniappHost.mount(packageName, bundleUri, {developerMode: false, appName, iconUrl})
       }
+
       if (cancelled) return
       miniappHost.setForeground(packageName, {onClose: handleClose, onBack: handleBack})
     })()
@@ -96,7 +146,7 @@ export default function LocalMiniAppPage() {
       // Background on navigate away, don't unmount — keep it alive
       miniappHost.setBackground(packageName)
     }
-  }, [packageName, version, devUrl])
+  }, [packageName, version, devUrl, devPort, appName, iconUrl])
 
   // Track WebView navigation state so we know whether "back" should pop the
   // WebView stack or exit the miniapp.
@@ -125,4 +175,39 @@ export default function LocalMiniAppPage() {
   // they survive navigation. This route is just a hook for setForeground /
   // setBackground as the user navigates in/out.
   return <View style={{flex: 1, backgroundColor: "transparent"}} pointerEvents="box-none" />
+}
+
+/**
+ * Resolve the dev server's sidecar port. Search params take precedence (fresh
+ * QR scan); fall back to the persisted MMKV key (home-tile-tap path).
+ */
+function resolveDevPort(searchParam: string | undefined, packageName: string): number | null {
+  if (searchParam) {
+    const n = parseInt(searchParam, 10)
+    if (Number.isFinite(n)) return n
+  }
+  const stored = storage.load<number>(`${packageName}_dev_port`)
+  if (stored.is_ok()) return stored.value
+  return null
+}
+
+/**
+ * HEAD against the dev server's miniapp.json with a hard timeout. Returns
+ * true iff the dev server responded with a non-error status before the
+ * timeout fired.
+ */
+async function checkDevServerReachable(devUrl: string, timeoutMs: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${devUrl.replace(/\/$/, "")}/miniapp.json`, {
+      method: "HEAD",
+      signal: controller.signal,
+    })
+    return res.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
 }

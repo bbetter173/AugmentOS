@@ -8,6 +8,7 @@ export type CrustModuleEvents = {
   onChange: (params: ChangeEventPayload) => void
   phone_notification: (event: PhoneNotificationEvent) => void
   phone_notification_dismissed: (event: PhoneNotificationDismissedEvent) => void
+  captions_tester_incident: (event: CaptionsTesterIncidentEvent) => void
 }
 
 export type ChangeEventPayload = {
@@ -35,6 +36,17 @@ export type PhoneNotificationDismissedEvent = {
   notificationKey: string
   packageName: string
   notificationId: string
+}
+
+export type CaptionsTesterIncidentEvent = {
+  action?: string
+  timestamp?: number
+  failure_code?: string
+  failure_message?: string
+  test_run_id?: string
+  scenario_name?: string
+  source?: string
+  [key: string]: unknown
 }
 
 export type CrustViewProps = {

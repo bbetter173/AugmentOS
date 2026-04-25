@@ -3,6 +3,7 @@ import {waitFor} from "@testing-library/react-native"
 import mantle from "@/services/MantleManager"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
+import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import {useBluetoothStore} from "@/stores/bluetooth"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
@@ -125,7 +126,7 @@ jest.mock("@/services/Migrations", () => ({
 }))
 
 jest.mock("@/services/bugReport/automaticBugReport", () => ({
-  submitAutomaticBugIncident: jest.fn(),
+  submitAutomaticBugIncident: jest.fn(async () => ({status: "filed", incidentId: "incident-1"})),
 }))
 
 jest.mock("@/stores/applets", () => ({
@@ -425,6 +426,39 @@ describe("MantleManager", () => {
         notificationKey: "key-1",
         packageName: "com.calendar",
       })
+    })
+  })
+
+  it("files captions tester incidents from Crust instead of Bluetooth SDK", async () => {
+    ;(submitAutomaticBugIncident as jest.Mock).mockClear()
+
+    emitBluetoothSdkEvent("captions_tester_incident", {
+      failure_code: "stale_transcript",
+      failure_message: "Bluetooth SDK should not own this app-level flow",
+      test_run_id: "run-from-sdk",
+    })
+
+    expect(submitAutomaticBugIncident).not.toHaveBeenCalled()
+
+    emitCrustEvent("captions_tester_incident", {
+      failure_code: "stale_transcript",
+      failure_message: "Transcript stayed stale",
+      test_run_id: "run-1",
+      scenario_name: "live_words",
+    })
+
+    await waitFor(() => {
+      expect(submitAutomaticBugIncident).toHaveBeenCalledWith(
+        expect.objectContaining({
+          categorization: expect.objectContaining({
+            triggerArea: "captions_tester",
+            triggerReason: "captions_incident_detected",
+          }),
+          actualBehavior: expect.stringContaining("Transcript stayed stale"),
+          dedupeKey: "captions_tester|stale_transcript|live_words|run-1",
+          logTag: "CaptionsTesterBugReport",
+        }),
+      )
     })
   })
 

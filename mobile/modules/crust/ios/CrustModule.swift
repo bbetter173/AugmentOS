@@ -15,7 +15,12 @@ public class CrustModule: Module {
             Double.pi
         }
 
-        Events("onChange")
+        Events(
+            "onChange",
+            "phone_notification",
+            "phone_notification_dismissed",
+            "captions_tester_incident"
+        )
 
         Function("hello") {
             "Hello world! 👋"

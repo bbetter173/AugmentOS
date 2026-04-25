@@ -48,12 +48,6 @@ android {
       withJavadocJar()
     }
   }
-  buildTypes {
-    internal {
-      initWith release
-      matchingFallbacks = ['release']
-    }
-  }
   lintOptions {
     abortOnError false
   }

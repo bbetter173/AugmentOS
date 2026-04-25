@@ -43,6 +43,10 @@ class CrustModule : Module() {
       emitEvent("phone_notification_dismissed", data)
     }
 
+    fun emitCaptionsTesterIncident(data: Map<String, Any>) {
+      emitEvent("captions_tester_incident", data)
+    }
+
     private fun emitEvent(eventName: String, data: Map<String, Any>) {
       val emitter = eventEmitter
       if (emitter == null) {
@@ -65,7 +69,7 @@ class CrustModule : Module() {
       Math.PI
     }
 
-    Events("onChange", "phone_notification", "phone_notification_dismissed")
+    Events("onChange", "phone_notification", "phone_notification_dismissed", "captions_tester_incident")
 
     OnCreate {
       eventEmitter = { eventName, data -> sendEvent(eventName, data) }

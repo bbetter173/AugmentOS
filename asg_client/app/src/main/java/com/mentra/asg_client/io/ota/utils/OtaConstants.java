@@ -8,6 +8,21 @@ public class OtaConstants {
 
     // URLs
     // Production OTA version JSON URL
+    //
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // !!  WARNING: THIS URL POINTS AT THE TEST MANIFEST.                    !!
+    // !!  Production fleets currently fetch from a "test_" prefixed file.   !!
+    // !!  Before swapping to https://ota.mentraglass.com/prod_live_version  !!
+    // !!  .json, confirm that manifest carries:                             !!
+    // !!    apps: { "com.mentra.asg_client": { versionCode, downloadUrl,    !!
+    // !!                                       sha256, ... } }              !!
+    // !!    mtk_patches: [...]                                              !!
+    // !!    bes_firmware: { version, url }                                  !!
+    // !!  Same warning applies to the other 3 call sites:                   !!
+    // !!    - mobile/src/effects/OtaUpdateChecker.tsx                       !!
+    // !!    - asg_client/ota_updater/.../helper/Constants.java              !!
+    // !!    - asg_client/.../OtaHelper.java::checkInternetReachable()       !!
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public static final String VERSION_JSON_URL = "https://ota.mentraglass.com/test_bes_ota_prod_live_version.json";
 
     // Test URLs (uncomment to use for testing)

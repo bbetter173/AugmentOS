@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.mentra.asg_client.io.ota.session.OtaSessionManager;
+import com.mentra.asg_client.io.ota.utils.FirmwareDownloadException;
 import com.mentra.asg_client.io.ota.utils.OtaConstants;
 import com.mentra.asg_client.settings.AsgSettings;
 import com.mentra.asg_client.service.utils.SysProp;
@@ -558,6 +559,9 @@ public class OtaHelper {
      */
     private boolean checkInternetReachable() {
         try {
+            // !! WARNING: TEST MANIFEST URL — see OtaConstants.VERSION_JSON_URL for full context.
+            // This is just a HEAD reachability probe so the actual URL doesn't matter for the
+            // probe to work, but it should be kept in sync with the manifest URL when that swaps.
             HttpURLConnection conn = (HttpURLConnection)
                 new URL("https://ota.mentraglass.com/test_bes_ota_prod_live_version.json").openConnection();
             conn.setConnectTimeout(REACHABILITY_TIMEOUT_MS);
@@ -606,7 +610,11 @@ public class OtaHelper {
      * Classify download exceptions into semantic error codes for actionable user feedback.
      */
     private String classifyDownloadError(Exception e) {
-        if (e instanceof java.net.SocketTimeoutException) {
+        if (e instanceof FirmwareDownloadException) {
+            // Non-network failure (size cap, sha256 mismatch). Carry the stable code through
+            // so the phone-side error mapping doesn't confuse this with a transient WiFi issue.
+            return ((FirmwareDownloadException) e).getErrorCode();
+        } else if (e instanceof java.net.SocketTimeoutException) {
             return "no_internet";
         } else if (e instanceof java.net.UnknownHostException) {
             return "no_internet";
@@ -1388,7 +1396,19 @@ public class OtaHelper {
                     sessionManager.setRestarting();
                 }
 
-                installApk(context, localPath);
+                boolean installKicked = installApk(context, localPath);
+                if (!installKicked) {
+                    // Install never actually fired — phone is going to sit waiting for a
+                    // process restart that won't happen, and the next OTA attempt would skip
+                    // the prefetch path because the restart guard is armed. Roll it back.
+                    Log.w(TAG, "installApk did not kick install — rolling back restart guard and reporting FAILED");
+                    if (sessionManager != null) {
+                        sessionManager.clearRestartGuard();
+                    }
+                    sendProgressToPhone("install", 0, 0, 0, "FAILED", "install_failed");
+                    clearCachedArtifact(cacheKey, UPDATE_TYPE_APK);
+                    return false;
+                }
 
                 // Clean up cached update file after install attempt
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -1594,20 +1614,24 @@ public class OtaHelper {
         }
     }
 
-    public void installApk(Context context) {
-        installApk(context, OtaConstants.APK_FULL_PATH);
+    public boolean installApk(Context context) {
+        return installApk(context, OtaConstants.APK_FULL_PATH);
     }
 
-    public static void installApk(Context context, String apkPath) {
+    /**
+     * Trigger the system UI install broadcast for the given APK.
+     *
+     * @return {@code true} if the install broadcast was actually dispatched (caller should
+     *         now expect the process to be killed). {@code false} if anything aborted the
+     *         install (missing file, unreadable file, SecurityException, etc.) — callers
+     *         that armed restart-guard state must roll it back when this returns false.
+     */
+    public static boolean installApk(Context context, String apkPath) {
         try {
-//            if (apkPath.equals(Constants.APK_FULL_PATH)) {
-//                checkOlderApkFile(context);
-//            }
             Log.d(TAG, "Starting installation process for APK at: " + apkPath);
-            
-            // Emit installation started event
+
             EventBus.getDefault().post(new InstallationProgressEvent(InstallationProgressEvent.InstallationStatus.STARTED, apkPath));
-            
+
             Intent intent = new Intent("com.xy.xsetting.action");
             intent.setPackage("com.android.systemui");
             intent.putExtra("cmd", "install");
@@ -1615,42 +1639,35 @@ public class OtaHelper {
             intent.putExtra("recv_pkname", context.getPackageName());
             intent.putExtra("startapp", true);
 
-            // Verify APK exists before sending broadcast
             File apkFile = new File(apkPath);
             if (!apkFile.exists()) {
                 Log.e(TAG, "Installation failed: APK file not found at " + apkPath);
-                // Emit installation failed event
                 EventBus.getDefault().post(new InstallationProgressEvent(InstallationProgressEvent.InstallationStatus.FAILED, apkPath, "APK file not found"));
                 sendUpdateCompletedBroadcast(context);
-                return;
+                return false;
             }
 
-            // Verify APK is readable
             if (!apkFile.canRead()) {
                 Log.e(TAG, "Installation failed: Cannot read APK file at " + apkPath);
-                // Emit installation failed event
                 EventBus.getDefault().post(new InstallationProgressEvent(InstallationProgressEvent.InstallationStatus.FAILED, apkPath, "Cannot read APK file"));
                 sendUpdateCompletedBroadcast(context);
-                return;
+                return false;
             }
 
             Log.d(TAG, "Sending install broadcast to system UI...");
             context.sendBroadcast(intent);
             Log.i(TAG, "Install broadcast sent successfully. System will handle installation.");
-            // Note: FINISHED message is sent before installApk() is called in checkAndUpdateApp()
-            // The app will be killed during installation, so no timer is needed here
+            return true;
         } catch (SecurityException e) {
             Log.e(TAG, "Security exception while sending install broadcast", e);
-            // Emit installation failed event
             EventBus.getDefault().post(new InstallationProgressEvent(InstallationProgressEvent.InstallationStatus.FAILED, apkPath, "Security exception: " + e.getMessage()));
-            // Make sure to send completion broadcast on error
             sendUpdateCompletedBroadcast(context);
+            return false;
         } catch (Exception e) {
             Log.e(TAG, "Failed to send install broadcast", e);
-            // Emit installation failed event
             EventBus.getDefault().post(new InstallationProgressEvent(InstallationProgressEvent.InstallationStatus.FAILED, apkPath, "Installation failed: " + e.getMessage()));
-            // Make sure to send completion broadcast on error
             sendUpdateCompletedBroadcast(context);
+            return false;
         }
     }
 
@@ -2106,7 +2123,21 @@ public class OtaHelper {
             try {
                 boolean success = downloadBesFirmwareInternal(firmwareUrl, firmwareInfo, context);
                 if (success) return true;
-                Log.e(TAG, "BES firmware download succeeded but verification failed - not retrying");
+                // Internal returned false without throwing - shouldn't happen now (size/verify
+                // failures throw FirmwareDownloadException), but keep a defensive failsafe so
+                // the phone is never left in the dark.
+                Log.e(TAG, "BES firmware download returned false unexpectedly - not retrying");
+                sendProgressToPhone("download", 0, 0, 0, "FAILED", "download_failed");
+                return false;
+            } catch (FirmwareDownloadException nonRetryable) {
+                // Non-network failure - retrying won't help, fail fast and tell the phone.
+                Log.e(TAG, "BES firmware download non-retryable failure: " + nonRetryable.getErrorCode(),
+                    nonRetryable);
+                File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.BES_FIRMWARE_FILENAME);
+                if (partialFile.exists()) {
+                    partialFile.delete();
+                }
+                sendProgressToPhone("download", 0, 0, 0, "FAILED", nonRetryable.getErrorCode());
                 return false;
             } catch (Exception e) {
                 lastException = e;
@@ -2159,52 +2190,68 @@ public class OtaHelper {
         conn.setConnectTimeout(OtaConstants.CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(OtaConstants.READ_TIMEOUT_MS);
         conn.connect();
-        
+
+        // 2 MiB hard cap. Server-advertised content-length is checked first; we also
+        // enforce the cap during the streaming loop so a missing/lying header
+        // (Content-Length: -1) cannot drain disk.
+        final long maxBytes = 2L * 1024 * 1024;
         long fileSize = conn.getContentLength();
-        
-        if (fileSize > 2 * 1024 * 1024) {
-            Log.e(TAG, "Firmware file too large: " + fileSize + " bytes (max 2MB)");
+
+        if (fileSize > maxBytes) {
             conn.disconnect();
-            return false;
+            throw new FirmwareDownloadException(
+                FirmwareDownloadException.CODE_FILE_TOO_LARGE,
+                "BES firmware file too large: " + fileSize + " bytes (max " + maxBytes + ")"
+            );
         }
-        
+
         InputStream in = conn.getInputStream();
         FileOutputStream out = new FileOutputStream(firmwareFile);
-        
+
         byte[] buffer = new byte[4096];
         int len;
         long total = 0;
         int lastProgress = 0;
-        
+
         Log.d(TAG, "Downloading BES firmware, size: " + fileSize + " bytes");
-        
+
         currentUpdateType = "bes";
 
-        while ((len = in.read(buffer)) > 0) {
-            out.write(buffer, 0, len);
-            total += len;
+        try {
+            while ((len = in.read(buffer)) > 0) {
+                total += len;
+                if (total > maxBytes) {
+                    throw new FirmwareDownloadException(
+                        FirmwareDownloadException.CODE_FILE_TOO_LARGE,
+                        "BES firmware exceeded " + maxBytes + " bytes during streaming (Content-Length=" + fileSize + ")"
+                    );
+                }
+                out.write(buffer, 0, len);
 
-            int progress = fileSize > 0 ? (int) (total * 100 / fileSize) : 0;
-            if (progress >= lastProgress + 10 || progress == 100) {
-                Log.d(TAG, "BES firmware download progress: " + progress + "%");
-                lastProgress = progress;
+                int progress = fileSize > 0 ? (int) (total * 100 / fileSize) : 0;
+                if (progress >= lastProgress + 10 || progress == 100) {
+                    Log.d(TAG, "BES firmware download progress: " + progress + "%");
+                    lastProgress = progress;
+                }
             }
+        } finally {
+            try { out.close(); } catch (Exception ignored) {}
+            try { in.close(); } catch (Exception ignored) {}
+            conn.disconnect();
         }
 
-        out.close();
-        in.close();
-        conn.disconnect();
-        
         Log.d(TAG, "BES firmware downloaded to: " + firmwareFile.getAbsolutePath());
-        
+
         boolean verified = verifyFirmwareFile(firmwareFile.getAbsolutePath(), firmwareInfo);
         if (verified) {
             Log.i(TAG, "Firmware file verified successfully");
             return true;
         } else {
-            Log.e(TAG, "Firmware verification failed - deleting file");
             firmwareFile.delete();
-            return false;
+            throw new FirmwareDownloadException(
+                FirmwareDownloadException.CODE_VERIFY_FAILED,
+                "BES firmware sha256 verification failed"
+            );
         }
     }
     
@@ -2400,7 +2447,17 @@ public class OtaHelper {
             try {
                 boolean success = downloadMtkFirmwareInternal(firmwareUrl, firmwareInfo, context);
                 if (success) return true;
-                Log.e(TAG, "MTK firmware download succeeded but verification failed - not retrying");
+                Log.e(TAG, "MTK firmware download returned false unexpectedly - not retrying");
+                sendProgressToPhone("download", 0, 0, 0, "FAILED", "download_failed");
+                return false;
+            } catch (FirmwareDownloadException nonRetryable) {
+                Log.e(TAG, "MTK firmware download non-retryable failure: " + nonRetryable.getErrorCode(),
+                    nonRetryable);
+                File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.MTK_FIRMWARE_FILENAME);
+                if (partialFile.exists()) {
+                    partialFile.delete();
+                }
+                sendProgressToPhone("download", 0, 0, 0, "FAILED", nonRetryable.getErrorCode());
                 return false;
             } catch (Exception e) {
                 lastException = e;
@@ -2457,58 +2514,74 @@ public class OtaHelper {
         conn.setConnectTimeout(OtaConstants.CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(OtaConstants.READ_TIMEOUT_MS);
         conn.connect();
-        
+
+        // 100 MiB hard cap. Server-advertised content-length is checked first; the
+        // streaming loop also enforces the cap so a missing/lying header
+        // (Content-Length: -1) cannot drain disk.
+        final long maxBytes = 100L * 1024 * 1024;
         long fileSize = conn.getContentLength();
-        
-        if (fileSize > 100 * 1024 * 1024) {
-            Log.e(TAG, "MTK firmware file too large: " + fileSize + " bytes (max 100MB)");
+
+        if (fileSize > maxBytes) {
             conn.disconnect();
-            return false;
+            throw new FirmwareDownloadException(
+                FirmwareDownloadException.CODE_FILE_TOO_LARGE,
+                "MTK firmware file too large: " + fileSize + " bytes (max " + maxBytes + ")"
+            );
         }
-        
+
         InputStream in = conn.getInputStream();
         FileOutputStream out = new FileOutputStream(firmwareFile);
-        
+
         byte[] buffer = new byte[8192];
         int len;
         long total = 0;
         int lastProgress = 0;
-        
+
         Log.d(TAG, "Downloading MTK firmware, size: " + fileSize + " bytes");
-        
+
         currentUpdateType = "mtk";
 
-        while ((len = in.read(buffer)) > 0) {
-            out.write(buffer, 0, len);
-            total += len;
+        try {
+            while ((len = in.read(buffer)) > 0) {
+                total += len;
+                if (total > maxBytes) {
+                    throw new FirmwareDownloadException(
+                        FirmwareDownloadException.CODE_FILE_TOO_LARGE,
+                        "MTK firmware exceeded " + maxBytes + " bytes during streaming (Content-Length=" + fileSize + ")"
+                    );
+                }
+                out.write(buffer, 0, len);
 
-            int progress = fileSize > 0 ? (int) (total * 100 / fileSize) : 0;
-            if (progress >= lastProgress + 10 || progress == 100) {
-                Log.d(TAG, "MTK firmware download progress: " + progress + "%");
-                EventBus.getDefault().post(new DownloadProgressEvent(
-                    DownloadProgressEvent.DownloadStatus.PROGRESS,
-                    progress,
-                    total,
-                    fileSize
-                ));
-                lastProgress = progress;
+                int progress = fileSize > 0 ? (int) (total * 100 / fileSize) : 0;
+                if (progress >= lastProgress + 10 || progress == 100) {
+                    Log.d(TAG, "MTK firmware download progress: " + progress + "%");
+                    EventBus.getDefault().post(new DownloadProgressEvent(
+                        DownloadProgressEvent.DownloadStatus.PROGRESS,
+                        progress,
+                        total,
+                        fileSize
+                    ));
+                    lastProgress = progress;
+                }
             }
+        } finally {
+            try { out.close(); } catch (Exception ignored) {}
+            try { in.close(); } catch (Exception ignored) {}
+            conn.disconnect();
         }
 
-        out.close();
-        in.close();
-        conn.disconnect();
-        
         Log.i(TAG, "MTK firmware downloaded to: " + firmwareFile.getAbsolutePath());
-        
+
         boolean verified = verifyMtkFirmwareChecksum(firmwareFile.getAbsolutePath(), firmwareInfo);
         if (verified) {
             Log.i(TAG, "MTK firmware file verified successfully");
             return true;
         } else {
-            Log.e(TAG, "MTK firmware verification failed - deleting file");
             firmwareFile.delete();
-            return false;
+            throw new FirmwareDownloadException(
+                FirmwareDownloadException.CODE_VERIFY_FAILED,
+                "MTK firmware sha256 verification failed"
+            );
         }
     }
     
@@ -2838,13 +2911,25 @@ public class OtaHelper {
         int stepIndex = findStepIndex(currentUpdateType);
         if (stepIndex < 0) return;
 
+        // advanceStep resets stepPercent to 0, persists to disk, and stamps last-activity.
+        // Calling it on every PROGRESS tick wipes the percent we just received and beats up
+        // SharedPreferences. Only advance when the step or phase has actually changed.
+        boolean stepChanged = stepIndex != sessionManager.getCurrentStepIndex()
+                || !stage.equals(sessionManager.getCurrentPhase());
+
         if ("STARTED".equals(status)) {
-            sessionManager.advanceStep(stepIndex, stage);
+            if (stepChanged) {
+                sessionManager.advanceStep(stepIndex, stage);
+            }
         } else if ("PROGRESS".equals(status) || "IN_PROGRESS".equals(status)) {
-            sessionManager.advanceStep(stepIndex, stage);
+            if (stepChanged) {
+                sessionManager.advanceStep(stepIndex, stage);
+            }
             sessionManager.updateProgress(progress);
         } else if ("FINISHED".equals(status)) {
-            sessionManager.advanceStep(stepIndex, stage);
+            if (stepChanged) {
+                sessionManager.advanceStep(stepIndex, stage);
+            }
             sessionManager.updateProgress(100);
             if (stepIndex >= sessionManager.getTotalSteps() - 1 && "install".equals(stage)) {
                 sessionManager.setComplete();

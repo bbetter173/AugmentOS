@@ -51,6 +51,19 @@ public class OtaSessionManager {
     }
 
     public synchronized boolean createSession(String[] stepSequence, String versionJsonUrl) {
+        // Defensive: a session with no steps is meaningless (and would later divide-by-zero
+        // in computeOverallPercent / computeStepWeights). Refuse to create one and let the
+        // caller decide how to recover (typically by skipping OTA entirely).
+        if (stepSequence == null || stepSequence.length == 0) {
+            Log.w(TAG, "createSession refused: stepSequence is null or empty");
+            return false;
+        }
+        for (String step : stepSequence) {
+            if (step == null || step.isEmpty()) {
+                Log.w(TAG, "createSession refused: stepSequence contains null/empty entry");
+                return false;
+            }
+        }
         if ("in_progress".equals(mStatus) || "step_complete".equals(mStatus)) {
             if (hasActiveSession()) {
                 return false;
@@ -87,11 +100,21 @@ public class OtaSessionManager {
         if ("failed".equals(mStatus) || "complete".equals(mStatus) || "idle".equals(mStatus)) {
             return false;
         }
-        // Skip expiry check during APK restart path
-        if (mRestartingSinceElapsed >= 0) {
-            return true;
-        }
         long now = SystemClock.elapsedRealtime();
+        // Skip expiry check during APK restart path — but cap how long we trust it. Without
+        // a cap, a stuck restart guard would keep the session "active" forever and prevent
+        // any future OTA from even creating a session. SESSION_EXPIRY_MS (30 min) is safe:
+        // APK_RESTART_GUARD_MS is only ~10s, so any restarting marker still set after this
+        // is effectively a leak.
+        if (mRestartingSinceElapsed >= 0) {
+            if (now < mRestartingSinceElapsed
+                    || (now - mRestartingSinceElapsed) <= SESSION_EXPIRY_MS) {
+                return true;
+            }
+            Log.w(TAG, "Restart guard exceeded SESSION_EXPIRY_MS — treating as stale and clearing");
+            clear();
+            return false;
+        }
         // elapsedRealtime resets on reboot — if now < last activity, device rebooted
         if (now < mLastActivityAtElapsed || (now - mLastActivityAtElapsed) > SESSION_EXPIRY_MS) {
             Log.w(TAG, "Session expired, clearing");
@@ -123,6 +146,20 @@ public class OtaSessionManager {
      */
     public synchronized JSONObject getSessionState() {
         if (mSessionId == null) return null;
+        // Drop stale sessions (idle > SESSION_EXPIRY_MS). We deliberately do NOT short-circuit
+        // on terminal status here — callers may still need to read the final "complete" or
+        // "failed" snapshot to send it to the phone. We only suppress the snapshot when the
+        // session is well past its idle deadline AND not in restart guard.
+        if (mRestartingSinceElapsed < 0) {
+            long now = SystemClock.elapsedRealtime();
+            if (mLastActivityAtElapsed > 0
+                    && (now < mLastActivityAtElapsed
+                        || (now - mLastActivityAtElapsed) > SESSION_EXPIRY_MS)) {
+                Log.w(TAG, "getSessionState: session expired, clearing");
+                clear();
+                return null;
+            }
+        }
         try {
             JSONObject state = new JSONObject();
             state.put("sid", mSessionId);
@@ -154,10 +191,23 @@ public class OtaSessionManager {
     }
 
     public synchronized void updateProgress(int stepPercent) {
+        // Reject progress writes once we're in a terminal state — otherwise a stray late
+        // PROGRESS event from a finished step can flip the UI back to "in progress" or
+        // overwrite a clean "complete"/"failed" snapshot with a partial percent.
+        if ("complete".equals(mStatus) || "failed".equals(mStatus)) {
+            return;
+        }
+        // Defensive clamp — callers occasionally feed us 101+ from rounding or -1 from
+        // unknown content-length math. Persisting a value outside [0,100] can corrupt the
+        // weighted overall_percent calculation below.
+        int clamped = stepPercent;
+        if (clamped < 0) clamped = 0;
+        else if (clamped > 100) clamped = 100;
+
         mLastActivityAtElapsed = SystemClock.elapsedRealtime();
-        mStepPercent = stepPercent;
-        if (Math.abs(stepPercent - mLastPersistedPercent) >= 5) {
-            mLastPersistedPercent = stepPercent;
+        mStepPercent = clamped;
+        if (Math.abs(clamped - mLastPersistedPercent) >= 5) {
+            mLastPersistedPercent = clamped;
             persist();
         }
     }
@@ -199,11 +249,6 @@ public class OtaSessionManager {
             long elapsed = now - mRestartingSinceElapsed;
             remaining = Math.max(0, APK_RESTART_GUARD_MS - elapsed);
         }
-        // #region agent log
-        Log.i(TAG, "[0a383d] restart_guard remainingMs=" + remaining + " now=" + now
-                + " restartingSince=" + mRestartingSinceElapsed + " guardTotal=" + APK_RESTART_GUARD_MS
-                + " hypothesis=H1_wrong_constant_if_remaining_near_18e5");
-        // #endregion
         return remaining;
     }
 
@@ -301,6 +346,10 @@ public class OtaSessionManager {
 
     public synchronized int getCurrentStepIndex() {
         return mCurrentStepIndex;
+    }
+
+    public synchronized String getCurrentPhase() {
+        return mCurrentPhase;
     }
 
     public synchronized String getVersionJsonUrl() {

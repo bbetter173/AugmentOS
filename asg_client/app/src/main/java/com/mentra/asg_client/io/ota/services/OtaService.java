@@ -312,20 +312,24 @@ public class OtaService extends Service {
             if (sessionManager.hasActiveSession() && sessionManager.isInRestartGuard()) {
                 Log.i(TAG, "📱 Active OTA session found in restart guard - auto-continuing");
                 long waitMs = sessionManager.getRestartGuardRemainingMs();
-                // #region agent log
-                Log.i(TAG, "[0a383d] ota_resume_guard branch=restart_guard waitMs=" + waitMs
-                        + " hypothesis=H1_session_resume_delayed");
-                // #endregion
                 if (waitMs > 0) {
                     Log.i(TAG, "OTA restart guard: waiting " + waitMs + "ms before auto-continuing");
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // #region agent log
-                        Log.i(TAG, "[0a383d] ota_resume_guard firing resumeFromSession hypothesis=H1");
-                        // #endregion
                         resumeFromSession(sessionManager);
                     }, waitMs);
                     return;
                 }
+                resumeFromSession(sessionManager);
+                return;
+            }
+
+            // Edge case: an active session exists but the restart guard was never armed (or
+            // was already cleared, e.g. by an installApk failure rollback). Without this
+            // branch we fall through to the version-bump heuristic and may either skip the
+            // resume entirely, or kick a duplicate version check while a real session is
+            // still in flight. Resume directly so the next step is picked up.
+            if (sessionManager.hasActiveSession()) {
+                Log.i(TAG, "📱 Active OTA session found without restart guard — resuming next step");
                 resumeFromSession(sessionManager);
                 return;
             }

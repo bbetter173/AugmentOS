@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, copyFileSync, writeFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { validateManifest } from './manifest.js';
 
@@ -49,6 +49,27 @@ export async function pack(opts: PackOptions = {}): Promise<string> {
       console.error(`  - ${err}`);
     }
     process.exit(1);
+  }
+
+  // Strip `type="module"` and `crossorigin` from <script> tags in
+  // dist/index.html so the bundle loads from file:// inside the phone's
+  // WebView. Module scripts are unique-origin under file:// and silently
+  // fail (white screen). The bundle itself is built with --format=iife,
+  // which is safe to run as a classic script. This is a temporary
+  // band-aid; the proper fix is the custom URL scheme handler module
+  // (see agents/miniapp-webview-scheme-handler-plan.md), which makes
+  // miniapps load from `mentra-miniapp://` and modules work normally.
+  const indexHtmlPath = join(distDir, 'index.html');
+  if (existsSync(indexHtmlPath)) {
+    const html = readFileSync(indexHtmlPath, 'utf-8');
+    const patched = html
+      .replace(/<script\s+type="module"\s+crossorigin\s+/g, '<script ')
+      .replace(/<script\s+type="module"\s+/g, '<script ')
+      .replace(/<script\s+crossorigin\s+/g, '<script ')
+      .replace(/<link\s+rel="stylesheet"\s+crossorigin\s+/g, '<link rel="stylesheet" ');
+    if (patched !== html) {
+      writeFileSync(indexHtmlPath, patched);
+    }
   }
 
   // Copy miniapp.json into dist/

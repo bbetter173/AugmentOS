@@ -4,7 +4,7 @@
   "description": "Example MentraOS miniapp demonstrating the @mentra/miniapp SDK",
   "scripts": {
     "dev": "mentra-miniapp dev",
-    "build": "bun build ./index.html --outdir=./dist --target=browser",
+    "build": "bun build ./index.html --outdir=./dist --target=browser --format=iife",
     "release": "mentra-miniapp release",
     "pack": "mentra-miniapp pack"
   },

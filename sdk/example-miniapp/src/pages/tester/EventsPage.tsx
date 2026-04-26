@@ -22,9 +22,9 @@ export default function EventsPage() {
   const [connection, setConnection] = useState<Record<string, unknown> | null>(null)
   const [vad, setVad] = useState<boolean>(false)
   const [transcript, setTranscript] = useState<string>("")
-  const [location, setLocation] = useState<string>("(no fix yet)")
-  const [lastNotification, setLastNotification] = useState<string>("(none)")
-  const [lastCalendar, setLastCalendar] = useState<string>("(none)")
+  const [location, setLocation] = useState<Record<string, unknown> | null>(null)
+  const [lastNotification, setLastNotification] = useState<Record<string, unknown> | null>(null)
+  const [lastCalendar, setLastCalendar] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     const unsubs = [
@@ -39,13 +39,13 @@ export default function EventsPage() {
       session.mic.onVoiceActivity((d) => setVad(!!d.status)),
       session.transcription.on((d) => setTranscript(d.text)),
       session.location.onUpdate((d) =>
-        setLocation(`${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}${d.accuracy ? ` (±${Math.round(d.accuracy)}m)` : ""}`),
+        setLocation({...(d as unknown as Record<string, unknown>), receivedAt: new Date().toLocaleTimeString()}),
       ),
       session.phone.notifications.on((d) =>
-        setLastNotification(`${d.app}: ${d.title}${d.content ? " — " + d.content : ""}`),
+        setLastNotification({...(d as unknown as Record<string, unknown>), receivedAt: new Date().toLocaleTimeString()}),
       ),
       session.phone.calendar.on((d) =>
-        setLastCalendar(`${d.title} @ ${new Date(d.dtStart).toLocaleString()}`),
+        setLastCalendar({...(d as unknown as Record<string, unknown>), receivedAt: new Date().toLocaleTimeString()}),
       ),
     ]
     return () => unsubs.forEach((fn) => fn())
@@ -70,9 +70,9 @@ export default function EventsPage() {
 
         <Row emoji="🗣️" label="VAD (speaking)" value={vad ? "YES" : "no"} />
         <Row emoji="📝" label="Transcript" value={transcript || "(none)"} />
-        <Row emoji="📍" label="Location" value={location} />
-        <Row emoji="🔔" label="Last notification" value={lastNotification} />
-        <Row emoji="📅" label="Last calendar event" value={lastCalendar} />
+        <TableRow emoji="📍" label="Location" data={location} />
+        <TableRow emoji="🔔" label="Last notification" data={lastNotification} />
+        <TableRow emoji="📅" label="Last calendar event" data={lastCalendar} />
       </div>
     </Shell>
   )

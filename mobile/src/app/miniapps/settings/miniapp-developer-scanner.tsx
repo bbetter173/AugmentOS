@@ -9,6 +9,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
+import {installMiniappFromUrl} from "@/services/miniapp/installFromUrl"
 import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
 import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {storage} from "@/utils/storage/storage"
@@ -29,6 +30,35 @@ export default function MiniappDeveloperScannerScreen() {
   const handleBarcodeScanned = async ({data}: {data: string}) => {
     if (scanned) return
     setScanned(true)
+
+    // Install QR (`mentra-miniapp install` from the CLI). Different from
+    // the dev scheme: this downloads a packaged .zip onto the phone and
+    // registers it as a first-class installed local miniapp. The miniapp
+    // runs offline forever; no laptop/dev-server dependency after install.
+    if (data.startsWith("mentra-miniapp://install")) {
+      try {
+        const url = new URL(data)
+        const baseUrl = decodeURIComponent(url.searchParams.get("url") || "")
+        if (!baseUrl) throw new Error("install QR missing url param")
+
+        const res = await installMiniappFromUrl(baseUrl)
+        if (res.is_error()) {
+          showAlert("Install failed", res.error.message ?? String(res.error), [
+            {text: "OK", onPress: () => setScanned(false)},
+          ])
+          return
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+        showAlert(
+          "Installed",
+          `${res.value.name} v${res.value.version} is on your home screen.`,
+          [{text: "OK", onPress: () => goBack()}],
+        )
+      } catch (err) {
+        showAlert("Install failed", String(err), [{text: "OK", onPress: () => setScanned(false)}])
+      }
+      return
+    }
 
     try {
       let devUrl: string

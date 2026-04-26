@@ -1,8 +1,20 @@
-import { existsSync, readFileSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, copyFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { validateManifest } from './manifest.js';
 
-export async function pack(): Promise<void> {
+export interface PackOptions {
+  /** Where to write the resulting zip. Defaults to cwd. */
+  outDir?: string;
+  /** Quiet stdout. The `install` command swallows pack output and prints
+   * its own progress; standalone `pack` calls leave it on. */
+  silent?: boolean;
+}
+
+/**
+ * Validate manifest, copy manifest+icon into dist/, zip dist/ into
+ * `<packageName>-<version>.zip`. Returns the absolute path of the zip.
+ */
+export async function pack(opts: PackOptions = {}): Promise<string> {
   const cwd = process.cwd();
   const distDir = resolve(cwd, 'dist');
   const manifestSrc = resolve(cwd, 'miniapp.json');
@@ -45,20 +57,24 @@ export async function pack(): Promise<void> {
   // Copy icon.png into dist/ if it exists
   if (existsSync(iconSrc)) {
     copyFileSync(iconSrc, join(distDir, 'icon.png'));
-  } else {
+  } else if (!opts.silent) {
     console.warn('Warning: icon.png not found in project root, skipping');
   }
 
   const packageName = manifest.packageName as string;
   const version = manifest.version as string;
   const outputName = `${packageName}-${version}.zip`;
-  const outputPath = resolve(cwd, outputName);
+  const outDir = opts.outDir ? resolve(cwd, opts.outDir) : cwd;
+  if (!existsSync(outDir)) {
+    mkdirSync(outDir, { recursive: true });
+  }
+  const outputPath = resolve(outDir, outputName);
 
   // Create ZIP using system zip command
   const zipProc = Bun.spawn(['zip', '-r', outputPath, '.'], {
     cwd: distDir,
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdout: opts.silent ? 'pipe' : 'inherit',
+    stderr: opts.silent ? 'pipe' : 'inherit',
   });
 
   const exitCode = await zipProc.exited;
@@ -67,5 +83,8 @@ export async function pack(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`\nPacked: ${outputPath}`);
+  if (!opts.silent) {
+    console.log(`\nPacked: ${outputPath}`);
+  }
+  return outputPath;
 }

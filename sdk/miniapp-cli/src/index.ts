@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { dev } from './dev.js';
+import { install } from './install.js';
 import { pack } from './pack.js';
 import { schemaPrint, regenerateSchemaFile } from './schema.js';
 import { addPermissionCmd, listPermissionsCmd, removePermissionCmd } from './permission.js';
@@ -14,6 +15,7 @@ function printUsage(): void {
   console.log('Usage: mentra-miniapp <command>\n');
   console.log('Commands:');
   console.log('  dev                              Start dev server with hot reload and QR code');
+  console.log('  install                          Build, pack, and serve a QR to install on a phone');
   console.log('  pack                             Package miniapp into a distributable ZIP');
   console.log('  manifest                         Edit miniapp.json interactively');
   console.log('  permission list                  List declared permissions');
@@ -29,6 +31,9 @@ function printUsage(): void {
 switch (subcommand) {
   case 'dev':
     await dev();
+    break;
+  case 'install':
+    await install({noCache: process.argv.includes('--no-cache')});
     break;
   case 'pack':
     await pack();

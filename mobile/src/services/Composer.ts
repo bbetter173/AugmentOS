@@ -325,6 +325,17 @@ class Composer {
     return Res.try_async(async () => {
       const {packageName, version} = await downloadAndInstallMiniApp(url, opts?.versionOverride)
       console.log("COMPOSER: Downloaded and installed mini app")
+
+      // If this is a release install (semver, not dev-*) of a package that
+      // currently has dev-* snapshots from `mentra-miniapp dev`, clear the
+      // dev state so the swap to "released" is clean. Otherwise the dev
+      // version would keep winning getActiveAppletVersion's dev-precedence
+      // rule and the user's just-installed release wouldn't run.
+      const isDevInstall = version.startsWith("dev-")
+      if (!isDevInstall) {
+        this.clearDevArtifacts(packageName)
+      }
+
       // Point the active-version MMKV at what we just installed. Without
       // this, getActiveAppletVersion would keep returning whatever first
       // ever got cached — and after gcDevVersions deletes that older dir,
@@ -333,6 +344,34 @@ class Composer {
       this.refreshNeeded = true
       await useAppletStatusStore.getState().refreshApplets()
     })
+  }
+
+  /**
+   * Drop every dev-* version directory for a package plus the dev MMKV
+   * keys. Called on a release install (sideloaded via `mentra-miniapp
+   * install` or store) so the package transitions cleanly from "dev mode"
+   * to "released mode."
+   */
+  private clearDevArtifacts(packageName: string): void {
+    try {
+      const pkgDir = new Directory(Paths.document, "lmas", packageName)
+      if (pkgDir.exists) {
+        for (const item of pkgDir.list()) {
+          if (item instanceof Directory && item.name.startsWith("dev-")) {
+            try {
+              item.delete()
+            } catch (e) {
+              console.warn(`COMPOSER: failed to delete ${item.name}:`, e)
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`COMPOSER: clearDevArtifacts dir scan failed for ${packageName}:`, e)
+    }
+    storage.remove(`${packageName}_dev_url`)
+    storage.remove(`${packageName}_dev_port`)
+    storage.remove(`${packageName}_dev_last_reachable`)
   }
 
   /**

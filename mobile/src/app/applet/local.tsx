@@ -91,10 +91,7 @@ export default function LocalMiniAppPage() {
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)
         const bundleUri = `${bundleDir}/index.html`
-        console.log(`[applet/local] mounting installed miniapp version=${version} bundleUri=${bundleUri}`)
         miniappHost.mount(packageName, bundleUri, {developerMode: false, appName, iconUrl})
-      } else {
-        console.log(`[applet/local] no devUrl + no version — nothing to mount. params=`, {packageName, devUrl, version})
       }
 
       if (cancelled) return

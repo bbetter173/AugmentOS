@@ -55,17 +55,25 @@ export async function pack(opts: PackOptions = {}): Promise<string> {
   // dist/index.html so the bundle loads from file:// inside the phone's
   // WebView. Module scripts are unique-origin under file:// and silently
   // fail (white screen). The bundle itself is built with --format=iife,
-  // which is safe to run as a classic script. This is a temporary
-  // band-aid; the proper fix is the custom URL scheme handler module
-  // (see agents/miniapp-webview-scheme-handler-plan.md), which makes
-  // miniapps load from `mentra-miniapp://` and modules work normally.
+  // which is safe to run as a classic script.
+  //
+  // Add `defer` to the rewritten <script> so it runs AFTER the document
+  // is parsed. Module scripts default to deferred; stripping `type="module"`
+  // off a script in <head> turns it into a synchronous classic script
+  // that runs BEFORE <body>, so document.getElementById("root") returns
+  // null and React can't mount. `defer` restores the post-parse timing.
+  //
+  // This is a temporary band-aid; the proper fix is the custom URL scheme
+  // handler module (see agents/miniapp-webview-scheme-handler-plan.md),
+  // which makes miniapps load from `mentra-miniapp://` and modules work
+  // normally without rewriting.
   const indexHtmlPath = join(distDir, 'index.html');
   if (existsSync(indexHtmlPath)) {
     const html = readFileSync(indexHtmlPath, 'utf-8');
     const patched = html
-      .replace(/<script\s+type="module"\s+crossorigin\s+/g, '<script ')
-      .replace(/<script\s+type="module"\s+/g, '<script ')
-      .replace(/<script\s+crossorigin\s+/g, '<script ')
+      .replace(/<script\s+type="module"\s+crossorigin\s+/g, '<script defer ')
+      .replace(/<script\s+type="module"\s+/g, '<script defer ')
+      .replace(/<script\s+crossorigin\s+/g, '<script defer ')
       .replace(/<link\s+rel="stylesheet"\s+crossorigin\s+/g, '<link rel="stylesheet" ');
     if (patched !== html) {
       writeFileSync(indexHtmlPath, patched);

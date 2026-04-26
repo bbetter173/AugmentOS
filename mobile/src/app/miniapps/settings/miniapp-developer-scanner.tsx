@@ -31,15 +31,15 @@ export default function MiniappDeveloperScannerScreen() {
     if (scanned) return
     setScanned(true)
 
-    // Install QR (`mentra-miniapp install` from the CLI). Different from
+    // Release QR (`mentra-miniapp release` from the CLI). Different from
     // the dev scheme: this downloads a packaged .zip onto the phone and
     // registers it as a first-class installed local miniapp. The miniapp
     // runs offline forever; no laptop/dev-server dependency after install.
-    if (data.startsWith("mentra-miniapp://install")) {
+    if (data.startsWith("mentra-miniapp://release")) {
       try {
         const url = new URL(data)
         const baseUrl = decodeURIComponent(url.searchParams.get("url") || "")
-        if (!baseUrl) throw new Error("install QR missing url param")
+        if (!baseUrl) throw new Error("release QR missing url param")
 
         const res = await installMiniappFromUrl(baseUrl)
         if (res.is_error()) {

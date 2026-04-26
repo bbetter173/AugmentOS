@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "mentra-miniapp dev",
     "build": "bun build ./index.html --outdir=./dist --target=browser",
+    "release": "mentra-miniapp release",
     "pack": "mentra-miniapp pack"
   },
   "dependencies": {

@@ -3,7 +3,7 @@
  * pipeline. Layer 2 over Composer.installMiniApp(), shared across every
  * entry point that wants to install a packaged mini app onto the phone:
  *
- *   - QR scan with `mentra-miniapp://install?url=...` (CLI sideload)
+ *   - QR scan with `mentra-miniapp://release?url=...` (CLI sideload)
  *   - "Install from URL" UI on the developer URL screen
  *   - Future deeplinks (`mentraos://install?url=...`)
  *   - Future store-side OTA updates

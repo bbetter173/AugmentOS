@@ -1,5 +1,5 @@
 /**
- * `mentra-miniapp install` — sideload a release build onto a phone.
+ * `mentra-miniapp release` — build a release and install it on a phone.
  *
  * Flow:
  *   1. Detect package manager, run `<pm> run build` so the user's bundler
@@ -7,14 +7,19 @@
  *   2. Validate manifest + pack dist/ → .mentra/<pkg>-<v>.zip (uses pack()).
  *   3. Spin up a tiny HTTP server on the LAN that serves the zip and
  *      manifest at fixed paths.
- *   4. Print a QR with `mentra-miniapp://install?url=<lan-base>&...`.
+ *   4. Print a QR with `mentra-miniapp://release?url=<lan-base>&...`.
  *   5. Stay up (default persistent) so multiple devices can install. Print a
  *      ✓ line whenever a phone successfully fetches /bundle.zip.
  *
- * Phone-side: scanner branches on `mentra-miniapp://install`, downloads the
+ * Phone-side: scanner branches on `mentra-miniapp://release`, downloads the
  * zip via composer.installMiniApp(<base>/bundle.zip). The miniapp lands in
  * lmas/<pkg>/<manifestVersion>/ and behaves like any installed local
  * miniapp — runs offline, persists across restarts, no laptop required.
+ *
+ * Why "release" and not "install": `install` collides with package
+ * managers (`bun run install` is reserved). Naming the action after what
+ * the user is producing — a release build for their phone — avoids the
+ * collision and matches Android's `installRelease` mental model.
  */
 
 import {readFileSync, existsSync, statSync, readdirSync} from 'fs'
@@ -26,16 +31,16 @@ import {validateManifest} from './manifest.js'
 
 const DEFAULT_PORT_START = 6789
 const PORT_SCAN_LIMIT = 10
-const HEALTH_PATH = '/__mentra_install/health'
+const HEALTH_PATH = '/__mentra_release/health'
 const MANIFEST_PATH = '/miniapp.json'
 const ICON_PATH = '/icon.png'
 const BUNDLE_PATH = '/bundle.zip'
 
-interface InstallOptions {
+interface ReleaseOptions {
   noCache?: boolean
 }
 
-export async function install(opts: InstallOptions = {}): Promise<void> {
+export async function release(opts: ReleaseOptions = {}): Promise<void> {
   const cwd = process.cwd()
 
   // ---- 1. Validate manifest + read identity ---------------------------
@@ -161,7 +166,7 @@ export async function install(opts: InstallOptions = {}): Promise<void> {
   })
 
   // ---- 5. QR + banner --------------------------------------------------
-  const qrUrl = `mentra-miniapp://install?url=${encodeURIComponent(baseUrl)}&package=${encodeURIComponent(packageName)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(name)}`
+  const qrUrl = `mentra-miniapp://release?url=${encodeURIComponent(baseUrl)}&package=${encodeURIComponent(packageName)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(name)}`
 
   console.log('\n╔══════════════════════════════════════════════════════════════╗')
   console.log('║  Install your mini app on a phone:                           ║')

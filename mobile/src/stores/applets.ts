@@ -2,7 +2,6 @@ import {
   AppletInterface,
   DeviceTypes,
   getModelCapabilities,
-  HardwareRequirement,
   HardwareRequirementLevel,
   HardwareType,
 } from "@/../../cloud/packages/types/src"
@@ -26,6 +25,7 @@ import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
+import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
 
 export interface ClientAppletInterface extends AppletInterface {
   offline: boolean
@@ -53,22 +53,7 @@ interface AppStatusState {
   startApplet: (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => Promise<void>
   stopApplet: (packageName: string) => Promise<void>
   stopAllApplets: () => AsyncResult<void, Error>
-  /**
-   * Register a dev-loaded miniapp (launched via QR scan or URL, not installed)
-   * so it shows up in the app switcher as a running app. Idempotent — calling
-   * again updates the existing entry.
-   */
-  registerDevApplet: (args: {
-    packageName: string
-    name: string
-    devUrl: string
-    iconUrl?: string
-    hardwareRequirements?: HardwareRequirement[]
-  }) => void
-  /** Remove a dev-loaded miniapp from the switcher. */
-  unregisterDevApplet: (packageName: string) => void
   saveScreenshot: (packageName: string, screenshot: string) => Promise<void>
-  setInstalledLmas: (installedLmas: ClientAppletInterface[]) => void
   setHiddenStatus: (packageName: string, status: boolean) => void
   getHiddenStatus: (packageName: string) => boolean
   uninstallApplet: (packageName: string) => Promise<void>
@@ -729,18 +714,13 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       }))
     }
 
-    // Preserve dev-loaded miniapps (launched via QR / URL, not installed)
-    // through refresh. They live only in state.apps, not in any of the
-    // sources below, so without this merge they'd get wiped on every
-    // refreshApplets() call (triggered by startApplet/stopApplet polling).
-    const devApplets = useAppletStatusStore.getState().apps.filter((a) => a.isMiniappDev)
-
-    // merge in the offline apps:
+    // Dev miniapps come from composer.getLocalApplets() — their dev-<ts>
+    // version directory IS the persistence (see miniapp-dev-applets-as-installed-apps-plan.md).
+    // No parallel devApplets merge.
     let applets: ClientAppletInterface[] = [
       ...onlineApps,
       ...(await getOfflineApplets()),
       ...(await composer.getLocalApplets()),
-      ...devApplets,
     ]
 
     // remove duplicates and keep the online versions:
@@ -936,14 +916,14 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       return
     }
 
-    // Dev-loaded miniapps: tear down the WebView AND drop the fake applet entry.
-    // These never went through normal install, so startStopApplet has nothing
-    // to do server-side.
+    // Dev-loaded miniapps: tear down the WebView. The entry stays — it's
+    // owned by Composer's filesystem scan via the dev-<ts>/ directory and
+    // will continue to render in the tray (running: false) until the user
+    // explicitly removes it via long-press → uninstallApplet. The miniapp
+    // never went through normal install, so startStopApplet has nothing to
+    // do server-side.
     if (applet.isMiniappDev) {
       miniappHost.unmount(packageName)
-      set((state) => ({
-        apps: state.apps.filter((a) => a.packageName !== packageName),
-      }))
       return
     }
 
@@ -1029,61 +1009,27 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     }))
   },
 
-  registerDevApplet: ({packageName, name, devUrl, iconUrl, hardwareRequirements}) => {
-    set((state) => {
-      const existing = state.apps.find((a) => a.packageName === packageName)
-      // Always require EXIST for local miniapps so "no glasses connected"
-      // surfaces the same "Glasses Required" dialog cloud apps get.
-      const hwReqs: HardwareRequirement[] = [
-        ...(hardwareRequirements ?? []),
-        {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
-      ]
-      // Compute compatibility immediately so the icon isn't briefly shown as
-      // compatible before the next refreshApplets() run.
-      const defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
-      const capabilities = getModelCapabilities(defaultWearable || DeviceTypes.NONE)
-      const compatibility = HardwareCompatibility.checkCompatibility(hwReqs, capabilities)
-      const devEntry: ClientAppletInterface = {
-        packageName,
-        name,
-        type: "standard",
-        offline: false,
-        offlineRoute: "",
-        logoUrl: iconUrl || "",
-        webviewUrl: "",
-        healthy: true,
-        hidden: false,
-        permissions: [],
-        running: true,
-        loading: false,
-        local: true,
-        isMiniappDev: true,
-        devUrl,
-        hardwareRequirements: hwReqs,
-        compatibility,
-      }
-      if (existing) {
-        return {
-          apps: state.apps.map((a) =>
-            a.packageName === packageName ? {...a, ...devEntry, screenshot: a.screenshot} : a,
-          ),
-        }
-      }
-      return {apps: [...state.apps, devEntry]}
-    })
-    void saveLastOpenTime(packageName)
-  },
-
-  unregisterDevApplet: (packageName: string) => {
-    set((state) => ({
-      apps: state.apps.filter((a) => !(a.packageName === packageName && a.isMiniappDev)),
-    }))
-  },
-
-  setInstalledLmas: (_installedLmas: ClientAppletInterface[]) => {
-    // set({localMiniApps: installedLmas})
-  },
 }))
+
+// When MiniappHost mounts or unmounts a local miniapp, project that into
+// the store's `running` field for matching local applets so the home tray
+// and switcher (which filter by running) reflect actual mount state without
+// waiting for the next refreshApplets() cycle.
+miniappRunningRegistry.subscribe(() => {
+  const running = new Set(miniappRunningRegistry.getAll())
+  const state = useAppletStatusStore.getState()
+  let changed = false
+  const updated = state.apps.map((app) => {
+    if (!app.local) return app
+    const next = running.has(app.packageName)
+    if (app.running === next) return app
+    changed = true
+    return {...app, running: next}
+  })
+  if (changed) {
+    useAppletStatusStore.setState({apps: updated})
+  }
+})
 
 // Re-evaluate app compatibility when default_wearable changes
 // This fixes the bug where switching devices leaves apps greyed out with stale compatibility

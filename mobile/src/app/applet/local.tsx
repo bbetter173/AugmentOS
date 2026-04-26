@@ -4,11 +4,9 @@ import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import composer, {buildHardwareRequirements} from "@/services/Composer"
+import composer from "@/services/Composer"
 import devServerBridge from "@/services/DevServerBridge"
-import {useAppletStatusStore} from "@/stores/applets"
 import {storage} from "@/utils/storage/storage"
-import {HardwareType} from "@/../../cloud/packages/types/src"
 
 const REACHABILITY_TIMEOUT_MS = 500
 
@@ -72,7 +70,7 @@ export default function LocalMiniAppPage() {
         if (cancelled) return
 
         if (reachable) {
-          const manifest = await miniappHost.mountDev(packageName, devUrl, {
+          await miniappHost.mountDev(packageName, devUrl, {
             developerMode: true,
             appName,
             iconUrl,
@@ -83,7 +81,8 @@ export default function LocalMiniAppPage() {
             // fetches the dev server's bundle.zip, unpacks into
             // lmas/<pkg>/dev-<timestamp>/, then GCs older dev-* dirs.
             // refreshApplets is auto-fired by installMiniApp so the new
-            // version surfaces in the applet store next render.
+            // dev-<ts> directory surfaces in the applet store on next render
+            // — that's what populates the home tray + switcher entry.
             const sidecarBase = buildSidecarBaseUrl(devUrl, portNum)
             if (sidecarBase) {
               const versionOverride = `dev-${Date.now()}`
@@ -99,20 +98,6 @@ export default function LocalMiniAppPage() {
             }
           }
           storage.save(`${packageName}_dev_last_reachable`, Date.now())
-
-          // buildHardwareRequirements drops malformed entries and appends the
-          // EXIST requirement; registerDevApplet appends EXIST again but the
-          // compatibility check dedups it via the HardwareType.EXIST lookup,
-          // so the duplicate is harmless. Strip it here so the list stays clean.
-          const hwFromManifest = buildHardwareRequirements(manifest?.hardwareRequirements, packageName)
-          const hwWithoutExist = hwFromManifest.filter((h) => h.type !== HardwareType.EXIST)
-          useAppletStatusStore.getState().registerDevApplet({
-            packageName,
-            name: appName || packageName,
-            devUrl,
-            iconUrl,
-            hardwareRequirements: hwWithoutExist,
-          })
         } else {
           // Cached fallback. Composer's helper resolves to the latest
           // dev-<timestamp>/ for this package, or null if none.
@@ -124,17 +109,6 @@ export default function LocalMiniAppPage() {
               appName,
               iconUrl,
               cachedMode: true,
-            })
-            // Register the entry so it appears in the switcher even though
-            // the manifest came from disk (we don't re-read it here; the
-            // manifest is in the cached bundle and Composer's getLocalApplets
-            // covers the boot-time path).
-            useAppletStatusStore.getState().registerDevApplet({
-              packageName,
-              name: appName || packageName,
-              devUrl,
-              iconUrl,
-              hardwareRequirements: [],
             })
           } else {
             // No cache, no server — full-screen offline takeover.

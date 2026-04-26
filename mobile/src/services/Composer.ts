@@ -1,4 +1,5 @@
 import {ClientAppletInterface, saveLocalAppRunningState, useAppletStatusStore} from "@/stores/applets"
+import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
 import {storage} from "@/utils/storage/storage"
 import {printDirectory} from "@/utils/storage/zip"
 import {Directory, Paths, File} from "expo-file-system"
@@ -132,7 +133,10 @@ interface InstalledLma {
  *                         `dev-<timestamp>` so multiple snapshots can
  *                         coexist alongside semver-installed versions.
  */
-async function downloadAndInstallMiniApp(url: string, versionOverride?: string) {
+async function downloadAndInstallMiniApp(
+  url: string,
+  versionOverride?: string,
+): Promise<{packageName: string; version: string}> {
   let downloadedZipPath: string = ""
 
   // create the download directory if it doesn't exist
@@ -241,6 +245,7 @@ async function downloadAndInstallMiniApp(url: string, versionOverride?: string) 
 
   console.log("ZIP: local mini app installed at", versionDir.uri)
   printDirectory(versionDir, 2)
+  return {packageName, version}
 }
 
 class Composer {
@@ -318,8 +323,13 @@ class Composer {
     opts?: {versionOverride?: string},
   ): AsyncResult<void, Error> {
     return Res.try_async(async () => {
-      await downloadAndInstallMiniApp(url, opts?.versionOverride)
+      const {packageName, version} = await downloadAndInstallMiniApp(url, opts?.versionOverride)
       console.log("COMPOSER: Downloaded and installed mini app")
+      // Point the active-version MMKV at what we just installed. Without
+      // this, getActiveAppletVersion would keep returning whatever first
+      // ever got cached — and after gcDevVersions deletes that older dir,
+      // metadata reads (line 547) would crash on undefined.
+      this.setActiveAppletVersion(packageName, version)
       this.refreshNeeded = true
       await useAppletStatusStore.getState().refreshApplets()
     })
@@ -407,12 +417,17 @@ class Composer {
   }
 
   public async getActiveAppletVersion(packageName: string): Promise<string> {
+    let versions = this.getAppletInstalledVersions(packageName)
+    // Treat MMKV as a hint, not authority. A stored version may have been
+    // GC'd off disk (gcDevVersions) without this pointer being updated, in
+    // which case `installedVersions` no longer contains it. Fall through and
+    // re-pick instead of letting downstream code crash on `undefined`
+    // metadata when the directory has been pruned.
     let res = storage.load<string>(`${packageName}_active_version`)
-    if (res.is_ok()) {
+    if (res.is_ok() && versions.includes(res.value)) {
       return res.value
     }
-    // if no active version is set, set it to the latest version:
-    let versions = this.getAppletInstalledVersions(packageName)
+    // if no valid active version is set, set it to the latest version:
     // Dev versions take precedence over semver-installed versions — re-scanning
     // a dev miniapp replaces the package directory entirely in practice, so
     // having both side-by-side is unusual, but if it happens dev wins. Pick
@@ -534,10 +549,14 @@ class Composer {
           if (devUrlRes.is_ok()) devUrl = devUrlRes.value
         }
 
+        // `running` reflects MiniappHost mount state — a local miniapp is
+        // running iff its WebView is mounted in MiniappHost (foreground OR
+        // backgrounded). This is the single source of truth; do not write
+        // `running` from any other path.
         lmas.push({
           packageName: lmaInfo.packageName,
           version: versionString,
-          running: false,
+          running: miniappRunningRegistry.has(lmaInfo.packageName),
           local: true,
           healthy: true,
           loading: false,
@@ -564,7 +583,12 @@ class Composer {
       return this.installedLmas
     } catch (error) {
       console.error("Error getting local applets", error)
-      return this.installedLmas
+      // Re-project running from the registry on the cached fallback so the
+      // switcher still reflects current mount state even if the rebuild failed.
+      return this.installedLmas.map((a) => ({
+        ...a,
+        running: miniappRunningRegistry.has(a.packageName),
+      }))
     }
   }
 

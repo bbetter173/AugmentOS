@@ -12,6 +12,7 @@ import devServerBridge from "@/services/DevServerBridge"
 import localDisplayManager from "@/services/LocalDisplayManager"
 import localMiniappRuntime from "@/services/LocalMiniappRuntime"
 import miniComms from "@/services/MiniComms"
+import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
 import {buildMiniappGlobalsScript} from "@/utils/miniappGlobals"
 
 const BEFORE_EVICT_TIMEOUT_MS = 500
@@ -166,6 +167,7 @@ export default function MiniappHost() {
       webViewRefs.current.delete(packageName)
       canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
+      miniappRunningRegistry.add(packageName)
       localDisplayManager.onMount(packageName, options?.appName ?? packageName)
     },
     [registerRuntime],
@@ -218,6 +220,7 @@ export default function MiniappHost() {
       webViewRefs.current.delete(packageName)
       canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
+      miniappRunningRegistry.add(packageName)
       localMiniappRuntime.setInstalledManifest(packageName, {
         permissions: manifest?.permissions,
         hardwareRequirements: manifest?.hardwareRequirements,
@@ -256,6 +259,7 @@ export default function MiniappHost() {
     })
     miniComms.setWebViewMessageHandler(packageName, undefined)
     localMiniappRuntime.unregisterApp(packageName)
+    miniappRunningRegistry.remove(packageName)
     localDisplayManager.onUnmount(packageName)
     devServerBridge.disconnect(packageName)
   }, [])

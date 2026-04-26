@@ -15,7 +15,7 @@ export default function EventsPage() {
   const navigate = useNavigate()
 
   const [lastButton, setLastButton] = useState<string>("(none)")
-  const [lastTouch, setLastTouch] = useState<string>("(none)")
+  const [lastTouch, setLastTouch] = useState<Record<string, unknown> | null>(null)
   const [headPos, setHeadPos] = useState<string>("(unknown)")
   const [glassesBattery, setGlassesBattery] = useState<string>("—")
   const [phoneBattery, setPhoneBattery] = useState<string>("—")
@@ -29,7 +29,9 @@ export default function EventsPage() {
   useEffect(() => {
     const unsubs = [
       session.input.onButtonPress((d) => setLastButton(`${d.buttonId} (${d.pressType}) — ${new Date().toLocaleTimeString()}`)),
-      session.input.onTouch((d) => setLastTouch(`${JSON.stringify(d)} — ${new Date().toLocaleTimeString()}`)),
+      session.input.onTouch((d) =>
+        setLastTouch({...(d as unknown as Record<string, unknown>), timestamp: new Date().toLocaleTimeString()}),
+      ),
       session.imu.onHeadPosition((d) => setHeadPos(`${d.position ?? "?"}`)),
       session.glasses.onBattery((d) => setGlassesBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
       session.phone.onBattery((d) => setPhoneBattery(`${d.level}%${d.charging ? " ⚡" : ""}`)),
@@ -59,12 +61,12 @@ export default function EventsPage() {
         </p>
 
         <Row emoji="🔘" label="Last button press" value={lastButton} />
-        <Row emoji="👆" label="Last touch" value={lastTouch} />
+        <TableRow emoji="👆" label="Last touch" data={lastTouch} />
         <Row emoji="↕️" label="Head position" value={headPos} />
         <Row emoji="🔋" label="Glasses battery" value={glassesBattery} />
         <Row emoji="📱" label="Phone battery" value={phoneBattery} />
 
-        <ConnectionRow connection={connection} />
+        <TableRow emoji="🔌" label="Glasses connection" data={connection} />
 
         <Row emoji="🗣️" label="VAD (speaking)" value={vad ? "YES" : "no"} />
         <Row emoji="📝" label="Transcript" value={transcript || "(none)"} />
@@ -88,24 +90,30 @@ function Row({emoji, label, value, mono}: {emoji: string; label: string; value: 
   )
 }
 
-function ConnectionRow({connection}: {connection: Record<string, unknown> | null}) {
-  const entries = connection ? sortedEntries(connection) : []
+function TableRow({
+  emoji,
+  label,
+  data,
+}: {
+  emoji: string
+  label: string
+  data: Record<string, unknown> | null
+}) {
+  const entries = data ? sortedEntries(data) : []
   return (
     <div className="mb-2 rounded-xl border border-border bg-card p-3">
       <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <span className="text-base">🔌</span>
-        <span>Glasses connection</span>
+        <span className="text-base">{emoji}</span>
+        <span>{label}</span>
       </div>
-      {!connection || entries.length === 0 ? (
-        <div className="text-sm text-muted-foreground">Waiting for update…</div>
+      {!data || entries.length === 0 ? (
+        <div className="text-sm text-muted-foreground">(none)</div>
       ) : (
         <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full text-[12px]">
             <tbody>
               {entries.map(([key, val], i) => (
-                <tr
-                  key={key}
-                  className={i % 2 === 0 ? "bg-background" : "bg-muted/30"}>
+                <tr key={key} className={i % 2 === 0 ? "bg-background" : "bg-muted/30"}>
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
                     {key}
                   </td>

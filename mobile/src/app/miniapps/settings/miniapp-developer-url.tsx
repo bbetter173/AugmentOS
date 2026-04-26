@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {ScrollView, TextInput, TextStyle, View, ViewStyle} from "react-native"
+import {Linking, ScrollView, TextInput, TextStyle, View, ViewStyle} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import GlassView from "@/components/ui/GlassView"
@@ -11,7 +11,9 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
+import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {storage} from "@/utils/storage/storage"
+import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/types/src"
 
 const RECENT_KEY = "miniapp_dev_recent"
 const MAX_RECENT = 5
@@ -40,7 +42,43 @@ export default function MiniappDeveloperUrlScreen() {
     storage.save(RECENT_KEY, items)
   }
 
-  const launchDevMiniapp = (entry: RecentDevApp) => {
+  const launchDevMiniapp = async (entry: RecentDevApp) => {
+    // Re-fetch manifest at tap time — author may have changed permissions
+    // between scans. Gate on the same askPermissionsUI flow as the URL-load
+    // path so re-launching a recent entry isn't a back door around the gate.
+    let manifestPermissions: AppletPermission[] = []
+    try {
+      const res = await fetch(`${entry.url}/miniapp.json`)
+      const manifest = await res.json()
+      if (Array.isArray(manifest.permissions)) manifestPermissions = manifest.permissions
+    } catch {
+      // Server unreachable. The /applet/local route handles the offline
+      // takeover — let it through and skip the gate (no manifest, no info).
+    }
+
+    if (manifestPermissions.length > 0) {
+      const fakeApplet = {
+        packageName: entry.packageName,
+        name: entry.name,
+        permissions: manifestPermissions,
+      } as unknown as AppletInterface
+      const permResult = await askPermissionsUI(fakeApplet, theme)
+      if (permResult === -1) return
+      if (permResult === 0) {
+        const stillNeeded = await checkPermissionsUI(fakeApplet)
+        const friendlyNames = stillNeeded.map((p) => PERMISSION_CONFIG[p]?.name ?? p).join(", ")
+        showAlert(
+          "Required permissions denied",
+          `${entry.name} can't run without these permissions: ${friendlyNames}. Open Settings to enable them, then try again.`,
+          [
+            {text: "Open Settings", onPress: () => Linking.openSettings()},
+            {text: "Cancel", style: "cancel"},
+          ],
+        )
+        return
+      }
+    }
+
     push("/applet/local", {
       packageName: entry.packageName,
       devUrl: entry.url,
@@ -79,7 +117,12 @@ export default function MiniappDeveloperUrlScreen() {
       // getLocalApplets sees it and so home-tile taps after a phone
       // restart can route to the live server.
       storage.save(`${entry.packageName}_dev_url`, entry.url)
-      launchDevMiniapp(entry)
+
+      // launchDevMiniapp gates on OS permissions declared in the manifest
+      // (re-fetches it). The first launch needs the gate so the miniapp
+      // doesn't open in a broken state — events from un-granted OS perms
+      // silently never arrive otherwise.
+      await launchDevMiniapp(entry)
     } catch {
       showAlert(
         translate("devSettings:miniappUrlFetchErrorTitle"),

@@ -1,7 +1,7 @@
 import {CameraView, useCameraPermissions} from "expo-camera"
 import * as Haptics from "expo-haptics"
 import {useEffect, useState} from "react"
-import {StyleSheet, TextStyle, View, ViewStyle} from "react-native"
+import {Linking, StyleSheet, TextStyle, View, ViewStyle} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -9,10 +9,12 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
+import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {storage} from "@/utils/storage/storage"
+import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/types/src"
 
 export default function MiniappDeveloperScannerScreen() {
-  const {themed} = useAppTheme()
+  const {theme, themed} = useAppTheme()
   const {goBack, replace} = useNavigationHistory()
   const [permission, requestPermission] = useCameraPermissions()
   const [scanned, setScanned] = useState(false)
@@ -62,12 +64,14 @@ export default function MiniappDeveloperScannerScreen() {
       }
 
       let iconPath: string | undefined
+      let manifestPermissions: AppletPermission[] = []
       try {
         const res = await fetch(`${devUrl}/miniapp.json`)
         const manifest = await res.json()
         packageName = packageName || manifest.packageName || "com.dev.unknown"
         name = name || manifest.name || "Dev Miniapp"
         iconPath = manifest.icon || manifest.iconUrl || manifest.logoUrl
+        manifestPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : []
       } catch {
         packageName = packageName || "com.dev.scanned"
         name = name || "Dev Miniapp"
@@ -97,6 +101,43 @@ export default function MiniappDeveloperScannerScreen() {
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
+
+      // Gate launch on OS permissions declared in the miniapp's manifest.
+      // The home-tile path runs the same gate; without this, the very first
+      // launch (right after scanning) skips it and the miniapp opens in a
+      // broken state — events from un-granted OS permissions silently never
+      // arrive. Same modal/UX as home-tile-tap.
+      const fakeApplet = {
+        packageName: packageName ?? "",
+        name: name ?? "",
+        permissions: manifestPermissions,
+      } as unknown as AppletInterface
+      const result = await askPermissionsUI(fakeApplet, theme)
+      if (result === -1) {
+        // User cancelled, or Android READ_NOTIFICATIONS flow is in progress.
+        // Re-arm scanner; the home tile is registered so they can launch
+        // again from there once the OS dance is complete.
+        setScanned(false)
+        return
+      }
+      if (result === 0) {
+        // User tried, but at least one *required* OS permission is still
+        // denied. Tell them why we're not launching and offer Settings.
+        const stillNeeded = await checkPermissionsUI(fakeApplet)
+        const friendlyNames = stillNeeded
+          .map((p) => PERMISSION_CONFIG[p]?.name ?? p)
+          .join(", ")
+        showAlert(
+          "Required permissions denied",
+          `${name} can't run without these permissions: ${friendlyNames}. Open Settings to enable them, then try again.`,
+          [
+            {text: "Open Settings", onPress: () => Linking.openSettings()},
+            {text: "Cancel", onPress: () => setScanned(false), style: "cancel"},
+          ],
+        )
+        return
+      }
+
       replace("/applet/local", {
         packageName,
         devUrl,

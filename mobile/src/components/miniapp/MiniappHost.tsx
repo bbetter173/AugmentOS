@@ -49,6 +49,15 @@ type MiniappMountOptions = {
   developerMode?: boolean
   appName?: string
   iconUrl?: string
+  /**
+   * Manifest data for the miniapp (permissions + hardwareRequirements).
+   * The mounted miniapp's SUBSCRIBE / one-shot calls are gated against
+   * the declared permissions, so we have to register the manifest with
+   * the runtime before the bundle does its first SUBSCRIBE. Dev mounts
+   * fetch this from the live server inside mountDev; installed mounts
+   * pass it in here (the route loads it via composer.getMiniappManifest).
+   */
+  manifest?: MountDevManifest
 }
 
 export type MountDevManifest = {
@@ -154,6 +163,12 @@ export default function MiniappHost() {
       canGoBackMap.current.delete(packageName)
       registerRuntime(packageName)
       miniappRunningRegistry.add(packageName)
+      if (options?.manifest) {
+        localMiniappRuntime.setInstalledManifest(packageName, {
+          permissions: options.manifest.permissions,
+          hardwareRequirements: options.manifest.hardwareRequirements,
+        })
+      }
       localDisplayManager.onMount(packageName, options?.appName ?? packageName)
     },
     [registerRuntime],

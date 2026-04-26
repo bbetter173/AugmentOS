@@ -91,7 +91,19 @@ export default function LocalMiniAppPage() {
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)
         const bundleUri = `${bundleDir}/index.html`
-        miniappHost.mount(packageName, bundleUri, {developerMode: false, appName, iconUrl})
+        // Read the bundle's manifest from disk so the runtime can gate
+        // SUBSCRIBE / one-shot calls against declared permissions. The
+        // mountDev path fetches this from the live server; the installed
+        // path reads from the unzipped bundle.
+        const manifest = composer.getMiniappManifest(packageName, version) as
+          | {permissions?: Array<{type: string; required?: boolean; description?: string}>; hardwareRequirements?: Array<{type: string; level: string; description?: string}>}
+          | null
+        miniappHost.mount(packageName, bundleUri, {
+          developerMode: false,
+          appName,
+          iconUrl,
+          manifest: manifest ?? undefined,
+        })
       }
 
       if (cancelled) return

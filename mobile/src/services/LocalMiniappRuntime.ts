@@ -490,16 +490,27 @@ class LocalMiniappRuntime {
       return
     }
 
-    // Dev-only console-tap forwarding. The miniapp's own console.log/warn/etc
-    // is wrapped (via injected shim from miniappGlobals.ts when the miniapp is
-    // mounted via mountDev) to also post a `dev_log` envelope. Route those to
-    // the DevServerBridge so the laptop's `mentra-miniapp dev` terminal sees
-    // them. Production miniapps never emit this type.
+    // Console-tap forwarding. The miniapp's console.log/warn/etc is wrapped
+    // (via injected shim from miniappGlobals.ts) to post a `dev_log`
+    // envelope. We fan out to two destinations:
+    //   1. DevServerBridge — forwards to the laptop's `mentra-miniapp dev`
+    //      terminal. No-op when there's no sidecar (installed miniapps).
+    //   2. React Native console — surfaces the log in Metro / Xcode console
+    //      / adb logcat so installed-miniapp errors are still inspectable
+    //      when there's no laptop to forward to.
     if (requestType === "dev_log") {
       const level = (payload.level as string | undefined) ?? "log"
       const args = Array.isArray(payload.args) ? (payload.args as unknown[]) : []
       const timestamp = (payload.timestamp as number | undefined) ?? Date.now()
       devServerBridge.forwardLog(packageName, level, args, timestamp)
+
+      const tag = `[MINIAPP ${packageName}]`
+      const fn = (console as unknown as Record<string, (...a: unknown[]) => void>)[level] ?? console.log
+      try {
+        fn(tag, ...args)
+      } catch {
+        console.log(tag, ...args)
+      }
       return
     }
 

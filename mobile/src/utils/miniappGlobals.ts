@@ -125,15 +125,17 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
     .map(([k, v]) => `${k}: ${v};`)
     .join(" ")
 
-  // Console-tap shim for dev miniapps: wrap console.log/warn/error/info/debug
-  // so each call also forwards a `dev_log` envelope back to the phone via
-  // ReactNativeWebView.postMessage. The phone routes those to the laptop's
-  // mentra-miniapp dev terminal so authors see their logs without needing
-  // Metro / adb logcat / Xcode console attached.
+  // Console-tap shim: wrap console.log/warn/error/info/debug so each call
+  // also forwards a `dev_log` envelope back to the phone via
+  // ReactNativeWebView.postMessage. Dev mode forwards to the laptop's
+  // `mentra-miniapp dev` terminal; non-dev mode falls back to the React
+  // Native log stream (Metro / Xcode console / adb logcat) so installed-
+  // miniapp errors are still inspectable when there's no laptop sidecar.
   //
-  // Production miniapps (miniappDeveloperMode === false) never get this shim.
-  const consoleTapBlock = opts.miniappDeveloperMode
-    ? `
+  // Also tap window.onerror and window.onunhandledrejection so synchronous
+  // throws and unhandled promise rejections surface even when the bundle
+  // never gets a chance to call console.error itself.
+  const consoleTapBlock = `
     (function() {
       try {
         var levels = ["log", "warn", "error", "info", "debug"];
@@ -175,9 +177,48 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
           };
         });
       } catch (_) { /* ignore */ }
+
+      // Surface synchronous errors and unhandled promise rejections via the
+      // same dev_log channel — many bundle-startup crashes never get to call
+      // console.error themselves.
+      try {
+        window.addEventListener("error", function(e) {
+          try {
+            if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                payload: {
+                  type: "dev_log",
+                  level: "error",
+                  args: ["[window.error] " + (e.message || "unknown"), {filename: e.filename, lineno: e.lineno, colno: e.colno, stack: e.error && e.error.stack}],
+                  packageName: (window.MentraOS && window.MentraOS.packageName) || null,
+                  timestamp: Date.now()
+                }
+              }));
+            }
+          } catch (_) {}
+        });
+        window.addEventListener("unhandledrejection", function(e) {
+          try {
+            if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
+              var reason = e.reason;
+              var serialized = reason instanceof Error
+                ? {__error: true, message: reason.message, stack: reason.stack}
+                : (typeof reason === "object" ? JSON.stringify(reason) : String(reason));
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                payload: {
+                  type: "dev_log",
+                  level: "error",
+                  args: ["[unhandledrejection]", serialized],
+                  packageName: (window.MentraOS && window.MentraOS.packageName) || null,
+                  timestamp: Date.now()
+                }
+              }));
+            }
+          } catch (_) {}
+        });
+      } catch (_) {}
     })();
   `
-    : ""
 
   // Lock zoom so miniapps feel like apps, not pages: force a non-scalable
   // viewport meta (overriding whatever the miniapp shipped) and disable

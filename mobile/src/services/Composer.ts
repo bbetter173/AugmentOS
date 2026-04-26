@@ -150,18 +150,28 @@ async function downloadAndInstallMiniApp(
     throw "CREATE_DOWNLOAD_DIR_FAILED"
   }
 
+  // Pre-delete any cached file with the same name. Both `mentra-miniapp dev`
+  // and `mentra-miniapp release` serve their zip at /bundle.zip, so URLs
+  // collide on the cache filename. Without this delete, a stale dev-snapshot
+  // (containing the project source tree) gets unzipped instead of the
+  // release build → white screen because index.html points at TSX files.
+  // The download is fast (LAN), no benefit to caching by filename.
+  const targetFileName = url.split("/").pop() ?? "bundle.zip"
+  const existingFile = new File(downloadDir, targetFileName)
+  if (existingFile.exists) {
+    try {
+      existingFile.delete()
+    } catch (e) {
+      console.warn("ZIP: failed to delete stale cached download:", e)
+    }
+  }
+
   try {
     const output = await File.downloadFileAsync(url, downloadDir)
     downloadedZipPath = output.uri
   } catch (error) {
-    let errorMessage = error + ""
-    if (errorMessage.includes("already exists")) {
-      console.log("ZIP: File already exists, skipping download")
-      downloadedZipPath = `${Paths.cache.uri}/lma_downloads/${url.split("/").pop()}`
-    } else {
-      console.error("ZIP: Error downloading zip file", error)
-      throw "DOWNLOAD_FAILED"
-    }
+    console.error("ZIP: Error downloading zip file", error)
+    throw "DOWNLOAD_FAILED"
   }
 
   console.log("ZIP: done downloading, starting unzip")

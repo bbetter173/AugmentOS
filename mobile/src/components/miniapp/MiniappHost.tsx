@@ -540,6 +540,17 @@ export default function MiniappHost() {
               originWhitelist={["*"]}
               allowFileAccess={true}
               allowFileAccessFromFileURLs={true}
+              // iOS WKWebView only grants read access to the file in
+              // source.uri unless we explicitly widen the read scope to
+              // its parent directory. Without this, sibling assets
+              // (chunk-*.js, chunk-*.css) fail to load with "Operation
+              // not permitted." For dev mounts (http URL), this prop is
+              // ignored — file:// is the only path that needs it.
+              allowingReadAccessToURL={(() => {
+                const uri = (app.source as {uri?: string}).uri
+                if (!uri || !uri.startsWith("file://")) return undefined
+                return uri.replace(/\/[^/]+$/, "/")
+              })()}
               javaScriptEnabled={true}
               domStorageEnabled={true}
               injectedJavaScriptBeforeContentLoaded={injectedJS}

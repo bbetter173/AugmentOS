@@ -227,6 +227,20 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
   return `
     window.MentraOS = ${JSON.stringify(globals)};
     window.receiveNativeMessage = window.receiveNativeMessage || function() {};
+    // DEBUG: smoke-test ping so we can verify the injection ran at all.
+    try {
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          payload: {
+            type: "dev_log",
+            level: "log",
+            args: ["[INJECT-PING] miniappGlobals injection ran"],
+            packageName: ${JSON.stringify(opts.packageName ?? null)},
+            timestamp: Date.now()
+          }
+        }));
+      }
+    } catch (_) {}
     (function() {
       try {
         var styleEl = document.createElement("style");

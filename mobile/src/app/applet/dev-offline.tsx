@@ -1,5 +1,7 @@
-import {Image, ImageStyle, TextStyle, View, ViewStyle} from "react-native"
+import {Image} from "expo-image"
 import {useLocalSearchParams} from "expo-router"
+import {SquircleView} from "expo-squircle-view"
+import {StyleSheet, TextStyle, View, ViewStyle} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -8,17 +10,15 @@ import {ThemedStyle} from "@/theme"
 import {storage} from "@/utils/storage/storage"
 
 /**
- * Shown when a dev miniapp is launched while the dev server is unreachable
- * AND no cached bundle exists for it. Offers two paths back to working state:
+ * Shown when a dev miniapp is launched while the dev server is unreachable.
+ * Visual language matches MiniappSplash — same 128px squircle icon, same
+ * centered minimalism — so it reads as "the miniapp tried to load and
+ * couldn't" rather than a settings screen with an error.
  *
  *   "Try again"  — re-launch the miniapp; if the dev server is now reachable,
  *                  the local route mounts live and silently snapshots the
  *                  bundle to disk so future offline launches can fall back.
  *   "Re-scan QR" — open the scanner; new QR replaces the old dev URL.
- *
- * The 99% offline path is "user has a cached bundle from a prior live session"
- * — that path mounts silently. This screen is only the never-reached-it-yet
- * edge case.
  */
 export default function DevMiniappOfflineScreen() {
   const {packageName, name, iconUrl} = useLocalSearchParams<{
@@ -27,16 +27,12 @@ export default function DevMiniappOfflineScreen() {
     iconUrl?: string
   }>()
   const {goBack, replace, push} = useNavigationHistory()
-  const {themed} = useAppTheme()
+  const {theme, themed} = useAppTheme()
 
-  const lastReachable = packageName
-    ? storage.load<number>(`${packageName}_dev_last_reachable`)
-    : null
+  const lastReachable = packageName ? storage.load<number>(`${packageName}_dev_last_reachable`) : null
 
   const lastReachableLabel =
-    lastReachable && lastReachable.is_ok()
-      ? formatRelative(lastReachable.value)
-      : "never"
+    lastReachable && lastReachable.is_ok() ? formatRelative(lastReachable.value) : "never"
 
   const onTryAgain = () => {
     if (!packageName) return
@@ -58,23 +54,34 @@ export default function DevMiniappOfflineScreen() {
     push("/miniapps/settings/miniapp-developer-scanner")
   }
 
+  const displayName = name ?? packageName ?? "Dev mini app"
+
   return (
     <Screen preset="fixed">
-      <Header
-        title={name ?? packageName ?? "Dev mini app"}
-        leftIcon="chevron-left"
-        onLeftPress={() => goBack()}
-      />
-      <View style={themed($container)}>
-        <View style={themed($card)}>
-          {iconUrl ? <Image source={{uri: iconUrl}} style={themed($icon)} /> : null}
-          <Text style={themed($title)} text={name ?? packageName ?? "Dev mini app"} />
-          <Text style={themed($subtitle)}>Dev server offline</Text>
-          <Text style={themed($detail)}>{`Last reached: ${lastReachableLabel}`}</Text>
-          <View style={themed($buttonRow)}>
-            <Button text="Try again" onPress={onTryAgain} preset="alternate" flexContainer={false} />
-            <Button text="Re-scan QR" onPress={onRescan} preset="default" flexContainer={false} />
-          </View>
+      <Header title={displayName} leftIcon="chevron-left" onLeftPress={() => goBack()} />
+      <View style={[styles.root, {backgroundColor: theme.colors.background}]}>
+        {iconUrl ? (
+          <SquircleView
+            cornerSmoothing={100}
+            preserveSmoothing={true}
+            style={styles.icon}>
+            <Image
+              source={iconUrl}
+              style={styles.iconImage}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
+            />
+          </SquircleView>
+        ) : null}
+
+        <Text style={themed($title)} text={displayName} />
+        <Text style={themed($subtitle)} text="Dev server offline" />
+        <Text style={themed($detail)} text={`Last reached: ${lastReachableLabel}`} />
+
+        <View style={themed($buttonRow)}>
+          <Button text="Try again" onPress={onTryAgain} preset="alternate" flexContainer={false} />
+          <Button text="Re-scan QR" onPress={onRescan} preset="default" flexContainer={false} />
         </View>
       </View>
     </Screen>
@@ -93,52 +100,53 @@ function formatRelative(timestamp: number): string {
   return `${days} day${days === 1 ? "" : "s"} ago`
 }
 
-const $container: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  flex: 1,
-  padding: spacing.s6,
-  alignItems: "center",
-  justifyContent: "center",
-})
+const ICON_SIZE = 128
 
-const $card: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
-  backgroundColor: colors.primary_foreground,
-  borderRadius: spacing.s4,
-  padding: spacing.s6,
-  alignItems: "center",
-  gap: spacing.s2,
-  width: "100%",
-  maxWidth: 360,
-})
-
-const $icon: ThemedStyle<ImageStyle> = ({spacing}) => ({
-  width: 64,
-  height: 64,
-  borderRadius: spacing.s3,
-  marginBottom: spacing.s2,
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  icon: {
+    width: ICON_SIZE,
+    height: ICON_SIZE,
+    borderRadius: 24,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  iconImage: {
+    width: "100%",
+    height: "100%",
+  },
 })
 
 const $title: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontSize: 18,
+  fontSize: 20,
   fontWeight: "600",
   color: colors.text,
   textAlign: "center",
 })
 
-const $subtitle: ThemedStyle<TextStyle> = ({colors}) => ({
+const $subtitle: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
   fontSize: 15,
   color: colors.text,
   textAlign: "center",
+  marginTop: spacing.s2,
 })
 
 const $detail: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
   fontSize: 13,
   color: colors.textDim,
   textAlign: "center",
-  marginBottom: spacing.s4,
+  marginTop: spacing.s1,
+  marginBottom: spacing.s6,
 })
 
 const $buttonRow: ThemedStyle<ViewStyle> = ({spacing}) => ({
   flexDirection: "row",
   gap: spacing.s3,
-  marginTop: spacing.s2,
 })

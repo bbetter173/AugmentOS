@@ -47,7 +47,7 @@ export default function DisplayPage() {
 
   return (
     <Shell>
-      <MiniappHeader title="Display" onBack={() => navigate("/tester")} />
+      <MiniappHeader title="session.display" onBack={() => navigate("/tester")} />
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         <p className="mb-3 text-[13px] text-muted-foreground">

@@ -67,7 +67,7 @@ export default function LedPage() {
 
   return (
     <Shell>
-      <MiniappHeader title="LED" onBack={() => navigate("/tester")} />
+      <MiniappHeader title="session.led" onBack={() => navigate("/tester")} />
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         {!isMentraLive && (

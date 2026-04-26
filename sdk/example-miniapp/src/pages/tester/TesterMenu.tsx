@@ -19,20 +19,32 @@ interface Row {
   badge?: "soon" | "mentra-live-only"
 }
 
+// Order mirrors the SDK module overview doc: output first (display, speaker),
+// then input (mic, transcription, translation, input, location, imu),
+// then state (glasses, phone), then misc (system, led, storage, permissions),
+// then placeholders.
 const ROWS: Row[] = [
-  {emoji: "📦", title: "Storage", subtitle: "get / set / delete / list", path: "/tester/storage"},
-  {emoji: "🖥️", title: "Display", subtitle: "text walls, cards, bitmaps", path: "/tester/display"},
-  {emoji: "🔊", title: "Audio & TTS", subtitle: "play URL, speak text", path: "/tester/audio"},
+  {emoji: "🖥️", title: "session.display", subtitle: "text walls, cards, bitmaps", path: "/tester/display"},
+  {emoji: "🔊", title: "session.speaker", subtitle: "play URL, speak text", path: "/tester/speaker"},
+  {emoji: "🎙️", title: "session.mic", subtitle: "audio chunks, VAD, stop()", path: "/tester/mic"},
+  {emoji: "📝", title: "session.transcription", subtitle: "on / forLanguage / configure / stop", path: "/tester/transcription"},
+  {emoji: "🌐", title: "session.translation", subtitle: "forLanguagePair, stop", path: "/tester/translation"},
+  {emoji: "👆", title: "session.input", subtitle: "buttons, touch + gesture filters", path: "/tester/input"},
+  {emoji: "📍", title: "session.location", subtitle: "GPS updates", path: "/tester/location"},
+  {emoji: "↕️", title: "session.imu", subtitle: "head position", path: "/tester/imu"},
+  {emoji: "👓", title: "session.glasses", subtitle: "battery, connection", path: "/tester/glasses"},
+  {emoji: "📱", title: "session.phone", subtitle: "battery, notifications, calendar", path: "/tester/phone"},
+  {emoji: "🔗", title: "session.system", subtitle: "share, open URL, clipboard", path: "/tester/system"},
   {
     emoji: "💡",
-    title: "LED",
+    title: "session.led",
     subtitle: "color, blink, solid",
     path: "/tester/led",
     requires: "mentra-live",
     badge: "mentra-live-only",
   },
-  {emoji: "🌐", title: "System", subtitle: "share, open URL, clipboard", path: "/tester/system"},
-  {emoji: "👂", title: "Event Monitors", subtitle: "buttons, touch, battery, VAD…", path: "/tester/events"},
+  {emoji: "📦", title: "session.storage", subtitle: "get / set / delete / list", path: "/tester/storage"},
+  {emoji: "🔐", title: "session.permissions", subtitle: "has / getAll / onUpdate / errors", path: "/tester/permissions"},
   {
     emoji: "⏳",
     title: "Coming Soon",
@@ -73,7 +85,7 @@ export default function TesterMenu() {
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         <p className="mb-3 px-1 text-[13px] text-muted-foreground">
-          Each section exercises a piece of the @mentra/miniapp SDK. Use this to verify your glasses + phone + miniapp host are talking correctly.
+          Each section exercises one module of the @mentra/miniapp SDK. Use this to verify your glasses + phone + miniapp host are talking correctly.
         </p>
         <div className="flex flex-col gap-2">
           {ROWS.map((row) => {
@@ -93,7 +105,7 @@ export default function TesterMenu() {
                 <div className="text-2xl">{row.emoji}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{row.title}</span>
+                    <span className="font-mono text-sm font-semibold">{row.title}</span>
                     <Badge badge={row.badge} />
                   </div>
                   <div className="truncate text-[12px] text-muted-foreground">

@@ -17,7 +17,7 @@ import {Shell} from "../Shell"
 // A short public-domain MP3 as a sanity default.
 const SAMPLE_URL = "https://file-examples.com/storage/fe52b2c4fa6816aa39f5b99/2017/11/file_example_MP3_700KB.mp3"
 
-export default function AudioPage() {
+export default function SpeakerPage() {
   const session = useSession()
   const navigate = useNavigate()
 
@@ -61,7 +61,7 @@ export default function AudioPage() {
 
   return (
     <Shell>
-      <MiniappHeader title="Audio & TTS" onBack={() => navigate("/tester")} />
+      <MiniappHeader title="session.speaker" onBack={() => navigate("/tester")} />
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         <div className="mb-4 rounded-xl border border-border bg-card p-4">

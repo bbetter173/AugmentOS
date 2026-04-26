@@ -1,14 +1,22 @@
 import {HashRouter, Navigate, Route, Routes} from "react-router-dom"
 
 import CaptionsPage from "./pages/CaptionsPage"
-import TesterMenu from "./pages/tester/TesterMenu"
+import ComingSoonPage from "./pages/tester/ComingSoonPage"
+import DisplayPage from "./pages/tester/DisplayPage"
+import GlassesPage from "./pages/tester/GlassesPage"
+import ImuPage from "./pages/tester/ImuPage"
+import InputPage from "./pages/tester/InputPage"
+import LedPage from "./pages/tester/LedPage"
+import LocationPage from "./pages/tester/LocationPage"
+import MicrophonePage from "./pages/tester/MicrophonePage"
+import PermissionsPage from "./pages/tester/PermissionsPage"
+import PhonePage from "./pages/tester/PhonePage"
+import SpeakerPage from "./pages/tester/SpeakerPage"
 import StoragePage from "./pages/tester/StoragePage"
 import SystemPage from "./pages/tester/SystemPage"
-import AudioPage from "./pages/tester/AudioPage"
-import LedPage from "./pages/tester/LedPage"
-import EventsPage from "./pages/tester/EventsPage"
-import DisplayPage from "./pages/tester/DisplayPage"
-import ComingSoonPage from "./pages/tester/ComingSoonPage"
+import TesterMenu from "./pages/tester/TesterMenu"
+import TranscriptionPage from "./pages/tester/TranscriptionPage"
+import TranslationPage from "./pages/tester/TranslationPage"
 
 export default function App() {
   return (
@@ -16,12 +24,20 @@ export default function App() {
       <Routes>
         <Route path="/" element={<CaptionsPage />} />
         <Route path="/tester" element={<TesterMenu />} />
-        <Route path="/tester/storage" element={<StoragePage />} />
         <Route path="/tester/display" element={<DisplayPage />} />
-        <Route path="/tester/audio" element={<AudioPage />} />
-        <Route path="/tester/led" element={<LedPage />} />
+        <Route path="/tester/speaker" element={<SpeakerPage />} />
+        <Route path="/tester/mic" element={<MicrophonePage />} />
+        <Route path="/tester/transcription" element={<TranscriptionPage />} />
+        <Route path="/tester/translation" element={<TranslationPage />} />
+        <Route path="/tester/input" element={<InputPage />} />
+        <Route path="/tester/location" element={<LocationPage />} />
+        <Route path="/tester/imu" element={<ImuPage />} />
+        <Route path="/tester/glasses" element={<GlassesPage />} />
+        <Route path="/tester/phone" element={<PhonePage />} />
         <Route path="/tester/system" element={<SystemPage />} />
-        <Route path="/tester/events" element={<EventsPage />} />
+        <Route path="/tester/led" element={<LedPage />} />
+        <Route path="/tester/storage" element={<StoragePage />} />
+        <Route path="/tester/permissions" element={<PermissionsPage />} />
         <Route path="/tester/coming-soon" element={<ComingSoonPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -51,7 +51,7 @@ export default function SystemPage() {
 
   return (
     <Shell>
-      <MiniappHeader title="System" onBack={() => navigate("/tester")} />
+      <MiniappHeader title="session.system" onBack={() => navigate("/tester")} />
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
         <Section emoji="🔗" title="Open URL" subtitle="Opens in the phone's default browser.">

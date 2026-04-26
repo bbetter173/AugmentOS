@@ -466,28 +466,6 @@ class Composer {
     }
   }
 
-  /**
-   * Returns the absolute path to the latest `dev-*` version directory for
-   * the given package, or null if none exist. Used by the local route's
-   * cached-fallback mount path when the dev server is unreachable.
-   */
-  public getLatestDevBundlePath(packageName: string): string | null {
-    try {
-      const pkgDir = new Directory(Paths.document, "lmas", packageName)
-      if (!pkgDir.exists) return null
-      const devDirs = pkgDir
-        .list()
-        .filter((d): d is Directory => d instanceof Directory && d.name.startsWith("dev-"))
-        .map((d) => d.name)
-        .sort()
-        .reverse()
-      if (devDirs.length === 0) return null
-      return new Directory(pkgDir, devDirs[0]).uri
-    } catch (error) {
-      console.error("COMPOSER: Error getting latest dev bundle path", error)
-      return null
-    }
-  }
   // return {packageName: string, versions: string[]}
   public getInstalledAppletsInfo(): InstalledLma[] {
     const packageNames = this.getPackageNames()
@@ -508,9 +486,16 @@ class Composer {
 
   public async getLocalApplets(): Promise<ClientAppletInterface[]> {
     if (!this.refreshNeeded && this.installedLmas.length > 0) {
-      // return this.installedLmas
-      // this is the source of truth for running state:
-      return useAppletStatusStore.getState().apps.filter((a) => a.local)
+      // Cache hit: re-project running from the registry. The store is NOT
+      // the source of truth here — on cold boot Composer.initialize() builds
+      // installedLmas before refreshApplets has populated the store, so
+      // querying the store would return [] and lose every local applet.
+      // installedLmas IS the disk-derived truth; running comes from the
+      // mount registry overlay.
+      return this.installedLmas.map((a) => ({
+        ...a,
+        running: miniappRunningRegistry.has(a.packageName),
+      }))
     }
 
     try {

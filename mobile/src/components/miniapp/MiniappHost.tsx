@@ -4,7 +4,6 @@ import {useSafeAreaInsets} from "react-native-safe-area-context"
 import {WebView, WebViewMessageEvent} from "react-native-webview"
 
 import LeftEdgeBackSwipe from "@/components/miniapp/LeftEdgeBackSwipe"
-import {MiniappCachedBanner} from "@/components/miniapp/MiniappCachedBanner"
 import MiniappSplash from "@/components/miniapp/MiniappSplash"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useAppTheme} from "@/contexts/ThemeContext"
@@ -34,12 +33,6 @@ interface MountedMiniapp {
    * reuses the WebView and `source` prop changes don't trigger a reload.
    */
   mountKey: number
-  /**
-   * True when the WebView was mounted from a cached dev-* bundle because
-   * the dev server was unreachable at mount time. Drives the
-   * MiniappCachedBanner overlay (auto-dismisses after 5s).
-   */
-  isCachedMode: boolean
   appName?: string
   iconUrl?: string
   onClose?: () => void
@@ -56,12 +49,6 @@ type MiniappMountOptions = {
   developerMode?: boolean
   appName?: string
   iconUrl?: string
-  /**
-   * Set when mounting from a cached dev bundle (dev server unreachable).
-   * Causes MiniappHost to render the cached-mode banner overlay above
-   * the WebView for ~5 seconds.
-   */
-  cachedMode?: boolean
 }
 
 export type MountDevManifest = {
@@ -159,7 +146,6 @@ export default function MiniappHost() {
           iconUrl: options?.iconUrl,
           isForeground: false,
           isLoaded: false,
-          isCachedMode: options?.cachedMode === true,
           mountKey: (prevEntry?.mountKey ?? 0) + 1,
         })
         return next
@@ -211,8 +197,6 @@ export default function MiniappHost() {
           // previous mount (caller sets foreground explicitly after).
           isForeground: false,
           isLoaded: false,
-          // mountDev means we hit the live URL — never the cached path.
-          isCachedMode: false,
           mountKey: (prevEntry?.mountKey ?? 0) + 1,
         })
         return next
@@ -585,9 +569,6 @@ export default function MiniappHost() {
             />
             {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}
             {isFg && <LeftEdgeBackSwipe packageName={app.packageName} onBack={app.onBack} />}
-            {isFg && app.isCachedMode && (
-              <MiniappCachedBanner key={`cached-banner-${app.mountKey}`} />
-            )}
             {isFg && (
               <MiniAppCapsuleMenu
                 packageName={app.packageName}

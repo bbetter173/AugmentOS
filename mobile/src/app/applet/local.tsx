@@ -99,22 +99,15 @@ export default function LocalMiniAppPage() {
           }
           storage.save(`${packageName}_dev_last_reachable`, Date.now())
         } else {
-          // Cached fallback. Composer's helper resolves to the latest
-          // dev-<timestamp>/ for this package, or null if none.
-          const cachedPath = composer.getLatestDevBundlePath(packageName)
-          if (cachedPath) {
-            const bundleUri = `${cachedPath}/index.html`
-            miniappHost.mount(packageName, bundleUri, {
-              developerMode: true,
-              appName,
-              iconUrl,
-              cachedMode: true,
-            })
-          } else {
-            // No cache, no server — full-screen offline takeover.
-            replaceRef.current("/applet/dev-offline", {packageName, name: appName, iconUrl})
-            return
-          }
+          // Dev server unreachable. We snapshot the project tree on every
+          // live mount so getLocalApplets can keep the tile on the home
+          // screen across restarts — but the snapshot is the SOURCE tree
+          // (TSX files referencing /src/main.tsx etc.), not a production
+          // build. file:// can't run TSX without Vite, so mounting it
+          // would be a white screen of death. Always route to the
+          // offline takeover; the snapshot is metadata-only.
+          replaceRef.current("/applet/dev-offline", {packageName, name: appName, iconUrl})
+          return
         }
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)

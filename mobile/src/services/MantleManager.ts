@@ -710,7 +710,13 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("mic_pcm", (event) => {
+        CoreModule.addListener("mic_pcm", () => {
+          // mic_pcm events are strictly on-device. Local miniapps consume
+          // raw PCM via the `audio_chunk` listener; Sherpa-ONNX consumes
+          // it via the local-STT path. The cloud only ever receives LC3
+          // (mic_lc3 listener above). Never forward PCM bytes upstream —
+          // we'd interleave them with LC3 frames on the same binary
+          // WebSocket and corrupt the cloud's audio decoder.
           if (this.micDataTimeout) {
             BackgroundTimer.clearTimeout(this.micDataTimeout)
           }
@@ -718,14 +724,6 @@ class MantleManager {
             useDebugStore.getState().setDebugInfo({micDataRecvd: false})
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
-
-          // Route audio to: UDP (if enabled) -> WebSocket (fallback)
-          if (udp.enabledAndReady()) {
-            // UDP audio is enabled and ready - send directly via UDP
-            udp.sendAudio(event.pcm)
-          } else {
-            socketComms.sendBinary(event.pcm)
-          }
         }),
       )
 

@@ -63,10 +63,17 @@ class MicStateCoordinator {
 
   /**
    * Compute the union of cloud and local requirements and push to CoreModule.
+   *
+   * Wire-format note: the cloud only ever receives LC3 over the binary
+   * WebSocket. Its `requiredData=["pcm"]` is a logical "I need audio"
+   * request — we always answer it with LC3. So neither cloudWantsPcm nor
+   * cloudWantsLc3 ever flips `should_send_pcm` on; both map to
+   * `should_send_lc3`. `should_send_pcm` is strictly for on-device PCM
+   * consumers (local miniapps' audio_chunk listeners and Sherpa STT).
    */
   private applyUnion(): void {
-    const shouldSendPcm = this.cloudWantsPcm || this.localWantsPcm
-    const shouldSendLc3 = this.cloudWantsLc3 || this.localWantsLc3
+    const shouldSendPcm = this.localWantsPcm
+    const shouldSendLc3 = this.cloudWantsPcm || this.cloudWantsLc3 || this.localWantsLc3
     const shouldSendTranscript = this.cloudWantsTranscript
     const bypassVad = this.cloudBypassVad
 

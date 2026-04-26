@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, copyFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, copyFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { validateManifest } from './manifest.js';
 
@@ -49,59 +49,6 @@ export async function pack(opts: PackOptions = {}): Promise<string> {
       console.error(`  - ${err}`);
     }
     process.exit(1);
-  }
-
-  // Rewrite <script type="module"> tags into classic scripts that load
-  // correctly from file:// inside the phone's WebView. Module scripts are
-  // unique-origin under file:// and silently fail (white screen). The
-  // bundle is built with --format=iife so it's safe to run as classic.
-  //
-  // BUT: classic scripts in <head> run synchronously BEFORE <body> parses,
-  // so document.getElementById("root") returns null and React can't mount.
-  // Module scripts default to deferred, which is why this worked before.
-  // We add `defer` AND move the script to the end of <body> — the move is
-  // belt-and-suspenders because some WKWebView builds appear to ignore
-  // `defer` on classic scripts under file://.
-  //
-  // This is a temporary band-aid; the proper fix is the custom URL scheme
-  // handler module (see agents/miniapp-webview-scheme-handler-plan.md),
-  // which makes miniapps load from `mentra-miniapp://` and modules work
-  // normally without rewriting.
-  const indexHtmlPath = join(distDir, 'index.html');
-  if (existsSync(indexHtmlPath)) {
-    const html = readFileSync(indexHtmlPath, 'utf-8');
-
-    // 1. Strip type="module" and crossorigin attributes.
-    let patched = html
-      .replace(/<script\s+type="module"\s+crossorigin\s+/g, '<script defer ')
-      .replace(/<script\s+type="module"\s+/g, '<script defer ')
-      .replace(/<script\s+crossorigin\s+/g, '<script defer ')
-      .replace(/<link\s+rel="stylesheet"\s+crossorigin\s+/g, '<link rel="stylesheet" ');
-
-    // 2. Move all <script ...></script> tags to the end of <body>. file://
-    //    + WKWebView is unreliable about classic-script timing in <head>.
-    const scriptTags: string[] = [];
-    patched = patched.replace(/<script\b[^>]*>\s*<\/script>/g, (match) => {
-      scriptTags.push(match);
-      return '';
-    });
-    if (scriptTags.length > 0) {
-      const closingBody = patched.lastIndexOf('</body>');
-      if (closingBody !== -1) {
-        patched =
-          patched.slice(0, closingBody) +
-          scriptTags.join('\n    ') +
-          '\n  ' +
-          patched.slice(closingBody);
-      } else {
-        // No </body> tag found — append at end as a fallback.
-        patched += '\n' + scriptTags.join('\n');
-      }
-    }
-
-    if (patched !== html) {
-      writeFileSync(indexHtmlPath, patched);
-    }
   }
 
   // Copy miniapp.json into dist/

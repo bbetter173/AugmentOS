@@ -25,7 +25,6 @@ const result = await Bun.build({
   entrypoints: ["./index.html"],
   outdir: distDir,
   target: "browser",
-  format: "iife",
   plugins: [tailwind],
   minify: true,
 })

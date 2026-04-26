@@ -54,8 +54,8 @@ export default function DevMiniappOfflineScreen() {
     // Pre-flight reachability before deciding the route. If still down,
     // stay on the offline screen (no-op) so the user can try again or
     // re-scan. If up, replace into /applet/local.
-    const decision = await decideDevLaunchRoute(packageName, devUrlRes.value)
-    if (decision === "live") {
+    const launchResult = await decideDevLaunchRoute(packageName, devUrlRes.value)
+    if (launchResult.decision === "live") {
       replace("/applet/local", {
         packageName,
         devUrl: devUrlRes.value,

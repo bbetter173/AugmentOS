@@ -94,19 +94,20 @@ export default function MiniappDeveloperScannerScreen() {
         return
       }
 
-      let iconPath: string | undefined
-      let manifestPermissions: AppletPermission[] = []
-      try {
-        const res = await fetch(`${devUrl}/miniapp.json`)
-        const manifest = await res.json()
-        packageName = packageName || manifest.packageName || "com.dev.unknown"
-        name = name || manifest.name || "Dev Miniapp"
-        iconPath = manifest.icon || manifest.iconUrl || manifest.logoUrl
-        manifestPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : []
-      } catch {
-        packageName = packageName || "com.dev.scanned"
-        name = name || "Dev Miniapp"
-      }
+      // One round trip: fetches manifest AND decides reachability. Avoids
+      // the previous double-fetch (one for permissions/name, one for the
+      // reachability HEAD).
+      const launchResult = await decideDevLaunchRoute(packageName ?? "", devUrl)
+
+      // Pull packageName / name / icon / permissions from the manifest if
+      // we got one. QR-string params take precedence over manifest fields.
+      const manifest = launchResult.manifest
+      packageName = packageName || manifest?.packageName || "com.dev.unknown"
+      name = name || manifest?.name || "Dev Miniapp"
+      const iconPath = manifest?.icon as string | undefined
+      const manifestPermissions: AppletPermission[] = Array.isArray(manifest?.permissions)
+        ? (manifest!.permissions as AppletPermission[])
+        : []
 
       // Resolve the icon to an absolute URL on the dev server. Supports either
       // a relative path ("icon.png") or an absolute URL.
@@ -118,8 +119,7 @@ export default function MiniappDeveloperScannerScreen() {
       }
 
       // Persist the dev URL keyed on packageName so a relaunched MentraOS
-      // can route the home-tile tap back to the live server (via the
-      // freshness-check + cached-fallback path in /applet/local). Composer's
+      // can route the home-tile tap back to the live server. Composer's
       // getLocalApplets reads this key when populating the applet store.
       if (packageName) {
         storage.save(`${packageName}_dev_url`, devUrl)
@@ -133,25 +133,33 @@ export default function MiniappDeveloperScannerScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
 
+      // If the dev server didn't respond, route directly to the offline
+      // takeover. We have nothing to gate against (no manifest = no
+      // permissions list) and the live mount would fail anyway.
+      if (launchResult.decision === "offline") {
+        replace("/applet/dev-offline", {packageName, name, iconUrl})
+        return
+      }
+
       // Gate launch on OS permissions declared in the miniapp's manifest.
       // The home-tile path runs the same gate; without this, the very first
       // launch (right after scanning) skips it and the miniapp opens in a
       // broken state — events from un-granted OS permissions silently never
-      // arrive. Same modal/UX as home-tile-tap.
+      // arrive.
       const fakeApplet = {
         packageName: packageName ?? "",
         name: name ?? "",
         permissions: manifestPermissions,
       } as unknown as AppletInterface
-      const result = await askPermissionsUI(fakeApplet, theme)
-      if (result === -1) {
+      const permResult = await askPermissionsUI(fakeApplet, theme)
+      if (permResult === -1) {
         // User cancelled, or Android READ_NOTIFICATIONS flow is in progress.
         // Re-arm scanner; the home tile is registered so they can launch
         // again from there once the OS dance is complete.
         setScanned(false)
         return
       }
-      if (result === 0) {
+      if (permResult === 0) {
         // User tried, but at least one *required* OS permission is still
         // denied. Tell them why we're not launching and offer Settings.
         const stillNeeded = await checkPermissionsUI(fakeApplet)
@@ -166,20 +174,6 @@ export default function MiniappDeveloperScannerScreen() {
             {text: "Cancel", onPress: () => setScanned(false), style: "cancel"},
           ],
         )
-        return
-      }
-
-      // Pre-flight server reachability so we land on the right route in
-      // one transition. The user just looked at this QR on their laptop
-      // — server SHOULD be reachable, but we still gate to avoid a
-      // /applet/local flash if their network changed mid-scan.
-      const decision = await decideDevLaunchRoute(packageName ?? "", devUrl)
-      if (decision === "offline") {
-        replace("/applet/dev-offline", {
-          packageName,
-          name,
-          iconUrl,
-        })
         return
       }
 

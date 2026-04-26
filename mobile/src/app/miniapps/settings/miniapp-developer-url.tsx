@@ -11,6 +11,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
+import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
 import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {storage} from "@/utils/storage/storage"
 import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/types/src"
@@ -22,7 +23,17 @@ interface RecentDevApp {
   packageName: string
   name: string
   url: string
+  /** Resolved absolute icon URL (if the manifest declared one). Persisted
+   *  so re-launching from the recent list doesn't show a placeholder. */
+  iconUrl?: string
   timestamp: number
+}
+
+/** Resolve a manifest's icon path (relative or absolute) against a base URL. */
+function resolveIconUrl(baseUrl: string, iconPath: string | undefined): string | undefined {
+  if (!iconPath) return undefined
+  if (/^https?:\/\//.test(iconPath)) return iconPath
+  return `${baseUrl.replace(/\/$/, "")}/${iconPath.replace(/^\//, "")}`
 }
 
 export default function MiniappDeveloperUrlScreen() {
@@ -43,30 +54,21 @@ export default function MiniappDeveloperUrlScreen() {
   }
 
   const launchDevMiniapp = async (entry: RecentDevApp) => {
-    // Re-fetch manifest at tap time — author may have changed permissions
-    // between scans. Gate on the same askPermissionsUI flow as the URL-load
-    // path so re-launching a recent entry isn't a back door around the gate.
-    // The manifest fetch doubles as a reachability probe: if it fails, we
-    // route straight to /applet/dev-offline instead of pushing /applet/local
-    // and letting it bounce.
-    let manifestPermissions: AppletPermission[] = []
-    let reachable = false
-    try {
-      const res = await fetch(`${entry.url}/miniapp.json`)
-      const manifest = await res.json()
-      if (Array.isArray(manifest.permissions)) manifestPermissions = manifest.permissions
-      reachable = true
-    } catch {
-      reachable = false
-    }
+    // One round trip: reachability + manifest. Avoids a second fetch
+    // for the permission-gate input.
+    const launchResult = await decideDevLaunchRoute(entry.packageName, entry.url)
 
-    if (!reachable) {
+    if (launchResult.decision === "offline") {
       push("/applet/dev-offline", {
         packageName: entry.packageName,
         name: entry.name,
       })
       return
     }
+
+    const manifestPermissions: AppletPermission[] = Array.isArray(launchResult.manifest.permissions)
+      ? (launchResult.manifest.permissions as AppletPermission[])
+      : []
 
     if (manifestPermissions.length > 0) {
       const fakeApplet = {
@@ -95,6 +97,7 @@ export default function MiniappDeveloperUrlScreen() {
       packageName: entry.packageName,
       devUrl: entry.url,
       appName: entry.name,
+      iconUrl: entry.iconUrl,
     })
   }
 
@@ -115,12 +118,24 @@ export default function MiniappDeveloperUrlScreen() {
 
     setLoading(true)
     try {
-      const res = await fetch(`${trimmed}/miniapp.json`)
-      const manifest = await res.json()
+      // Single fetch; serves as both validation that the URL points at a
+      // real miniapp dev server AND the manifest source for the launch.
+      const launchResult = await decideDevLaunchRoute("", trimmed)
+      if (launchResult.decision === "offline") {
+        showAlert(
+          translate("devSettings:miniappUrlFetchErrorTitle"),
+          translate("devSettings:miniappUrlFetchErrorBody", {url: trimmed}),
+          [{text: "OK"}],
+        )
+        return
+      }
+
+      const manifest = launchResult.manifest
       const entry: RecentDevApp = {
         packageName: manifest.packageName || "com.dev.unknown",
         name: manifest.name || "Dev Mini App",
         url: trimmed,
+        iconUrl: resolveIconUrl(trimmed, manifest.icon),
         timestamp: Date.now(),
       }
       const updated = [entry, ...recent.filter((r) => r.url !== entry.url)].slice(0, MAX_RECENT)
@@ -130,17 +145,10 @@ export default function MiniappDeveloperUrlScreen() {
       // restart can route to the live server.
       storage.save(`${entry.packageName}_dev_url`, entry.url)
 
-      // launchDevMiniapp gates on OS permissions declared in the manifest
-      // (re-fetches it). The first launch needs the gate so the miniapp
-      // doesn't open in a broken state — events from un-granted OS perms
-      // silently never arrive otherwise.
+      // launchDevMiniapp re-runs the reachability + manifest fetch (cheap;
+      // catches manifest changes between save and tap) and runs the
+      // permission gate before navigating.
       await launchDevMiniapp(entry)
-    } catch {
-      showAlert(
-        translate("devSettings:miniappUrlFetchErrorTitle"),
-        translate("devSettings:miniappUrlFetchErrorBody", {url: trimmed}),
-        [{text: "OK"}],
-      )
     } finally {
       setLoading(false)
     }

@@ -1,53 +1,67 @@
 /**
- * decideDevLaunchRoute — pre-flight reachability for dev miniapp launches.
+ * decideDevLaunchRoute — pre-flight reachability + manifest fetch for dev
+ * miniapp launches.
  *
- * Every entry point that wants to launch a dev miniapp (home tile,
- * QR scan, URL screen, dev-offline "Try again" button) calls this BEFORE
- * navigating, so we land on the right destination in a single transition:
+ * Every entry point that wants to launch a dev miniapp (home tile, QR
+ * scan, URL screen, dev-offline "Try again" button) calls this BEFORE
+ * navigating, so:
  *
- *   reachable   → push("/applet/local", ...)        // live mount
- *   unreachable → push("/applet/dev-offline", ...)  // offline takeover
+ *   1. We land on the right destination in a single transition
+ *      (live mount vs offline takeover) — no flash through /applet/local.
+ *   2. Callers that need the manifest (permission gate, name/icon read)
+ *      get it in the same round trip — no second fetch.
  *
- * Without this, /applet/local mounted on every tap, ran the freshness
- * check inside its async effect, and replaced to /applet/dev-offline if
- * the server was down — a visible flash of the local route on the way
- * to dev-offline. Pre-flighting at the call site keeps the route a
- * pure mount destination.
+ * Pre-flighting at the call site keeps /applet/local a pure mount route.
  */
 
 import {storage} from "@/utils/storage/storage"
 
-const REACHABILITY_TIMEOUT_MS = 500
+const REACHABILITY_TIMEOUT_MS = 1500
 
-export type DevLaunchDecision = "live" | "offline"
+export type DevManifest = {
+  packageName?: string
+  name?: string
+  /** First-found of `icon` / `iconUrl` / `logoUrl` (relative or absolute). */
+  icon?: string
+  permissions?: unknown
+  hardwareRequirements?: unknown
+  [key: string]: unknown
+}
+
+export type DevLaunchResult =
+  | {decision: "live"; manifest: DevManifest}
+  | {decision: "offline"; manifest: null}
 
 /**
- * HEAD against the dev server's miniapp.json with a hard timeout. Returns
- * "live" if the server responded with a non-error status before the
- * timeout fired; "offline" otherwise.
+ * GET <devUrl>/miniapp.json with a hard timeout. Returns the parsed
+ * manifest on success ("live") or null ("offline").
  *
- * Side effect: on success, writes <packageName>_dev_last_reachable so the
- * dev-offline screen can show "Last reached: N min ago" the next time
- * the user lands there.
+ * Side effect: on success, writes <packageName>_dev_last_reachable so
+ * the dev-offline screen can show "Last reached: N min ago" the next
+ * time the user lands there.
+ *
+ * The fetch doubles as the reachability probe AND the manifest source —
+ * one request per launch attempt instead of two.
  */
 export async function decideDevLaunchRoute(
   packageName: string,
   devUrl: string,
-): Promise<DevLaunchDecision> {
+): Promise<DevLaunchResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REACHABILITY_TIMEOUT_MS)
   try {
     const res = await fetch(`${devUrl.replace(/\/$/, "")}/miniapp.json`, {
-      method: "HEAD",
+      method: "GET",
       signal: controller.signal,
     })
-    if (res.ok) {
+    if (!res.ok) return {decision: "offline", manifest: null}
+    const manifest = (await res.json()) as DevManifest
+    if (packageName) {
       storage.save(`${packageName}_dev_last_reachable`, Date.now())
-      return "live"
     }
-    return "offline"
+    return {decision: "live", manifest}
   } catch {
-    return "offline"
+    return {decision: "offline", manifest: null}
   } finally {
     clearTimeout(timer)
   }

@@ -26,6 +26,7 @@ import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
+import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
 
 export interface ClientAppletInterface extends AppletInterface {
   offline: boolean
@@ -859,12 +860,31 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
         } else if (applet.offline) {
           // offline app with no route - nothing to navigate to
         } else if (applet.isMiniappDev && applet.devUrl) {
-          // Dev miniapps loaded from developer's laptop via QR scan
-          push("/applet/local", {
-            packageName: applet.packageName,
-            devUrl: applet.devUrl,
-            appName: applet.name,
-            transition: "zoom",
+          // Dev miniapps: pre-flight the dev server's reachability so we
+          // land on the right route in one transition. /applet/local
+          // assumes the server is up; /applet/dev-offline takes over
+          // when it isn't. Without the pre-flight, tapping a tile while
+          // the dev server is down briefly flashes /applet/local before
+          // it replaces to dev-offline.
+          const devUrl = applet.devUrl
+          const packageName = applet.packageName
+          const appName = applet.name
+          const logoUrl = applet.logoUrl
+          void decideDevLaunchRoute(packageName, devUrl).then((decision) => {
+            if (decision === "live") {
+              push("/applet/local", {
+                packageName,
+                devUrl,
+                appName,
+                transition: "zoom",
+              })
+            } else {
+              push("/applet/dev-offline", {
+                packageName,
+                name: appName,
+                iconUrl: logoUrl,
+              })
+            }
           })
         } else if (applet.local) {
           push("/applet/local", {

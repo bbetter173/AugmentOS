@@ -8,6 +8,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useApplets} from "@/stores/applets"
 import {ThemedStyle} from "@/theme"
+import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
 import {storage} from "@/utils/storage/storage"
 
 /**
@@ -43,20 +44,27 @@ export default function DevMiniappOfflineScreen() {
   const lastReachableLabel =
     lastReachable && lastReachable.is_ok() ? formatRelative(lastReachable.value) : "never"
 
-  const onTryAgain = () => {
+  const onTryAgain = async () => {
     if (!packageName) return
-    const devUrl = storage.load<string>(`${packageName}_dev_url`)
-    if (!devUrl.is_ok()) {
+    const devUrlRes = storage.load<string>(`${packageName}_dev_url`)
+    if (!devUrlRes.is_ok()) {
       push("/miniapps/settings/miniapp-developer-scanner")
       return
     }
-    // Re-route through /applet/local; it'll re-do the freshness check.
-    replace("/applet/local", {
-      packageName,
-      devUrl: devUrl.value,
-      appName: name,
-      iconUrl,
-    })
+    // Pre-flight reachability before deciding the route. If still down,
+    // stay on the offline screen (no-op) so the user can try again or
+    // re-scan. If up, replace into /applet/local.
+    const decision = await decideDevLaunchRoute(packageName, devUrlRes.value)
+    if (decision === "live") {
+      replace("/applet/local", {
+        packageName,
+        devUrl: devUrlRes.value,
+        appName: name,
+        iconUrl,
+      })
+    }
+    // else: stay put — the "Last reached" line stays accurate, user can
+    // tap again or re-scan.
   }
 
   const onRescan = () => {

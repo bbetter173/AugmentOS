@@ -46,14 +46,26 @@ export default function MiniappDeveloperUrlScreen() {
     // Re-fetch manifest at tap time — author may have changed permissions
     // between scans. Gate on the same askPermissionsUI flow as the URL-load
     // path so re-launching a recent entry isn't a back door around the gate.
+    // The manifest fetch doubles as a reachability probe: if it fails, we
+    // route straight to /applet/dev-offline instead of pushing /applet/local
+    // and letting it bounce.
     let manifestPermissions: AppletPermission[] = []
+    let reachable = false
     try {
       const res = await fetch(`${entry.url}/miniapp.json`)
       const manifest = await res.json()
       if (Array.isArray(manifest.permissions)) manifestPermissions = manifest.permissions
+      reachable = true
     } catch {
-      // Server unreachable. The /applet/local route handles the offline
-      // takeover — let it through and skip the gate (no manifest, no info).
+      reachable = false
+    }
+
+    if (!reachable) {
+      push("/applet/dev-offline", {
+        packageName: entry.packageName,
+        name: entry.name,
+      })
+      return
     }
 
     if (manifestPermissions.length > 0) {

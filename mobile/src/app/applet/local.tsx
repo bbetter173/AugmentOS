@@ -8,8 +8,13 @@ import composer from "@/services/Composer"
 import devServerBridge from "@/services/DevServerBridge"
 import {storage} from "@/utils/storage/storage"
 
-const REACHABILITY_TIMEOUT_MS = 500
-
+/**
+ * Pure mount destination for a dev or installed local miniapp. Reachability
+ * is decided BEFORE we land here — see decideDevLaunchRoute and the entry
+ * points (AppsGrid → startApplet, scanner, URL screen). If the dev server
+ * is down, the entry point routes to /applet/dev-offline directly so we
+ * never flash this route on the way there.
+ */
 export default function LocalMiniAppPage() {
   const {appName, packageName, version, devUrl, iconUrl, devPort} = useLocalSearchParams<{
     appName: string
@@ -19,14 +24,12 @@ export default function LocalMiniAppPage() {
     iconUrl?: string
     devPort?: string
   }>()
-  const {goBack, replace, setForceGestureEnabled} = useNavigationHistory()
+  const {goBack, setForceGestureEnabled} = useNavigationHistory()
 
   // Keep a stable ref to the latest goBack so we don't re-fire the mount effect
   // every render just because useNavigationHistory returned a new function.
   const goBackRef = useRef(goBack)
   goBackRef.current = goBack
-  const replaceRef = useRef(replace)
-  replaceRef.current = replace
 
   useEffect(() => {
     if (!packageName) return
@@ -55,60 +58,36 @@ export default function LocalMiniAppPage() {
       const isDev = !!devUrl
 
       if (isDev) {
-        // Live-vs-cached routing for dev miniapps.
-        //
-        //   reachable          → mountDev(devUrl) — live URL, live reload, bg cache refresh
-        //   unreachable + cache → mount(file://lmas/<pkg>/dev-<latest>/index.html)
-        //   unreachable + no cache → push to /applet/dev-offline
-        //
-        // The cache only gets read in the offline path; live URL is always
-        // preferred when available because live reload + console bridge need
-        // the WebView to load from devUrl.
-
+        // Reachability was pre-flighted by the entry point. Mount live.
+        await miniappHost.mountDev(packageName, devUrl, {
+          developerMode: true,
+          appName,
+          iconUrl,
+        })
         const portNum = resolveDevPort(devPort, packageName)
-        const reachable = await checkDevServerReachable(devUrl, REACHABILITY_TIMEOUT_MS)
-        if (cancelled) return
-
-        if (reachable) {
-          await miniappHost.mountDev(packageName, devUrl, {
-            developerMode: true,
-            appName,
-            iconUrl,
-          })
-          if (portNum !== null) {
-            devServerBridge.connect(packageName, devUrl, portNum)
-            // Background snapshot via Composer's standard install pipeline:
-            // fetches the dev server's bundle.zip, unpacks into
-            // lmas/<pkg>/dev-<timestamp>/, then GCs older dev-* dirs.
-            // refreshApplets is auto-fired by installMiniApp so the new
-            // dev-<ts> directory surfaces in the applet store on next render
-            // — that's what populates the home tray + switcher entry.
-            const sidecarBase = buildSidecarBaseUrl(devUrl, portNum)
-            if (sidecarBase) {
-              const versionOverride = `dev-${Date.now()}`
-              void composer
-                .installMiniApp(`${sidecarBase}/__mentra_dev/bundle.zip`, {versionOverride})
-                .then((res) => {
-                  if (res.is_error()) {
-                    console.warn(`Dev miniapp snapshot failed for ${packageName}:`, res.error)
-                  } else {
-                    composer.gcDevVersions(packageName, 2)
-                  }
-                })
-            }
+        if (portNum !== null) {
+          devServerBridge.connect(packageName, devUrl, portNum)
+          // Background snapshot via Composer's standard install pipeline:
+          // fetches the dev server's bundle.zip, unpacks into
+          // lmas/<pkg>/dev-<timestamp>/, then GCs older dev-* dirs.
+          // refreshApplets is auto-fired by installMiniApp so the new
+          // dev-<ts> directory surfaces in the applet store on next render
+          // — that's what populates the home tray + switcher entry.
+          const sidecarBase = buildSidecarBaseUrl(devUrl, portNum)
+          if (sidecarBase) {
+            const versionOverride = `dev-${Date.now()}`
+            void composer
+              .installMiniApp(`${sidecarBase}/__mentra_dev/bundle.zip`, {versionOverride})
+              .then((res) => {
+                if (res.is_error()) {
+                  console.warn(`Dev miniapp snapshot failed for ${packageName}:`, res.error)
+                } else {
+                  composer.gcDevVersions(packageName, 2)
+                }
+              })
           }
-          storage.save(`${packageName}_dev_last_reachable`, Date.now())
-        } else {
-          // Dev server unreachable. We snapshot the project tree on every
-          // live mount so getLocalApplets can keep the tile on the home
-          // screen across restarts — but the snapshot is the SOURCE tree
-          // (TSX files referencing /src/main.tsx etc.), not a production
-          // build. file:// can't run TSX without Vite, so mounting it
-          // would be a white screen of death. Always route to the
-          // offline takeover; the snapshot is metadata-only.
-          replaceRef.current("/applet/dev-offline", {packageName, name: appName, iconUrl})
-          return
         }
+        storage.save(`${packageName}_dev_last_reachable`, Date.now())
       } else if (version) {
         const bundleDir = composer.getBundleDir(packageName, version)
         const bundleUri = `${bundleDir}/index.html`
@@ -180,26 +159,5 @@ function buildSidecarBaseUrl(devUrl: string, sidecarPort: number): string | null
     return `${url.protocol}//${url.hostname}:${sidecarPort}`
   } catch {
     return null
-  }
-}
-
-/**
- * HEAD against the dev server's miniapp.json with a hard timeout. Returns
- * true iff the dev server responded with a non-error status before the
- * timeout fired.
- */
-async function checkDevServerReachable(devUrl: string, timeoutMs: number): Promise<boolean> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(`${devUrl.replace(/\/$/, "")}/miniapp.json`, {
-      method: "HEAD",
-      signal: controller.signal,
-    })
-    return res.ok
-  } catch {
-    return false
-  } finally {
-    clearTimeout(timer)
   }
 }

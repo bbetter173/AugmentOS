@@ -9,6 +9,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
+import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
 import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {storage} from "@/utils/storage/storage"
 import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/types/src"
@@ -135,6 +136,20 @@ export default function MiniappDeveloperScannerScreen() {
             {text: "Cancel", onPress: () => setScanned(false), style: "cancel"},
           ],
         )
+        return
+      }
+
+      // Pre-flight server reachability so we land on the right route in
+      // one transition. The user just looked at this QR on their laptop
+      // — server SHOULD be reachable, but we still gate to avoid a
+      // /applet/local flash if their network changed mid-scan.
+      const decision = await decideDevLaunchRoute(packageName ?? "", devUrl)
+      if (decision === "offline") {
+        replace("/applet/dev-offline", {
+          packageName,
+          name,
+          iconUrl,
+        })
         return
       }
 

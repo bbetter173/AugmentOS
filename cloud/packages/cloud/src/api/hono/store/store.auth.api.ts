@@ -99,13 +99,15 @@ async function exchangeStoreToken(c: AppContext) {
 
     const result = await tokenService.exchangeTemporaryToken(aos_temp_token, packageName);
 
-    if (!result) {
+    if (!result.success) {
+      const status = result.reason === "exchange_error" ? 500 : 401;
       return c.json(
         {
           success: false,
+          code: result.reason,
           error: "Invalid or expired token",
         },
-        401,
+        status,
       );
     }
 

@@ -6,6 +6,7 @@ import {StyleSheet, TextStyle, View, ViewStyle} from "react-native"
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useApplets} from "@/stores/applets"
 import {ThemedStyle} from "@/theme"
 import {storage} from "@/utils/storage/storage"
 
@@ -28,6 +29,14 @@ export default function DevMiniappOfflineScreen() {
   }>()
   const {goBack, replace, push} = useNavigationHistory()
   const {theme, themed} = useAppTheme()
+  const apps = useApplets()
+
+  // Fall back to the store entry's logoUrl/name if the route didn't carry
+  // them. The store entry is populated by Composer.getLocalApplets from the
+  // on-disk icon.png + miniapp.json — works even when the dev server is down.
+  const fromStore = packageName ? apps.find((a) => a.packageName === packageName) : undefined
+  const resolvedIconUrl = iconUrl || fromStore?.logoUrl || undefined
+  const resolvedName = name || fromStore?.name
 
   const lastReachable = packageName ? storage.load<number>(`${packageName}_dev_last_reachable`) : null
 
@@ -54,19 +63,19 @@ export default function DevMiniappOfflineScreen() {
     push("/miniapps/settings/miniapp-developer-scanner")
   }
 
-  const displayName = name ?? packageName ?? "Dev mini app"
+  const displayName = resolvedName ?? packageName ?? "Dev mini app"
 
   return (
     <Screen preset="fixed">
       <Header title={displayName} leftIcon="chevron-left" onLeftPress={() => goBack()} />
       <View style={[styles.root, {backgroundColor: theme.colors.background}]}>
-        {iconUrl ? (
+        {resolvedIconUrl ? (
           <SquircleView
             cornerSmoothing={100}
             preserveSmoothing={true}
             style={styles.icon}>
             <Image
-              source={iconUrl}
+              source={resolvedIconUrl}
               style={styles.iconImage}
               contentFit="cover"
               transition={200}
@@ -79,9 +88,9 @@ export default function DevMiniappOfflineScreen() {
         <Text style={themed($subtitle)} text="Dev server offline" />
         <Text style={themed($detail)} text={`Last reached: ${lastReachableLabel}`} />
 
-        <View style={themed($buttonRow)}>
-          <Button text="Try again" onPress={onTryAgain} preset="alternate" flexContainer={false} />
-          <Button text="Re-scan QR" onPress={onRescan} preset="default" flexContainer={false} />
+        <View style={themed($buttonColumn)}>
+          <Button text="Try again" onPress={onTryAgain} preset="alternate" />
+          <Button text="Re-scan QR" onPress={onRescan} preset="default" />
         </View>
       </View>
     </Screen>
@@ -146,7 +155,8 @@ const $detail: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
   marginBottom: spacing.s6,
 })
 
-const $buttonRow: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  flexDirection: "row",
+const $buttonColumn: ThemedStyle<ViewStyle> = ({spacing}) => ({
+  width: "100%",
+  maxWidth: 320,
   gap: spacing.s3,
 })

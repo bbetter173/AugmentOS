@@ -179,6 +179,10 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
   `
     : ""
 
+  // Lock zoom so miniapps feel like apps, not pages: force a non-scalable
+  // viewport meta (overriding whatever the miniapp shipped) and disable
+  // double-tap-zoom via CSS. Re-applies on DOMContentLoaded in case the
+  // miniapp re-writes <head> during boot.
   return `
     window.MentraOS = ${JSON.stringify(globals)};
     window.receiveNativeMessage = window.receiveNativeMessage || function() {};
@@ -186,9 +190,28 @@ export function buildMiniappGlobalsScript(opts: BuildMiniappGlobalsOptions): str
       try {
         var styleEl = document.createElement("style");
         styleEl.setAttribute("data-mentra-injected", "1");
-        styleEl.textContent = ":root { ${cssVarsBlock} }";
+        styleEl.textContent =
+          ":root { ${cssVarsBlock} }" +
+          "html, body { touch-action: manipulation; -ms-content-zooming: none; }";
         (document.head || document.documentElement).appendChild(styleEl);
       } catch (e) { /* ignore */ }
+
+      function lockViewport() {
+        try {
+          var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
+          var existing = document.querySelector('meta[name="viewport"]');
+          if (existing) {
+            existing.setAttribute("content", content);
+          } else {
+            var meta = document.createElement("meta");
+            meta.setAttribute("name", "viewport");
+            meta.setAttribute("content", content);
+            (document.head || document.documentElement).appendChild(meta);
+          }
+        } catch (e) { /* ignore */ }
+      }
+      lockViewport();
+      document.addEventListener("DOMContentLoaded", lockViewport);
     })();
     ${consoleTapBlock}
     true;

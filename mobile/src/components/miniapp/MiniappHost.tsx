@@ -569,6 +569,14 @@ export default function MiniappHost() {
               overScrollMode="never"
               automaticallyAdjustContentInsets={false}
               contentInsetAdjustmentBehavior="never"
+              // Lock zoom: miniapps should feel like native apps, not pages.
+              // The injected viewport meta handles most browsers; these props
+              // disable Android's pinch-zoom controls + iOS page scaling for
+              // miniapps that ship a viewport meta we can't override before
+              // first paint.
+              scalesPageToFit={false}
+              setBuiltInZoomControls={false}
+              setDisplayZoomControls={false}
               style={styles.webview}
             />
             {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}

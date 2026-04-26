@@ -6,7 +6,7 @@
 
 import { Hono } from "hono";
 import jwt from "jsonwebtoken";
-import { tokenService } from "../../../services/core/temp-token.service";
+import { tokenService, type ExchangeTokenFailureReason } from "../../../services/core/temp-token.service";
 import appService from "../../../services/core/app.service";
 import { logger as rootLogger } from "../../../services/logging/pino-logger";
 import type { AppEnv, AppContext } from "../../../types/hono";
@@ -97,6 +97,30 @@ async function validateAppApiKeyMiddleware(c: AppContext, next: () => Promise<vo
 
   c.set("sdk", { packageName, apiKey });
   await next();
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Map a temp-token exchange failure reason to a stable client-facing
+ * error message. The `code` returned alongside this message is the
+ * machine-readable identifier callers should branch on.
+ */
+function tempTokenErrorMessage(reason: ExchangeTokenFailureReason): string {
+  switch (reason) {
+    case "token_not_found":
+      return "Temporary token not found";
+    case "token_used":
+      return "Temporary token already used";
+    case "token_expired":
+      return "Temporary token expired";
+    case "token_package_mismatch":
+      return "Temporary token was issued for a different app";
+    case "exchange_error":
+      return "Failed to exchange token";
+  }
 }
 
 // ============================================================================
@@ -214,11 +238,19 @@ async function exchangeUserToken(c: AppContext) {
     // both resolve the token against the same validated App identity.
     const result = await tokenService.exchangeTemporaryToken(aos_temp_token, sdk.packageName);
 
-    if (result) {
+    if (result.success) {
       return c.json({ success: true, userId: result.userId });
-    } else {
-      return c.json({ success: false, error: "Invalid or expired token" }, 401);
     }
+
+    const status = result.reason === "exchange_error" ? 500 : 401;
+    return c.json(
+      {
+        success: false,
+        code: result.reason,
+        error: tempTokenErrorMessage(result.reason),
+      },
+      status,
+    );
   } catch (error) {
     logger.error(error, "Failed to exchange webview token");
     return c.json({ success: false, error: "Failed to exchange token" }, 500);
@@ -247,7 +279,7 @@ async function exchangeStoreToken(c: AppContext) {
 
     const result = await tokenService.exchangeTemporaryToken(aos_temp_token, packageName);
 
-    if (result) {
+    if (result.success) {
       const supabaseToken = JOE_MAMA_USER_JWT;
 
       const { User } = await import("../../../models/user.model");
@@ -269,9 +301,17 @@ async function exchangeStoreToken(c: AppContext) {
           coreToken,
         },
       });
-    } else {
-      return c.json({ success: false, error: "Invalid or expired token" }, 401);
     }
+
+    const status = result.reason === "exchange_error" ? 500 : 401;
+    return c.json(
+      {
+        success: false,
+        code: result.reason,
+        error: tempTokenErrorMessage(result.reason),
+      },
+      status,
+    );
   } catch (error) {
     logger.error(error, "Failed to exchange store token");
     return c.json({ success: false, error: "Failed to exchange token" }, 500);

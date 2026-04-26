@@ -2,7 +2,7 @@ import {BottomSheetModalProvider} from "@gorhom/bottom-sheet"
 import * as Sentry from "@sentry/react-native"
 import {Stack} from "expo-router"
 import {PostHogProvider} from "posthog-react-native"
-import {Suspense, FunctionComponent, PropsWithChildren} from "react"
+import {Suspense, FunctionComponent, PropsWithChildren, useMemo} from "react"
 import {View} from "react-native"
 import ErrorBoundary from "react-native-error-boundary"
 import {GestureHandlerRootView} from "react-native-gesture-handler"
@@ -28,6 +28,13 @@ import {getAnimation, JsStack, NativeJsStack, woltScreenOptions} from "@/compone
 import CoreStatusBar from "@/components/dev/CoreStatusBar"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
+
+const convertToNativeAnimation = (animation: string) => {
+  if (animation === "zoom") {
+    return "fade"
+  }
+  return animation
+}
 
 // components at the top wrap everything below them in order:
 export const AllProviders = withWrappers(
@@ -160,27 +167,25 @@ export const AllProviders = withWrappers(
   (props) => {
     const {preventBack, animation, forceGestureEnabled} = useNavigationHistory()
 
-    const convertToNativeAnimation = (animation: string) => {
-      if (animation === "zoom") {
-        return "fade"
-      }
-      return animation
-    }
+    const screenOptions = useMemo(
+      () => ({
+        headerShown: false,
+        gestureEnabled: forceGestureEnabled || !preventBack,
+        gestureDirection: "horizontal" as const,
+        animation: convertToNativeAnimation(animation) as any,
+        // Load-bearing for MiniappHost: /applet/local renders a transparent
+        // passthrough View so the WebView (rendered in MiniappHost at app
+        // root) is visible. Without a transparent contentStyle the route's
+        // container paints over the MiniappHost.
+        contentStyle: {backgroundColor: "transparent"},
+      }),
+      [preventBack, forceGestureEnabled, animation],
+    )
 
     return (
       <>
         {props.children}
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            gestureEnabled: forceGestureEnabled || !preventBack,
-            gestureDirection: "horizontal",
-            animation: convertToNativeAnimation(animation) as any,
-            contentStyle: {backgroundColor: "transparent"},
-            // animation: "default",
-            // cardStyleInterpolator: getAnimation(animation),
-          }}
-        />
+        <Stack screenOptions={screenOptions} />
         <MiniappHost />
       </>
     )

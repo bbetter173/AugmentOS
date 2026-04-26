@@ -135,6 +135,7 @@ export default function MiniappHost() {
 
   const mount = useCallback(
     (packageName: string, bundleUri: string, options?: MiniappMountOptions) => {
+      console.log(`[MINIAPP_HOST] mount(${packageName}) bundleUri=${bundleUri}`)
       setApps((prev) => {
         const next = new Map(prev)
         const prevEntry = next.get(packageName)
@@ -216,6 +217,7 @@ export default function MiniappHost() {
   )
 
   const markLoaded = useCallback((packageName: string) => {
+    console.log(`[MINIAPP_HOST] onLoadEnd(${packageName})`)
     setApps((prev) => {
       const next = new Map(prev)
       const entry = next.get(packageName)

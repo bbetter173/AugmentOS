@@ -565,6 +565,10 @@ export default function MiniappHost() {
               scalesPageToFit={false}
               setBuiltInZoomControls={false}
               setDisplayZoomControls={false}
+              // Enable Safari Web Inspector / Chrome devtools attach in dev
+              // builds so miniapp authors can debug their bundle. iOS 16.4+
+              // and Android changed this to opt-in.
+              webviewDebuggingEnabled={__DEV__}
               style={styles.webview}
             />
             {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}

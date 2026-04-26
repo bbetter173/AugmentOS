@@ -51,17 +51,17 @@ export async function pack(opts: PackOptions = {}): Promise<string> {
     process.exit(1);
   }
 
-  // Strip `type="module"` and `crossorigin` from <script> tags in
-  // dist/index.html so the bundle loads from file:// inside the phone's
-  // WebView. Module scripts are unique-origin under file:// and silently
-  // fail (white screen). The bundle itself is built with --format=iife,
-  // which is safe to run as a classic script.
+  // Rewrite <script type="module"> tags into classic scripts that load
+  // correctly from file:// inside the phone's WebView. Module scripts are
+  // unique-origin under file:// and silently fail (white screen). The
+  // bundle is built with --format=iife so it's safe to run as classic.
   //
-  // Add `defer` to the rewritten <script> so it runs AFTER the document
-  // is parsed. Module scripts default to deferred; stripping `type="module"`
-  // off a script in <head> turns it into a synchronous classic script
-  // that runs BEFORE <body>, so document.getElementById("root") returns
-  // null and React can't mount. `defer` restores the post-parse timing.
+  // BUT: classic scripts in <head> run synchronously BEFORE <body> parses,
+  // so document.getElementById("root") returns null and React can't mount.
+  // Module scripts default to deferred, which is why this worked before.
+  // We add `defer` AND move the script to the end of <body> — the move is
+  // belt-and-suspenders because some WKWebView builds appear to ignore
+  // `defer` on classic scripts under file://.
   //
   // This is a temporary band-aid; the proper fix is the custom URL scheme
   // handler module (see agents/miniapp-webview-scheme-handler-plan.md),
@@ -70,11 +70,35 @@ export async function pack(opts: PackOptions = {}): Promise<string> {
   const indexHtmlPath = join(distDir, 'index.html');
   if (existsSync(indexHtmlPath)) {
     const html = readFileSync(indexHtmlPath, 'utf-8');
-    const patched = html
+
+    // 1. Strip type="module" and crossorigin attributes.
+    let patched = html
       .replace(/<script\s+type="module"\s+crossorigin\s+/g, '<script defer ')
       .replace(/<script\s+type="module"\s+/g, '<script defer ')
       .replace(/<script\s+crossorigin\s+/g, '<script defer ')
       .replace(/<link\s+rel="stylesheet"\s+crossorigin\s+/g, '<link rel="stylesheet" ');
+
+    // 2. Move all <script ...></script> tags to the end of <body>. file://
+    //    + WKWebView is unreliable about classic-script timing in <head>.
+    const scriptTags: string[] = [];
+    patched = patched.replace(/<script\b[^>]*>\s*<\/script>/g, (match) => {
+      scriptTags.push(match);
+      return '';
+    });
+    if (scriptTags.length > 0) {
+      const closingBody = patched.lastIndexOf('</body>');
+      if (closingBody !== -1) {
+        patched =
+          patched.slice(0, closingBody) +
+          scriptTags.join('\n    ') +
+          '\n  ' +
+          patched.slice(closingBody);
+      } else {
+        // No </body> tag found — append at end as a fallback.
+        patched += '\n' + scriptTags.join('\n');
+      }
+    }
+
     if (patched !== html) {
       writeFileSync(indexHtmlPath, patched);
     }

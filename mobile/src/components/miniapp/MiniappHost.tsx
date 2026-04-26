@@ -399,7 +399,6 @@ export default function MiniappHost() {
 
   const handleMessage = useCallback((packageName: string, event: WebViewMessageEvent) => {
     const data = event.nativeEvent.data
-    console.log(`[MINIAPP_HOST] handleMessage(${packageName}) ${data.length} bytes: ${data.slice(0, 200)}`)
     localMiniappRuntime.handleRawMessage(packageName, data)
   }, [])
 

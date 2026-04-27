@@ -328,9 +328,30 @@ public class OtaService extends Service {
             // branch we fall through to the version-bump heuristic and may either skip the
             // resume entirely, or kick a duplicate version check while a real session is
             // still in flight. Resume directly so the next step is picked up.
+            //
+            // CRITICAL: resumeFromSession() unconditionally advances currentStepIndex + 1.
+            // We must only invoke it when the active session is the APK install restart
+            // recovery case (step 0, type=apk, phase=install). For any other in-flight
+            // session (e.g. MTK/BES download or install) the service may have been
+            // recreated by the OS while a real OTA step is still running on the glasses,
+            // so advancing here would skip the current step or mark the session complete
+            // before the update actually finished. Leave that session alone and let
+            // normal OTA progress events drive it.
             if (sessionManager.hasActiveSession()) {
-                Log.i(TAG, "📱 Active OTA session found without restart guard — resuming next step");
-                resumeFromSession(sessionManager);
+                int currentStepIndex = sessionManager.getCurrentStepIndex();
+                String currentStepType = sessionManager.getStepType(currentStepIndex);
+                String currentPhase = sessionManager.getCurrentPhase();
+                boolean isApkInstallRestart = currentStepIndex == 0
+                        && "apk".equals(currentStepType)
+                        && "install".equals(currentPhase);
+                if (isApkInstallRestart) {
+                    Log.i(TAG, "📱 Active APK install session found without restart guard — resuming next step");
+                    resumeFromSession(sessionManager);
+                    return;
+                }
+                Log.i(TAG, "📱 Active OTA session found without restart guard but not APK install restart "
+                        + "(step=" + currentStepIndex + " type=" + currentStepType + " phase=" + currentPhase
+                        + ") — leaving session in place, no auto-resume");
                 return;
             }
 

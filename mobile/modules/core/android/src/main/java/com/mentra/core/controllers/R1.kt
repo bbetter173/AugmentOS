@@ -474,7 +474,6 @@ class R1 : ControllerManager() {
         descriptorWriteInFlight = false
         readInFlight = false
         ringMacAddress = null
-        ready = false
         GlassesStore.apply("glasses", "controllerConnected", false)
         GlassesStore.apply("glasses", "controllerFullyBooted", false)
     }

@@ -97,7 +97,15 @@ class MantleManager {
     await migrate() // do any local migrations here
     const res = await restComms.loadUserSettings() // get settings from server
     if (res.is_ok()) {
-      const loadedSettings = res.value
+      let loadedSettings = res.value
+      // exclude default_wearable and pending_wearable from the settings when pulling from the server:
+      delete loadedSettings["default_wearable"]
+      delete loadedSettings["pending_wearable"]
+      delete loadedSettings["default_controller"]
+      delete loadedSettings["pending_controller"]
+      delete loadedSettings["controller_device_name"]
+      delete loadedSettings["controller_address"]
+
       await useSettingsStore.getState().setManyLocally(loadedSettings) // write settings to local storage
     } else {
       console.error("MANTLE: No settings received from server")

@@ -2828,7 +2828,7 @@ class G2 : SGCManager() {
             val devEventData = fields[13] as? ByteArray ?: return
             val timestamp = System.currentTimeMillis()
             val last = lastClickTimestamp
-            if (last != null && timestamp - last < 100) {
+            if (last != null && timestamp - last < 250) {
                 return
             }
             lastClickTimestamp = timestamp

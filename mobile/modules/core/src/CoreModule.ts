@@ -144,7 +144,7 @@ NativeCoreModule.updateGlasses = function (values: Partial<GlassesStatus>) {
   return this.update("glasses", values)
 }
 
-NativeCoreModule.updateCore = function (values: Partial<CoreStatus>) {
+NativeCoreModule.updateCore = function (values: Partial<CoreSettings>) {
   return this.update("core", values)
 }
 

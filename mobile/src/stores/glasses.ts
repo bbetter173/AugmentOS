@@ -156,15 +156,20 @@ export const useGlassesStore = create<GlassesState>()(
         console.log("🔍 GLASSES STORE: setOtaProgress called with:", JSON.stringify(progress))
         console.log("🔍 GLASSES STORE: otaInProgress =", otaInProgress)
 
-        // Never allow progress to regress within the same stage+currentUpdate
-        if (
+        // Never allow progress to regress within the same stage+currentUpdate — except a new
+        // work wave (STARTED) or the step after FINISHED (multi-hop APK: 27→31→36 re-downloads from 0).
+        const prev = state.otaProgress
+        const sameWave =
           progress &&
-          state.otaProgress &&
-          progress.stage === state.otaProgress.stage &&
-          progress.currentUpdate === state.otaProgress.currentUpdate &&
-          progress.progress < state.otaProgress.progress
-        ) {
-          return {otaProgress: {...progress, progress: state.otaProgress.progress}, otaInProgress}
+          prev &&
+          progress.stage === prev.stage &&
+          progress.currentUpdate === prev.currentUpdate &&
+          progress.progress < prev.progress
+        if (sameWave) {
+          const nextIsNewWave = progress.status === "STARTED" || prev.status === "FINISHED"
+          if (!nextIsNewWave) {
+            return {otaProgress: {...progress, progress: prev.progress}, otaInProgress}
+          }
         }
 
         return {otaProgress: progress, otaInProgress}

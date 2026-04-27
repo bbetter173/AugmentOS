@@ -49,9 +49,10 @@ jest.mock("@/components/ignite", () => {
 import {useConnectionOverlayConfig} from "@/contexts/ConnectionOverlayContext"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 
-import OtaProgressScreen from "../progress"
+import OtaProgressScreen from "@/app/ota/progress"
+import {MINIMUM_OTA_STATUS_BUILD, OtaProgressMessages} from "@/app/ota/otaProgressTimeouts"
 
-import {OtaProgressMessages} from "../otaProgressTimeouts"
+const sb = (n: number) => String(n)
 
 const CoreModule = require("core").default
 
@@ -70,7 +71,8 @@ afterEach(() => {
 
 describe("progress.tsx version gating", () => {
   it("redirects to legacy for old firmware build number", () => {
-    useGlassesStore.getState().setGlassesInfo({buildNumber: "30", connected: true})
+    const oldBuild = Math.max(1, MINIMUM_OTA_STATUS_BUILD - 7)
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(oldBuild), connected: true})
     render(<OtaProgressScreen />)
     expect(mockReplace).toHaveBeenCalledWith("/ota/progress-legacy")
   })
@@ -81,14 +83,20 @@ describe("progress.tsx version gating", () => {
     expect(mockReplace).not.toHaveBeenCalledWith("/ota/progress-legacy")
   })
 
-  it("does NOT redirect at minimum ota_status build (36)", () => {
-    useGlassesStore.getState().setGlassesInfo({buildNumber: "36", connected: true})
+  it("redirects to legacy for build one below MINIMUM_OTA_STATUS_BUILD", () => {
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD - 1), connected: true})
+    render(<OtaProgressScreen />)
+    expect(mockReplace).toHaveBeenCalledWith("/ota/progress-legacy")
+  })
+
+  it("does NOT redirect at MINIMUM_OTA_STATUS_BUILD", () => {
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD), connected: true})
     render(<OtaProgressScreen />)
     expect(mockReplace).not.toHaveBeenCalledWith("/ota/progress-legacy")
   })
 
   it("does NOT redirect for buildNumber above threshold", () => {
-    useGlassesStore.getState().setGlassesInfo({buildNumber: "50", connected: true})
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD + 20), connected: true})
     render(<OtaProgressScreen />)
     expect(mockReplace).not.toHaveBeenCalledWith("/ota/progress-legacy")
   })
@@ -143,11 +151,12 @@ describe("progress.tsx display states", () => {
   })
 
   it("transitions to complete on complete ota_status even when a target build is known in store", () => {
-    useGlassesStore.getState().setGlassesInfo({buildNumber: "36", connected: true})
+    const nextBuild = MINIMUM_OTA_STATUS_BUILD + 1
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD), connected: true})
     useGlassesStore.getState().setOtaUpdateAvailable({
       available: true,
-      versionCode: 38,
-      versionName: "38.0",
+      versionCode: nextBuild,
+      versionName: `${nextBuild}.0`,
       updates: ["apk"],
       totalSize: 0,
     })
@@ -221,11 +230,12 @@ describe("progress.tsx display states", () => {
   })
 
   it("does NOT override complete state on disconnect", () => {
-    useGlassesStore.getState().setGlassesInfo({buildNumber: "36", connected: true})
+    const nextBuild = MINIMUM_OTA_STATUS_BUILD + 1
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD), connected: true})
     useGlassesStore.getState().setOtaUpdateAvailable({
       available: true,
-      versionCode: 38,
-      versionName: "38.0",
+      versionCode: nextBuild,
+      versionName: `${nextBuild}.0`,
       updates: ["apk"],
       totalSize: 0,
     })
@@ -245,7 +255,7 @@ describe("progress.tsx display states", () => {
     })
 
     act(() => {
-      useGlassesStore.getState().setGlassesInfo({buildNumber: "38", connected: true})
+      useGlassesStore.getState().setGlassesInfo({buildNumber: sb(nextBuild), connected: true})
     })
 
     expect(getByText("Update complete!")).toBeDefined()
@@ -358,7 +368,7 @@ describe("progress.tsx watchdog timers", () => {
   })
 
   it("delays sendOtaStart after reconnect when multi-step APK completed", async () => {
-    useGlassesStore.getState().setGlassesInfo({buildNumber: "40", connected: true})
+    useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD + 3), connected: true})
     render(<OtaProgressScreen />)
     CoreModule.sendOtaStart.mockClear()
 
@@ -416,7 +426,6 @@ describe("progress.tsx watchdog timers", () => {
     })
     expect(CoreModule.ping).toHaveBeenCalled()
   })
-
 })
 
 describe("progress.tsx progress heartbeat", () => {

@@ -1,4 +1,5 @@
 import {Capabilities, getModelCapabilities} from "@/../../cloud/packages/types/src"
+import type {OtaUpdateInfo} from "core"
 
 import {useEffect, useRef} from "react"
 
@@ -51,7 +52,7 @@ interface VersionJson {
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // !!  WARNING: THIS URL POINTS AT THE *TEST* MANIFEST.                        !!
 // !!  Production phones currently fetch from a "test_" prefixed file.         !!
-// !!  Before swapping to https://ota.mentraglass.com/prod_live_version.json,  !!
+// !!  Before swapping to https://ota.mentraglass.com/test_bes_ota_prod_live_version.json,  !!
 // !!  confirm the manifest carries the same schema this code expects:         !!
 // !!    apps: { "com.mentra.asg_client": { versionCode, downloadUrl, sha256 } }
 // !!    mtk_patches: [...]                                                    !!
@@ -211,7 +212,7 @@ function compareVersions(version1: string, version2: string): number {
   }
 }
 
-interface OtaUpdateAvailable {
+export interface OtaCheckResult {
   hasCheckCompleted: boolean
   updateAvailable: boolean
   latestVersionInfo: VersionInfo | null
@@ -220,12 +221,44 @@ interface OtaUpdateAvailable {
   besVersion: string | null
 }
 
+/**
+ * Merge HTTP OTA check with glasses `ota_update_available`. When the phone-side
+ * manifest comparison misses work (e.g. stale build number), glasses can still
+ * advertise the true update set — union the steps and surface `updateAvailable`.
+ */
+export function mergeOtaCheckWithGlasses(phone: OtaCheckResult, glassesHint: OtaUpdateInfo | null): OtaCheckResult {
+  if (glassesHint == null || !glassesHint.available || !glassesHint.updates?.length) {
+    return phone
+  }
+
+  const union = [...new Set([...phone.updates, ...glassesHint.updates])]
+  const latestVersionInfo =
+    phone.latestVersionInfo ??
+    (glassesHint.versionCode
+      ? {
+          versionCode: glassesHint.versionCode,
+          versionName: glassesHint.versionName || "",
+          downloadUrl: "",
+          apkSize: glassesHint.totalSize ?? 0,
+          sha256: "",
+          releaseNotes: "",
+        }
+      : null)
+
+  return {
+    ...phone,
+    updateAvailable: phone.updateAvailable || union.length > 0,
+    updates: union,
+    latestVersionInfo,
+  }
+}
+
 export async function checkForOtaUpdate(
   otaVersionUrl: string,
   currentBuildNumber: string,
   currentMtkVersion?: string, // MTK firmware version (e.g., "20241130")
   currentBesVersion?: string, // BES firmware version (e.g., "17.26.1.14")
-): Promise<OtaUpdateAvailable> {
+): Promise<OtaCheckResult> {
   try {
     console.log("OTA: Checking for OTA update - URL: " + otaVersionUrl + ", current build: " + currentBuildNumber)
     const versionJson = await fetchVersionInfo(otaVersionUrl)

@@ -119,4 +119,44 @@ describe("otaProgress monotonic guard", () => {
     expect(useGlassesStore.getState().otaProgress?.progress).toBe(0)
     expect(useGlassesStore.getState().otaProgress?.stage).toBe("install")
   })
+
+  it("allows same-stage progress drop after FINISHED (multi-hop APK re-download)", () => {
+    useGlassesStore.getState().setOtaProgress({
+      stage: "download",
+      status: "FINISHED",
+      progress: 100,
+      bytesDownloaded: 5000,
+      totalBytes: 5000,
+      currentUpdate: "apk",
+    })
+    useGlassesStore.getState().setOtaProgress({
+      stage: "download",
+      status: "PROGRESS",
+      progress: 12,
+      bytesDownloaded: 600,
+      totalBytes: 5000,
+      currentUpdate: "apk",
+    })
+    expect(useGlassesStore.getState().otaProgress?.progress).toBe(12)
+  })
+
+  it("allows same-stage progress drop when new wave is STARTED", () => {
+    useGlassesStore.getState().setOtaProgress({
+      stage: "download",
+      status: "PROGRESS",
+      progress: 90,
+      bytesDownloaded: 4500,
+      totalBytes: 5000,
+      currentUpdate: "apk",
+    })
+    useGlassesStore.getState().setOtaProgress({
+      stage: "download",
+      status: "STARTED",
+      progress: 0,
+      bytesDownloaded: 0,
+      totalBytes: 0,
+      currentUpdate: "apk",
+    })
+    expect(useGlassesStore.getState().otaProgress?.progress).toBe(0)
+  })
 })

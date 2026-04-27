@@ -1,5 +1,12 @@
 /** Shared OTA progress watchdog timings (see progress-legacy.tsx / progress.tsx). */
 
+/**
+ * First glasses `build_number` (ASG `versionCode`) that uses `progress.tsx` with unified
+ * `ota_status` session UI. Strictly lower builds redirect to `/ota/progress-legacy`.
+ * Change only here.
+ */
+export const MINIMUM_OTA_STATUS_BUILD = 37
+
 export const MAX_RETRIES = 3
 export const RETRY_INTERVAL_MS = 5000
 /** APK/BES and general install when progress events are expected */

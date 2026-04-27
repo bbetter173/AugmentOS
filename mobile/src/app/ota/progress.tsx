@@ -8,6 +8,7 @@ import {
   DOWNLOAD_STUCK_TIMEOUT_MS,
   GLOBAL_OTA_TIMEOUT_MS,
   MAX_RETRIES,
+  MINIMUM_OTA_STATUS_BUILD,
   MTK_INSTALL_TIMEOUT_MS,
   OtaProgressMessages,
   PING_INTERVAL_MS,
@@ -24,9 +25,6 @@ import {useConnectionOverlayConfig} from "@/contexts/ConnectionOverlayContext"
 import {useGlassesStore} from "@/stores/glasses"
 import {getOtaErrorMessage, shouldShowChangeWifiForOtaDownloadFailure} from "@/utils/otaErrorMapping"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
-
-// OtaSessionManager was introduced in build 36. Older builds use progress-legacy.tsx.
-const MINIMUM_OTA_STATUS_BUILD = 36
 
 function isTerminalForWatchdog(d: DisplayState): boolean {
   return d === "complete" || d === "failed" || d === "restarting"
@@ -60,6 +58,17 @@ function latestPercentForStuck(otaStatus: OtaStatus | null, otaProgress: OtaProg
     return Math.max(otaStatus.overallPercent ?? 0, otaStatus.stepPercent ?? 0)
   }
   return 0
+}
+
+/**
+ * "idle" ota_status means the glasses have no active session — that is NOT a
+ * recovery signal, so the query-reply fallback must keep firing and retry
+ * ota_start. Only treat real progress or a non-idle ota_status as a useful
+ * reply that cancels the fallback.
+ */
+function hasRecoveringOtaReply(otaStatus: OtaStatus | null, otaProgress: OtaProgress | null): boolean {
+  if (otaProgress) return true
+  return !!otaStatus && otaStatus.status !== "idle"
 }
 
 export default function OtaProgressScreen() {
@@ -360,12 +369,14 @@ export default function OtaProgressScreen() {
 
   /**
    * After sending ota_query_status, wait QUERY_REPLY_TIMEOUT_MS for the glasses
-   * to reply with an ota_status. If nothing arrives (e.g. the glasses' OTA
-   * session was wiped between mount and reconnect), fall back to ota_start so
-   * the user doesn't sit on a spinner forever.
+   * to reply with a useful ota_status. If nothing arrives (e.g. the glasses'
+   * OTA session was wiped between mount and reconnect), or the glasses reply
+   * with an explicit "idle" status (no session), fall back to ota_start so the
+   * user doesn't sit on a spinner forever.
    *
-   * Cleared as soon as ANY otaStatus or otaProgress lands in the store
-   * (see effect below).
+   * Cleared as soon as a non-idle otaStatus or any otaProgress lands in the
+   * store (see effect below). An idle reply intentionally does NOT cancel the
+   * fallback, so reconnects against a wiped/lost session still recover.
    */
   const armQueryReplyFallback = useCallback(
     (reason: "reconnect" | "initial-mount") => {
@@ -373,12 +384,13 @@ export default function OtaProgressScreen() {
       queryReplyTimeoutRef.current = setTimeout(() => {
         queryReplyTimeoutRef.current = null
         const s = useGlassesStore.getState()
-        // If we already got a reply, we'd have been cleared. Defensive re-check:
-        if (s.otaStatus || s.otaProgress) return
+        // If we already got a useful reply, we'd have been cleared. Defensive
+        // re-check: idle replies must not block the retry.
+        if (hasRecoveringOtaReply(s.otaStatus, s.otaProgress)) return
         // Don't fire if we've left the active phase (e.g. user backed out, error overlay).
         if (isTerminalForWatchdog(computeDisplayStateNow())) return
         console.log(
-          `[OTA_PROGRESS] watchdog: ota_query_status got no reply in ${QUERY_REPLY_TIMEOUT_MS}ms (reason=${reason}), falling back to ota_start`,
+          `[OTA_PROGRESS] watchdog: ota_query_status got no useful reply in ${QUERY_REPLY_TIMEOUT_MS}ms (reason=${reason}), falling back to ota_start`,
         )
         retryCountRef.current = 0
         hasFirstActivityRef.current = false
@@ -390,9 +402,12 @@ export default function OtaProgressScreen() {
     [clearQueryReplyTimeout, computeDisplayStateNow],
   )
 
-  // Cancel the query-reply fallback as soon as the glasses reply with anything.
+  // Cancel the query-reply fallback as soon as the glasses reply with a useful
+  // status (in_progress / step_complete / complete / failed) or any progress
+  // event. An "idle" ota_status means glasses have no active session, so we
+  // must keep the fallback armed and let it retry ota_start.
   useEffect(() => {
-    if (queryReplyTimeoutRef.current && (otaStatus || otaProgress)) {
+    if (queryReplyTimeoutRef.current && hasRecoveringOtaReply(otaStatus, otaProgress)) {
       clearQueryReplyTimeout()
     }
   }, [otaStatus, otaProgress, clearQueryReplyTimeout])

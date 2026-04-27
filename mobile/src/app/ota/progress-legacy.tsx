@@ -19,10 +19,26 @@ import {
   GLOBAL_OTA_TIMEOUT_MS,
   MAX_RETRIES,
   MTK_INSTALL_TIMEOUT_MS,
+  PING_INTERVAL_MS,
   POST_APK_OTA_START_DELAY_MS,
   PROGRESS_TIMEOUT_MS,
   RETRY_INTERVAL_MS,
 } from "@/app/ota/otaProgressTimeouts"
+
+/** Legacy OTA: +20s on every watchdog / timer duration (shared defaults stay unchanged for progress.tsx). */
+const LEGACY_EXTRA_TIMEOUT_MS = 20_000
+
+const legacyGlobalOtaTimeoutMs = GLOBAL_OTA_TIMEOUT_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyProgressTimeoutMs = PROGRESS_TIMEOUT_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyMtkInstallTimeoutMs = MTK_INSTALL_TIMEOUT_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyDownloadStuckTimeoutMs = DOWNLOAD_STUCK_TIMEOUT_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyRetryIntervalMs = RETRY_INTERVAL_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyPostApkOtaStartDelayMs = POST_APK_OTA_START_DELAY_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyPingIntervalMs = PING_INTERVAL_MS + LEGACY_EXTRA_TIMEOUT_MS
+const legacyApkCompletionDelayMs = 12_000 + LEGACY_EXTRA_TIMEOUT_MS
+const legacyBesContinueCooldownMs = 15_000 + LEGACY_EXTRA_TIMEOUT_MS
+const legacyMtkStallDetectMs = 20_000 + LEGACY_EXTRA_TIMEOUT_MS
+const legacyMtkSimTickMs = 15_000 + LEGACY_EXTRA_TIMEOUT_MS
 
 type ProgressState =
   | "starting"
@@ -92,7 +108,7 @@ export default function OtaProgressScreen() {
   const retryTimeoutRef = useRef<number | null>(null)
   const stuckTimeoutRef = useRef<number | null>(null)
   const progressTimeoutRef = useRef<number | null>(null)
-  // Global OTA session timeout: fail if we don't reach a terminal state within GLOBAL_OTA_TIMEOUT_MS
+  // Global OTA session timeout: fail if we don't reach a terminal state within legacyGlobalOtaTimeoutMs
   const globalTimeoutRef = useRef<number | null>(null)
   // Post-APK settle delay: cleared if we unmount or disconnect before it fires
   const postReconnectDelayRef = useRef<number | null>(null)
@@ -271,10 +287,10 @@ export default function OtaProgressScreen() {
       // Send initial ping immediately
       CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
 
-      // Set up interval to ping every 10 seconds
+      // Set up interval to ping (legacy: PING_INTERVAL_MS + LEGACY_EXTRA_TIMEOUT_MS)
       pingIntervalRef.current = setInterval(() => {
         CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
-      }, 10000) as unknown as number
+      }, legacyPingIntervalMs) as unknown as number
 
       return () => {
         if (pingIntervalRef.current) {
@@ -610,11 +626,11 @@ export default function OtaProgressScreen() {
           }
           setErrorMessage("Update took too long. Please try again.")
           setProgressState("failed")
-        }, GLOBAL_OTA_TIMEOUT_MS) as unknown as number
-        console.log("OTA_TRACK: global_timeout_started", JSON.stringify({ms: GLOBAL_OTA_TIMEOUT_MS}))
+        }, legacyGlobalOtaTimeoutMs) as unknown as number
+        console.log("OTA_TRACK: global_timeout_started", JSON.stringify({ms: legacyGlobalOtaTimeoutMs}))
       }
 
-      // Set up timeout: retry if glasses don't ack within RETRY_INTERVAL_MS.
+      // Set up timeout: retry if glasses don't ack within legacyRetryIntervalMs.
       // Ack arrives in milliseconds; progress can take 10–30 s.
       retryTimeoutRef.current = setTimeout(() => {
         if (!hasReceivedAck.current && progressState === "starting") {
@@ -630,8 +646,8 @@ export default function OtaProgressScreen() {
             setProgressState("failed")
           }
         }
-      }, RETRY_INTERVAL_MS) as unknown as number
-      // if after 30 seconds we have received progress, but the progress is still 0, (detect if we're stuck at 0%):
+      }, legacyRetryIntervalMs) as unknown as number
+      // If after legacyDownloadStuckTimeoutMs we are still in starting/downloading at 0%, fail (stuck at 0%):
       stuckTimeoutRef.current = setTimeout(() => {
         const currentState = progressStateRef.current
         if (currentState !== "starting" && currentState !== "downloading") {
@@ -651,7 +667,7 @@ export default function OtaProgressScreen() {
           setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
           setProgressState("failed")
         }
-      }, DOWNLOAD_STUCK_TIMEOUT_MS) as unknown as number
+      }, legacyDownloadStuckTimeoutMs) as unknown as number
     } catch (error) {
       console.log("OTA_TRACK: send_ota_start_error", JSON.stringify({error: String(error), retryCount}))
       if (retryCount < MAX_RETRIES - 1) {
@@ -669,7 +685,7 @@ export default function OtaProgressScreen() {
 
   // When waitingForReconnectRef is true, watch for glasses to be ready then trigger ota_start.
   // After APK: requires BLE reconnect AND fresh buildNumber (version_info arrived), then waits
-  //            POST_APK_OTA_START_DELAY_MS for the new OTA service to fully initialize.
+  //            legacyPostApkOtaStartDelayMs for the new OTA service to fully initialize.
   // After MTK/BES reboot: requires BLE reconnect only (no delay needed).
   // We call sendOtaStartCommand() directly (not setRetryCount(0)) because retryCount was already
   // reset to 0 in advanceToNextStep, so the effect that sends on retryCount would not re-run.
@@ -706,9 +722,9 @@ export default function OtaProgressScreen() {
     if (prevUpdate === "apk") {
       console.log(
         "OTA_TRACK: post_apk_delay",
-        JSON.stringify({delayMs: POST_APK_OTA_START_DELAY_MS, currentUpdateIndex}),
+        JSON.stringify({delayMs: legacyPostApkOtaStartDelayMs, currentUpdateIndex}),
       )
-      postReconnectDelayRef.current = setTimeout(fire, POST_APK_OTA_START_DELAY_MS) as unknown as number
+      postReconnectDelayRef.current = setTimeout(fire, legacyPostApkOtaStartDelayMs) as unknown as number
     } else {
       fire()
     }
@@ -1013,8 +1029,8 @@ export default function OtaProgressScreen() {
 
             return capped
           })
-        }, 15000) // 15 seconds between 1% increments
-      }, 20000) // 20 seconds before first simulation tick
+        }, legacyMtkSimTickMs) // padded interval between 1% simulation increments
+      }, legacyMtkStallDetectMs) // padded delay before first simulation tick after stall zone
     }
 
     return () => {
@@ -1025,7 +1041,8 @@ export default function OtaProgressScreen() {
   // Watch for OTA progress updates from glasses
   useEffect(() => {
     const sequence = updateSequenceRef.current
-    const expectedStep = sequence[currentUpdateIndex] ?? null
+    const indexAtEntry = currentUpdateIndex
+    const expectedStepAtEntry = sequence[indexAtEntry] ?? null
 
     // OTA_TRACK: always log incoming progress + current state (grep "OTA_TRACK" for full trace)
     console.log(
@@ -1041,8 +1058,8 @@ export default function OtaProgressScreen() {
           : null,
         state: {
           sequence: [...sequence],
-          currentUpdateIndex,
-          expectedStep,
+          currentUpdateIndex: indexAtEntry,
+          expectedStep: expectedStepAtEntry,
           progressState: progressStateRef.current,
           hasReceivedProgress: hasReceivedProgress.current,
         },
@@ -1080,8 +1097,8 @@ export default function OtaProgressScreen() {
     // Ignore only the known stale-first-event signature after retry:
     // step 1 expects APK, but we briefly receive firmware download STARTED.
     if (
-      currentUpdateIndex === 0 &&
-      expectedStep === "apk" &&
+      indexAtEntry === 0 &&
+      expectedStepAtEntry === "apk" &&
       (currentUpdate === "mtk" || currentUpdate === "bes") &&
       stage === "download" &&
       status === "STARTED"
@@ -1089,19 +1106,60 @@ export default function OtaProgressScreen() {
       console.log(
         "OTA_TRACK: skip_reason=stale_firmware_start_before_apk",
         JSON.stringify({
-          expectedStep,
+          expectedStep: expectedStepAtEntry,
           received: currentUpdate,
           stage,
           status,
-          currentUpdateIndex,
+          currentUpdateIndex: indexAtEntry,
           sequence: [...sequence],
         }),
       )
       return
     }
 
-    // During install phase, only process events for the step we're currently tracking.
-    // During download phase, accept ALL events (unified download progress).
+    const stepIdxInSeq = sequence.indexOf(currentUpdate)
+
+    // After APK→MTK handoff, RN index can lag behind glasses (build_number / 12s timer races).
+    // Trust install-phase progress from a later sequence step and snap the index forward.
+    let indexForGates = indexAtEntry
+    if (stage === "install" && stepIdxInSeq !== -1 && stepIdxInSeq > indexForGates) {
+      console.log(
+        "OTA_TRACK: index_resync_forward",
+        JSON.stringify({
+          from: indexForGates,
+          to: stepIdxInSeq,
+          currentUpdate,
+          stage,
+          status,
+          sequence: [...sequence],
+        }),
+      )
+      indexForGates = stepIdxInSeq
+      setCurrentUpdateIndex(stepIdxInSeq)
+    }
+
+    // RN index can run ahead of glasses (legacy ota_progress / remount / resync races). Trust the
+    // glasses step label and snap the index backward — do not drop live download/install events.
+    if (stepIdxInSeq !== -1 && stepIdxInSeq < indexForGates) {
+      console.log(
+        "OTA_TRACK: index_resync_backward",
+        JSON.stringify({
+          from: indexForGates,
+          to: stepIdxInSeq,
+          currentUpdate,
+          stage,
+          status,
+          sequence: [...sequence],
+        }),
+      )
+      indexForGates = stepIdxInSeq
+      setCurrentUpdateIndex(stepIdxInSeq)
+    }
+
+    const expectedStep = sequence[indexForGates] ?? null
+
+    // During install phase, only process events for the step we're currently tracking (after resync).
+    // During download phase, accept events for the current or synced-forward step.
     // Always allow FINISHED through so we don't drop completion when index/expectedStep race.
     if (stage === "install" && expectedStep && currentUpdate !== expectedStep && status !== "FINISHED") {
       console.log(
@@ -1109,7 +1167,7 @@ export default function OtaProgressScreen() {
         JSON.stringify({
           expectedStep,
           received: currentUpdate,
-          currentUpdateIndex,
+          currentUpdateIndex: indexForGates,
           sequence: [...sequence],
         }),
       )
@@ -1123,7 +1181,7 @@ export default function OtaProgressScreen() {
         stage,
         status,
         progress: otaProgress.progress,
-        currentUpdateIndex,
+        currentUpdateIndex: indexForGates,
         progressStateBefore: progressStateRef.current,
       }),
     )
@@ -1133,7 +1191,7 @@ export default function OtaProgressScreen() {
       hasReceivedProgress.current = true
       console.log(
         "OTA_TRACK: first_progress_received",
-        JSON.stringify({currentUpdate, stage, status, currentUpdateIndex, expectedStep: sequence[currentUpdateIndex]}),
+        JSON.stringify({currentUpdate, stage, status, currentUpdateIndex: indexForGates, expectedStep}),
       )
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
@@ -1192,10 +1250,10 @@ export default function OtaProgressScreen() {
         )
         setProgressState("installing")
         progressTimeoutRef.current = setTimeout(() => {
-          console.log("OTA: No MTK progress update received in 10 minutes - showing failed")
+          console.log("OTA: No MTK progress update received within MTK install timeout - showing failed")
           setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
           setProgressState("failed")
-        }, MTK_INSTALL_TIMEOUT_MS)
+        }, legacyMtkInstallTimeoutMs)
       } else if (stage === "download") {
         if (wifiStatusKnown && !wifiConnected) {
           console.log(
@@ -1211,10 +1269,12 @@ export default function OtaProgressScreen() {
         )
         setProgressState("downloading")
         progressTimeoutRef.current = setTimeout(() => {
-          console.log("OTA: No progress update received in 120s - showing failed")
+          console.log(
+            `OTA: No progress update received in ${Math.round(legacyProgressTimeoutMs / 1000)}s - showing failed`,
+          )
           setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
           setProgressState("failed")
-        }, PROGRESS_TIMEOUT_MS)
+        }, legacyProgressTimeoutMs)
       } else if (stage === "install") {
         console.log(
           "OTA_TRACK: state_transition",
@@ -1227,10 +1287,12 @@ export default function OtaProgressScreen() {
         )
         setProgressState("installing")
         progressTimeoutRef.current = setTimeout(() => {
-          console.log("OTA: No progress update received in 120s - showing failed")
+          console.log(
+            `OTA: No progress update received in ${Math.round(legacyProgressTimeoutMs / 1000)}s - showing failed`,
+          )
           setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
           setProgressState("failed")
-        }, PROGRESS_TIMEOUT_MS)
+        }, legacyProgressTimeoutMs)
       }
     } else if (status === "FINISHED") {
       // MTK: Install FINISHED means system install is complete
@@ -1267,10 +1329,12 @@ export default function OtaProgressScreen() {
             JSON.stringify({from: progressStateRef.current, reason: "bes_download_FINISHED_wait_install"}),
           )
           progressTimeoutRef.current = setTimeout(() => {
-            console.log("OTA: No progress update received in 120s - showing failed")
+            console.log(
+              `OTA: No progress update received in ${Math.round(legacyProgressTimeoutMs / 1000)}s - showing failed`,
+            )
             setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
             setProgressState("failed")
-          }, PROGRESS_TIMEOUT_MS)
+          }, legacyProgressTimeoutMs)
         } else if (stage === "install") {
           // Ignore duplicate terminal events so reconnect transition cannot be overwritten.
           if (progressStateRef.current === "restarting" || progressStateRef.current === "completed") {
@@ -1363,7 +1427,7 @@ export default function OtaProgressScreen() {
               JSON.stringify({currentUpdateIndex, sequence: [...updateSequenceRef.current]}),
             )
             handleUpdateCompleted("apk")
-          }, 12000)
+          }, legacyApkCompletionDelayMs)
         }
       }
     } else if (status === "FAILED") {
@@ -1425,7 +1489,14 @@ export default function OtaProgressScreen() {
   // Disable Continue button for 15s when entering "restarting" state for BES
   useEffect(() => {
     if (progressState === "restarting" && wasFirmwareUpdateRef.current) {
-      console.log("OTA_TRACK: ui_action", JSON.stringify({action: "disable_continue_15s", reason: "bes_restarting"}))
+      console.log(
+        "OTA_TRACK: ui_action",
+        JSON.stringify({
+          action: "disable_continue_after_bes_restarting",
+          cooldownMs: legacyBesContinueCooldownMs,
+          reason: "bes_restarting",
+        }),
+      )
       setContinueButtonDisabled(true)
       const timer = setTimeout(() => {
         console.log(
@@ -1433,7 +1504,7 @@ export default function OtaProgressScreen() {
           JSON.stringify({action: "re-enable_continue", reason: "15s_after_restarting"}),
         )
         setContinueButtonDisabled(false)
-      }, 15000) // Increased from 5s to 15s
+      }, legacyBesContinueCooldownMs)
       return () => clearTimeout(timer)
     }
   }, [progressState])
@@ -1497,36 +1568,67 @@ export default function OtaProgressScreen() {
   // Compute displayed update type and progress.
   // Download phase: accept all events, show percentage only for APK (BES/MTK downloads are trivially short).
   // Install phase: track the specific update being installed.
-  const expectedUpdate = updateSequenceRef.current[currentUpdateIndex] ?? undefined
+  //
+  // Step index for labels + "expected" step must match: derive displayStepIndex first, then
+  // expectedUpdate from seq[displayStepIndex]. Otherwise currentUpdateIndex can lag glasses
+  // (APK→MTK handoff) while otaProgress.currentUpdate is already "mtk" — you'd show "2 of 3"
+  // but still treat the row as APK for icons/copy.
+  const seq = updateSequenceRef.current
+  const rawDisplayStepIndex =
+    otaProgress?.currentUpdate != null && seq.includes(otaProgress.currentUpdate)
+      ? seq.indexOf(otaProgress.currentUpdate)
+      : currentUpdateIndex
+  const displayStepIndex = seq.length > 0 ? Math.min(Math.max(0, rawDisplayStepIndex), seq.length - 1) : 0
+  const expectedUpdate = seq[displayStepIndex] ?? undefined
   const rawCurrentUpdate = otaProgress?.currentUpdate
   const isStarting = progressState === "starting"
   const currentUpdate = isStarting
-    ? expectedUpdate
+    ? (rawCurrentUpdate ?? expectedUpdate)
     : progressState === "downloading"
       ? rawCurrentUpdate
       : (rawCurrentUpdate ?? expectedUpdate)
 
+  // Legacy glasses can send download/install % while RN is still "starting" (index/ack races).
+  // Show live APK download/install from glasses instead of a frozen 0% spinner.
+  const glassesApkDownloadActive =
+    isStarting &&
+    otaProgress?.currentUpdate === "apk" &&
+    otaProgress.stage === "download" &&
+    (otaProgress.status === "PROGRESS" || otaProgress.status === "STARTED")
+
+  const glassesApkInstallActive =
+    isStarting &&
+    otaProgress?.currentUpdate === "apk" &&
+    otaProgress.stage === "install" &&
+    (otaProgress.status === "PROGRESS" || otaProgress.status === "STARTED")
+
+  const treatAsDownloading = progressState === "downloading" || glassesApkDownloadActive
+  const treatAsInstalling = progressState === "installing" || glassesApkInstallActive
+
   // Download progress: only show percentage for APK downloads
   const isApkDownloading = otaProgress?.stage === "download" && otaProgress?.currentUpdate === "apk"
   const downloadProgress = isApkDownloading ? (otaProgress?.progress ?? 0) : 0
-  const showDownloadPercent = progressState === "downloading" && isApkDownloading
+  const showDownloadPercent = treatAsDownloading && isApkDownloading
 
   // Install progress: use raw progress from the specific install event
   const installProgress = otaProgress?.stage === "install" ? (otaProgress?.progress ?? 0) : 0
 
   const isSimulating = simulatedProgress !== null && currentUpdate === "mtk" && simulatedProgress > installProgress
-  const realProgress = progressState === "downloading" ? downloadProgress : installProgress
-  const progress = isStarting ? 0 : isSimulating ? simulatedProgress : realProgress
-  const displayProgress = isStarting ? 0 : isSimulating ? progress : Math.round(progress / 5) * 5
+  const realProgress = treatAsDownloading ? downloadProgress : treatAsInstalling ? installProgress : 0
+  const progress =
+    isStarting && !glassesApkDownloadActive && !glassesApkInstallActive
+      ? 0
+      : isSimulating
+        ? simulatedProgress
+        : realProgress
+  const displayProgress =
+    isStarting && !glassesApkDownloadActive && !glassesApkInstallActive
+      ? 0
+      : isSimulating
+        ? progress
+        : Math.round(progress / 5) * 5
 
-  // Get update position string like "Update 1 of 3".
-  // Use the step from actual progress when available so we don't show "3 of 3" while
-  // glasses are still reporting MTK (e.g. late download STARTED after we advanced to BES).
-  const seq = updateSequenceRef.current
-  const displayStepIndex =
-    otaProgress?.currentUpdate != null && seq.includes(otaProgress.currentUpdate)
-      ? seq.indexOf(otaProgress.currentUpdate)
-      : currentUpdateIndex
+  // Get update position string like "Update 1 of 3" (displayStepIndex already aligned with expectedUpdate).
 
   const renderStepIndicator = () => {
     const total = updateSequenceRef.current.length
@@ -1548,7 +1650,9 @@ export default function OtaProgressScreen() {
     progress,
     "currentUpdate:",
     currentUpdate,
-    "index:",
+    "displayStepIndex:",
+    displayStepIndex,
+    "currentUpdateIndex:",
     currentUpdateIndex,
   )
 
@@ -1578,13 +1682,55 @@ export default function OtaProgressScreen() {
       progress,
     )
 
-    // Starting state - waiting for glasses to respond
+    // Starting state — unless glasses are already reporting APK download/install (multi-hop / ack races).
     if (progressState === "starting") {
+      if (glassesApkDownloadActive) {
+        return (
+          <View className="flex-1 items-center justify-center px-6">
+            <Icon name="world-download" size={64} color={theme.colors.primary} />
+            <View className="h-6" />
+            <Text text="Downloading Update..." className="font-semibold text-xl text-center" />
+            <View className="h-2" />
+            {renderStepIndicator()}
+            <View className="h-4" />
+            {showDownloadPercent ? (
+              <Text text={`${displayProgress}%`} className="text-3xl font-bold" style={{color: theme.colors.primary}} />
+            ) : (
+              <ActivityIndicator size="large" color={theme.colors.foreground} />
+            )}
+            <View className="h-4" />
+            <Text tx="ota:doNotDisconnect" className="text-sm text-center" style={{color: theme.colors.textDim}} />
+            {renderTimeEstimation()}
+          </View>
+        )
+      }
+      if (glassesApkInstallActive) {
+        return (
+          <View className="flex-1 items-center justify-center px-6">
+            <Icon name="settings" size={64} color={theme.colors.primary} />
+            <View className="h-6" />
+            <Text text="Installing Update..." className="font-semibold text-xl text-center" />
+            <View className="h-2" />
+            {renderStepIndicator()}
+            <View className="h-4" />
+            <Text text={`${displayProgress}%`} className="text-3xl font-bold" style={{color: theme.colors.primary}} />
+            <View className="h-4" />
+            <Text tx="ota:doNotDisconnect" className="text-sm text-center" style={{color: theme.colors.textDim}} />
+            {renderTimeEstimation()}
+          </View>
+        )
+      }
+      const showPreparingNextCopy =
+        currentUpdateIndex > 0 || waitingForReconnectRef.current || completedUpdates.length > 0
+
       return (
         <View className="flex-1 items-center justify-center px-6">
           <Icon name="world-download" size={64} color={theme.colors.primary} />
           <View className="h-6" />
-          <Text tx="ota:startingUpdate" className="font-semibold text-xl text-center" />
+          <Text
+            tx={showPreparingNextCopy ? "ota:preparingNextUpdate" : "ota:startingUpdate"}
+            className="font-semibold text-xl text-center"
+          />
           <View className="h-4" />
           <ActivityIndicator size="large" color={theme.colors.foreground} />
           <View className="h-4" />
@@ -1618,7 +1764,7 @@ export default function OtaProgressScreen() {
 
     // Installing state
     if (progressState === "installing") {
-      const showProgress = currentUpdate === "bes" || currentUpdate === "mtk"
+      const showProgress = currentUpdate === "bes" || currentUpdate === "mtk" || currentUpdate === "apk"
       const isMtk = currentUpdate === "mtk"
 
       return (

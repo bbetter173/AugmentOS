@@ -20,7 +20,7 @@ import STTModelManager from "@/services/STTModelManager"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {showAlert} from "@/contexts/ModalContext"
 import {CompatibilityResult, HardwareCompatibility} from "@/utils/hardware"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
@@ -591,8 +591,8 @@ const startStopOfflineApplet = (applet: ClientAppletInterface, status: boolean):
   })
 }
 
-let refreshTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
-let refreshInterval: ReturnType<typeof BackgroundTimer.setInterval> | null = null
+let refreshTimeout: ReturnType<typeof BgTimer.setTimeout> | null = null
+let refreshInterval: ReturnType<typeof BgTimer.setInterval> | null = null
 // actually turn on or off an applet:
 const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncResult<void, Error> => {
   // Offline apps don't need to wait for server confirmation
@@ -607,11 +607,11 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
 
   // Clear any pending refresh timers
   if (refreshTimeout) {
-    BackgroundTimer.clearTimeout(refreshTimeout)
+    BgTimer.clearTimeout(refreshTimeout)
     refreshTimeout = null
   }
   if (refreshInterval) {
-    BackgroundTimer.clearInterval(refreshInterval)
+    BgTimer.clearInterval(refreshInterval)
     refreshInterval = null
   }
 
@@ -619,19 +619,19 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
   if (status) {
     let pollCount = 0
     const MAX_POLLS = 6
-    refreshInterval = BackgroundTimer.setInterval(() => {
+    refreshInterval = BgTimer.setInterval(() => {
       pollCount++
       useAppletStatusStore.getState().refreshApplets()
       if (pollCount >= MAX_POLLS) {
         if (refreshInterval) {
-          BackgroundTimer.clearInterval(refreshInterval)
+          BgTimer.clearInterval(refreshInterval)
           refreshInterval = null
         }
       }
     }, 1000)
   } else {
     // For stop, single refresh after 2s is fine
-    refreshTimeout = BackgroundTimer.setTimeout(() => {
+    refreshTimeout = BgTimer.setTimeout(() => {
       useAppletStatusStore.getState().refreshApplets()
     }, 2000)
   }
@@ -649,17 +649,17 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
   retryStartApp: async (packageName: string) => {
     // Re-send start request and set up polling (used by error screen retry)
     if (refreshInterval) {
-      BackgroundTimer.clearInterval(refreshInterval)
+      BgTimer.clearInterval(refreshInterval)
       refreshInterval = null
     }
     let pollCount = 0
     const MAX_POLLS = 6
-    refreshInterval = BackgroundTimer.setInterval(() => {
+    refreshInterval = BgTimer.setInterval(() => {
       pollCount++
       useAppletStatusStore.getState().refreshApplets()
       if (pollCount >= MAX_POLLS) {
         if (refreshInterval) {
-          BackgroundTimer.clearInterval(refreshInterval)
+          BgTimer.clearInterval(refreshInterval)
           refreshInterval = null
         }
       }
@@ -677,7 +677,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     console.log(`APPLETS: refreshApplets()`)
     // cancel any pending refresh timeouts:
     if (refreshTimeout) {
-      BackgroundTimer.clearTimeout(refreshTimeout)
+      BgTimer.clearTimeout(refreshTimeout)
       refreshTimeout = null
     }
 

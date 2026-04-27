@@ -16,7 +16,7 @@ import {useGlassesStore} from "@/stores/glasses"
 import showAlert from "@/utils/AlertUtils"
 import WifiCredentialsService from "@/utils/wifi/WifiCredentialsService"
 import {translate} from "@/i18n"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 import {useCoreStore} from "@/stores/core"
 
 export default function WifiScanScreen() {
@@ -87,7 +87,7 @@ export default function WifiScanScreen() {
       }))
 
       if (scanTimeoutRef.current) {
-        BackgroundTimer.clearTimeout(scanTimeoutRef.current)
+        BgTimer.clearTimeout(scanTimeoutRef.current)
         scanTimeoutRef.current = null
       }
 
@@ -101,7 +101,7 @@ export default function WifiScanScreen() {
 
     return () => {
       if (scanTimeoutRef.current) {
-        BackgroundTimer.clearTimeout(scanTimeoutRef.current)
+        BgTimer.clearTimeout(scanTimeoutRef.current)
         scanTimeoutRef.current = null
       }
     }
@@ -115,10 +115,10 @@ export default function WifiScanScreen() {
     receivedResultsForSessionRef.current = false
 
     if (scanTimeoutRef.current) {
-      BackgroundTimer.clearTimeout(scanTimeoutRef.current)
+      BgTimer.clearTimeout(scanTimeoutRef.current)
     }
 
-    scanTimeoutRef.current = BackgroundTimer.setTimeout(() => {
+    scanTimeoutRef.current = BgTimer.setTimeout(() => {
       console.log("WIFI_SCAN: SCAN TIMEOUT - RETRYING...")
       scanTimeoutRef.current = null
     }, 15000)
@@ -129,7 +129,7 @@ export default function WifiScanScreen() {
     } catch (error) {
       console.error("WIFI_SCAN: Error scanning for WiFi networks:", error)
       if (scanTimeoutRef.current) {
-        BackgroundTimer.clearTimeout(scanTimeoutRef.current)
+        BgTimer.clearTimeout(scanTimeoutRef.current)
         scanTimeoutRef.current = null
       }
       setIsScanning(false)

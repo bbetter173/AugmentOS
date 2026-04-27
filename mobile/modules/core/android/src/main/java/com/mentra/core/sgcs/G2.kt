@@ -1724,7 +1724,7 @@ class G2 : SGCManager() {
     // ---------- SGCManager: Display Control ----------
 
     override fun sendTextWall(text: String) {
-        // Bridge.log("G2: sendTextWall(${text.take(50)}...)")
+        // Bridge.log("G2: sendTextWall(${text.take(10)}...)")
 
         if (text.isEmpty()) {
             clearDisplay()
@@ -2287,7 +2287,19 @@ class G2 : SGCManager() {
     override fun dbg1() {
         connectController()
     }
-    override fun dbg2() {}
+    override fun dbg2() {
+        disconnectController()
+    }
+
+
+    fun reconnectController() {
+        val mac = GlassesStore.get("glasses", "controllerMacAddress") as? String
+        if (mac.isNullOrEmpty()) {
+            Bridge.log("G2: reconnectController - no MAC address found")
+            return
+        }
+        connectController()
+    }
 
     override fun connectController() {
         val isFullyBooted = GlassesStore.get("glasses", "fullyBooted") as? Boolean ?: false
@@ -3033,15 +3045,23 @@ class G2 : SGCManager() {
                     Bridge.log("G2: Ring maybe reconnected?")
                     GlassesStore.apply("glasses", "controllerFullyBooted", true)
                 }
+                
 
                 val connStatus = ringFields[4] as? Int ?: -1
                 Bridge.log("G2: Ring connection status: connStatus?=$connStatus")
 
-                if (connStatus == 22 || connStatus == 8) {
+                if (connStatus == 22) {
                     Bridge.log("G2: Ring disconnected")
                     GlassesStore.apply("glasses", "controllerFullyBooted", false)
                     GlassesStore.apply("glasses", "controllerSearching", true)
-                    connectController() // attempt reconnect
+                    reconnectController()
+                }
+
+                if (connStatus == 8) {
+                    Bridge.log("G2: Ring maybe disconnected?")
+                    // GlassesStore.apply("glasses", "controllerFullyBooted", false)
+                    // GlassesStore.apply("glasses", "controllerSearching", true)
+                    // reconnectController()
                 }
             }
         }

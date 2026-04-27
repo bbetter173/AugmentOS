@@ -5,7 +5,7 @@ import {WebView} from "react-native-webview"
 import {Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import miniComms, {MiniAppMessage} from "@/services/MiniComms"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 interface LocalMiniAppProps {
   packageName: string
@@ -36,7 +36,7 @@ export default function LocalMiniApp(props: LocalMiniAppProps) {
       console.log(`SUPERAPP: Native received: ${message.type}`)
     }
 
-    keepAliveIntervalRef.current = BackgroundTimer.setInterval(() => {
+    keepAliveIntervalRef.current = BgTimer.setInterval(() => {
       console.log("KEEPING ALIVE", Math.random())
       webViewRef.current?.injectJavaScript(`true;`)
     }, 1000)

@@ -33,7 +33,7 @@ import Animated, {
   withTiming,
   SharedValue,
 } from "react-native-reanimated"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 const GRID_COLUMNS = 4
 const POPOVER_WIDTH = 180
@@ -514,7 +514,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     ({key}: {key: string; fromIndex: number}) => {
       isMovingRef.current = false
       showPopover(key)
-      wiggleTimeoutRef.current = BackgroundTimer.setTimeout(() => {
+      wiggleTimeoutRef.current = BgTimer.setTimeout(() => {
         wiggleEnabled.value = true
       }, 500)
     },
@@ -537,7 +537,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     // stop wiggle:
     wiggleEnabled.value = false
     if (wiggleTimeoutRef.current) {
-      BackgroundTimer.clearTimeout(wiggleTimeoutRef.current)
+      BgTimer.clearTimeout(wiggleTimeoutRef.current)
       wiggleTimeoutRef.current = null
     }
     // save the new order:

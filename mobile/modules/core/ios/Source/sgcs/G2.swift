@@ -3099,7 +3099,6 @@ class G2: NSObject, SGCManager {
 
                 if connStatus == 22 {
                     Bridge.log("G2: Ring disconnected")
-                    // GlassesStore.shared.apply("glasses", "controllerConnected", false)
                     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
                     GlassesStore.shared.apply("glasses", "controllerSearching", true)
                     reconnectController()
@@ -3108,9 +3107,9 @@ class G2: NSObject, SGCManager {
                 if connStatus == 8 {
                     Bridge.log("G2: Ring maybe disconnected?")
                     // GlassesStore.shared.apply("glasses", "controllerConnected", false)
-                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
-                    GlassesStore.shared.apply("glasses", "controllerSearching", true)
-                    reconnectController()
+                    // GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                    // GlassesStore.shared.apply("glasses", "controllerSearching", true)
+                    // reconnectController()
                 }
                 // // GlassesStore.shared.apply("glasses", "ringConnectedToGlasses", connected)
             }

@@ -3,7 +3,7 @@ import {Platform, View} from "react-native"
 import {Gesture, GestureDetector} from "react-native-gesture-handler"
 
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 type Direction = "up" | "down" | "left" | "right"
 
@@ -56,7 +56,7 @@ export function KonamiCodeProvider({children}: {children: React.ReactNode}) {
   useEffect(() => {
     return () => {
       if (resetTimeoutRef.current) {
-        BackgroundTimer.clearTimeout(resetTimeoutRef.current)
+        BgTimer.clearTimeout(resetTimeoutRef.current)
       }
     }
   }, [])
@@ -70,10 +70,10 @@ export function KonamiCodeProvider({children}: {children: React.ReactNode}) {
     })
 
     if (resetTimeoutRef.current) {
-      BackgroundTimer.clearTimeout(resetTimeoutRef.current)
+      BgTimer.clearTimeout(resetTimeoutRef.current)
     }
 
-    resetTimeoutRef.current = BackgroundTimer.setTimeout(() => {
+    resetTimeoutRef.current = BgTimer.setTimeout(() => {
       setSequence([])
     }, 8000)
   }

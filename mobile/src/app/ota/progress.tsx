@@ -22,7 +22,7 @@ import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/Navigatio
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useConnectionOverlayConfig} from "@/contexts/ConnectionOverlayContext"
 import {useGlassesStore} from "@/stores/glasses"
-import {getOtaErrorMessage} from "@/utils/otaErrorMapping"
+import {getOtaErrorMessage, shouldShowChangeWifiForOtaDownloadFailure} from "@/utils/otaErrorMapping"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 
 // OtaSessionManager was introduced in build 36. Older builds use progress-legacy.tsx.
@@ -64,7 +64,7 @@ function latestPercentForStuck(otaStatus: OtaStatus | null, otaProgress: OtaProg
 
 export default function OtaProgressScreen() {
   const {theme} = useAppTheme()
-  const {replace} = useNavigationHistory()
+  const {push, replace} = useNavigationHistory()
   const connected = useGlassesStore((s) => s.connected)
   const currentBuildNumber = useGlassesStore((s) => s.buildNumber)
   const otaStatus = useGlassesStore((s) => s.otaStatus)
@@ -614,6 +614,10 @@ export default function OtaProgressScreen() {
     replace("/ota/check-for-updates")
   }
 
+  const handleChangeWifi = useCallback(() => {
+    push("/wifi/scan")
+  }, [push])
+
   const renderContent = () => {
     if (displayState === "starting") {
       return (
@@ -726,6 +730,7 @@ export default function OtaProgressScreen() {
 
     if (displayState === "failed") {
       const displayedError = errorMsg || getOtaErrorMessage(otaStatus?.error)
+      const showChangeWifi = shouldShowChangeWifiForOtaDownloadFailure(otaStatus, otaProgress, errorMsg)
       return (
         <>
           <View className="flex-1 items-center justify-center px-6">
@@ -737,6 +742,9 @@ export default function OtaProgressScreen() {
           </View>
           <View className="gap-3">
             <Button preset="primary" text="Retry" flexContainer onPress={handleRetry} />
+            {showChangeWifi ? (
+              <Button preset="secondary" text="Change WiFi" flexContainer onPress={handleChangeWifi} />
+            ) : null}
           </View>
         </>
       )

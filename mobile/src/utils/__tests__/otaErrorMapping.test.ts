@@ -1,4 +1,34 @@
-import {getOtaErrorMessage} from "../otaErrorMapping"
+import type {OtaProgress, OtaStatus} from "core"
+
+import {OtaProgressMessages} from "@/app/ota/otaProgressTimeouts"
+
+import {getOtaErrorMessage, shouldShowChangeWifiForOtaDownloadFailure} from "@/utils/otaErrorMapping"
+
+function baseOtaStatus(overrides: Partial<OtaStatus> = {}): OtaStatus {
+  return {
+    sessionId: "sid",
+    totalSteps: 1,
+    currentStep: 1,
+    stepType: "apk",
+    phase: "download",
+    stepPercent: 0,
+    overallPercent: 0,
+    status: "failed",
+    ...overrides,
+  }
+}
+
+function baseOtaProgress(overrides: Partial<OtaProgress> = {}): OtaProgress {
+  return {
+    stage: "download",
+    status: "FAILED",
+    progress: 0,
+    bytesDownloaded: 0,
+    totalBytes: 0,
+    currentUpdate: "apk",
+    ...overrides,
+  }
+}
 
 describe("getOtaErrorMessage", () => {
   it("maps no_internet to WiFi message", () => {
@@ -39,5 +69,74 @@ describe("getOtaErrorMessage", () => {
 
   it("returns generic message for empty string", () => {
     expect(getOtaErrorMessage("")).toBe("Update failed")
+  })
+})
+
+describe("shouldShowChangeWifiForOtaDownloadFailure", () => {
+  it("is true for any glasses failed state in download phase", () => {
+    expect(
+      shouldShowChangeWifiForOtaDownloadFailure(
+        baseOtaStatus({status: "failed", phase: "download", error: "firmware_verify_failed"}),
+        null,
+        "",
+      ),
+    ).toBe(true)
+    expect(
+      shouldShowChangeWifiForOtaDownloadFailure(
+        baseOtaStatus({status: "failed", phase: "download", error: "no_internet"}),
+        null,
+        "",
+      ),
+    ).toBe(true)
+  })
+
+  it("is false when glasses failed in install phase", () => {
+    expect(
+      shouldShowChangeWifiForOtaDownloadFailure(
+        baseOtaStatus({status: "failed", phase: "install", error: "install_failed"}),
+        null,
+        "",
+      ),
+    ).toBe(false)
+  })
+
+  it("is true for legacy otaProgress FAILED in download stage", () => {
+    expect(shouldShowChangeWifiForOtaDownloadFailure(null, baseOtaProgress(), "")).toBe(true)
+  })
+
+  it("is true for local watchdog error while store still shows download phase", () => {
+    expect(
+      shouldShowChangeWifiForOtaDownloadFailure(
+        baseOtaStatus({status: "in_progress", phase: "download"}),
+        null,
+        OtaProgressMessages.globalTimeout,
+      ),
+    ).toBe(true)
+    expect(
+      shouldShowChangeWifiForOtaDownloadFailure(
+        baseOtaStatus({status: "in_progress", phase: "download"}),
+        null,
+        OtaProgressMessages.stalledOrStuck,
+      ),
+    ).toBe(true)
+  })
+
+  it("is false for local watchdog error during install phase", () => {
+    expect(
+      shouldShowChangeWifiForOtaDownloadFailure(
+        baseOtaStatus({status: "in_progress", phase: "install"}),
+        null,
+        OtaProgressMessages.globalTimeout,
+      ),
+    ).toBe(false)
+  })
+
+  it("is false for BLE / ack errors with no download phase in store", () => {
+    expect(shouldShowChangeWifiForOtaDownloadFailure(null, null, OtaProgressMessages.noAckResponse)).toBe(false)
+    expect(shouldShowChangeWifiForOtaDownloadFailure(null, null, OtaProgressMessages.sendOtaStartFailed)).toBe(false)
+  })
+
+  it("is false when nothing indicates a download-step failure", () => {
+    expect(shouldShowChangeWifiForOtaDownloadFailure(null, null, "")).toBe(false)
   })
 })

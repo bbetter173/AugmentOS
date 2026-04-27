@@ -90,13 +90,6 @@ class R1 : ControllerManager() {
 
     private var ringGatt: BluetoothGatt? = null
     private var isDisconnecting = false
-    private var _ready = false
-    private var ready: Boolean
-        get() = _ready
-        set(value) {
-            _ready = value
-            if (!value) _batteryLevel = -1
-        }
 
     // BLE characteristics
     private var writeChar1: BluetoothGattCharacteristic? = null
@@ -322,7 +315,7 @@ class R1 : ControllerManager() {
         val writeChars = listOfNotNull(writeChar1, writeChar2)
         if (writeChars.isEmpty()) {
             Bridge.log("R1: No write characteristics found, skipping init")
-            markReady()
+            markConnected()
             return
         }
 
@@ -330,7 +323,7 @@ class R1 : ControllerManager() {
 
         mainHandler.postDelayed({
             writeChars.forEach { writeNoResponse(it, R1BLE.CONFIG_11) }
-            markReady()
+            markConnected()
         }, 200)
     }
 
@@ -344,10 +337,9 @@ class R1 : ControllerManager() {
         }
     }
 
-    private fun markReady() {
-        ready = true
+    private fun markConnected() {
         reconnectionManager.stop()
-        Bridge.log("R1: Ring ready")
+        Bridge.log("R1: Ring connected")
 
         val gatt = ringGatt
         val connectedName = try { gatt?.device?.name } catch (e: SecurityException) { null }
@@ -364,7 +356,7 @@ class R1 : ControllerManager() {
         }
         GlassesStore.apply("glasses", "controllerMacAddress", mac)
         GlassesStore.apply("glasses", "controllerConnected", true)
-        GlassesStore.apply("glasses", "controllerFullyBooted", true)
+        // GlassesStore.apply("glasses", "controllerFullyBooted", true)
 
         // after a second, connect the glasses to the controller if needed:
         CoroutineScope(Dispatchers.Main).launch {
@@ -381,7 +373,9 @@ class R1 : ControllerManager() {
         stopHeartbeat()
         val r = object : Runnable {
             override fun run() {
-                if (!ready) return
+                mainHandler.postDelayed(this, 30_000L)
+                val isConnected = GlassesStore.get("glasses", "controllerConnected") as? Boolean ?: false
+                if (!isConnected) return
                 val char = batteryLevelChar
                 if (char != null) {
                     try {
@@ -390,7 +384,6 @@ class R1 : ControllerManager() {
                         Bridge.log("R1: heartbeat read SecurityException: ${e.message}")
                     }
                 }
-                mainHandler.postDelayed(this, 30_000L)
             }
         }
         heartbeatRunnable = r

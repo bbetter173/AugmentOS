@@ -145,7 +145,7 @@ class MantleManager {
     this.transcriptProcessor.clear()
 
     livekit.disconnect()
-    socketComms.cleanup()
+    await socketComms.cleanup()
     restComms.goodbye()
   }
 
@@ -163,7 +163,7 @@ class MantleManager {
       },
       60 * 60 * 1000,
     ) // 1 hour
-    
+
     try {
       // only start location updates if we have the location permission:
       const hasLocation = await checkFeaturePermissions(PermissionFeatures.LOCATION)

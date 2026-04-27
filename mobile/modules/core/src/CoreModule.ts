@@ -2,6 +2,7 @@ import {NativeModule, requireNativeModule} from "expo"
 
 import {
   CoreModuleEvents,
+  CoreSettings,
   CoreStatus,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
@@ -129,7 +130,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
 
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
-  updateCore(values: Partial<CoreStatus>): Promise<void>
+  updateCore(values: Partial<CoreSettings>): Promise<void>
   onGlassesStatus(callback: GlassesListener): () => void
   onCoreStatus(callback: CoreListener): () => void
 }

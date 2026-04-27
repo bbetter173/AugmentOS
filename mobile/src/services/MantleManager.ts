@@ -22,7 +22,6 @@ import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {logE2EMetric} from "@/utils/e2eMetrics"
 import {useAppletStatusStore} from "@/stores/applets"
-import {syncDashboardMenu} from "@/utils/glassesMenu"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"
 
@@ -107,9 +106,12 @@ class MantleManager {
     // Send device timezone to cloud (used for calendar/time display)
     this.syncTimezone()
 
-    const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
-    await CoreModule.updateCore(initialCoreSettings) // send settings to core
-    console.log("MANTLE: Settings sent to core")
+    // give the core some time to boot before sending all the initial settings:
+    setTimeout(() => {
+      const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
+      CoreModule.updateCore(initialCoreSettings) // send settings to core
+      console.log("MANTLE: Settings sent to core")
+    }, 2000)
 
     this.initServices()
     this.setupPeriodicTasks()
@@ -152,12 +154,9 @@ class MantleManager {
   private async setupPeriodicTasks() {
     this.sendCalendarEvents()
     // Calendar sync every hour
-    this.calendarSyncTimer = BackgroundTimer.setInterval(
-      () => {
-        this.sendCalendarEvents()
-      },
-      60 * 60 * 1000,
-    ) // 1 hour
+    this.calendarSyncTimer = BackgroundTimer.setInterval(() => {
+      this.sendCalendarEvents()
+    }, 60 * 60 * 1000) // 1 hour
 
     try {
       // only start location updates if we have the location permission:
@@ -345,8 +344,8 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("switch_status", (event) => {
-          const switchType = typeof event.switch_type === "number" ? event.switch_type : (event.switchType ?? -1)
-          const switchValue = typeof event.switch_value === "number" ? event.switch_value : (event.switchValue ?? -1)
+          const switchType = typeof event.switch_type === "number" ? event.switch_type : event.switchType ?? -1
+          const switchValue = typeof event.switch_value === "number" ? event.switch_value : event.switchValue ?? -1
           const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now()
           socketComms.sendSwitchStatus(switchType, switchValue, timestamp)
           // TODO: remove
@@ -477,27 +476,6 @@ class MantleManager {
           } else {
             console.log(`MANTLE: miniapp_selected — starting ${packageName}`)
             useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
-          }
-        }),
-      )
-
-      // G2 dashboard menu: sync on glasses connect
-      this.subs.push(
-        useGlassesStore.subscribe(
-          (state) => state.fullyBooted,
-          async (fullyBooted) => {
-            if (!fullyBooted) return
-            await syncDashboardMenu()
-          },
-        ),
-      )
-
-      // G2 dashboard menu: re-sync when app list changes (handles app install/uninstall,
-      // server refresh after connect, and race where apps weren't loaded on first connect)
-      this.subs.push(
-        useAppletStatusStore.subscribe(async (state, prevState) => {
-          if (state.apps !== prevState.apps && state.apps.length > 0) {
-            await syncDashboardMenu()
           }
         }),
       )

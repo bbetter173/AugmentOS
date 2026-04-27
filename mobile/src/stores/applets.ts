@@ -24,6 +24,7 @@ import {BackgroundTimer} from "@/utils/timers"
 import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
+import {getDefaultMenuApps, GlassesMenuItem} from "@/utils/glassesMenu"
 
 export interface ClientAppletInterface extends AppletInterface {
   offline: boolean
@@ -741,7 +742,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
     let capabilities = getModelCapabilities(defaultWearable)
 
     for (const applet of applets) {
-      console.log(`APPLETS: ${defaultWearable} ${applet.packageName} ${JSON.stringify(applet.hardwareRequirements)}`)
+      // console.log(`APPLETS: ${defaultWearable} ${applet.packageName} ${JSON.stringify(applet.hardwareRequirements)}`)
       let result = HardwareCompatibility.checkCompatibility(applet.hardwareRequirements, capabilities)
       applet.compatibility = result
     }
@@ -764,6 +765,20 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
         applet.offlineRoute = "/miniapps/settings/notifications"
       }
     }
+
+    let menuItems = (await useSettingsStore.getState().getSetting(SETTINGS.menu_apps.key)) as GlassesMenuItem[]
+    if (!menuItems) {
+      menuItems = await getDefaultMenuApps(applets)
+    }
+    const itemsForNative = menuItems.map((item: GlassesMenuItem) => {
+      const app = applets.find((a) => a.packageName === item.packageName)
+      return {
+        name: item.name,
+        packageName: item.packageName,
+        running: app?.running ?? false,
+      }
+    })
+    useSettingsStore.getState().setSetting(SETTINGS.menu_apps.key, itemsForNative)
 
     set({apps: applets})
   },

@@ -1440,7 +1440,7 @@ class G2: NSObject, SGCManager {
 
                         // send dashboard menu if we have stored items
                         self.sendMenuApps()
-                    }
+                    
                 }
             }
         }

@@ -33,20 +33,20 @@ The SDK's WebSocket message handler pushes every event to BOTH paths uncondition
 
 ```javascript
 // @soniox/node@1.1.2 dist/index.mjs:945-960 (identical in v2.0.0:945-960)
-this.emitter.emit("result", filteredResult) // ← path 1
-this.eventQueue.push({kind: "result", data: filteredResult}) // ← path 2
+this.emitter.emit("result", filteredResult); // ← path 1
+this.eventQueue.push({ kind: "result", data: filteredResult }); // ← path 2
 
 if (hasEndpoint) {
-  this.emitter.emit("endpoint")
-  this.eventQueue.push({kind: "endpoint"})
+  this.emitter.emit("endpoint");
+  this.eventQueue.push({ kind: "endpoint" });
 }
 if (hasFinalized) {
-  this.emitter.emit("finalized")
-  this.eventQueue.push({kind: "finalized"})
+  this.emitter.emit("finalized");
+  this.eventQueue.push({ kind: "finalized" });
 }
 if (result.finished) {
-  this.emitter.emit("finished")
-  this.eventQueue.push({kind: "finished"})
+  this.emitter.emit("finished");
+  this.eventQueue.push({ kind: "finished" });
 }
 ```
 
@@ -103,9 +103,9 @@ The Soniox docs ([soniox.com/docs/stt/SDKs/node-SDK](https://soniox.com/docs/stt
 
 ```javascript
 session.on("result", (result) => {
-  const text = result.tokens.map((t) => t.text).join("")
-  if (text) console.log(text)
-})
+  const text = result.tokens.map((t) => t.text).join("");
+  if (text) console.log(text);
+});
 ```
 
 This is exactly what MentraOS does in [SonioxSdkStream.ts:241-247](../../packages/cloud/src/services/session/transcription/providers/SonioxSdkStream.ts#L241-L247). Any consumer following the docs is leaking.
@@ -130,7 +130,7 @@ Before tracing the chain to the SDK, we tested several other hypotheses surfaced
 
 Two parts that ship together:
 
-### Part 1 (in this PR): patch the SDK locally via `patch-package`
+### Part 1 (in this PR): patch the SDK locally via Bun `patchedDependencies`
 
 Modify `node_modules/@soniox/node/dist/index.mjs` and `index.cjs` to gate every `eventQueue.push(...)` call on a new `iteratorAttached` flag:
 
@@ -157,11 +157,11 @@ Modify `node_modules/@soniox/node/dist/index.mjs` and `index.cjs` to gate every 
 
 Backward compatible. Async-iterator consumers continue to work because the iterator getter sets the flag _before_ any events arrive (the iterator must be obtained before `for await` can iterate).
 
-`patch-package` records this as `cloud/patches/@soniox+node+2.0.0.patch` and re-applies on every `bun install` via a `postinstall` script.
+`bun patch --commit` records this as `cloud/patches/@soniox%2Fnode@2.0.0.patch` and Bun re-applies it automatically on every `bun install` via the `patchedDependencies` field in `cloud/package.json` — no extra dev dependency, no `postinstall` hook.
 
 ### Part 2 (separately, this same PR): submit the same fix upstream
 
-PR against [soniox/soniox-js](https://github.com/soniox/soniox-js) main branch with the heap-snapshot evidence + the same code change in TypeScript source. When upstream merges and ships v2.0.1+, we bump the version, delete `cloud/patches/`, and remove the postinstall hook.
+PR against [soniox/soniox-js](https://github.com/soniox/soniox-js) main branch with the heap-snapshot evidence + the same code change in TypeScript source ([PR #13](https://github.com/soniox/soniox-js/pull/13)). When upstream merges and ships v2.0.1+, we bump the version, delete `cloud/patches/@soniox%2Fnode@2.0.0.patch`, and remove the `patchedDependencies` entry from `cloud/package.json`.
 
 ### Why not just upgrade SDK and skip the patch?
 

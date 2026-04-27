@@ -622,6 +622,10 @@ public class OtaHelper {
             return "no_internet";
         } else if (e instanceof javax.net.ssl.SSLException) {
             return "ssl_error";
+        } else if (e instanceof java.net.SocketException) {
+            // Mid-download link loss, RST, or "Software caused connection abort" — not worth retrying
+            // while WiFi is typically already gone; surface a single FAILED to the phone.
+            return "download_failed";
         } else {
             return "download_failed";
         }
@@ -1159,7 +1163,7 @@ public class OtaHelper {
             String failedPkg = failedApkPackage != null ? failedApkPackage : "APK";
             Log.e(TAG, "Stopping OTA flow because APK update failed for " + failedPkg);
             sendProgressToPhone("download", 0, 0, 0, "FAILED",
-                    "Failed to update " + failedPkg + " after retries. Please check WiFi and try again.");
+                    "Please check WiFi and try again.");
             return;
         }
         
@@ -1461,56 +1465,31 @@ public class OtaHelper {
         return downloadApk(urlStr, json, context, "asg_client_update.apk");
     }
     
-    // Modified to accept custom filename for different apps.
-    // Retries up to MAX_DOWNLOAD_RETRIES times on transient network errors.
-    // On each retry emits STARTED so the phone stays in "downloading" state.
-    // Only emits FAILED after all attempts are exhausted.
-    private static final int MAX_DOWNLOAD_RETRIES = 3;
-    private static final long RETRY_DELAY_MS = 10_000;
+    // Modified to accept custom filename for different apps. Single download attempt — no retries.
 
     public boolean downloadApk(String urlStr, JSONObject json, Context context, String filename) {
-        Exception lastException = null;
-
-        for (int attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
-            try {
-                boolean success = downloadApkInternal(urlStr, json, context, filename);
-                if (success) return true;
-                // Verification failure is deterministic — do not retry
-                Log.e(TAG, "Download succeeded but verification failed - not retrying");
-                EventBus.getDefault().post(new DownloadProgressEvent(
-                    DownloadProgressEvent.DownloadStatus.FAILED, "Verification failed"));
-                return false;
-            } catch (Exception e) {
-                lastException = e;
-                Log.e(TAG, "Download attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + " failed", e);
-
-                File partialFile = new File(OtaConstants.BASE_DIR, filename);
-                if (partialFile.exists()) {
-                    partialFile.delete();
-                    Log.d(TAG, "Cleaned up partial download file after attempt " + attempt);
-                }
-
-                if (attempt < MAX_DOWNLOAD_RETRIES) {
-                    // Keep phone in downloading state so UI doesn't show failure prematurely
-                    sendProgressToPhone("download", 0, 0, 0, "STARTED", null);
-                    Log.i(TAG, "Retrying download in " + (RETRY_DELAY_MS / 1000) + "s "
-                        + "(attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + ")");
-                    try {
-                        Thread.sleep(RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
+        try {
+            boolean success = downloadApkInternal(urlStr, json, context, filename);
+            if (success) {
+                return true;
             }
+            Log.e(TAG, "Download succeeded but verification failed");
+            EventBus.getDefault().post(new DownloadProgressEvent(
+                DownloadProgressEvent.DownloadStatus.FAILED, "Verification failed"));
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "APK download failed", e);
+            File partialFile = new File(OtaConstants.BASE_DIR, filename);
+            if (partialFile.exists()) {
+                partialFile.delete();
+                Log.d(TAG, "Cleaned up partial download file");
+            }
+            String errorCode = classifyDownloadError(e);
+            EventBus.getDefault().post(new DownloadProgressEvent(
+                DownloadProgressEvent.DownloadStatus.FAILED, errorCode));
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", errorCode);
+            return false;
         }
-
-        Log.e(TAG, "Download failed after " + MAX_DOWNLOAD_RETRIES + " attempts", lastException);
-        String errorCode = lastException != null ? classifyDownloadError(lastException) : "download_failed";
-        EventBus.getDefault().post(new DownloadProgressEvent(
-            DownloadProgressEvent.DownloadStatus.FAILED, errorCode));
-        sendProgressToPhone("download", 0, 0, 0, "FAILED", errorCode);
-        return false;
     }
     
     // Internal download method (original logic)
@@ -2117,56 +2096,32 @@ public class OtaHelper {
     }
     
     private boolean downloadBesFirmware(String firmwareUrl, JSONObject firmwareInfo, Context context) {
-        Exception lastException = null;
-
-        for (int attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
-            try {
-                boolean success = downloadBesFirmwareInternal(firmwareUrl, firmwareInfo, context);
-                if (success) return true;
-                // Internal returned false without throwing - shouldn't happen now (size/verify
-                // failures throw FirmwareDownloadException), but keep a defensive failsafe so
-                // the phone is never left in the dark.
-                Log.e(TAG, "BES firmware download returned false unexpectedly - not retrying");
-                sendProgressToPhone("download", 0, 0, 0, "FAILED", "download_failed");
-                return false;
-            } catch (FirmwareDownloadException nonRetryable) {
-                // Non-network failure - retrying won't help, fail fast and tell the phone.
-                Log.e(TAG, "BES firmware download non-retryable failure: " + nonRetryable.getErrorCode(),
-                    nonRetryable);
-                File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.BES_FIRMWARE_FILENAME);
-                if (partialFile.exists()) {
-                    partialFile.delete();
-                }
-                sendProgressToPhone("download", 0, 0, 0, "FAILED", nonRetryable.getErrorCode());
-                return false;
-            } catch (Exception e) {
-                lastException = e;
-                Log.e(TAG, "BES firmware download attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + " failed", e);
-
-                File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.BES_FIRMWARE_FILENAME);
-                if (partialFile.exists()) {
-                    partialFile.delete();
-                    Log.d(TAG, "Cleaned up partial BES firmware file after attempt " + attempt);
-                }
-
-                if (attempt < MAX_DOWNLOAD_RETRIES) {
-                    Log.i(TAG, "Retrying BES firmware download in " + (RETRY_DELAY_MS / 1000) + "s "
-                        + "(attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + ")");
-                    try {
-                        Thread.sleep(RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
+        try {
+            boolean success = downloadBesFirmwareInternal(firmwareUrl, firmwareInfo, context);
+            if (success) {
+                return true;
             }
+            Log.e(TAG, "BES firmware download returned false unexpectedly");
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", "download_failed");
+            return false;
+        } catch (FirmwareDownloadException nonRetryable) {
+            Log.e(TAG, "BES firmware download failed: " + nonRetryable.getErrorCode(), nonRetryable);
+            File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.BES_FIRMWARE_FILENAME);
+            if (partialFile.exists()) {
+                partialFile.delete();
+            }
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", nonRetryable.getErrorCode());
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "BES firmware download failed", e);
+            File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.BES_FIRMWARE_FILENAME);
+            if (partialFile.exists()) {
+                partialFile.delete();
+                Log.d(TAG, "Cleaned up partial BES firmware file");
+            }
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", classifyDownloadError(e));
+            return false;
         }
-
-        Log.e(TAG, "BES firmware download failed after " + MAX_DOWNLOAD_RETRIES + " attempts", lastException);
-        if (lastException != null) {
-            sendProgressToPhone("download", 0, 0, 0, "FAILED", classifyDownloadError(lastException));
-        }
-        return false;
     }
 
     private boolean downloadBesFirmwareInternal(String firmwareUrl, JSONObject firmwareInfo, Context context) throws Exception {
@@ -2441,52 +2396,32 @@ public class OtaHelper {
      * @return true if downloaded and verified successfully
      */
     private boolean downloadMtkFirmware(String firmwareUrl, JSONObject firmwareInfo, Context context) {
-        Exception lastException = null;
-
-        for (int attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
-            try {
-                boolean success = downloadMtkFirmwareInternal(firmwareUrl, firmwareInfo, context);
-                if (success) return true;
-                Log.e(TAG, "MTK firmware download returned false unexpectedly - not retrying");
-                sendProgressToPhone("download", 0, 0, 0, "FAILED", "download_failed");
-                return false;
-            } catch (FirmwareDownloadException nonRetryable) {
-                Log.e(TAG, "MTK firmware download non-retryable failure: " + nonRetryable.getErrorCode(),
-                    nonRetryable);
-                File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.MTK_FIRMWARE_FILENAME);
-                if (partialFile.exists()) {
-                    partialFile.delete();
-                }
-                sendProgressToPhone("download", 0, 0, 0, "FAILED", nonRetryable.getErrorCode());
-                return false;
-            } catch (Exception e) {
-                lastException = e;
-                Log.e(TAG, "MTK firmware download attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + " failed", e);
-
-                File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.MTK_FIRMWARE_FILENAME);
-                if (partialFile.exists()) {
-                    partialFile.delete();
-                    Log.d(TAG, "Cleaned up partial MTK firmware file after attempt " + attempt);
-                }
-
-                if (attempt < MAX_DOWNLOAD_RETRIES) {
-                    Log.i(TAG, "Retrying MTK firmware download in " + (RETRY_DELAY_MS / 1000) + "s "
-                        + "(attempt " + attempt + "/" + MAX_DOWNLOAD_RETRIES + ")");
-                    try {
-                        Thread.sleep(RETRY_DELAY_MS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
+        try {
+            boolean success = downloadMtkFirmwareInternal(firmwareUrl, firmwareInfo, context);
+            if (success) {
+                return true;
             }
+            Log.e(TAG, "MTK firmware download returned false unexpectedly");
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", "download_failed");
+            return false;
+        } catch (FirmwareDownloadException nonRetryable) {
+            Log.e(TAG, "MTK firmware download failed: " + nonRetryable.getErrorCode(), nonRetryable);
+            File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.MTK_FIRMWARE_FILENAME);
+            if (partialFile.exists()) {
+                partialFile.delete();
+            }
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", nonRetryable.getErrorCode());
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "MTK firmware download failed", e);
+            File partialFile = new File(OtaConstants.BASE_DIR, OtaConstants.MTK_FIRMWARE_FILENAME);
+            if (partialFile.exists()) {
+                partialFile.delete();
+                Log.d(TAG, "Cleaned up partial MTK firmware file");
+            }
+            sendProgressToPhone("download", 0, 0, 0, "FAILED", classifyDownloadError(e));
+            return false;
         }
-
-        Log.e(TAG, "MTK firmware download failed after " + MAX_DOWNLOAD_RETRIES + " attempts", lastException);
-        if (lastException != null) {
-            sendProgressToPhone("download", 0, 0, 0, "FAILED", classifyDownloadError(lastException));
-        }
-        return false;
     }
 
     private boolean downloadMtkFirmwareInternal(String firmwareUrl, JSONObject firmwareInfo, Context context) throws Exception {

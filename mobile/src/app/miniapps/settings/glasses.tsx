@@ -57,12 +57,12 @@ function DeviceSettings() {
     })
     if (result === 1) {
       CoreModule.forget()
-      useAppletStatusStore.getState().stopAllApplets()
-      useAppletStatusStore.getState().refreshApplets()
-      // give us a second to forget the glasses before going back
-      setTimeout(() => {
-        goBack()
-      }, 500)
+      // useAppletStatusStore.getState().stopAllApplets()
+      // useAppletStatusStore.getState().refreshApplets()
+      // // give us a second to forget the glasses before going back
+      // setTimeout(() => {
+      //   goBack()
+      // }, 500)
     }
   }
 
@@ -110,6 +110,14 @@ function DeviceSettings() {
             label={translate("settings:dashboardSettings")}
             // subtitle={translate("settings:dashboardDescription")}
             onPress={() => push("/miniapps/settings/dashboard")}
+          />
+        )}
+        {/* Glasses Menu — G2 only, requires connection */}
+        {defaultWearable === DeviceTypes.G2 && glassesConnected && (
+          <RouteButton
+            icon={<Icon name="menu-2" size={24} color={theme.colors.secondary_foreground} />}
+            label={translate("settings:glassesMenu")}
+            onPress={() => push("/miniapps/settings/glasses-menu")}
           />
         )}
         {/* Brightness Settings */}

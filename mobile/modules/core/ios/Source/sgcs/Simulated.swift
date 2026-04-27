@@ -227,6 +227,11 @@ class Simulated: SGCManager {
         Bridge.log("ping")
     }
 
+    func dbg1() {}
+    func dbg2() {}
+    func connectController() {}
+    func disconnectController() {}
+
     // MARK: - Network Management
 
     func requestWifiScan() {
@@ -273,5 +278,5 @@ class Simulated: SGCManager {
         Bridge.log("requestVersionInfo - not supported on Simulated")
     }
 
-    func sendIncidentId(_: String) {}
+    func sendIncidentId(_: String, apiBaseUrl _: String?) {}
 }

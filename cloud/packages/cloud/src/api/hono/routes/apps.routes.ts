@@ -295,9 +295,11 @@ async function searchApps(c: AppContext) {
 async function getAppByPackage(c: AppContext) {
   try {
     const packageName = c.req.param("packageName");
+
     if (!packageName) {
-      return c.json({ success: false, message: "Missing packageName parameter" }, 400);
+      return c.json({ success: false, message: "Missing required parameter: packageName" }, 400);
     }
+
     const app = await appService.getApp(packageName);
 
     if (!app) {
@@ -337,8 +339,15 @@ async function startApp(c: AppContext) {
   const userSession = c.get("userSession");
   const email = c.get("email");
 
+  if (!packageName) {
+    return c.json({ success: false, message: "Missing required parameter: packageName" }, 400);
+  }
+
   if (!userSession) {
-    return c.json({ success: false, message: "No active session found" }, 401);
+    // Match the shape returned by the `requireUserSession` middleware so the
+    // mobile client's NO_ACTIVE_SESSION retry path triggers a WS reconnect
+    // (which may land on the pod that actually holds this user's session).
+    return c.json({ error: "NO_ACTIVE_SESSION", message: "No active cloud session for this client." }, 503);
   }
   if (!packageName) {
     return c.json({ success: false, message: "packageName is required" }, 400);
@@ -386,8 +395,12 @@ async function stopApp(c: AppContext) {
   const userSession = c.get("userSession");
   const email = c.get("email");
 
+  if (!packageName) {
+    return c.json({ success: false, message: "Missing required parameter: packageName" }, 400);
+  }
+
   if (!userSession) {
-    return c.json({ success: false, message: "No active session found" }, 401);
+    return c.json({ error: "NO_ACTIVE_SESSION", message: "No active cloud session for this client." }, 503);
   }
   if (!packageName) {
     return c.json({ success: false, message: "packageName is required" }, 400);

@@ -33,27 +33,30 @@ class ObservableStore {
         emitListeners.remove(id)
     }
 
-    @Synchronized
-    private fun getEmitListeners(): List<(String, Map<String, Any>) -> Unit> {
-        return emitListeners.values.toList()
-    }
-
     fun set(category: String, key: String, value: Any) {
-        val normalizedCategory = normalizeCategory(category)
-        val fullKey = "$normalizedCategory.$key"
-        val oldValue = values[fullKey]
+        val normalizedCategory: String
+        val listeners: List<(String, Map<String, Any>) -> Unit>
 
-        // Skip if unchanged
-        if (oldValue != null && toJson(oldValue) == toJson(value)) return
+        synchronized(this) {
+            normalizedCategory = normalizeCategory(category)
+            val fullKey = "$normalizedCategory.$key"
+            val oldValue = values[fullKey]
 
-        values[fullKey] = value
+            // Skip if unchanged
+            if (oldValue != null && toJson(oldValue) == toJson(value)) return
 
-        // Emit immediately
-        getEmitListeners().forEach { it(normalizedCategory, mapOf(key to value)) }
+            values[fullKey] = value
+            listeners = emitListeners.values.toList()
+        }
+
+        // Emit immediately, outside the store lock so callbacks can safely re-enter the store.
+        listeners.forEach { it(normalizedCategory, mapOf(key to value)) }
     }
 
+    @Synchronized
     fun get(category: String, key: String): Any? = values["${normalizeCategory(category)}.$key"]
 
+    @Synchronized
     fun getCategory(category: String): Map<String, Any> {
         val prefix = "${normalizeCategory(category)}."
         return values.filterKeys { it.startsWith(prefix) }.mapKeys { it.key.removePrefix(prefix) }

@@ -33,20 +33,20 @@ The SDK's WebSocket message handler pushes every event to BOTH paths uncondition
 
 ```javascript
 // @soniox/node@1.1.2 dist/index.mjs:945-960 (identical in v2.0.0:945-960)
-this.emitter.emit("result", filteredResult) // ← path 1
-this.eventQueue.push({kind: "result", data: filteredResult}) // ← path 2
+this.emitter.emit("result", filteredResult); // ← path 1
+this.eventQueue.push({ kind: "result", data: filteredResult }); // ← path 2
 
 if (hasEndpoint) {
-  this.emitter.emit("endpoint")
-  this.eventQueue.push({kind: "endpoint"})
+  this.emitter.emit("endpoint");
+  this.eventQueue.push({ kind: "endpoint" });
 }
 if (hasFinalized) {
-  this.emitter.emit("finalized")
-  this.eventQueue.push({kind: "finalized"})
+  this.emitter.emit("finalized");
+  this.eventQueue.push({ kind: "finalized" });
 }
 if (result.finished) {
-  this.emitter.emit("finished")
-  this.eventQueue.push({kind: "finished"})
+  this.emitter.emit("finished");
+  this.eventQueue.push({ kind: "finished" });
 }
 ```
 
@@ -103,9 +103,9 @@ The Soniox docs ([soniox.com/docs/stt/SDKs/node-SDK](https://soniox.com/docs/stt
 
 ```javascript
 session.on("result", (result) => {
-  const text = result.tokens.map((t) => t.text).join("")
-  if (text) console.log(text)
-})
+  const text = result.tokens.map((t) => t.text).join("");
+  if (text) console.log(text);
+});
 ```
 
 This is exactly what MentraOS does in [SonioxSdkStream.ts:241-247](../../packages/cloud/src/services/session/transcription/providers/SonioxSdkStream.ts#L241-L247). Any consumer following the docs is leaking.

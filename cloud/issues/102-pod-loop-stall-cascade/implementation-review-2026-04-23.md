@@ -202,8 +202,8 @@ timer callback finally runs after starvation, not when starvation began.
 For a gap log:
 
 ```ts
-actualMs = elapsed
-gapStartedAtApprox = logTimestamp - actualMs
+actualMs = elapsed;
+gapStartedAtApprox = logTimestamp - actualMs;
 ```
 
 Recommended change:

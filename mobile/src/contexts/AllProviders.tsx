@@ -172,8 +172,6 @@ export const AllProviders = withWrappers(
         gestureEnabled: forceGestureEnabled || !preventBack,
         gestureDirection: "horizontal" as const,
         animation: convertToNativeAnimation(animation) as any,
-        freezeOnBlur: true,
-        detachInactiveScreens: true,
       }),
       [preventBack, forceGestureEnabled, animation],
     )

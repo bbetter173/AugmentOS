@@ -72,6 +72,8 @@ function Root() {
     return null
   }
 
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!! ROOT RENDERED !!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
   return (
     <AllProviders>
       <AllEffects />

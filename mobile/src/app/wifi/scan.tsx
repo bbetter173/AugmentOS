@@ -1,6 +1,6 @@
 import CoreModule, {WifiSearchResult} from "core"
 import {useFocusEffect} from "expo-router"
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {ActivityIndicator, ScrollView, TouchableOpacity, View} from "react-native"
 import Toast from "react-native-toast-message"
 
@@ -237,8 +237,23 @@ export default function WifiScanScreen() {
     )
   }
 
+  // sort networks so that connected networks are at the top:
+  const sortedNetworks = useMemo(
+    () =>
+      networks.sort((a, b) => {
+        if (wifiConnected && wifiSsid === a.ssid) {
+          return -1
+        }
+        if (wifiConnected && wifiSsid === b.ssid) {
+          return 1
+        }
+        return 0
+      }),
+    [networks, wifiConnected, wifiSsid],
+  )
+
   return (
-    <Screen preset="fixed" safeAreaEdges={["bottom"]}>
+    <Screen preset="fixed" safeAreaEdges={["bottom"]} KeyboardAvoidingViewProps={{enabled: false}}>
       {showBack ? (
         <Header
           title="Wi-Fi"
@@ -272,7 +287,7 @@ export default function WifiScanScreen() {
             <>
               {/* <Text className="text-sm font-semibold text-text mb-2" tx="wifi:networks" /> */}
               <ScrollView className="flex-1 px-5 -mx-5" contentContainerClassName="pb-4">
-                <Group>{networks.map(renderNetworkItem)}</Group>
+                <Group>{sortedNetworks.map(renderNetworkItem)}</Group>
               </ScrollView>
             </>
           ) : (

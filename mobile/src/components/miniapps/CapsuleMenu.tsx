@@ -136,11 +136,12 @@ export function MiniAppCapsuleMenu({
           onBackPress()
         }
       : () => {
+          console.log("CAPSULE MENU: focusEffectPreventBack() called")
           // Defer screenshot capture so it doesn't block the navigation animation
-          // InteractionManager.runAfterInteractions(() => {
+          InteractionManager.runAfterInteractions(() => {
             let shouldGoBack = Platform.OS === "android"
             handleExit(shouldGoBack)
-          // })
+          })
         },
     true,
   )
@@ -152,6 +153,7 @@ export function MiniAppCapsuleMenu({
     </View>
   )
 }
+
 interface MiniAppMoreActionsSheetProps {
   packageName: string
 }

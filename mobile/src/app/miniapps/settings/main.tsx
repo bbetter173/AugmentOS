@@ -13,7 +13,7 @@ import {SETTINGS, useSetting} from "@/stores/settings"
 import {useRef} from "react"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 
-export default function AccountPage() {
+export default function MainSettingsPage() {
   const {theme, themed} = useAppTheme()
   const {push} = useNavigationHistory()
   const [devMode] = useSetting(SETTINGS.dev_mode.key)
@@ -23,7 +23,7 @@ export default function AccountPage() {
 
   return (
     <>
-      <MiniAppCapsuleMenu packageName="com.mentra.settings" viewShotRef={viewShotRef} />
+      {/* <MiniAppCapsuleMenu packageName="com.mentra.settings" viewShotRef={viewShotRef} /> */}
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         <ScrollView className="pt-8 px-6" contentInsetAdjustmentBehavior="automatic">
           <View style={{flex: 1, gap: theme.spacing.s6}}>

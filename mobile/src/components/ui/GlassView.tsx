@@ -1,9 +1,10 @@
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {GlassView as GlassViewComponent, GlassViewProps, isLiquidGlassAvailable} from "expo-glass-effect"
+import {LinearGradient} from "expo-linear-gradient"
 import {Platform, View, ViewProps} from "react-native"
 import {withUniwind} from "uniwind"
-
+import {StyleSheet} from "react-native"
 interface NewGlassViewProps extends ViewProps {
   transparent?: boolean
 }
@@ -36,8 +37,28 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     )
   }
   if (Platform.OS === "android") {
+    // let borderRadius = props.borderRadius ?? 0
+    // extract borderTopLeftRadius from style by flattening the style object
+    const flatStyle = StyleSheet.flatten(style) || {}
+
+    const borderTopLeftRadius = flatStyle.borderTopLeftRadius ?? flatStyle.borderRadius ?? 0
+    const borderTopRightRadius = flatStyle.borderTopRightRadius ?? flatStyle.borderRadius ?? 0
+    const borderBottomLeftRadius = flatStyle.borderBottomLeftRadius ?? flatStyle.borderRadius ?? 0
+    const borderBottomRightRadius = flatStyle.borderBottomRightRadius ?? flatStyle.borderRadius ?? 0
     return (
       <GlassWithStyle style={[style, {boxShadow: boxShadowStyle}]} colorScheme={colorScheme} {...props}>
+        <LinearGradient
+          colors={[theme.colors.gradient, theme.colors.primary_foreground]}
+          start={{x: 0, y: 0}}
+          end={{x: 0.5, y: 0.5}}
+          style={{
+            ...StyleSheet.absoluteFill,
+            borderTopLeftRadius: borderTopLeftRadius,
+            borderTopRightRadius: borderTopRightRadius,
+            borderBottomLeftRadius: borderBottomLeftRadius,
+            borderBottomRightRadius: borderBottomRightRadius,
+          }}
+        />
         {children}
       </GlassWithStyle>
     )

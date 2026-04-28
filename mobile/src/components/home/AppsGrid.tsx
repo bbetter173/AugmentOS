@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {Dimensions, Pressable, StyleSheet, TouchableOpacity, View} from "react-native"
+import {Dimensions, Platform, Pressable, StyleSheet, TouchableOpacity, View} from "react-native"
 import {DraggableMasonryList} from "react-native-draggable-masonry"
 
 import {Icon, Text} from "@/components/ignite"
@@ -514,11 +514,18 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     ({key}: {key: string; fromIndex: number}) => {
       isMovingRef.current = false
       showPopover(key)
+      if (showAllApps) {
+        return
+      }
+      // don't wiggle on android for now:
+      if (Platform.OS === "android") {
+        return
+      }
       wiggleTimeoutRef.current = BgTimer.setTimeout(() => {
         wiggleEnabled.value = true
       }, 500)
     },
-    [showPopover],
+    [showPopover, showAllApps],
   )
 
   const handleDragChange = ({key, x, y, index}: {key: string; x: number; y: number; index: number}) => {

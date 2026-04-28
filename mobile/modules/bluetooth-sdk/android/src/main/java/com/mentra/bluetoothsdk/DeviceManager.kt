@@ -1303,21 +1303,6 @@ class DeviceManager {
         sgc?.sendReboot()
     }
 
-    fun startBufferRecording() {
-        Bridge.log("MAN: onStartBufferRecording")
-        sgc?.startBufferRecording()
-    }
-
-    fun stopBufferRecording() {
-        Bridge.log("MAN: onStopBufferRecording")
-        sgc?.stopBufferRecording()
-    }
-
-    fun saveBufferVideo(requestId: String, durationSeconds: Int) {
-        Bridge.log("MAN: onSaveBufferVideo: requestId=$requestId, duration=$durationSeconds")
-        sgc?.saveBufferVideo(requestId, durationSeconds)
-    }
-
     fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {
         Bridge.log(
                 "MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound"

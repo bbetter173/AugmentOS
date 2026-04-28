@@ -292,9 +292,6 @@ class MentraNex : SGCManager() {
     override fun startStream(message: MutableMap<String, Any>) { Bridge.log("Nex: startStream operation not supported") }
     override fun stopStream() { Bridge.log("Nex: stopStream operation not supported") }
     override fun sendStreamKeepAlive(message: MutableMap<String, Any>) { Bridge.log("Nex: sendStreamKeepAlive operation not supported") }
-    override fun startBufferRecording() { Bridge.log("Nex: startBufferRecording operation not supported") }
-    override fun stopBufferRecording() { Bridge.log("Nex: stopBufferRecording operation not supported") }
-    override fun saveBufferVideo(requestId: String, durationSeconds: Int) { Bridge.log("Nex: saveBufferVideo operation not supported") }
     override fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) { Bridge.log("Nex: startVideoRecording operation not supported") }
     override fun stopVideoRecording(requestId: String) { Bridge.log("Nex: stopVideoRecording operation not supported") }
 

@@ -651,18 +651,6 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.stopStream()
     }
 
-    public func startBufferRecording() {
-        DeviceManager.shared.startBufferRecording()
-    }
-
-    public func stopBufferRecording() {
-        DeviceManager.shared.stopBufferRecording()
-    }
-
-    public func saveBufferVideo(requestId: String, durationSeconds: Int) {
-        DeviceManager.shared.saveBufferVideo(requestId, durationSeconds)
-    }
-
     public func startVideoRecording(_ request: MentraVideoRecordingRequest) {
         DeviceManager.shared.startVideoRecording(
             request.requestId,

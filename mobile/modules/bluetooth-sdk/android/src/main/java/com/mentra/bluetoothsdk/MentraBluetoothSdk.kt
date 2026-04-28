@@ -240,18 +240,6 @@ class MentraBluetoothSdk private constructor(
         deviceManager.stopStream()
     }
 
-    fun startBufferRecording() {
-        deviceManager.startBufferRecording()
-    }
-
-    fun stopBufferRecording() {
-        deviceManager.stopBufferRecording()
-    }
-
-    fun saveBufferVideo(requestId: String, durationSeconds: Int) {
-        deviceManager.saveBufferVideo(requestId, durationSeconds)
-    }
-
     fun startVideoRecording(request: MentraVideoRecordingRequest) {
         deviceManager.startVideoRecording(request.requestId, request.save, request.flash, request.sound)
     }

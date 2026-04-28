@@ -329,14 +329,6 @@ class BluetoothSdkModule : Module() {
 
         // MARK: - Video Recording Commands
 
-        AsyncFunction("startBufferRecording") { sdk?.startBufferRecording() }
-
-        AsyncFunction("stopBufferRecording") { sdk?.stopBufferRecording() }
-
-        AsyncFunction("saveBufferVideo") { requestId: String, durationSeconds: Int ->
-            sdk?.saveBufferVideo(requestId, durationSeconds)
-        }
-
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
             sdk?.startVideoRecording(MentraVideoRecordingRequest(requestId, save, flash, sound))
         }

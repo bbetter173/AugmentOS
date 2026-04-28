@@ -468,9 +468,6 @@ class R1: NSObject, ControllerManager {
     func startStream(_: [String: Any]) {}
     func stopStream() {}
     func sendStreamKeepAlive(_: [String: Any]) {}
-    func startBufferRecording() {}
-    func stopBufferRecording() {}
-    func saveBufferVideo(requestId _: String, durationSeconds _: Int) {}
     func sendButtonPhotoSettings() {}
     func sendButtonModeSetting() {}
     func sendButtonVideoRecordingSettings() {}

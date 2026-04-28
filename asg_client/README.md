@@ -35,7 +35,16 @@ Mentra Live ships with `com.mentra.asg_client` as a **system app** signed with M
 
 ### Connecting via ADB
 
-Connect your Mentra Live using the **Infinity Cable** (magnetic USB-C clip-on cable). Run `adb devices` to confirm connection.
+USB is the primary path. WiFi ADB is available when the cable isn't handy.
+
+**USB (Infinity Cable):** snap the magnetic USB-C clip onto the contacts inside the right temple, plug the other end into your computer, then run `adb devices` to confirm. USB debugging ships enabled and authorized from the factory — there's no Developer Options dance to do on the glasses.
+
+**WiFi:** find the glasses' Local IP Address in the MentraOS app (Glasses screen), then:
+
+```bash
+adb connect <GLASSES_IP>:5555
+adb devices
+```
 
 ### Installing Your Custom Build
 
@@ -64,4 +73,4 @@ Must use Java SDK 17. To set this, in Android Studio, go to Settings > Build, Ex
 
 ### Documentation
 
-See [docs/](docs/README.md) for architecture overview, command API reference, feature docs, and the full Mentra Live setup guide.
+See [docs/](docs/README.md) for architecture overview, command API reference, and feature docs.

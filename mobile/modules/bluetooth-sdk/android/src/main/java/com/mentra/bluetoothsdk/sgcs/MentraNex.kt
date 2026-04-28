@@ -862,11 +862,11 @@ class MentraNex : SGCManager() {
                 // Restore previous microphone state or disable if this is the first connection
                 val shouldRestoreMic = microphoneStateBeforeDisconnection
                 Bridge.log("Nex: `Restoring microphone state to: $shouldRestoreMic (previous state: $microphoneStateBeforeDisconnection)")
-                
+
                 if (shouldRestoreMic) {
                     startMicBeat(MICBEAT_INTERVAL_MS.toInt())
                 }
-                
+
                 // Enable our AugmentOS notification key
                 sendWhiteListCommand(10)
 

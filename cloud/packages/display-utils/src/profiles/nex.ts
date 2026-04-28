@@ -2,9 +2,6 @@ import { DisplayProfile } from "./types";
 
 /**
  * Mentra Nex glyph widths
- *
- * PLACEHOLDER: Currently using G1 glyph widths until actual Nex font metrics are available.
- * TODO: Replace with actual Mentra Nex font measurements when hardware specs are confirmed.
  */
 const NEX_GLYPH_WIDTHS: Record<string, number> = {
   // Punctuation & Symbols
@@ -121,31 +118,24 @@ const NEX_GLYPH_WIDTHS: Record<string, number> = {
  * Mentra Nex Smart Glasses Display Profile
  *
  * Also known as "Mentra Display" - a new Mentra glasses model with display capabilities.
- *
- * PLACEHOLDER VALUES: All values are currently based on G1 profile.
- * TODO: Update with actual Mentra Nex specifications when available.
  */
 export const NEX_PROFILE: DisplayProfile = {
   id: "mentra-nex",
   name: "Mentra Nex",
 
   // Display dimensions
-  // PLACEHOLDER: Using G1 values until Nex specs confirmed
-  displayWidthPx: 576,
+  displayWidthPx: 440,
   maxLines: 5,
 
   maxPayloadBytes: 226,
   bleChunkSize: 176,
 
   // Font metrics
-  // PLACEHOLDER: Using G1 font metrics until Nex font is measured
   fontMetrics: {
     glyphWidths: new Map(Object.entries(NEX_GLYPH_WIDTHS)),
     defaultGlyphWidth: 16,
     renderFormula: (glyphWidth: number) => glyphWidth,
 
-    // Uniform-width scripts
-    // PLACEHOLDER: Using G1 values
     uniformScripts: {
       cjk: 18,
       hiragana: 18,
@@ -167,14 +157,6 @@ export const NEX_PROFILE: DisplayProfile = {
   },
 };
 
-/**
- * Get the hyphen width for Mentra Nex in rendered pixels.
- * PLACEHOLDER: Using G1 value
- */
-export const NEX_HYPHEN_WIDTH_PX = 10;
+export const NEX_HYPHEN_WIDTH_PX = 8;
 
-/**
- * Get the space width for Mentra Nex in rendered pixels.
- * PLACEHOLDER: Using G1 value
- */
-export const NEX_SPACE_WIDTH_PX = 6;
+export const NEX_SPACE_WIDTH_PX = 4;

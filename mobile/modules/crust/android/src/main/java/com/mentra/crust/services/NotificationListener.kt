@@ -18,6 +18,9 @@ import com.mentra.crust.CrustModule
 class NotificationListener private constructor(private val context: Context) {
   companion object {
     private const val TAG = "CrustNotificationListener"
+    private const val PREFS_NAME = "mentra_crust_notification_prefs"
+    private const val PREF_NOTIFICATIONS_ENABLED = "notifications_enabled"
+    private const val PREF_NOTIFICATIONS_BLOCKLIST = "notifications_blocklist"
 
     @Volatile private var instance: NotificationListener? = null
 
@@ -41,13 +44,23 @@ class NotificationListener private constructor(private val context: Context) {
   private val notificationHandler = Handler(notificationThread.looper)
   private val duplicateThresholdMs = 200L
 
-  @Volatile private var notificationsEnabled = false
-  @Volatile private var notificationsBlocklist = emptySet<String>()
+  private val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+  @Volatile private var notificationsEnabled = preferences.getBoolean(PREF_NOTIFICATIONS_ENABLED, false)
+  @Volatile
+  private var notificationsBlocklist =
+    preferences.getStringSet(PREF_NOTIFICATIONS_BLOCKLIST, emptySet())?.toSet() ?: emptySet()
 
   /** Keep MentraOS notification settings in Crust instead of Bluetooth SDK state. */
   fun setNotificationConfig(enabled: Boolean, blocklist: List<String>) {
+    val blocklistSet = blocklist.toSet()
     notificationsEnabled = enabled
-    notificationsBlocklist = blocklist.toSet()
+    notificationsBlocklist = blocklistSet
+    preferences
+      .edit()
+      .putBoolean(PREF_NOTIFICATIONS_ENABLED, enabled)
+      .putStringSet(PREF_NOTIFICATIONS_BLOCKLIST, blocklistSet)
+      .apply()
   }
 
   /** Check if notification listener permission is granted. */

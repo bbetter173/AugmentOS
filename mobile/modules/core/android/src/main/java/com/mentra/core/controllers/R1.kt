@@ -724,9 +724,6 @@ class R1 : ControllerManager() {
     override fun startStream(message: Map<String, Any>) {}
     override fun stopStream() {}
     override fun sendStreamKeepAlive(message: Map<String, Any>) {}
-    override fun startBufferRecording() {}
-    override fun stopBufferRecording() {}
-    override fun saveBufferVideo(requestId: String, durationSeconds: Int) {}
     override fun sendButtonPhotoSettings() {}
     override fun sendButtonModeSetting() {}
     override fun sendButtonVideoRecordingSettings() {}

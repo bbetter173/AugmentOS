@@ -2876,6 +2876,4 @@ public class MediaCaptureService {
             Log.e(TAG, "📸 Error creating gallery status update", e);
         }
     }
-
-    // ========== CIRCULAR VIDEO BUFFER METHODS ==========
 }

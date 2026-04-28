@@ -1543,7 +1543,7 @@ public class CameraNeo extends LifecycleService {
                 }
                 surfaces.add(recorderSurface);
                 previewBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-                previewBuilder.addTarget(surfaceToUse);
+                previewBuilder.addTarget(recorderSurface);
             } else {
                 if (imageReader == null || imageReader.getSurface() == null) {
                     notifyPhotoError("ImageReader surface null");

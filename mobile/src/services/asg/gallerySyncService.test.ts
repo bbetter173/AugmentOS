@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {gallerySyncNotifications} from "@/services/asg/gallerySyncNotifications"
 import {gallerySyncService} from "./gallerySyncService"
@@ -6,7 +6,7 @@ import {useGallerySyncStore} from "@/stores/gallerySync"
 import {useGlassesStore} from "@/stores/glasses"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,

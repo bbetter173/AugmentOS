@@ -1,4 +1,4 @@
-import {GlassesStatus, OtaProgress, OtaUpdateInfo} from "core"
+import {GlassesStatus, OtaProgress, OtaUpdateInfo} from "@mentra/bluetooth-sdk"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 

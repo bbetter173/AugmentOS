@@ -1,4 +1,4 @@
-jest.mock("core", () => {
+jest.mock("@mentra/bluetooth-sdk", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,
@@ -134,7 +134,7 @@ import {render, fireEvent, waitFor} from "@testing-library/react-native"
 import type {ReactNode} from "react"
 import {Platform} from "react-native"
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {requestFeaturePermissions} from "@/utils/PermissionsUtils"

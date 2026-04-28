@@ -1,5 +1,5 @@
 import {ScrollView, View} from "react-native"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {Header, Screen} from "@/components/ignite"
 import ToggleSetting from "@/components/settings/ToggleSetting"
@@ -14,9 +14,7 @@ export default function SuperSettingsScreen() {
   const [debugNavigationHistoryEnabled, setDebugNavigationHistoryEnabled] = useSetting(
     SETTINGS.debug_navigation_history.key,
   )
-  const [debugCoreStatusBarEnabled, setDebugCoreStatusBarEnabled] = useSetting(
-    SETTINGS.debug_core_status_bar.key,
-  )
+  const [debugCoreStatusBarEnabled, setDebugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
   const {push} = useNavigationHistory()
 
   return (

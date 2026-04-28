@@ -30,7 +30,7 @@ import {
 
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import CoreModule, {GlassesStatus} from "core"
+import CoreModule, {GlassesStatus} from "@mentra/bluetooth-sdk"
 
 // =============================================================================
 // Types

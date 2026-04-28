@@ -14,7 +14,7 @@ import {useState} from "react"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
 import {useAppletStatusStore} from "@/stores/applets"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 export default function PairingPrepScreen() {
   const route = useRoute()

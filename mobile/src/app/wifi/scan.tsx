@@ -1,4 +1,4 @@
-import CoreModule, {WifiSearchResult} from "core"
+import CoreModule, {WifiSearchResult} from "@mentra/bluetooth-sdk"
 import {useFocusEffect} from "expo-router"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {ActivityIndicator, ScrollView, TouchableOpacity, View} from "react-native"

@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {ActivityIndicator, Image, TouchableOpacity, View} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"

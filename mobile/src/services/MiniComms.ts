@@ -2,7 +2,7 @@ import {Linking} from "react-native"
 import Share from "react-native-share"
 import * as Clipboard from "expo-clipboard"
 import {File, Paths} from "expo-file-system"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 type MiniAppMessageType =
   | "bluetooth_sdk_fn"

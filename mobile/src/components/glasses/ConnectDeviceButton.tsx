@@ -1,5 +1,5 @@
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {ActivityIndicator, View} from "react-native"
 
 import {Button} from "@/components/ignite"

@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import NetInfo from "@react-native-community/netinfo"
 import Constants from "expo-constants"
 import * as ImagePicker from "expo-image-picker"
@@ -29,11 +29,7 @@ export interface BuildBugReportFeedbackDataForBugParams {
 export function buildBugReportPhoneState(): Record<string, unknown> {
   const appletState = useAppletStatusStore.getState()
   const settingsState = useSettingsStore.getState()
-  const {
-    setCoreInfo: _setCoreInfo,
-    reset: _resetBluetooth,
-    ...bluetoothState
-  } = useCoreStore.getState()
+  const {setCoreInfo: _setCoreInfo, reset: _resetBluetooth, ...bluetoothState} = useCoreStore.getState()
   const {setDebugInfo: _setDebugInfo, reset: _resetDebug, ...debugState} = useDebugStore.getState()
   const {
     setStatus: _setConnectionStatus,

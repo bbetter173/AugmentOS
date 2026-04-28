@@ -107,9 +107,9 @@ jest.mock("@/services/WebSocketManager", () => {
 })
 
 // Mock core native module to avoid native bridge errors
-jest.mock("core", () => ({
+jest.mock("@mentra/bluetooth-sdk", () => ({
   default: {
-    getCoreStatus: jest.fn(() => Promise.resolve("disabled")),
+    getBluetoothStatus: jest.fn(() => Promise.resolve("disabled")),
     requestBluetoothPermissions: jest.fn(() => Promise.resolve(true)),
     // Add other methods as needed
   },

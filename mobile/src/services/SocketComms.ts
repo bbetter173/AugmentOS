@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
@@ -451,7 +451,7 @@ class SocketComms {
       }
     }
 
-    CoreModule.updateCore({
+    CoreModule.updateBluetoothSettings({
       // should_send_pcm: shouldSendPcmData,
       should_send_lc3: shouldSendPcmData, // online apps always want lc3
       should_send_transcript: shouldSendTranscript,

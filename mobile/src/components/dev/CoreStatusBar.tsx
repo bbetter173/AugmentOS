@@ -8,7 +8,7 @@ import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import CoreModule, {TouchEvent} from "core"
+import CoreModule, {TouchEvent} from "@mentra/bluetooth-sdk"
 import {BackgroundTimer} from "@/utils/timers"
 
 function Tag({icon, label, bg}: {icon: IconTypes; label: string; bg: string}) {

@@ -13,7 +13,7 @@ import * as Sentry from "@sentry/react-native"
 
 import {getCurrentRoute, push} from "@/contexts/NavigationHistoryContext"
 import {translate} from "@/i18n"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {submitMiniappStartFailedBugReport} from "@/services/bugReport/miniappStartBugReport"
 import restComms from "@/services/RestComms"
 import STTModelManager from "@/services/STTModelManager"

@@ -58,7 +58,6 @@
     "authing-js-sdk": "^4.23.55",
     "axios": "^1.13.6",
     "babel-plugin-module-resolver": "5.0.0",
-    "core": "file:./modules/core",
     "crust": "file:./modules/crust",
     "date-fns": "^4.1.0",
     "dotenv": "^17.3.1",

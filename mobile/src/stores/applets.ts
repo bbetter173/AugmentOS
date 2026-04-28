@@ -562,10 +562,10 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     if (runningRes.is_ok() && runningRes.value) {
       mapp.running = true
     }
-    // let screenshotRes = await storage.load<string>(`${mapp.packageName}_screenshot`)
-    // if (screenshotRes.is_ok() && screenshotRes.value) {
-    //   mapp.screenshot = screenshotRes.value
-    // }
+    let screenshotRes = await storage.load<string>(`${mapp.packageName}_screenshot`)
+    if (screenshotRes.is_ok() && screenshotRes.value) {
+      mapp.screenshot = screenshotRes.value
+    }
   }
   return miniApps as ClientAppletInterface[]
 }
@@ -970,7 +970,7 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
   },
 
   saveScreenshot: async (packageName: string, screenshot: string) => {
-    // await storage.save(`${packageName}_screenshot`, screenshot)
+    storage.save(`${packageName}_screenshot`, screenshot)
     set((state) => ({
       apps: state.apps.map((a) => (a.packageName === packageName ? {...a, screenshot} : a)),
     }))

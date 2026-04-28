@@ -31,7 +31,7 @@ A MentraOS glasses client that runs on Android-based smart glasses such as Mentr
 
 ### Development on Mentra Live
 
-Mentra Live ships with `com.mentra.asg_client` as a **system app** signed with Mentra's release key. To run your own build, you must replace the factory app.
+Mentra Live ships with `com.mentra.asg_client` as a **system app** signed with Mentra's release key. To run your own build, `./scripts/dev-setup.sh` installs a fork alongside it under a separate package (`com.mentra.asg_client.thirdparty`), disables the stock app, and makes your build the default launcher; `./scripts/restore-stock.sh` reverses this.
 
 ### Connecting via ADB
 
@@ -53,11 +53,12 @@ adb devices
 ```
 
 This script will:
+
 1. Build your debug APK
-2. Replace the factory app with your build
+2. Install it as `com.mentra.asg_client.thirdparty`, disable the stock app, and set your build as the default launcher
 3. Grant all required permissions
 
-**Warning:** After running this, you will not receive OTA updates from Mentra. You are responsible for your own builds.
+**Warning:** After running this, you will not receive OTA updates from Mentra **for your fork** — you're responsible for your own builds. (`./scripts/restore-stock.sh` re-enables the stock app and can pull the latest stock version from Mentra's OTA server.)
 
 ### Restoring Stock Firmware
 

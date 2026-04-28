@@ -35,18 +35,20 @@ Mentra Live ships with `com.mentra.asg_client` as a **system app** signed with M
 
 ### Connecting via ADB
 
-USB is the primary path. WiFi ADB is available when the cable isn't handy.
+#### USB ADB
 
-**USB (Infinity Cable):** snap the magnetic USB-C clip onto the contacts inside the right temple, plug the other end into your computer, then run `adb devices` to confirm. USB debugging ships enabled and authorized from the factory — there's no Developer Options dance to do on the glasses.
+Snap the Infinity Cable onto the contacts on the right temple, plug the other end into your computer, then run `adb devices` to confirm. USB debugging ships enabled and authorized from the factory.
 
-**WiFi:** find the glasses' Local IP Address in the MentraOS app (Glasses screen), then:
+#### WiFi ADB
+
+Find the glasses' Local IP Address in the MentraOS app (Glasses screen), then:
 
 ```bash
 adb connect <GLASSES_IP>:5555
 adb devices
 ```
 
-### Installing Your Custom Build
+### Installing Your Custom Build of asg_client
 
 ```bash
 ./scripts/dev-setup.sh
@@ -58,7 +60,7 @@ This script will:
 2. Install it as `com.mentra.asg_client.thirdparty`, disable the stock app, and set your build as the default launcher
 3. Grant all required permissions
 
-**Warning:** After running this, you will not receive OTA updates from Mentra **for your fork** — you're responsible for your own builds. (`./scripts/restore-stock.sh` re-enables the stock app and can pull the latest stock version from Mentra's OTA server.)
+**Warning:** Your fork will not receive OTA updates from Mentra.
 
 ### Restoring Stock Firmware
 

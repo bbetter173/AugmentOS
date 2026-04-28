@@ -34,10 +34,10 @@ IntentCommandReceiver           K900BluetoothManager
 
 Every command may include:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | string | yes | Command identifier (rows below) |
-| `mId` | long | no | Message ID. If present, glasses immediately reply with a `msg_ack`. |
+| Field  | Type   | Required | Description                                                         |
+| ------ | ------ | -------- | ------------------------------------------------------------------- |
+| `type` | string | yes      | Command identifier (rows below)                                     |
+| `mId`  | long   | no       | Message ID. If present, glasses immediately reply with a `msg_ack`. |
 
 ### `msg_ack` (auto-response when `mId` is set)
 
@@ -50,6 +50,7 @@ Every command may include:
 ## Command reference
 
 Sources:
+
 - Handler registrations: `app/src/main/java/com/mentra/asg_client/service/core/handlers/*CommandHandler.java`
 - Response wire formats: `service/communication/managers/ResponseBuilder.java`, `service/media/managers/MediaManager.java`, `io/media/core/MediaCaptureService.java`
 
@@ -76,21 +77,22 @@ Capture a still photo. The handler routes through `transferMethod` to one of thr
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `requestId` | string | — | Required; correlates request with response |
-| `packageName` | string | resolved by handler | Originating app package |
-| `webhookUrl` | string | "" | HTTPS endpoint for `direct` / `auto` upload |
-| `authToken` | string | "" | Bearer token for the webhook |
-| `transferMethod` | string | `"direct"` | One of `direct`, `ble`, `auto`. `auto` requires `bleImgId`. |
-| `bleImgId` | string | "" | Required for `ble` and `auto` transfer methods |
-| `save` | boolean | `false` | Also save the photo to local gallery |
-| `size` | string | `"medium"` | `small`, `medium`, or `large` |
-| `compress` | string | `"none"` | Compression preset passed to capture pipeline |
-| `flash` | boolean | `true` | Fire the privacy LED during capture |
-| `sound` | boolean | `true` | Play shutter sound |
+| Field            | Type    | Default             | Description                                                 |
+| ---------------- | ------- | ------------------- | ----------------------------------------------------------- |
+| `requestId`      | string  | —                   | Required; correlates request with response                  |
+| `packageName`    | string  | resolved by handler | Originating app package                                     |
+| `webhookUrl`     | string  | ""                  | HTTPS endpoint for `direct` / `auto` upload                 |
+| `authToken`      | string  | ""                  | Bearer token for the webhook                                |
+| `transferMethod` | string  | `"direct"`          | One of `direct`, `ble`, `auto`. `auto` requires `bleImgId`. |
+| `bleImgId`       | string  | ""                  | Required for `ble` and `auto` transfer methods              |
+| `save`           | boolean | `false`             | Also save the photo to local gallery                        |
+| `size`           | string  | `"medium"`          | `small`, `medium`, or `large`                               |
+| `compress`       | string  | `"none"`            | Compression preset passed to capture pipeline               |
+| `flash`          | boolean | `true`              | Fire the privacy LED during capture                         |
+| `sound`          | boolean | `true`              | Play shutter sound                                          |
 
 **Constraints (all enforced in `PhotoCommandHandler`):**
+
 - Battery ≥ `BatteryConstants.MIN_BATTERY_LEVEL` (currently 10%)
 - No video recording in progress
 - No BLE transfer in progress
@@ -147,15 +149,15 @@ Wire response type for all video commands: `video_recording_status`.
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `requestId` | string | `"video_<ts>"` | Used for stop validation |
-| `settings.width` | int | sensor default | Optional capture width |
-| `settings.height` | int | sensor default | Optional capture height |
-| `settings.fps` | int | 30 | Frames per second |
-| `save` | boolean | `false` | Save to local gallery |
-| `flash` | boolean | `true` | Privacy LED during recording |
-| `sound` | boolean | `true` | Start/stop tones |
+| Field             | Type    | Default        | Description                  |
+| ----------------- | ------- | -------------- | ---------------------------- |
+| `requestId`       | string  | `"video_<ts>"` | Used for stop validation     |
+| `settings.width`  | int     | sensor default | Optional capture width       |
+| `settings.height` | int     | sensor default | Optional capture height      |
+| `settings.fps`    | int     | 30             | Frames per second            |
+| `save`            | boolean | `false`        | Save to local gallery        |
+| `flash`           | boolean | `true`         | Privacy LED during recording |
+| `sound`           | boolean | `true`         | Start/stop tones             |
 
 Same battery constraint as photo. Status values emitted: `recording_started`, `already_recording`, `battery_low`, `service_unavailable`, `missing_request_id`, `error`.
 
@@ -209,14 +211,14 @@ See [features/rtmp-streaming.md](features/rtmp-streaming.md) for stream lifecycl
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `streamUrl` | string | — | Required. Legacy fallbacks: `rtmpUrl`, `srtUrl`, `whipUrl` (any one is accepted). |
-| `streamId` | string | "" | Used to validate keep-alives and ACKs |
-| `video` | object | defaults | `width`, `height`, `fps`, `bitrate`. Compact alias: `v`. Parsed by `RtmpStreamConfig.fromJson` / `WhipStreamConfig.fromJson`. |
-| `audio` | object | defaults | `sample_rate`, `bitrate`. Compact alias: `a`. |
-| `flash` | boolean | `true` | Privacy LED during stream |
-| `sound` | boolean | `true` | Start/stop tones |
+| Field       | Type    | Default  | Description                                                                                                                   |
+| ----------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `streamUrl` | string  | —        | Required. Legacy fallbacks: `rtmpUrl`, `srtUrl`, `whipUrl` (any one is accepted).                                             |
+| `streamId`  | string  | ""       | Used to validate keep-alives and ACKs                                                                                         |
+| `video`     | object  | defaults | `width`, `height`, `fps`, `bitrate`. Compact alias: `v`. Parsed by `RtmpStreamConfig.fromJson` / `WhipStreamConfig.fromJson`. |
+| `audio`     | object  | defaults | `sample_rate`, `bitrate`. Compact alias: `a`.                                                                                 |
+| `flash`     | boolean | `true`   | Privacy LED during stream                                                                                                     |
+| `sound`     | boolean | `true`   | Start/stop tones                                                                                                              |
 
 **Constraints:** battery ≥ 10%, WiFi connected. WHIP streams whose requested resolution exceeds the camera's supported output are rejected (`WhipCameraFormatSelector`).
 
@@ -295,9 +297,7 @@ Streams results back over BLE as they're discovered:
 ```json
 {
   "type": "wifi_scan_result",
-  "networks_neo": [
-    {"ssid": "MyNetwork", "signal_strength": -45, "security": "WPA2"}
-  ]
+  "networks_neo": [{"ssid": "MyNetwork", "signal_strength": -45, "security": "WPA2"}]
 }
 ```
 
@@ -398,10 +398,10 @@ Response (sample):
 {"type": "imu_stream_start", "rate_hz": 50, "batch_ms": 100}
 ```
 
-| Field | Type | Default | Range |
-|-------|------|---------|-------|
-| `rate_hz` | int | 50 | 1-100 (clamped) |
-| `batch_ms` | long | 0 | 0-1000 (clamped) |
+| Field      | Type | Default | Range            |
+| ---------- | ---- | ------- | ---------------- |
+| `rate_hz`  | int  | 50      | 1-100 (clamped)  |
+| `batch_ms` | long | 0       | 0-1000 (clamped) |
 
 #### `imu_stream_stop`
 
@@ -409,7 +409,7 @@ Response (sample):
 {"type": "imu_stream_stop"}
 ```
 
-#### `imu_subscribe_gesture` *(under construction)*
+#### `imu_subscribe_gesture` _(under construction)_
 
 > **Under construction.** The handler accepts these commands but the gesture detection itself is not finished — don't rely on this in production code yet.
 
@@ -429,31 +429,11 @@ When a subscribed gesture fires:
 {"type": "imu_gesture_response", "gesture": "head_up", "timestamp": 1708963201234}
 ```
 
-#### `imu_unsubscribe_gesture` *(under construction)*
+#### `imu_unsubscribe_gesture` _(under construction)_
 
 ```json
 {"type": "imu_unsubscribe_gesture"}
 ```
-
----
-
-### Microphone
-
-#### `set_mic_state`
-
-```json
-{"type": "set_mic_state", "enabled": true}
-```
-
-Currently logged but not yet wired to `serviceManager.setMicrophoneState()` — the handler accepts the command and returns success. Tracked TODO in `MicrophoneCommandHandler`.
-
-#### `set_mic_vad_state`
-
-```json
-{"type": "set_mic_vad_state", "enabled": true}
-```
-
-Same status as above.
 
 ---
 
@@ -496,13 +476,13 @@ Controls the RGB LEDs on the glasses themselves (not the local MTK recording LED
 }
 ```
 
-| Field | Type | Default | Range |
-|-------|------|---------|-------|
-| `led` | int | 0 (red) | 0=red, 1=green, 2=blue, 3=orange, 4=white |
-| `ontime` | int | 1000 | ≥ 0 ms |
-| `offtime` | int | 1000 | ≥ 0 ms |
-| `count` | int | 1 | ≥ 0 cycles |
-| `brightness` | int | `K900RgbLedController.DEFAULT_RGB_LED_BRIGHTNESS` | 0-255 |
+| Field        | Type | Default                                           | Range                                     |
+| ------------ | ---- | ------------------------------------------------- | ----------------------------------------- |
+| `led`        | int  | 0 (red)                                           | 0=red, 1=green, 2=blue, 3=orange, 4=white |
+| `ontime`     | int  | 1000                                              | ≥ 0 ms                                    |
+| `offtime`    | int  | 1000                                              | ≥ 0 ms                                    |
+| `count`      | int  | 1                                                 | ≥ 0 cycles                                |
+| `brightness` | int  | `K900RgbLedController.DEFAULT_RGB_LED_BRIGHTNESS` | 0-255                                     |
 
 #### `rgb_led_control_off`
 
@@ -590,12 +570,6 @@ Persists the resolution/fps used when the hardware camera button starts a video.
 ```
 
 `size` is one of `small`, `medium`, `large`.
-
-#### `button_camera_led`
-
-```json
-{"type": "button_camera_led", "enabled": true}
-```
 
 Enables/disables the privacy LED during button-triggered capture.
 
@@ -739,10 +713,10 @@ Persisted via `AsgSettings.setSaveInGalleryMode`.
 {"type": "upload_incident_logs", "incidentId": "550e8400-e29b-41d4-a716-446655440000", "apiBaseUrl": ""}
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `incidentId` | string | yes | Backend incident id |
-| `apiBaseUrl` | string | no | Override server base URL |
+| Field        | Type   | Required | Description              |
+| ------------ | ------ | -------- | ------------------------ |
+| `incidentId` | string | yes      | Backend incident id      |
+| `apiBaseUrl` | string | no       | Override server base URL |
 
 With WiFi: POSTs the last 600 logcat lines plus BES firmware logs to `<base>/api/incidents/<incidentId>/logs`. Without WiFi: relays the same payloads to the phone over two sequential K900 BLE file transfers; the phone POSTs them.
 
@@ -783,24 +757,24 @@ Legacy accept/reject prompt, kept for older phone app versions. If `accepted` is
 
 The K900 microcontroller frames messages as `{"C": "<cmd>", "B": {...}, "V": 1}`. These are parsed by `K900CommandHandler` (not registered in `CommandHandlerRegistry` like the others — they're dispatched from the K900 protocol detector). Most are inbound-only and don't accept payloads from the phone, but a few translate to outbound JSON events:
 
-| Inbound `C` | Meaning | Outbound (if any) |
-|-------------|---------|-------------------|
-| `cs_pho` | Camera button short press | `button_press` |
-| `cs_vdo` | Camera button long press | `button_press` |
-| `hm_htsp` / `mh_htsp` | Hotspot start request | (handled internally) |
-| `hm_batv` | Battery voltage update | `battery_status` |
-| `cs_flts` | File-transfer ACK | (handled internally) |
-| `sr_swst` | Switch status report | `switch_status` |
-| `sr_tpevt` | Touch event report | `touch_event` |
-| `sr_fbvol` | Swipe volume status | `swipe_volume_status` |
-| `hm_ota` | BES OTA authorization response | (handled internally) |
-| `hs_ntfy` | Hardware notification (newer firmware button format) | `button_press` |
-| `sr_vad` | Voice Activity Detection event | (logged only) |
-| `hs_syvr` | System version report | (cached, triggers `request_version` push) |
-| `sr_btaddr` | BT MAC address | (persisted to system properties) |
-| `sr_keyevt` | Power button short press | (announces battery via audio asset) |
-| `sr_log` | BES log stream packet | (forwarded to upload pipeline) |
-| `cs_shut` | BES requesting graceful shutdown | `sr_shut` ack, then shutdown |
+| Inbound `C`           | Meaning                                              | Outbound (if any)                         |
+| --------------------- | ---------------------------------------------------- | ----------------------------------------- |
+| `cs_pho`              | Camera button short press                            | `button_press`                            |
+| `cs_vdo`              | Camera button long press                             | `button_press`                            |
+| `hm_htsp` / `mh_htsp` | Hotspot start request                                | (handled internally)                      |
+| `hm_batv`             | Battery voltage update                               | `battery_status`                          |
+| `cs_flts`             | File-transfer ACK                                    | (handled internally)                      |
+| `sr_swst`             | Switch status report                                 | `switch_status`                           |
+| `sr_tpevt`            | Touch event report                                   | `touch_event`                             |
+| `sr_fbvol`            | Swipe volume status                                  | `swipe_volume_status`                     |
+| `hm_ota`              | BES OTA authorization response                       | (handled internally)                      |
+| `hs_ntfy`             | Hardware notification (newer firmware button format) | `button_press`                            |
+| `sr_vad`              | Voice Activity Detection event                       | (logged only)                             |
+| `hs_syvr`             | System version report                                | (cached, triggers `request_version` push) |
+| `sr_btaddr`           | BT MAC address                                       | (persisted to system properties)          |
+| `sr_keyevt`           | Power button short press                             | (announces battery via audio asset)       |
+| `sr_log`              | BES log stream packet                                | (forwarded to upload pipeline)            |
+| `cs_shut`             | BES requesting graceful shutdown                     | `sr_shut` ack, then shutdown              |
 
 ---
 
@@ -810,12 +784,12 @@ For ADB-based testing and debug APKs.
 
 ### Intent actions
 
-| Action | Direction | Extras |
-|--------|-----------|--------|
-| `com.mentra.asg_client.ACTION_SEND_COMMAND` | inbound | `json` (string) — the command JSON |
-| `com.mentra.asg_client.ACTION_REGISTER_LISTENER` | inbound | `packageName` (string) — package to deliver responses to |
-| `com.mentra.asg_client.ACTION_UNREGISTER_LISTENER` | inbound | `packageName` (string) |
-| `com.mentra.asg_client.ACTION_COMMAND_RESPONSE` | outbound | `json` (string) — the response JSON |
+| Action                                             | Direction | Extras                                                   |
+| -------------------------------------------------- | --------- | -------------------------------------------------------- |
+| `com.mentra.asg_client.ACTION_SEND_COMMAND`        | inbound   | `json` (string) — the command JSON                       |
+| `com.mentra.asg_client.ACTION_REGISTER_LISTENER`   | inbound   | `packageName` (string) — package to deliver responses to |
+| `com.mentra.asg_client.ACTION_UNREGISTER_LISTENER` | inbound   | `packageName` (string)                                   |
+| `com.mentra.asg_client.ACTION_COMMAND_RESPONSE`    | outbound  | `json` (string) — the response JSON                      |
 
 The first three actions are declared in `AndroidManifest.xml` with the `IntentCommandReceiver`. `ACTION_COMMAND_RESPONSE` is an outgoing-only action — debug APKs declare a receiver for it themselves.
 
@@ -866,18 +840,18 @@ public class DebugResponseReceiver extends BroadcastReceiver {
 
 ## Logcat tags
 
-| Tag | Component |
-|-----|-----------|
-| `IntentCommandReceiver` | Incoming intent processing |
-| `IntentResponseBroadcaster` | Outgoing response broadcasts |
-| `CommandProcessor` | Command routing |
-| `CommandHandlerRegistry` | Handler registration / lookup |
-| `PhotoCommandHandler` | Photo capture |
-| `VideoCommandHandler` | Video + buffer recording |
-| `StreamCommandHandler` | Stream start/stop/keep-alive |
-| `RtmpStreamingService` / `SrtStreamingService` / `WhipStreamingService` | Stream lifecycle |
-| `WifiCommandHandler` | WiFi operations |
-| `RgbLedCommandHandler` | RGB LED |
-| `K900CommandHandler` | K900 protocol passthrough |
-| `OtaCommandHandler` | OTA |
-| `UploadIncidentLogsHandler` | Incident log upload |
+| Tag                                                                     | Component                     |
+| ----------------------------------------------------------------------- | ----------------------------- |
+| `IntentCommandReceiver`                                                 | Incoming intent processing    |
+| `IntentResponseBroadcaster`                                             | Outgoing response broadcasts  |
+| `CommandProcessor`                                                      | Command routing               |
+| `CommandHandlerRegistry`                                                | Handler registration / lookup |
+| `PhotoCommandHandler`                                                   | Photo capture                 |
+| `VideoCommandHandler`                                                   | Video + buffer recording      |
+| `StreamCommandHandler`                                                  | Stream start/stop/keep-alive  |
+| `RtmpStreamingService` / `SrtStreamingService` / `WhipStreamingService` | Stream lifecycle              |
+| `WifiCommandHandler`                                                    | WiFi operations               |
+| `RgbLedCommandHandler`                                                  | RGB LED                       |
+| `K900CommandHandler`                                                    | K900 protocol passthrough     |
+| `OtaCommandHandler`                                                     | OTA                           |
+| `UploadIncidentLogsHandler`                                             | Incident log upload           |

@@ -17,7 +17,7 @@ Most of the device logic already lives in `mobile/modules/core`, but packaging, 
 3. Delete duplicate cloud-formatting functions (handle in TypeScript instead)
 4. Publish to npm, Maven Central, and CocoaPods
 5. Write documentation
-6. Create a React Native example app
+6. Create bare Android and bare iOS example apps in the Partner Kit
 
 ### Current Hardware Implementations
 
@@ -437,7 +437,7 @@ fun sendWSBinary(data: ByteArray)
 
 ### 3.4 Public API Surface After Phase 3
 
-The Bluetooth SDK public React Native surface is the Expo module exported by `@mentra/bluetooth-sdk`. External app code should interact with it through typed async methods and typed event subscriptions, not native `Bridge.kt` / `Bridge.swift` helpers.
+The Bluetooth SDK React Native/Expo adapter surface is the Expo module exported by `@mentra/bluetooth-sdk`. App code using that adapter should interact with it through typed async methods and typed event subscriptions, not native `Bridge.kt` / `Bridge.swift` helpers.
 
 **Connection and status methods:**
 
@@ -504,7 +504,7 @@ BluetoothSdk.onBluetoothStatus(callback)
 BluetoothSdk.onGlassesStatus(callback)
 ```
 
-`BluetoothSdk.update(category, values)` remains the low-level native store bridge used by these typed helpers. External callers should prefer `updateBluetoothSettings()` and `updateGlasses()` so the internal native store category names (`"bluetooth"` / `"glasses"`) do not become part of the partner-facing API. Native stores still accept `"core"` as a legacy alias for `"bluetooth"` to avoid silently splitting persisted state during the rename.
+`BluetoothSdk.update(category, values)` remains the low-level native store bridge used by these typed helpers. React Native/Expo adapter callers should prefer `updateBluetoothSettings()` and `updateGlasses()` so the internal native store category names (`"bluetooth"` / `"glasses"`) do not become part of the adapter API. Native stores still accept `"core"` as a legacy alias for `"bluetooth"` to avoid silently splitting persisted state during the rename.
 
 **Typed hardware/app events emitted to JavaScript:**
 
@@ -1088,27 +1088,27 @@ Keep focused regressions for the flows most likely to break during the refactor:
 
 ### Phase 1: Rename (Week 1)
 
-- [ ] Create branch `feature/bluetooth-sdk-rename`
-- [ ] Rename `mobile/modules/core` to `mobile/modules/bluetooth-sdk`
-- [ ] Update package.json name to `@mentra/bluetooth-sdk`
-- [ ] Update Android package: `com.mentra.core` -> `com.mentra.bluetoothsdk`
-- [ ] Update iOS module name
-- [ ] Update all imports in `mobile/src/`
-- [ ] Update expo-module.config.json
-- [ ] Verify build works
+- [x] Create phase branch stack for the Bluetooth SDK rollout
+- [x] Rename `mobile/modules/core` to `mobile/modules/bluetooth-sdk`
+- [x] Update package.json name to `@mentra/bluetooth-sdk`
+- [x] Update Android package: `com.mentra.core` -> `com.mentra.bluetoothsdk`
+- [x] Update iOS module name
+- [x] Update MentraOS imports to consume `@mentra/bluetooth-sdk`
+- [x] Update expo-module.config.json
+- [x] Verify build works on the covered Android/iOS validation paths
 
 ### Phase 2: Extract to Crust (Week 2)
 
-- [ ] Move NotificationListener service to Crust
-- [ ] Move NotificationListener manifest entry to Crust
-- [ ] Keep the state split practical instead of redesigning it:
-  - [ ] Move obvious MentraOS-only native features to Crust
-  - [ ] Keep `contextual_dashboard`, `auth_email`, `core_token`, and incident plumbing in Bluetooth SDK where hardware still depends on them
-- [ ] Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this branch
-- [ ] Update GlassesStore.apply() to remove handlers for deleted keys
-- [ ] Create Crust TypeScript interface
-- [ ] Wire up Crust to MentraOS app layer
-- [ ] Verify MentraOS still works end-to-end
+- [x] Move NotificationListener service to Crust
+- [x] Move NotificationListener manifest entry to Crust
+- [x] Keep the state split practical instead of redesigning it:
+  - [x] Move obvious MentraOS-only native features to Crust
+  - [x] Keep `contextual_dashboard`, `auth_email`, `core_token`, and incident plumbing in Bluetooth SDK where hardware still depends on them
+- [x] Leave offline STT control (`offline_mode` / `offline_captions_running`) unchanged in this branch
+- [x] Update DeviceStore.apply() to remove handlers for deleted keys
+- [x] Create Crust TypeScript interface
+- [x] Wire up Crust to MentraOS app layer
+- [x] Verify MentraOS still works on the covered Android/iOS validation paths
 
 ### Phase 3: Clean Up Bridge - Delete Duplicates (Week 2-3)
 
@@ -1129,31 +1129,31 @@ Keep focused regressions for the flows most likely to break during the refactor:
 - [x] Create iOS PrivacyInfo.xcprivacy manifest
 - [x] Configure npm publishing metadata
 - [ ] Set up CI/CD for automated publishing
-- [ ] Ensure native library is usable without Expo (pure Android/iOS apps)
+- [x] Ensure native library is usable without Expo through local Maven/CocoaPods validation
 
 ### Phase 5: Documentation & Example (Week 4)
 
-- [ ] Create private GitHub partner docs repo and push scaffold
+- [x] Create private GitHub partner docs repo and push scaffold
 - [x] Draft private partner docs repo scaffold locally
 - [x] Write thin public package README
 - [x] Write private repo main README
 - [x] Create initial private getting started guide
 - [x] Document initial private API reference
 - [x] Document cross-phase SDK testing strategy
-- [ ] Rewrite Partner Kit docs around bare Android and bare iOS first
-- [ ] Replace React Native example focus with bare Android and bare iOS samples
-- [x] Create initial private example app demonstrating current wrapper path:
+- [x] Rewrite Partner Kit docs around bare Android and bare iOS first
+- [x] Replace React Native example focus with bare Android and bare iOS samples
+- [x] Create initial private native example apps demonstrating the public facade path:
   - Device scanning/discovery
   - Connection management
   - Display text
   - Display clearing
   - Status subscriptions
   - Button/battery events
-- [ ] Expand private example app with:
+- [x] Expand private example apps with camera/photo upload preview flows
+- [ ] Expand private example apps with:
   - Display images
   - Audio streaming
-  - Camera/gallery flows
-- [ ] Validate a fresh third-party Expo/RN consumer app can install the published package, prebuild iOS/Android, and run `pod install`
+- [ ] Validate a fresh third-party Expo/RN consumer app can install the published package, prebuild iOS/Android, and run `pod install` if React Native becomes customer-facing again
 
 ### Phase 6: Native SDK API Extraction
 

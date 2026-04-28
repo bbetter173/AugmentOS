@@ -1559,6 +1559,7 @@ class MentraLive: NSObject, SGCManager {
 
         centralManager?.stopScan()
         isScanning = false
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "searching", false)
         Bridge.log("LIVE: BLE scan stopped")
 
         // Emit event

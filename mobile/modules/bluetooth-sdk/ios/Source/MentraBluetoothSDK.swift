@@ -473,6 +473,7 @@ public final class MentraBluetoothSDK {
 
     public func startScan(model: MentraDeviceModel) {
         discoveredDeviceNames.removeAll()
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "searching", true)
         DeviceManager.shared.findCompatibleDevices(model.deviceType)
     }
 

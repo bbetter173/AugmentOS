@@ -214,6 +214,10 @@ class BluetoothSdkModule : Module() {
             sdk?.connectByName(deviceName)
         }
 
+        AsyncFunction("connectDevice") { deviceModel: String, deviceName: String ->
+            sdk?.connectByName(MentraDeviceModel.fromDeviceType(deviceModel), deviceName)
+        }
+
         AsyncFunction("connectSimulated") { sdk?.connectSimulated() }
 
         AsyncFunction("disconnect") { sdk?.disconnect() }

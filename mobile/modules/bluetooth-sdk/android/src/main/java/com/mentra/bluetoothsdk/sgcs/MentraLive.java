@@ -740,7 +740,11 @@ public class MentraLive extends SGCManager {
         try {
             bluetoothScanner.stopScan(scanCallback);
             isScanning = false;
+            DeviceStore.INSTANCE.apply("bluetooth", "searching", false);
             Bridge.log("LIVE: BLE scan stopped");
+            Map<String, Object> body = new HashMap<>();
+            body.put("device_model", DeviceTypes.LIVE);
+            Bridge.sendTypedMessage("compatible_glasses_search_stop", body);
 
             // Post event only if we haven't been destroyed
             // if (smartGlassesDevice != null) {
@@ -767,12 +771,25 @@ public class MentraLive extends SGCManager {
                 return;
             }
 
-            if (result.getDevice() == null || result.getDevice().getName() == null) {
+            BluetoothDevice device = result.getDevice();
+            if (device == null) {
                 return;
             }
 
-            String deviceName = result.getDevice().getName();
-            String deviceAddress = result.getDevice().getAddress();
+            String deviceName = null;
+            try {
+                deviceName = device.getName();
+            } catch (SecurityException e) {
+                Bridge.log("LIVE: Missing permission to read BLE device name: " + e.getMessage());
+            }
+            if (deviceName == null && result.getScanRecord() != null) {
+                deviceName = result.getScanRecord().getDeviceName();
+            }
+            if (deviceName == null) {
+                return;
+            }
+
+            String deviceAddress = device.getAddress();
 
             // String device = deviceName + deviceAddress;
             // if (!seenDevices.contains(device)) {
@@ -806,7 +823,7 @@ public class MentraLive extends SGCManager {
                     }
                     stopScan();
                     isReconnecting = false;
-                    connectToDevice(result.getDevice());
+                    connectToDevice(device);
                 }
             }
         }
@@ -4445,10 +4462,25 @@ public class MentraLive extends SGCManager {
             int videoHeight = 1080;
             int videoFps = 30;
 
-            Map<String, Object> videoSettings = (Map<String, Object>) videoSettingsObj;
-            videoWidth = ((Number) videoSettings.getOrDefault("width", 1920)).intValue();
-            videoHeight = ((Number) videoSettings.getOrDefault("height", 1080)).intValue();
-            videoFps = ((Number) videoSettings.getOrDefault("fps", 30)).intValue();
+            if (videoSettingsObj instanceof Map) {
+                Map<String, Object> videoSettings = (Map<String, Object>) videoSettingsObj;
+                videoWidth = ((Number) videoSettings.getOrDefault("width", videoWidth)).intValue();
+                videoHeight = ((Number) videoSettings.getOrDefault("height", videoHeight)).intValue();
+                videoFps = ((Number) videoSettings.getOrDefault("fps", videoFps)).intValue();
+            } else {
+                Object width = DeviceStore.INSTANCE.get("bluetooth", "button_video_width");
+                Object height = DeviceStore.INSTANCE.get("bluetooth", "button_video_height");
+                Object fps = DeviceStore.INSTANCE.get("bluetooth", "button_video_fps");
+                if (width instanceof Number) {
+                    videoWidth = ((Number) width).intValue();
+                }
+                if (height instanceof Number) {
+                    videoHeight = ((Number) height).intValue();
+                }
+                if (fps instanceof Number) {
+                    videoFps = ((Number) fps).intValue();
+                }
+            }
             
             Bridge.log("LIVE: 🎥 [SETTINGS_SYNC] Sending button video recording settings: " + videoWidth + "x" + videoHeight + "@" + videoFps + "fps");
 

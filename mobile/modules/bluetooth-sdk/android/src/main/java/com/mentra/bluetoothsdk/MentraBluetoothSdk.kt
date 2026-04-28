@@ -59,6 +59,7 @@ class MentraBluetoothSdk private constructor(
 
     fun startScan(model: MentraDeviceModel) {
         discoveredDeviceNames.clear()
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "searching", true)
         deviceManager.findCompatibleDevices(model.deviceType)
     }
 

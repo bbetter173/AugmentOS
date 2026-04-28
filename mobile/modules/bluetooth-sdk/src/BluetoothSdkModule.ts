@@ -3,6 +3,7 @@ import {NativeModule, requireNativeModule} from "expo"
 import {
   BluetoothSdkModuleEvents,
   BluetoothStatus,
+  DeviceSearchResult,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
@@ -26,6 +27,8 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   requestStatus(): Promise<void>
   connectDefault(): Promise<void>
   connectByName(deviceName: string): Promise<void>
+  connectDevice(deviceModel: string, deviceName: string): Promise<void>
+  connectDiscoveredDevice(device: DeviceSearchResult): Promise<void>
   connectDefaultController(): Promise<void>
   disconnectController(): Promise<void>
   connectSimulated(): Promise<void>
@@ -128,6 +131,10 @@ NativeBluetoothSdkModule.updateGlasses = function (values: Partial<GlassesStatus
 
 NativeBluetoothSdkModule.updateBluetoothSettings = function (values: Record<string, any>) {
   return this.update("bluetooth", values)
+}
+
+NativeBluetoothSdkModule.connectDiscoveredDevice = function (device: DeviceSearchResult) {
+  return this.connectDevice(device.deviceModel, device.deviceName)
 }
 
 NativeBluetoothSdkModule.onGlassesStatus = function (callback: GlassesListener) {

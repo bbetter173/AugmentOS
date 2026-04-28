@@ -117,6 +117,12 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
+        AsyncFunction("connectDevice") { (deviceModel: String, deviceName: String) in
+            await MainActor.run {
+                self.bluetoothSdk().connect(model: MentraDeviceModel.fromDeviceType(deviceModel), name: deviceName)
+            }
+        }
+
         AsyncFunction("connectDefaultController") {
             await MainActor.run {
                 DeviceManager.shared.connectDefaultController()

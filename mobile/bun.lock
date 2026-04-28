@@ -29,6 +29,7 @@
         "authing-js-sdk": "^4.23.55",
         "axios": "^1.13.6",
         "babel-plugin-module-resolver": "5.0.0",
+        "core": "file:./modules/core",
         "crust": "file:./modules/crust",
         "date-fns": "^4.1.0",
         "dotenv": "^17.3.1",
@@ -728,6 +729,8 @@
 
     "@livekit/react-native-webrtc": ["@livekit/react-native-webrtc@137.0.2", "", { "dependencies": { "base64-js": "1.5.1", "debug": "4.3.4", "event-target-shim": "6.0.2" }, "peerDependencies": { "react-native": ">=0.60.0" } }, "sha512-0aXYATcBraOMDTteKzmfH5ICNHw8xFyMPHmhKg14+94fAGZ2hGjdHZUSkzL14+e508W486aIAmbXipuSQCCJgA=="],
 
+    "@mentra/bluetooth-sdk": ["@mentra/bluetooth-sdk@file:modules/bluetooth-sdk", { "devDependencies": { "expo-module-scripts": "^55.0.2" }, "peerDependencies": { "@expo/config-plugins": "*", "@types/react": "*", "expo": "*", "react": "*", "react-native": "*" } }],
+
     "@mentra/display-utils": ["@mentra/display-utils@file:../cloud/packages/display-utils", { "devDependencies": { "opentype.js": "^1.3.4", "typescript": "^5.0.0" } }],
 
     "@nicolo-ribaudo/chokidar-2": ["@nicolo-ribaudo/chokidar-2@2.1.8-no-fsevents.3", "", {}, "sha512-s88O1aVtXftvp5bCPB7WnmXc5IwOZZ7YPuwNPt+GtOOXpPvad1LfbmjYv+qII7zP6RU2QGnqve27dnLycEnyEQ=="],
@@ -1306,7 +1309,7 @@
 
     "convert-source-map": ["convert-source-map@2.0.0", "", {}, "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="],
 
-    "@mentra/bluetooth-sdk": ["@mentra/bluetooth-sdk@file:modules/bluetooth-sdk", { "devDependencies": { "expo-module-scripts": "^55.0.2" }, "peerDependencies": { "@expo/config-plugins": "*", "@types/react": "*", "expo": "*", "react": "*", "react-native": "*" } }],
+    "core": ["core@file:modules/core", { "dependencies": { "@mentra/bluetooth-sdk": "file:../bluetooth-sdk" } }],
 
     "core-js-compat": ["core-js-compat@3.48.0", "", { "dependencies": { "browserslist": "^4.28.1" } }, "sha512-OM4cAF3D6VtH/WkLtWvyNC56EZVXsZdU3iqaMG2B4WvYrlqU831pc4UtG5yp0sE9z8Y02wVN7PjW5Zf9Gt0f1Q=="],
 
@@ -3031,6 +3034,8 @@
     "compression/negotiator": ["negotiator@0.6.4", "", {}, "sha512-myRT3DiWPHqho5PrJaIRyaMv2kgYf0mUVgBNOYMuCH5Ki1yEiQaf/ZJuQ62nvpc44wL5WDbTX7yGJi1Neevw8w=="],
 
     "connect/debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
+
+    "core/@mentra/bluetooth-sdk": ["@mentra/bluetooth-sdk@file:modules/bluetooth-sdk", { "devDependencies": { "expo-module-scripts": "^55.0.2" }, "peerDependencies": { "@expo/config-plugins": "*", "@types/react": "*", "expo": "*", "react": "*", "react-native": "*" } }],
 
     "css-tree/source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
 

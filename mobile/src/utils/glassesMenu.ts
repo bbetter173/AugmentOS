@@ -10,7 +10,7 @@ import {sortAppsByLastOpenTime, SYSTEM_APPS, useAppletStatusStore, type ClientAp
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 export interface GlassesMenuItem {
   packageName: string
@@ -96,6 +96,6 @@ export async function syncDashboardMenu() {
     }
   })
 
-  BluetoothSdk.updateBluetoothSettings({dashboard_menu_apps: itemsForNative})
+  CoreModule.updateCore({dashboard_menu_apps: itemsForNative})
   console.log(`GLASSES_MENU: Synced ${itemsForNative.length} miniapps to G2 dashboard menu`)
 }

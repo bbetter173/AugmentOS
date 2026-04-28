@@ -5,7 +5,7 @@
 
 import * as RNFS from "@dr.pogodin/react-native-fs"
 import NetInfo from "@react-native-community/netinfo"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 import {AppState, AppStateStatus, Platform} from "react-native"
 import WifiManager from "react-native-wifi-reborn"
 
@@ -652,7 +652,7 @@ class GallerySyncService {
 
     try {
       console.log("[GallerySyncService]   📤 Sending hotspot enable command to glasses...")
-      await BluetoothSdk.setHotspotState(true)
+      await CoreModule.setHotspotState(true)
       console.log("[GallerySyncService]   ✅ Hotspot request sent successfully")
       console.log("[GallerySyncService]   ⏳ Waiting for hotspot_status_change event (timeout: 30s)...")
     } catch (error) {
@@ -911,7 +911,7 @@ class GallerySyncService {
             console.log(`[GallerySyncService] 📶 Final SSID check before download: "${finalSSID}"`)
             if (Platform.OS === "android") {
               // Some local builds can have stale generated typings for the Bluetooth SDK module.
-              ;(BluetoothSdk as any).logCurrentWifiFrequency?.()
+              ;(CoreModule as any).logCurrentWifiFrequency?.()
             }
             if (finalSSID !== hotspotInfo.ssid) {
               console.error(
@@ -1939,7 +1939,7 @@ class GallerySyncService {
 
     try {
       console.log("[GallerySyncService] Closing hotspot...")
-      await BluetoothSdk.setHotspotState(false)
+      await CoreModule.setHotspotState(false)
       store.setSyncServiceOpenedHotspot(false)
       store.setHotspotInfo(null)
       console.log("[GallerySyncService] Hotspot closed")
@@ -1998,7 +1998,7 @@ class GallerySyncService {
    */
   async queryGlassesGalleryStatus(): Promise<void> {
     try {
-      await BluetoothSdk.queryGalleryStatus()
+      await CoreModule.queryGalleryStatus()
     } catch (error) {
       console.error("[GallerySyncService] Failed to query gallery status:", error)
     }

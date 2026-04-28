@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 import {gallerySyncNotifications} from "@/services/asg/gallerySyncNotifications"
 import {gallerySyncService} from "./gallerySyncService"
@@ -6,11 +6,11 @@ import {useGallerySyncStore} from "@/stores/gallerySync"
 import {useGlassesStore} from "@/stores/glasses"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 
-jest.mock("@mentra/bluetooth-sdk", () => {
-  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
+jest.mock("core", () => {
+  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,
-    default: bluetoothSdkMock,
+    default: coreModuleMock,
   }
 })
 
@@ -142,6 +142,6 @@ describe("GallerySyncService", () => {
 
     expect(useGallerySyncStore.getState().syncState).toBe("requesting_hotspot")
     expect(useGallerySyncStore.getState().syncServiceOpenedHotspot).toBe(true)
-    expect(BluetoothSdk.setHotspotState).toHaveBeenCalledWith(true)
+    expect(CoreModule.setHotspotState).toHaveBeenCalledWith(true)
   })
 })

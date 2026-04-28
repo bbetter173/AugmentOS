@@ -23,7 +23,7 @@ import {ModalProvider} from "@/contexts/ModalContext"
 import {KonamiCodeProvider} from "@/utils/dev/konami"
 import ConnectionOverlayProvider from "@/contexts/ConnectionOverlayContext"
 import {SaferAreaProvider, useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import BluetoothStatusBar from "@/components/dev/BluetoothStatusBar"
+import CoreStatusBar from "@/components/dev/CoreStatusBar"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
@@ -150,13 +150,13 @@ export const AllProviders = withWrappers(
     )
   },
   (props) => {
-    const [debugBluetoothStatusBarEnabled] = useSetting(SETTINGS.debug_bluetooth_status_bar.key)
-    if (!debugBluetoothStatusBarEnabled) {
+    const [debugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
+    if (!debugCoreStatusBarEnabled) {
       return <>{props.children}</>
     }
     return (
       <>
-        <BluetoothStatusBar />
+        <CoreStatusBar />
         {props.children}
       </>
     )

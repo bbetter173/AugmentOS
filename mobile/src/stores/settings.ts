@@ -65,8 +65,8 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
-  debug_bluetooth_status_bar: {
-    key: "debug_bluetooth_status_bar",
+  debug_core_status_bar: {
+    key: "debug_core_status_bar",
     defaultValue: () => false,
     writable: true,
     saveOnServer: true,
@@ -545,10 +545,10 @@ export const SETTINGS: Record<string, Setting> = {
 
 export const OFFLINE_APPLETS: string[] = ["com.mentra.livecaptions", "com.mentra.camera"]
 
-// These settings are automatically synced to the Bluetooth SDK.
+// These settings are automatically synced to core.
 // Keep this list hardware-facing; app/UI/cloud-only preferences should stay in JS/Crust.
-const BLUETOOTH_SDK_SETTINGS_KEYS: string[] = [
-  // Bluetooth SDK settings:
+const CORE_SETTINGS_KEYS: string[] = [
+  // core settings:
   SETTINGS.sensing_enabled.key,
   SETTINGS.power_saving_mode.key,
   SETTINGS.lc3_frame_size.key,
@@ -602,7 +602,7 @@ interface SettingsState {
   // Utility methods
   getRestUrl: () => string
   getWsUrl: () => string
-  getBluetoothSdkSettings: () => Record<string, any>
+  getCoreSettings: () => Record<string, any>
   resetAllSettingsLocally: () => void
 }
 
@@ -785,15 +785,15 @@ export const useSettingsStore = create<SettingsState>()(
       const secure = url.protocol === "https:"
       return `${secure ? "wss" : "ws"}://${url.hostname}:${url.port || (secure ? 443 : 80)}/glasses-ws`
     },
-    getBluetoothSdkSettings: () => {
+    getCoreSettings: () => {
       const state = get()
-      const bluetoothSdkSettings: Record<string, any> = {}
+      const coreSettings: Record<string, any> = {}
       Object.values(SETTINGS).forEach((setting) => {
-        if (BLUETOOTH_SDK_SETTINGS_KEYS.includes(setting.key)) {
-          bluetoothSdkSettings[setting.key] = state.getSetting(setting.key)
+        if (CORE_SETTINGS_KEYS.includes(setting.key)) {
+          coreSettings[setting.key] = state.getSetting(setting.key)
         }
       })
-      return bluetoothSdkSettings
+      return coreSettings
     },
     resetAllSettingsLocally: () => {
       set((_state) => ({

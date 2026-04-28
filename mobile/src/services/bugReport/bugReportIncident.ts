@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 import NetInfo from "@react-native-community/netinfo"
 import Constants from "expo-constants"
 import * as ImagePicker from "expo-image-picker"
@@ -8,7 +8,7 @@ import {Platform} from "react-native"
 import restComms from "@/services/RestComms"
 import {useAppletStatusStore} from "@/stores/applets"
 import {useConnectionStore} from "@/stores/connection"
-import {useBluetoothStore} from "@/stores/bluetooth"
+import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
@@ -30,10 +30,10 @@ export function buildBugReportPhoneState(): Record<string, unknown> {
   const appletState = useAppletStatusStore.getState()
   const settingsState = useSettingsStore.getState()
   const {
-    setBluetoothStatus: _setBluetoothStatus,
+    setCoreInfo: _setCoreInfo,
     reset: _resetBluetooth,
     ...bluetoothState
-  } = useBluetoothStore.getState()
+  } = useCoreStore.getState()
   const {setDebugInfo: _setDebugInfo, reset: _resetDebug, ...debugState} = useDebugStore.getState()
   const {
     setStatus: _setConnectionStatus,
@@ -250,7 +250,7 @@ export async function submitBugIncident(
 
   const glassesConnected = useGlassesStore.getState().connected
   if (glassesConnected) {
-    BluetoothSdk.sendIncidentId(incidentId, phoneBackendUrl)
+    CoreModule.sendIncidentId(incidentId, phoneBackendUrl)
   }
 
   if (options?.screenshots && options.screenshots.length > 0) {

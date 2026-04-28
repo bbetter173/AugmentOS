@@ -14,7 +14,7 @@ import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
 
 import {Capabilities, DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 import OtaProgressSection from "@/components/glasses/OtaProgressSection"
 import {BatteryStatus} from "@/components/glasses/info/BatteryStatus"
@@ -56,7 +56,7 @@ function DeviceSettings() {
       options: {allowDismiss: false},
     })
     if (result === 1) {
-      BluetoothSdk.forget()
+      CoreModule.forget()
       // useAppletStatusStore.getState().stopAllApplets()
       // useAppletStatusStore.getState().refreshApplets()
       // // give us a second to forget the glasses before going back
@@ -75,7 +75,7 @@ function DeviceSettings() {
     })
 
     if (result === 1) {
-      BluetoothSdk.disconnect()
+      CoreModule.disconnect()
     }
   }
 

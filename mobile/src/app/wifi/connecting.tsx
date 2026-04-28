@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useRef, useState, useCallback} from "react"
 import {ActivityIndicator, View} from "react-native"
@@ -84,7 +84,7 @@ export default function WifiConnectingScreen() {
   const attemptConnection = async () => {
     try {
       console.log("Attempting to send wifi credentials to Core", ssid, password)
-      await BluetoothSdk.sendWifiCredentials(ssid, password)
+      await CoreModule.sendWifiCredentials(ssid, password)
 
       // Set timeout for connection attempt (20 seconds)
       connectionTimeoutRef.current = setTimeout(() => {

@@ -4,10 +4,10 @@ import {useLocalMiniApps} from "@/stores/applets"
 import LocalMiniApp from "@/components/home/LocalMiniApp"
 import composer from "@/services/Composer"
 import {usePathname} from "expo-router"
-import {Screen} from "@/components/ignite"
+import {Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
-import BluetoothSdk, {MicPcmEvent} from "@mentra/bluetooth-sdk"
+import CoreModule, {MicPcmEvent} from "core"
 import {SETTINGS, useSetting} from "@/stores/settings"
 // import {useCactusSTT} from "cactus-react-native"
 
@@ -59,10 +59,8 @@ function Compositor() {
   const viewShotRef = useRef<View>(null)
   const [packageName, setPackageName] = useState<string | null>(null)
   const {getCurrentParams} = useNavigationHistory()
-  const [offlineCaptionsRunning, _setOfflineCaptionsRunning] = useSetting(SETTINGS.offline_captions_running.key)
-  const [offlineTranslationRunning, _setOfflineTranslationRunning] = useSetting(
-    SETTINGS.offline_translation_running.key,
-  )
+  const [offlineCaptionsRunning, setOfflineCaptionsRunning] = useSetting(SETTINGS.offline_captions_running.key)
+  const [offlineTranslationRunning, setOfflineTranslationRunning] = useSetting(SETTINGS.offline_translation_running.key)
 
   useEffect(() => {
     if (pathname.includes("/applet/local")) {
@@ -116,12 +114,12 @@ function Compositor() {
   //   },
   // })
 
-  const _transcription = useRef<string>("")
-  let _useExecutorch = false
-  let _useCactus = false
-  let _useExpoSpeech = true
+  const transcription = useRef<string>("")
+  let useExecutorch = false
+  let useCactus = false
+  let useExpoSpeech = true
 
-  const handlePcm = async (_pcm: ArrayBuffer) => {
+  const handlePcm = async (pcm: ArrayBuffer) => {
     // if (useExpoSpeech) {
     //   const audioChunk = decodePcm16ToFloat32(pcm)
     //   SpeechTranscriber.realtimeBufferTranscribe(
@@ -155,7 +153,7 @@ function Compositor() {
 
   useEffect(() => {
     const initSTT = async () => {
-      // await BluetoothSdk.updateBluetoothSettings({
+      // await CoreModule.update("core", {
       //   should_send_pcm: true,
       // })
 
@@ -170,7 +168,7 @@ function Compositor() {
       //   minChunkSize: 32000,
       // })
 
-      const pcmSub = BluetoothSdk.addListener("mic_pcm", (event: MicPcmEvent) => {
+      const pcmSub = CoreModule.addListener("mic_pcm", (event: MicPcmEvent) => {
         // console.log("COMPOSITOR: Received mic pcm:", event.base64)
         // const samples = decodePcm16Base64ToFloat32(event.base64)
         // sttModule.streamInsert(samples)

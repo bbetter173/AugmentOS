@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 import {ActivityIndicator, Image, TouchableOpacity, View} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
@@ -8,7 +8,7 @@ import {translate} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {getGlassesImage} from "@/utils/getGlassesImage"
-import {useBluetoothStore} from "@/stores/bluetooth"
+import {useCoreStore} from "@/stores/core"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -24,13 +24,13 @@ export const ControllerStatus = () => {
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const controllerFullyBooted = useGlassesStore((state) => state.controllerFullyBooted)
   const controllerBatteryLevel = useGlassesStore((state) => state.controllerBatteryLevel)
-  const isSearching = useBluetoothStore((state) => state.searchingController)
+  const isSearching = useCoreStore((state) => state.searchingController)
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await BluetoothSdk.disconnectController()
+      await CoreModule.disconnectController()
     } else {
-      await BluetoothSdk.connectDefaultController()
+      await CoreModule.connectDefaultController()
     }
   }
 

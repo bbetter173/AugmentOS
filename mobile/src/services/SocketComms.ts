@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
@@ -451,7 +451,7 @@ class SocketComms {
       }
     }
 
-    BluetoothSdk.updateBluetoothSettings({
+    CoreModule.updateCore({
       // should_send_pcm: shouldSendPcmData,
       should_send_lc3: shouldSendPcmData, // online apps always want lc3
       should_send_transcript: shouldSendTranscript,
@@ -473,7 +473,7 @@ class SocketComms {
       processedEvent = msg
     }
 
-    BluetoothSdk.displayEvent(processedEvent)
+    CoreModule.displayEvent(processedEvent)
     const displayEventStr = JSON.stringify(processedEvent)
     useDisplayStore.getState().setDisplayEvent(displayEventStr)
   }
@@ -531,42 +531,42 @@ class SocketComms {
       return
     }
     // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, flash, sound
-    BluetoothSdk.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
+    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
   }
 
   private handle_start_stream(msg: any) {
     const streamUrl = msg.streamUrl
     if (streamUrl) {
-      BluetoothSdk.startStream(msg)
+      CoreModule.startStream(msg)
     } else {
       console.log("Invalid stream request: missing stream URL")
     }
   }
 
   private handle_stop_stream() {
-    BluetoothSdk.stopStream()
+    CoreModule.stopStream()
   }
 
   private handle_keep_stream_alive(msg: any) {
     console.log(`SOCKET: Received KEEP_STREAM_ALIVE: ${JSON.stringify(msg)}`)
-    BluetoothSdk.keepStreamAlive(msg)
+    CoreModule.keepStreamAlive(msg)
   }
 
   private handle_save_buffer_video(msg: any) {
     console.log(`SOCKET: Received SAVE_BUFFER_VIDEO: ${JSON.stringify(msg)}`)
     const bufferRequestId = msg.requestId || `buffer_${Date.now()}`
     const durationSeconds = msg.durationSeconds || 30
-    BluetoothSdk.saveBufferVideo(bufferRequestId, durationSeconds)
+    CoreModule.saveBufferVideo(bufferRequestId, durationSeconds)
   }
 
   private handle_start_buffer_recording() {
     console.log("SOCKET: Received START_BUFFER_RECORDING")
-    BluetoothSdk.startBufferRecording()
+    CoreModule.startBufferRecording()
   }
 
   private handle_stop_buffer_recording() {
     console.log("SOCKET: Received STOP_BUFFER_RECORDING")
-    BluetoothSdk.stopBufferRecording()
+    CoreModule.stopBufferRecording()
   }
 
   private handle_start_video_recording(msg: any) {
@@ -575,13 +575,13 @@ class SocketComms {
     const save = msg.save !== false
     const flash = msg.flash ?? true
     const sound = msg.sound ?? true
-    BluetoothSdk.startVideoRecording(videoRequestId, save, flash, sound)
+    CoreModule.startVideoRecording(videoRequestId, save, flash, sound)
   }
 
   private handle_stop_video_recording(msg: any) {
     console.log(`SOCKET: Received STOP_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const stopRequestId = msg.requestId || ""
-    BluetoothSdk.stopVideoRecording(stopRequestId)
+    CoreModule.stopVideoRecording(stopRequestId)
   }
 
   private handle_rgb_led_control(msg: any) {
@@ -595,7 +595,7 @@ class SocketComms {
       return Number.isFinite(coerced) ? coerced : fallback
     }
 
-    BluetoothSdk.rgbLedControl(
+    CoreModule.rgbLedControl(
       msg.requestId,
       msg.packageName ?? null,
       msg.action ?? "off",

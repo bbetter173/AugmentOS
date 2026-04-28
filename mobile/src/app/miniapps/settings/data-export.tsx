@@ -23,7 +23,7 @@ import {useApplets} from "@/stores/applets"
 import {useSettingsStore} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
-import {useBluetoothStore} from "@/stores/bluetooth"
+import {useCoreStore} from "@/stores/core"
 
 export interface UserDataExport {
   metadata: {
@@ -204,7 +204,7 @@ export default function DataExportPage() {
   const appStatus = useApplets()
   const {goBack} = useNavigationHistory()
   const {theme, themed} = useAppTheme()
-  const bluetoothStatus = useBluetoothStore()
+  const bluetoothStatus = useCoreStore()
 
   useEffect(() => {
     collectData()

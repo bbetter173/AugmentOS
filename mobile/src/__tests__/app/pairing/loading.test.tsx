@@ -1,8 +1,8 @@
-jest.mock("@mentra/bluetooth-sdk", () => {
-  const {bluetoothSdkMock} = require("@/test-utils/mockBluetoothSdk")
+jest.mock("core", () => {
+  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,
-    default: bluetoothSdkMock,
+    default: coreModuleMock,
   }
 })
 
@@ -78,13 +78,13 @@ jest.mock("@/components/glasses/GlassesPairingLoader", () => {
 import {act, render, waitFor} from "@testing-library/react-native"
 import type {ReactNode} from "react"
 
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 import {useRoute} from "@react-navigation/native"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import GlassesPairingLoadingScreen from "@/app/pairing/loading"
 import {useGlassesStore} from "@/stores/glasses"
-import {emitBluetoothSdkEvent, resetBluetoothSdkMock} from "@/test-utils/mockBluetoothSdk"
+import {emitCoreModuleEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
 
 describe("pairing loading screen", () => {
   const replace = jest.fn()
@@ -92,7 +92,7 @@ describe("pairing loading screen", () => {
 
   beforeEach(() => {
     jest.useFakeTimers()
-    resetBluetoothSdkMock()
+    resetCoreModuleMock()
     jest.clearAllMocks()
     useGlassesStore.getState().reset()
     ;(useRoute as jest.Mock).mockReturnValue({
@@ -111,16 +111,16 @@ describe("pairing loading screen", () => {
     expect(getByText("waiting")).toBeTruthy()
 
     act(() => {
-      emitBluetoothSdkEvent("glasses_not_ready", {message: "booting"})
+      emitCoreModuleEvent("glasses_not_ready", {message: "booting"})
     })
     expect(getByText("booting")).toBeTruthy()
 
     act(() => {
-      emitBluetoothSdkEvent("pair_failure", {error: "pairing:failed"})
+      emitCoreModuleEvent("pair_failure", {error: "pairing:failed"})
     })
 
     await waitFor(() => {
-      expect(BluetoothSdk.forget).toHaveBeenCalled()
+      expect(CoreModule.forget).toHaveBeenCalled()
       expect(replace).toHaveBeenCalledWith("/pairing/failure", {
         error: "pairing:failed",
         deviceModel: "Mentra Live",
@@ -143,7 +143,7 @@ describe("pairing loading screen", () => {
     })
 
     first.unmount()
-    resetBluetoothSdkMock()
+    resetCoreModuleMock()
     replace.mockClear()
     useGlassesStore.getState().reset()
     render(<GlassesPairingLoadingScreen />)

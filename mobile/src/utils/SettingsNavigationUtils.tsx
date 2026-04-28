@@ -1,7 +1,5 @@
-import {requireNativeModule} from "expo-modules-core"
+import CoreModule from "core"
 import {Linking, Platform} from "react-native"
-
-const BluetoothSdk = requireNativeModule("BluetoothSdk")
 
 /**
  * Utility functions for navigating to system settings pages
@@ -25,7 +23,7 @@ export class SettingsNavigationUtils {
     try {
       if (Platform.OS === "android") {
         // Use native module for direct Bluetooth settings access
-        await BluetoothSdk.openBluetoothSettings()
+        await CoreModule.openBluetoothSettings()
       } else if (Platform.OS === "ios") {
         // iOS doesn't have direct Bluetooth settings access, open general settings
         await this.openIosSettings()
@@ -48,7 +46,7 @@ export class SettingsNavigationUtils {
       if (Platform.OS === "android") {
         // Use native module for location services dialog (better UX)
         // TODO: this does not need to be in the Bluetooth SDK module:
-        await BluetoothSdk.showLocationServicesDialog()
+        await CoreModule.showLocationServicesDialog()
       } else if (Platform.OS === "ios") {
         await this.openIosSettings()
       }
@@ -67,7 +65,7 @@ export class SettingsNavigationUtils {
     try {
       if (Platform.OS === "android") {
         // Use native module for direct location settings access
-        await BluetoothSdk.openLocationSettings()
+        await CoreModule.openLocationSettings()
       } else if (Platform.OS === "ios") {
         await this.openIosSettings()
       }
@@ -109,7 +107,7 @@ export class SettingsNavigationUtils {
     try {
       if (Platform.OS === "android") {
         // Use native module for app settings
-        await BluetoothSdk.openAppSettings()
+        await CoreModule.openAppSettings()
       } else if (Platform.OS === "ios") {
         await this.openIosSettings()
       }

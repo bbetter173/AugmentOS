@@ -13,7 +13,7 @@ import * as Sentry from "@sentry/react-native"
 
 import {getCurrentRoute, push} from "@/contexts/NavigationHistoryContext"
 import {translate} from "@/i18n"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 import {submitMiniappStartFailedBugReport} from "@/services/bugReport/miniappStartBugReport"
 import restComms from "@/services/RestComms"
 import STTModelManager from "@/services/STTModelManager"
@@ -236,7 +236,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStart: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${cameraPackageName}_running`, true)
-          // tell the Bluetooth SDK:
+          // tell the core:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, true)
           return undefined
         })
@@ -244,7 +244,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStop: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${cameraPackageName}_running`, false)
-          // tell the Bluetooth SDK:
+          // tell the core:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, false)
           return undefined
         })
@@ -276,8 +276,8 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           if (modelAvailable) {
             await storage.save(`${captionsPackageName}_running`, true)
             // ensure transcriber is initialized with the current model:
-            await BluetoothSdk.restartTranscriber()
-            // tell the Bluetooth SDK:
+            await CoreModule.restartTranscriber()
+            // tell the core:
             await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
             return undefined
           }
@@ -301,7 +301,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStop: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${captionsPackageName}_running`, false)
-          // tell the Bluetooth SDK:
+          // tell the core:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
           return undefined
         })
@@ -333,8 +333,8 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           // if (modelAvailable) {
           //   await storage.save(`${captionsPackageName}_running`, true)
           //   // ensure transcriber is initialized with the current model:
-          //   await BluetoothSdk.restartTranscriber()
-          //   // tell the Bluetooth SDK:
+          //   await CoreModule.restartTranscriber()
+          //   // tell the core:
           //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
           //   return undefined
           // }
@@ -355,7 +355,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       onStop: (): AsyncResult<void, Error> => {
         return Res.try_async(async () => {
           await storage.save(`${captionsPackageName}_running`, false)
-          // tell the Bluetooth SDK:
+          // tell the core:
           await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
           return undefined
         })
@@ -387,8 +387,8 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     //       if (modelAvailable) {
     //         await storage.save(`${captionsPackageName}_running`, true)
     //         // ensure transcriber is initialized with the current model:
-    //         await BluetoothSdk.restartTranscriber()
-    //         // tell the Bluetooth SDK:
+    //         await CoreModule.restartTranscriber()
+    //         // tell the core:
     //         await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
     //         return undefined
     //       }
@@ -412,7 +412,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
     //   onStop: (): AsyncResult<void, Error> => {
     //     return Res.try_async(async () => {
     //       await storage.save(`${captionsPackageName}_running`, false)
-    //       // tell the Bluetooth SDK:
+    //       // tell the core:
     //       await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
     //       return undefined
     //     })

@@ -1,7 +1,7 @@
 import {useFocusEffect} from "expo-router"
 import {useEffect, useState, useCallback, useRef} from "react"
 import {View, ActivityIndicator} from "react-native"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {Screen, Header, Button, Text, Icon} from "@/components/ignite"
@@ -101,7 +101,7 @@ export default function OtaCheckForUpdatesScreen() {
 
           // Request version info since we don't have it yet
           console.log("OTA: Requesting version_info from glasses")
-          BluetoothSdk.requestVersionInfo()
+          CoreModule.requestVersionInfo()
 
           versionInfoTimeoutRef.current = BackgroundTimer.setTimeout(() => {
             if (checkCompletedRef.current) {

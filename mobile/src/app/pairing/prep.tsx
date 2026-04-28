@@ -14,7 +14,7 @@ import {useState} from "react"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
 import {useAppletStatusStore} from "@/stores/applets"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 export default function PairingPrepScreen() {
   const route = useRoute()
@@ -212,7 +212,7 @@ export default function PairingPrepScreen() {
 
     // skip pairing for simulated glasses:
     if (deviceModel.startsWith(DeviceTypes.SIMULATED)) {
-      await BluetoothSdk.connectSimulated()
+      await CoreModule.connectSimulated()
       clearHistoryAndGoHome()
       return
     }

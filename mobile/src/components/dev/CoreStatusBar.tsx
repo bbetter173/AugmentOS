@@ -4,11 +4,11 @@ import {useRef, useEffect, useState} from "react"
 import {Icon, IconTypes, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useConnectionStore} from "@/stores/connection"
-import {useBluetoothStore} from "@/stores/bluetooth"
+import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import BluetoothSdk, {TouchEvent} from "@mentra/bluetooth-sdk"
+import CoreModule, {TouchEvent} from "core"
 import {BackgroundTimer} from "@/utils/timers"
 
 function Tag({icon, label, bg}: {icon: IconTypes; label: string; bg: string}) {
@@ -23,11 +23,11 @@ function Tag({icon, label, bg}: {icon: IconTypes; label: string; bg: string}) {
   )
 }
 
-export default function BluetoothStatusBar() {
-  const searching = useBluetoothStore((state) => state.searching)
-  const micRanking = useBluetoothStore((state) => state.micRanking)
-  const currentMic = useBluetoothStore((state) => state.currentMic)
-  const systemMicUnavailable = useBluetoothStore((state) => state.systemMicUnavailable)
+export default function CoreStatusBar() {
+  const searching = useCoreStore((state) => state.searching)
+  const micRanking = useCoreStore((state) => state.micRanking)
+  const currentMic = useCoreStore((state) => state.currentMic)
+  const systemMicUnavailable = useCoreStore((state) => state.systemMicUnavailable)
   const micDataRecvd = useDebugStore((state) => state.micDataRecvd)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const glassesConnected = useGlassesStore((state) => state.connected)
@@ -38,7 +38,7 @@ export default function BluetoothStatusBar() {
 
   const touchEventTimer = useRef<number | null>(null)
   useEffect(() => {
-    let sub = BluetoothSdk.addListener("touch_event", (event: TouchEvent) => {
+    let sub = CoreModule.addListener("touch_event", (event: TouchEvent) => {
       setTouchEvent(event)
       BackgroundTimer.clearTimeout(touchEventTimer.current ?? 0)
       touchEventTimer.current = BackgroundTimer.setTimeout(() => {

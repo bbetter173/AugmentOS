@@ -2,7 +2,7 @@ import {Linking} from "react-native"
 import Share from "react-native-share"
 import * as Clipboard from "expo-clipboard"
 import {File, Paths} from "expo-file-system"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 type MiniAppMessageType =
   | "bluetooth_sdk_fn"
@@ -80,11 +80,11 @@ class MiniComms {
     }
   }
 
-  private handleBluetoothSdkFn(message: MiniAppMessage) {
+  private handleCoreModuleFn(message: MiniAppMessage) {
     const {fn, args} = message.payload
     console.log(`MINICOM: Bluetooth SDK function:`, fn, args)
     // @ts-ignore
-    BluetoothSdk[fn]({...args})
+    CoreModule[fn]({...args})
   }
 
   private handleButtonClick(message: MiniAppMessage) {
@@ -231,7 +231,7 @@ class MiniComms {
     switch (message.type) {
       case "bluetooth_sdk_fn":
       case "core_fn":
-        this.handleBluetoothSdkFn(message)
+        this.handleCoreModuleFn(message)
         break
       case "queue_display_event":
         break

@@ -1,5 +1,5 @@
 import {ScrollView, View} from "react-native"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 import {Header, Screen} from "@/components/ignite"
 import ToggleSetting from "@/components/settings/ToggleSetting"
@@ -14,8 +14,8 @@ export default function SuperSettingsScreen() {
   const [debugNavigationHistoryEnabled, setDebugNavigationHistoryEnabled] = useSetting(
     SETTINGS.debug_navigation_history.key,
   )
-  const [debugBluetoothStatusBarEnabled, setDebugBluetoothStatusBarEnabled] = useSetting(
-    SETTINGS.debug_bluetooth_status_bar.key,
+  const [debugCoreStatusBarEnabled, setDebugCoreStatusBarEnabled] = useSetting(
+    SETTINGS.debug_core_status_bar.key,
   )
   const {push} = useNavigationHistory()
 
@@ -41,14 +41,14 @@ export default function SuperSettingsScreen() {
 
             <ToggleSetting
               label="Debug Bluetooth Status Bar"
-              value={debugBluetoothStatusBarEnabled}
-              onValueChange={(value) => setDebugBluetoothStatusBarEnabled(value)}
+              value={debugCoreStatusBarEnabled}
+              onValueChange={(value) => setDebugCoreStatusBarEnabled(value)}
             />
           </Group>
 
           <Group title="Debug">
-            <RouteButton label="dbg1()" onPress={() => BluetoothSdk.dbg1()} />
-            <RouteButton label="dbg2()" onPress={() => BluetoothSdk.dbg2()} />
+            <RouteButton label="dbg1()" onPress={() => CoreModule.dbg1()} />
+            <RouteButton label="dbg2()" onPress={() => CoreModule.dbg2()} />
           </Group>
 
           <Group title="Mini Apps">

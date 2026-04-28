@@ -4,7 +4,7 @@ import {Button, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import GlassView from "@/components/ui/GlassView"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import CoreModule from "core"
 
 export const PairGlassesCard = ({style}: {style?: ViewStyle}) => {
   const {theme} = useAppTheme()
@@ -19,7 +19,7 @@ export const PairGlassesCard = ({style}: {style?: ViewStyle}) => {
           tx="home:start"
           preset="primary"
           onPress={() => {
-            BluetoothSdk.connectSimulated()
+            CoreModule.connectSimulated()
           }}
         />
         <Button

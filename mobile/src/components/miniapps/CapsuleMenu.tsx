@@ -137,10 +137,10 @@ export function MiniAppCapsuleMenu({
         }
       : () => {
           // Defer screenshot capture so it doesn't block the navigation animation
-          InteractionManager.runAfterInteractions(() => {
+          // InteractionManager.runAfterInteractions(() => {
             let shouldGoBack = Platform.OS === "android"
             handleExit(shouldGoBack)
-          })
+          // })
         },
     true,
   )

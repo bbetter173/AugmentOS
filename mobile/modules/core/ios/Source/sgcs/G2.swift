@@ -2381,7 +2381,7 @@ class G2: NSObject, SGCManager {
         )
         sendDevSettingsCommand(msg)
 
-        GlassesStore.shared.apply("glasses", "controllerMacAddress", "")
+        // GlassesStore.shared.apply("glasses", "controllerMacAddress", "")
         GlassesStore.shared.apply("glasses", "controllerConnected", false)
         GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
         Bridge.log("G2: Sent RING_DISCONNECT_INFO for MAC \(mac)")

@@ -2343,7 +2343,7 @@ class G2 : SGCManager() {
         val macData = hexParts.toByteArray()
         val msg = DevSettingsProto.ringConnectInfo(sendManager.nextMagicRandom(), false, macData)
         sendDevSettingsCommand(msg)
-        GlassesStore.apply("glasses", "controllerMacAddress", "")
+        // GlassesStore.apply("glasses", "controllerMacAddress", "")
         GlassesStore.apply("glasses", "controllerConnected", false)
         GlassesStore.apply("glasses", "controllerFullyBooted", false)
         Bridge.log("G2: Sent RING_DISCONNECT_INFO for MAC $mac")

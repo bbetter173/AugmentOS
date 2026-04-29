@@ -1239,6 +1239,19 @@ class G2: NSObject, SGCManager {
 
     // MARK: - Authentication Sequence
 
+    private func authLeft() {
+        // Auth to left side
+        if leftPeripheral != nil && leftWriteChar != nil {
+            let authL = DevSettingsProto.authCmd(magicRandom: sendManager.nextMagicRandom())
+            sendDevSettingsCommand(authL, left: true, right: false)
+        }
+    }
+
+    private func authRight() {
+        let authR = DevSettingsProto.authCmd(magicRandom: sendManager.nextMagicRandom())
+        sendDevSettingsCommand(authR, left: false, right: true)
+    }
+
     private func runAuthSequence() {
         Bridge.log("G2: Running auth sequence")
 

@@ -14,7 +14,7 @@ const GlassWithStyle = withUniwind(GlassViewComponent)
 const GlassView = ({children, style, transparent = true, ...props}: GlassViewProps & NewGlassViewProps) => {
   const [iosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
   const {theme} = useAppTheme()
-  let boxShadowStyle = "0px 8px 32px 0px rgba(0, 0, 0, 0.08)"
+  let boxShadowStyle = "8px 8px 16px 0px rgba(0, 0, 0, 0.06)"
   let colorScheme: "light" | "dark" = theme.isDark ? "dark" : "light"
   if (iosGlassEffect && isLiquidGlassAvailable()) {
     // if you want a view to not be transparent, don't set the transparent flag & add a background color
@@ -40,6 +40,7 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     // let borderRadius = props.borderRadius ?? 0
     // extract borderTopLeftRadius from style by flattening the style object
     const flatStyle = StyleSheet.flatten(style) || {}
+    boxShadowStyle = "8px 8px 16px 0px rgba(0, 0, 0, 0.10)"
 
     const borderTopLeftRadius = flatStyle.borderTopLeftRadius ?? flatStyle.borderRadius ?? 0
     const borderTopRightRadius = flatStyle.borderTopRightRadius ?? flatStyle.borderRadius ?? 0
@@ -48,7 +49,7 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     return (
       <GlassWithStyle style={[style, {boxShadow: boxShadowStyle}]} colorScheme={colorScheme} {...props}>
         <LinearGradient
-          colors={[theme.colors.gradient, theme.colors.primary_foreground]}
+          colors={[theme.colors.gradient, flatStyle.backgroundColor ?? theme.colors.primary_foreground]}
           start={{x: 0, y: 0}}
           end={{x: 0.5, y: 0.5}}
           style={{

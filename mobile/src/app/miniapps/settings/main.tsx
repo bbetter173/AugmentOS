@@ -23,7 +23,9 @@ export default function MainSettingsPage() {
 
   return (
     <>
-      {/* <MiniAppCapsuleMenu packageName="com.mentra.settings" viewShotRef={viewShotRef} /> */}
+      <View className="mr-4">
+        <MiniAppCapsuleMenu packageName="com.mentra.settings" viewShotRef={viewShotRef} />
+      </View>
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         <ScrollView className="pt-8 px-6" contentInsetAdjustmentBehavior="automatic">
           <View style={{flex: 1, gap: theme.spacing.s6}}>

@@ -214,6 +214,8 @@ describe("MantleManager", () => {
   })
 
   it("syncs native status, routes events, and forwards Bluetooth SDK setting changes", async () => {
+    jest.advanceTimersByTime(1000)
+
     expect(coreModuleMock.updateCore).toHaveBeenCalledWith(
       expect.objectContaining({
         contextual_dashboard: true,

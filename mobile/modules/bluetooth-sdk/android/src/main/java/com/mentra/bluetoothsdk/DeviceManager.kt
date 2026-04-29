@@ -801,10 +801,10 @@ class CoreManager {
         // Cancel any pending clear display work item
         // sendStateWorkItem?.let { mainHandler.removeCallbacks(it) }
 
-        Bridge.log("MAN: parsing layoutType: ${currentViewState.layoutType}")
-        Bridge.log(
-                "MAN: viewState text: '${currentViewState.text}' (len=${currentViewState.text.length})"
-        )
+        // Bridge.log("MAN: parsing layoutType: ${currentViewState.layoutType}")
+        // Bridge.log(
+        //         "MAN: viewState text: '${currentViewState.text}' (len=${currentViewState.text.length})"
+        // )
 
         when (currentViewState.layoutType) {
             "text_wall" -> {

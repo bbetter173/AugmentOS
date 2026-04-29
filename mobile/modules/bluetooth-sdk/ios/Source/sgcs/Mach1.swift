@@ -125,16 +125,16 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     @Published var batteryLevel: Int = -1
     @Published var isConnected: Bool = false
     var ready: Bool {
-        get { DeviceStore.shared.get("glasses", "fullyBooted") as? Bool ?? false }
+        get { GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false }
         set {
-            let oldValue = DeviceStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
-            DeviceStore.shared.apply("glasses", "fullyBooted", newValue)
+            let oldValue = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+            GlassesStore.shared.apply("glasses", "fullyBooted", newValue)
         }
     }
 
     private var connected: Bool {
-        get { DeviceStore.shared.get("glasses", "connected") as? Bool ?? false }
-        set { DeviceStore.shared.apply("glasses", "connected", newValue) }
+        get { GlassesStore.shared.get("glasses", "connected") as? Bool ?? false }
+        set { GlassesStore.shared.apply("glasses", "connected", newValue) }
     }
 
     /// Store discovered peripherals by their identifier
@@ -179,7 +179,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             guard let self else { return }
             Bridge.log("MACH1: batteryLevelListener: \(value)")
             batteryLevel = value
-            DeviceStore.shared.apply("glasses", "batteryLevel", value)
+            GlassesStore.shared.apply("glasses", "batteryLevel", value)
             ready = true
             connected = true
         })
@@ -217,16 +217,16 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         Bridge.log("MACH1: Tap detected! Count: \(tapNumberInt)")
 
         if tapNumberInt >= 2 {
-            let hUp = DeviceStore.shared.get("glasses", "headUp") as? Bool ?? false
-            DeviceStore.shared.apply("glasses", "headUp", !hUp)
+            let hUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+            GlassesStore.shared.apply("glasses", "headUp", !hUp)
 
             // start a timer and auto turn off the dashboard after 15 seconds:
             if !hUp {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
                     let currentHeadUp =
-                        DeviceStore.shared.get("glasses", "headUp") as? Bool ?? false
+                        GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                     if currentHeadUp {
-                        DeviceStore.shared.apply("glasses", "headUp", false)
+                        GlassesStore.shared.apply("glasses", "headUp", false)
                     }
                 }
             }
@@ -457,7 +457,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
         guard let device = UltraliteManager.shared.currentDevice else {
             Bridge.log("MACH1: No current device")
-            DeviceManager.shared.forget()
+            CoreManager.shared.forget()
             return false
         }
 

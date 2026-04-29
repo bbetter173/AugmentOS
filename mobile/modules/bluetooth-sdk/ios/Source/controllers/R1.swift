@@ -133,7 +133,7 @@ class R1: NSObject, ControllerManager {
     @Published private var _batteryLevel: Int = -1 {
         didSet {
             if _batteryLevel != oldValue && _batteryLevel >= 0 {
-                DeviceStore.shared.apply("glasses", "controllerBatteryLevel", _batteryLevel)
+                GlassesStore.shared.apply("glasses", "controllerBatteryLevel", _batteryLevel)
                 // Bridge.sendBatteryStatus(level: _batteryLevel, charging: isCharging)
             }
         }
@@ -262,7 +262,7 @@ class R1: NSObject, ControllerManager {
         Bridge.log("R1: Ring ready")
 
         if let name = ringPeripheral?.name, let id = extractRingId(name) {
-            DeviceStore.shared.apply("bluetooth", "controller_device_name", id)
+            GlassesStore.shared.apply("core", "controller_device_name", id)
         }
 
         // TODO: uncomment
@@ -270,15 +270,15 @@ class R1: NSObject, ControllerManager {
             Bridge.log("R1: No ring MAC address found")
             return
         }
-        DeviceStore.shared.apply("glasses", "controllerMacAddress", mac)
+        GlassesStore.shared.apply("glasses", "controllerMacAddress", mac)
 
-        DeviceStore.shared.apply("glasses", "controllerConnected", true)
-        DeviceStore.shared.apply("glasses", "controllerFullyBooted", true)
+        GlassesStore.shared.apply("glasses", "controllerConnected", true)
+        GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
 
         // after a second, connect the glasses to the controller if needed:
         Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
-            await DeviceManager.shared.sgc?.connectController()
+            await CoreManager.shared.sgc?.connectController()
         }
 
         startHeartbeat()
@@ -375,8 +375,8 @@ class R1: NSObject, ControllerManager {
         initSequenceRun = false
         ringMacAddress = nil
         ready = false
-        DeviceStore.shared.apply("glasses", "controllerConnected", false)
-        DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
     }
 
     // MARK: - Reconnection
@@ -586,9 +586,9 @@ extension R1: CBCentralManagerDelegate {
                 self.disconnect()
                 self.ringUUID = nil
                 // we are still searching!:
-                DeviceStore.shared.apply("glasses", "controllerConnected", false)
-                DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
-                DeviceStore.shared.apply("glasses", "controllerSearching", true)
+                GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                GlassesStore.shared.apply("glasses", "controllerSearching", true)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     self.startScan()
                 }

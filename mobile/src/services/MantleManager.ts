@@ -1,4 +1,4 @@
-import CoreModule, {ButtonPressEvent, BluetoothStatus as CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
+import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
 import CrustModule from "crust"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
@@ -109,7 +109,7 @@ class MantleManager {
     this.syncTimezone()
 
     const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
-    await CoreModule.updateBluetoothSettings(initialCoreSettings)
+    await CoreModule.updateCore(initialCoreSettings)
     await this.syncNotificationSettingsToCrust()
     console.log("MANTLE: Settings sent to core")
 
@@ -234,7 +234,7 @@ class MantleManager {
           }
         }
         // console.log("MANTLE: core settings changed", coreSettingsObj)
-        CoreModule.updateBluetoothSettings(coreSettingsObj)
+        CoreModule.updateCore(coreSettingsObj)
       },
       {equalityFn: shallow},
     )
@@ -256,7 +256,7 @@ class MantleManager {
 
     // Forward core status changes to the zustand core store.
     this.subs.push({
-      remove: CoreModule.onBluetoothStatus((changed: Partial<CoreStatus>) => {
+      remove: CoreModule.onCoreStatus((changed: Partial<CoreStatus>) => {
         // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
@@ -716,9 +716,9 @@ class MantleManager {
     }
 
     // one time get all:
-    const bluetoothStatus = await CoreModule.getBluetoothStatus()
-    // console.log("MANTLE: core status:", bluetoothStatus)
-    useCoreStore.getState().setCoreInfo(bluetoothStatus)
+    const coreStatus = await CoreModule.getCoreStatus()
+    // console.log("MANTLE: core status:", coreStatus)
+    useCoreStore.getState().setCoreInfo(coreStatus)
 
     const glassesStatus = await CoreModule.getGlassesStatus()
     // console.log("MANTLE: glasses status:", glassesStatus)

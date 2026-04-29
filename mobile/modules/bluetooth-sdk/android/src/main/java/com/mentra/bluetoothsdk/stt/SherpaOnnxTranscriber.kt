@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.stt
+package com.mentra.core.stt
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -6,7 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.k2fsa.sherpa.onnx.*
-import com.mentra.bluetoothsdk.Bridge
+import com.mentra.core.Bridge
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

@@ -59,7 +59,7 @@
 
 //     // console.log("COMPOSITOR: Is recording:", recorder.isRecording());
 
-//     await CoreModule.updateBluetoothSettings({
+//     await CoreModule.updateCore({
 //       should_send_pcm: true,
 //     })
 

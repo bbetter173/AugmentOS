@@ -1,8 +1,8 @@
 import {NativeModule, requireNativeModule} from "expo"
 
 import {
-  BluetoothSdkModuleEvents,
-  BluetoothStatus,
+  CoreModuleEvents,
+  CoreStatus,
   DeviceSearchResult,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
@@ -10,12 +10,12 @@ import {
 } from "./BluetoothSdk.types"
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void
-type BluetoothStatusListener = (changed: Partial<BluetoothStatus>) => void
+type CoreStatusListener = (changed: Partial<CoreStatus>) => void
 
-declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> {
+declare class CoreModule extends NativeModule<CoreModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): GlassesStatus
-  getBluetoothStatus(): BluetoothStatus
+  getCoreStatus(): CoreStatus
   update(category: string, values: Record<string, any>): Promise<void>
 
   // Display Commands
@@ -112,36 +112,36 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
 
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
-  updateBluetoothSettings(values: Record<string, any>): Promise<void>
+  updateCore(values: Record<string, any>): Promise<void>
   onGlassesStatus(callback: GlassesListener): () => void
-  onBluetoothStatus(callback: BluetoothStatusListener): () => void
+  onCoreStatus(callback: CoreStatusListener): () => void
 }
 
 // This call loads the native module object from the JSI.
-// NativeModule<BluetoothSdkModuleEvents> already extends EventEmitter<BluetoothSdkModuleEvents>
-const NativeBluetoothSdkModule = requireNativeModule<BluetoothSdkModule>("BluetoothSdk")
+// NativeModule<CoreModuleEvents> already extends EventEmitter<CoreModuleEvents>
+const NativeCoreModule = requireNativeModule<CoreModule>("Core")
 
 // Add helper methods to the module
-NativeBluetoothSdkModule.updateGlasses = function (values: Partial<GlassesStatus>) {
+NativeCoreModule.updateGlasses = function (values: Partial<GlassesStatus>) {
   return this.update("glasses", values)
 }
 
-NativeBluetoothSdkModule.updateBluetoothSettings = function (values: Record<string, any>) {
-  return this.update("bluetooth", values)
+NativeCoreModule.updateCore = function (values: Record<string, any>) {
+  return this.update("core", values)
 }
 
-NativeBluetoothSdkModule.connectDiscoveredDevice = function (device: DeviceSearchResult) {
+NativeCoreModule.connectDiscoveredDevice = function (device: DeviceSearchResult) {
   return this.connectDevice(device.deviceModel, device.deviceName)
 }
 
-NativeBluetoothSdkModule.onGlassesStatus = function (callback: GlassesListener) {
+NativeCoreModule.onGlassesStatus = function (callback: GlassesListener) {
   const subscription = this.addListener("glasses_status", callback)
   return () => subscription.remove()
 }
 
-NativeBluetoothSdkModule.onBluetoothStatus = function (callback: BluetoothStatusListener) {
-  const subscription = this.addListener("bluetooth_status", callback)
+NativeCoreModule.onCoreStatus = function (callback: CoreStatusListener) {
+  const subscription = this.addListener("core_status", callback)
   return () => subscription.remove()
 }
 
-export default NativeBluetoothSdkModule
+export default NativeCoreModule

@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.utils
+package com.mentra.core.utils
 
 class G1Text {
     companion object {

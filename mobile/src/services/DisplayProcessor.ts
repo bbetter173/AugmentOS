@@ -116,7 +116,7 @@ export interface DisplayProcessorOptions {
 
 /**
  * Placeholder values that can be replaced in display text.
- * These match the placeholders used in DeviceManager.kt/DeviceManager.swift
+ * These match the placeholders used in CoreManager.kt/CoreManager.swift
  */
 interface PlaceholderValues {
   /** Current time in 12-hour format (e.g., "2:30 PM") */

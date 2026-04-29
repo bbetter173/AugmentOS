@@ -96,6 +96,6 @@ export async function syncDashboardMenu() {
     }
   })
 
-  CoreModule.updateBluetoothSettings({dashboard_menu_apps: itemsForNative})
+  CoreModule.updateCore({dashboard_menu_apps: itemsForNative})
   console.log(`GLASSES_MENU: Synced ${itemsForNative.length} miniapps to G2 dashboard menu`)
 }

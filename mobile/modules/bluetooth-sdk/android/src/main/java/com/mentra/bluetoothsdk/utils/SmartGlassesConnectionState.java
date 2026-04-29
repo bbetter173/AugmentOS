@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.utils;
+package com.mentra.core.utils;
 
 public enum SmartGlassesConnectionState {
     DISCONNECTED,

@@ -1,7 +1,7 @@
-package com.mentra.bluetoothsdk.sgcs
+package com.mentra.core.sgcs
 
-import com.mentra.bluetoothsdk.DeviceManager
-import com.mentra.bluetoothsdk.DeviceStore
+import com.mentra.core.CoreManager
+import com.mentra.core.GlassesStore
 
 import android.graphics.BitmapFactory
 import android.bluetooth.BluetoothAdapter
@@ -36,20 +36,20 @@ import mentraos.ble.MentraosBle.HeadUpAngleResponse
 import mentraos.ble.MentraosBle.HeadPosition
 import mentraos.ble.MentraosBle.DeviceInfo
 
-import com.mentra.bluetoothsdk.sgcs.SGCManager
-import com.mentra.bluetoothsdk.Bridge
-import com.mentra.bluetoothsdk.utils.DeviceTypes
-import com.mentra.bluetoothsdk.utils.NexProtobufUtils
-import com.mentra.bluetoothsdk.utils.NexEventUtils
-import com.mentra.bluetoothsdk.utils.NexBluetoothConstants
-import com.mentra.bluetoothsdk.utils.NexDisplayConstants
-import com.mentra.bluetoothsdk.utils.NexBluetoothPacketTypes
-import com.mentra.bluetoothsdk.utils.BitmapJavaUtils
-import com.mentra.bluetoothsdk.utils.G1FontLoaderKt
-import com.mentra.bluetoothsdk.utils.G1Text
-import com.mentra.bluetoothsdk.utils.ConnTypes
+import com.mentra.core.sgcs.SGCManager
+import com.mentra.core.Bridge
+import com.mentra.core.utils.DeviceTypes
+import com.mentra.core.utils.NexProtobufUtils
+import com.mentra.core.utils.NexEventUtils
+import com.mentra.core.utils.NexBluetoothConstants
+import com.mentra.core.utils.NexDisplayConstants
+import com.mentra.core.utils.NexBluetoothPacketTypes
+import com.mentra.core.utils.BitmapJavaUtils
+import com.mentra.core.utils.G1FontLoaderKt
+import com.mentra.core.utils.G1Text
+import com.mentra.core.utils.ConnTypes
 import com.mentra.lc3Lib.Lc3Cpp
-import com.mentra.bluetoothsdk.utils.audio.Lc3Player
+import com.mentra.core.utils.audio.Lc3Player
 
 import java.util.UUID
 import java.util.concurrent.LinkedBlockingQueue
@@ -199,8 +199,8 @@ class MentraNex : SGCManager() {
         // isDebug = isDebug(context)
         type = DeviceTypes.NEX
         hasMic = true
-        DeviceStore.apply("glasses", "micEnabled", false)
-        preferredMainDeviceId = DeviceManager.getInstance().deviceName
+        GlassesStore.apply("glasses", "micEnabled", false)
+        preferredMainDeviceId = CoreManager.getInstance().deviceName
         
         // Initialize LC3 audio player
         lc3AudioPlayer = Lc3Player(context)
@@ -389,12 +389,12 @@ class MentraNex : SGCManager() {
     }
 
     override fun disconnect() {
-        DeviceStore.apply("glasses", "fullyBooted", false)
+        GlassesStore.apply("glasses", "fullyBooted", false)
         destroy();
     }
 
     override fun forget() {
-        DeviceStore.apply("glasses", "fullyBooted", false)
+        GlassesStore.apply("glasses", "fullyBooted", false)
         destroy();
     }
 
@@ -964,7 +964,7 @@ class MentraNex : SGCManager() {
                             Bridge.log("LC3 player not available - skipping LC3 audio output")
                         }
 
-                        DeviceManager.getInstance().handleGlassesMicData(lc3Data);
+                        CoreManager.getInstance().handleGlassesMicData(lc3Data);
 
                         // Still decode for callback compatibility
                         // TODO: (Verify) Commenting because commented in G1
@@ -1006,7 +1006,7 @@ class MentraNex : SGCManager() {
 
         Bridge.log("attemptGattConnection called for device: $deviceName (${device.address})")
 
-        DeviceStore.apply("glasses", "connectionState", ConnTypes.CONNECTING)
+        GlassesStore.apply("glasses", "connectionState", ConnTypes.CONNECTING)
         Bridge.log("Setting connectionState to CONNECTING. Notifying connectionEvent.")
         // connectionEvent(connectionState)
 
@@ -1045,13 +1045,13 @@ class MentraNex : SGCManager() {
     }
 
     private fun connectToSmartGlasses() {
-        val deviceModelName = DeviceManager.getInstance().deviceName
-        val deviceAddress = DeviceManager.getInstance().deviceAddress
+        val deviceModelName = CoreManager.getInstance().deviceName
+        val deviceAddress = CoreManager.getInstance().deviceAddress
 
         // Register bonding receiver
         Bridge.log("connectToSmartGlasses start")
         Bridge.log("try to ConnectToSmartGlassesing deviceModelName: ${deviceModelName} deviceAddress: ${deviceAddress}")
-        preferredMainDeviceId = DeviceManager.getInstance().deviceName
+        preferredMainDeviceId = CoreManager.getInstance().deviceName
         if (!bluetoothAdapter.isEnabled) {
             return
         }
@@ -1068,7 +1068,7 @@ class MentraNex : SGCManager() {
             else -> {
                 // Start scanning for devices
                 stopScan()
-                DeviceStore.apply("glasses", "connectionState", ConnTypes.SCANNING)
+                GlassesStore.apply("glasses", "connectionState", ConnTypes.SCANNING)
                 // connectionEvent(connectionState) // TODO: Figure out where is connection event defined????
                 startScan()
             }
@@ -1154,7 +1154,7 @@ class MentraNex : SGCManager() {
         Bridge.log("CALL START SCAN - Started scanning for devices...")
 
         // Ensure scanning state is immediately communicated to UI
-        DeviceStore.apply("glasses", "connectionState", ConnTypes.SCANNING)
+        GlassesStore.apply("glasses", "connectionState", ConnTypes.SCANNING)
         // connectionEvent(connectionState)
 
         // Stop the scan after some time (e.g., 10-15s instead of 60 to avoid
@@ -1268,18 +1268,18 @@ class MentraNex : SGCManager() {
 
     private fun updateConnectionState() {
         if (isMainConnected) {
-            DeviceStore.apply("glasses", "connectionState", ConnTypes.CONNECTED)
+            GlassesStore.apply("glasses", "connectionState", ConnTypes.CONNECTED)
             Bridge.log("Nex: Main glasses connected")
             lastConnectionTimestamp = System.currentTimeMillis()
-            DeviceStore.apply("glasses", "fullyBooted", true)
-            DeviceStore.apply("glasses", "connected", true)
+            GlassesStore.apply("glasses", "fullyBooted", true)
+            GlassesStore.apply("glasses", "connected", true)
             // Removed commented sleep code as it's not needed
             // connectionEvent(it)
         } else {
-            DeviceStore.apply("glasses", "connectionState", ConnTypes.DISCONNECTED)
+            GlassesStore.apply("glasses", "connectionState", ConnTypes.DISCONNECTED)
             Bridge.log("Nex: No Main glasses connected")
-            DeviceStore.apply("glasses", "fullyBooted", false)
-            DeviceStore.apply("glasses", "connected", false)
+            GlassesStore.apply("glasses", "fullyBooted", false)
+            GlassesStore.apply("glasses", "connected", false)
             // connectionEvent(it)
         }
     }
@@ -1350,7 +1350,7 @@ class MentraNex : SGCManager() {
             when (glassesToPhone.payloadCase) {
                 GlassesToPhone.PayloadCase.BATTERY_STATUS -> {
                     val batteryStatus: BatteryStatus = glassesToPhone.batteryStatus
-                    DeviceStore.apply("glasses", "batteryLevel", batteryStatus.level)
+                    GlassesStore.apply("glasses", "batteryLevel", batteryStatus.level)
                     // EventBus.getDefault().post(BatteryLevelEvent(batteryStatus.level, batteryStatus.charging))
                     Bridge.log("batteryStatus: $batteryStatus")
                 }
@@ -1424,7 +1424,7 @@ class MentraNex : SGCManager() {
                     Bridge.log("=== RECEIVED GLASSES PROTOBUF VERSION RESPONSE ===")
                     Bridge.log("Glasses Protobuf Version: ${versionResponse.version}")
                     Bridge.log("Message ID: ${versionResponse.msgId}")
-                    DeviceStore.apply("glasses", "protobufVersion", versionResponse.version.toString())
+                    GlassesStore.apply("glasses", "protobufVersion", versionResponse.version.toString())
                     
                     if (versionResponse.commit.isNotEmpty()) {
                         Bridge.log("Commit: ${versionResponse.commit}")
@@ -1521,7 +1521,7 @@ class MentraNex : SGCManager() {
         Bridge.log("Nex: setMicEnabled called with enable: $enable and delay: $delay")
         Bridge.log("Nex: Running set mic enabled: $enable")
         isMicrophoneEnabled = enable // Update the state tracker
-        DeviceStore.apply("glasses", "micEnabled", enable)
+        GlassesStore.apply("glasses", "micEnabled", enable)
 
         micEnableHandler?.postDelayed({
             if (connectionState != ConnTypes.CONNECTED) {

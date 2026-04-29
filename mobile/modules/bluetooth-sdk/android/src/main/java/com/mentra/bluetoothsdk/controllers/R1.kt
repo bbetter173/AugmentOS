@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.controllers
+package com.mentra.core.controllers
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -17,10 +17,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
-import com.mentra.bluetoothsdk.Bridge
-import com.mentra.bluetoothsdk.DeviceManager
-import com.mentra.bluetoothsdk.DeviceStore
-import com.mentra.bluetoothsdk.utils.ControllerTypes
+import com.mentra.core.Bridge
+import com.mentra.core.CoreManager
+import com.mentra.core.GlassesStore
+import com.mentra.core.utils.ControllerTypes
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -135,7 +135,7 @@ class R1 : ControllerManager() {
             val old = field
             field = value
             if (value != old && value >= 0) {
-                DeviceStore.apply("glasses", "controllerBatteryLevel", value)
+                GlassesStore.apply("glasses", "controllerBatteryLevel", value)
             }
         }
 
@@ -353,7 +353,7 @@ class R1 : ControllerManager() {
         val connectedName = try { gatt?.device?.name } catch (e: SecurityException) { null }
         if (connectedName != null) {
             extractRingId(connectedName)?.let {
-                DeviceStore.apply("bluetooth", "controller_device_name", it)
+                GlassesStore.apply("core", "controller_device_name", it)
             }
         }
 
@@ -362,14 +362,14 @@ class R1 : ControllerManager() {
             Bridge.log("R1: No ring MAC address found")
             return
         }
-        DeviceStore.apply("glasses", "controllerMacAddress", mac)
-        DeviceStore.apply("glasses", "controllerConnected", true)
-        DeviceStore.apply("glasses", "controllerFullyBooted", true)
+        GlassesStore.apply("glasses", "controllerMacAddress", mac)
+        GlassesStore.apply("glasses", "controllerConnected", true)
+        GlassesStore.apply("glasses", "controllerFullyBooted", true)
 
         // after a second, connect the glasses to the controller if needed:
         CoroutineScope(Dispatchers.Main).launch {
             delay(1000)
-            DeviceManager.getInstance().sgc?.connectController()
+            CoreManager.getInstance().sgc?.connectController()
         }
 
         startHeartbeat()
@@ -475,8 +475,8 @@ class R1 : ControllerManager() {
         readInFlight = false
         ringMacAddress = null
         ready = false
-        DeviceStore.apply("glasses", "controllerConnected", false)
-        DeviceStore.apply("glasses", "controllerFullyBooted", false)
+        GlassesStore.apply("glasses", "controllerConnected", false)
+        GlassesStore.apply("glasses", "controllerFullyBooted", false)
     }
 
     // MARK: - GATT Callback

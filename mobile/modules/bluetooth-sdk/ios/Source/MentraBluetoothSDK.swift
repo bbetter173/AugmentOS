@@ -458,148 +458,148 @@ public final class MentraBluetoothSDK {
                 self?.dispatchBridgeEvent(eventName, data)
             }
         }
-        storeListenerId = DeviceStore.shared.store.addListener { [weak self] category, changes in
+        storeListenerId = GlassesStore.shared.store.addListener { [weak self] category, changes in
             self?.dispatchStoreUpdate(category, changes)
         }
     }
 
     public var glassesStatus: MentraGlassesStatus {
-        MentraGlassesStatus(values: DeviceStore.shared.store.getCategory("glasses"))
+        MentraGlassesStatus(values: GlassesStore.shared.store.getCategory("glasses"))
     }
 
     public var bluetoothStatus: MentraBluetoothStatus {
-        MentraBluetoothStatus(values: DeviceStore.shared.store.getCategory(ObservableStore.bluetoothCategory))
+        MentraBluetoothStatus(values: GlassesStore.shared.store.getCategory(ObservableStore.coreCategory))
     }
 
     public func startScan(model: MentraDeviceModel) {
         discoveredDeviceNames.removeAll()
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "searching", true)
-        DeviceManager.shared.findCompatibleDevices(model.deviceType)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "searching", true)
+        CoreManager.shared.findCompatibleDevices(model.deviceType)
     }
 
     public func stopScan() {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "searching", false)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "searching", false)
         delegate?.mentraBluetoothSDK(self, didStopScan: .cancelled)
     }
 
     public func connect(to device: MentraDiscoveredDevice) {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "pending_wearable", device.model.deviceType)
-        DeviceManager.shared.connectByName(device.name)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "pending_wearable", device.model.deviceType)
+        CoreManager.shared.connectByName(device.name)
     }
 
     public func connect(model: MentraDeviceModel, name: String) {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "pending_wearable", model.deviceType)
-        DeviceManager.shared.connectByName(name)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "pending_wearable", model.deviceType)
+        CoreManager.shared.connectByName(name)
     }
 
     public func connectByName(_ name: String) {
-        DeviceManager.shared.connectByName(name)
+        CoreManager.shared.connectByName(name)
     }
 
     public func connectDefault() {
-        DeviceManager.shared.connectDefault()
+        CoreManager.shared.connectDefault()
     }
 
     public func connectSimulated() {
-        DeviceManager.shared.connectSimulated()
+        CoreManager.shared.connectSimulated()
     }
 
     public func disconnect() {
-        DeviceManager.shared.disconnect()
+        CoreManager.shared.disconnect()
     }
 
     public func forget() {
-        DeviceManager.shared.forget()
+        CoreManager.shared.forget()
     }
 
     public func displayText(_ request: MentraDisplayTextRequest) async throws {
-        DeviceManager.shared.displayText(request.dictionary)
+        CoreManager.shared.displayText(request.dictionary)
     }
 
     public func displayEvent(_ request: MentraDisplayEventRequest) async throws {
-        DeviceManager.shared.displayEvent(request.values)
+        CoreManager.shared.displayEvent(request.values)
     }
 
     public func clearDisplay() async throws {
-        DeviceManager.shared.sgc?.clearDisplay()
+        CoreManager.shared.sgc?.clearDisplay()
     }
 
     public func showDashboard() {
-        DeviceManager.shared.showDashboard()
+        CoreManager.shared.showDashboard()
     }
 
     public func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws {
         if let autoMode {
-            DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "auto_brightness", autoMode)
+            GlassesStore.shared.apply(ObservableStore.coreCategory, "auto_brightness", autoMode)
         }
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "brightness", level)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "brightness", level)
     }
 
     public func setAutoBrightness(enabled: Bool) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "auto_brightness", enabled)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "auto_brightness", enabled)
     }
 
     public func setDashboardPosition(_ request: MentraDashboardPositionRequest) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "dashboard_height", request.height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "dashboard_depth", request.depth)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "dashboard_height", request.height)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "dashboard_depth", request.depth)
     }
 
     public func setDashboardMenu(_ items: [MentraDashboardMenuItem]) async throws {
-        DeviceStore.shared.apply(
-            ObservableStore.bluetoothCategory,
+        GlassesStore.shared.apply(
+            ObservableStore.coreCategory,
             "dashboard_menu_apps",
             items.map(\.dictionary)
         )
     }
 
     public func setHeadUpAngle(_ angleDegrees: Int) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "head_up_angle", angleDegrees)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "head_up_angle", angleDegrees)
     }
 
     public func setScreenDisabled(_ disabled: Bool) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "screen_disabled", disabled)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "screen_disabled", disabled)
     }
 
     public func setGalleryMode(_ mode: MentraGalleryMode) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", mode == .auto)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "gallery_mode", mode == .auto)
     }
 
     public func setButtonMode(_ mode: MentraButtonMode) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_mode", mode.rawValue)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_mode", mode.rawValue)
     }
 
     public func setButtonPhotoSettings(_ settings: MentraButtonPhotoSettings) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_photo_size", settings.size.rawValue)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_photo_size", settings.size.rawValue)
     }
 
     public func setButtonVideoRecordingSettings(_ settings: MentraButtonVideoRecordingSettings) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_width", settings.width)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_height", settings.height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", settings.fps)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_video_width", settings.width)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_video_height", settings.height)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_video_fps", settings.fps)
     }
 
     public func setButtonCameraLed(enabled: Bool) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_camera_led", enabled)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_camera_led", enabled)
     }
 
     public func setButtonMaxRecordingTime(minutes: Int) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_max_recording_time", minutes)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "button_max_recording_time", minutes)
     }
 
     public func setCameraFov(_ fov: MentraCameraFov) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "camera_fov", fov.value)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "camera_fov", fov.value)
     }
 
     public func setMicState(_ config: MentraMicConfiguration) {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_pcm", config.sendPcmData)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_lc3", config.sendLc3Data)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_transcript", config.sendTranscript)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "bypass_vad", config.bypassVad)
-        DeviceManager.shared.setMicState()
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "should_send_pcm", config.sendPcmData)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "should_send_lc3", config.sendLc3Data)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "should_send_transcript", config.sendTranscript)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "bypass_vad", config.bypassVad)
+        CoreManager.shared.setMicState()
     }
 
     public func setPreferredMic(_ preferredMic: MentraMicPreference) {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "preferred_mic", preferredMic.rawValue)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "preferred_mic", preferredMic.rawValue)
     }
 
     public func setOwnAppAudioPlaying(_ playing: Bool) {
@@ -607,23 +607,23 @@ public final class MentraBluetoothSDK {
     }
 
     public func requestWifiScan() {
-        DeviceManager.shared.requestWifiScan()
+        CoreManager.shared.requestWifiScan()
     }
 
     public func sendWifiCredentials(ssid: String, password: String) {
-        DeviceManager.shared.sendWifiCredentials(ssid, password)
+        CoreManager.shared.sendWifiCredentials(ssid, password)
     }
 
     public func forgetWifiNetwork(ssid: String) {
-        DeviceManager.shared.forgetWifiNetwork(ssid)
+        CoreManager.shared.forgetWifiNetwork(ssid)
     }
 
     public func setHotspotState(enabled: Bool) {
-        DeviceManager.shared.setHotspotState(enabled)
+        CoreManager.shared.setHotspotState(enabled)
     }
 
     public func requestPhoto(_ request: MentraPhotoRequest) {
-        DeviceManager.shared.photoRequest(
+        CoreManager.shared.photoRequest(
             request.requestId,
             request.appId,
             request.size,
@@ -636,23 +636,23 @@ public final class MentraBluetoothSDK {
     }
 
     public func queryGalleryStatus() {
-        DeviceManager.shared.queryGalleryStatus()
+        CoreManager.shared.queryGalleryStatus()
     }
 
     public func startStream(_ request: MentraStreamRequest) {
-        DeviceManager.shared.startStream(request.values)
+        CoreManager.shared.startStream(request.values)
     }
 
     public func keepStreamAlive(_ request: MentraStreamKeepAliveRequest) {
-        DeviceManager.shared.keepStreamAlive(request.values)
+        CoreManager.shared.keepStreamAlive(request.values)
     }
 
     public func stopStream() {
-        DeviceManager.shared.stopStream()
+        CoreManager.shared.stopStream()
     }
 
     public func startVideoRecording(_ request: MentraVideoRecordingRequest) {
-        DeviceManager.shared.startVideoRecording(
+        CoreManager.shared.startVideoRecording(
             request.requestId,
             request.save,
             request.flash,
@@ -661,27 +661,27 @@ public final class MentraBluetoothSDK {
     }
 
     public func stopVideoRecording(requestId: String) {
-        DeviceManager.shared.stopVideoRecording(requestId)
+        CoreManager.shared.stopVideoRecording(requestId)
     }
 
     public func requestVersionInfo() {
-        DeviceManager.shared.requestVersionInfo()
+        CoreManager.shared.requestVersionInfo()
     }
 
     public func sendOtaStart() {
-        DeviceManager.shared.sendOtaStart()
+        CoreManager.shared.sendOtaStart()
     }
 
     public func sendShutdown() {
-        DeviceManager.shared.sendShutdown()
+        CoreManager.shared.sendShutdown()
     }
 
     public func sendReboot() {
-        DeviceManager.shared.sendReboot()
+        CoreManager.shared.sendReboot()
     }
 
     public func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil) {
-        DeviceManager.shared.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
+        CoreManager.shared.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
     }
 
     public func invalidate() {
@@ -690,7 +690,7 @@ public final class MentraBluetoothSDK {
             self.bridgeEventSinkId = nil
         }
         if let storeListenerId {
-            DeviceStore.shared.store.removeListener(storeListenerId)
+            GlassesStore.shared.store.removeListener(storeListenerId)
             self.storeListenerId = nil
         }
         delegate = nil
@@ -700,7 +700,7 @@ public final class MentraBluetoothSDK {
         switch ObservableStore.normalizeCategory(category) {
         case "glasses":
             delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: MentraGlassesStatusUpdate(values: changes))
-        case ObservableStore.bluetoothCategory:
+        case ObservableStore.coreCategory:
             delegate?.mentraBluetoothSDK(self, didUpdateBluetoothStatus: MentraBluetoothStatusUpdate(values: changes))
             dispatchDiscoveredDevices(changes["searchResults"])
         default:

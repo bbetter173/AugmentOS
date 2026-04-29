@@ -1,13 +1,13 @@
-package com.mentra.bluetoothsdk
+package com.mentra.core
 
 import android.net.wifi.WifiManager
 import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
-class BluetoothSdkModule : Module() {
+class CoreModule : Module() {
     private var sdk: MentraBluetoothSdk? = null
-    private var deviceManager: DeviceManager? = null
+    private var deviceManager: CoreManager? = null
     private val sdkListener =
             object : MentraBluetoothSdkListener {
                 override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
@@ -15,7 +15,7 @@ class BluetoothSdkModule : Module() {
                 }
 
                 override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
-                    sendEvent("bluetooth_status", status.values)
+                    sendEvent("core_status", status.values)
                 }
 
                 override fun onScanStopped(reason: MentraScanStopReason) {
@@ -89,12 +89,12 @@ class BluetoothSdkModule : Module() {
             }
 
     override fun definition() = ModuleDefinition {
-        Name("BluetoothSdk")
+        Name("Core")
 
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "bluetooth_status",
+            "core_status",
             "log",
             // Individual event handlers
             "glasses_not_ready",
@@ -143,7 +143,7 @@ class BluetoothSdkModule : Module() {
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
             sdk = MentraBluetoothSdk.create(context, sdkListener)
-            deviceManager = DeviceManager.getInstance()
+            deviceManager = CoreManager.getInstance()
         }
 
         OnDestroy {
@@ -154,25 +154,25 @@ class BluetoothSdkModule : Module() {
 
         // MARK: - Observable Store Functions
 
-        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.values ?: DeviceStore.store.getCategory("glasses") }
+        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.values ?: GlassesStore.store.getCategory("glasses") }
 
-        Function("getBluetoothStatus") {
-            sdk?.getBluetoothStatus()?.values ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+        Function("getCoreStatus") {
+            sdk?.getBluetoothStatus()?.values ?: GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
         }
 
         Function("set") { category: String, key: String, value: Any ->
-            DeviceStore.apply(category, key, value)
+            GlassesStore.apply(category, key, value)
         }
 
         Function("update") { category: String, values: Map<String, Any> ->
             val normalizedCategory = ObservableStore.normalizeCategory(category)
-            values.forEach { (key, value) -> DeviceStore.apply(normalizedCategory, key, value) }
+            values.forEach { (key, value) -> GlassesStore.apply(normalizedCategory, key, value) }
             // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
-            if (normalizedCategory == ObservableStore.BLUETOOTH_CATEGORY) {
+            if (normalizedCategory == ObservableStore.CORE_CATEGORY) {
                 values["core_token"]?.let { token ->
                     val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("BluetoothSdkModule", "update(bluetooth) core_token received, len=$len")
+                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
                     if (token is String && token.isNotEmpty()) {
                         val ctx = appContext.reactContext ?: appContext.currentActivity
                         ctx?.let {
@@ -180,7 +180,7 @@ class BluetoothSdkModule : Module() {
                                 .edit()
                                 .putString("core_token", token)
                                 .apply()
-                            android.util.Log.d("BluetoothSdkModule", "Persisted core_token to SharedPreferences, len=${token.length}")
+                            android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
                         }
                     }
                 }
@@ -272,7 +272,7 @@ class BluetoothSdkModule : Module() {
             val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
             if (wifiManager == null) {
                 val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
-                android.util.Log.d("BluetoothSdkModule", unavailableMsg)
+                android.util.Log.d("CoreModule", unavailableMsg)
                 Bridge.log(unavailableMsg)
                 return@AsyncFunction null
             }
@@ -281,7 +281,7 @@ class BluetoothSdkModule : Module() {
             val is5Ghz = freqMhz >= 5000
             val frequencyMsg =
                 "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
-            android.util.Log.d("BluetoothSdkModule", frequencyMsg)
+            android.util.Log.d("CoreModule", frequencyMsg)
             Bridge.log(frequencyMsg)
             null
         }
@@ -404,7 +404,7 @@ class BluetoothSdkModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.bluetoothsdk.stt.STTTools.setSttModelDetails(context, path, languageCode)
+            com.mentra.core.stt.STTTools.setSttModelDetails(context, path, languageCode)
         }
 
         AsyncFunction("getSttModelPath") { ->
@@ -412,7 +412,7 @@ class BluetoothSdkModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.bluetoothsdk.stt.STTTools.getSttModelPath(context)
+            com.mentra.core.stt.STTTools.getSttModelPath(context)
         }
 
         AsyncFunction("checkSttModelAvailable") { ->
@@ -420,15 +420,15 @@ class BluetoothSdkModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.bluetoothsdk.stt.STTTools.checkSTTModelAvailable(context)
+            com.mentra.core.stt.STTTools.checkSTTModelAvailable(context)
         }
 
         AsyncFunction("validateSttModel") { path: String ->
-            com.mentra.bluetoothsdk.stt.STTTools.validateSTTModel(path)
+            com.mentra.core.stt.STTTools.validateSTTModel(path)
         }
 
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
-            com.mentra.bluetoothsdk.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
+            com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
 
         // MARK: - Settings Navigation
@@ -466,7 +466,7 @@ class BluetoothSdkModule : Module() {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     val systemEnabled = locationManager.isLocationEnabled
                     if (systemEnabled) {
-                        android.util.Log.w("BluetoothSdkModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
+                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
                     }
                     systemEnabled
                 } else {

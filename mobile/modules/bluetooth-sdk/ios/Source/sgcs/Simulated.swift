@@ -105,10 +105,6 @@ class Simulated: SGCManager {
         Bridge.log("sendButtonPhotoSettings")
     }
 
-    func sendButtonModeSetting() {
-        Bridge.log("sendButtonModeSetting")
-    }
-
     func sendButtonVideoRecordingSettings() {
         Bridge.log("sendButtonVideoRecordingSettings")
     }

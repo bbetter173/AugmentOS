@@ -149,10 +149,6 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", mode == MentraGalleryMode.AUTO)
     }
 
-    fun setButtonMode(mode: MentraButtonMode) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_mode", mode.value)
-    }
-
     fun setButtonPhotoSettings(settings: MentraButtonPhotoSettings) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_photo_size", settings.size.value)
     }

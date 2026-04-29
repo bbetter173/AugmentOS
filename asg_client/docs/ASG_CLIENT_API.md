@@ -579,7 +579,7 @@ Enables/disables the privacy LED during button-triggered capture.
 {"type": "button_mode_setting", "mode": "normal"}
 ```
 
-Currently echoes back as a `set_photo_mode_ack` and is reserved for future per-button-mode behavior.
+Deprecated/reserved. Current ASG Client does not use this command to switch between photo and video behavior. Use `save_in_gallery_mode` to control whether hardware-button presses also capture locally, and use the photo/video setting commands above to configure short-press photo and long-press video captures.
 
 #### `camera_fov_setting` (Mentra Live / K900-class hardware)
 

@@ -31,7 +31,6 @@ protocol ControllerManager {
     // MARK: - Button Settings
 
     func sendButtonPhotoSettings()
-    func sendButtonModeSetting()
     func sendButtonVideoRecordingSettings()
     func sendButtonMaxRecordingTime()
     func sendButtonCameraLedSetting()

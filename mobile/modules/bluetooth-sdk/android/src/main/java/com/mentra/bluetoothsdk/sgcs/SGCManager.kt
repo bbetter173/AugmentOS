@@ -31,7 +31,6 @@ abstract class SGCManager {
 
     // Button Settings
     abstract fun sendButtonPhotoSettings()
-    abstract fun sendButtonModeSetting()
     abstract fun sendButtonVideoRecordingSettings()
     abstract fun sendButtonMaxRecordingTime()
     abstract fun sendButtonCameraLedSetting()

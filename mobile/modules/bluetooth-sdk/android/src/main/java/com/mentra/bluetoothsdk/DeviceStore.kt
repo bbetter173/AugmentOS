@@ -120,7 +120,6 @@ object DeviceStore {
         store.set("bluetooth", "contextual_dashboard", true)
         store.set("bluetooth", "gallery_mode", false)
         store.set("bluetooth", "screen_disabled", false)
-        store.set("bluetooth", "button_mode", "photo")
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
         store.set("bluetooth", "button_max_recording_time", 10)
@@ -249,9 +248,6 @@ object DeviceStore {
                         DeviceManager.getInstance().sgc?.clearDisplay()
                     }
                 }
-            }
-            "bluetooth" to "button_mode" -> {
-                DeviceManager.getInstance().sgc?.sendButtonModeSetting()
             }
             "bluetooth" to "button_photo_size" -> {
                 DeviceManager.getInstance().sgc?.sendButtonPhotoSettings()

@@ -64,10 +64,6 @@ class Simulated : SGCManager() {
         Bridge.log("sendButtonPhotoSettings")
     }
 
-    override fun sendButtonModeSetting() {
-        Bridge.log("sendButtonModeSetting")
-    }
-
     override fun sendButtonVideoRecordingSettings() {
         Bridge.log("sendButtonVideoRecordingSettings")
     }

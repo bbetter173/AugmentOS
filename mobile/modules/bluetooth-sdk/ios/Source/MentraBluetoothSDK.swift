@@ -215,12 +215,6 @@ public enum MentraGalleryMode {
     case manual
 }
 
-public enum MentraButtonMode: String {
-    case photo
-    case video
-    case none
-}
-
 public enum MentraPhotoSize: String {
     case small
     case medium
@@ -562,10 +556,6 @@ public final class MentraBluetoothSDK {
 
     public func setGalleryMode(_ mode: MentraGalleryMode) async throws {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", mode == .auto)
-    }
-
-    public func setButtonMode(_ mode: MentraButtonMode) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_mode", mode.rawValue)
     }
 
     public func setButtonPhotoSettings(_ settings: MentraButtonPhotoSettings) async throws {

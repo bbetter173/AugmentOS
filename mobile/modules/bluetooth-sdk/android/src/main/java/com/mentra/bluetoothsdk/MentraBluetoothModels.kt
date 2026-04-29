@@ -97,12 +97,6 @@ enum class MentraGalleryMode {
     MANUAL,
 }
 
-enum class MentraButtonMode(val value: String) {
-    PHOTO("photo"),
-    VIDEO("video"),
-    NONE("none"),
-}
-
 enum class MentraPhotoSize(val value: String) {
     SMALL("small"),
     MEDIUM("medium"),

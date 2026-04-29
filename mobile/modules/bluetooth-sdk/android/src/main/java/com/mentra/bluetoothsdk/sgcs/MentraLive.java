@@ -6025,15 +6025,12 @@ public class MentraLive extends SGCManager {
             Log.e(TAG, "Error saving BLE photo locally", e);
         }
 
-        // Get core token for authentication
-        String coreToken = getCoreToken();
-
         // Use BlePhotoUploadService to handle decoding and upload
         BlePhotoUploadService.processAndUploadPhoto(
             imageData,
             transfer.requestId,
             transfer.webhookUrl,
-            coreToken,
+            transfer.authToken,
             new BlePhotoUploadService.UploadCallback() {
                 @Override
                 public void onSuccess(String requestId) {

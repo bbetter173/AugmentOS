@@ -217,7 +217,7 @@ export default function OtaCheckForUpdatesScreen() {
     console.log("OTA: handleRetry()")
     setCheckState("checking")
     if (versionInfoTimeoutRef.current) {
-      BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
+      BgTimer.clearTimeout(versionInfoTimeoutRef.current)
       versionInfoTimeoutRef.current = null
     }
     waitStartTimeRef.current = null

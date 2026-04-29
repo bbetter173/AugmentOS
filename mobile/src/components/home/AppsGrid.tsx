@@ -108,7 +108,7 @@ const AppPopover: React.FC<{
               />
             </View>
             <Text
-              className={`text-[15px] ${action.destructive ? "text-destructive" : "text-foreground"}`}
+              className={`text-[15px] leading-[15px] ${action.destructive ? "text-destructive" : "text-foreground"}`}
               text={action.label}
             />
           </Pressable>

@@ -2163,18 +2163,6 @@ class G2 : SGCManager() {
         Bridge.log("G2: sendStreamKeepAlive - not supported")
     }
 
-    override fun startBufferRecording() {
-        Bridge.log("G2: startBufferRecording - not supported")
-    }
-
-    override fun stopBufferRecording() {
-        Bridge.log("G2: stopBufferRecording - not supported")
-    }
-
-    override fun saveBufferVideo(requestId: String, durationSeconds: Int) {
-        Bridge.log("G2: saveBufferVideo - not supported")
-    }
-
     override fun startVideoRecording(
             requestId: String,
             save: Boolean,

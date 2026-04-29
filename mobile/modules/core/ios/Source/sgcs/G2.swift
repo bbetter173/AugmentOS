@@ -2520,9 +2520,6 @@ class G2: NSObject, SGCManager {
     func startStream(_: [String: Any]) {}
     func stopStream() {}
     func sendStreamKeepAlive(_: [String: Any]) {}
-    func startBufferRecording() {}
-    func stopBufferRecording() {}
-    func saveBufferVideo(requestId _: String, durationSeconds _: Int) {}
     func stopVideoRecording(requestId _: String) {}
     func sendButtonPhotoSettings() {}
     func sendButtonModeSetting() {}

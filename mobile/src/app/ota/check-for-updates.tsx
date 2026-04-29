@@ -11,7 +11,7 @@ import {checkForOtaUpdate, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecke
 import {translate} from "@/i18n/translate"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 type CheckState = "checking" | "update_available" | "no_update" | "error"
 
@@ -43,7 +43,7 @@ export default function OtaCheckForUpdatesScreen() {
       setCheckState("checking")
       // Reset timeout tracking for fresh check
       if (versionInfoTimeoutRef.current) {
-        BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
+        BgTimer.clearTimeout(versionInfoTimeoutRef.current)
         versionInfoTimeoutRef.current = null
       }
       waitStartTimeRef.current = null
@@ -72,7 +72,7 @@ export default function OtaCheckForUpdatesScreen() {
         if (!glassesConnected) {
           console.log("OTA: Glasses not connected - proceeding to next step")
           if (versionInfoTimeoutRef.current) {
-            BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
+            BgTimer.clearTimeout(versionInfoTimeoutRef.current)
             versionInfoTimeoutRef.current = null
           }
           hasInitiatedCheckRef.current = true
@@ -95,7 +95,7 @@ export default function OtaCheckForUpdatesScreen() {
           console.log("OTA: Requesting version_info from glasses")
           CoreModule.requestVersionInfo()
 
-          versionInfoTimeoutRef.current = BackgroundTimer.setTimeout(() => {
+          versionInfoTimeoutRef.current = BgTimer.setTimeout(() => {
             if (checkCompletedRef.current) {
               console.log("OTA: Timeout fired but check already progressed - ignoring stale timeout")
               return
@@ -114,7 +114,7 @@ export default function OtaCheckForUpdatesScreen() {
       // Clear timeout since we got the data
       if (versionInfoTimeoutRef.current) {
         console.log("OTA: Got version_info - clearing wait timeout")
-        BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
+        BgTimer.clearTimeout(versionInfoTimeoutRef.current)
         versionInfoTimeoutRef.current = null
       }
       waitStartTimeRef.current = null
@@ -191,7 +191,7 @@ export default function OtaCheckForUpdatesScreen() {
     // Cleanup timeouts on unmount or when dependencies change
     return () => {
       if (versionInfoTimeoutRef.current) {
-        BackgroundTimer.clearTimeout(versionInfoTimeoutRef.current)
+        BgTimer.clearTimeout(versionInfoTimeoutRef.current)
         versionInfoTimeoutRef.current = null
       }
     }

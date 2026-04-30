@@ -98,7 +98,7 @@ export default function SelectGlassesModelScreen() {
             .filter((glasses) => !SUPER_MODE_ONLY_MODELS.has(glasses.deviceModel) || superMode)
             .map((glasses) => (
               <TouchableOpacity key={glasses.key} onPress={() => triggerGlassesPairingGuide(glasses.deviceModel)}>
-                <GlassView className="bg-primary-foreground border border-background flex-col items-center justify-center p-6 rounded-2xl overflow-hidden">
+                <GlassView className="bg-primary-foreground flex-col items-center justify-center p-6 rounded-2xl overflow-hidden">
                   <View className="flex-row gap-4">
                     <View className="flex-col flex-1 justify-center">
                       <View className="justify-center min-h-6">{getManufacturerLogo(glasses.deviceModel)}</View>

@@ -190,7 +190,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   return (
     <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
-      <GlassView className="border border-white rounded-2xl overflow-hidden">
+      <GlassView className="rounded-2xl overflow-hidden">
         <View className="px-6 py-0 justify-center flex flex-row gap-2 h-full">
           <View className="w-[42%] max-w-40 shrink-0 self-start justify-center h-full">
             <Image

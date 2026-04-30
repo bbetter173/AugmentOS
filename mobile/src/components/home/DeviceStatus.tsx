@@ -71,7 +71,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnectionState)
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
-    return <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.background}} />
+    return <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.primary_foreground}} />
   }
 
   const connectGlasses = async () => {

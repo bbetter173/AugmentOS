@@ -644,6 +644,27 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
   }
 }
 
+// Rebuilds menu_apps from the user's saved menu order, refreshing each item's
+// running flag against the current applets list. Falls back to default menu if
+// nothing is saved.
+const syncMenuAppsRunningState = async () => {
+  const apps = useAppletStatusStore.getState().apps
+  const state = useSettingsStore.getState()
+  let menuItems = (await state.getSetting(SETTINGS.menu_apps.key)) as GlassesMenuItem[]
+  if (!menuItems) {
+    menuItems = await getDefaultMenuApps(apps)
+  }
+  const itemsForNative = menuItems.map((item: GlassesMenuItem) => {
+    const app = apps.find((a) => a.packageName === item.packageName)
+    return {
+      name: item.name,
+      packageName: item.packageName,
+      running: app?.running ?? false,
+    }
+  })
+  state.setSetting(SETTINGS.menu_apps.key, itemsForNative)
+}
+
 export const useAppletStatusStore = create<AppStatusState>()(
   subscribeWithSelector((set, get) => ({
     apps: [],
@@ -768,19 +789,7 @@ export const useAppletStatusStore = create<AppStatusState>()(
         }
       }
 
-      let menuItems = (await useSettingsStore.getState().getSetting(SETTINGS.menu_apps.key)) as GlassesMenuItem[]
-      if (!menuItems) {
-        menuItems = await getDefaultMenuApps(applets)
-      }
-      const itemsForNative = menuItems.map((item: GlassesMenuItem) => {
-        const app = applets.find((a) => a.packageName === item.packageName)
-        return {
-          name: item.name,
-          packageName: item.packageName,
-          running: app?.running ?? false,
-        }
-      })
-      useSettingsStore.getState().setSetting(SETTINGS.menu_apps.key, itemsForNative)
+      await syncMenuAppsRunningState()
 
       set({apps: applets})
     },
@@ -1008,15 +1017,24 @@ useSettingsStore.subscribe(
   },
 )
 
-// subscribe to list of running apps and when it updates, update the the menu_apps list:
+// Refresh menu_apps running flags whenever the running set changes
 useAppletStatusStore.subscribe(
-  (state) => state.apps.filter((app) => app.running),
-  (runningApps: ClientAppletInterface[]) => {
-    let state = useSettingsStore.getState()
-    state.setSetting(
-      SETTINGS.menu_apps.key,
-      runningApps.map((app) => ({packageName: app.packageName, name: app.name, running: app.running})),
-    )
+  (state) => state.apps.filter((app) => app.running).map((a) => a.packageName).join("|"),
+  () => {
+    syncMenuAppsRunningState()
+  },
+)
+
+// Refresh menu_apps running flags whenever the menu_apps list itself changes
+// (e.g. user reorders or edits the menu). Compare by package-name identity to
+// avoid re-firing on the helper's own writes when running flags didn't change.
+useSettingsStore.subscribe(
+  (state) =>
+    ((state.settings[SETTINGS.menu_apps.key] as GlassesMenuItem[] | undefined) ?? [])
+      .map((i) => i.packageName)
+      .join("|"),
+  () => {
+    syncMenuAppsRunningState()
   },
 )
 

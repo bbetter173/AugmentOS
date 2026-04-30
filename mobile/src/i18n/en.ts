@@ -732,6 +732,7 @@ const en = {
       requestTimeout: "Request timed out. Please try again.",
       // Generic fallback
       genericError: "Something went wrong. Please try again.",
+      pairNeedDisconnect: "Pairing failed. Please make sure to disconnect your glasses in your phone's Bluetooth settings before trying again.",
     },
     // Signup flow
     signup: {

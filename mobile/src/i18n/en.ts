@@ -732,7 +732,6 @@ const en = {
       requestTimeout: "Request timed out. Please try again.",
       // Generic fallback
       genericError: "Something went wrong. Please try again.",
-      pairNeedDisconnect: "Pairing failed. Please make sure to disconnect your glasses in your phone's Bluetooth settings before trying again.",
     },
     // Signup flow
     signup: {
@@ -781,6 +780,7 @@ const en = {
     pairingBatteryTooLow:
       "The battery on your {{glassesModel}} is too low to pair. Please charge your {{glassesModel}} to at least 25% and try again.",
     invalidEmail: "Invalid email address.",
+    pairNeedDisconnect: "Pairing failed. Please make sure to disconnect your glasses in your phone's Bluetooth settings before trying again.",
   },
   common: {
     ok: "OK",

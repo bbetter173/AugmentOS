@@ -38,7 +38,7 @@ import micStateCoordinator from "@/services/MicStateCoordinator"
 import socketComms from "@/services/SocketComms"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 // =============================================================================
 // Types
@@ -1660,14 +1660,14 @@ class LocalMiniappRuntime {
   private ensurePingLoop(): void {
     if (this.pingIntervalId !== null) return
 
-    this.pingIntervalId = BackgroundTimer.setInterval(() => {
+    this.pingIntervalId = BgTimer.setInterval(() => {
       this.doPingRound()
     }, PING_INTERVAL_MS)
   }
 
   private stopPingLoop(): void {
     if (this.pingIntervalId !== null) {
-      BackgroundTimer.clearInterval(this.pingIntervalId)
+      BgTimer.clearInterval(this.pingIntervalId)
       this.pingIntervalId = null
     }
   }

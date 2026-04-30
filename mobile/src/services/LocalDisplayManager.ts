@@ -15,7 +15,7 @@
  * and may race with local displays during dev; that's acceptable per plan
  * (agents/local-display-manager-plan.md).
  *
- * All timers use BackgroundTimer so they keep firing when the phone screen
+ * All timers use BgTimer so they keep firing when the phone screen
  * is off.
  */
 
@@ -23,7 +23,7 @@ import CoreModule from "core"
 
 import displayProcessor from "@/services/DisplayProcessor"
 import {useDisplayStore} from "@/stores/display"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 // =============================================================================
 // Types
@@ -125,7 +125,7 @@ class LocalDisplayManager {
     }
     this.sendToNative(SYSTEM_BOOT_PKG, bootEvent, null)
 
-    const timerId = BackgroundTimer.setTimeout(() => {
+    const timerId = BgTimer.setTimeout(() => {
       this.endBoot(/* triggeredByFirstDisplay */ false)
     }, BOOT_DURATION_MS)
 
@@ -305,7 +305,7 @@ class LocalDisplayManager {
     this.pendingThrottledByApp.set(packageName, payload)
     if (this.throttleTimerId === null) {
       const delay = THROTTLE_MS - elapsed
-      this.throttleTimerId = BackgroundTimer.setTimeout(() => {
+      this.throttleTimerId = BgTimer.setTimeout(() => {
         this.throttleTimerId = null
         this.flushThrottled()
       }, delay)
@@ -390,7 +390,7 @@ class LocalDisplayManager {
     this.clearExpiryTimer()
     if (expiresAt !== null) {
       const delay = Math.max(0, expiresAt - this.now())
-      this.expiryTimerId = BackgroundTimer.setTimeout(() => {
+      this.expiryTimerId = BgTimer.setTimeout(() => {
         this.expiryTimerId = null
         this.handleExpiry(packageName)
       }, delay)
@@ -447,14 +447,14 @@ class LocalDisplayManager {
 
   private cancelBoot(): void {
     if (!this.bootingApp) return
-    BackgroundTimer.clearTimeout(this.bootingApp.timerId)
+    BgTimer.clearTimeout(this.bootingApp.timerId)
     this.bootingApp = null
   }
 
   private endBoot(triggeredByFirstDisplay: boolean): void {
     if (!this.bootingApp) return
     const bootedPkg = this.bootingApp.packageName
-    BackgroundTimer.clearTimeout(this.bootingApp.timerId)
+    BgTimer.clearTimeout(this.bootingApp.timerId)
     this.bootingApp = null
 
     // Drain the queue: core first, then everyone else. Per-app last wins
@@ -485,7 +485,7 @@ class LocalDisplayManager {
 
   private clearExpiryTimer(): void {
     if (this.expiryTimerId !== null) {
-      BackgroundTimer.clearTimeout(this.expiryTimerId)
+      BgTimer.clearTimeout(this.expiryTimerId)
       this.expiryTimerId = null
     }
   }
@@ -504,7 +504,7 @@ class LocalDisplayManager {
     this.cancelBoot()
     this.clearExpiryTimer()
     if (this.throttleTimerId !== null) {
-      BackgroundTimer.clearTimeout(this.throttleTimerId)
+      BgTimer.clearTimeout(this.throttleTimerId)
       this.throttleTimerId = null
     }
     this.coreApp = null

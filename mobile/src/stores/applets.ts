@@ -25,6 +25,7 @@ import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
 import {getDefaultMenuApps, GlassesMenuItem} from "@/utils/glassesMenu"
+import {subscribeWithSelector} from "zustand/middleware"
 
 export interface ClientAppletInterface extends AppletInterface {
   offline: boolean
@@ -643,343 +644,345 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
   }
 }
 
-export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
-  apps: [],
+export const useAppletStatusStore = create<AppStatusState>()(
+  subscribeWithSelector((set, get) => ({
+    apps: [],
 
-  retryStartApp: async (packageName: string) => {
-    // Re-send start request and set up polling (used by error screen retry)
-    if (refreshInterval) {
-      BgTimer.clearInterval(refreshInterval)
-      refreshInterval = null
-    }
-    let pollCount = 0
-    const MAX_POLLS = 6
-    refreshInterval = BgTimer.setInterval(() => {
-      pollCount++
-      useAppletStatusStore.getState().refreshApplets()
-      if (pollCount >= MAX_POLLS) {
-        if (refreshInterval) {
-          BgTimer.clearInterval(refreshInterval)
-          refreshInterval = null
+    retryStartApp: async (packageName: string) => {
+      // Re-send start request and set up polling (used by error screen retry)
+      if (refreshInterval) {
+        BgTimer.clearInterval(refreshInterval)
+        refreshInterval = null
+      }
+      let pollCount = 0
+      const MAX_POLLS = 6
+      refreshInterval = BgTimer.setInterval(() => {
+        pollCount++
+        useAppletStatusStore.getState().refreshApplets()
+        if (pollCount >= MAX_POLLS) {
+          if (refreshInterval) {
+            BgTimer.clearInterval(refreshInterval)
+            refreshInterval = null
+          }
+        }
+      }, 1000)
+      const applet = get().apps.find((app) => app.packageName === packageName)
+      const startResult = await restComms.startApp(packageName)
+      if (startResult.is_error() && applet) {
+        console.error(`Failed to retry start applet ${packageName}: ${startResult.error}`)
+        void submitMiniappStartFailedBugReport(applet, startResult.error, "retry_start")
+      }
+    },
+
+    refreshApplets: async () => {
+      const state = get()
+      console.log(`APPLETS: refreshApplets()`)
+      // cancel any pending refresh timeouts:
+      if (refreshTimeout) {
+        BgTimer.clearTimeout(refreshTimeout)
+        refreshTimeout = null
+      }
+
+      let onlineApps: ClientAppletInterface[] = []
+      let res = await restComms.getApplets()
+      if (res.is_error()) {
+        console.error(`APPLETS: Failed to get applets: ${res.error}`)
+        Sentry.captureException(res.error)
+        // Bail out instead of replacing the store with an empty list. On transient
+        // failures (WS reconnecting, server 503, offline) we'd otherwise flip
+        // every app's running flag to false, cascading into a "Cannot reach"
+        // error screen for any open miniapp webview. The server is the source
+        // of truth — if we can't reach it, keep the last known state.
+        return
+      } else {
+        // convert to the client applet interface:
+        onlineApps = res.value.map((app) => ({
+          ...app,
+          loading: false,
+          offline: false,
+          offlineRoute: "",
+          local: false,
+          hidden: false,
+          hardwareRequirements: [
+            ...app.hardwareRequirements,
+            {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
+          ],
+        }))
+      }
+
+      // merge in the offline apps:
+      let applets: ClientAppletInterface[] = [
+        ...onlineApps,
+        ...(await getOfflineApplets()),
+        ...(await composer.getLocalApplets()),
+      ]
+
+      // remove duplicates and keep the online versions:
+      const packageNameMap = new Map<string, ClientAppletInterface>()
+      applets.forEach((app) => {
+        const existing = packageNameMap.get(app.packageName)
+        if (!existing) {
+          packageNameMap.set(app.packageName, app)
+        }
+      })
+      applets = Array.from(packageNameMap.values())
+
+      // add in any existing screenshots:
+      let oldApplets = useAppletStatusStore.getState().apps
+      oldApplets.forEach((app) => {
+        if (app.screenshot) {
+          for (const applet of applets) {
+            if (applet.packageName === app.packageName) {
+              applet.screenshot = app.screenshot
+            }
+          }
+        }
+      })
+
+      // add in the compatibility info:
+      let defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key) || DeviceTypes.NONE
+      let capabilities = getModelCapabilities(defaultWearable)
+
+      for (const applet of applets) {
+        // console.log(`APPLETS: ${defaultWearable} ${applet.packageName} ${JSON.stringify(applet.hardwareRequirements)}`)
+        let result = HardwareCompatibility.checkCompatibility(applet.hardwareRequirements, capabilities)
+        applet.compatibility = result
+      }
+
+      for (const applet of applets) {
+        applet.hidden = state.getHiddenStatus(applet.packageName)
+      }
+
+      // Platform-specific app filtering and routing
+      applets = applets.filter((applet) => {
+        // Notify is not supported on iOS yet - remove entirely
+        if (Platform.OS === "ios" && applet.packageName === notifyPackageName) {
+          return false
+        }
+        return true
+      })
+      for (const applet of applets) {
+        if (applet.packageName === notifyPackageName) {
+          // On Android, route to notification settings instead of generic webview settings
+          applet.offlineRoute = "/miniapps/settings/notifications"
         }
       }
-    }, 1000)
-    const applet = get().apps.find((app) => app.packageName === packageName)
-    const startResult = await restComms.startApp(packageName)
-    if (startResult.is_error() && applet) {
-      console.error(`Failed to retry start applet ${packageName}: ${startResult.error}`)
-      void submitMiniappStartFailedBugReport(applet, startResult.error, "retry_start")
-    }
-  },
 
-  refreshApplets: async () => {
-    const state = get()
-    console.log(`APPLETS: refreshApplets()`)
-    // cancel any pending refresh timeouts:
-    if (refreshTimeout) {
-      BgTimer.clearTimeout(refreshTimeout)
-      refreshTimeout = null
-    }
-
-    let onlineApps: ClientAppletInterface[] = []
-    let res = await restComms.getApplets()
-    if (res.is_error()) {
-      console.error(`APPLETS: Failed to get applets: ${res.error}`)
-      Sentry.captureException(res.error)
-      // Bail out instead of replacing the store with an empty list. On transient
-      // failures (WS reconnecting, server 503, offline) we'd otherwise flip
-      // every app's running flag to false, cascading into a "Cannot reach"
-      // error screen for any open miniapp webview. The server is the source
-      // of truth — if we can't reach it, keep the last known state.
-      return
-    } else {
-      // convert to the client applet interface:
-      onlineApps = res.value.map((app) => ({
-        ...app,
-        loading: false,
-        offline: false,
-        offlineRoute: "",
-        local: false,
-        hidden: false,
-        hardwareRequirements: [
-          ...app.hardwareRequirements,
-          {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
-        ],
-      }))
-    }
-
-    // merge in the offline apps:
-    let applets: ClientAppletInterface[] = [
-      ...onlineApps,
-      ...(await getOfflineApplets()),
-      ...(await composer.getLocalApplets()),
-    ]
-
-    // remove duplicates and keep the online versions:
-    const packageNameMap = new Map<string, ClientAppletInterface>()
-    applets.forEach((app) => {
-      const existing = packageNameMap.get(app.packageName)
-      if (!existing) {
-        packageNameMap.set(app.packageName, app)
+      let menuItems = (await useSettingsStore.getState().getSetting(SETTINGS.menu_apps.key)) as GlassesMenuItem[]
+      if (!menuItems) {
+        menuItems = await getDefaultMenuApps(applets)
       }
-    })
-    applets = Array.from(packageNameMap.values())
+      const itemsForNative = menuItems.map((item: GlassesMenuItem) => {
+        const app = applets.find((a) => a.packageName === item.packageName)
+        return {
+          name: item.name,
+          packageName: item.packageName,
+          running: app?.running ?? false,
+        }
+      })
+      useSettingsStore.getState().setSetting(SETTINGS.menu_apps.key, itemsForNative)
 
-    // add in any existing screenshots:
-    let oldApplets = useAppletStatusStore.getState().apps
-    oldApplets.forEach((app) => {
-      if (app.screenshot) {
-        for (const applet of applets) {
-          if (applet.packageName === app.packageName) {
-            applet.screenshot = app.screenshot
+      set({apps: applets})
+    },
+
+    startApplet: async (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => {
+      const packageName = applet.packageName
+
+      if (!applet) {
+        console.error(`Applet not found for package name: ${packageName}`)
+        return
+      }
+
+      // do nothing if any applet is currently loading:
+      if (get().apps.some((a) => a.loading)) {
+        console.log(`APPLETS: Skipping start applet ${packageName} because another applet is currently loading`)
+        return
+      }
+
+      // console.log(`APPLETS: Starting applet ${packageName}`, applet.compatibility)
+      // console.log(`APPLETS: All apps: ${applet}`)
+
+      // show incompatible alert if the applet is incompatible:
+      if (!applet.compatibility?.isCompatible) {
+        // if one of the missing types is EXIST, show a specific message:
+        const missingTypes = applet.compatibility?.missingRequired?.map((req) => req.type) || []
+        if (missingTypes.includes(HardwareType.EXIST)) {
+          await showAlert({
+            title: translate("home:glassesRequired"),
+            buttons: [{text: translate("common:ok")}],
+            message: translate("home:glassesRequiredMessage", {app: applet.name}),
+          })
+          return
+        }
+        const missingHardware =
+          missingTypes
+            .filter((t) => t !== HardwareType.EXIST)
+            .map((t) => t.toLowerCase())
+            .join(", ") || "required features"
+
+        await showAlert({
+          title: translate("home:hardwareIncompatible"),
+          buttons: [{text: translate("common:ok")}],
+          message: translate("home:hardwareIncompatibleMessage", {
+            app: applet.name,
+            missing: missingHardware,
+          }),
+        })
+
+        return
+      }
+
+      // Handle foreground apps - only one can run at a time
+      if (applet.type === "standard") {
+        const runningForegroundApps = get().apps.filter(
+          (app) => app.running && app.type === "standard" && app.packageName !== packageName,
+        )
+
+        console.log(`Found ${runningForegroundApps.length} running foreground apps to stop`)
+
+        // Stop all other running foreground apps (both online and offline)
+        for (const runningApp of runningForegroundApps) {
+          console.log(`Stopping foreground app: ${runningApp.name} (${runningApp.packageName})`)
+
+          startStopApplet(runningApp, false)
+        }
+      }
+
+      // offline apps should not need to load:
+      let shouldLoad = !applet.offline && !applet.local
+
+      // Start the new app
+      set((state) => ({
+        apps: state.apps.map((a) => (a.packageName === packageName ? {...a, running: true, loading: shouldLoad} : a)),
+      }))
+
+      // open the app webview if it has one:
+      if (!options?.skipNavigation) {
+        // only open if the current route is home:
+        const currentRoute = getCurrentRoute()
+        if (currentRoute === "/home") {
+          saveLastOpenTime(applet.packageName)
+          if (applet.offlineRoute) {
+            push(applet.offlineRoute, {transition: "zoom"})
+          } else if (applet.offline) {
+            // offline app with no route - nothing to navigate to
+          } else if (applet.local) {
+            push("/applet/local", {
+              packageName: applet.packageName,
+              version: applet.version,
+              appName: applet.name,
+              transition: "zoom",
+            })
+          } else if (applet.webviewUrl && applet.healthy) {
+            // Check if app has webviewURL and navigate directly to it
+            push("/applet/webview", {
+              webviewURL: applet.webviewUrl,
+              appName: applet.name,
+              packageName: applet.packageName,
+              transition: "zoom",
+            })
+          } else {
+            // open settings page
+            push("/applet/settings", {
+              packageName: applet.packageName,
+              appName: applet.name,
+              transition: "zoom",
+            })
           }
         }
       }
-    })
 
-    // add in the compatibility info:
-    let defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key) || DeviceTypes.NONE
-    let capabilities = getModelCapabilities(defaultWearable)
-
-    for (const applet of applets) {
-      // console.log(`APPLETS: ${defaultWearable} ${applet.packageName} ${JSON.stringify(applet.hardwareRequirements)}`)
-      let result = HardwareCompatibility.checkCompatibility(applet.hardwareRequirements, capabilities)
-      applet.compatibility = result
-    }
-
-    for (const applet of applets) {
-      applet.hidden = state.getHiddenStatus(applet.packageName)
-    }
-
-    // Platform-specific app filtering and routing
-    applets = applets.filter((applet) => {
-      // Notify is not supported on iOS yet - remove entirely
-      if (Platform.OS === "ios" && applet.packageName === notifyPackageName) {
-        return false
-      }
-      return true
-    })
-    for (const applet of applets) {
-      if (applet.packageName === notifyPackageName) {
-        // On Android, route to notification settings instead of generic webview settings
-        applet.offlineRoute = "/miniapps/settings/notifications"
-      }
-    }
-
-    let menuItems = (await useSettingsStore.getState().getSetting(SETTINGS.menu_apps.key)) as GlassesMenuItem[]
-    if (!menuItems) {
-      menuItems = await getDefaultMenuApps(applets)
-    }
-    const itemsForNative = menuItems.map((item: GlassesMenuItem) => {
-      const app = applets.find((a) => a.packageName === item.packageName)
-      return {
-        name: item.name,
-        packageName: item.packageName,
-        running: app?.running ?? false,
-      }
-    })
-    useSettingsStore.getState().setSetting(SETTINGS.menu_apps.key, itemsForNative)
-
-    set({apps: applets})
-  },
-
-  startApplet: async (applet: ClientAppletInterface, options?: {skipNavigation?: boolean}) => {
-    const packageName = applet.packageName
-
-    if (!applet) {
-      console.error(`Applet not found for package name: ${packageName}`)
-      return
-    }
-
-    // do nothing if any applet is currently loading:
-    if (get().apps.some((a) => a.loading)) {
-      console.log(`APPLETS: Skipping start applet ${packageName} because another applet is currently loading`)
-      return
-    }
-
-    // console.log(`APPLETS: Starting applet ${packageName}`, applet.compatibility)
-    // console.log(`APPLETS: All apps: ${applet}`)
-
-    // show incompatible alert if the applet is incompatible:
-    if (!applet.compatibility?.isCompatible) {
-      // if one of the missing types is EXIST, show a specific message:
-      const missingTypes = applet.compatibility?.missingRequired?.map((req) => req.type) || []
-      if (missingTypes.includes(HardwareType.EXIST)) {
-        await showAlert({
-          title: translate("home:glassesRequired"),
-          buttons: [{text: translate("common:ok")}],
-          message: translate("home:glassesRequiredMessage", {app: applet.name}),
-        })
+      const result = await startStopApplet(applet, true)
+      if (result.is_error()) {
+        console.error(`Failed to start applet ${applet.packageName}: ${result.error}`)
+        void submitMiniappStartFailedBugReport(applet, result.error, "initial_start")
+        set((state) => ({
+          apps: state.apps.map((a) => (a.packageName === packageName ? {...a, running: false, loading: false} : a)),
+        }))
         return
       }
-      const missingHardware =
-        missingTypes
-          .filter((t) => t !== HardwareType.EXIST)
-          .map((t) => t.toLowerCase())
-          .join(", ") || "required features"
 
-      await showAlert({
-        title: translate("home:hardwareIncompatible"),
-        buttons: [{text: translate("common:ok")}],
-        message: translate("home:hardwareIncompatibleMessage", {
-          app: applet.name,
-          missing: missingHardware,
-        }),
-      })
+      await useSettingsStore.getState().setSetting(SETTINGS.has_ever_activated_app.key, true)
+    },
 
-      return
-    }
-
-    // Handle foreground apps - only one can run at a time
-    if (applet.type === "standard") {
-      const runningForegroundApps = get().apps.filter(
-        (app) => app.running && app.type === "standard" && app.packageName !== packageName,
-      )
-
-      console.log(`Found ${runningForegroundApps.length} running foreground apps to stop`)
-
-      // Stop all other running foreground apps (both online and offline)
-      for (const runningApp of runningForegroundApps) {
-        console.log(`Stopping foreground app: ${runningApp.name} (${runningApp.packageName})`)
-
-        startStopApplet(runningApp, false)
+    stopApplet: async (packageName: string) => {
+      const applet = get().apps.find((a) => a.packageName === packageName)
+      if (!applet) {
+        console.error(`Applet with package name ${packageName} not found`)
+        return
       }
-    }
 
-    // offline apps should not need to load:
-    let shouldLoad = !applet.offline && !applet.local
+      let shouldLoad = !applet.offline && !applet.local
+      set((state) => ({
+        apps: state.apps.map((a) =>
+          a.packageName === packageName ? {...a, running: false, screenshot: undefined, loading: shouldLoad} : a,
+        ),
+      }))
 
-    // Start the new app
-    set((state) => ({
-      apps: state.apps.map((a) => (a.packageName === packageName ? {...a, running: true, loading: shouldLoad} : a)),
-    }))
+      startStopApplet(applet, false)
+    },
 
-    // open the app webview if it has one:
-    if (!options?.skipNavigation) {
-      // only open if the current route is home:
-      const currentRoute = getCurrentRoute()
-      if (currentRoute === "/home") {
-        saveLastOpenTime(applet.packageName)
-        if (applet.offlineRoute) {
-          push(applet.offlineRoute, {transition: "zoom"})
-        } else if (applet.offline) {
-          // offline app with no route - nothing to navigate to
-        } else if (applet.local) {
-          push("/applet/local", {
-            packageName: applet.packageName,
-            version: applet.version,
-            appName: applet.name,
-            transition: "zoom",
-          })
-        } else if (applet.webviewUrl && applet.healthy) {
-          // Check if app has webviewURL and navigate directly to it
-          push("/applet/webview", {
-            webviewURL: applet.webviewUrl,
-            appName: applet.name,
-            packageName: applet.packageName,
-            transition: "zoom",
-          })
-        } else {
-          // open settings page
-          push("/applet/settings", {
-            packageName: applet.packageName,
-            appName: applet.name,
-            transition: "zoom",
-          })
+    uninstallApplet: async (packageName: string) => {
+      const applet = get().apps.find((a) => a.packageName === packageName)
+      if (!applet) {
+        console.error(`Applet with package name ${packageName} not found`)
+        return
+      }
+
+      if (applet.running) {
+        await startStopApplet(applet, false)
+      }
+      await restComms.uninstallApp(packageName)
+      set((state) => ({
+        apps: state.apps.filter((a) => a.packageName !== packageName),
+      }))
+    },
+
+    setHiddenStatus: (packageName: string, status: boolean) => {
+      set((state) => ({
+        apps: state.apps.map((a) => (a.packageName === packageName ? {...a, hidden: status} : a)),
+      }))
+      storage.save(`${packageName}_hidden`, status)
+      if (!status) {
+        // update the order map to remove the entry for the package name:
+        const orderMap = getAppsOrder()
+        if (orderMap.is_ok()) {
+          delete orderMap.value[packageName]
+          saveAppsOrder(orderMap.value)
         }
       }
-    }
+    },
 
-    const result = await startStopApplet(applet, true)
-    if (result.is_error()) {
-      console.error(`Failed to start applet ${applet.packageName}: ${result.error}`)
-      void submitMiniappStartFailedBugReport(applet, result.error, "initial_start")
+    getHiddenStatus: (packageName: string): boolean => {
+      const hidden = storage.load<boolean>(`${packageName}_hidden`)
+      if (hidden.is_ok()) {
+        return hidden.value
+      }
+      return false
+    },
+
+    stopAllApplets: (): AsyncResult<void, Error> => {
+      return Res.try_async(async () => {
+        const runningApps = get().apps.filter((app) => app.running)
+
+        for (const app of runningApps) {
+          await get().stopApplet(app.packageName)
+        }
+      })
+    },
+
+    saveScreenshot: async (packageName: string, screenshot: string) => {
+      storage.save(`${packageName}_screenshot`, screenshot)
       set((state) => ({
-        apps: state.apps.map((a) => (a.packageName === packageName ? {...a, running: false, loading: false} : a)),
+        apps: state.apps.map((a) => (a.packageName === packageName ? {...a, screenshot} : a)),
       }))
-      return
-    }
+    },
 
-    await useSettingsStore.getState().setSetting(SETTINGS.has_ever_activated_app.key, true)
-  },
-
-  stopApplet: async (packageName: string) => {
-    const applet = get().apps.find((a) => a.packageName === packageName)
-    if (!applet) {
-      console.error(`Applet with package name ${packageName} not found`)
-      return
-    }
-
-    let shouldLoad = !applet.offline && !applet.local
-    set((state) => ({
-      apps: state.apps.map((a) =>
-        a.packageName === packageName ? {...a, running: false, screenshot: undefined, loading: shouldLoad} : a,
-      ),
-    }))
-
-    startStopApplet(applet, false)
-  },
-
-  uninstallApplet: async (packageName: string) => {
-    const applet = get().apps.find((a) => a.packageName === packageName)
-    if (!applet) {
-      console.error(`Applet with package name ${packageName} not found`)
-      return
-    }
-
-    if (applet.running) {
-      await startStopApplet(applet, false)
-    }
-    await restComms.uninstallApp(packageName)
-    set((state) => ({
-      apps: state.apps.filter((a) => a.packageName !== packageName),
-    }))
-  },
-
-  setHiddenStatus: (packageName: string, status: boolean) => {
-    set((state) => ({
-      apps: state.apps.map((a) => (a.packageName === packageName ? {...a, hidden: status} : a)),
-    }))
-    storage.save(`${packageName}_hidden`, status)
-    if (!status) {
-      // update the order map to remove the entry for the package name:
-      const orderMap = getAppsOrder()
-      if (orderMap.is_ok()) {
-        delete orderMap.value[packageName]
-        saveAppsOrder(orderMap.value)
-      }
-    }
-  },
-
-  getHiddenStatus: (packageName: string): boolean => {
-    const hidden = storage.load<boolean>(`${packageName}_hidden`)
-    if (hidden.is_ok()) {
-      return hidden.value
-    }
-    return false
-  },
-
-  stopAllApplets: (): AsyncResult<void, Error> => {
-    return Res.try_async(async () => {
-      const runningApps = get().apps.filter((app) => app.running)
-
-      for (const app of runningApps) {
-        await get().stopApplet(app.packageName)
-      }
-    })
-  },
-
-  saveScreenshot: async (packageName: string, screenshot: string) => {
-    storage.save(`${packageName}_screenshot`, screenshot)
-    set((state) => ({
-      apps: state.apps.map((a) => (a.packageName === packageName ? {...a, screenshot} : a)),
-    }))
-  },
-
-  setInstalledLmas: (_installedLmas: ClientAppletInterface[]) => {
-    // set({localMiniApps: installedLmas})
-  },
-}))
+    setInstalledLmas: (_installedLmas: ClientAppletInterface[]) => {
+      // set({localMiniApps: installedLmas})
+    },
+  })),
+)
 
 // Re-evaluate app compatibility when default_wearable changes
 // This fixes the bug where switching devices leaves apps greyed out with stale compatibility
@@ -1002,6 +1005,18 @@ useSettingsStore.subscribe(
     if (changed) {
       useAppletStatusStore.setState({apps: updatedApps})
     }
+  },
+)
+
+// subscribe to list of running apps and when it updates, update the the menu_apps list:
+useAppletStatusStore.subscribe(
+  (state) => state.apps.filter((app) => app.running),
+  (runningApps: ClientAppletInterface[]) => {
+    let state = useSettingsStore.getState()
+    state.setSetting(
+      SETTINGS.menu_apps.key,
+      runningApps.map((app) => ({packageName: app.packageName, name: app.name, running: app.running})),
+    )
   },
 )
 

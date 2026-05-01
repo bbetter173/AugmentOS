@@ -10,7 +10,7 @@ import LoadingOverlay from "@/components/ui/LoadingOverlay"
 import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import restComms from "@/services/RestComms"
-import miniComms from "@/services/MiniComms"
+import {webviewBridge as miniComms} from "island"
 import {WebSocketStatus} from "@/services/ws-types"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {useAppletStatusStore} from "@/stores/applets"
@@ -18,7 +18,7 @@ import {useConnectionStore} from "@/stores/connection"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import {buildMiniappGlobalsScript} from "@/utils/miniappGlobals"
+import {buildMiniappGlobalsScript} from "island"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName, isLocal: isLocalParam} = useLocalSearchParams()

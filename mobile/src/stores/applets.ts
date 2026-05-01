@@ -25,8 +25,7 @@ import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
 import composer from "@/services/Composer"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
-import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
-import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
+import {miniappRunningRegistry, decideDevLaunchRoute} from "island"
 import {getDefaultMenuApps, GlassesMenuItem} from "@/utils/glassesMenu"
 
 export interface ClientAppletInterface extends AppletInterface {

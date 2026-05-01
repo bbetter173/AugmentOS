@@ -1,30 +1,30 @@
 /**
- * MiniComms — WebView message handler registry.
+ * WebviewBridge — WebView message handler registry.
  *
  * Holds per-packageName send functions so that any service (MiniappHost,
  * webview.tsx) can inject JS into a specific WebView. That's it.
  *
  * Local miniapp message routing goes through LocalMiniappRuntime directly
- * (MiniappHost calls localMiniappRuntime.handleRawMessage). MiniComms is
+ * (MiniappHost calls localMiniappRuntime.handleRawMessage). WebviewBridge is
  * not in that path.
  */
 
-class MiniComms {
-  private static instance: MiniComms | null = null
+class WebviewBridge {
+  private static instance: WebviewBridge | null = null
   private messageHandlers: Record<string, (stringified: string) => void> = {}
 
   private constructor() {}
 
-  public static getInstance(): MiniComms {
-    if (!MiniComms.instance) {
-      MiniComms.instance = new MiniComms()
+  public static getInstance(): WebviewBridge {
+    if (!WebviewBridge.instance) {
+      WebviewBridge.instance = new WebviewBridge()
     }
-    return MiniComms.instance
+    return WebviewBridge.instance
   }
 
   public cleanup() {
     this.messageHandlers = {}
-    MiniComms.instance = null
+    WebviewBridge.instance = null
   }
 
   public setWebViewMessageHandler(packageName: string, handler?: (stringified: string) => void) {
@@ -46,5 +46,5 @@ class MiniComms {
   }
 }
 
-const miniComms = MiniComms.getInstance()
-export default miniComms
+const webviewBridge = WebviewBridge.getInstance()
+export default webviewBridge

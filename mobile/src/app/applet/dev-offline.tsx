@@ -8,7 +8,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useApplets} from "@/stores/applets"
 import {ThemedStyle} from "@/theme"
-import {decideDevLaunchRoute} from "@/utils/devMiniappLaunch"
+import {decideDevLaunchRoute} from "island"
 import {storage} from "@/utils/storage/storage"
 
 /**

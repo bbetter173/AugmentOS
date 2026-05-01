@@ -14,7 +14,7 @@
  * Pre-flighting at the call site keeps /applet/local a pure mount route.
  */
 
-import {storage} from "@/utils/storage/storage"
+import {storage} from "./storage/storage"
 
 const REACHABILITY_TIMEOUT_MS = 1500
 

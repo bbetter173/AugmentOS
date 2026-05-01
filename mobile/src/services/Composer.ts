@@ -1,5 +1,5 @@
 import {ClientAppletInterface, saveLocalAppRunningState, useAppletStatusStore} from "@/stores/applets"
-import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
+import {miniappRunningRegistry} from "island"
 import {storage} from "@/utils/storage/storage"
 import {printDirectory} from "@/utils/storage/zip"
 import {Directory, Paths, File} from "expo-file-system"

@@ -10,9 +10,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import devServerBridge from "@/services/DevServerBridge"
 import localDisplayManager from "@/services/LocalDisplayManager"
 import localMiniappRuntime from "@/services/LocalMiniappRuntime"
-import miniComms from "@/services/MiniComms"
-import {miniappRunningRegistry} from "@/services/miniapp/MiniappRunningRegistry"
-import {buildMiniappGlobalsScript} from "@/utils/miniappGlobals"
+import {webviewBridge as miniComms, miniappRunningRegistry, buildMiniappGlobalsScript} from "island"
 
 const BEFORE_EVICT_TIMEOUT_MS = 500
 

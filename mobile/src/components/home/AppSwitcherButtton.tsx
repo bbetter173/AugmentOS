@@ -7,12 +7,12 @@ import AppIcon from "@/components/home/AppIcon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {
-  ClientAppletInterface,
   sortAppsByLastOpenTime,
   useActiveApps,
   useActiveBackgroundApps,
   useActiveForegroundApp,
-} from "@/stores/applets"
+  type ClientApp,
+} from "island"
 import {RefObject, useEffect, useRef, useState} from "react"
 import {scheduleOnRN} from "react-native-worklets"
 import {BlurView} from "expo-blur"
@@ -42,7 +42,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
   const apps = useActiveApps()
   const appsCount = apps.length
   const hasBuzzedRef = useRef(false)
-  const [appsList, setAppsList] = useState<ClientAppletInterface[]>([])
+  const [appsList, setAppsList] = useState<ClientApp[]>([])
   const insets = useSaferAreaInsets()
   const translateY = useSharedValue(0)
   const [androidBlur] = useSetting(SETTINGS.android_blur.key)

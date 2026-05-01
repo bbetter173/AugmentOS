@@ -7,7 +7,9 @@ import AppIcon from "@/components/home/AppIcon"
 import {Badge} from "@/components/ui"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {ClientAppletInterface, DUMMY_APPLET, useIncompatibleApps} from "@/stores/applets"
+import {DUMMY_APPLET, type ClientApp} from "island"
+
+import {useIncompatibleApps} from "@/hooks/useAppsExtras"
 import showAlert from "@/utils/AlertUtils"
 
 const GRID_COLUMNS = 4
@@ -42,7 +44,7 @@ export const IncompatibleApps: React.FC = () => {
   )
 
   const handleAppPress = useCallback(
-    (app: ClientAppletInterface) => {
+    (app: ClientApp) => {
       const missingHardware =
         app.compatibility?.missingRequired?.map((req) => req.type.toLowerCase()).join(", ") || "required features"
 
@@ -59,7 +61,7 @@ export const IncompatibleApps: React.FC = () => {
   )
 
   const renderItem = useCallback(
-    ({item}: {item: ClientAppletInterface}) => {
+    ({item}: {item: ClientApp}) => {
       if (!item.name) {
         return <View className="flex-1 items-center my-3 px-2" />
       }
@@ -138,7 +140,7 @@ export const IncompatibleApps: React.FC = () => {
           <BottomSheetFlatList
             data={gridData}
             renderItem={renderItem}
-            keyExtractor={(item: ClientAppletInterface) => item.packageName}
+            keyExtractor={(item: ClientApp) => item.packageName}
             numColumns={GRID_COLUMNS}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{paddingBottom: 21 * 4 + 6 * 4 * 2}}

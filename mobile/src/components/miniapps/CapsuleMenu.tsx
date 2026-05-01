@@ -1,7 +1,9 @@
 import {Button, Icon, Text} from "@/components/ignite"
 import {focusEffectPreventBack, push, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {ClientAppletInterface, SYSTEM_APPS, useAppletStatusStore} from "@/stores/applets"
+import {useAppStatusStore, type ClientApp} from "island"
+
+import {SYSTEM_APPS} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
 import {Dimensions, Image as RNImage, InteractionManager, Platform, Share, View, PixelRatio} from "react-native"
@@ -122,6 +124,7 @@ export function MiniAppCapsuleMenu({
   }, [onMinusPress])
 
   const handleExit = async (shouldGoBack?: boolean) => {
+    // console.log("CAPSULE MENU: handleExit() called")
     try {
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
@@ -141,14 +144,16 @@ export function MiniAppCapsuleMenu({
       })
 
       if (Platform.OS === "ios") {
-        await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+        await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
       } else {
         // android is weird and the crop doesn't work properly:
-        await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
+        await useAppStatusStore.getState().saveScreenshot(packageName, uri)
       }
 
-      // await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
-      await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
+      console.log("saved screenshot for", packageName, cropped.uri)
+
+      // await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      // await useAppStatusStore.getState().saveScreenshot(packageName, uri)
     } catch (e) {
       console.warn("screenshot failed:", e)
     }
@@ -219,12 +224,12 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     const snapPoints = useMemo(() => [screenHeight < 700 ? "70%" : "50%"], [screenHeight])
     const internalRef = useRef<BottomSheetModal>(null)
     const insets = useSaferAreaInsets()
-    const [app, setApp] = useState<ClientAppletInterface | null>(null)
+    const [app, setApp] = useState<ClientApp | null>(null)
     const {clearHistoryAndGoHome} = useNavigationHistory()
     const [superMode] = useSetting(SETTINGS.super_mode.key)
 
     useEffect(() => {
-      const storeApp = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+      const storeApp = useAppStatusStore.getState().apps.find((a) => a.packageName === packageName)
       if (storeApp) {
         setApp(storeApp)
       } else if (appNameOverride || iconUrlOverride) {
@@ -239,7 +244,7 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
           hidden: false,
           healthy: true,
           permissions: [],
-        } as unknown as ClientAppletInterface)
+        } as unknown as ClientApp)
       }
     }, [packageName, appNameOverride, iconUrlOverride])
 
@@ -255,12 +260,12 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
 
     const handleAddRemoveFromHome = useCallback(() => {
       if (app && app.hidden) {
-        useAppletStatusStore.getState().setHiddenStatus(packageName, false)
+        useAppStatusStore.getState().setHiddenStatus(packageName, false)
       } else {
-        useAppletStatusStore.getState().setHiddenStatus(packageName, true)
+        useAppStatusStore.getState().setHiddenStatus(packageName, true)
       }
       internalRef.current?.dismiss()
-      // useAppletStatusStore.getState().refreshApplets()
+      // useAppStatusStore.getState().refreshApplets()
       clearHistoryAndGoHome()
     }, [packageName])
 
@@ -314,7 +319,7 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
           <View />
 
           <View className="flex-row items-center justify-center gap-4">
-            {app && <AppIcon app={app as ClientAppletInterface} disableLoader={true} className="w-12 h-12" />}
+            {app && <AppIcon app={app as ClientApp} disableLoader={true} className="w-12 h-12" />}
             <View className="gap-1 flex-col">
               <Text className="text-lg font-bold text-foreground text-center" text={app?.name} />
               {superMode && <Text className="text-sm text-chart-4 font-medium" text={app?.packageName} />}

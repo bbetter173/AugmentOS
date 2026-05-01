@@ -28,12 +28,12 @@ export default function MiniappDevMain() {
           <RouteButton
             label={translate("devSettings:miniappDevLoadUrlLabel")}
             subtitle={translate("devSettings:miniappDevLoadUrlSubtitle")}
-            onPress={() => push("/miniapps/settings/miniapp-developer-url")}
+            onPress={() => push("/miniapps/miniappdev/developer-url")}
           />
           <RouteButton
             label={translate("devSettings:miniappDevScanLabel")}
             subtitle={translate("devSettings:miniappDevScanSubtitle")}
-            onPress={() => push("/miniapps/settings/miniapp-developer-scanner")}
+            onPress={() => push("/miniapps/miniappdev/scanner")}
           />
           <ToggleSetting
             label="Local STT Fallback"

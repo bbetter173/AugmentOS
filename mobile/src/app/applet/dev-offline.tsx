@@ -6,7 +6,7 @@ import {StyleSheet, TextStyle, View, ViewStyle} from "react-native"
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useApplets} from "@/stores/applets"
+import {useApps} from "island"
 import {ThemedStyle} from "@/theme"
 import {decideDevLaunchRoute} from "island"
 import {storage} from "@/utils/storage/storage"
@@ -30,7 +30,7 @@ export default function DevMiniappOfflineScreen() {
   }>()
   const {goBack, replace, push} = useNavigationHistory()
   const {theme, themed} = useAppTheme()
-  const apps = useApplets()
+  const apps = useApps()
 
   // Fall back to the store entry's logoUrl/name if the route didn't carry
   // them. The store entry is populated by Composer.getLocalApplets from the

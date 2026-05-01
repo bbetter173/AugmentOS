@@ -13,7 +13,9 @@ import {translate} from "@/i18n"
 import {buildBugReportFeedbackDataForBug, submitBugIncident} from "@/services/bugReport/bugReportIncident"
 import {buildIncidentCategorization} from "@/services/bugReport/incidentCategorization"
 import restComms from "@/services/RestComms"
-import {feedbackPackageName, settingsPackageName, useAppletStatusStore} from "@/stores/applets"
+import {useAppStatusStore} from "island"
+
+import {feedbackPackageName, settingsPackageName} from "@/constants/miniapps"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
@@ -43,7 +45,7 @@ export default function FeedbackPage() {
   const MAX_SCREENSHOTS = 5
 
   const {theme} = useAppTheme()
-  const apps = useAppletStatusStore((state) => state.apps)
+  const apps = useAppStatusStore((state) => state.apps)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const viewShotRef = useRef<View>(null)
   const {goBack} = useNavigationHistory()

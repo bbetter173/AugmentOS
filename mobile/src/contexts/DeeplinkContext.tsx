@@ -5,7 +5,8 @@ import {AppState, Platform} from "react-native"
 
 import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/NavigationHistoryContext"
 import {useSplashLoader} from "@/contexts/SplashLoaderProvider"
-import {useAppletStatusStore} from "@/stores/applets"
+import miniappCatalog from "@/services/miniapps/MiniappCatalog"
+import {useAppStatusStore} from "island"
 import mentraAuth from "@/utils/auth/authClient"
 import {BgTimer} from "island"
 
@@ -142,11 +143,11 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         await waitForActive()
         // Reset stack to home, then push store on top so back always goes home.
         navObject.replaceAll("/home")
-        await useAppletStatusStore.getState().refreshApplets()
-        const applet = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
+        await miniappCatalog.refresh()
+        const applet = useAppStatusStore.getState().apps.find((app) => app.packageName === packageName)
         console.log("[DEEPLINK] Smart start for package:", packageName, "applet found:", !!applet)
         if (applet) {
-          setTimeout(() => useAppletStatusStore.getState().startApplet(applet), 150)
+          setTimeout(() => useAppStatusStore.getState().start(applet), 150)
           return
         } else {
           setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)

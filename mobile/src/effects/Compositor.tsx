@@ -1,7 +1,7 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 import {Platform, View} from "react-native"
 import {WebView} from "react-native-webview"
-import {useLocalMiniApps} from "@/stores/applets"
+import {useLocalMiniApps} from "island"
 import {appRegistry} from "island"
 import {localMiniappRuntime} from "island"
 import {usePathname} from "expo-router"

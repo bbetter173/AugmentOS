@@ -618,10 +618,16 @@ class AppRegistry {
   }
 
   private projectOfflineApps(): ClientApp[] {
-    return this.offlineApps.map((a) => ({
-      ...a,
-      running: miniappRunningRegistry.has(a.packageName),
-    }))
+    // Offline apps don't go through miniappRunningRegistry (that's for
+    // MiniappHost-mounted webviews). Their running flag is persisted to
+    // MMKV by saveLocalAppRunningState — read it back here so refreshes
+    // don't blow away the active flag.
+    return this.offlineApps.map((a) => {
+      const running = getLocalAppRunningState(a.packageName)
+      const screenshot = getLocalAppScreenshot(a.packageName)
+      
+      return {...a, running, screenshot}
+    })
   }
 
   // Register an offline (locally-routed) app. Survives disk rebuilds.
@@ -651,6 +657,18 @@ class AppRegistry {
  */
 export function saveLocalAppRunningState(packageName: string, status: boolean): void {
   storage.save(`${packageName}_running`, status)
+}
+
+export function getLocalAppRunningState(packageName: string): boolean {
+  const res = storage.load<boolean>(`${packageName}_running`)
+  if (res.is_ok()) return res.value
+  return false
+}
+
+export function getLocalAppScreenshot(packageName: string): string | undefined {
+  const res = storage.load<string>(`${packageName}_screenshot`)
+  if (res.is_ok()) return res.value
+  return undefined
 }
 
 const appRegistry = AppRegistry.getInstance()

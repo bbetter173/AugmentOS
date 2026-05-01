@@ -9,7 +9,7 @@ import mantle from "@/services/MantleManager"
 import {micStateCoordinator} from "island"
 import udp from "@/services/UdpManager"
 import ws from "@/services/WebSocketManager"
-import {useAppletStatusStore} from "@/stores/applets"
+import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
@@ -421,7 +421,7 @@ class SocketComms {
   }
 
   private refreshAppletsThrottled = throttle(() => {
-    useAppletStatusStore.getState().refreshApplets()
+    void miniappCatalog.refresh()
   }, 500)
 
   private handle_app_state_change(msg: any) {
@@ -524,11 +524,11 @@ class SocketComms {
       return
     }
     console.log(`SOCKET: Received app_started message for package: ${msg.packageName}`)
-    useAppletStatusStore.getState().refreshApplets()
+    void miniappCatalog.refresh()
   }
   private handle_app_stopped(msg: any) {
     console.log(`SOCKET: Received app_stopped message for package: ${msg.packageName}`)
-    useAppletStatusStore.getState().refreshApplets()
+    void miniappCatalog.refresh()
   }
 
   private handle_photo_request(msg: any) {

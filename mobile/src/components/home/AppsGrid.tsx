@@ -7,19 +7,20 @@ import {Icon, Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {
-  ClientAppletInterface,
   DUMMY_APPLET,
   getAppsOrder,
-  OrderMap,
   saveAppsOrder,
   sortAppsByPackageNamePriority,
-  SYSTEM_APPS,
-  uninstallAppUI,
-  useAppletStatusStore,
-  useForegroundApps,
-  useStartApplet,
-  useStopApplet,
-} from "@/stores/applets"
+  useAppStatusStore,
+  useStart,
+  useStop,
+  type ClientApp,
+  type OrderMap,
+} from "island"
+
+import {SYSTEM_APPS} from "@/constants/miniapps"
+import {useForegroundApps} from "@/hooks/useAppsExtras"
+import {uninstallAppUI} from "@/utils/uninstallAppUI"
 import {askPermissionsUI} from "@/utils/PermissionsUtils"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {storage} from "@/utils/storage"
@@ -31,7 +32,7 @@ const GRID_COLUMNS = 4
 const POPOVER_WIDTH = 180
 const SCREEN_PADDING = 4 * 12
 
-type MasonryAppItem = ClientAppletInterface & {id: string; height: number}
+type MasonryAppItem = ClientApp & {id: string; height: number}
 
 interface PopoverAction {
   label: string
@@ -152,22 +153,22 @@ const AppPopover: React.FC<{
 
 interface AppsGridProps {
   showAllApps?: boolean
-  onOpenApp?: (app: ClientAppletInterface) => void
-  onAddToHome?: (app: ClientAppletInterface) => void
+  onOpenApp?: (app: ClientApp) => void
+  onAddToHome?: (app: ClientApp) => void
   searchQuery?: string
 }
 
 export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQuery}: AppsGridProps) {
   const {themed, theme} = useAppTheme()
 
-  const startApplet = useStartApplet()
-  const stopApplet = useStopApplet()
+  const startApplet = useStart()
+  const stopApplet = useStop()
   const apps = useForegroundApps()
 
   const [orderMap, setOrderMap] = useState<OrderMap>({})
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({x: 0, y: 0, screenX: 0, screenY: 0})
-  const [selectedApp, setSelectedApp] = useState<ClientAppletInterface | null>(null)
+  const [selectedApp, setSelectedApp] = useState<ClientApp | null>(null)
   const {push} = useNavigationHistory()
 
   const containerRef = useRef<View>(null)
@@ -366,8 +367,8 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
           icon: "circle-minus",
           onPress: () => {
             if (liveSelectedApp) {
-              useAppletStatusStore.getState().setHiddenStatus(liveSelectedApp.packageName, true)
-              // useAppletStatusStore.getState().refreshApplets()
+              useAppStatusStore.getState().setHiddenStatus(liveSelectedApp.packageName, true)
+              // useAppStatusStore.getState().refreshApplets()
             }
           },
         },
@@ -376,7 +377,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
             label: translate("appInfo:addToHome"),
             icon: "plus",
             onPress: () => {
-              useAppletStatusStore.getState().setHiddenStatus(liveSelectedApp?.packageName, false)
+              useAppStatusStore.getState().setHiddenStatus(liveSelectedApp?.packageName, false)
               if (onAddToHome) {
                 onAddToHome(liveSelectedApp)
               }
@@ -396,7 +397,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
     [liveSelectedApp, startApplet, stopApplet, showAllApps],
   )
 
-  const handlePress = async (app: ClientAppletInterface) => {
+  const handlePress = async (app: ClientApp) => {
     if (app.packageName.includes("@empty")) return // ignore dummy apps
     const result = await askPermissionsUI(app, theme)
     if (result !== 1) return

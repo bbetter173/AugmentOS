@@ -7,7 +7,7 @@ import {withUniwind} from "uniwind"
 import {Icon} from "@/components/ignite"
 import {DevMiniappBadge} from "@/components/miniapps/DevMiniappBadge"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {ClientAppletInterface} from "@/stores/applets"
+import type {ClientApp} from "island"
 
 // Helper to extract style properties for width/height override
 const extractStyleProps = (style: StyleProp<ViewStyle>): Partial<ViewStyle> => {
@@ -20,7 +20,7 @@ const extractStyleProps = (style: StyleProp<ViewStyle>): Partial<ViewStyle> => {
 }
 
 interface AppIconProps {
-  app: ClientAppletInterface
+  app: ClientApp
   onClick?: () => void
   style?: StyleProp<ViewStyle>
   disableLoader?: boolean

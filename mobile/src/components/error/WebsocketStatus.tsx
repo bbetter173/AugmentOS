@@ -4,7 +4,7 @@ import {TouchableOpacity, View} from "react-native"
 import {Icon, Text} from "@/components/ignite"
 import {translate} from "@/i18n"
 import {WebSocketStatus} from "@/services/WebSocketManager"
-import {useRefreshApplets} from "@/stores/applets"
+import {useRefresh} from "island"
 import {useConnectionStore} from "@/stores/connection"
 import {BgTimer} from "island"
 import {useAppTheme} from "@/contexts/ThemeContext"
@@ -39,7 +39,7 @@ export default function WebsocketStatus() {
   const [displayStatus, setDisplayStatus] = useState<DisplayStatus>("connected")
   const [offlineMode] = useSetting(SETTINGS.offline_mode.key)
   const [superMode] = useSetting(SETTINGS.super_mode.key)
-  const refreshApplets = useRefreshApplets()
+  const refreshApplets = useRefresh()
   const {theme} = useAppTheme()
   const disconnectionTimerRef = useRef<number | null>(null)
   const DISCONNECTION_DELAY = 3000

@@ -1,14 +1,14 @@
 import {useEffect} from "react"
 
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useApplets, useStartApplet} from "@/stores/applets"
+import {useApps, useStart} from "island"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {askPermissionsUI} from "@/utils/PermissionsUtils"
 import CoreModule, {ButtonPressEvent} from "core"
 
 export function ButtonActions() {
-  const applets = useApplets()
-  const startApplet = useStartApplet()
+  const applets = useApps()
+  const startApplet = useStart()
   const {theme} = useAppTheme()
 
   // Validate and update default button action app when device or applets change

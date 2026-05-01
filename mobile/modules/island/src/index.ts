@@ -53,6 +53,7 @@ export {
   useActiveBackgroundAppsCount,
   useLocalMiniApps,
   type IslandHostHooks,
+  type StartOptions,
   type OrderMap,
 } from "./stores/apps"
 

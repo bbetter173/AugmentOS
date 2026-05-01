@@ -17,12 +17,12 @@ import Animated, {
 import {Gesture, GestureDetector} from "react-native-gesture-handler"
 import {runOnJS, scheduleOnRN} from "react-native-worklets"
 import {
-  ClientAppletInterface,
   saveLastOpenTime,
   sortAppsByLastOpenTime,
   useActiveApps,
-  useAppletStatusStore,
-} from "@/stores/applets"
+  useAppStatusStore,
+  type ClientApp,
+} from "island"
 import AppIcon from "@/components/home/AppIcon"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
@@ -48,7 +48,7 @@ interface AppCard {
 }
 
 interface AppCardItemProps {
-  app: ClientAppletInterface
+  app: ClientApp
   index: number
   onDismiss: (packageName: string) => void
   onSelect: (packageName: string) => void
@@ -249,7 +249,7 @@ interface AppSwitcherProps {
 }
 
 // for testing:
-// let DUMMY_APPS: ClientAppletInterface[] = []
+// let DUMMY_APPS: ClientApp[] = []
 // for (let i = 0; i < 30; i++) {
 //   DUMMY_APPS.push({
 //     packageName: `com.mentra.dummy.${i}`,
@@ -280,7 +280,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
   const {push} = useNavigationHistory()
   const insets = useSaferAreaInsets()
   let directApps = useActiveApps()
-  let [apps, setApps] = useState<ClientAppletInterface[]>([])
+  let [apps, setApps] = useState<ClientApp[]>([])
   const prevAppsLength = useRef(0)
   const [blurPointerEvents, setBlurPointerEvents] = useState<"auto" | "none">("none")
   const [_androidBlur] = useSetting(SETTINGS.android_blur.key)
@@ -300,6 +300,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
     sortAppsByLastOpenTime(directApps).then((sorted) => {
       if (!cancelled) setApps(sorted)
     })
+    console.log("apps screenshot", apps.map((a) => a.screenshot))
     return () => {
       cancelled = true
     }
@@ -562,7 +563,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
         goToIndex(index)
       }
       // setTimeout(() => {
-      useAppletStatusStore.getState().stopApplet(packageName)
+      useAppStatusStore.getState().stop(packageName)
       // }, 100)
 
       // auto-close if there are no more apps left:

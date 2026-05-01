@@ -1,5 +1,5 @@
 import {useEffect, useState, useCallback, useRef} from "react"
-import {View, StyleSheet, Alert, Platform} from "react-native"
+import {View, Alert, Platform} from "react-native"
 import {useSafeAreaInsets} from "react-native-safe-area-context"
 import {WebView, WebViewMessageEvent} from "react-native-webview"
 
@@ -502,7 +502,9 @@ export default function MiniappHost() {
   )
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    // MiniappHost sits above the Stack so the foregrounded WebView covers the
+    // current route. z-[9999]/elevation keep us on top of native nav layers.
+    <View className="absolute inset-0 z-[9999]" style={{elevation: 9999}} pointerEvents="box-none">
       {entries.map((app) => {
         const isFg = app.isForeground
 
@@ -537,7 +539,10 @@ export default function MiniappHost() {
         return (
           <View
             key={app.packageName}
-            style={isFg ? [styles.foreground, fgPadding] : styles.background}
+            // Off-screen holder for backgrounded WebViews — keeps them mounted
+            // without affecting layout or receiving touches.
+            className={isFg ? "flex-1 absolute inset-0" : "absolute -left-[10000px] -top-[10000px] w-px h-px opacity-0"}
+            style={isFg ? fgPadding : undefined}
             pointerEvents={isFg ? "auto" : "none"}>
             <WebView
               // Remount on every mount/mountDev (mountKey bumps) so a QR
@@ -593,7 +598,7 @@ export default function MiniappHost() {
               // builds so miniapp authors can debug their bundle. iOS 16.4+
               // and Android changed this to opt-in.
               webviewDebuggingEnabled={__DEV__}
-              style={styles.webview}
+              style={{flex: 1}}
             />
             {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}
             {isFg && <LeftEdgeBackSwipe packageName={app.packageName} onBack={app.onBack} />}
@@ -614,33 +619,3 @@ export default function MiniappHost() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const styles = StyleSheet.create({
-  // MiniappHost sits above the Stack so the foregrounded WebView covers the
-  // current route. zIndex/elevation keep us on top of native nav layers.
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    elevation: 9999,
-  },
-  foreground: {
-    flex: 1,
-    ...StyleSheet.absoluteFillObject,
-  },
-  // Off-screen holder for backgrounded WebViews. 1×1 opaque-invisible rectangle
-  // keeps them mounted without affecting layout or receiving touches.
-  background: {
-    position: "absolute",
-    left: -10000,
-    top: -10000,
-    width: 1,
-    height: 1,
-    opacity: 0,
-  },
-  webview: {
-    flex: 1,
-  },
-})

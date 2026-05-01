@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {Linking, ScrollView, TextInput, TextStyle, View, ViewStyle} from "react-native"
+import {Linking, ScrollView, TextInput, View} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import GlassView from "@/components/ui/GlassView"
@@ -9,7 +9,6 @@ import {Spacer} from "@/components/ui/Spacer"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
 import {decideDevLaunchRoute} from "island"
 import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
@@ -37,7 +36,7 @@ function resolveIconUrl(baseUrl: string, iconPath: string | undefined): string |
 }
 
 export default function MiniappDeveloperUrlScreen() {
-  const {theme, themed} = useAppTheme()
+  const {theme} = useAppTheme()
   const {goBack, push} = useNavigationHistory()
   const [url, setUrl] = useState("")
   const [loading, setLoading] = useState(false)
@@ -161,15 +160,15 @@ export default function MiniappDeveloperUrlScreen() {
       <ScrollView className="flex px-6 -mx-6">
         <View className="flex gap-6">
           <Group title={translate("devSettings:miniappUrlGroupTitle")}>
-            <GlassView className="bg-primary-foreground rounded-2xl" style={themed($inputCard)}>
-              <Text style={themed($label)} tx="devSettings:miniappUrlLabel" />
-              <Text style={themed($subtitle)}>
+            <GlassView className="bg-primary-foreground rounded-2xl px-4 py-4 gap-2">
+              <Text className="text-base text-text" tx="devSettings:miniappUrlLabel" />
+              <Text className="text-xs text-textDim flex-row flex-wrap">
                 {translate("devSettings:miniappUrlSubtitlePrefix")}
-                <Text style={themed($codeInline)} text="/miniapp.json" />
+                <Text className="font-mono text-text" text="/miniapp.json" />
                 {translate("devSettings:miniappUrlSubtitleSuffix")}
               </Text>
               <TextInput
-                style={themed($urlInput)}
+                className="bg-background border border-primary rounded-lg px-3 py-2 text-sm mt-1 mb-1 text-text"
                 placeholder="http://192.168.1.50:3000"
                 placeholderTextColor={theme.colors.textDim}
                 value={url}
@@ -208,37 +207,3 @@ export default function MiniappDeveloperUrlScreen() {
     </Screen>
   )
 }
-
-const $inputCard: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  paddingHorizontal: spacing.s4,
-  paddingVertical: spacing.s4,
-  gap: spacing.s2,
-})
-
-const $label: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontSize: 16,
-  color: colors.text,
-})
-
-const $subtitle: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontSize: 12,
-  color: colors.textDim,
-})
-
-const $codeInline: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontFamily: "Courier",
-  color: colors.text,
-})
-
-const $urlInput: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
-  backgroundColor: colors.background,
-  borderColor: colors.primary,
-  borderWidth: 1,
-  borderRadius: spacing.s3,
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  fontSize: 14,
-  marginTop: 6,
-  marginBottom: 6,
-  color: colors.text,
-})

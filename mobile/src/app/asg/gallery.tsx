@@ -1,7 +1,7 @@
 import {GalleryScreen} from "@/components/glasses/Gallery/GalleryScreen"
 import {Screen} from "@/components/ignite"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
-import {cameraPackageName} from "@/stores/applets"
+import {cameraPackageName} from "@/constants/miniapps"
 import {useRef} from "react"
 import {View} from "react-native"
 

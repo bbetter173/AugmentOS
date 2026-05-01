@@ -19,7 +19,7 @@ import {useAuth} from "@/contexts/AuthContext"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {useApplets} from "@/stores/applets"
+import {useApps} from "island"
 import {useSettingsStore} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
@@ -201,7 +201,7 @@ export default function DataExportPage() {
   const [previewExpanded, setPreviewExpanded] = useState(false)
 
   const {user, session} = useAuth()
-  const appStatus = useApplets()
+  const appStatus = useApps()
   const {goBack} = useNavigationHistory()
   const {theme, themed} = useAppTheme()
   const coreStatus = useCoreStore()

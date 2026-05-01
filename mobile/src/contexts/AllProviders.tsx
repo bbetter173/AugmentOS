@@ -188,7 +188,6 @@ export const AllProviders = withWrappers(
       <>
         {props.children}
         <Stack screenOptions={screenOptions} />
-        <MiniappHost />
       </>
     )
 
@@ -221,6 +220,15 @@ export const AllProviders = withWrappers(
     //   </>
     // )
   },
+  // render the MiniappHost at the app root above everything else:
+  (props) => {
+    return (
+      <>
+        {props.children}
+        <MiniappHost />
+      </>
+    )
+  }
 )
 
 type WrapperComponent = FunctionComponent<{children: React.ReactNode}>

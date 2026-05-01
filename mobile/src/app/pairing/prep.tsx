@@ -13,7 +13,7 @@ import GlassesDisplayMirror from "@/components/mirror/GlassesDisplayMirror"
 import {useState} from "react"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
-import {useAppletStatusStore} from "@/stores/applets"
+import {useAppStatusStore} from "island"
 import CoreModule from "core"
 
 export default function PairingPrepScreen() {
@@ -208,7 +208,7 @@ export default function PairingPrepScreen() {
 
     // Stop any running apps from previous sessions to prevent mic race conditions
     // This is symmetric with the logic in DeviceSettings that stops apps when unpairing
-    await useAppletStatusStore.getState().stopAllApplets()
+    await useAppStatusStore.getState().stopAll()
 
     // skip pairing for simulated glasses:
     if (deviceModel.startsWith(DeviceTypes.SIMULATED)) {

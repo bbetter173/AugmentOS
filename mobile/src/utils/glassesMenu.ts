@@ -6,7 +6,9 @@
  * G2.swift is responsible for: name truncation, running indicators, padding, numeric IDs, wire format.
  */
 
-import {sortAppsByLastOpenTime, SYSTEM_APPS, useAppletStatusStore, type ClientAppletInterface} from "@/stores/applets"
+import {sortAppsByLastOpenTime, useAppStatusStore, type ClientApp} from "island"
+
+import {SYSTEM_APPS} from "@/constants/miniapps"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
@@ -34,7 +36,7 @@ export function buildMenuItems(apps: {packageName: string; name: string}[]): Gla
  * Auto-populate the dashboard menu with the most recently used compatible miniapps.
  * Used when the user hasn't explicitly configured their menu.
  */
-export async function getDefaultMenuApps(allApps: ClientAppletInterface[]): Promise<GlassesMenuItem[]> {
+export async function getDefaultMenuApps(allApps: ClientApp[]): Promise<GlassesMenuItem[]> {
   const candidates = allApps.filter(
     (app) => !app.hidden && app.compatibility?.isCompatible !== false && !SYSTEM_APPS.includes(app.packageName),
   )
@@ -52,7 +54,7 @@ export async function getDefaultMenuApps(allApps: ClientAppletInterface[]): Prom
  */
 export function filterCompatibleMenuItems(
   savedItems: GlassesMenuItem[],
-  allApps: ClientAppletInterface[],
+  allApps: ClientApp[],
 ): GlassesMenuItem[] {
   return savedItems.filter((item) => {
     const app = allApps.find((a) => a.packageName === item.packageName)
@@ -75,7 +77,7 @@ export function filterCompatibleMenuItems(
 //   const savedMenuApps = useSettingsStore.getState().getSetting(SETTINGS.menu_apps.key) as
 //     | GlassesMenuItem[]
 //     | null
-//   const allApps = useAppletStatusStore.getState().apps
+//   const allApps = useAppStatusStore.getState().apps
 //   let menuItems: GlassesMenuItem[]
 //   if (savedMenuApps && savedMenuApps.length > 0) {
 //     menuItems = filterCompatibleMenuItems(savedMenuApps, allApps)

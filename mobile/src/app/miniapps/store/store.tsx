@@ -10,7 +10,7 @@ import InternetConnectionFallbackComponent from "@/components/ui/InternetConnect
 import {useAppStoreWebviewPrefetch} from "@/contexts/AppStoreContext"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useRefreshApplets} from "@/stores/applets"
+import {useRefresh} from "island"
 import {ThemedStyle} from "@/theme"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 
@@ -23,7 +23,7 @@ export default function AppStoreWeb() {
   const [isAuthReady, setIsAuthReady] = useState(false)
   const {push} = useNavigationHistory()
   const {appStoreUrl, webViewRef: prefetchedWebviewRef} = useAppStoreWebviewPrefetch()
-  const refreshApplets = useRefreshApplets()
+  const refreshApplets = useRefresh()
   const {theme, themed} = useAppTheme()
   const viewShotRef = useRef<View>(null)
 

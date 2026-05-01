@@ -33,7 +33,7 @@ import {BgTimer} from "island"
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {logE2EMetric} from "@/utils/e2eMetrics"
-import {useAppletStatusStore} from "@/stores/applets"
+import {useAppStatusStore} from "island"
 import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"
@@ -626,15 +626,15 @@ class MantleManager {
         CoreModule.addListener("miniapp_selected", (event) => {
           const packageName = event.packageName as string
           if (!packageName) return
-          const applet = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+          const applet = useAppStatusStore.getState().apps.find((a) => a.packageName === packageName)
           if (!applet) return
           // Toggle: if already running, stop it; otherwise start it
           if (applet.running) {
             console.log(`MANTLE: miniapp_selected — stopping ${packageName}`)
-            useAppletStatusStore.getState().stopApplet(packageName)
+            useAppStatusStore.getState().stop(packageName)
           } else {
             console.log(`MANTLE: miniapp_selected — starting ${packageName}`)
-            useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
+            useAppStatusStore.getState().start(applet, {skipNavigation: true})
           }
         }),
       )
@@ -653,7 +653,7 @@ class MantleManager {
       // G2 dashboard menu: re-sync when app list changes (handles app install/uninstall,
       // server refresh after connect, and race where apps weren't loaded on first connect)
       this.subs.push(
-        useAppletStatusStore.subscribe(async (state, prevState) => {
+        useAppStatusStore.subscribe(async (state, prevState) => {
           if (state.apps !== prevState.apps && state.apps.length > 0) {
             await syncDashboardMenu()
           }
@@ -666,15 +666,15 @@ class MantleManager {
         CoreModule.addListener("miniapp_selected", (event) => {
           const packageName = event.packageName as string
           if (!packageName) return
-          const applet = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+          const applet = useAppStatusStore.getState().apps.find((a) => a.packageName === packageName)
           if (!applet) return
           // Toggle: if already running, stop it; otherwise start it
           if (applet.running) {
             console.log(`MANTLE: miniapp_selected — stopping ${packageName}`)
-            useAppletStatusStore.getState().stopApplet(packageName)
+            useAppStatusStore.getState().stop(packageName)
           } else {
             console.log(`MANTLE: miniapp_selected — starting ${packageName}`)
-            useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
+            useAppStatusStore.getState().start(applet, {skipNavigation: true})
           }
         }),
       )

@@ -32,15 +32,21 @@ import {miniappRunningRegistry} from "../services/MiniappRunningRegistry"
 // Configuration / hooks
 // ---------------------------------------------------------------------------
 
+export interface StartOptions {
+  skipNavigation?: boolean
+}
+
 export interface IslandHostHooks {
   /** Return host-provided extra apps (e.g. cloud applets). Called on every refresh. */
   loadExtraApps?: () => Promise<ClientApp[]>
   /** Return the connected device's capabilities for compatibility checks. */
   getCapabilities?: () => Capabilities | null
   /** Called by start() before applet.onStart. Return false to abort the start. */
-  beforeStart?: (app: ClientApp) => Promise<boolean> | boolean
+  beforeStart?: (app: ClientApp, opts?: StartOptions) => Promise<boolean> | boolean
   /** Called by stop() before applet.onStop. */
   beforeStop?: (app: ClientApp) => Promise<void> | void
+  /** Called by uninstall() before appRegistry.uninstall — e.g. for cloud-side cleanup. */
+  onUninstall?: (app: ClientApp) => Promise<void> | void
   /** Called after the apps array is rebuilt — host can mutate / re-sort. */
   postProcessApps?: (apps: ClientApp[]) => ClientApp[] | Promise<ClientApp[]>
 }
@@ -58,7 +64,7 @@ export function configureIsland(hooks: IslandHostHooks): void {
 interface AppStatusState {
   apps: ClientApp[]
   refresh: () => Promise<void>
-  start: (app: ClientApp) => Promise<void>
+  start: (app: ClientApp, opts?: StartOptions) => Promise<void>
   stop: (packageName: string) => Promise<void>
   stopAll: () => AsyncResult<void, Error>
   install: (url: string, opts?: {versionOverride?: string}) => AsyncResult<void, Error>
@@ -193,7 +199,7 @@ export const useAppStatusStore = create<AppStatusState>((set, get) => ({
     set({apps})
   },
 
-  start: async (clientApp: ClientApp) => {
+  start: async (clientApp: ClientApp, opts?: StartOptions) => {
     const state = get()
     const packageName = clientApp.packageName
     const app = state.apps.find((a) => a.packageName === packageName)
@@ -210,7 +216,7 @@ export const useAppStatusStore = create<AppStatusState>((set, get) => ({
 
     // Host gate (incompatible alerts, offline-mode rejection, etc.).
     if (hostHooks.beforeStart) {
-      const proceed = await hostHooks.beforeStart(app)
+      const proceed = await hostHooks.beforeStart(app, opts)
       if (!proceed) return
     }
 
@@ -270,6 +276,12 @@ export const useAppStatusStore = create<AppStatusState>((set, get) => ({
 
   uninstall: (packageName, version) => {
     return Res.try_async(async () => {
+      if (hostHooks.onUninstall) {
+        const app = get().apps.find((a) => a.packageName === packageName)
+        if (app) {
+          await hostHooks.onUninstall(app)
+        }
+      }
       const res = await appRegistry.uninstall(packageName, version)
       if (res.is_error()) throw res.error
       set((s) => ({apps: s.apps.filter((a) => a.packageName !== packageName)}))

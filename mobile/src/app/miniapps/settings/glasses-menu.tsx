@@ -10,7 +10,9 @@ import {RouteButton} from "@/components/ui/RouteButton"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n/translate"
-import {sortAppsByLastOpenTime, SYSTEM_APPS, useApplets, type ClientAppletInterface} from "@/stores/applets"
+import {sortAppsByLastOpenTime, useApps, type ClientApp} from "island"
+
+import {SYSTEM_APPS} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {
   buildMenuItems,
@@ -24,11 +26,11 @@ const MAX_MENU_ITEMS = 10
 export default function GlassesMenuScreen() {
   const {theme} = useAppTheme()
   const {goBack} = useNavigationHistory()
-  const applets = useApplets()
+  const applets = useApps()
   const [savedMenuApps, setSavedMenuApps] = useSetting<GlassesMenuItem[] | null>(SETTINGS.menu_apps.key)
   const [menuItems, setMenuItems] = useState<GlassesMenuItem[]>([])
   const [showPicker, setShowPicker] = useState(false)
-  const [sortedAvailable, setSortedAvailable] = useState<ClientAppletInterface[]>([])
+  const [sortedAvailable, setSortedAvailable] = useState<ClientApp[]>([])
   const [pickerReady, setPickerReady] = useState(false)
 
   // Load menu items on mount
@@ -73,7 +75,7 @@ export default function GlassesMenuScreen() {
   }
 
   // Look up the full applet for a menu item (for icon rendering)
-  const getApplet = (packageName: string): ClientAppletInterface | undefined => {
+  const getApplet = (packageName: string): ClientApp | undefined => {
     return applets.find((a) => a.packageName === packageName)
   }
 

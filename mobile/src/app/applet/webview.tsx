@@ -13,7 +13,9 @@ import restComms from "@/services/RestComms"
 import {webviewBridge as miniComms} from "island"
 import {WebSocketStatus} from "@/services/ws-types"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
-import {useAppletStatusStore} from "@/stores/applets"
+import {useAppStatusStore} from "island"
+
+import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {useConnectionStore} from "@/stores/connection"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
@@ -147,11 +149,11 @@ export default function AppWebView() {
       setAppStartFailed(true)
     }
 
-    checkApplet(useAppletStatusStore.getState())
+    checkApplet(useAppStatusStore.getState())
 
-    const unsubApplets = useAppletStatusStore.subscribe(checkApplet)
+    const unsubApplets = useAppStatusStore.subscribe(checkApplet)
     const unsubConn = useConnectionStore.subscribe(() => {
-      checkApplet(useAppletStatusStore.getState())
+      checkApplet(useAppStatusStore.getState())
     })
     return () => {
       unsubApplets()
@@ -322,7 +324,7 @@ export default function AppWebView() {
   }
 
   // const screenshotComponent = () => {
-  //   const screenshot = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)?.screenshot
+  //   const screenshot = useAppStatusStore.getState().apps.find((a) => a.packageName === packageName)?.screenshot
   //   if (screenshot) {
   //     return <Image source={{uri: screenshot}} style={{flex: 1, resizeMode: "cover"}} blurRadius={10} />
   //   }
@@ -330,7 +332,7 @@ export default function AppWebView() {
   // }
 
   const renderLoadingOverlay = () => {
-    const app = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+    const app = useAppStatusStore.getState().apps.find((a) => a.packageName === packageName)
 
     // disabled for now:
     // const screenshot = screenshotComponent()
@@ -400,7 +402,7 @@ export default function AppWebView() {
               webViewOpacity.value = 0
               loadingOpacity.value = 1
               // Re-send the start request and poll for confirmation
-              useAppletStatusStore.getState().retryStartApp(packageName as string)
+              void miniappCatalog.retryStart(packageName as string)
               setRetryTrigger((prev) => prev + 1)
             }}
           />

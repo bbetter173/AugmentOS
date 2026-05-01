@@ -21,7 +21,7 @@ import {BatteryStatus} from "@/components/glasses/info/BatteryStatus"
 import {EmptyState} from "@/components/glasses/info/EmptyState"
 import {ButtonSettings} from "@/components/glasses/settings/ButtonSettings"
 import BrightnessSetting from "@/components/settings/BrightnessSetting"
-import {useApplets, useAppletStatusStore} from "@/stores/applets"
+import {useApps} from "island"
 // import showAlert from "@/utils/AlertUtils"
 import {showAlert} from "@/contexts/ModalContext"
 
@@ -38,7 +38,7 @@ function DeviceSettings() {
   const glassesConnected = useGlassesStore((state) => state.connected)
 
   const {push, goBack} = useNavigationHistory()
-  const applets = useApplets()
+  const applets = useApps()
   const features: Capabilities = getModelCapabilities(defaultWearable)
 
   const wifiLocalIp = useGlassesStore((state) => state.wifiSsid)

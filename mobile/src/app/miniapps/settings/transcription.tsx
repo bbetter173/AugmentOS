@@ -11,7 +11,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import STTModelManager from "@/services/STTModelManager"
-import {useStopAllApplets} from "@/stores/applets"
+import {useStopAll} from "island"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 
@@ -33,7 +33,7 @@ export default function TranscriptionSettingsScreen() {
   const RESTART_TRANSCRIPTION_DEBOUNCE_MS = 8000 // 8 seconds
   const [lastRestartTime, setLastRestartTime] = useState(0)
 
-  const stopAllApps = useStopAllApplets()
+  const stopAllApps = useStopAll()
 
   const handleToggleOfflineMode = () => {
     const title = offlineMode ? "Disable Offline Mode?" : "Enable Offline Mode?"

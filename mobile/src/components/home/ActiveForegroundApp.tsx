@@ -5,7 +5,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Badge} from "@/components/ui"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useActiveForegroundApp, useStopApplet} from "@/stores/applets"
+import {useActiveForegroundApp, useStop} from "island"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
 
@@ -13,7 +13,7 @@ export const ActiveForegroundApp: React.FC = () => {
   const {themed, theme} = useAppTheme()
   const {push} = useNavigationHistory()
   const applet = useActiveForegroundApp()
-  const stopApplet = useStopApplet()
+  const stopApplet = useStop()
 
   const handlePress = () => {
     if (!applet) {

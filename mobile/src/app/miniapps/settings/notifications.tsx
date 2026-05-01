@@ -7,7 +7,7 @@ import {Screen, Text, Header, Switch} from "@/components/ignite"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {notifyPackageName} from "@/stores/applets"
+import {notifyPackageName} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"
 
 interface InstalledApp {

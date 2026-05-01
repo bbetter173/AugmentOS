@@ -55,19 +55,17 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
     
 
-    return (
-      <ShadowView 
-      hitSlop={4}
-      style={[style, {
-        backgroundColor: backgroundColor,
-        // borderTopLeftRadius,
-        // borderTopRightRadius,
-        // borderBottomLeftRadius,
-        // borderBottomRightRadius,
-      }]}>
-        {children}
-      </ShadowView>
-    )
+    // return (
+    //   <View style={[style, {
+    //     backgroundColor: backgroundColor,
+    //     // borderTopLeftRadius,
+    //     // borderTopRightRadius,
+    //     // borderBottomLeftRadius,
+    //     // borderBottomRightRadius,
+    //   }]}>
+    //     {children}
+    //   </View>
+    // )
     // let maxBorderRadius = Math.max(
     //   parseInt(borderTopLeftRadius.toString()),
     //   parseInt(borderTopRightRadius.toString()),

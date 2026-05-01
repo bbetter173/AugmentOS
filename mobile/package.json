@@ -179,7 +179,8 @@
   "patchedDependencies": {
     "react-native-draggable-masonry@1.3.0": "patches/react-native-draggable-masonry@1.3.0.patch",
     "react-native-executorch@0.7.2": "patches/react-native-executorch@0.7.2.patch",
-    "expo-speech-transcriber@0.1.9": "patches/expo-speech-transcriber@0.1.9.patch"
+    "expo-speech-transcriber@0.1.9": "patches/expo-speech-transcriber@0.1.9.patch",
+    "react-native-inner-shadow@2.4.0": "patches/react-native-inner-shadow@2.4.0.patch"
   },
   "trustedDependencies": [
     "@sentry/cli",

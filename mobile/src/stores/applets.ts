@@ -381,7 +381,7 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
       name: translate("miniApps:lmaInstaller"),
       type: "standard",
       offline: true,
-      offlineRoute: "/miniapps/settings/miniapp-developer",
+      offlineRoute: "/miniapps/miniappdev/main",
       local: false,
       webviewUrl: "",
       permissions: [],

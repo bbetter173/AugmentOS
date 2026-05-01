@@ -9,6 +9,7 @@ import livekit from "@/services/Livekit"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import miniSockets from "@/services/MiniSockets"
 import {requestMiniappSdkPhoto} from "@/services/miniapp/MiniappSdkPhotoHandler"
+import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {migrate} from "@/services/Migrations"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
@@ -156,6 +157,10 @@ class MantleManager {
       setDisplayEvent: (event) => useDisplayStore.getState().setDisplayEvent(event),
       requestMiniappSdkPhoto: (params) => requestMiniappSdkPhoto(params),
     })
+
+    // Register the offline-app catalog with island's AppRegistry before
+    // anything triggers an apps refresh.
+    miniappCatalog.init()
 
     await migrate() // do any local migrations here
     const res = await restComms.loadUserSettings() // get settings from server

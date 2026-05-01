@@ -262,6 +262,9 @@ type Listener = () => void
 
 class AppRegistry {
   private cachedApps: ClientApp[] = []
+  // Offline apps live in a separate layer so they survive the disk-rebuild
+  // path in getInstalledMiniapps (which reassigns cachedApps).
+  private offlineApps: ClientApp[] = []
   private refreshNeeded: boolean = true
   private listeners = new Set<Listener>()
 
@@ -543,10 +546,13 @@ class AppRegistry {
     if (!this.refreshNeeded && this.cachedApps.length > 0) {
       // Cache hit: re-project running from the registry. The cached array
       // IS the disk-derived truth; running comes from the mount registry.
-      return this.cachedApps.map((a) => ({
-        ...a,
-        running: miniappRunningRegistry.has(a.packageName),
-      }))
+      return [
+        ...this.cachedApps.map((a) => ({
+          ...a,
+          running: miniappRunningRegistry.has(a.packageName),
+        })),
+        ...this.projectOfflineApps(),
+      ]
     }
 
     try {
@@ -598,19 +604,29 @@ class AppRegistry {
 
       this.cachedApps = out
       this.refreshNeeded = false
-      return this.cachedApps
+      return [...this.cachedApps, ...this.projectOfflineApps()]
     } catch (error) {
       console.error("APP_REGISTRY: Error getting local applets", error)
-      return this.cachedApps.map((a) => ({
-        ...a,
-        running: miniappRunningRegistry.has(a.packageName),
-      }))
+      return [
+        ...this.cachedApps.map((a) => ({
+          ...a,
+          running: miniappRunningRegistry.has(a.packageName),
+        })),
+        ...this.projectOfflineApps(),
+      ]
     }
   }
 
-  // add to the cached apps array
+  private projectOfflineApps(): ClientApp[] {
+    return this.offlineApps.map((a) => ({
+      ...a,
+      running: miniappRunningRegistry.has(a.packageName),
+    }))
+  }
+
+  // Register an offline (locally-routed) app. Survives disk rebuilds.
   public installOfflineApp(app: ClientApp): void {
-    this.cachedApps.push({
+    this.offlineApps.push({
       ...app,
       onStart: () => saveLocalAppRunningState(app.packageName, true),
       onStop: () => saveLocalAppRunningState(app.packageName, false),

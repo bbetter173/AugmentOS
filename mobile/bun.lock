@@ -166,8 +166,9 @@
   "trustedDependencies": [
     "react-native-nitro-modules",
     "esbuild",
-    "react-native-inappbrowser-reborn",
     "@sentry/cli",
+    "@shopify/react-native-skia",
+    "react-native-inappbrowser-reborn",
     "react-native-mmkv",
   ],
   "patchedDependencies": {

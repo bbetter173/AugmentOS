@@ -15,7 +15,7 @@ import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {SplashVideo} from "@/components/splash/SplashVideo"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 // Types
 type ScreenState = "loading" | "connection" | "auth" | "outdated" | "success"

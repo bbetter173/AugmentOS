@@ -6,16 +6,21 @@ import * as TaskManager from "expo-task-manager"
 import {shallow} from "zustand/shallow"
 
 import livekit from "@/services/Livekit"
-import localMiniappRuntime from "@/services/LocalMiniappRuntime"
-import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
-import micStateCoordinator from "@/services/MicStateCoordinator"
+import audioPlaybackService from "@/services/AudioPlaybackService"
 import miniSockets from "@/services/MiniSockets"
-import composer from "@/services/Composer"
+import {requestMiniappSdkPhoto} from "@/services/miniapp/MiniappSdkPhotoHandler"
 import {migrate} from "@/services/Migrations"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
 import {gallerySyncService} from "@/services/asg/gallerySyncService"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
+import {
+  appRegistry,
+  configureRuntime,
+  localMiniappRuntime,
+  localSttFallbackCoordinator,
+  micStateCoordinator,
+} from "island"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore, getGlasesInfoPartial} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
@@ -23,7 +28,7 @@ import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
 import {useCoreStore} from "@/stores/core"
 import udp from "@/services/UdpManager"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {logE2EMetric} from "@/utils/e2eMetrics"
@@ -110,6 +115,48 @@ class MantleManager {
     }
     this.initialized = true
 
+    // Wire host-side adapters into the island runtime. Must run before any
+    // island service that reads settings / glasses status / sockets / audio
+    // (LocalMiniappRuntime, LocalDisplayManager, LocalSttFallbackCoordinator,
+    // DisplayProcessor) is touched.
+    configureRuntime({
+      socketComms: {
+        sendMessage: (message) => socketComms.sendMessage(message as Parameters<typeof socketComms.sendMessage>[0]),
+        updatePhoneSubscriptions: (subs) => socketComms.updatePhoneSubscriptions(subs),
+      },
+      audioPlayback: {
+        play: (request, onComplete) => audioPlaybackService.play(request, onComplete),
+        stopForApp: (packageName) => audioPlaybackService.stopForApp(packageName),
+      },
+      glassesStatus: {
+        get: () => {
+          const s = useGlassesStore.getState()
+          // Spread first, then narrow to the canonical fields the runtime reads
+          // — so the canonical names always win over anything in the host store.
+          return {
+            ...s,
+            connected: s.connected,
+            deviceModel: s.deviceModel,
+            batteryLevel: s.batteryLevel,
+            charging: s.charging,
+          }
+        },
+      },
+      settings: {
+        getSetting: <T = unknown,>(key: string): T | undefined =>
+          useSettingsStore.getState().getSetting(key) as T | undefined,
+        setSetting: (key, value, persistImmediately) =>
+          useSettingsStore.getState().setSetting(key, value, persistImmediately),
+        subscribeKey: (key, onChange) =>
+          useSettingsStore.subscribe(
+            (state) => state.getSetting(key),
+            (value) => onChange(value as never),
+          ),
+      },
+      setDisplayEvent: (event) => useDisplayStore.getState().setDisplayEvent(event),
+      requestMiniappSdkPhoto: (params) => requestMiniappSdkPhoto(params),
+    })
+
     await migrate() // do any local migrations here
     const res = await restComms.loadUserSettings() // get settings from server
     if (res.is_ok()) {
@@ -180,14 +227,16 @@ class MantleManager {
     socketComms.connectWebsocket()
     gallerySyncService.initialize()
 
-    // Initialize Composer (scans Paths.document/lmas/ and populates appletStatusStore)
-    await composer.initialize()
+    // Warm the local miniapp registry by reading lmas/ off disk. Cheap call —
+    // it populates AppRegistry's cache so the first refreshApplets() doesn't
+    // pay the disk-walk cost in the UI thread. The result is also used below
+    // to gate MiniSockets startup.
+    const localApps = await appRegistry.getInstalledMiniapps()
 
     // Initialize local miniapp runtime
     localMiniappRuntime.initialize()
 
     // Start MiniSockets conditionally (only if user has local miniapps)
-    const localApps = await composer.getLocalApplets()
     if (localApps.length > 0) {
       miniSockets.start()
       miniSockets.onTextMessage((clientId, text) => {

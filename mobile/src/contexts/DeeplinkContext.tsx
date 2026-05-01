@@ -7,7 +7,7 @@ import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/Navig
 import {useSplashLoader} from "@/contexts/SplashLoaderProvider"
 import {useAppletStatusStore} from "@/stores/applets"
 import mentraAuth from "@/utils/auth/authClient"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 /** Returns immediately if the app is already active, otherwise waits for it. */
 const waitForActive = (): Promise<void> => {

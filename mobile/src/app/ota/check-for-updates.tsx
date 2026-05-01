@@ -11,7 +11,7 @@ import {checkForOtaUpdate, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecke
 import {translate} from "@/i18n/translate"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 type CheckState = "checking" | "update_available" | "no_update" | "error"
 

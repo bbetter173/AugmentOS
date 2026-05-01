@@ -171,6 +171,7 @@
       "name": "island",
       "version": "0.1.0",
       "dependencies": {
+        "@types/semver": "^7.7.1",
         "typesafe-ts": "^1.7.1",
       },
       "devDependencies": {
@@ -179,9 +180,18 @@
       "peerDependencies": {
         "@types/react": "*",
         "expo": "*",
+        "expo-battery": "*",
+        "expo-clipboard": "*",
+        "expo-file-system": "*",
+        "expo-location": "*",
         "react": "*",
         "react-native": "*",
         "react-native-mmkv": "*",
+        "react-native-nitro-bg-timer": "*",
+        "react-native-share": "*",
+        "react-native-zip-archive": "*",
+        "semver": "*",
+        "zustand": "*",
       },
     },
   },

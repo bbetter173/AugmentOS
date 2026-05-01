@@ -9,7 +9,7 @@ import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import CoreModule, {TouchEvent} from "core"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 function Tag({icon, label, bg}: {icon: string; label: string; bg: string}) {
   const {theme} = useAppTheme()

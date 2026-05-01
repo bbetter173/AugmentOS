@@ -16,7 +16,7 @@ import {PhotoInfo, CaptureGroup} from "@/types/asg"
 import {showAlert} from "@/utils/AlertUtils"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissions"
 
 import {translate} from "@/i18n"

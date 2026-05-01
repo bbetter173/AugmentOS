@@ -7,9 +7,9 @@ import LeftEdgeBackSwipe from "@/components/miniapp/LeftEdgeBackSwipe"
 import MiniappSplash from "@/components/miniapp/MiniappSplash"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import devServerBridge from "@/services/DevServerBridge"
-import localDisplayManager from "@/services/LocalDisplayManager"
-import localMiniappRuntime from "@/services/LocalMiniappRuntime"
+import {devServerBridge} from "island"
+import {localDisplayManager} from "island"
+import {localMiniappRuntime} from "island"
 import {webviewBridge as miniComms, miniappRunningRegistry, buildMiniappGlobalsScript} from "island"
 
 const BEFORE_EVICT_TIMEOUT_MS = 500
@@ -53,7 +53,7 @@ type MiniappMountOptions = {
    * the declared permissions, so we have to register the manifest with
    * the runtime before the bundle does its first SUBSCRIBE. Dev mounts
    * fetch this from the live server inside mountDev; installed mounts
-   * pass it in here (the route loads it via composer.getMiniappManifest).
+   * pass it in here (the route loads it via appRegistry.getMiniappManifest).
    */
   manifest?: MountDevManifest
 }

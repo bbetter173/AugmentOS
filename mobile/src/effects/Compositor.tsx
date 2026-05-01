@@ -2,8 +2,8 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 import {Platform, View} from "react-native"
 import {WebView} from "react-native-webview"
 import {useLocalMiniApps} from "@/stores/applets"
-import composer from "@/services/Composer"
-import localMiniappRuntime from "@/services/LocalMiniappRuntime"
+import {appRegistry} from "island"
+import {localMiniappRuntime} from "island"
 import {usePathname} from "expo-router"
 import {Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
@@ -108,7 +108,7 @@ function Compositor() {
           console.error("COMPOSITOR: Local mini app has no version", lma.packageName)
           return null
         }
-        const htmlRes = composer.getLocalMiniAppHtml(lma.packageName, lma.version)
+        const htmlRes = appRegistry.getMiniappHtml(lma.packageName, lma.version)
         if (htmlRes.is_ok()) {
           return {packageName: lma.packageName, html: htmlRes.value, running: lma.running}
         }

@@ -1,6 +1,6 @@
 import {createAudioPlayer, AudioPlayer, AudioStatus, setAudioModeAsync} from "expo-audio"
 import CoreModule from "core"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 interface AudioPlayRequest {
   requestId: string

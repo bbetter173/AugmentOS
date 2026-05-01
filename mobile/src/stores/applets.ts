@@ -19,33 +19,26 @@ import restComms from "@/services/RestComms"
 import STTModelManager from "@/services/STTModelManager"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {showAlert} from "@/contexts/ModalContext"
-import {CompatibilityResult, HardwareCompatibility} from "@/utils/hardware"
-import {BgTimer} from "@/utils/timers"
+import {
+  appRegistry,
+  BgTimer,
+  decideDevLaunchRoute,
+  HardwareCompatibility,
+  miniappRunningRegistry,
+  type ClientApp,
+} from "island"
 import {storage} from "@/utils/storage"
 import {useShallow} from "zustand/react/shallow"
-import composer from "@/services/Composer"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
-import {miniappRunningRegistry, decideDevLaunchRoute} from "island"
 import {getDefaultMenuApps, GlassesMenuItem} from "@/utils/glassesMenu"
 
-export interface ClientAppletInterface extends AppletInterface {
-  offline: boolean
-  offlineRoute: string
-  compatibility?: CompatibilityResult
-  loading: boolean
-  local: boolean
-  hidden: boolean
-  onStart?: () => AsyncResult<void, Error>
-  onStop?: () => AsyncResult<void, Error>
-  screenshot?: string
-  runtimePermissions?: string[]
-  declaredPermissions?: string[]
-  version?: string
-  needsPcm?: boolean
-  needsTranscript?: boolean
-  devUrl?: string
-  isMiniappDev?: boolean
-}
+/**
+ * Mobile-side alias of island's `ClientApp`. Kept as the canonical name across
+ * the manager codebase (40+ consumers) so the rename to ClientApp is a
+ * one-import change for them. New code should import `ClientApp` from "island"
+ * directly.
+ */
+export type ClientAppletInterface = ClientApp
 
 interface AppStatusState {
   apps: ClientAppletInterface[]
@@ -133,43 +126,23 @@ export const uninstallAppUI = async (clientApp: ClientAppletInterface) => {
   }
 }
 
-export const saveLocalAppRunningState = (packageName: string, status: boolean): AsyncResult<void, Error> => {
-  return Res.try_async(async () => {
-    await storage.save(`${packageName}_running`, status)
-    return undefined
-  })
+export const saveLocalAppRunningState = (packageName: string, status: boolean): void => {
+  storage.save(`${packageName}_running`, status)
 }
 
-export const saveLastOpenTime = (packageName: string): AsyncResult<void, Error> => {
-  return Res.try_async(async () => {
-    await storage.save(`${packageName}_last_open_time`, Date.now())
-    return undefined
-  })
+export const saveLastOpenTime = (packageName: string): void => {
+  storage.save(`${packageName}_last_open_time`, Date.now())
 }
 
-export const getLastOpenTime = (packageName: string): AsyncResult<number, Error> => {
-  return Res.try_async(async () => {
-    const lastOpenTime = await storage.load<number>(`${packageName}_last_open_time`)
-    if (lastOpenTime.is_ok()) {
-      return lastOpenTime.value
-    }
-    return 0
-  })
+export const getLastOpenTime = (packageName: string): number => {
+  const res = storage.load<number>(`${packageName}_last_open_time`)
+  if (res.is_ok()) return res.value
+  return 0
 }
 
 export const sortAppsByLastOpenTime = async <T extends {packageName: string}>(apps: T[]): Promise<T[]> => {
-  const timestamps = await Promise.all(
-    apps.map(async (app) => ({
-      app,
-      time: await getLastOpenTime(app.packageName),
-    })),
-  )
-  return timestamps
-    .sort((a, b) => {
-      if (a.time.is_error() || b.time.is_error()) return 0
-      return a.time.value - b.time.value
-    })
-    .map((entry) => entry.app)
+  const timestamps = apps.map((app) => ({app, time: getLastOpenTime(app.packageName)}))
+  return timestamps.sort((a, b) => a.time - b.time).map((entry) => entry.app)
 }
 
 export type OrderMap = Record<string, number>
@@ -237,21 +210,13 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
         {type: HardwareType.CAMERA, level: HardwareRequirementLevel.REQUIRED},
         {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
       ],
-      onStart: (): AsyncResult<void, Error> => {
-        return Res.try_async(async () => {
-          await storage.save(`${cameraPackageName}_running`, true)
-          // tell the core:
-          await useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, true)
-          return undefined
-        })
+      onStart: () => {
+        storage.save(`${cameraPackageName}_running`, true)
+        useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, true)
       },
-      onStop: (): AsyncResult<void, Error> => {
-        return Res.try_async(async () => {
-          await storage.save(`${cameraPackageName}_running`, false)
-          // tell the core:
-          await useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, false)
-          return undefined
-        })
+      onStop: () => {
+        storage.save(`${cameraPackageName}_running`, false)
+        useSettingsStore.getState().setSetting(SETTINGS.offline_camera_running.key, false)
       },
     },
     {
@@ -274,19 +239,17 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
         {type: HardwareType.DISPLAY, level: HardwareRequirementLevel.REQUIRED},
         {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
       ],
-      onStart: (): AsyncResult<void, Error> => {
-        return Res.try_async(async () => {
+      onStart: () => {
+        void (async () => {
           const modelAvailable = await STTModelManager.isModelAvailable()
           if (modelAvailable) {
-            await storage.save(`${captionsPackageName}_running`, true)
-            // ensure transcriber is initialized with the current model:
+            storage.save(`${captionsPackageName}_running`, true)
             await CoreModule.restartTranscriber()
-            // tell the core:
-            await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
-            return undefined
+            useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
+            return
           }
 
-          let result = await showAlert({
+          const result = await showAlert({
             title: translate("transcription:noModelInstalled"),
             message: translate("transcription:noModelInstalledMessage"),
             buttons: [
@@ -298,17 +261,11 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
           if (result === 1) {
             push("/miniapps/settings/transcription")
           }
-
-          throw new Error("No model available")
-        })
+        })()
       },
-      onStop: (): AsyncResult<void, Error> => {
-        return Res.try_async(async () => {
-          await storage.save(`${captionsPackageName}_running`, false)
-          // tell the core:
-          await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
-          return undefined
-        })
+      onStop: () => {
+        storage.save(`${captionsPackageName}_running`, false)
+        useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
       },
     },
     {
@@ -331,38 +288,13 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
         {type: HardwareType.DISPLAY, level: HardwareRequirementLevel.REQUIRED},
         {type: HardwareType.EXIST, level: HardwareRequirementLevel.REQUIRED},
       ],
-      onStart: (): AsyncResult<void, Error> => {
-        return Res.try_async(async () => {
-          // const modelAvailable = await STTModelManager.isModelAvailable()
-          // if (modelAvailable) {
-          //   await storage.save(`${captionsPackageName}_running`, true)
-          //   // ensure transcriber is initialized with the current model:
-          //   await CoreModule.restartTranscriber()
-          //   // tell the core:
-          //   await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, true)
-          //   return undefined
-          // }
-          // let result = await showAlert({
-          //   title: translate("transcription:noModelInstalled"),
-          //   message: translate("transcription:noModelInstalledMessage"),
-          //   buttons: [
-          //     {text: translate("common:cancel"), style: "cancel"},
-          //     {text: translate("transcription:goToSettings"), style: "default"},
-          //   ],
-          // })
-          // if (result === 1) {
-          //   push("/miniapps/settings/transcription")
-          // }
-          // throw new Error("No model available")
-        })
+      onStart: () => {
+        // notify start has no body yet — see the captions onStart for the
+        // pattern when this needs to gate on model availability.
       },
-      onStop: (): AsyncResult<void, Error> => {
-        return Res.try_async(async () => {
-          await storage.save(`${captionsPackageName}_running`, false)
-          // tell the core:
-          await useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
-          return undefined
-        })
+      onStop: () => {
+        storage.save(`${captionsPackageName}_running`, false)
+        useSettingsStore.getState().setSetting(SETTINGS.offline_captions_running.key, false)
       },
     },
     {
@@ -479,21 +411,19 @@ const getOfflineApplets = async (): Promise<ClientAppletInterface[]> => {
 }
 
 const startStopOfflineApplet = (applet: ClientAppletInterface, status: boolean): AsyncResult<void, Error> => {
-  // await useSettingsStore.getState().setSetting(packageName, status)
   return Res.try_async(async () => {
     if (!status && applet.onStop) {
-      const result = await applet.onStop()
-      if (result.is_error()) {
-        console.log(`APPLET: Failed to stop applet onStop() for ${applet.packageName}: ${result.error}`)
-        return
+      try {
+        applet.onStop()
+      } catch (e) {
+        console.log(`APPLET: onStop() threw for ${applet.packageName}:`, e)
       }
     }
-
     if (status && applet.onStart) {
-      const result = await applet.onStart()
-      if (result.is_error()) {
-        console.log(`APPLET: Failed to start applet onStart() for ${applet.packageName}: ${result.error}`)
-        return
+      try {
+        applet.onStart()
+      } catch (e) {
+        console.log(`APPLET: onStart() threw for ${applet.packageName}:`, e)
       }
     }
   })
@@ -509,7 +439,6 @@ const startStopApplet = (applet: ClientAppletInterface, status: boolean): AsyncR
   }
 
   if (applet.local) {
-    // return composer.startStop(applet, status)
     return startStopOfflineApplet(applet, status)
   }
 
@@ -620,13 +549,13 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       }))
     }
 
-    // Dev miniapps come from composer.getLocalApplets() — their dev-<ts>
+    // Dev miniapps come from appRegistry.getInstalledMiniapps() — their dev-<ts>
     // version directory IS the persistence (see miniapp-dev-applets-as-installed-apps-plan.md).
     // No parallel devApplets merge.
     let applets: ClientAppletInterface[] = [
       ...onlineApps,
       ...(await getOfflineApplets()),
-      ...(await composer.getLocalApplets()),
+      ...(await appRegistry.getInstalledMiniapps()),
     ]
 
     // remove duplicates and keep the online versions:
@@ -891,8 +820,8 @@ export const useAppletStatusStore = create<AppStatusState>((set, get) => ({
       // Dev miniapps live entirely on-device: delete the lmas/<pkg>/ tree
       // (this also wipes any dev-* caches inside it) plus the MMKV keys.
       // The cloud has no knowledge of dev miniapps, so no restComms call.
-      // composer.uninstallMiniApp already sets refreshNeeded internally.
-      const res = await composer.uninstallMiniApp(packageName)
+      // appRegistry.uninstall fires a refresh notification internally.
+      const res = await appRegistry.uninstall(packageName)
       if (res.is_error()) {
         console.error(`Failed to uninstall dev miniapp ${packageName}:`, res.error)
       }

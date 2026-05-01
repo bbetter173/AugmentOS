@@ -10,7 +10,7 @@ import {WebSocketStatus} from "@/services/WebSocketManager"
 import {useRefreshApplets} from "@/stores/applets"
 import {useConnectionStore} from "@/stores/connection"
 import {ThemedStyle} from "@/theme"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 export default function CloudConnection() {
   const connectionStatus = useConnectionStore((state) => state.status)

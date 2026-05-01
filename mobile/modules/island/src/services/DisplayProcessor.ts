@@ -21,16 +21,15 @@ import {
   NEX_PROFILE,
   TextMeasurer,
   TextWrapper,
-  DisplayHelpers,
   ColumnComposer,
   type DisplayProfile,
   type WrapOptions,
   type BreakMode,
-} from "@mentra/display-utils"
+} from "../utils/display"
 
-import {useGlassesStore} from "@/stores/glasses"
-import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import CoreModule, {GlassesStatus} from "core"
+
+import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 
 // =============================================================================
 // Types
@@ -153,11 +152,11 @@ function getPlaceholderValues(): PlaceholderValues {
   const DATE = `${month}/${day}`
 
   // Get battery level from glasses store
-  const batteryLevel = useGlassesStore.getState().batteryLevel
+  const batteryLevel = getRuntimeHooks().glassesStatus?.get().batteryLevel ?? -1
   const GBATT = batteryLevel === -1 ? "" : `${batteryLevel}%`
 
   // Connection status
-  const connected = useGlassesStore.getState().connected
+  const connected = getRuntimeHooks().glassesStatus?.get().connected ?? false
   const CONNECTION_STATUS = connected ? "Connected" : ""
 
   return {TIME12, TIME24, DATE, GBATT, CONNECTION_STATUS}
@@ -260,7 +259,6 @@ export class DisplayProcessor {
 
   private measurer: TextMeasurer
   private wrapper: TextWrapper
-  private helpers: DisplayHelpers
   private composer: ColumnComposer
   private profile: DisplayProfile
   private deviceModel: DeviceModel = "unknown"
@@ -280,12 +278,11 @@ export class DisplayProcessor {
 
     this.measurer = toolkit.measurer
     this.wrapper = toolkit.wrapper
-    this.helpers = toolkit.helpers
     this.composer = new ColumnComposer(toolkit.profile, this.options.breakMode)
     this.profile = toolkit.profile
 
     // initialize with default wearable
-    const defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
+    const defaultWearable = getRuntimeHooks().settings?.getSetting(ISLAND_SETTINGS_KEYS.defaultWearable) as string | undefined
     if (defaultWearable) {
       this.setDeviceModel(defaultWearable)
       console.log(`DISPLAY_PROCESSOR: Initialized DisplayProcessor with default wearable: ${defaultWearable}`)
@@ -355,7 +352,6 @@ export class DisplayProcessor {
 
     this.measurer = toolkit.measurer
     this.wrapper = toolkit.wrapper
-    this.helpers = toolkit.helpers
     this.composer = new ColumnComposer(newProfile, this.options.breakMode)
     this.profile = toolkit.profile
 

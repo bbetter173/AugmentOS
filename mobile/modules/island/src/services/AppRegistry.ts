@@ -1,13 +1,31 @@
-import {ClientAppletInterface, saveLocalAppRunningState, useAppletStatusStore} from "@/stores/applets"
-import {miniappRunningRegistry} from "island"
-import {storage} from "@/utils/storage/storage"
-import {printDirectory} from "@/utils/storage/zip"
+/**
+ * AppRegistry — on-disk install/uninstall registry for local miniapps.
+ *
+ * Owns the `Documents/lmas/<packageName>/<version>/` filesystem layout, the
+ * download/unzip pipeline, and the active-version pointer in MMKV. It does
+ * NOT touch the apps store directly — instead it notifies subscribers when
+ * the install set changes, so the host (mobile manager, OEM app) can refresh
+ * its own state.
+ *
+ * Public surface:
+ *   - installFromUrl(url, opts?)            install/replace a miniapp from a URL
+ *   - uninstall(packageName, version?)      remove one or all versions
+ *   - getInstalledMiniapps()                ClientApp[] derived from disk
+ *   - getActiveVersion(packageName)         active version string for a package
+ *   - getBundleDir / getMiniappManifest     filesystem helpers used by hosts
+ *   - subscribe(fn)                         register a refresh listener
+ */
+
 import {Directory, Paths, File} from "expo-file-system"
 import {unzip} from "react-native-zip-archive"
-import {AsyncResult, Result, result as Res} from "typesafe-ts"
 import semver from "semver"
-import type {AppletPermission, AppPermissionType} from "@/../../cloud/packages/types/src"
-import {HardwareRequirement, HardwareRequirementLevel, HardwareType} from "@/../../cloud/packages/types/src"
+import {AsyncResult, Result, result as Res} from "typesafe-ts"
+
+import type {AppletPermission, AppPermissionType, ClientApp} from "../types/applet"
+import {HardwareRequirement, HardwareRequirementLevel, HardwareType} from "../types"
+import {storage} from "../utils/storage/storage"
+import {printDirectory} from "../utils/storage/zip"
+import {miniappRunningRegistry} from "./MiniappRunningRegistry"
 
 const ALLOWED_PERMISSION_TYPES: ReadonlySet<AppPermissionType> = new Set<AppPermissionType>([
   "MICROPHONE",
@@ -18,10 +36,6 @@ const ALLOWED_PERMISSION_TYPES: ReadonlySet<AppPermissionType> = new Set<AppPerm
   "READ_NOTIFICATIONS",
   "POST_NOTIFICATIONS",
 ])
-export interface LmaPermission {
-  type: string
-  description: string
-}
 
 /**
  * Normalize the `permissions` field from a miniapp.json manifest.
@@ -53,13 +67,12 @@ export function normalizeManifestPermissions(
 }
 
 /**
- * Convert declared hardwareRequirements from a miniapp.json manifest into the
- * runtime `HardwareRequirement[]` shape, and always append `{EXIST, REQUIRED}`
- * so the launcher shows "Glasses Required" for local miniapps when no glasses
- * are connected (matches cloud behavior at refreshApplets for remote apps).
+ * Convert declared hardwareRequirements from a miniapp.json manifest into
+ * runtime `HardwareRequirement[]`, always appending `{EXIST, REQUIRED}` so
+ * launchers show "Glasses Required" when no glasses are connected.
  *
- * Malformed entries are dropped with a single warning per package so the rest
- * of the manifest still works.
+ * Malformed entries are dropped with a single warning per package so the
+ * rest of the manifest still works.
  */
 export function buildHardwareRequirements(
   raw: Array<{type: string; level: string; description?: string}> | undefined,
@@ -71,9 +84,7 @@ export function buildHardwareRequirements(
 
   if (!Array.isArray(raw)) {
     if (raw !== undefined) {
-      console.warn(
-        `COMPOSER: ${packageName} has invalid hardwareRequirements (not an array); treating as []`,
-      )
+      console.warn(`APP_REGISTRY: ${packageName} has invalid hardwareRequirements (not an array); treating as []`)
     }
   } else {
     let warned = false
@@ -88,7 +99,7 @@ export function buildHardwareRequirements(
       ) {
         if (!warned) {
           console.warn(
-            `COMPOSER: ${packageName} has malformed hardwareRequirements entry; skipping invalid entries`,
+            `APP_REGISTRY: ${packageName} has malformed hardwareRequirements entry; skipping invalid entries`,
             r,
           )
           warned = true
@@ -109,7 +120,6 @@ export function buildHardwareRequirements(
 }
 
 interface InstalledInfo {
-  // version: string
   name: string
   logoUrl: string
 }
@@ -123,15 +133,13 @@ interface InstalledLma {
  * Download a miniapp zip from `url`, unpack it, and install it under
  * `lmas/<packageName>/<version>/`.
  *
- * The zip is expected to be flat (files at root, no enclosing folder)
- * with `miniapp.json` at the top level. We're strict on shape so we
- * fail loudly on malformed bundles instead of silently installing
- * something broken.
+ * Zip layout: flat — files at root, `miniapp.json` at the top level. We're
+ * strict on shape so we fail loudly on malformed bundles.
  *
- * @param versionOverride  override the manifest's version field. Used by
- *                         the dev miniapp caching path which stamps
- *                         `dev-<timestamp>` so multiple snapshots can
- *                         coexist alongside semver-installed versions.
+ * @param versionOverride  override the manifest's version field. Used by the
+ *                         dev miniapp caching path which stamps `dev-<ms>`
+ *                         so multiple snapshots can coexist alongside
+ *                         semver-installed versions.
  */
 async function downloadAndInstallMiniApp(
   url: string,
@@ -139,7 +147,6 @@ async function downloadAndInstallMiniApp(
 ): Promise<{packageName: string; version: string}> {
   let downloadedZipPath: string = ""
 
-  // create the download directory if it doesn't exist
   const downloadDir = new Directory(Paths.cache, "lma_downloads")
   try {
     if (!downloadDir.exists) {
@@ -155,7 +162,6 @@ async function downloadAndInstallMiniApp(
   // collide on the cache filename. Without this delete, a stale dev-snapshot
   // (containing the project source tree) gets unzipped instead of the
   // release build → white screen because index.html points at TSX files.
-  // The download is fast (LAN), no benefit to caching by filename.
   const targetFileName = url.split("/").pop() ?? "bundle.zip"
   const existingFile = new File(downloadDir, targetFileName)
   if (existingFile.exists) {
@@ -193,10 +199,9 @@ async function downloadAndInstallMiniApp(
     throw "UNZIP_FAILED"
   }
 
-  // Strict zip shape: miniapp.json must be at the unzip root. No tolerance
-  // for an enclosing folder or app.json fallback — we own the dev-server
-  // emit format (flat zip, miniapp.json at root) so any deviation indicates
-  // a corrupt bundle that we should refuse rather than half-install.
+  // Strict zip shape: miniapp.json at unzip root. No tolerance for an
+  // enclosing folder or app.json fallback — we own the dev-server emit
+  // format, so any deviation indicates a corrupt bundle.
   const appDir = unzipDir
   let packageName: string
   let manifestVersion: string
@@ -215,8 +220,6 @@ async function downloadAndInstallMiniApp(
   const version = versionOverride ?? manifestVersion
   console.log(`ZIP: installing ${packageName} as version ${version}`)
 
-  // move the contents of this folder to Documents/lmas/<version>/<packageName>
-
   const basePackageDir = new Directory(Paths.document, "lmas", packageName)
   try {
     if (!basePackageDir.exists) {
@@ -227,13 +230,11 @@ async function downloadAndInstallMiniApp(
     throw "CREATE_PACKAGE_DIR_FAILED"
   }
 
-  // create the version directory
   const versionDir = new Directory(basePackageDir, version)
   try {
     if (!versionDir.exists) {
       versionDir.create()
     } else {
-      // delete the directory, then create it
       versionDir.delete()
       versionDir.create()
     }
@@ -242,7 +243,6 @@ async function downloadAndInstallMiniApp(
     throw "CREATE_VERSION_DIR_FAILED"
   }
 
-  // move the contents of the folder to the destination directory
   try {
     const contents = appDir.list()
     for (const item of contents) {
@@ -258,38 +258,44 @@ async function downloadAndInstallMiniApp(
   return {packageName, version}
 }
 
-class Composer {
-  private installedLmas: ClientAppletInterface[] = []
-  private refreshNeeded: boolean = false
-  private pcmSub: any = null
+type Listener = () => void
 
-  private static instance: Composer | null = null
-  private constructor() {
-    this.initialize()
-  }
+class AppRegistry {
+  private cachedApps: ClientApp[] = []
+  private refreshNeeded: boolean = true
+  private listeners = new Set<Listener>()
 
-  public static getInstance(): Composer {
-    if (!Composer.instance) {
-      Composer.instance = new Composer()
+  private static instance: AppRegistry | null = null
+
+  private constructor() {}
+
+  public static getInstance(): AppRegistry {
+    if (!AppRegistry.instance) {
+      AppRegistry.instance = new AppRegistry()
     }
-    return Composer.instance
+    return AppRegistry.instance
   }
 
-  // read local storage to find which mini apps are installed and running
-  // if any mini app needs online or offlline transcriptions, we need to feed them the necessary data
-  public async initialize() {
-    // Scan Paths.document/lmas/ and populate appletStatusStore with installed miniapps.
-    // Called explicitly from MantleManager.init() on every app launch.
-    try {
-      const applets = await this.getLocalApplets()
-      console.log(`COMPOSER: initialize() found ${applets.length} installed miniapps`)
-    } catch (error) {
-      console.error("COMPOSER: initialize() error:", error)
+  /** Subscribe to install/uninstall events. Listener fires after refreshNeeded flips. */
+  public subscribe(fn: Listener): () => void {
+    this.listeners.add(fn)
+    return () => {
+      this.listeners.delete(fn)
+    }
+  }
+
+  private notify(): void {
+    for (const fn of this.listeners) {
+      try {
+        fn()
+      } catch (e) {
+        console.warn("AppRegistry: listener threw", e)
+      }
     }
   }
 
   /**
-   * Returns the on-disk path for a given miniapp bundle version.
+   * On-disk path for a given miniapp bundle version.
    */
   public getBundleDir(packageName: string, version: string): string {
     return `${Paths.document.uri}/lmas/${packageName}/${version}`
@@ -307,7 +313,7 @@ class Composer {
         return JSON.parse(miniappJsonFile.textSync())
       }
     } catch (e) {
-      console.warn("COMPOSER: Error reading miniapp.json, trying app.json fallback", e)
+      console.warn("AppRegistry: Error reading miniapp.json, trying app.json fallback", e)
     }
     try {
       const appJsonFile = new File(bundleDir, "app.json")
@@ -315,52 +321,66 @@ class Composer {
         return JSON.parse(appJsonFile.textSync())
       }
     } catch (e) {
-      console.warn("COMPOSER: Error reading app.json fallback", e)
+      console.warn("AppRegistry: Error reading app.json fallback", e)
     }
     return null
   }
 
   /**
-   * Alias for installMiniApp — download and install a miniapp bundle from a URL.
+   * Download and install a miniapp bundle from a URL. The URL must serve a
+   * zip whose root contains `miniapp.json` plus the bundle entry files.
+   *
+   * @param opts.versionOverride  if set, install under this version instead
+   *   of `manifest.version`. The dev caching path uses `dev-<ms>` so multiple
+   *   snapshots can coexist alongside semver-installed versions.
    */
-  public installFromUrl(url: string): AsyncResult<void, Error> {
-    return this.installMiniApp(url)
-  }
-
-  // download the mini app from the url and unzip it to the app's cache directory/lma/<packageName>
-  public installMiniApp(
-    url: string,
-    opts?: {versionOverride?: string},
-  ): AsyncResult<void, Error> {
+  public installFromUrl(url: string, opts?: {versionOverride?: string}): AsyncResult<void, Error> {
     return Res.try_async(async () => {
       const {packageName, version} = await downloadAndInstallMiniApp(url, opts?.versionOverride)
-      console.log("COMPOSER: Downloaded and installed mini app")
+      console.log("APP_REGISTRY: Downloaded and installed mini app")
 
       // If this is a release install (semver, not dev-*) of a package that
-      // currently has dev-* snapshots from `mentra-miniapp dev`, clear the
-      // dev state so the swap to "released" is clean. Otherwise the dev
-      // version would keep winning getActiveAppletVersion's dev-precedence
-      // rule and the user's just-installed release wouldn't run.
+      // currently has dev-* snapshots, clear the dev state so the swap to
+      // "released" is clean. Otherwise the dev version would keep winning
+      // getActiveVersion's dev-precedence rule and the just-installed
+      // release wouldn't run.
       const isDevInstall = version.startsWith("dev-")
       if (!isDevInstall) {
         this.clearDevArtifacts(packageName)
       }
 
-      // Point the active-version MMKV at what we just installed. Without
-      // this, getActiveAppletVersion would keep returning whatever first
-      // ever got cached — and after gcDevVersions deletes that older dir,
-      // metadata reads (line 547) would crash on undefined.
-      this.setActiveAppletVersion(packageName, version)
+      this.setActiveVersion(packageName, version)
       this.refreshNeeded = true
-      await useAppletStatusStore.getState().refreshApplets()
+      this.notify()
+    })
+  }
+
+  public installFromJsonUrl(baseUrl: string): AsyncResult<{packageName: string, version: string, name: string}, Error> {
+    return Res.try_async(async () => {
+      const trimmed = baseUrl.replace(/\/$/, "")
+  
+      const manifestRes = await fetch(`${trimmed}/miniapp.json`)
+      if (!manifestRes.ok) {
+        throw new Error(`Failed to fetch miniapp.json: ${manifestRes.status}`)
+      }
+      const manifest = (await manifestRes.json()) as Record<string, unknown>
+      const packageName = manifest.packageName as string | undefined
+      const version = manifest.version as string | undefined
+      const name = (manifest.name as string | undefined) ?? packageName ?? "Mini app"
+      if (!packageName) throw new Error("miniapp.json missing packageName")
+      if (!version) throw new Error("miniapp.json missing version")
+  
+      const installRes = await appRegistry.installFromUrl(`${trimmed}/bundle.zip`)
+      if (installRes.is_error()) throw installRes.error
+  
+      return {packageName, version, name}
     })
   }
 
   /**
-   * Drop every dev-* version directory for a package plus the dev MMKV
-   * keys. Called on a release install (sideloaded via `mentra-miniapp
-   * install` or store) so the package transitions cleanly from "dev mode"
-   * to "released mode."
+   * Drop every dev-* version directory for a package plus the dev MMKV keys.
+   * Called on a release install so the package transitions cleanly from
+   * "dev mode" to "released mode."
    */
   private clearDevArtifacts(packageName: string): void {
     try {
@@ -371,13 +391,13 @@ class Composer {
             try {
               item.delete()
             } catch (e) {
-              console.warn(`COMPOSER: failed to delete ${item.name}:`, e)
+              console.warn(`APP_REGISTRY: failed to delete ${item.name}:`, e)
             }
           }
         }
       }
     } catch (e) {
-      console.warn(`COMPOSER: clearDevArtifacts dir scan failed for ${packageName}:`, e)
+      console.warn(`APP_REGISTRY: clearDevArtifacts dir scan failed for ${packageName}:`, e)
     }
     storage.remove(`${packageName}_dev_url`)
     storage.remove(`${packageName}_dev_port`)
@@ -403,179 +423,149 @@ class Composer {
         try {
           dirs[i].delete()
         } catch (e) {
-          console.warn(`COMPOSER: failed to delete ${dirs[i].name}:`, e)
+          console.warn(`APP_REGISTRY: failed to delete ${dirs[i].name}:`, e)
         }
       }
       if (dirs.length > keep) this.refreshNeeded = true
     } catch (e) {
-      console.warn(`COMPOSER: gcDevVersions error for ${packageName}:`, e)
+      console.warn(`APP_REGISTRY: gcDevVersions error for ${packageName}:`, e)
     }
   }
 
-  public uninstallMiniApp(packageName: string, version?: string): AsyncResult<void, Error> {
+  public uninstall(packageName: string, version?: string): AsyncResult<void, Error> {
     return Res.try_async(async () => {
       if (version) {
         const lmaDir = new Directory(Paths.document, "lmas", packageName, version)
         lmaDir.delete()
-        console.log("COMPOSER: Uninstalled mini app version", version)
-        // when uninstalling a version, if we have no versions left, delete the package directory:
+        console.log("APP_REGISTRY: Uninstalled mini app version", version)
         const packageDir = new Directory(Paths.document, "lmas", packageName)
         if (packageDir.exists && packageDir.list().length === 0) {
           packageDir.delete()
         }
       } else {
-        // No version specified — remove all versions (entire package directory)
         const packageDir = new Directory(Paths.document, "lmas", packageName)
         if (packageDir.exists) {
           packageDir.delete()
         }
-        console.log("COMPOSER: Uninstalled all versions of mini app", packageName)
+        console.log("APP_REGISTRY: Uninstalled all versions of mini app", packageName)
       }
       this.refreshNeeded = true
-      await useAppletStatusStore.getState().refreshApplets()
+      this.notify()
     })
   }
 
   public getPackageNames(): string[] {
     try {
       const lmasDir = new Directory(Paths.document, "lmas")
-      if (!lmasDir.exists) {
-        // console.log("COMPOSER: No lmas directory found, returning empty array")
-        return []
-      }
+      if (!lmasDir.exists) return []
       let lmas = lmasDir.list()
-      // keep only package directories that contain at least one version directory/file
       lmas = lmas.filter((lma): lma is Directory => lma instanceof Directory && lma.list().length > 0)
       return lmas.map((lma) => lma.name)
     } catch (error) {
-      console.error("COMPOSER: Error getting locally installed package names", error)
+      console.error("APP_REGISTRY: Error getting locally installed package names", error)
       return []
     }
   }
 
-  public getAppletInstalledVersions(packageName: string): string[] {
+  public getInstalledVersions(packageName: string): string[] {
     try {
       const lmaDir = new Directory(Paths.document, "lmas", packageName)
       const lma = lmaDir.list()
-      console.log("COMPOSER: Local applet", lma)
       return lma.map((lma) => lma.name)
     } catch (error) {
-      console.error("COMPOSER: Error getting local applet versions", error)
+      console.error("APP_REGISTRY: Error getting local applet versions", error)
       return []
     }
   }
 
-  public async getActiveAppletVersion(packageName: string): Promise<string> {
-    let versions = this.getAppletInstalledVersions(packageName)
+  public async getActiveVersion(packageName: string): Promise<string> {
+    let versions = this.getInstalledVersions(packageName)
     // Treat MMKV as a hint, not authority. A stored version may have been
-    // GC'd off disk (gcDevVersions) without this pointer being updated, in
-    // which case `installedVersions` no longer contains it. Fall through and
-    // re-pick instead of letting downstream code crash on `undefined`
-    // metadata when the directory has been pruned.
+    // GC'd off disk without this pointer being updated.
     let res = storage.load<string>(`${packageName}_active_version`)
     if (res.is_ok() && versions.includes(res.value)) {
       return res.value
     }
-    // if no valid active version is set, set it to the latest version:
-    // Dev versions take precedence over semver-installed versions — re-scanning
-    // a dev miniapp replaces the package directory entirely in practice, so
-    // having both side-by-side is unusual, but if it happens dev wins. Pick
-    // the newest dev-* by lexicographic sort (timestamp suffix).
+    // Dev versions take precedence over semver-installed versions.
     const devVersions = versions
       .filter((v) => v.startsWith("dev-"))
       .sort()
       .reverse()
     if (devVersions.length > 0) {
-      await this.setActiveAppletVersion(packageName, devVersions[0])
+      this.setActiveVersion(packageName, devVersions[0])
       return devVersions[0]
     }
-    // No dev versions — semver path. Filter out any non-semver entries to be safe.
     versions = versions.filter((v) => semver.valid(v))
     versions.sort((a, b) => semver.rcompare(a, b))
-    await this.setActiveAppletVersion(packageName, versions[0])
+    this.setActiveVersion(packageName, versions[0])
     return versions[0]
   }
 
-  public setActiveAppletVersion(packageName: string, version: string): Result<void, Error> {
+  public setActiveVersion(packageName: string, version: string): Result<void, Error> {
     return storage.save(`${packageName}_active_version`, version)
   }
 
-  public getAppletMetadata(packageName: string, version: string): InstalledInfo {
+  public getMetadata(packageName: string, version: string): InstalledInfo {
     try {
       const lmaDir = new Directory(Paths.document, "lmas", packageName, version)
-      // Read miniapp.json (the new manifest filename). app.json was the old
-      // name; greenfield, no need to fall back.
       const miniappJsonFile = new File(lmaDir, "miniapp.json")
       const manifest = JSON.parse(miniappJsonFile.textSync())
       const logoUrl = new File(lmaDir, "icon.png").uri
       return {name: manifest.name, logoUrl: logoUrl}
     } catch (error) {
-      console.error("COMPOSER: Error getting local miniapp metadata", error)
+      console.error("APP_REGISTRY: Error getting local miniapp metadata", error)
       return {name: "error", logoUrl: ""}
     }
   }
 
-  // return {packageName: string, versions: string[]}
-  public getInstalledAppletsInfo(): InstalledLma[] {
+  public getInstalledInfo(): InstalledLma[] {
     const packageNames = this.getPackageNames()
-    const appletsInfo: InstalledLma[] = []
+    const out: InstalledLma[] = []
     for (const packageName of packageNames) {
-      const versionStrings = this.getAppletInstalledVersions(packageName)
+      const versionStrings = this.getInstalledVersions(packageName)
       const installedVersion: InstalledLma = {packageName, versions: {}}
-
       for (const versionString of versionStrings) {
-        const info: InstalledInfo = this.getAppletMetadata(packageName, versionString)
-        installedVersion.versions[versionString] = info
+        installedVersion.versions[versionString] = this.getMetadata(packageName, versionString)
       }
-      appletsInfo.push(installedVersion)
+      out.push(installedVersion)
     }
-    // console.log("COMPOSER: Applets info", appletsInfo)
-    return appletsInfo
+    return out
   }
 
-  public async getLocalApplets(): Promise<ClientAppletInterface[]> {
-    if (!this.refreshNeeded && this.installedLmas.length > 0) {
-      // Cache hit: re-project running from the registry. The store is NOT
-      // the source of truth here — on cold boot Composer.initialize() builds
-      // installedLmas before refreshApplets has populated the store, so
-      // querying the store would return [] and lose every local applet.
-      // installedLmas IS the disk-derived truth; running comes from the
-      // mount registry overlay.
-      return this.installedLmas.map((a) => ({
+  /**
+   * Read the lmas/ tree and return one ClientApp per installed package,
+   * picking each package's active version. The store/host overlays runtime
+   * state (loading, hidden, compatibility) on top of these.
+   *
+   * `running` reflects MiniappHost mount state via miniappRunningRegistry.
+   */
+  public async getInstalledMiniapps(): Promise<ClientApp[]> {
+    if (!this.refreshNeeded && this.cachedApps.length > 0) {
+      // Cache hit: re-project running from the registry. The cached array
+      // IS the disk-derived truth; running comes from the mount registry.
+      return this.cachedApps.map((a) => ({
         ...a,
         running: miniappRunningRegistry.has(a.packageName),
       }))
     }
 
     try {
-      const installedLmasInfo = await this.getInstalledAppletsInfo()
-      // console.log("COMPOSER: Installed Lmas Info", installedLmasInfo)
-      // use the latest version for now (will be overriddable later via <packageName>_version_key)
-      // build the installedLmas array:
-      const lmas: ClientAppletInterface[] = []
-      for (const lmaInfo of installedLmasInfo) {
-        let versionString = await this.getActiveAppletVersion(lmaInfo.packageName)
-        let versionInfo = lmaInfo.versions[versionString]
+      const installedInfo = this.getInstalledInfo()
+      const out: ClientApp[] = []
+      for (const lmaInfo of installedInfo) {
+        const versionString = await this.getActiveVersion(lmaInfo.packageName)
+        const versionInfo = lmaInfo.versions[versionString]
 
-        // Read manifest (miniapp.json with app.json fallback, via the shared
-        // helper). Extract permissions + hardwareRequirements.
-        const manifest = this.getMiniappManifest(lmaInfo.packageName, versionString) as
-          | {
-              permissions?: Array<string | {type: string; required?: boolean; description?: string}>
-              hardwareRequirements?: Array<{type: string; level: string; description?: string}>
-            }
-          | null
+        const manifest = this.getMiniappManifest(lmaInfo.packageName, versionString) as {
+          permissions?: Array<string | {type: string; required?: boolean; description?: string}>
+          hardwareRequirements?: Array<{type: string; level: string; description?: string}>
+        } | null
 
         const permissions = normalizeManifestPermissions(manifest?.permissions)
-        const hardwareRequirements = buildHardwareRequirements(
-          manifest?.hardwareRequirements,
-          lmaInfo.packageName,
-        )
+        const hardwareRequirements = buildHardwareRequirements(manifest?.hardwareRequirements, lmaInfo.packageName)
 
         // Dev miniapps live in the same lmas/ tree as installed ones, but
-        // their version directory name starts with "dev-". Surface them via
-        // the existing applet store with isMiniappDev=true so UI code that
-        // already reads the flag (badge, lifecycle, bug-report skip) works.
+        // their version directory name starts with "dev-".
         const isMiniappDev = versionString.startsWith("dev-")
         let devUrl: string | undefined
         if (isMiniappDev) {
@@ -583,11 +573,7 @@ class Composer {
           if (devUrlRes.is_ok()) devUrl = devUrlRes.value
         }
 
-        // `running` reflects MiniappHost mount state — a local miniapp is
-        // running iff its WebView is mounted in MiniappHost (foreground OR
-        // backgrounded). This is the single source of truth; do not write
-        // `running` from any other path.
-        lmas.push({
+        out.push({
           packageName: lmaInfo.packageName,
           version: versionString,
           running: miniappRunningRegistry.has(lmaInfo.packageName),
@@ -610,44 +596,46 @@ class Composer {
         })
       }
 
-      this.installedLmas = lmas
+      this.cachedApps = out
       this.refreshNeeded = false
-
-      // console.log("COMPOSER: Installed Lmas", this.installedLmas)
-      return this.installedLmas
+      return this.cachedApps
     } catch (error) {
-      console.error("Error getting local applets", error)
-      // Re-project running from the registry on the cached fallback so the
-      // switcher still reflects current mount state even if the rebuild failed.
-      return this.installedLmas.map((a) => ({
+      console.error("APP_REGISTRY: Error getting local applets", error)
+      return this.cachedApps.map((a) => ({
         ...a,
         running: miniappRunningRegistry.has(a.packageName),
       }))
     }
   }
 
-  public getLocalMiniAppHtml(packageName: string, version: string): Result<string, Error> {
+  // add to the cached apps array
+  public installOfflineApp(app: ClientApp): void {
+    this.cachedApps.push({
+      ...app,
+      onStart: () => saveLocalAppRunningState(app.packageName, true),
+      onStop: () => saveLocalAppRunningState(app.packageName, false),
+    })
+    this.refreshNeeded = true
+    this.notify()
+  }
+
+  public getMiniappHtml(packageName: string, version: string): Result<string, Error> {
     return Res.try(() => {
       const lmaDir = new Directory(Paths.document, "lmas", packageName, version)
       const htmlFile = new File(lmaDir, "index.html")
       return htmlFile.textSync()
     })
   }
-
-  // public startStop(applet: ClientAppletInterface, status: boolean): AsyncResult<void, Error> {
-  //   return Res.try_async(async () => {})
-  // }
-
-  // manage global state for apps and mic data / transcriptions:
-  public async updateOfflineSTT() {
-    // const offlineCaptionsRunning = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
-    // const offlineTranslationRunning = await useSettingsStore
-    //   .getState()
-    //   .getSetting(SETTINGS.offline_translation_running.key)
-    // if (offlineCaptionsRunning) {
-    // }
-  }
 }
 
-const composer = Composer.getInstance()
-export default composer
+/**
+ * Persist the running flag for a local miniapp (read on next cold boot so
+ * autostart picks the right set of apps). Exported for hosts that want to
+ * track running state independently.
+ */
+export function saveLocalAppRunningState(packageName: string, status: boolean): void {
+  storage.save(`${packageName}_running`, status)
+}
+
+const appRegistry = AppRegistry.getInstance()
+export default appRegistry

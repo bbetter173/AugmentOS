@@ -1,13 +1,16 @@
 import CoreModule from "core"
 
-import STTModelManager from "@/services/STTModelManager"
-import {useSettingsStore, SETTINGS} from "@/stores/settings"
+import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 
 /**
  * Test-mode coordinator: when the feature flag is on AND a local miniapp is
  * subscribed to transcription, always run local STT (no watchdog, no cloud
  * recovery logic). Meant for validating the local-STT pipeline end-to-end
  * before layering in cloud-failure detection.
+ *
+ * Settings access is host-injected via configureRuntime({settings: ...}).
+ * If the host doesn't provide a settings accessor, the flag is read as
+ * "off" and the coordinator stays inactive — safe default.
  */
 class LocalSttFallbackCoordinator {
   private static instance: LocalSttFallbackCoordinator
@@ -17,8 +20,10 @@ class LocalSttFallbackCoordinator {
   private localActive = false
 
   private constructor() {
-    useSettingsStore.subscribe(
-      (s) => s.getSetting(SETTINGS.local_stt_fallback_enabled.key),
+    // Subscribe to flag changes if the host supports it.
+    const settings = getRuntimeHooks().settings
+    settings?.subscribeKey?.(
+      ISLAND_SETTINGS_KEYS.localSttFallbackEnabled,
       (enabled) => {
         this.log(`feature flag changed: ${enabled}`)
         void this.reconcile()
@@ -70,18 +75,18 @@ class LocalSttFallbackCoordinator {
     } catch (err) {
       this.log(`restartTranscriber failed: ${err}`)
     }
-    useSettingsStore.getState().setSetting(SETTINGS.local_stt_fallback_active.key, true)
+    getRuntimeHooks().settings?.setSetting(ISLAND_SETTINGS_KEYS.localSttFallbackActive, true)
     this.localActive = true
   }
 
   private stopLocalStt(reason: string): void {
     this.log(`stopping local stt: ${reason}`)
-    useSettingsStore.getState().setSetting(SETTINGS.local_stt_fallback_active.key, false)
+    getRuntimeHooks().settings?.setSetting(ISLAND_SETTINGS_KEYS.localSttFallbackActive, false)
     this.localActive = false
   }
 
   private flagEnabled(): boolean {
-    return !!useSettingsStore.getState().getSetting(SETTINGS.local_stt_fallback_enabled.key)
+    return !!getRuntimeHooks().settings?.getSetting(ISLAND_SETTINGS_KEYS.localSttFallbackEnabled)
   }
 
   private log(msg: string): void {

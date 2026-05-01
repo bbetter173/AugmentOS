@@ -3,7 +3,7 @@ import {Platform, View} from "react-native"
 import {Gesture, GestureDetector} from "react-native-gesture-handler"
 
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 type Direction = "up" | "down" | "left" | "right"
 

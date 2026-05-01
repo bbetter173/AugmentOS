@@ -14,7 +14,6 @@ import Share from "react-native-share"
 import * as Battery from "expo-battery"
 import * as Clipboard from "expo-clipboard"
 import {File, Paths} from "expo-file-system"
-import {storage as mmkvStorage} from "@/utils/storage/storage"
 import * as Location from "expo-location"
 import CoreModule from "core"
 
@@ -28,17 +27,15 @@ import {
 } from "@mentra/miniapp"
 import type {MiniappEnvelope} from "@mentra/miniapp"
 
-import {getModelCapabilities, DeviceTypes} from "@/../../cloud/packages/types/src"
-import audioPlaybackService from "@/services/AudioPlaybackService"
-import devServerBridge from "@/services/DevServerBridge"
-import localDisplayManager from "@/services/LocalDisplayManager"
-import type {DisplayPayload} from "@/services/LocalDisplayManager"
-import localSttFallbackCoordinator from "@/services/LocalSttFallbackCoordinator"
-import micStateCoordinator from "@/services/MicStateCoordinator"
-import socketComms from "@/services/SocketComms"
-import {useGlassesStore} from "@/stores/glasses"
-import {useSettingsStore, SETTINGS} from "@/stores/settings"
-import {BgTimer} from "@/utils/timers"
+import {DeviceTypes, getModelCapabilities} from "../types"
+import {storage as mmkvStorage} from "../utils/storage/storage"
+import {BgTimer} from "../utils/timers"
+import devServerBridge from "./DevServerBridge"
+import localDisplayManager from "./LocalDisplayManager"
+import type {DisplayPayload} from "./LocalDisplayManager"
+import localSttFallbackCoordinator from "./LocalSttFallbackCoordinator"
+import micStateCoordinator from "./MicStateCoordinator"
+import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 
 // =============================================================================
 // Types
@@ -452,7 +449,7 @@ class LocalMiniappRuntime {
     resetPermissionWarnings(packageName)
 
     // Stop audio for this app
-    audioPlaybackService.stopForApp(packageName)
+    getRuntimeHooks().audioPlayback?.stopForApp(packageName)
 
     // Clean up any pending cloud requests from this app
     for (const [reqId, pending] of this.pendingCloudRequests) {
@@ -615,7 +612,7 @@ class LocalMiniappRuntime {
   private handleConnect(packageName: string, payload: Record<string, unknown>, requestId?: string): void {
     console.log(`${LOG_TAG}: CONNECT from ${packageName}`)
 
-    const userId = useSettingsStore.getState().getSetting("core_token") || ""
+    const userId = (getRuntimeHooks().settings?.getSetting<string>(ISLAND_SETTINGS_KEYS.coreToken)) || ""
 
     // Register if not already
     const existing = this.connectedApps.get(packageName)
@@ -628,7 +625,9 @@ class LocalMiniappRuntime {
     existing.lastPongAt = Date.now()
 
     // Read current glasses capabilities from the settings store
-    const defaultWearable = useSettingsStore.getState().getSetting(SETTINGS.default_wearable.key)
+    const defaultWearable = getRuntimeHooks().settings?.getSetting<DeviceTypes>(
+      ISLAND_SETTINGS_KEYS.defaultWearable,
+    )
     const capabilities = getModelCapabilities(defaultWearable || DeviceTypes.NONE)
 
     // Build the declared-permission record for the SDK's session.permissions
@@ -739,7 +738,7 @@ class LocalMiniappRuntime {
    * are pure event streams with no "current value" to snapshot.
    */
   private emitInitialSnapshots(packageName: string, streams: string[]): void {
-    const glassesState = useGlassesStore.getState()
+    const glassesState = getRuntimeHooks().glassesStatus?.get() ?? {connected: false}
     const isSimulated = (glassesState.deviceModel || "").toLowerCase().includes("simulated")
 
     for (const stream of streams) {
@@ -853,7 +852,7 @@ class LocalMiniappRuntime {
     const stopOtherAudio = payload.stopOtherAudio !== false
 
     this.setSpeakerState(packageName, "loading")
-    audioPlaybackService.play(
+    getRuntimeHooks().audioPlayback?.play(
       {requestId: audioRequestId, audioUrl, appId: packageName, volume, stopOtherAudio},
       (_respId, success, error, duration) => {
         if (success) {
@@ -887,7 +886,7 @@ class LocalMiniappRuntime {
   }
 
   private handleStopAudio(packageName: string, _payload: Record<string, unknown>, requestId?: string): void {
-    audioPlaybackService.stopForApp(packageName)
+    getRuntimeHooks().audioPlayback?.stopForApp(packageName)
     this.setSpeakerState(packageName, "stopped")
     this.sendResult(packageName, requestId, true)
   }
@@ -903,14 +902,14 @@ class LocalMiniappRuntime {
     }
 
     try {
-      const backendUrl = useSettingsStore.getState().getSetting(SETTINGS.backend_url.key)
+      const backendUrl = getRuntimeHooks().settings?.getSetting<string>(ISLAND_SETTINGS_KEYS.backendUrl)
       const voice = ((payload.voice_id ?? payload.voice) as string) || "default"
       const ttsUrl = `${backendUrl}/api/tts?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(voice)}`
 
       const audioRequestId = requestId || `tts_${Date.now()}`
 
       this.setSpeakerState(packageName, "loading")
-      audioPlaybackService.play(
+      getRuntimeHooks().audioPlayback?.play(
         {requestId: audioRequestId, audioUrl: ttsUrl, appId: packageName, volume: 1.0, stopOtherAudio: true},
         (_respId, success, error, duration) => {
           if (success) {
@@ -1010,7 +1009,8 @@ class LocalMiniappRuntime {
   // ---------------------------------------------------------------------------
 
   private getStorageKeyPrefix(packageName: string): string {
-    const userId = useSettingsStore.getState().getSetting("core_token") || "anonymous"
+    const userId =
+      getRuntimeHooks().settings?.getSetting<string>(ISLAND_SETTINGS_KEYS.coreToken) || "anonymous"
     return `mentraos_localstorage_${userId}_${packageName}_`
   }
 
@@ -1130,7 +1130,11 @@ class LocalMiniappRuntime {
       const roiStr = (payload.roiPosition as string) ?? "center"
       const numericRoi = ROI_MAP[roiStr] ?? 0
       console.log(`${LOG_TAG}: camera_fov_set fov=${fov} roi=${roiStr} (${numericRoi})`)
-      useSettingsStore.getState().setSetting(SETTINGS.camera_fov.key, {fov, roi_position: numericRoi}, false)
+      getRuntimeHooks().settings?.setSetting(
+        ISLAND_SETTINGS_KEYS.cameraFov,
+        {fov, roi_position: numericRoi},
+        false,
+      )
       this.sendResult(packageName, requestId, true)
     } catch (err) {
       console.error(`${LOG_TAG}: camera_fov error:`, err)
@@ -1282,7 +1286,14 @@ class LocalMiniappRuntime {
     }
 
     try {
-      const {requestMiniappSdkPhoto} = await import("@/services/miniapp/MiniappSdkPhotoHandler")
+      const requestMiniappSdkPhoto = getRuntimeHooks().requestMiniappSdkPhoto
+      if (!requestMiniappSdkPhoto) {
+        this.sendResult(packageName, requestId, false, undefined, {
+          code: MiniappErrorCode.NOT_IMPLEMENTED,
+          message: "Photo capture is not configured on this host",
+        })
+        return
+      }
       const photoRequestId = requestId || `photo_${Date.now()}`
 
       // Register so handleCloudMessage can route phone_photo_ready back
@@ -1310,7 +1321,7 @@ class LocalMiniappRuntime {
     const streamRequestId = requestId || `stream_${Date.now()}`
     this.registerPendingCloudRequest(streamRequestId, packageName, requestId)
 
-    socketComms.sendMessage({
+    getRuntimeHooks().socketComms?.sendMessage({
       type: "stream_request",
       packageName: "__phone__",
       requestId: streamRequestId,
@@ -1321,7 +1332,7 @@ class LocalMiniappRuntime {
   }
 
   private handleStreamStop(packageName: string, payload: Record<string, unknown>, requestId?: string): void {
-    socketComms.sendMessage({
+    getRuntimeHooks().socketComms?.sendMessage({
       type: "stream_stop",
       packageName: "__phone__",
       streamId: payload.streamId,
@@ -1333,7 +1344,7 @@ class LocalMiniappRuntime {
     const streamRequestId = requestId || `managed_${Date.now()}`
     this.registerPendingCloudRequest(streamRequestId, packageName, requestId)
 
-    socketComms.sendMessage({
+    getRuntimeHooks().socketComms?.sendMessage({
       type: "managed_stream_request",
       packageName: "__phone__",
       requestId: streamRequestId,
@@ -1342,7 +1353,7 @@ class LocalMiniappRuntime {
   }
 
   private handleManagedStreamStop(packageName: string, payload: Record<string, unknown>, requestId?: string): void {
-    socketComms.sendMessage({
+    getRuntimeHooks().socketComms?.sendMessage({
       type: "managed_stream_stop",
       packageName: "__phone__",
       streamId: payload.streamId,
@@ -1448,7 +1459,7 @@ class LocalMiniappRuntime {
         transcriptionLang = stream.substring("transcription:".length)
       }
     }
-    socketComms.updatePhoneSubscriptions(Array.from(cloudStreams))
+    getRuntimeHooks().socketComms?.updatePhoneSubscriptions(Array.from(cloudStreams))
     localSttFallbackCoordinator.onSubscriptionChange(transcriptionLang !== null, transcriptionLang)
   }
 

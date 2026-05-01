@@ -9,7 +9,7 @@ import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/Navigatio
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {translate} from "@/i18n/translate"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "island"
 
 interface BaseStep {
   name: string

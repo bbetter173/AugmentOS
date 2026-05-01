@@ -87,7 +87,8 @@ export default function ConnectedSimulatedGlassesInfo({
         flexContainer={false}
         tx="home:connectGlasses"
         preset="primary"
-        onPress={() => push("/pairing/select-glasses-model")}></Button>
+        onPress={() => push("/pairing/select-glasses-model")}
+      />
     </GlassView>
   )
 }

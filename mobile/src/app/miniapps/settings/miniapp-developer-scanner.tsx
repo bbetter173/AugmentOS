@@ -1,22 +1,20 @@
 import {CameraView, useCameraPermissions} from "expo-camera"
 import * as Haptics from "expo-haptics"
 import {useEffect, useState} from "react"
-import {Linking, StyleSheet, TextStyle, View, ViewStyle} from "react-native"
+import {Linking, View} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
-import {installMiniappFromUrl} from "@/services/miniapp/installFromUrl"
-import {decideDevLaunchRoute} from "island"
+import {appRegistry, decideDevLaunchRoute} from "island"
 import {askPermissionsUI, checkPermissionsUI, PERMISSION_CONFIG} from "@/utils/PermissionsUtils"
 import {storage} from "@/utils/storage/storage"
 import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/types/src"
 
 export default function MiniappDeveloperScannerScreen() {
-  const {theme, themed} = useAppTheme()
+  const {theme} = useAppTheme()
   const {goBack, replace} = useNavigationHistory()
   const [permission, requestPermission] = useCameraPermissions()
   const [scanned, setScanned] = useState(false)
@@ -31,17 +29,13 @@ export default function MiniappDeveloperScannerScreen() {
     if (scanned) return
     setScanned(true)
 
-    // Release QR (`mentra-miniapp release` from the CLI). Different from
-    // the dev scheme: this downloads a packaged .zip onto the phone and
-    // registers it as a first-class installed local miniapp. The miniapp
-    // runs offline forever; no laptop/dev-server dependency after install.
     if (data.startsWith("mentra-miniapp://release")) {
       try {
         const url = new URL(data)
         const baseUrl = decodeURIComponent(url.searchParams.get("url") || "")
         if (!baseUrl) throw new Error("release QR missing url param")
 
-        const res = await installMiniappFromUrl(baseUrl)
+        const res = await appRegistry.installFromJsonUrl(baseUrl)
         if (res.is_error()) {
           showAlert("Install failed", res.error.message ?? String(res.error), [
             {text: "OK", onPress: () => setScanned(false)},
@@ -49,11 +43,9 @@ export default function MiniappDeveloperScannerScreen() {
           return
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
-        showAlert(
-          "Installed",
-          `${res.value.name} v${res.value.version} is on your home screen.`,
-          [{text: "OK", onPress: () => goBack()}],
-        )
+        showAlert("Installed", `${res.value.name} v${res.value.version} is on your home screen.`, [
+          {text: "OK", onPress: () => goBack()},
+        ])
       } catch (err) {
         showAlert("Install failed", String(err), [{text: "OK", onPress: () => setScanned(false)}])
       }
@@ -71,8 +63,6 @@ export default function MiniappDeveloperScannerScreen() {
         devUrl = decodeURIComponent(url.searchParams.get("url") || "")
         name = url.searchParams.get("name") || undefined
         packageName = url.searchParams.get("package") || undefined
-        // Optional sidecar port for live reload + console bridge. Older CLI
-        // versions don't include this — phone falls back to no live reload.
         devPort = url.searchParams.get("dev") || undefined
       } else if (data.startsWith("http://") || data.startsWith("https://")) {
         devUrl = data
@@ -94,13 +84,8 @@ export default function MiniappDeveloperScannerScreen() {
         return
       }
 
-      // One round trip: fetches manifest AND decides reachability. Avoids
-      // the previous double-fetch (one for permissions/name, one for the
-      // reachability HEAD).
       const launchResult = await decideDevLaunchRoute(packageName ?? "", devUrl)
 
-      // Pull packageName / name / icon / permissions from the manifest if
-      // we got one. QR-string params take precedence over manifest fields.
       const manifest = launchResult.manifest
       packageName = packageName || manifest?.packageName || "com.dev.unknown"
       name = name || manifest?.name || "Dev Miniapp"
@@ -109,8 +94,6 @@ export default function MiniappDeveloperScannerScreen() {
         ? (manifest!.permissions as AppletPermission[])
         : []
 
-      // Resolve the icon to an absolute URL on the dev server. Supports either
-      // a relative path ("icon.png") or an absolute URL.
       let iconUrl: string | undefined
       if (iconPath) {
         iconUrl = /^https?:\/\//.test(iconPath)
@@ -118,9 +101,6 @@ export default function MiniappDeveloperScannerScreen() {
           : `${devUrl.replace(/\/$/, "")}/${iconPath.replace(/^\//, "")}`
       }
 
-      // Persist the dev URL keyed on packageName so a relaunched MentraOS
-      // can route the home-tile tap back to the live server. Composer's
-      // getLocalApplets reads this key when populating the applet store.
       if (packageName) {
         storage.save(`${packageName}_dev_url`, devUrl)
         if (devPort) {
@@ -133,19 +113,11 @@ export default function MiniappDeveloperScannerScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
 
-      // If the dev server didn't respond, route directly to the offline
-      // takeover. We have nothing to gate against (no manifest = no
-      // permissions list) and the live mount would fail anyway.
       if (launchResult.decision === "offline") {
         replace("/applet/dev-offline", {packageName, name, iconUrl})
         return
       }
 
-      // Gate launch on OS permissions declared in the miniapp's manifest.
-      // The home-tile path runs the same gate; without this, the very first
-      // launch (right after scanning) skips it and the miniapp opens in a
-      // broken state — events from un-granted OS permissions silently never
-      // arrive.
       const fakeApplet = {
         packageName: packageName ?? "",
         name: name ?? "",
@@ -153,19 +125,12 @@ export default function MiniappDeveloperScannerScreen() {
       } as unknown as AppletInterface
       const permResult = await askPermissionsUI(fakeApplet, theme)
       if (permResult === -1) {
-        // User cancelled, or Android READ_NOTIFICATIONS flow is in progress.
-        // Re-arm scanner; the home tile is registered so they can launch
-        // again from there once the OS dance is complete.
         setScanned(false)
         return
       }
       if (permResult === 0) {
-        // User tried, but at least one *required* OS permission is still
-        // denied. Tell them why we're not launching and offer Settings.
         const stillNeeded = await checkPermissionsUI(fakeApplet)
-        const friendlyNames = stillNeeded
-          .map((p) => PERMISSION_CONFIG[p]?.name ?? p)
-          .join(", ")
+        const friendlyNames = stillNeeded.map((p) => PERMISSION_CONFIG[p]?.name ?? p).join(", ")
         showAlert(
           "Required permissions denied",
           `${name} can't run without these permissions: ${friendlyNames}. Open Settings to enable them, then try again.`,
@@ -197,8 +162,8 @@ export default function MiniappDeveloperScannerScreen() {
           leftIcon="chevron-left"
           onLeftPress={() => goBack()}
         />
-        <View style={themed($centered)}>
-          <Text style={themed($muted)} tx="devSettings:miniappScanCheckingPermission" />
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-neutral-400 text-[14px]" tx="devSettings:miniappScanCheckingPermission" />
         </View>
       </Screen>
     )
@@ -212,10 +177,16 @@ export default function MiniappDeveloperScannerScreen() {
           leftIcon="chevron-left"
           onLeftPress={() => goBack()}
         />
-        <View style={themed($permissionContainer)}>
-          <View style={themed($permissionCard)}>
-            <Text style={themed($permissionTitle)} tx="devSettings:miniappScanPermissionTitle" />
-            <Text style={themed($permissionBody)} tx="devSettings:miniappScanPermissionBody" />
+        <View className="flex-1 justify-center px-6">
+          <View className="rounded-xl bg-white dark:bg-zinc-900 p-6 items-center gap-3">
+            <Text
+              className="text-lg font-semibold text-center"
+              tx="devSettings:miniappScanPermissionTitle"
+            />
+            <Text
+              className="text-[13px] text-neutral-400 text-center mb-2 leading-[18px]"
+              tx="devSettings:miniappScanPermissionBody"
+            />
             <Button
               tx={permission.canAskAgain ? "devSettings:miniappScanGrantAccess" : "devSettings:miniappScanOpenSettings"}
               onPress={async () => {
@@ -242,132 +213,32 @@ export default function MiniappDeveloperScannerScreen() {
     <Screen preset="fixed">
       <Header title={translate("devSettings:miniappScanTitle")} leftIcon="chevron-left" onLeftPress={() => goBack()} />
 
-      <View style={themed($instructions)}>
-        <Text style={themed($instructionsHeadline)} tx="devSettings:miniappScanHeadline" />
-        <Text style={themed($instructionsBody)} tx="devSettings:miniappScanBody" />
+      <View className="px-6 pt-2 pb-4 gap-2">
+        <Text className="text-base font-semibold text-black" tx="devSettings:miniappScanHeadline" />
+        <Text
+          className="text-[13px] leading-[18px] text-neutral-400"
+          tx="devSettings:miniappScanBody"
+        />
       </View>
 
-      <View style={themed($cameraContainer)}>
+      <View className="flex-1 mx-4 mt-4 mb-12 rounded-xl max-h-[420px] overflow-hidden bg-white">
         <CameraView
-          style={themed($camera)}
+          style={{flex: 1}}
           barcodeScannerSettings={{barcodeTypes: ["qr"]}}
           onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
         />
 
-        <View style={themed($overlay)} pointerEvents="none">
-          <View style={themed($reticle)} />
+        <View className="absolute inset-0 items-center justify-center" pointerEvents="none">
+          <View className="w-[240px] h-[240px] rounded-xl border-2 border-indigo-500" />
         </View>
 
-        <View style={themed($hintContainer)} pointerEvents="none">
-          <Text style={themed($hintText)} tx="devSettings:miniappScanHint" />
+        <View className="absolute left-0 right-0 bottom-6 items-center" pointerEvents="none">
+          <Text
+            className="text-[13px] px-3 py-1.5 rounded-full overflow-hidden"
+            tx="devSettings:miniappScanHint"
+          />
         </View>
       </View>
     </Screen>
   )
 }
-
-const $centered: ThemedStyle<ViewStyle> = () => ({
-  flex: 1,
-  alignItems: "center",
-  justifyContent: "center",
-})
-
-const $muted: ThemedStyle<TextStyle> = ({colors}) => ({
-  color: colors.textDim,
-  fontSize: 14,
-})
-
-const $permissionContainer: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  flex: 1,
-  padding: spacing.s6,
-  justifyContent: "center",
-})
-
-const $permissionCard: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
-  backgroundColor: colors.primary_foreground,
-  borderRadius: spacing.s4,
-  padding: spacing.s6,
-  alignItems: "center",
-  gap: spacing.s3,
-})
-
-const $permissionTitle: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontSize: 18,
-  fontWeight: "600",
-  color: colors.text,
-  textAlign: "center",
-})
-
-const $permissionBody: ThemedStyle<TextStyle> = ({colors, spacing}) => ({
-  fontSize: 13,
-  color: colors.textDim,
-  textAlign: "center",
-  marginBottom: spacing.s2,
-  lineHeight: 18,
-})
-
-const $instructions: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  paddingHorizontal: spacing.s6,
-  paddingTop: spacing.s2,
-  paddingBottom: spacing.s4,
-  gap: spacing.s2,
-})
-
-const $instructionsHeadline: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontSize: 16,
-  fontWeight: "600",
-  color: colors.text,
-})
-
-const $instructionsBody: ThemedStyle<TextStyle> = ({colors}) => ({
-  fontSize: 13,
-  lineHeight: 18,
-  color: colors.textDim,
-})
-
-const $cameraContainer: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
-  flex: 1,
-  marginHorizontal: spacing.s4,
-  marginTop: spacing.s4,
-  marginBottom: spacing.s12,
-  maxHeight: 420,
-  borderRadius: spacing.s4,
-  overflow: "hidden",
-  backgroundColor: colors.background,
-})
-
-const $camera: ThemedStyle<ViewStyle> = () => ({
-  flex: 1,
-})
-
-const $overlay: ThemedStyle<ViewStyle> = () => ({
-  ...StyleSheet.absoluteFillObject,
-  alignItems: "center",
-  justifyContent: "center",
-})
-
-const $reticle: ThemedStyle<ViewStyle> = ({colors, spacing}) => ({
-  width: 240,
-  height: 240,
-  borderRadius: spacing.s4,
-  borderWidth: 2,
-  borderColor: colors.primary,
-})
-
-const $hintContainer: ThemedStyle<ViewStyle> = ({spacing}) => ({
-  position: "absolute",
-  bottom: spacing.s6,
-  left: 0,
-  right: 0,
-  alignItems: "center",
-})
-
-const $hintText: ThemedStyle<TextStyle> = () => ({
-  color: "#fff",
-  fontSize: 13,
-  backgroundColor: "rgba(0,0,0,0.55)",
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-  borderRadius: 999,
-  overflow: "hidden",
-})

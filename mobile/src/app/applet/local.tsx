@@ -4,8 +4,8 @@ import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import composer from "@/services/Composer"
-import devServerBridge from "@/services/DevServerBridge"
+import {appRegistry} from "island"
+import {devServerBridge} from "island"
 import {storage} from "@/utils/storage/storage"
 
 /**
@@ -67,35 +67,36 @@ export default function LocalMiniAppPage() {
         const portNum = resolveDevPort(devPort, packageName)
         if (portNum !== null) {
           devServerBridge.connect(packageName, devUrl, portNum)
-          // Background snapshot via Composer's standard install pipeline:
+          // Background snapshot via the AppRegistry install pipeline:
           // fetches the dev server's bundle.zip, unpacks into
           // lmas/<pkg>/dev-<timestamp>/, then GCs older dev-* dirs.
-          // refreshApplets is auto-fired by installMiniApp so the new
-          // dev-<ts> directory surfaces in the applet store on next render
-          // — that's what populates the home tray + switcher entry.
+          // refreshApplets fires automatically (via the registry's subscribe
+          // notification) so the new dev-<ts> directory surfaces in the applet
+          // store on next render — that's what populates the home tray +
+          // switcher entry.
           const sidecarBase = buildSidecarBaseUrl(devUrl, portNum)
           if (sidecarBase) {
             const versionOverride = `dev-${Date.now()}`
-            void composer
-              .installMiniApp(`${sidecarBase}/__mentra_dev/bundle.zip`, {versionOverride})
+            void appRegistry
+              .installFromUrl(`${sidecarBase}/__mentra_dev/bundle.zip`, {versionOverride})
               .then((res) => {
                 if (res.is_error()) {
                   console.warn(`Dev miniapp snapshot failed for ${packageName}:`, res.error)
                 } else {
-                  composer.gcDevVersions(packageName, 2)
+                  appRegistry.gcDevVersions(packageName, 2)
                 }
               })
           }
         }
         storage.save(`${packageName}_dev_last_reachable`, Date.now())
       } else if (version) {
-        const bundleDir = composer.getBundleDir(packageName, version)
+        const bundleDir = appRegistry.getBundleDir(packageName, version)
         const bundleUri = `${bundleDir}/index.html`
         // Read the bundle's manifest from disk so the runtime can gate
         // SUBSCRIBE / one-shot calls against declared permissions. The
         // mountDev path fetches this from the live server; the installed
         // path reads from the unzipped bundle.
-        const manifest = composer.getMiniappManifest(packageName, version) as
+        const manifest = appRegistry.getMiniappManifest(packageName, version) as
           | {permissions?: Array<{type: string; required?: boolean; description?: string}>; hardwareRequirements?: Array<{type: string; level: string; description?: string}>}
           | null
         miniappHost.mount(packageName, bundleUri, {

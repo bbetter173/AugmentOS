@@ -21,9 +21,9 @@
 
 import CoreModule from "core"
 
-import displayProcessor from "@/services/DisplayProcessor"
-import {useDisplayStore} from "@/stores/display"
-import {BgTimer} from "@/utils/timers"
+import displayProcessor from "./DisplayProcessor"
+import {getRuntimeHooks} from "../runtime/config"
+import {BgTimer} from "../utils/timers"
 
 // =============================================================================
 // Types
@@ -374,7 +374,7 @@ class LocalDisplayManager {
 
     try {
       CoreModule.displayEvent(processedEvent)
-      useDisplayStore.getState().setDisplayEvent(JSON.stringify(processedEvent))
+      getRuntimeHooks().setDisplayEvent?.(JSON.stringify(processedEvent))
     } catch (err) {
       console.error(`${LOG_TAG}: native display failed:`, err)
     }

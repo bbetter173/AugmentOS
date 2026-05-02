@@ -36,20 +36,10 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Clean pnpm setup directory
-        run: rm -rf /Users/fosse/setup-pnpm || true
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
-          cache-dependency-path: mobile/package.json
 
       - name: Get cache week number
         id: cache-week
@@ -78,18 +68,18 @@ jobs:
             xcode-derived-device-${{ runner.os }}-
 
       - name: Install dependencies
-        id: pnpm-install
+        id: bun-install
         working-directory: ./mobile
-        run: pnpm install --no-frozen-lockfile
+        run: bun install --no-frozen-lockfile
         continue-on-error: true
 
-      - name: Retry pnpm install with clean node_modules (if first attempt failed)
-        if: steps.pnpm-install.outcome == 'failure'
+      - name: Retry bun install with clean node_modules (if first attempt failed)
+        if: steps.bun-install.outcome == 'failure'
         working-directory: ./mobile
         run: |
-          echo "First pnpm install failed, wiping node_modules and retrying..."
+          echo "First bun install failed, wiping node_modules and retrying..."
           rm -rf node_modules
-          pnpm install --no-frozen-lockfile
+          bun install --no-frozen-lockfile
 
       - name: Setup environment
         working-directory: ./mobile
@@ -99,7 +89,7 @@ jobs:
 
       - name: Run Expo prebuild
         working-directory: ./mobile
-        run: pnpm expo prebuild --platform ios
+        run: bun expo prebuild --platform ios
 
       - name: Setup Sherpa Onnx
         working-directory: ./mobile

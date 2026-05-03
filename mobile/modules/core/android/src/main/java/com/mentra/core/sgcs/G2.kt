@@ -2986,6 +2986,9 @@ class G2 : SGCManager() {
                 pageHasTextContainer = false
                 currentTextContent = ""
                 currentBitmapBase64 = ""
+                // Firmware kills the mic on system exit; re-arm it if it should be on
+                GlassesStore.apply("glasses", "micEnabled", false)
+                CoreManager.getInstance().updateMicState()
             }
             return
         }

@@ -1044,7 +1044,7 @@ class G2: NSObject, SGCManager {
     var type = DeviceTypes.G2
     let hasMic = true
 
-    // Connection state
+    /// Connection state
     private var connectionState: String = ConnTypes.DISCONNECTED
 
     // BLE peripherals (L+R)
@@ -1424,37 +1424,36 @@ class G2: NSObject, SGCManager {
                     // Start heartbeats after auth
                     self.startHeartbeats()
 
-                        Task { await self.reconnectionManager.stop() }
-                        Bridge.log("G2: Auth sequence complete, glasses ready")
+                    Task { await self.reconnectionManager.stop() }
+                    Bridge.log("G2: Auth sequence complete, glasses ready")
 
-                        // Set device_name so CoreManager can save it for reconnection
-                        if let peripheralName = self.rightPeripheral?.name
-                            ?? self.leftPeripheral?.name,
-                            let serialNumber = self.deviceNameToSerialNumber[peripheralName]
-                        {
-                            GlassesStore.shared.apply("core", "device_name", serialNumber)
-                            Bridge.log("G2: Set device_name to \(serialNumber)")
-                        }
+                    // Set device_name so CoreManager can save it for reconnection
+                    if let peripheralName = self.rightPeripheral?.name
+                        ?? self.leftPeripheral?.name,
+                        let serialNumber = self.deviceNameToSerialNumber[peripheralName]
+                    {
+                        GlassesStore.shared.apply("core", "device_name", serialNumber)
+                        Bridge.log("G2: Set device_name to \(serialNumber)")
+                    }
 
-                        // Set bluetooth name and device model for Device Info page
-                        let btName =
-                            self.rightPeripheral?.name
-                                ?? self.leftPeripheral?.name ?? ""
-                        GlassesStore.shared.apply("glasses", "bluetoothName", btName)
-                        GlassesStore.shared.apply("glasses", "deviceModel", DeviceTypes.G2)
+                    // Set bluetooth name and device model for Device Info page
+                    let btName =
+                        self.rightPeripheral?.name
+                            ?? self.leftPeripheral?.name ?? ""
+                    GlassesStore.shared.apply("glasses", "bluetoothName", btName)
+                    GlassesStore.shared.apply("glasses", "deviceModel", DeviceTypes.G2)
 
-                        GlassesStore.shared.apply("glasses", "connected", true)
-                        GlassesStore.shared.apply("glasses", "fullyBooted", true)
+                    GlassesStore.shared.apply("glasses", "connected", true)
+                    GlassesStore.shared.apply("glasses", "fullyBooted", true)
 
-                        // connnect a controller if we have one:
-                        self.connectController()
+                    // connnect a controller if we have one:
+                    self.connectController()
 
-                        // Query version + battery info from glasses
-                        self.requestDeviceInfo()
+                    // Query version + battery info from glasses
+                    self.requestDeviceInfo()
 
-                        // send dashboard menu if we have stored items
-                        self.sendMenuApps()
-                    
+                    // send dashboard menu if we have stored items
+                    self.sendMenuApps()
                 }
             }
         }
@@ -1528,7 +1527,6 @@ class G2: NSObject, SGCManager {
     }
 
     private func sendEvenHubHeartbeat() {
-        
         let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
         guard isFullyBooted else { return }
 
@@ -1558,7 +1556,7 @@ class G2: NSObject, SGCManager {
         sendG2SettingCommand(msg)
         // Bridge.log("G2: Requested device info (battery/version)")
     }
-    
+
     private func sendMenuApps() {
         let menuItems = GlassesStore.shared.get("core", "menu_apps") as? [[String: Any]] ?? []
         if menuItems.isEmpty {
@@ -2987,6 +2985,9 @@ class G2: NSObject, SGCManager {
                 pageHasTextContainer = false
                 currentTextContent = ""
                 currentBitmapBase64 = ""
+                // Firmware kills the mic on system exit; re-arm it if it should be on
+                GlassesStore.shared.apply("glasses", "micEnabled", false)
+                CoreManager.shared.updateMicState()
                 // Force re-create the page to reclaim EvenHub focus
                 // Task {
                 //     try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1000ms for glasses to finish transition

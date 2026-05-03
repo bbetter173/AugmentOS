@@ -36,7 +36,12 @@ export default function SelectGlassesBluetoothScreen() {
   //   }, [setRememberedSearchResults]),
   // )
 
-  focusEffectPreventBack(() => {
+  focusEffectPreventBack(event => {
+    // Skip cleanup when navigating forward (e.g. replace() to btclassic) —
+    // only run on actual back navigation.
+    if (event && event.actionType !== "GO_BACK" && event.actionType !== "POP") {
+      return
+    }
     CoreModule.disconnect()
     CoreModule.forget()
     goBack()

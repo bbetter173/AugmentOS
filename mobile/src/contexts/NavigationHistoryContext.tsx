@@ -119,7 +119,9 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
   useEffect(() => {
     console.log("NAV: ======== REGISTERING BACK HANDLER ===========")
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      console.log(`NAV: ======== BACK HANDLER CALLED preventBack: ${preventBack} fn: ${androidBackFnRef.current} ===========`)
+      console.log(
+        `NAV: ======== BACK HANDLER CALLED preventBack: ${preventBack} fn: ${androidBackFnRef.current} ===========`,
+      )
       if (!preventBack) {
         goBack()
         return true
@@ -539,10 +541,7 @@ export function useNavigationHistory() {
 // screens that call this function will prevent the back button from being pressed:
 export type PreventBackEvent = {actionType: string}
 
-export const focusEffectPreventBack = (
-  backFn?: (event?: PreventBackEvent) => void,
-  iosDontPreventBack?: boolean,
-) => {
+export const focusEffectPreventBack = (backFn?: (event?: PreventBackEvent) => void, iosDontPreventBack?: boolean) => {
   const {incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
   const navigation = useNavigation()
 

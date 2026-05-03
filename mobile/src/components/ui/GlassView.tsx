@@ -2,9 +2,8 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {GlassView as GlassViewComponent, GlassViewProps, isLiquidGlassAvailable} from "expo-glass-effect"
 import {LinearGradient} from "expo-linear-gradient"
-import {Platform, View, ViewProps} from "react-native"
+import {Platform, View, ViewProps, StyleSheet} from "react-native"
 import {withUniwind} from "uniwind"
-import {StyleSheet} from "react-native"
 import {ShadowView} from "react-native-inner-shadow"
 interface NewGlassViewProps extends ViewProps {
   transparent?: boolean
@@ -53,7 +52,6 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     backgroundColor = flatStyle.backgroundColor?.toString() ?? backgroundColor
 
     boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
-    
 
     // return (
     //   <View style={[style, {

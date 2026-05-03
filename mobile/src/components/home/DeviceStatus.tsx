@@ -1,7 +1,7 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
 import CoreModule, {GlassesNotReadyEvent} from "core"
 import {useState, useEffect} from "react"
-import {ActivityIndicator, Image, TouchableOpacity, View, ViewStyle} from "react-native"
+import {ActivityIndicator, Image, TouchableOpacity, View, ViewStyle, StyleSheet} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
 import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
@@ -19,7 +19,6 @@ import {
   getGlassesImage,
   getGlassesOpenImage,
 } from "@/utils/getGlassesImage"
-import {StyleSheet} from "react-native"
 
 import MicIcon from "assets/icons/component/MicIcon"
 import {useCoreStore} from "@/stores/core"
@@ -71,7 +70,9 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnectionState)
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
-    return <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.primary_foreground}} />
+    return (
+      <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.primary_foreground}} />
+    )
   }
 
   const connectGlasses = async () => {

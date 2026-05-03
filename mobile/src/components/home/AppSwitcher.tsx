@@ -30,7 +30,7 @@ import {SETTINGS, useSetting} from "@/stores/settings"
 import {BlurView} from "expo-blur"
 import GlassView from "@/components/ui/GlassView"
 import {hapticBuzz} from "@/utils/utils"
-import { storage } from "@/utils/storage"
+import {storage} from "@/utils/storage"
 
 const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get("window")
 const CARD_SCALE = 0.67

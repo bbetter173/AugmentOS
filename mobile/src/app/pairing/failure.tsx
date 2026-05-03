@@ -47,12 +47,15 @@ export default function PairingFailureScreen() {
       <Animated.View style={animatedContainerStyle} className="flex-1 items-center justify-center px-4">
         <View
           className="p-6 rounded-[130px] mb-8 w-[130px] h-[130px] items-center justify-center"
-          style={{backgroundColor: theme.colors.errorBackground || theme.colors.palette.angry100}}
-        >
+          style={{backgroundColor: theme.colors.errorBackground || theme.colors.palette.angry100}}>
           <Icon name="exclamation-circle" size={80} color={theme.colors.chart_5} />
         </View>
 
-        <Text tx="pairing:pairingFailed" preset="heading" className="text-[28px] font-bold mb-4 text-center text-text" />
+        <Text
+          tx="pairing:pairingFailed"
+          preset="heading"
+          className="text-[28px] font-bold mb-4 text-center text-text"
+        />
 
         <Text
           text={translate(error as TxKeyPath, {glassesModel: deviceModel || "glasses"})}

@@ -120,8 +120,8 @@ jobs:
       #   working-directory: ./mobile/ios
       #   run: |
       #     xcodebuild \
-      #                -workspace MentraOS.xcworkspace \
-      #                -scheme MentraOS \
+      #                -workspace Mentra.xcworkspace \
+      #                -scheme Mentra \
       #                -configuration Debug \
       #                -sdk iphonesimulator \
       #                -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.0' \
@@ -134,8 +134,8 @@ jobs:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         continue-on-error: true
         run: |
-          xcodebuild -workspace MentraOS.xcworkspace \
-                     -scheme MentraOS \
+          xcodebuild -workspace Mentra.xcworkspace \
+                     -scheme Mentra \
                      -configuration Release \
                      -sdk iphoneos \
                      -derivedDataPath build-device \
@@ -158,14 +158,14 @@ jobs:
 
           # Wipe all iOS-side caches (Pods, DerivedData, repo-level + global)
           rm -rf Pods Podfile.lock build-device
-          rm -rf ~/Library/Developer/Xcode/DerivedData/MentraOS-*
+          rm -rf ~/Library/Developer/Xcode/DerivedData/Mentra-*
 
           # Reinstall pods from scratch with fresh repo
           pod install --repo-update
 
           # Retry the build
-          xcodebuild -workspace MentraOS.xcworkspace \
-                     -scheme MentraOS \
+          xcodebuild -workspace Mentra.xcworkspace \
+                     -scheme Mentra \
                      -configuration Release \
                      -sdk iphoneos \
                      -derivedDataPath build-device \
@@ -176,7 +176,7 @@ jobs:
       - name: Fail if both builds failed
         if: steps.xcode-build.outcome == 'failure'
         run: |
-          if [ ! -d "mobile/ios/build-device/Build/Products/Release-iphoneos/MentraOS.app" ]; then
+          if [ ! -d "mobile/ios/build-device/Build/Products/Release-iphoneos/Mentra.app" ]; then
             echo "Both build attempts failed"
             exit 1
           fi
@@ -185,4 +185,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-device-build
-          path: mobile/ios/build-device/Build/Products/Release-iphoneos/MentraOS.app
+          path: mobile/ios/build-device/Build/Products/Release-iphoneos/Mentra.app

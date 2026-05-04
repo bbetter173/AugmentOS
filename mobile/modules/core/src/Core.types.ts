@@ -352,6 +352,7 @@ export interface GlassesStatus {
   serialNumber: string
   style: string
   color: string
+  macAddress: string
   // wifi info
   wifiConnected: boolean
   wifiSsid: string

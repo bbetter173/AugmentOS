@@ -175,7 +175,16 @@ class R1 : ControllerManager() {
             return false
         }
 
+        // Already connected — don't start a new scan
+        if (ringGatt != null) {
+            Bridge.log("R1: Already connected, skipping scan")
+            return true
+        }
+
         isDisconnecting = false
+
+        // Stop any prior scan before starting a new one (avoids leaking ScanCallback)
+        stopScan()
 
         // Try MAC-based reconnection first
         if (connectByMac()) {
@@ -220,6 +229,7 @@ class R1 : ControllerManager() {
         } catch (e: SecurityException) {
             Bridge.log("R1: stopScan SecurityException: ${e.message}")
         }
+        scanCallback = null
     }
 
     private fun connectByMac(): Boolean {
@@ -229,6 +239,10 @@ class R1 : ControllerManager() {
         }
         val mac = ringMacAddress ?: return false
         val adapter = bluetoothAdapter ?: return false
+        if (ringGatt != null) {
+            Bridge.log("R1: connectByMac skipped — already connected")
+            return true
+        }
         val device = try {
             adapter.getRemoteDevice(mac)
         } catch (e: IllegalArgumentException) {
@@ -267,6 +281,11 @@ class R1 : ControllerManager() {
             advertisedName
         }
         mainHandler.post {
+            // Already connected — ignore further scan results
+            if (ringGatt != null) {
+                stopScan()
+                return@post
+            }
             if (!matchesNameFilter(deviceName)) return@post
 
             val mfgMap = result.scanRecord?.manufacturerSpecificData

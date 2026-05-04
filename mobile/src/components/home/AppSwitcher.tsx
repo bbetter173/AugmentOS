@@ -747,6 +747,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
         {apps.length > 0 && (
           <GestureDetector gesture={dotsPanGesture}>
             <GlassView
+              collapsable={false}
               transparent={false}
               className="mb-5 px-4 py-2 rounded-full mx-auto bg-black/30 items-center justify-center gap-1.5 flex-row">
               {apps.map((_, index) => (

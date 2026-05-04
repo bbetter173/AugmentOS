@@ -72,7 +72,6 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     // )
     const halve = (v: string | number | undefined) => (v === undefined ? undefined : parseInt(v.toString()) / 2)
     let innerShadowColor = theme.colors.gradient
-    console.log(flatStyle)
     return (
       <View
         style={[

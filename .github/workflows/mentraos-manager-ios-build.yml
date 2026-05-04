@@ -137,7 +137,7 @@ jobs:
           xcodebuild -workspace Mentra.xcworkspace \
                      -scheme Mentra \
                      -configuration Release \
-                     -sdk iphoneos \
+                     -destination 'generic/platform=iOS' \
                      -derivedDataPath build-device \
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGNING_REQUIRED=NO \
@@ -167,7 +167,7 @@ jobs:
           xcodebuild -workspace Mentra.xcworkspace \
                      -scheme Mentra \
                      -configuration Release \
-                     -sdk iphoneos \
+                     -destination 'generic/platform=iOS' \
                      -derivedDataPath build-device \
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGNING_REQUIRED=NO \

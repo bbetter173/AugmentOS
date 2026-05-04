@@ -63,6 +63,7 @@ export default function Homepage() {
           <Group>
             <PairGlassesCard />
           </Group>
+          <View className="h-2" />
           <View className="flex-1" />
           <AppsGrid />
         </>

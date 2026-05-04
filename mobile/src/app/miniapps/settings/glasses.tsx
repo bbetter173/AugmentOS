@@ -256,7 +256,7 @@ export default function Glasses() {
   }
 
   return (
-    <Screen preset="fixed" extraAndroidInsets>
+    <Screen preset="fixed">
       <Header
         title={translate("deviceSettings:title")}
         subtitle={pageSubtitle}
@@ -273,6 +273,7 @@ export default function Glasses() {
         {!glassesConnected && defaultWearable && <NotConnectedInfo />}
         <Spacer height={theme.spacing.s6} />
         <DeviceSettings />
+        <Spacer height={theme.spacing.s8} />
       </ScrollView>
     </Screen>
   )

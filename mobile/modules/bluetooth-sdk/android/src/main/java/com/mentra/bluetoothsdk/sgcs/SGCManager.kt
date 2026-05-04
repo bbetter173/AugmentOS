@@ -1,7 +1,7 @@
-package com.mentra.bluetoothsdk.sgcs
+package com.mentra.core.sgcs
 
-import com.mentra.bluetoothsdk.DeviceStore
-import com.mentra.bluetoothsdk.utils.ConnTypes
+import com.mentra.core.GlassesStore
+import com.mentra.core.utils.ConnTypes
 
 abstract class SGCManager {
     // Hard coded device properties:
@@ -47,13 +47,13 @@ abstract class SGCManager {
 
     /** Default: full [setDashboardPosition] (e.g. G1 single command). Nex overrides to height protobuf only. */
     open fun setDashboardHeightOnly(height: Int) {
-        val depth = (DeviceStore.store.get("bluetooth", "dashboard_depth") as? Number)?.toInt() ?: 2
+        val depth = (GlassesStore.store.get("core", "dashboard_depth") as? Number)?.toInt() ?: 2
         setDashboardPosition(height, depth)
     }
 
     /** Default: full [setDashboardPosition]. Nex overrides to display_distance only. */
     open fun setDashboardDepthOnly(depth: Int) {
-        val height = (DeviceStore.store.get("bluetooth", "dashboard_height") as? Number)?.toInt() ?: 4
+        val height = (GlassesStore.store.get("core", "dashboard_height") as? Number)?.toInt() ?: 4
         setDashboardPosition(height, depth)
     }
 
@@ -111,91 +111,91 @@ abstract class SGCManager {
     // Version info
     abstract fun requestVersionInfo()
 
-    // DeviceStore-backed read-only getters for convenience
+    // GlassesStore-backed read-only getters for convenience
     val fullyBooted: Boolean
-        get() = DeviceStore.get("glasses", "fullyBooted") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "fullyBooted") as? Boolean ?: false
 
     val connected: Boolean
-        get() = DeviceStore.get("glasses", "connected") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "connected") as? Boolean ?: false
 
     val connectionState: String
-        get() = DeviceStore.get("glasses", "connectionState") as? String ?: ConnTypes.DISCONNECTED
+        get() = GlassesStore.get("glasses", "connectionState") as? String ?: ConnTypes.DISCONNECTED
 
     val appVersion: String
-        get() = DeviceStore.get("glasses", "appVersion") as? String ?: ""
+        get() = GlassesStore.get("glasses", "appVersion") as? String ?: ""
 
     val buildNumber: String
-        get() = DeviceStore.get("glasses", "buildNumber") as? String ?: ""
+        get() = GlassesStore.get("glasses", "buildNumber") as? String ?: ""
 
     val deviceModel: String
-        get() = DeviceStore.get("glasses", "deviceModel") as? String ?: ""
+        get() = GlassesStore.get("glasses", "deviceModel") as? String ?: ""
 
     val androidVersion: String
-        get() = DeviceStore.get("glasses", "androidVersion") as? String ?: ""
+        get() = GlassesStore.get("glasses", "androidVersion") as? String ?: ""
 
     val otaVersionUrl: String
-        get() = DeviceStore.get("glasses", "otaVersionUrl") as? String ?: ""
+        get() = GlassesStore.get("glasses", "otaVersionUrl") as? String ?: ""
 
     val firmwareVersion: String
-        get() = DeviceStore.get("glasses", "firmwareVersion") as? String ?: ""
+        get() = GlassesStore.get("glasses", "firmwareVersion") as? String ?: ""
 
     val btMacAddress: String
-        get() = DeviceStore.get("glasses", "btMacAddress") as? String ?: ""
+        get() = GlassesStore.get("glasses", "btMacAddress") as? String ?: ""
 
     val serialNumber: String
-        get() = DeviceStore.get("glasses", "serialNumber") as? String ?: ""
+        get() = GlassesStore.get("glasses", "serialNumber") as? String ?: ""
 
     val style: String
-        get() = DeviceStore.get("glasses", "style") as? String ?: ""
+        get() = GlassesStore.get("glasses", "style") as? String ?: ""
 
     val color: String
-        get() = DeviceStore.get("glasses", "color") as? String ?: ""
+        get() = GlassesStore.get("glasses", "color") as? String ?: ""
 
     val micEnabled: Boolean
-        get() = DeviceStore.get("glasses", "micEnabled") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "micEnabled") as? Boolean ?: false
 
     val vadEnabled: Boolean
-        get() = DeviceStore.get("glasses", "vadEnabled") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "vadEnabled") as? Boolean ?: false
 
     val batteryLevel: Int
-        get() = DeviceStore.get("glasses", "batteryLevel") as? Int ?: -1
+        get() = GlassesStore.get("glasses", "batteryLevel") as? Int ?: -1
 
     val headUp: Boolean
-        get() = DeviceStore.get("glasses", "headUp") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "headUp") as? Boolean ?: false
 
     val charging: Boolean
-        get() = DeviceStore.get("glasses", "charging") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "charging") as? Boolean ?: false
 
     val caseOpen: Boolean
-        get() = DeviceStore.get("glasses", "caseOpen") as? Boolean ?: true
+        get() = GlassesStore.get("glasses", "caseOpen") as? Boolean ?: true
 
     val caseRemoved: Boolean
-        get() = DeviceStore.get("glasses", "caseRemoved") as? Boolean ?: true
+        get() = GlassesStore.get("glasses", "caseRemoved") as? Boolean ?: true
 
     val caseCharging: Boolean
-        get() = DeviceStore.get("glasses", "caseCharging") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "caseCharging") as? Boolean ?: false
 
     val caseBatteryLevel: Int
-        get() = DeviceStore.get("glasses", "caseBatteryLevel") as? Int ?: -1
+        get() = GlassesStore.get("glasses", "caseBatteryLevel") as? Int ?: -1
 
     val wifiSsid: String
-        get() = DeviceStore.get("glasses", "wifiSsid") as? String ?: ""
+        get() = GlassesStore.get("glasses", "wifiSsid") as? String ?: ""
 
     val wifiConnected: Boolean
-        get() = DeviceStore.get("glasses", "wifiConnected") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "wifiConnected") as? Boolean ?: false
 
     val wifiLocalIp: String
-        get() = DeviceStore.get("glasses", "wifiLocalIp") as? String ?: ""
+        get() = GlassesStore.get("glasses", "wifiLocalIp") as? String ?: ""
 
     val hotspotEnabled: Boolean
-        get() = DeviceStore.get("glasses", "hotspotEnabled") as? Boolean ?: false
+        get() = GlassesStore.get("glasses", "hotspotEnabled") as? Boolean ?: false
 
     val hotspotSsid: String
-        get() = DeviceStore.get("glasses", "hotspotSsid") as? String ?: ""
+        get() = GlassesStore.get("glasses", "hotspotSsid") as? String ?: ""
 
     val hotspotPassword: String
-        get() = DeviceStore.get("glasses", "hotspotPassword") as? String ?: ""
+        get() = GlassesStore.get("glasses", "hotspotPassword") as? String ?: ""
 
     val hotspotGatewayIp: String
-        get() = DeviceStore.get("glasses", "hotspotGatewayIp") as? String ?: ""
+        get() = GlassesStore.get("glasses", "hotspotGatewayIp") as? String ?: ""
 }

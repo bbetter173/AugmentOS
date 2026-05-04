@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.utils
+package com.mentra.core.utils
 
 import java.nio.ByteBuffer
 import java.io.IOException
@@ -7,7 +7,7 @@ import java.util.UUID
 import android.content.Context
 import android.util.Log
 
-import com.mentra.bluetoothsdk.Bridge
+import com.mentra.core.Bridge
 
 import mentraos.ble.MentraosBle.DisplayText
 import mentraos.ble.MentraosBle.ClearDisplay

@@ -1,4 +1,4 @@
-import CoreModule, {ButtonPressEvent, BluetoothStatus as CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
+import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
 import CrustModule from "crust"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
@@ -18,12 +18,11 @@ import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
 import {useCoreStore} from "@/stores/core"
 import udp from "@/services/UdpManager"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {logE2EMetric} from "@/utils/e2eMetrics"
 import {useAppletStatusStore} from "@/stores/applets"
-import {syncDashboardMenu} from "@/utils/glassesMenu"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"
 
@@ -48,9 +47,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, ({data: {locations}, error}) => {
 
 class MantleManager {
   private static instance: MantleManager | null = null
-  private calendarSyncTimer: ReturnType<typeof BackgroundTimer.setInterval> | null = null
-  private clearTextTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
-  private micDataTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
+  private calendarSyncTimer: ReturnType<typeof BgTimer.setInterval> | null = null
+  private clearTextTimeout: ReturnType<typeof BgTimer.setTimeout> | null = null
+  private micDataTimeout: ReturnType<typeof BgTimer.setTimeout> | null = null
   private MIC_TIMEOUT_MS: number = 1000
   private transcriptProcessor: TranscriptProcessor
   private subs: Array<any> = []
@@ -99,7 +98,15 @@ class MantleManager {
     await migrate() // do any local migrations here
     const res = await restComms.loadUserSettings() // get settings from server
     if (res.is_ok()) {
-      const loadedSettings = res.value
+      let loadedSettings = res.value
+      // exclude default_wearable and pending_wearable from the settings when pulling from the server:
+      delete loadedSettings["default_wearable"]
+      delete loadedSettings["pending_wearable"]
+      delete loadedSettings["default_controller"]
+      delete loadedSettings["pending_controller"]
+      delete loadedSettings["controller_device_name"]
+      delete loadedSettings["controller_address"]
+
       await useSettingsStore.getState().setManyLocally(loadedSettings) // write settings to local storage
     } else {
       console.error("MANTLE: No settings received from server")
@@ -108,10 +115,13 @@ class MantleManager {
     // Send device timezone to cloud (used for calendar/time display)
     this.syncTimezone()
 
-    const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
-    await CoreModule.updateBluetoothSettings(initialCoreSettings)
+    // give the core some time to boot before sending all the initial settings:
+    BgTimer.setTimeout(() => {
+      const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
+      CoreModule.updateCore(initialCoreSettings) // send settings to core
+      console.log("MANTLE: Settings sent to core")
+    }, 1000)
     await this.syncNotificationSettingsToCrust()
-    console.log("MANTLE: Settings sent to core")
 
     this.initServices()
     this.setupPeriodicTasks()
@@ -164,12 +174,9 @@ class MantleManager {
   private async setupPeriodicTasks() {
     this.sendCalendarEvents()
     // Calendar sync every hour
-    this.calendarSyncTimer = BackgroundTimer.setInterval(
-      () => {
-        this.sendCalendarEvents()
-      },
-      60 * 60 * 1000,
-    ) // 1 hour
+    this.calendarSyncTimer = BgTimer.setInterval(() => {
+      this.sendCalendarEvents()
+    }, 60 * 60 * 1000) // 1 hour
 
     try {
       // only start location updates if we have the location permission:
@@ -194,7 +201,7 @@ class MantleManager {
     //       return
     //     }
     //     // give some time for the glasses to be fully ready:
-    //     BackgroundTimer.setTimeout(async () => {
+    //     BgTimer.setTimeout(async () => {
     //       await CoreModule.connectDefault()
     //     }, 3000)
     //   } catch (error) {
@@ -234,7 +241,7 @@ class MantleManager {
           }
         }
         // console.log("MANTLE: core settings changed", coreSettingsObj)
-        CoreModule.updateBluetoothSettings(coreSettingsObj)
+        CoreModule.updateCore(coreSettingsObj)
       },
       {equalityFn: shallow},
     )
@@ -256,7 +263,7 @@ class MantleManager {
 
     // Forward core status changes to the zustand core store.
     this.subs.push({
-      remove: CoreModule.onBluetoothStatus((changed: Partial<CoreStatus>) => {
+      remove: CoreModule.onCoreStatus((changed: Partial<CoreStatus>) => {
         // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
@@ -368,8 +375,8 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("switch_status", (event) => {
-          const switchType = typeof event.switch_type === "number" ? event.switch_type : (event.switchType ?? -1)
-          const switchValue = typeof event.switch_value === "number" ? event.switch_value : (event.switchValue ?? -1)
+          const switchType = typeof event.switch_type === "number" ? event.switch_type : event.switchType ?? -1
+          const switchValue = typeof event.switch_value === "number" ? event.switch_value : event.switchValue ?? -1
           const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now()
           socketComms.sendSwitchStatus(switchType, switchValue, timestamp)
           // TODO: remove
@@ -457,27 +464,6 @@ class MantleManager {
           } else {
             console.log(`MANTLE: miniapp_selected - starting ${packageName}`)
             useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
-          }
-        }),
-      )
-
-      // G2 dashboard menu: sync on glasses connect
-      this.subs.push(
-        useGlassesStore.subscribe(
-          (state) => state.fullyBooted,
-          async (fullyBooted) => {
-            if (!fullyBooted) return
-            await syncDashboardMenu()
-          },
-        ),
-      )
-
-      // G2 dashboard menu: re-sync when app list changes (handles app install/uninstall,
-      // server refresh after connect, and race where apps weren't loaded on first connect)
-      this.subs.push(
-        useAppletStatusStore.subscribe(async (state, prevState) => {
-          if (state.apps !== prevState.apps && state.apps.length > 0) {
-            await syncDashboardMenu()
           }
         }),
       )
@@ -593,9 +579,9 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("mic_lc3", (event) => {
           if (this.micDataTimeout) {
-            BackgroundTimer.clearTimeout(this.micDataTimeout)
+            BgTimer.clearTimeout(this.micDataTimeout)
           }
-          this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+          this.micDataTimeout = BgTimer.setTimeout(() => {
             useDebugStore.getState().setDebugInfo({micDataRecvd: false})
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
@@ -615,9 +601,9 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("mic_pcm", (event) => {
           if (this.micDataTimeout) {
-            BackgroundTimer.clearTimeout(this.micDataTimeout)
+            BgTimer.clearTimeout(this.micDataTimeout)
           }
-          this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+          this.micDataTimeout = BgTimer.setTimeout(() => {
             useDebugStore.getState().setDebugInfo({micDataRecvd: false})
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
@@ -716,9 +702,9 @@ class MantleManager {
     }
 
     // one time get all:
-    const bluetoothStatus = await CoreModule.getBluetoothStatus()
-    // console.log("MANTLE: core status:", bluetoothStatus)
-    useCoreStore.getState().setCoreInfo(bluetoothStatus)
+    const coreStatus = await CoreModule.getCoreStatus()
+    // console.log("MANTLE: core status:", coreStatus)
+    useCoreStore.getState().setCoreInfo(coreStatus)
 
     const glassesStatus = await CoreModule.getGlassesStatus()
     // console.log("MANTLE: glasses status:", glassesStatus)
@@ -832,9 +818,9 @@ class MantleManager {
   public async resetDisplayTimeout() {
     if (this.clearTextTimeout) {
       // console.log("MANTLE: canceling pending timeout")
-      BackgroundTimer.clearTimeout(this.clearTextTimeout)
+      BgTimer.clearTimeout(this.clearTextTimeout)
     }
-    this.clearTextTimeout = BackgroundTimer.setTimeout(() => {
+    this.clearTextTimeout = BgTimer.setTimeout(() => {
       console.log("MANTLE: clearing text from wall")
     }, 10000) // 10 seconds
   }

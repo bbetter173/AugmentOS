@@ -1417,8 +1417,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         Bridge.log("NEX: 🔋 Battery Status - Level: \(level)%, Charging: \(isCharging)")
 
         // Update @Published properties (G1-compatible approach)
-        DeviceStore.shared.apply("glasses", "batteryLevel", level)
-        DeviceStore.shared.apply("glasses", "charging", isCharging)
+        GlassesStore.shared.apply("glasses", "batteryLevel", level)
+        GlassesStore.shared.apply("glasses", "charging", isCharging)
     }
 
     private func handleChargingStateProtobuf(_ chargingState: Mentraos_Ble_ChargingState) {
@@ -1427,15 +1427,15 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         Bridge.log("NEX: 🔌 Charging State: \(chargingState ? "CHARGING" : "NOT_CHARGING")")
 
         // Update @Published property (G1-compatible approach)
-        DeviceStore.shared.apply("glasses", "charging", chargingState)
+        GlassesStore.shared.apply("glasses", "charging", chargingState)
     }
 
     private func handleDeviceInfoProtobuf(_ deviceInfo: Mentraos_Ble_DeviceInfo) {
         Bridge.log("NEX: 📱 Device Info: \(deviceInfo)")
 
         // Update @Published properties (G1-compatible approach)
-        DeviceStore.shared.apply("glasses", "deviceFirmwareVersion", deviceInfo.fwVersion)
-        DeviceStore.shared.apply("glasses", "deviceHardwareModel", deviceInfo.hwModel)
+        GlassesStore.shared.apply("glasses", "deviceFirmwareVersion", deviceInfo.fwVersion)
+        GlassesStore.shared.apply("glasses", "deviceHardwareModel", deviceInfo.hwModel)
     }
 
     private func handleHeadPositionProtobuf(_ headPosition: Mentraos_Ble_HeadPosition) {
@@ -1560,7 +1560,7 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         // Update @Published properties (G1-compatible approach)
         switch gestureType {
         case .headUp:
-            DeviceStore.shared.apply("glasses", "headUp", true)
+            GlassesStore.shared.apply("glasses", "headUp", true)
             lastHeadGesture = "headUp"
         case .nod:
             lastHeadGesture = "nod"
@@ -1581,8 +1581,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         Bridge.log("NEX: 🔋 JSON Battery Status - Level: \(level)%, Charging: \(charging)")
 
         // Update @Published properties (G1-compatible approach)
-        DeviceStore.shared.apply("glasses", "batteryLevel", level)
-        DeviceStore.shared.apply("glasses", "charging", isCharging)
+        GlassesStore.shared.apply("glasses", "batteryLevel", level)
+        GlassesStore.shared.apply("glasses", "charging", isCharging)
     }
 
     private func handleDeviceInfoJson(_ json: [String: Any]) {
@@ -2171,8 +2171,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
         deviceReady = false
         // batteryLevel = -1
         // charging = false
-        DeviceStore.shared.apply("glasses", "batteryLevel", -1)
-        DeviceStore.shared.apply("glasses", "charging", false)
+        GlassesStore.shared.apply("glasses", "batteryLevel", -1)
+        GlassesStore.shared.apply("glasses", "charging", false)
         vadActive = false
         compressedVoiceData = .init()
         aiListening = false

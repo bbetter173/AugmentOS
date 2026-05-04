@@ -1045,16 +1045,6 @@ class G2: NSObject, SGCManager {
 
     // Connection state
     private var connectionState: String = ConnTypes.DISCONNECTED
-    private var _ready: Bool = false
-    private var ready: Bool {
-        get { _ready }
-        set {
-            _ready = newValue
-            if !newValue {
-                DeviceStore.shared.apply("glasses", "batteryLevel", -1)
-            }
-        }
-    }
 
     // BLE peripherals (L+R)
     private var centralManager: CBCentralManager?
@@ -1419,32 +1409,27 @@ class G2: NSObject, SGCManager {
                     // Start heartbeats after auth
                     self.startHeartbeats()
 
-                    // Mark as ready and request device info (version + battery)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                        guard let self = self else { return }
-                        self.ready = true
                         Task { await self.reconnectionManager.stop() }
                         Bridge.log("G2: Auth sequence complete, glasses ready")
 
-                        // Set device_name so DeviceManager can save it for reconnection
+                        // Set device_name so CoreManager can save it for reconnection
                         if let peripheralName = self.rightPeripheral?.name
                             ?? self.leftPeripheral?.name,
-                            let idNumber = self.extractIdNumber(peripheralName)
+                            let serialNumber = self.deviceNameToSerialNumber[peripheralName]
                         {
-                            let deviceId = "\(idNumber)"
-                            DeviceStore.shared.apply("bluetooth", "device_name", deviceId)
-                            Bridge.log("G2: Set device_name to \(deviceId)")
+                            GlassesStore.shared.apply("core", "device_name", serialNumber)
+                            Bridge.log("G2: Set device_name to \(serialNumber)")
                         }
 
                         // Set bluetooth name and device model for Device Info page
                         let btName =
                             self.rightPeripheral?.name
                                 ?? self.leftPeripheral?.name ?? ""
-                        DeviceStore.shared.apply("glasses", "bluetoothName", btName)
-                        DeviceStore.shared.apply("glasses", "deviceModel", DeviceTypes.G2)
+                        GlassesStore.shared.apply("glasses", "bluetoothName", btName)
+                        GlassesStore.shared.apply("glasses", "deviceModel", DeviceTypes.G2)
 
-                        DeviceStore.shared.apply("glasses", "connected", true)
-                        DeviceStore.shared.apply("glasses", "fullyBooted", true)
+                        GlassesStore.shared.apply("glasses", "connected", true)
+                        GlassesStore.shared.apply("glasses", "fullyBooted", true)
 
                         // connnect a controller if we have one:
                         self.connectController()
@@ -1452,19 +1437,9 @@ class G2: NSObject, SGCManager {
                         // Query version + battery info from glasses
                         self.requestDeviceInfo()
 
-                        // Re-send dashboard menu if we have stored items
-                        if !self.dashboardMenuItems.isEmpty {
-                            let (msg, appIdMap) = MenuProto.sendMenuInfo(
-                                magicRandom: self.sendManager.nextMagicRandom(),
-                                items: self.dashboardMenuItems
-                            )
-                            self.menuAppIdToPackageName = appIdMap
-                            self.sendMenuCommand(msg)
-                            Bridge.log(
-                                "G2: Re-sent dashboard menu (\(self.dashboardMenuItems.count) items)"
-                            )
-                        }
-                    }
+                        // send dashboard menu if we have stored items
+                        self.sendMenuApps()
+
                 }
             }
         }
@@ -1538,7 +1513,10 @@ class G2: NSObject, SGCManager {
     }
 
     private func sendEvenHubHeartbeat() {
-        guard ready else { return }
+
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        guard isFullyBooted else { return }
+
         let msg = EvenHubProto.heartbeatMessage()
         // Write to BOTH arms. If either side sees no traffic for ~50s while
         // backgrounded, iOS bluetoothd reclaims the connection as "Unused"
@@ -1553,7 +1531,8 @@ class G2: NSObject, SGCManager {
     }
 
     private func sendDevSettingsHeartbeat() {
-        guard ready else { return }
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        guard isFullyBooted else { return }
         let msg = DevSettingsProto.baseHeartbeat(magicRandom: sendManager.nextMagicRandom())
         sendDevSettingsCommand(msg, left: true, right: true)
     }
@@ -1565,13 +1544,21 @@ class G2: NSObject, SGCManager {
         // Bridge.log("G2: Requested device info (battery/version)")
     }
 
+    private func sendMenuApps() {
+        let menuItems = GlassesStore.shared.get("core", "menu_apps") as? [[String: Any]] ?? []
+        if menuItems.isEmpty {
+            return
+        }
+        setDashboardMenu(menuItems)
+    }
+
     // MARK: - SGCManager: Display Control
 
     func sendTextWall(_ text: String) {
         // Bridge.log("G2: sendTextWall(\(text.prefix(50))...)")
 
         // ignore events while the dashboard is open:
-        // let isHeadUp = DeviceStore.shared.get("glasses", "headUp") as? Bool ?? false
+        // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
         // if isHeadUp {
         //     return
         // }
@@ -2252,7 +2239,7 @@ class G2: NSObject, SGCManager {
 
     func setMicEnabled(_ enabled: Bool) {
         Bridge.log("G2: setMicEnabled(\(enabled))")
-        DeviceStore.shared.apply("glasses", "micEnabled", enabled)
+        GlassesStore.shared.apply("glasses", "micEnabled", enabled)
 
         let msg = EvenHubProto.audioControlMessage(enable: enabled)
         sendEvenHubCommand(msg)
@@ -2296,7 +2283,6 @@ class G2: NSObject, SGCManager {
             centralManager?.cancelPeripheralConnection(peripheral)
         }
 
-        ready = false
         leftInitialized = false
         rightInitialized = false
         authStarted = false
@@ -2304,8 +2290,8 @@ class G2: NSObject, SGCManager {
         pageCreated = false
         pageHasTextContainer = false
         heartbeatCounter = 0
-        DeviceStore.shared.apply("glasses", "connected", false)
-        DeviceStore.shared.apply("glasses", "fullyBooted", false)
+        GlassesStore.shared.apply("glasses", "connected", false)
+        GlassesStore.shared.apply("glasses", "fullyBooted", false)
     }
 
     func forget() {
@@ -2339,12 +2325,13 @@ class G2: NSObject, SGCManager {
     }
 
     func connectController() {
-        guard ready else {
-            Bridge.log("G2: connectController - not ready, ignoring")
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        guard isFullyBooted else {
+            Bridge.log("G2: connectController - g2 not fully booted, ignoring")
             return
         }
 
-        guard let mac = DeviceStore.shared.get("glasses", "controllerMacAddress") as? String else {
+        guard let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String else {
             Bridge.log("G2: connectController - no MAC address found")
             return
         }
@@ -2367,12 +2354,13 @@ class G2: NSObject, SGCManager {
     }
 
     func disconnectController() {
-        guard ready else {
-            Bridge.log("G2: disconnectController - not ready, ignoring")
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        guard isFullyBooted else {
+            Bridge.log("G2: disconnectController - g2 not fully booted, ignoring")
             return
         }
 
-        guard let mac = DeviceStore.shared.get("glasses", "controllerMacAddress") as? String else {
+        guard let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String else {
             Bridge.log("G2: disconnectController - no MAC address found")
             return
         }
@@ -2392,9 +2380,9 @@ class G2: NSObject, SGCManager {
         )
         sendDevSettingsCommand(msg)
 
-        DeviceStore.shared.apply("glasses", "controllerMacAddress", "")
-        DeviceStore.shared.apply("glasses", "controllerConnected", false)
-        DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
+        // GlassesStore.shared.apply("glasses", "controllerMacAddress", "")
+        GlassesStore.shared.apply("glasses", "controllerConnected", false)
+        GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
         Bridge.log("G2: Sent RING_DISCONNECT_INFO for MAC \(mac)")
     }
 
@@ -2849,26 +2837,26 @@ class G2: NSObject, SGCManager {
     }
 
     private func setFullyConnected() {
-        let isFullyConnected = DeviceStore.shared.get("glasses", "connected") as? Bool ?? false
-        let isFullyBooted = DeviceStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        let isFullyConnected = GlassesStore.shared.get("glasses", "connected") as? Bool ?? false
+        let isFullyBooted = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
         if !isFullyConnected {
-            DeviceStore.shared.apply("glasses", "connected", true)
+            GlassesStore.shared.apply("glasses", "connected", true)
         }
         if !isFullyBooted {
-            DeviceStore.shared.apply("glasses", "fullyBooted", true)
+            GlassesStore.shared.apply("glasses", "fullyBooted", true)
         }
     }
 
     private func setControllerFullyConnected() {
         let isControllerConnected =
-            DeviceStore.shared.get("glasses", "controllerConnected") as? Bool ?? false
+            GlassesStore.shared.get("glasses", "controllerConnected") as? Bool ?? false
         let isControllerFullyBooted =
-            DeviceStore.shared.get("glasses", "controllerFullyBooted") as? Bool ?? false
+            GlassesStore.shared.get("glasses", "controllerFullyBooted") as? Bool ?? false
         if !isControllerConnected {
-            DeviceStore.shared.apply("glasses", "controllerConnected", true)
+            GlassesStore.shared.apply("glasses", "controllerConnected", true)
         }
         if !isControllerFullyBooted {
-            DeviceStore.shared.apply("glasses", "controllerFullyBooted", true)
+            GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
         }
     }
 
@@ -2920,16 +2908,16 @@ class G2: NSObject, SGCManager {
             )
             Bridge.log("G2: SysEvent → \(eventType) \(eventSource)")
 
-            if eventSource == 1 {
+            if eventSource == 2 {
                 // controller must be connected and fully booted:
                 setControllerFullyConnected()
             }
 
             if eventType == .doubleClick {
                 // trigger dashboard:
-                let isHeadUp = DeviceStore.shared.get("glasses", "headUp") as? Bool ?? false
+                let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                 // toggle head up:
-                DeviceStore.shared.apply("glasses", "headUp", !isHeadUp)
+                GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
                 if isHeadUp {
                     // Bridge.log("G2: going back to home, clearing display")
                     // clear the display after a delay:
@@ -2940,7 +2928,7 @@ class G2: NSObject, SGCManager {
                 // sendDashboardCommand(DashboardCommand.trigger)
 
                 // toggle head up:
-                // DeviceStore.shared.apply("glasses", "headUp", true)
+                // GlassesStore.shared.apply("glasses", "headUp", true)
                 // runDashboardSequence()
             }
 
@@ -3027,7 +3015,7 @@ class G2: NSObject, SGCManager {
     }
 
     private func reconnectController() {
-        let mac = DeviceStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
+        let mac = GlassesStore.shared.get("glasses", "controllerMacAddress") as? String ?? ""
         guard !mac.isEmpty else {
             Bridge.log("G2: reconnectController - no MAC address found")
             return
@@ -3061,9 +3049,9 @@ class G2: NSObject, SGCManager {
             // // if it's 3c or 3d that's disconnected:
             // if connStat == 0x3c || connStat == 0x3d {
             //     Bridge.log("G2: Ring disconnected")
-            //     DeviceStore.shared.apply("glasses", "controllerConnected", false)
-            //     DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
-            //     DeviceStore.shared.apply("glasses", "controllerSearching", true)
+            //     GlassesStore.shared.apply("glasses", "controllerConnected", false)
+            //     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+            //     GlassesStore.shared.apply("glasses", "controllerSearching", true)
             // }
 
             // Bridge.log("G2: Ring connection status: connStat=\(connStat)")
@@ -3077,23 +3065,23 @@ class G2: NSObject, SGCManager {
 
                 if ringFields[1] as? Int32 ?? 0 == 1 {
                     Bridge.log("G2: Ring maybe connected?")
-                    // DeviceStore.shared.apply("glasses", "controllerConnected", true)
-                    DeviceStore.shared.apply("glasses", "controllerFullyBooted", true)
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
                 }
 
                 if ringFields[4] as? Int32 ?? 0 == 62 {
                     Bridge.log("G2: Ring maybe reconnected?")
-                    // DeviceStore.shared.apply("glasses", "controllerConnected", true)
-                    DeviceStore.shared.apply("glasses", "controllerFullyBooted", true)
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", true)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", true)
                 }
             }
 
             // if the data ends in 2016 that's a disconnect?:
             // if data.suffix(4) == Data([0x20, 0x16]) {
             //     Bridge.log("G2: Ring disconnected")
-            //     DeviceStore.shared.apply("glasses", "controllerConnected", false)
-            //     DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
-            //     DeviceStore.shared.apply("glasses", "controllerSearching", true)
+            //     GlassesStore.shared.apply("glasses", "controllerConnected", false)
+            //     GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+            //     GlassesStore.shared.apply("glasses", "controllerSearching", true)
             // }
 
             if let ringData = fields[5] as? Data { // field 5 = ringInfo
@@ -3106,20 +3094,19 @@ class G2: NSObject, SGCManager {
 
                 if connStatus == 22 {
                     Bridge.log("G2: Ring disconnected")
-                    // DeviceStore.shared.apply("glasses", "controllerConnected", false)
-                    DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
-                    DeviceStore.shared.apply("glasses", "controllerSearching", true)
+                    GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                    GlassesStore.shared.apply("glasses", "controllerSearching", true)
                     reconnectController()
                 }
 
                 if connStatus == 8 {
                     Bridge.log("G2: Ring maybe disconnected?")
-                    // DeviceStore.shared.apply("glasses", "controllerConnected", false)
-                    DeviceStore.shared.apply("glasses", "controllerFullyBooted", false)
-                    DeviceStore.shared.apply("glasses", "controllerSearching", true)
-                    reconnectController()
+                    // GlassesStore.shared.apply("glasses", "controllerConnected", false)
+                    // GlassesStore.shared.apply("glasses", "controllerFullyBooted", false)
+                    // GlassesStore.shared.apply("glasses", "controllerSearching", true)
+                    // reconnectController()
                 }
-                // // DeviceStore.shared.apply("glasses", "ringConnectedToGlasses", connected)
+                // // GlassesStore.shared.apply("glasses", "ringConnectedToGlasses", connected)
             }
         }
     }
@@ -3161,14 +3148,14 @@ class G2: NSObject, SGCManager {
             let level = Int(battery)
             if level >= 0 && level <= 100 {
                 // Bridge.log("G2: Battery level: \(level)%")
-                DeviceStore.shared.apply("glasses", "batteryLevel", level)
+                GlassesStore.shared.apply("glasses", "batteryLevel", level)
             }
         }
 
         // Charging status
         if let charging = fields[13] as? Int32 {
             let isCharging = charging != 0
-            DeviceStore.shared.apply("glasses", "charging", isCharging)
+            GlassesStore.shared.apply("glasses", "charging", isCharging)
             // Bridge.log("G2: Charging: \(isCharging)")
             // Re-send battery status with updated charging info
             if batteryLevel >= 0 {
@@ -3181,15 +3168,15 @@ class G2: NSObject, SGCManager {
            let leftVersion = String(data: leftVer, encoding: .utf8)
         {
             // Bridge.log("G2: Left firmware: \(leftVersion)")
-            DeviceStore.shared.apply("glasses", "leftFirmwareVersion", leftVersion)
+            GlassesStore.shared.apply("glasses", "leftFirmwareVersion", leftVersion)
         }
         if let rightVer = fields[6] as? Data,
            let rightVersion = String(data: rightVer, encoding: .utf8)
         {
             // Bridge.log("G2: Right firmware: \(rightVersion)")
-            DeviceStore.shared.apply("glasses", "rightFirmwareVersion", rightVersion)
+            GlassesStore.shared.apply("glasses", "rightFirmwareVersion", rightVersion)
             // Use right version as the main version
-            DeviceStore.shared.apply("glasses", "fwVersion", rightVersion)
+            GlassesStore.shared.apply("glasses", "fwVersion", rightVersion)
         }
     }
 
@@ -3254,14 +3241,14 @@ class G2: NSObject, SGCManager {
         if data == Data([0x08, 0x01, 0x1A, 0x00]) {
             Bridge.log("G2: gesture_ctrl response: dashboard closed")
             // re-send mic on / update mic state:
-            DeviceStore.shared.apply("glasses", "micEnabled", false)
-            DeviceManager.shared.updateMicState() // should set the mic back on if it should be on
-            //     // let isHeadUp = DeviceStore.shared.get("glasses", "headUp") as? Bool ?? false
+            GlassesStore.shared.apply("glasses", "micEnabled", false)
+            CoreManager.shared.updateMicState() // should set the mic back on if it should be on
+            //     // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
 
             //     // toggle head up:
-            //     DeviceStore.shared.apply("glasses", "headUp", false)
+            //     GlassesStore.shared.apply("glasses", "headUp", false)
             //     // send the current state to the glasses
-            //     DeviceManager.shared.sendCurrentState()
+            //     CoreManager.shared.sendCurrentState()
             // reset the text container (different from clearDisplay())
             sendTextWall(" ")
         }
@@ -3293,9 +3280,9 @@ class G2: NSObject, SGCManager {
 
         let audioData = data.prefix(usableLength)
 
-        // Forward LC3 data to DeviceManager for decoding
+        // Forward LC3 data to CoreManager for decoding
         // G2 uses 40-byte frames (vs G1's 20-byte frames)
-        DeviceManager.shared.handleGlassesMicData(Data(audioData), 40)
+        CoreManager.shared.handleGlassesMicData(Data(audioData), 40)
     }
 }
 
@@ -3354,7 +3341,7 @@ extension G2: CBCentralManagerDelegate {
             // sn = "S200LACA040040"
             Bridge.log("G2: Discovered: \(name) (SN: \(serialNumber))")
             self.deviceNameToSerialNumber[name] = serialNumber
-            // DeviceStore.shared.apply("glasses", "signalStrength", RSSI.intValue)
+            // GlassesStore.shared.apply("glasses", "signalStrength", RSSI.intValue)
 
             // Always emit discovered device to frontend
             self.emitDiscoveredDevice(serialNumber)
@@ -3431,12 +3418,11 @@ extension G2: CBCentralManagerDelegate {
             self.rightAudioChar = nil
             self.authStarted = false
 
-            self.ready = false
             self.startupPageCreated = false
             self.pageCreated = false
             self.pageHasTextContainer = false
-            DeviceStore.shared.apply("glasses", "connected", false)
-            DeviceStore.shared.apply("glasses", "fullyBooted", false)
+            GlassesStore.shared.apply("glasses", "connected", false)
+            GlassesStore.shared.apply("glasses", "fullyBooted", false)
 
             // Start persistent reconnection loop (every 30s, unlimited attempts)
             self.startReconnectionTimer()
@@ -3449,7 +3435,7 @@ extension G2: CBCentralManagerDelegate {
                 guard let self else { return false }
 
                 // Check if already connected
-                if await MainActor.run(body: { self.ready }) {
+                if await MainActor.run(body: { GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false }) {
                     Bridge.log("G2: Already connected, stopping reconnection")
                     return true
                 }

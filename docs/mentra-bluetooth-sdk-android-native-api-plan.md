@@ -90,9 +90,6 @@ class MentraBluetoothSdk private constructor(
     fun startStream(request: MentraStreamRequest)
     fun keepStreamAlive(request: MentraStreamKeepAliveRequest)
     fun stopStream()
-    fun startBufferRecording()
-    fun stopBufferRecording()
-    fun saveBufferVideo(requestId: String, durationSeconds: Int)
     fun startVideoRecording(request: MentraVideoRecordingRequest)
     fun stopVideoRecording(requestId: String)
 
@@ -122,7 +119,7 @@ Base v1 should include:
 Advanced or capability-gated APIs should include:
 
 - Camera/gallery commands and media transfer state.
-- RTMP/video streaming and buffer recording.
+- RTMP/video streaming and saved video recording.
 - OTA, shutdown, reboot, and version/diagnostic commands.
 - Local STT, VAD/model management, and raw mic frame delivery.
 - Controller pairing and RGB LED controls.

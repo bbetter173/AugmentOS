@@ -96,7 +96,7 @@ export const ControllerStatus = () => {
   }
 
   return (
-    <TouchableOpacity onPress={() => push("/miniapps/settings/controller")} className="h-28">
+    <TouchableOpacity onPress={() => push("/miniapps/settings/controller")} className="h-28 mt-2">
       <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row gap-2">
         <View className="flex-1 self-start justify-center h-full">
           <Image

@@ -367,8 +367,8 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
-  glasses_menu_apps: {
-    key: "glasses_menu_apps",
+  menu_apps: {
+    key: "menu_apps",
     defaultValue: () => null,
     writable: true,
     saveOnServer: true,
@@ -564,6 +564,7 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.auto_brightness.key,
   SETTINGS.dashboard_height.key,
   SETTINGS.dashboard_depth.key,
+  // SETTINGS.menu_apps.key,
   // button:
   SETTINGS.button_photo_size.key,
   // Legacy MentraLive native code reads the object form when syncing video settings.

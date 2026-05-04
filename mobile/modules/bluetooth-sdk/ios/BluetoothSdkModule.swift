@@ -1,15 +1,15 @@
 import ExpoModulesCore
 
-public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
+public class CoreModule: Module, MentraBluetoothSDKDelegate {
     private var sdk: MentraBluetoothSDK?
 
     public func definition() -> ModuleDefinition {
-        Name("BluetoothSdk")
+        Name("Core")
 
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "bluetooth_status",
+            "core_status",
             "log",
             // Individual event handlers
             "glasses_not_ready",
@@ -70,7 +70,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
-        AsyncFunction("getBluetoothStatus") {
+        AsyncFunction("getCoreStatus") {
             await MainActor.run {
                 self.bluetoothSdk().bluetoothStatus.values
             }
@@ -80,7 +80,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             await MainActor.run {
                 let normalizedCategory = ObservableStore.normalizeCategory(category)
                 for (key, value) in values {
-                    DeviceStore.shared.apply(normalizedCategory, key, value)
+                    GlassesStore.shared.apply(normalizedCategory, key, value)
                 }
             }
         }
@@ -125,7 +125,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("connectDefaultController") {
             await MainActor.run {
-                DeviceManager.shared.connectDefaultController()
+                CoreManager.shared.connectDefaultController()
             }
         }
 
@@ -143,7 +143,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("disconnectController") {
             await MainActor.run {
-                DeviceManager.shared.disconnectController()
+                CoreManager.shared.disconnectController()
             }
         }
 
@@ -155,7 +155,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("forgetController") {
             await MainActor.run {
-                DeviceManager.shared.forgetController()
+                CoreManager.shared.forgetController()
             }
         }
 
@@ -173,21 +173,21 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("ping") {
             await MainActor.run {
-                DeviceManager.shared.ping()
+                CoreManager.shared.ping()
             }
         }
 
         AsyncFunction("dbg1") {
             await MainActor.run {
-                DeviceManager.shared.dbg1()
-                DeviceManager.shared.sgc?.dbg1()
+                CoreManager.shared.dbg1()
+                CoreManager.shared.sgc?.dbg1()
             }
         }
 
         AsyncFunction("dbg2") {
             await MainActor.run {
-                DeviceManager.shared.dbg2()
-                DeviceManager.shared.sgc?.dbg2()
+                CoreManager.shared.dbg2()
+                CoreManager.shared.sgc?.dbg2()
             }
         }
 
@@ -329,11 +329,11 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         }
 
         AsyncFunction("getGlassesMediaVolume") { () async throws -> [String: Any] in
-            try await DeviceManager.shared.getGlassesMediaVolume()
+            try await CoreManager.shared.getGlassesMediaVolume()
         }
 
         AsyncFunction("setGlassesMediaVolume") { (level: Int) async throws -> [String: Any] in
-            try await DeviceManager.shared.setGlassesMediaVolume(level: level)
+            try await CoreManager.shared.setGlassesMediaVolume(level: level)
         }
 
         // MARK: - RGB LED Control
@@ -344,7 +344,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                 ontime: Int, offtime: Int, count: Int
             ) in
             await MainActor.run {
-                DeviceManager.shared.rgbLedControl(
+                CoreManager.shared.rgbLedControl(
                     requestId: requestId,
                     packageName: packageName,
                     action: action,
@@ -360,13 +360,13 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("setMicState") { (_: Bool, _: Bool, _: Bool) in
             await MainActor.run {
-                DeviceManager.shared.setMicState()
+                CoreManager.shared.setMicState()
             }
         }
 
         AsyncFunction("restartTranscriber") {
             await MainActor.run {
-                DeviceManager.shared.restartTranscriber()
+                CoreManager.shared.restartTranscriber()
             }
         }
 
@@ -432,7 +432,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus status: MentraBluetoothStatusUpdate) {
-        sendEvent("bluetooth_status", status.values)
+        sendEvent("core_status", status.values)
     }
 
     @MainActor

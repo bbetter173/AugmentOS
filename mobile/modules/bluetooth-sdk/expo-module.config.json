@@ -1,9 +1,9 @@
 {
   "platforms": ["apple", "android"],
   "apple": {
-    "modules": ["BluetoothSdkModule"]
+    "modules": ["CoreModule"]
   },
   "android": {
-    "modules": ["com.mentra.bluetoothsdk.BluetoothSdkModule"]
+    "modules": ["com.mentra.core.CoreModule"]
   }
 }

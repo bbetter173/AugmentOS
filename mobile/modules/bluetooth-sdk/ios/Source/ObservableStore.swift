@@ -9,11 +9,11 @@ import Foundation
 
 @MainActor
 class ObservableStore {
-    nonisolated static let bluetoothCategory = "bluetooth"
-    private nonisolated static let legacyCoreCategory = "core"
+    nonisolated static let coreCategory = "core"
+    private nonisolated static let legacyBluetoothCategory = "bluetooth"
 
     nonisolated static func normalizeCategory(_ category: String) -> String {
-        category == legacyCoreCategory ? bluetoothCategory : category
+        category == legacyBluetoothCategory ? coreCategory : category
     }
 
     private nonisolated(unsafe) var values: [String: Any] = [:]

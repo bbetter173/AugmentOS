@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.controllers
+package com.mentra.core.controllers
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -17,10 +17,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
-import com.mentra.bluetoothsdk.Bridge
-import com.mentra.bluetoothsdk.DeviceManager
-import com.mentra.bluetoothsdk.DeviceStore
-import com.mentra.bluetoothsdk.utils.ControllerTypes
+import com.mentra.core.Bridge
+import com.mentra.core.CoreManager
+import com.mentra.core.GlassesStore
+import com.mentra.core.utils.ControllerTypes
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,13 +90,6 @@ class R1 : ControllerManager() {
 
     private var ringGatt: BluetoothGatt? = null
     private var isDisconnecting = false
-    private var _ready = false
-    private var ready: Boolean
-        get() = _ready
-        set(value) {
-            _ready = value
-            if (!value) _batteryLevel = -1
-        }
 
     // BLE characteristics
     private var writeChar1: BluetoothGattCharacteristic? = null
@@ -135,7 +128,7 @@ class R1 : ControllerManager() {
             val old = field
             field = value
             if (value != old && value >= 0) {
-                DeviceStore.apply("glasses", "controllerBatteryLevel", value)
+                GlassesStore.apply("glasses", "controllerBatteryLevel", value)
             }
         }
 
@@ -322,7 +315,7 @@ class R1 : ControllerManager() {
         val writeChars = listOfNotNull(writeChar1, writeChar2)
         if (writeChars.isEmpty()) {
             Bridge.log("R1: No write characteristics found, skipping init")
-            markReady()
+            markConnected()
             return
         }
 
@@ -330,7 +323,7 @@ class R1 : ControllerManager() {
 
         mainHandler.postDelayed({
             writeChars.forEach { writeNoResponse(it, R1BLE.CONFIG_11) }
-            markReady()
+            markConnected()
         }, 200)
     }
 
@@ -344,16 +337,15 @@ class R1 : ControllerManager() {
         }
     }
 
-    private fun markReady() {
-        ready = true
+    private fun markConnected() {
         reconnectionManager.stop()
-        Bridge.log("R1: Ring ready")
+        Bridge.log("R1: Ring connected")
 
         val gatt = ringGatt
         val connectedName = try { gatt?.device?.name } catch (e: SecurityException) { null }
         if (connectedName != null) {
             extractRingId(connectedName)?.let {
-                DeviceStore.apply("bluetooth", "controller_device_name", it)
+                GlassesStore.apply("core", "controller_device_name", it)
             }
         }
 
@@ -362,14 +354,14 @@ class R1 : ControllerManager() {
             Bridge.log("R1: No ring MAC address found")
             return
         }
-        DeviceStore.apply("glasses", "controllerMacAddress", mac)
-        DeviceStore.apply("glasses", "controllerConnected", true)
-        DeviceStore.apply("glasses", "controllerFullyBooted", true)
+        GlassesStore.apply("glasses", "controllerMacAddress", mac)
+        GlassesStore.apply("glasses", "controllerConnected", true)
+        // GlassesStore.apply("glasses", "controllerFullyBooted", true)
 
         // after a second, connect the glasses to the controller if needed:
         CoroutineScope(Dispatchers.Main).launch {
             delay(1000)
-            DeviceManager.getInstance().sgc?.connectController()
+            CoreManager.getInstance().sgc?.connectController()
         }
 
         startHeartbeat()
@@ -381,7 +373,9 @@ class R1 : ControllerManager() {
         stopHeartbeat()
         val r = object : Runnable {
             override fun run() {
-                if (!ready) return
+                mainHandler.postDelayed(this, 30_000L)
+                val isConnected = GlassesStore.get("glasses", "controllerConnected") as? Boolean ?: false
+                if (!isConnected) return
                 val char = batteryLevelChar
                 if (char != null) {
                     try {
@@ -390,7 +384,6 @@ class R1 : ControllerManager() {
                         Bridge.log("R1: heartbeat read SecurityException: ${e.message}")
                     }
                 }
-                mainHandler.postDelayed(this, 30_000L)
             }
         }
         heartbeatRunnable = r
@@ -474,9 +467,8 @@ class R1 : ControllerManager() {
         descriptorWriteInFlight = false
         readInFlight = false
         ringMacAddress = null
-        ready = false
-        DeviceStore.apply("glasses", "controllerConnected", false)
-        DeviceStore.apply("glasses", "controllerFullyBooted", false)
+        GlassesStore.apply("glasses", "controllerConnected", false)
+        GlassesStore.apply("glasses", "controllerFullyBooted", false)
     }
 
     // MARK: - GATT Callback

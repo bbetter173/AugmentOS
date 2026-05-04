@@ -74,68 +74,80 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
     let innerShadowColor = theme.colors.gradient
     return (
       <View
-        style={[
-          // style,
-          {
-            boxShadow: boxShadowStyle,
-            // borderRadius: maxBorderRadius,
-            borderTopLeftRadius,
-            borderTopRightRadius,
-            borderBottomLeftRadius,
-            borderBottomRightRadius,
-            borderWidth: 1.25,
-            borderColor: theme.colors.background,
-            height: flatStyle.height ?? undefined,
-            width: flatStyle.width ?? undefined,
-            minHeight: flatStyle.minHeight ?? undefined,
-            minWidth: flatStyle.minWidth ?? undefined,
-            maxHeight: flatStyle.maxHeight ?? undefined,
-            maxWidth: flatStyle.maxWidth ?? undefined,
-            marginBottom: flatStyle.marginBottom ?? undefined,
-            marginLeft: flatStyle.marginLeft ?? undefined,
-            marginRight: flatStyle.marginRight ?? undefined,
-            marginTop: flatStyle.marginTop ?? undefined,
-            marginVertical: flatStyle.marginVertical ?? undefined,
-            marginHorizontal: flatStyle.marginHorizontal ?? undefined,
-          },
-        ]}>
-        <ShadowView
-          inset
-          shadowColor={innerShadowColor + "AA"}
-          // shadowOffset={{width: 3, height: 3}}
-          shadowBlur={10}
-          // boxShadow={boxShadowStyle}
+        style={{
+          borderWidth: 1.25,
+          borderColor: theme.colors.background,
+          borderRadius: borderRadius,
+          borderTopLeftRadius,
+          borderTopRightRadius,
+          borderBottomLeftRadius,
+          borderBottomRightRadius,
+          marginLeft: flatStyle.marginLeft ?? undefined,
+          marginRight: flatStyle.marginRight ?? undefined,
+          marginTop: flatStyle.marginTop ?? undefined,
+          marginBottom: flatStyle.marginBottom ?? undefined,
+          marginVertical: flatStyle.marginVertical ?? undefined,
+          marginHorizontal: flatStyle.marginHorizontal ?? undefined,
+        }}>
+        <View
           style={[
-            style,
+            // style,
             {
-              // boxShadow: boxShadowStyle,
+              boxShadow: boxShadowStyle,
+              // borderRadius: maxBorderRadius,
+              // borderWidth: 5,
+              // borderColor: theme.colors.background,
+              height: flatStyle.height ?? undefined,
+              width: flatStyle.width ?? undefined,
+              minHeight: flatStyle.minHeight ?? undefined,
+              minWidth: flatStyle.minWidth ?? undefined,
+              maxHeight: flatStyle.maxHeight ?? undefined,
+              maxWidth: flatStyle.maxWidth ?? undefined,
+              borderRadius: borderRadius,
               borderTopLeftRadius,
               borderTopRightRadius,
               borderBottomLeftRadius,
               borderBottomRightRadius,
-              // margin: halve(flatStyle.margin?.toString()),
-              // marginLeft: halve(flatStyle.marginLeft?.toString()),
-              // marginRight: halve(flatStyle.marginRight?.toString()),
-              // marginTop: halve(flatStyle.marginTop?.toString()),
-              // marginBottom: halve(flatStyle.marginBottom?.toString()),
-              // marginVertical: halve(flatStyle.marginVertical?.toString()),
-              // marginHorizontal: halve(flatStyle.marginHorizontal?.toString()),
-              paddingVertical: halve(flatStyle.paddingVertical?.toString()),
-              paddingHorizontal: halve(flatStyle.paddingHorizontal?.toString()),
-              paddingLeft: halve(flatStyle.paddingLeft?.toString()),
-              paddingRight: halve(flatStyle.paddingRight?.toString()),
-              paddingTop: halve(flatStyle.paddingTop?.toString()),
-              paddingBottom: halve(flatStyle.paddingBottom?.toString()),
-              padding: halve(flatStyle.padding?.toString()),
-              // margin: 0,
-              // padding: 0,
-              // height: flatStyle.height ?? undefined,
-              // width: flatStyle.width ?? undefined,
             },
-            {backgroundColor: backgroundColor},
           ]}>
-          {children}
-        </ShadowView>
+          <ShadowView
+            inset
+            shadowColor={innerShadowColor + "AA"}
+            // shadowOffset={{width: 3, height: 3}}
+            shadowBlur={10}
+            // boxShadow={boxShadowStyle}
+            style={[
+              style,
+              {
+                // boxShadow: boxShadowStyle,
+                borderTopLeftRadius,
+                borderTopRightRadius,
+                borderBottomLeftRadius,
+                borderBottomRightRadius,
+                // margin: halve(flatStyle.margin?.toString()),
+                // marginLeft: halve(flatStyle.marginLeft?.toString()),
+                // marginRight: halve(flatStyle.marginRight?.toString()),
+                // marginTop: halve(flatStyle.marginTop?.toString()),
+                // marginBottom: halve(flatStyle.marginBottom?.toString()),
+                // marginVertical: halve(flatStyle.marginVertical?.toString()),
+                // marginHorizontal: halve(flatStyle.marginHorizontal?.toString()),
+                paddingVertical: halve(flatStyle.paddingVertical?.toString()),
+                paddingHorizontal: halve(flatStyle.paddingHorizontal?.toString()),
+                paddingLeft: halve(flatStyle.paddingLeft?.toString()),
+                paddingRight: halve(flatStyle.paddingRight?.toString()),
+                paddingTop: halve(flatStyle.paddingTop?.toString()),
+                paddingBottom: halve(flatStyle.paddingBottom?.toString()),
+                padding: halve(flatStyle.padding?.toString()),
+                // margin: 0,
+                // padding: 0,
+                // height: flatStyle.height ?? undefined,
+                // width: flatStyle.width ?? undefined,
+              },
+              {backgroundColor: backgroundColor},
+            ]}>
+            {children}
+          </ShadowView>
+        </View>
       </View>
     )
     // return (

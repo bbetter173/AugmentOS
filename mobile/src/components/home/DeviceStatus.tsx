@@ -140,7 +140,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
   if (!glassesConnected || !glassesFullyBooted || isSearching) {
     return (
       <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
-        <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2">
+        <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2 h-full">
           <View className="flex-1 self-start justify-center h-full">
             <Image
               source={getCurrentGlassesImage()}
@@ -191,7 +191,7 @@ export const DeviceStatus = ({style}: {style?: ViewStyle}) => {
 
   return (
     <TouchableOpacity onPress={() => push("/miniapps/settings/glasses")} className="h-28">
-      <GlassView className="rounded-2xl overflow-hidden">
+      <GlassView className="rounded-2xl overflow-hidden h-full">
         <View className="px-6 py-0 justify-center flex flex-row gap-2 h-full">
           <View className="w-[42%] max-w-40 shrink-0 self-start justify-center h-full">
             <Image

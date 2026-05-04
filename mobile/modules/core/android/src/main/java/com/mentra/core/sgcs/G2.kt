@@ -858,7 +858,7 @@ private class G2SendManager {
 private class G2ReceiveManager {
     private val partials = mutableMapOf<String, Pair<ByteArrayOutputStream, Byte>>()
 
-    fun handlePacket(rawData: ByteArray): Pair<Byte, ByteArray>? {
+    fun handlePacket(rawData: ByteArray, sourceKey: String = ""): Pair<Byte, ByteArray>? {
         if (rawData.size < 8) return null
         if (rawData[0] != G2BLE.HEADER_BYTE) return null
 
@@ -880,7 +880,9 @@ private class G2ReceiveManager {
         val payload = rawData.copyOfRange(8, payloadEnd)
 
         val syncId = rawData[2]
-        val key = "${serviceId.toInt() and 0xFF}-${syncId.toInt() and 0xFF}"
+        // Include sourceKey so concurrent multi-packet responses from the L and R lenses with
+        // the same syncId don't cross-merge into one broken payload.
+        val key = "$sourceKey-${serviceId.toInt() and 0xFF}-${syncId.toInt() and 0xFF}"
 
         if ((serialNum.toInt() and 0xFF) > 1) {
             val existing = partials[key] ?: return null
@@ -1040,6 +1042,8 @@ class G2 : SGCManager() {
     private var imageSessionCounter: Int = 0
     private var heartbeatCounter: Int = 0
     private var authStarted: Boolean = false
+    private var leftAuthenticated: Boolean = false
+    private var rightAuthenticated: Boolean = false
     private var currentBitmapBase64: String = ""
 
     // Dashboard menu state
@@ -1895,6 +1899,7 @@ class G2 : SGCManager() {
     }
 
     override fun setDashboardMenu(items: List<Map<String, Any>>) {
+        Bridge.log("G2: setDashboardMenu -- items: $items")
         val menuItems =
                 items.mapNotNull { dict ->
                     val name = dict["name"] as? String ?: return@mapNotNull null
@@ -2248,6 +2253,8 @@ class G2 : SGCManager() {
         leftInitialized = false
         rightInitialized = false
         authStarted = false
+        leftAuthenticated = false
+        rightAuthenticated = false
         startupPageCreated = false
         pageCreated = false
         pageHasTextContainer = false
@@ -2325,7 +2332,7 @@ class G2 : SGCManager() {
             Bridge.log("G2: connectController - invalid MAC format: $mac")
             return
         }
-        Bridge.log("G2: about to connectController - MAC: $mac")
+        Bridge.log("G2: connectController() - MAC: $mac")
         val macData = hexParts.toByteArray()
         val msg = DevSettingsProto.ringConnectInfo(sendManager.nextMagicRandom(), true, macData)
         sendDevSettingsCommand(msg)
@@ -2700,6 +2707,8 @@ class G2 : SGCManager() {
                         leftAudioChar = null
                         rightAudioChar = null
                         authStarted = false
+                        leftAuthenticated = false
+                        rightAuthenticated = false
 
                         startupPageCreated = false
                         pageCreated = false
@@ -2800,10 +2809,11 @@ class G2 : SGCManager() {
             ) {
                 val data = characteristic.value ?: return
 
+                val sourceKey = if (side == "LEFT") "L" else "R"
                 mainHandler.post {
                     when (characteristic.uuid) {
                         G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
-                        G2BLE.CHAR_NOTIFY -> handleNotifyData(data)
+                        G2BLE.CHAR_NOTIFY -> handleNotifyData(data, sourceKey)
                     }
                 }
             }
@@ -2856,15 +2866,15 @@ class G2 : SGCManager() {
 
     // ---------- Incoming Data Handling ----------
 
-    private fun handleNotifyData(data: ByteArray) {
-        val result = receiveManager.handlePacket(data) ?: return
+    private fun handleNotifyData(data: ByteArray, sourceKey: String) {
+        val result = receiveManager.handlePacket(data, sourceKey) ?: return
 
         val serviceId = result.first
         val payload = result.second
 
         when (serviceId) {
             ServiceID.EVEN_HUB.value -> handleEvenHubResponse(payload)
-            ServiceID.DEVICE_SETTINGS.value -> handleDevSettingsResponse(payload)
+            ServiceID.DEVICE_SETTINGS.value -> handleDevSettingsResponse(payload, sourceKey)
             ServiceID.G2_SETTING.value -> handleG2SettingResponse(payload)
             ServiceID.MENU.value -> handleMenuResponse(payload)
             ServiceID.DASHBOARD.value -> handleDashboardResponse(payload)
@@ -3093,7 +3103,7 @@ class G2 : SGCManager() {
         }
     }
 
-    private fun handleDevSettingsResponse(payload: ByteArray) {
+    private fun handleDevSettingsResponse(payload: ByteArray, sourceKey: String) {
         val reader = ProtobufReader(payload)
         val fields = reader.parseFields()
         val cmdValue = fields[1] as? Int ?: -1
@@ -3104,6 +3114,29 @@ class G2 : SGCManager() {
         Bridge.log(
                 "G2: DevSettings response: ${payload.take(32).joinToString(":") { String.format("%02X", it) }}"
         )
+
+        if (cmdValue == DevCfgCommandId.AUTHENTICATION.value) {
+            // DevCfgDataPackage: field 2 = magicRandom, field 3 = AuthMgr { field 1 = secAuth }
+            var secAuth: Boolean? = null
+            (fields[3] as? ByteArray)?.let { authData ->
+                val authReader = ProtobufReader(authData)
+                val authFields = authReader.parseFields()
+                (authFields[1] as? Int)?.let { secAuth = (it != 0) }
+            }
+            val secAuthStr = secAuth?.toString() ?: "?"
+            Bridge.log("G2: Authentication response: $sourceKey secAuth=$secAuthStr")
+            if (secAuth == true) {
+                if (sourceKey == "L") {
+                    leftAuthenticated = true
+                } else if (sourceKey == "R") {
+                    rightAuthenticated = true
+                }
+                if (leftAuthenticated && rightAuthenticated) {
+                    Bridge.log("G2: Both sides authenticated, setting fully booted and connected")
+                    setFullyConnected()
+                }
+            }
+        }
 
         // RING_CONNECT_INFO response (cmd 6)
         if (cmdValue == DevCfgCommandId.RING_CONNECT_INFO.value) {
@@ -3261,7 +3294,7 @@ class G2 : SGCManager() {
     private fun handleAudioData(data: ByteArray) {
         // Diagnostic: if BLE notifications are arriving fragmented (MTU too small), data.size
         // will be consistently < 200. Expected: ~200-byte chunks (5 × 40-byte LC3 frames).
-        Bridge.log("G2: audio chunk size=${data.size}")
+        // Bridge.log("G2: audio chunk size=${data.size}")
 
         val usableLength = minOf(data.size, 200)
         if (usableLength < 40) return

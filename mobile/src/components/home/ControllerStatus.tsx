@@ -59,7 +59,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
   if (!controllerConnected || !controllerFullyBooted) {
     return (
       <TouchableOpacity onPress={() => push("/miniapps/settings/controller")} className="h-28 mt-2">
-        <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2">
+        <GlassView className="bg-primary-foreground px-6 justify-center flex-1 rounded-2xl flex-row gap-2 h-full">
           <View className="flex-1 self-start justify-center h-full">
             <Image
               source={getCurrentGlassesImage()}
@@ -110,7 +110,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
 
   return (
     <TouchableOpacity onPress={() => push("/miniapps/settings/controller")} className="h-28 mt-2">
-      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row gap-2">
+      <GlassView className="bg-primary-foreground px-6 py-0 justify-center flex rounded-2xl flex-row gap-2 h-full">
         <View className="flex-1 self-start justify-center h-full">
           <Image
             source={getCurrentGlassesImage()}

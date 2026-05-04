@@ -16,6 +16,7 @@ import {AppStoreProvider} from "@/contexts/AppStoreContext"
 import {AuthProvider} from "@/contexts/AuthContext"
 import {DeeplinkProvider} from "@/contexts/DeeplinkContext"
 import {NavigationHistoryProvider, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {SplashLoaderProvider} from "@/contexts/SplashLoaderProvider"
 import {ThemeProvider} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import {ModalProvider as LegacyModalProvider} from "@/utils/AlertUtils"
@@ -80,6 +81,7 @@ export const AllProviders = withWrappers(
   AuthProvider,
   AppStoreProvider,
   NavigationHistoryProvider,
+  SplashLoaderProvider,
   DeeplinkProvider,
   (props) => {
     return <GestureHandlerRootView style={{flex: 1}}>{props.children}</GestureHandlerRootView>

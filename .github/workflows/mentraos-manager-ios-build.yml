@@ -112,6 +112,16 @@ jobs:
           echo "Workspace files:"
           ls -la *.xcworkspace || echo "No workspace files found"
 
+      - name: Ensure iOS platform is installed
+        working-directory: ./mobile/ios
+        run: |
+          # Idempotent: no-op if already present, downloads if missing.
+          # Required because Xcode bundles SDK headers but device-build
+          # support files are downloaded separately (e.g. iOS 26.4).
+          xcodebuild -downloadPlatform iOS || true
+          echo "Available destinations:"
+          xcodebuild -workspace Mentra.xcworkspace -scheme Mentra -showdestinations 2>&1 | head -40 || true
+
       # ----------------------------------------------------------------------
       # Debug simulator build — disabled on PRs to keep Mac mini queue moving.
       # Re-enable when Maestro E2E is added (Maestro needs simulator builds).

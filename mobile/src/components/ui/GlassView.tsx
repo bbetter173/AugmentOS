@@ -169,7 +169,7 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
                 flexShrink: flatStyle.flexShrink ?? undefined,
                 flexBasis: flatStyle.flexBasis ?? undefined,
                 flex: flatStyle.flex ?? undefined,
-                width: "100%",
+                // width: "100%",
                 // height: "100%",
               },
               {backgroundColor: backgroundColor},

@@ -40,7 +40,6 @@ type DeviceStatusProps = {
   image: ImageSourcePropType
   children: ReactNode
   className?: string
-  glassViewClassName?: string
 }
 
 export const DeviceStatus = ({
@@ -48,11 +47,10 @@ export const DeviceStatus = ({
   image,
   children,
   className = "h-28",
-  glassViewClassName = "px-6 justify-center flex-1 rounded-2xl flex-row gap-2 h-full",
 }: DeviceStatusProps) => {
   return (
     <TouchableOpacity onPress={onPress} className={className}>
-      <GlassView className={glassViewClassName}>
+      <GlassView className="px-6 justify-center flex-1 rounded-2xl flex-row gap-2 h-full">
         <View className="w-[42%] max-w-40 shrink-0 self-start justify-center h-full">
           <Image source={image} className="w-full max-w-40 h-28 self-start" style={{resizeMode: "contain"}} />
         </View>
@@ -297,8 +295,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
     <DeviceStatus
       onPress={onPress}
       image={getCurrentGlassesImage()}
-      className="h-28 mt-2"
-      glassViewClassName="px-6 py-0 justify-center flex rounded-2xl flex-row gap-2 h-full">
+      className="h-28 mt-2">
       <Text className="font-semibold text-secondary-foreground text-base" text={defaultController} />
       <View className="flex-row items-center gap-3">
         {controllerBatteryLevel !== -1 && (

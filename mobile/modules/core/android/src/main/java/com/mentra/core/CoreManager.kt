@@ -622,27 +622,26 @@ class CoreManager {
      * phone→cloud encoding.
      */
     fun handleGlassesMicData(rawLC3Data: ByteArray, frameSize: Int = 40) {
-        Bridge.sendMicLc3(rawLC3Data)
-        // val pcmData: ByteArray?
-        // synchronized(lc3Lock) {
-        //     if (lc3DecoderPtr == 0L) {
-        //         Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
-        //         return
-        //     }
-        //     try {
-        //         // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
-        //         pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)
-        //     } catch (e: Exception) {
-        //         Bridge.log("MAN: Failed to decode glasses LC3: ${e.message}")
-        //         return
-        //     }
-        // }
-        // if (pcmData != null && pcmData.isNotEmpty()) {
-        //     // Re-encode to canonical LC3 via handlePcm (outside lock to avoid deadlock)
-        //     handlePcm(pcmData)
-        // } else {
-        //     Bridge.log("MAN: LC3 decode returned empty data")
-        // }
+        val pcmData: ByteArray?
+        synchronized(lc3Lock) {
+            if (lc3DecoderPtr == 0L) {
+                Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
+                return
+            }
+            try {
+                // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
+                pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)
+            } catch (e: Exception) {
+                Bridge.log("MAN: Failed to decode glasses LC3: ${e.message}")
+                return
+            }
+        }
+        if (pcmData != null && pcmData.isNotEmpty()) {
+            // Re-encode to canonical LC3 via handlePcm (outside lock to avoid deadlock)
+            handlePcm(pcmData)
+        } else {
+            Bridge.log("MAN: LC3 decode returned empty data")
+        }
     }
 
     fun handlePcm(pcmData: ByteArray) {

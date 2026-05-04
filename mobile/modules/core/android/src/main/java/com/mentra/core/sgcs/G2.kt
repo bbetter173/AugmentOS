@@ -2487,8 +2487,21 @@ class G2 : SGCManager() {
                                 return@post
                             }
 
-                            Bridge.log("G2: Discovered: $name (SN: $serialNumber)")
+                            val mfgFirst = result.scanRecord?.manufacturerSpecificData?.valueAt(0)
+                            val mfgHex = mfgFirst?.joinToString(" ") { String.format("%02X", it) } ?: "none"
+                            Bridge.log("G2: Discovered: $name (SN: $serialNumber) mfgData[${mfgFirst?.size ?: 0}]: $mfgHex")
                             deviceNameToSerialNumber[name] = serialNumber
+
+                            // Save MAC per side; ring's advStart needs the left lens MAC.
+                            val mac = extractMacFromScanRecord(result)
+                            if (mac != null) {
+                                if (name.contains("_L_")) {
+                                    GlassesStore.apply("glasses", "leftMacAddress", mac)
+                                    GlassesStore.apply("glasses", "btMacAddress", mac)
+                                } else if (name.contains("_R_")) {
+                                    GlassesStore.apply("glasses", "rightMacAddress", mac)
+                                }
+                            }
                             // Stop scanning once we have both
                             if (leftGatt != null && rightGatt != null) {
                                 stopScan()
@@ -2593,6 +2606,21 @@ class G2 : SGCManager() {
                 String(snBytes, Charsets.US_ASCII)
                         .replace(Regex("[\\x00-\\x1F\\x7F]"), "") // Strip control chars
         return if (sn.isNotEmpty()) sn else null
+    }
+
+    /**
+     * Extract the BLE MAC from the G2 scan record manufacturer data.
+     * Layout (after Android strips the 2-byte company ID): SN(14) + MAC(6, little-endian) + flag(1)
+     * Returns "AA:BB:CC:DD:EE:FF" (big-endian, colon-separated).
+     */
+    private fun extractMacFromScanRecord(result: ScanResult): String? {
+        val scanRecord = result.scanRecord ?: return null
+        val mfgData = scanRecord.manufacturerSpecificData
+        if (mfgData == null || mfgData.size() == 0) return null
+        val data = mfgData.valueAt(0) ?: return null
+        if (data.size < 20) return null
+        val macLE = data.copyOfRange(14, 20)
+        return macLE.reversed().joinToString(":") { String.format("%02X", it) }
     }
 
     private fun emitDiscoveredDevice(serialNumber: String) {

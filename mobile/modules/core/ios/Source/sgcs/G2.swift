@@ -1067,35 +1067,37 @@ class G2: NSObject, SGCManager {
     /// map device names to serial numbers:
     private var deviceNameToSerialNumber: [String: String] = [:]
 
-    /// Stored UUIDs for background reconnection
-    private var leftGlassUUID: UUID? {
-        get {
-            UserDefaults.standard.string(forKey: "g2_leftGlassUUID").flatMap {
-                UUID(uuidString: $0)
-            }
-        }
-        set {
-            if let v = newValue {
-                UserDefaults.standard.set(v.uuidString, forKey: "g2_leftGlassUUID")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "g2_leftGlassUUID")
-            }
-        }
+    /// Stored UUIDs per serial number for background reconnection.
+    /// Maps serial number -> peripheral UUID string. Persisted across forget() so previously
+    /// paired devices can reconnect quickly without a fresh scan.
+    private var leftGlassUUIDMap: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: "g2_leftGlassUUIDMap") as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "g2_leftGlassUUIDMap") }
     }
 
-    private var rightGlassUUID: UUID? {
-        get {
-            UserDefaults.standard.string(forKey: "g2_rightGlassUUID").flatMap {
-                UUID(uuidString: $0)
-            }
-        }
-        set {
-            if let v = newValue {
-                UserDefaults.standard.set(v.uuidString, forKey: "g2_rightGlassUUID")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "g2_rightGlassUUID")
-            }
-        }
+    private var rightGlassUUIDMap: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: "g2_rightGlassUUIDMap") as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "g2_rightGlassUUIDMap") }
+    }
+
+    private func leftGlassUUID(forSN sn: String) -> UUID? {
+        return leftGlassUUIDMap[sn].flatMap { UUID(uuidString: $0) }
+    }
+
+    private func rightGlassUUID(forSN sn: String) -> UUID? {
+        return rightGlassUUIDMap[sn].flatMap { UUID(uuidString: $0) }
+    }
+
+    private func setLeftGlassUUID(_ uuid: UUID, forSN sn: String) {
+        var m = leftGlassUUIDMap
+        m[sn] = uuid.uuidString
+        leftGlassUUIDMap = m
+    }
+
+    private func setRightGlassUUID(_ uuid: UUID, forSN sn: String) {
+        var m = rightGlassUUIDMap
+        m[sn] = uuid.uuidString
+        rightGlassUUIDMap = m
     }
 
     /// Reconnection
@@ -2331,8 +2333,8 @@ class G2: NSObject, SGCManager {
         stopHeartbeats()
         Task { await reconnectionManager.stop() }
         disconnect()
-        leftGlassUUID = nil
-        rightGlassUUID = nil
+        // Note: leftGlassUUIDMap / rightGlassUUIDMap intentionally preserved so a future
+        // pair to the same serial number can reuse the cached peripheral UUID.
         leftPeripheral = nil
         rightPeripheral = nil
         leftWriteChar = nil
@@ -2664,7 +2666,9 @@ class G2: NSObject, SGCManager {
             return false
         }
 
-        guard let leftUUID = leftGlassUUID, let rightUUID = rightGlassUUID else { return false }
+        guard let leftUUID = leftGlassUUID(forSN: DEVICE_SEARCH_ID),
+              let rightUUID = rightGlassUUID(forSN: DEVICE_SEARCH_ID)
+        else { return false }
 
         let knownLeft = centralManager?.retrievePeripherals(withIdentifiers: [leftUUID])
         let knownRight = centralManager?.retrievePeripherals(withIdentifiers: [rightUUID])
@@ -3146,6 +3150,21 @@ class G2: NSObject, SGCManager {
                 // // GlassesStore.shared.apply("glasses", "ringConnectedToGlasses", connected)
             }
         }
+
+        if cmdValue == DevCfgCommandId.authentication.rawValue {
+            // DevCfgDataPackage: field 2 = magicRandom, field 3 = AuthMgr { field 1 = secAuth }
+            let magicRandom = fields[2] as? Int32 ?? -1
+            var secAuth: Bool? = nil
+            if let authData = fields[3] as? Data {
+                var authReader = ProtobufReader(authData)
+                let authFields = authReader.parseFields()
+                if let v = authFields[1] as? Int32 {
+                    secAuth = (v != 0)
+                }
+            }
+            let secAuthStr = secAuth.map { $0 ? "true" : "false" } ?? "?"
+            Bridge.log("G2: Authentication ack — magicRandom=\(magicRandom) secAuth=\(secAuthStr)")
+        }
     }
 
     private func handleG2SettingResponse(_ payload: Data) {
@@ -3339,6 +3358,15 @@ func extractSN(from data: Data) -> String? {
         )
 }
 
+/// Extract the BLE MAC from G2 manufacturer data.
+/// Layout: "ER"(2) + SN(14) + MAC(6, little-endian) + flag(1)
+/// Returns "AA:BB:CC:DD:EE:FF" (big-endian, colon-separated).
+func extractMac(from data: Data) -> String? {
+    guard data.count >= 22 else { return nil }
+    let macLE = data[16 ..< 22]
+    return macLE.reversed().map { String(format: "%02X", $0) }.joined(separator: ":")
+}
+
 extension G2: CBCentralManagerDelegate {
     nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
         let state = central.state
@@ -3376,8 +3404,19 @@ extension G2: CBCentralManagerDelegate {
                 return
             }
             // sn = "S200LACA040040"
-            Bridge.log("G2: Discovered: \(name) (SN: \(serialNumber))")
+            let mfgHex = mfgData.map { String(format: "%02X", $0) }.joined(separator: " ")
+            Bridge.log("G2: Discovered: \(name) (SN: \(serialNumber)) mfgData[\(mfgData.count)]: \(mfgHex)")
             self.deviceNameToSerialNumber[name] = serialNumber
+
+            // Save MAC per side; ring's advStart needs the left lens MAC.
+            if let mac = extractMac(from: mfgData) {
+                if name.contains("_L_") {
+                    GlassesStore.shared.apply("glasses", "leftMacAddress", mac)
+                    GlassesStore.shared.apply("glasses", "btMacAddress", mac)
+                } else if name.contains("_R_") {
+                    GlassesStore.shared.apply("glasses", "rightMacAddress", mac)
+                }
+            }
             // GlassesStore.shared.apply("glasses", "signalStrength", RSSI.intValue)
 
             // Always emit discovered device to frontend
@@ -3420,11 +3459,16 @@ extension G2: CBCentralManagerDelegate {
             guard let self = self else { return }
             Bridge.log("G2: Connected to \(peripheral.name ?? "unknown")")
 
-            // Store UUID for reconnection
-            if peripheral === self.leftPeripheral {
-                self.leftGlassUUID = peripheral.identifier
-            } else if peripheral === self.rightPeripheral {
-                self.rightGlassUUID = peripheral.identifier
+            // Store UUID for reconnection, keyed by serial number.
+            let sn = peripheral.name.flatMap { self.deviceNameToSerialNumber[$0] }
+            if let sn = sn {
+                if peripheral === self.leftPeripheral {
+                    self.setLeftGlassUUID(peripheral.identifier, forSN: sn)
+                } else if peripheral === self.rightPeripheral {
+                    self.setRightGlassUUID(peripheral.identifier, forSN: sn)
+                }
+            } else {
+                Bridge.log("G2: didConnect — no SN for \(peripheral.name ?? "unknown"), skipping UUID save")
             }
 
             // Discover services - scan for all since we need to find the EvenHub characteristics

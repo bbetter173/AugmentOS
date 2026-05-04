@@ -260,10 +260,16 @@ class R1: NSObject, ControllerManager {
     /// to WRITE_CHAR_2 (BAE80012-…). Reverse-engineered from the Even Realities mobile app
     /// (BleRing1CmdProto::advStart -> BleRing1CmdPublicExt.sendCmd).
     private func connectToGlasses() {
-        guard let glassesMac = GlassesStore.shared.get("glasses", "macAddress") as? String else {
+        let glassesMac = (GlassesStore.shared.get("glasses", "btMacAddress") as? String)
+            ?? UserDefaults.standard.string(forKey: "glasses_btMacAddress")
+
+        guard let glassesMac else {
             Bridge.log("R1: connectToGlasses: no glasses MAC")
             return
         }
+        // Cache so we can reconnect even before the glasses are scanned.
+        UserDefaults.standard.set(glassesMac, forKey: "glasses_btMacAddress")
+
         guard let macBytes = parseMac(glassesMac) else {
             Bridge.log("R1: connectToGlasses: could not parse glasses MAC \(glassesMac)")
             return
@@ -275,10 +281,8 @@ class R1: NSObject, ControllerManager {
 
         var payload = Data([R1BLE.CMD_SYSTEM, R1BLE.MODULE_SYSTEM, R1BLE.SUBCMD_ADV_START])
         payload.append(macBytes)
-
-        let hex = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
-        Bridge.log("R1: advStart -> \(hex)")
-        ringPeripheral?.writeValue(payload, for: wc, type: .withResponse)
+        Bridge.log("R1: advStart -> \(payload.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        ringPeripheral?.writeValue(payload, for: wc, type: .withoutResponse)
     }
 
     /// Parse a MAC string like "AA:BB:CC:DD:EE:FF" or "AABBCCDDEEFF" into 6 raw bytes.

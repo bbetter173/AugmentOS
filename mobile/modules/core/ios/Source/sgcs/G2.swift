@@ -1059,6 +1059,8 @@ class G2: NSObject, SGCManager {
     private var leftAudioChar: CBCharacteristic?
     private var leftInitialized: Bool = false
     private var rightInitialized: Bool = false
+    private var leftAuthenticated: Bool = false
+    private var rightAuthenticated: Bool = false
     private var isDisconnecting = false
     private var pairingTimeoutTimer: DispatchWorkItem?
 
@@ -2760,7 +2762,7 @@ class G2: NSObject, SGCManager {
         case ServiceID.evenHub.rawValue:
             handleEvenHubResponse(result.payload)
         case ServiceID.deviceSettings.rawValue:
-            handleDevSettingsResponse(result.payload)
+            handleDevSettingsResponse(result.payload, sourceKey: sourceKey)
         case ServiceID.g2Setting.rawValue:
             handleG2SettingResponse(result.payload)
         case ServiceID.menu.rawValue:
@@ -3064,7 +3066,7 @@ class G2: NSObject, SGCManager {
         connectController()
     }
 
-    private func handleDevSettingsResponse(_ data: Data) {
+    private func handleDevSettingsResponse(_ data: Data, sourceKey: String) {
         // DevSettings responses (auth acks, heartbeat acks) — mostly informational
 
         var reader = ProtobufReader(data)
@@ -3163,7 +3165,18 @@ class G2: NSObject, SGCManager {
                 }
             }
             let secAuthStr = secAuth.map { $0 ? "true" : "false" } ?? "?"
-            Bridge.log("G2: Authentication ack — magicRandom=\(magicRandom) secAuth=\(secAuthStr)")
+            Bridge.log("G2: Authentication response: \(sourceKey) secAuth=\(secAuthStr)")
+            if secAuth == true {
+                if sourceKey == "L" {
+                    leftAuthenticated = true
+                } else if sourceKey == "R" {
+                    rightAuthenticated = true
+                }
+                if leftAuthenticated && rightAuthenticated {
+                    Bridge.log("G2: Both sides authenticated, setting fully booted and connected")
+                    setFullyConnected()
+                }
+            }
         }
     }
 

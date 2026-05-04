@@ -2657,7 +2657,30 @@ class G2 : SGCManager() {
                             rightGlassAddress = address
                         }
 
-                        gatt.discoverServices()
+                        // Request a larger MTU so 200-byte audio notifications aren't fragmented.
+                        // Default ATT MTU is 23 → max payload 20 bytes, which would chop each audio
+                        // chunk into 10+ pieces. We ask for 247 (max for BLE 4.2+ data length ext).
+                        // discoverServices is deferred to onMtuChanged so the larger MTU is in
+                        // effect for the rest of the setup.
+                        val mtuRequested = try {
+                            gatt.requestMtu(247)
+                        } catch (e: SecurityException) {
+                            Bridge.log("G2: requestMtu SecurityException on $side: ${e.message}")
+                            false
+                        }
+                        if (!mtuRequested) {
+                            Bridge.log("G2: requestMtu returned false on $side, proceeding without MTU bump")
+                            gatt.discoverServices()
+                        }
+
+                        // Ask for high connection priority so the link can sustain 16 kHz / 10 ms
+                        // audio without dropped notifications. Caller is responsible for dropping
+                        // back to BALANCED later if power becomes a concern.
+                        try {
+                            gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                        } catch (e: SecurityException) {
+                            Bridge.log("G2: requestConnectionPriority SecurityException on $side: ${e.message}")
+                        }
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         Bridge.log("G2: Disconnected $side")
 
@@ -2685,6 +2708,18 @@ class G2 : SGCManager() {
                         GlassesStore.apply("glasses", "fullyBooted", false)
 
                         startReconnectionTimer()
+                    }
+                }
+            }
+
+            override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+                Bridge.log("G2: onMtuChanged $side mtu=$mtu status=$status")
+                mainHandler.post {
+                    // discoverServices was deferred until MTU negotiation finishes (success or not).
+                    try {
+                        gatt.discoverServices()
+                    } catch (e: SecurityException) {
+                        Bridge.log("G2: discoverServices SecurityException on $side: ${e.message}")
                     }
                 }
             }
@@ -3224,6 +3259,10 @@ class G2 : SGCManager() {
     // ---------- Audio Handling ----------
 
     private fun handleAudioData(data: ByteArray) {
+        // Diagnostic: if BLE notifications are arriving fragmented (MTU too small), data.size
+        // will be consistently < 200. Expected: ~200-byte chunks (5 × 40-byte LC3 frames).
+        Bridge.log("G2: audio chunk size=${data.size}")
+
         val usableLength = minOf(data.size, 200)
         if (usableLength < 40) return
 

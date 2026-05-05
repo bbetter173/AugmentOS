@@ -1,6 +1,6 @@
 //
 //  DeviceStore.swift
-//  MentraBluetoothSDK
+//  BluetoothSDK
 //
 //  Centralized observable state store for glasses and Bluetooth SDK settings
 //

@@ -4,7 +4,7 @@ package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
 include_expo_adapter = ENV['BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER'] == '1'
 
 Pod::Spec.new do |s|
-  s.name           = 'BluetoothSDK'
+  s.name           = 'MentraBluetoothSDK'
   s.version        = package['version']
   s.summary        = package['description']
   s.description    = package['description']
@@ -49,7 +49,7 @@ Pod::Spec.new do |s|
   # Resources (model files)
   s.resources = 'Packages/VAD/Silero/Model/*.onnx'
   s.resource_bundles = {
-    'MentraBluetoothSDKPrivacy' => ['Source/PrivacyInfo.xcprivacy']
+    'BluetoothSDKPrivacy' => ['Source/PrivacyInfo.xcprivacy']
   }
 
   # Keep the bare SDK source list explicit so Expo adapter files are opt-in.

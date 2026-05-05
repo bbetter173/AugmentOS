@@ -620,7 +620,6 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
           getCurrentParams,
         }
         await matchedRoute.handler(url, params, navObject)
-        
       } catch (error) {
         console.warn("Route handler failed, router may not be ready:", error)
       }

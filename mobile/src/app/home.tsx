@@ -16,13 +16,12 @@ import {useGlassesStore} from "@/stores/glasses"
 import {useCoreStore} from "@/stores/core"
 import AppSwitcherButton from "@/components/home/AppSwitcherButtton"
 import AppSwitcher from "@/components/home/AppSwitcher"
-import {DeviceStatus} from "@/components/home/DeviceStatus"
+import {GlassesStatus, ControllerStatus} from "@/components/home/DeviceStatus"
 import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AllAppsGridSheet from "@/components/home/AllAppsGridSheet"
 import BottomSheet from "@gorhom/bottom-sheet"
 import {BlurTargetView, BlurView} from "expo-blur"
-import {ControllerStatus} from "@/components/home/ControllerStatus"
 
 export default function Homepage() {
   const refreshApps = useRefresh()
@@ -76,7 +75,7 @@ export default function Homepage() {
     return (
       <>
         <Group>
-          <DeviceStatus />
+          <GlassesStatus />
         </Group>
         <Group>
           <ControllerStatus />

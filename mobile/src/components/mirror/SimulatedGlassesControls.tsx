@@ -2,7 +2,6 @@ import {useFocusEffect} from "@react-navigation/native"
 import {useCallback, useState} from "react"
 import {TouchableOpacity, ViewStyle} from "react-native"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import Icon from "react-native-vector-icons/MaterialIcons"
 
 import {Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
@@ -98,7 +97,7 @@ export const SimulatedGlassesControls: React.FC<SimulatedGlassesControlsProps> =
             left: 20,
           },
         ]}>
-        <Icon name="touch-app" size={24} color={theme.colors.icon} />
+        {/* <Icon name="touch-app" size={24} color={theme.colors.icon} /> */}
       </TouchableOpacity>
     </>
   )

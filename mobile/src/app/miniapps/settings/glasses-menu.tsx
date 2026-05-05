@@ -14,12 +14,7 @@ import {sortAppsByLastOpenTime, useApps, type ClientApp} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {
-  buildMenuItems,
-  filterCompatibleMenuItems,
-  getDefaultMenuApps,
-  type GlassesMenuItem,
-} from "@/utils/glassesMenu"
+import {buildMenuItems, filterCompatibleMenuItems, getDefaultMenuApps, type GlassesMenuItem} from "@/utils/glassesMenu"
 
 const MAX_MENU_ITEMS = 10
 

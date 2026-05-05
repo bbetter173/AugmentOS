@@ -22,6 +22,7 @@ import { MemoryOwnerStat } from "../metrics/memory-census";
 import { estimateStringBytes, sumEstimatedBytes } from "../metrics/memory-estimate";
 import { ResourceTracker } from "../../utils/resource-tracker";
 import { metricsService } from "../metrics/MetricsService";
+import { markWebSocketPingSent, recordWebSocketSend } from "../metrics/cascade-diagnostics";
 import { IWebSocket, WebSocketReadyState, hasEventEmitter } from "../websocket/types";
 
 /**
@@ -526,7 +527,10 @@ export class AppSession {
     this.heartbeatInterval = setInterval(() => {
       if (this.disposed) return; // Guard against stale callback
       if (ws.readyState === WebSocketReadyState.OPEN) {
-        ws.ping?.();
+        if (typeof ws.ping === "function") {
+          ws.ping();
+          markWebSocketPingSent(ws);
+        }
         if (LOG_PING_PONG) {
           this.logger.debug("Sent ping");
         }
@@ -895,7 +899,7 @@ export class AppSession {
     }
 
     try {
-      this._webSocket.send(JSON.stringify(message));
+      recordWebSocketSend(this._webSocket, "app", this._webSocket.send(JSON.stringify(message)));
       metricsService.incrementMiniappMessagesOut();
       return true;
     } catch (error) {

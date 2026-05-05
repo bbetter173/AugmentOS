@@ -187,15 +187,9 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
   const gridData: MasonryAppItem[] = useMemo(() => {
     let filteredApps = apps.filter((app) => {
       if (showAllApps) {
-        // if (!app.compatibility?.isCompatible) {
-        // return false
-        // }
         return true
       }
       if (app.hidden) {
-        return false
-      }
-      if (!app.compatibility?.isCompatible) {
         return false
       }
       return true

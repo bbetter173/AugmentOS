@@ -51,7 +51,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         OnCreate {
             Task { @MainActor [weak self] in
-                _ = self?.bluetoothSdk()
+                _ = self?.getSdk()
             }
         }
 
@@ -66,13 +66,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("getGlassesStatus") {
             await MainActor.run {
-                self.bluetoothSdk().glassesStatus.values
+                self.getSdk().glassesStatus.values
             }
         }
 
         AsyncFunction("getCoreStatus") {
             await MainActor.run {
-                self.bluetoothSdk().bluetoothStatus.values
+                self.getSdk().bluetoothStatus.values
             }
         }
 
@@ -87,7 +87,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { (params: [String: Any]) in
-            let sdk = await MainActor.run { self.bluetoothSdk() }
+            let sdk = await MainActor.run { self.getSdk() }
             try? await sdk.displayEvent(DisplayEventRequest(values: params))
         }
 
@@ -98,7 +98,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
                 y: intValue(params["y"], defaultValue: 0),
                 size: intValue(params["size"], defaultValue: 24)
             )
-            let sdk = await MainActor.run { self.bluetoothSdk() }
+            let sdk = await MainActor.run { self.getSdk() }
             try? await sdk.displayText(request)
         }
 
@@ -106,19 +106,19 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("connectDefault") {
             await MainActor.run {
-                self.bluetoothSdk().connectDefault()
+                self.getSdk().connectDefault()
             }
         }
 
         AsyncFunction("connectByName") { (deviceName: String) in
             await MainActor.run {
-                self.bluetoothSdk().connectByName(deviceName)
+                self.getSdk().connectByName(deviceName)
             }
         }
 
         AsyncFunction("connectDevice") { (deviceModel: String, deviceName: String) in
             await MainActor.run {
-                self.bluetoothSdk().connect(model: DeviceModel.fromDeviceType(deviceModel), name: deviceName)
+                self.getSdk().connect(model: DeviceModel.fromDeviceType(deviceModel), name: deviceName)
             }
         }
 
@@ -130,13 +130,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("connectSimulated") {
             await MainActor.run {
-                self.bluetoothSdk().connectSimulated()
+                self.getSdk().connectSimulated()
             }
         }
 
         AsyncFunction("disconnect") {
             await MainActor.run {
-                self.bluetoothSdk().disconnect()
+                self.getSdk().disconnect()
             }
         }
 
@@ -148,7 +148,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("forget") {
             await MainActor.run {
-                self.bluetoothSdk().forget()
+                self.getSdk().forget()
             }
         }
 
@@ -160,13 +160,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("findCompatibleDevices") { (deviceModel: String) in
             await MainActor.run {
-                self.bluetoothSdk().startScan(model: DeviceModel.fromDeviceType(deviceModel))
+                self.getSdk().startScan(model: DeviceModel.fromDeviceType(deviceModel))
             }
         }
 
         AsyncFunction("showDashboard") {
             await MainActor.run {
-                self.bluetoothSdk().showDashboard()
+                self.getSdk().showDashboard()
             }
         }
 
@@ -194,7 +194,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in
             await MainActor.run {
-                self.bluetoothSdk().sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
+                self.getSdk().sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
             }
         }
 
@@ -202,25 +202,25 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("requestWifiScan") {
             await MainActor.run {
-                self.bluetoothSdk().requestWifiScan()
+                self.getSdk().requestWifiScan()
             }
         }
 
         AsyncFunction("sendWifiCredentials") { (ssid: String, password: String) in
             await MainActor.run {
-                self.bluetoothSdk().sendWifiCredentials(ssid: ssid, password: password)
+                self.getSdk().sendWifiCredentials(ssid: ssid, password: password)
             }
         }
 
         AsyncFunction("forgetWifiNetwork") { (ssid: String) in
             await MainActor.run {
-                self.bluetoothSdk().forgetWifiNetwork(ssid: ssid)
+                self.getSdk().forgetWifiNetwork(ssid: ssid)
             }
         }
 
         AsyncFunction("setHotspotState") { (enabled: Bool) in
             await MainActor.run {
-                self.bluetoothSdk().setHotspotState(enabled: enabled)
+                self.getSdk().setHotspotState(enabled: enabled)
             }
         }
 
@@ -228,7 +228,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("queryGalleryStatus") {
             await MainActor.run {
-                self.bluetoothSdk().queryGalleryStatus()
+                self.getSdk().queryGalleryStatus()
             }
         }
 
@@ -238,7 +238,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
                 authToken: String?, compress: String?, flash: Bool, sound: Bool
             ) in
             await MainActor.run {
-                self.bluetoothSdk().requestPhoto(
+                self.getSdk().requestPhoto(
                     PhotoRequest(
                         requestId: requestId,
                         appId: appId,
@@ -257,7 +257,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("sendOtaStart") {
             await MainActor.run {
-                self.bluetoothSdk().sendOtaStart()
+                self.getSdk().sendOtaStart()
             }
         }
 
@@ -265,7 +265,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("requestVersionInfo") {
             await MainActor.run {
-                self.bluetoothSdk().requestVersionInfo()
+                self.getSdk().requestVersionInfo()
             }
         }
 
@@ -273,13 +273,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("sendShutdown") {
             await MainActor.run {
-                self.bluetoothSdk().sendShutdown()
+                self.getSdk().sendShutdown()
             }
         }
 
         AsyncFunction("sendReboot") {
             await MainActor.run {
-                self.bluetoothSdk().sendReboot()
+                self.getSdk().sendReboot()
             }
         }
 
@@ -287,7 +287,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
             await MainActor.run {
-                self.bluetoothSdk().startVideoRecording(
+                self.getSdk().startVideoRecording(
                     VideoRecordingRequest(requestId: requestId, save: save, flash: flash, sound: sound)
                 )
             }
@@ -295,7 +295,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("stopVideoRecording") { (requestId: String) in
             await MainActor.run {
-                self.bluetoothSdk().stopVideoRecording(requestId: requestId)
+                self.getSdk().stopVideoRecording(requestId: requestId)
             }
         }
 
@@ -303,19 +303,19 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                self.bluetoothSdk().startStream(StreamRequest(values: params))
+                self.getSdk().startStream(StreamRequest(values: params))
             }
         }
 
         AsyncFunction("stopStream") {
             await MainActor.run {
-                self.bluetoothSdk().stopStream()
+                self.getSdk().stopStream()
             }
         }
 
         AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                self.bluetoothSdk().keepStreamAlive(StreamKeepAliveRequest(values: params))
+                self.getSdk().keepStreamAlive(StreamKeepAliveRequest(values: params))
             }
         }
 
@@ -323,7 +323,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("setOwnAppAudioPlaying") { (playing: Bool) in
             await MainActor.run {
-                self.bluetoothSdk().setOwnAppAudioPlaying(playing)
+                self.getSdk().setOwnAppAudioPlaying(playing)
             }
         }
 
@@ -372,7 +372,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
         // MARK: - Display Commands
 
         AsyncFunction("clearDisplay") {
-            let sdk = await MainActor.run { self.bluetoothSdk() }
+            let sdk = await MainActor.run { self.getSdk() }
             try? await sdk.clearDisplay()
         }
 
@@ -400,12 +400,12 @@ public class CoreModule: Module, BluetoothSDKDelegate {
     }
 
     @MainActor
-    private func bluetoothSdk() -> BluetoothSDK {
+    private func getSdk() -> BluetoothSDK {
         if let sdk {
             return sdk
         }
 
-        let sdk = BluetoothSDK()
+        let sdk = MentraBluetoothSDK.BluetoothSDK()
         sdk.delegate = self
         self.sdk = sdk
         return sdk

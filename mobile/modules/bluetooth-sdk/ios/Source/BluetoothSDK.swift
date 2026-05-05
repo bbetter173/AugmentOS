@@ -416,30 +416,30 @@ public enum BluetoothEvent: CustomStringConvertible {
 
 @MainActor
 public protocol BluetoothSDKDelegate: AnyObject {
-    func BluetoothSDK(_ sdk: BluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didDiscover device: DiscoveredDevice)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didStopScan reason: ScanStopReason)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didReceive event: BluetoothEvent)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didReceiveMicPcm frame: Data)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didReceiveMicLc3 frame: Data)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didChangeDefaultDevice device: PairedDevice?)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didLog message: String)
-    func BluetoothSDK(_ sdk: BluetoothSDK, didFail error: BluetoothError)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didDiscover device: DiscoveredDevice)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didStopScan reason: ScanStopReason)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didReceive event: BluetoothEvent)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didReceiveMicPcm frame: Data)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didReceiveMicLc3 frame: Data)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didChangeDefaultDevice device: PairedDevice?)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didLog message: String)
+    func mentraBluetoothSDK(_ sdk: BluetoothSDK, didFail error: BluetoothError)
 }
 
 @MainActor
 public extension BluetoothSDKDelegate {
-    func BluetoothSDK(_: BluetoothSDK, didUpdateGlassesStatus _: GlassesStatusUpdate) {}
-    func BluetoothSDK(_: BluetoothSDK, didUpdateBluetoothStatus _: BluetoothStatusUpdate) {}
-    func BluetoothSDK(_: BluetoothSDK, didDiscover _: DiscoveredDevice) {}
-    func BluetoothSDK(_: BluetoothSDK, didStopScan _: ScanStopReason) {}
-    func BluetoothSDK(_: BluetoothSDK, didReceive _: BluetoothEvent) {}
-    func BluetoothSDK(_: BluetoothSDK, didReceiveMicPcm _: Data) {}
-    func BluetoothSDK(_: BluetoothSDK, didReceiveMicLc3 _: Data) {}
-    func BluetoothSDK(_: BluetoothSDK, didChangeDefaultDevice _: PairedDevice?) {}
-    func BluetoothSDK(_: BluetoothSDK, didLog _: String) {}
-    func BluetoothSDK(_: BluetoothSDK, didFail _: BluetoothError) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didUpdateGlassesStatus _: GlassesStatusUpdate) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didUpdateBluetoothStatus _: BluetoothStatusUpdate) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didDiscover _: DiscoveredDevice) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didStopScan _: ScanStopReason) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didReceive _: BluetoothEvent) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didReceiveMicPcm _: Data) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didReceiveMicLc3 _: Data) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didChangeDefaultDevice _: PairedDevice?) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didLog _: String) {}
+    func mentraBluetoothSDK(_: BluetoothSDK, didFail _: BluetoothError) {}
 }
 
 @MainActor
@@ -453,14 +453,6 @@ public final class BluetoothSDK {
 
     public init(configuration: BluetoothSDKConfiguration = .default) {
         self.configuration = configuration
-        bridgeEventSinkId = Bridge.addEventSink { [weak self] eventName, data in
-            Task { @MainActor [weak self] in
-                self?.dispatchBridgeEvent(eventName, data)
-            }
-        }
-        storeListenerId = GlassesStore.shared.store.addListener { [weak self] category, changes in
-            self?.dispatchStoreUpdate(category, changes)
-        }
     }
 
     public var glassesStatus: GlassesStatus {
@@ -689,67 +681,6 @@ public final class BluetoothSDK {
             Bridge.removeEventSink(bridgeEventSinkId)
             self.bridgeEventSinkId = nil
         }
-        if let storeListenerId {
-            GlassesStore.shared.store.removeListener(storeListenerId)
-            self.storeListenerId = nil
-        }
         delegate = nil
-    }
-
-    private func dispatchStoreUpdate(_ category: String, _ changes: [String: Any]) {
-        switch ObservableStore.normalizeCategory(category) {
-        case "glasses":
-            delegate?.BluetoothSDK(self, didUpdateGlassesStatus: GlassesStatusUpdate(values: changes))
-        case ObservableStore.coreCategory:
-            delegate?.BluetoothSDK(self, didUpdateBluetoothStatus: BluetoothStatusUpdate(values: changes))
-            dispatchDiscoveredDevices(changes["searchResults"])
-        default:
-            break
-        }
-    }
-
-    private func dispatchDiscoveredDevices(_ rawSearchResults: Any?) {
-        guard let results = rawSearchResults as? [[String: Any]] else { return }
-        for result in results {
-            guard let name = result["deviceName"] as? String ?? result["name"] as? String else { continue }
-            guard discoveredDeviceNames.insert(name).inserted else { continue }
-            let model = DeviceModel.fromDeviceType(result["deviceModel"] as? String)
-            let device = DiscoveredDevice(model: model, name: name)
-            delegate?.BluetoothSDK(self, didDiscover: device)
-        }
-    }
-
-    private func dispatchBridgeEvent(_ eventName: String, _ data: [String: Any]) {
-        switch eventName {
-        case "log":
-            delegate?.BluetoothSDK(self, didLog: data["message"] as? String ?? data.description)
-        case "mic_pcm":
-            if let frame = data["pcm"] as? Data {
-                delegate?.BluetoothSDK(self, didReceiveMicPcm: frame)
-            }
-        case "mic_lc3":
-            if let frame = data["lc3"] as? Data {
-                delegate?.BluetoothSDK(self, didReceiveMicLc3: frame)
-            }
-        case "local_transcription":
-            let event = LocalTranscriptionEvent(
-                text: data["text"] as? String ?? "",
-                isFinal: data["isFinal"] as? Bool ?? false,
-                values: data
-            )
-            delegate?.BluetoothSDK(self, didReceive: .localTranscription(event))
-        case "compatible_glasses_search_stop":
-            delegate?.BluetoothSDK(self, didStopScan: .completed)
-        case "pair_failure":
-            delegate?.BluetoothSDK(
-                self,
-                didFail: BluetoothError(
-                    code: "pair_failure",
-                    message: data["error"] as? String ?? data.description
-                )
-            )
-        default:
-            delegate?.BluetoothSDK(self, didReceive: .raw(name: eventName, values: data))
-        }
     }
 }

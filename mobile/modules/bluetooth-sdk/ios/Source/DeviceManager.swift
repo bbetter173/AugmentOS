@@ -1323,6 +1323,23 @@ struct ViewState {
         }
     }
 
+    func connectDevice(_ deviceModel: String, _ deviceName: String) {
+        Bridge.log("MAN: Connecting to device: \(deviceModel) \(deviceName)")
+        if DeviceTypes.ALL.contains(deviceModel) {
+            pendingWearable = deviceModel
+            initSGC(pendingWearable)
+            sgc?.connectById(deviceName)
+            return
+        }
+        if ControllerTypes.ALL.contains(deviceModel) {
+            pendingWearable = deviceModel
+            initController(deviceModel)
+            controller?.connectById(deviceName)
+            return
+        }
+        Bridge.log("MAN: No compatible device model, returning")
+    }
+
     func connectSimulated() {
         defaultWearable = DeviceTypes.SIMULATED
         deviceName = DeviceTypes.SIMULATED

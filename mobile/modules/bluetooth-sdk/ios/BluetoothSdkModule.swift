@@ -1,8 +1,6 @@
 import ExpoModulesCore
 
-public class CoreModule: Module, BluetoothSDKDelegate {
-    private var sdk: BluetoothSDK?
-
+public class CoreModule: Module {
     public func definition() -> ModuleDefinition {
         Name("Core")
 
@@ -16,7 +14,6 @@ public class CoreModule: Module, BluetoothSDKDelegate {
             "button_press",
             "touch_event",
             "head_up",
-            "vad_status",
             "battery_status",
             "wifi_status_change",
             "hotspot_status_change",
@@ -35,6 +32,8 @@ public class CoreModule: Module, BluetoothSDKDelegate {
             "audio_disconnected",
             "save_setting",
             "local_transcription",
+            "phone_notification",
+            "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
             "mic_pcm",
@@ -46,19 +45,28 @@ public class CoreModule: Module, BluetoothSDKDelegate {
             "ota_progress",
             "send_command_to_ble",
             "receive_command_from_ble",
-            "miniapp_selected"
+            "miniapp_selected",
+            "captions_tester_incident"
         )
 
         OnCreate {
-            Task { @MainActor [weak self] in
-                _ = self?.getSdk()
+            // Initialize Bridge with event callback
+            Bridge.initialize { [weak self] eventName, data in
+                self?.sendEvent(eventName, data)
             }
-        }
 
-        OnDestroy {
+            // Configure observable store event emission
             Task { @MainActor [weak self] in
-                self?.sdk?.invalidate()
-                self?.sdk = nil
+                GlassesStore.shared.store.configure { [weak self] category, changes in
+                    switch category {
+                    case "glasses":
+                        self?.sendEvent("glasses_status", changes)
+                    case "core":
+                        self?.sendEvent("core_status", changes)
+                    default:
+                        break
+                    }
+                }
             }
         }
 
@@ -66,13 +74,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("getGlassesStatus") {
             await MainActor.run {
-                self.getSdk().glassesStatus.values
+                GlassesStore.shared.store.getCategory("glasses")
             }
         }
 
         AsyncFunction("getCoreStatus") {
             await MainActor.run {
-                self.getSdk().bluetoothStatus.values
+                GlassesStore.shared.store.getCategory("core")
             }
         }
 
@@ -87,38 +95,28 @@ public class CoreModule: Module, BluetoothSDKDelegate {
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { (params: [String: Any]) in
-            let sdk = await MainActor.run { self.getSdk() }
-            try? await sdk.displayEvent(DisplayEventRequest(values: params))
+            await MainActor.run {
+                CoreManager.shared.displayEvent(params)
+            }
         }
 
         AsyncFunction("displayText") { (params: [String: Any]) in
-            let request = DisplayTextRequest(
-                text: params["text"] as? String ?? "",
-                x: intValue(params["x"], defaultValue: 0),
-                y: intValue(params["y"], defaultValue: 0),
-                size: intValue(params["size"], defaultValue: 24)
-            )
-            let sdk = await MainActor.run { self.getSdk() }
-            try? await sdk.displayText(request)
+            await MainActor.run {
+                CoreManager.shared.displayText(params)
+            }
         }
 
         // MARK: - Connection Commands
 
         AsyncFunction("connectDefault") {
             await MainActor.run {
-                self.getSdk().connectDefault()
+                CoreManager.shared.connectDefault()
             }
         }
 
         AsyncFunction("connectByName") { (deviceName: String) in
             await MainActor.run {
-                self.getSdk().connectByName(deviceName)
-            }
-        }
-
-        AsyncFunction("connectDevice") { (deviceModel: String, deviceName: String) in
-            await MainActor.run {
-                self.getSdk().connect(model: DeviceModel.fromDeviceType(deviceModel), name: deviceName)
+                CoreManager.shared.connectByName(deviceName)
             }
         }
 
@@ -130,13 +128,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("connectSimulated") {
             await MainActor.run {
-                self.getSdk().connectSimulated()
+                CoreManager.shared.connectSimulated()
             }
         }
 
         AsyncFunction("disconnect") {
             await MainActor.run {
-                self.getSdk().disconnect()
+                CoreManager.shared.disconnect()
             }
         }
 
@@ -148,7 +146,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("forget") {
             await MainActor.run {
-                self.getSdk().forget()
+                CoreManager.shared.forget()
             }
         }
 
@@ -160,13 +158,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("findCompatibleDevices") { (deviceModel: String) in
             await MainActor.run {
-                self.getSdk().startScan(model: DeviceModel.fromDeviceType(deviceModel))
+                CoreManager.shared.findCompatibleDevices(deviceModel)
             }
         }
 
         AsyncFunction("showDashboard") {
             await MainActor.run {
-                self.getSdk().showDashboard()
+                CoreManager.shared.showDashboard()
             }
         }
 
@@ -194,7 +192,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in
             await MainActor.run {
-                self.getSdk().sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
+                CoreManager.shared.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
             }
         }
 
@@ -202,25 +200,25 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("requestWifiScan") {
             await MainActor.run {
-                self.getSdk().requestWifiScan()
+                CoreManager.shared.requestWifiScan()
             }
         }
 
         AsyncFunction("sendWifiCredentials") { (ssid: String, password: String) in
             await MainActor.run {
-                self.getSdk().sendWifiCredentials(ssid: ssid, password: password)
+                CoreManager.shared.sendWifiCredentials(ssid, password)
             }
         }
 
         AsyncFunction("forgetWifiNetwork") { (ssid: String) in
             await MainActor.run {
-                self.getSdk().forgetWifiNetwork(ssid: ssid)
+                CoreManager.shared.forgetWifiNetwork(ssid)
             }
         }
 
         AsyncFunction("setHotspotState") { (enabled: Bool) in
             await MainActor.run {
-                self.getSdk().setHotspotState(enabled: enabled)
+                CoreManager.shared.setHotspotState(enabled)
             }
         }
 
@@ -228,7 +226,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("queryGalleryStatus") {
             await MainActor.run {
-                self.getSdk().queryGalleryStatus()
+                CoreManager.shared.queryGalleryStatus()
             }
         }
 
@@ -238,17 +236,8 @@ public class CoreModule: Module, BluetoothSDKDelegate {
                 authToken: String?, compress: String?, flash: Bool, sound: Bool
             ) in
             await MainActor.run {
-                self.getSdk().requestPhoto(
-                    PhotoRequest(
-                        requestId: requestId,
-                        appId: appId,
-                        size: size,
-                        webhookUrl: webhookUrl,
-                        authToken: authToken,
-                        compress: compress,
-                        flash: flash,
-                        sound: sound
-                    )
+                CoreManager.shared.photoRequest(
+                    requestId, appId, size, webhookUrl, authToken, compress, flash, sound
                 )
             }
         }
@@ -257,7 +246,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("sendOtaStart") {
             await MainActor.run {
-                self.getSdk().sendOtaStart()
+                CoreManager.shared.sendOtaStart()
             }
         }
 
@@ -265,7 +254,7 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("requestVersionInfo") {
             await MainActor.run {
-                self.getSdk().requestVersionInfo()
+                CoreManager.shared.requestVersionInfo()
             }
         }
 
@@ -273,13 +262,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("sendShutdown") {
             await MainActor.run {
-                self.getSdk().sendShutdown()
+                CoreManager.shared.sendShutdown()
             }
         }
 
         AsyncFunction("sendReboot") {
             await MainActor.run {
-                self.getSdk().sendReboot()
+                CoreManager.shared.sendReboot()
             }
         }
 
@@ -287,15 +276,13 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
             await MainActor.run {
-                self.getSdk().startVideoRecording(
-                    VideoRecordingRequest(requestId: requestId, save: save, flash: flash, sound: sound)
-                )
+                CoreManager.shared.startVideoRecording(requestId, save, flash, sound)
             }
         }
 
         AsyncFunction("stopVideoRecording") { (requestId: String) in
             await MainActor.run {
-                self.getSdk().stopVideoRecording(requestId: requestId)
+                CoreManager.shared.stopVideoRecording(requestId)
             }
         }
 
@@ -303,28 +290,28 @@ public class CoreModule: Module, BluetoothSDKDelegate {
 
         AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                self.getSdk().startStream(StreamRequest(values: params))
+                CoreManager.shared.startStream(params)
             }
         }
 
         AsyncFunction("stopStream") {
             await MainActor.run {
-                self.getSdk().stopStream()
+                CoreManager.shared.stopStream()
             }
         }
 
         AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                self.getSdk().keepStreamAlive(StreamKeepAliveRequest(values: params))
+                CoreManager.shared.keepStreamAlive(params)
             }
         }
 
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { (playing: Bool) in
-            await MainActor.run {
-                self.getSdk().setOwnAppAudioPlaying(playing)
-            }
+            // Notify PhoneAudioMonitor that our app started/stopped playing audio
+            // This is used to suspend LC3 mic during audio playback to avoid MCU overload
+            PhoneAudioMonitor.getInstance().setOwnAppAudioPlaying(playing)
         }
 
         AsyncFunction("getGlassesMediaVolume") { () async throws -> [String: Any] in
@@ -372,8 +359,9 @@ public class CoreModule: Module, BluetoothSDKDelegate {
         // MARK: - Display Commands
 
         AsyncFunction("clearDisplay") {
-            let sdk = await MainActor.run { self.getSdk() }
-            try? await sdk.clearDisplay()
+            await MainActor.run {
+                CoreManager.shared.sgc?.clearDisplay()
+            }
         }
 
         // MARK: - STT Model Management
@@ -397,30 +385,46 @@ public class CoreModule: Module, BluetoothSDKDelegate {
         AsyncFunction("extractTarBz2") { (sourcePath: String, destinationPath: String) -> Bool in
             return STTTools.extractTarBz2(sourcePath: sourcePath, destinationPath: destinationPath)
         }
-    }
 
-    @MainActor
-    private func getSdk() -> BluetoothSDK {
-        if let sdk {
-            return sdk
+        // MARK: - Beta Build Detection
+
+        AsyncFunction("isBetaBuild") { () -> Bool in
+            #if targetEnvironment(simulator)
+                return false
+            #else
+                return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            #endif
         }
 
-        let sdk = MentraBluetoothSDK.BluetoothSDK()
-        sdk.delegate = self
-        self.sdk = sdk
-        return sdk
-    }
+        // MARK: - Android Stubs
 
-    private func intValue(_ value: Any?, defaultValue: Int) -> Int {
-        switch value {
-        case let value as Int:
-            return value
-        case let value as Double:
-            return Int(value)
-        case let value as NSNumber:
-            return value.intValue
-        default:
-            return defaultValue
+        AsyncFunction("getInstalledApps") { () -> Any in
+            return false
+        }
+
+        AsyncFunction("hasNotificationListenerPermission") { () -> Any in
+            return false
+        }
+
+        // Notification management stubs (iOS doesn't support these features)
+        Function("setNotificationsEnabled") { (_: Bool) in
+            // No-op on iOS
+        }
+
+        Function("getNotificationsEnabled") { () -> Bool in
+            return false
+        }
+
+        Function("setNotificationsBlocklist") { (_: [String]) in
+            // No-op on iOS
+        }
+
+        Function("getNotificationsBlocklist") { () -> [String] in
+            return []
+        }
+
+        AsyncFunction("getInstalledAppsForNotifications") { () -> [[String: Any]] in
+            return []
         }
     }
 }

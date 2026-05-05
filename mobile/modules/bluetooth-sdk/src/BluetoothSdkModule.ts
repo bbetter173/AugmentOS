@@ -3,7 +3,6 @@ import {NativeModule, requireNativeModule} from "expo"
 import {
   CoreModuleEvents,
   CoreStatus,
-  DeviceSearchResult,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,

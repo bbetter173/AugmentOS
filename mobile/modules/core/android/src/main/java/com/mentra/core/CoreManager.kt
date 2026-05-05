@@ -628,6 +628,7 @@ class CoreManager {
                 Bridge.log("MAN: LC3 decoder not initialized, cannot process glasses audio")
                 return
             }
+
             try {
                 // Decode glasses LC3 to PCM (glasses may use different LC3 configs)
                 pcmData = Lc3Cpp.decodeLC3(lc3DecoderPtr, rawLC3Data, frameSize)

@@ -1720,7 +1720,8 @@ class G2 : SGCManager() {
     }
 
     private fun sendMenuApps() {
-        val menuItems = GlassesStore.get("core", "menu_apps") as? List<Map<String, Any>> ?: emptyList()
+        val menuItems =
+                GlassesStore.get("core", "menu_apps") as? List<Map<String, Any>> ?: emptyList()
         if (menuItems.isNotEmpty()) {
             setDashboardMenu(menuItems)
         }
@@ -2306,7 +2307,6 @@ class G2 : SGCManager() {
         disconnectController()
     }
 
-
     fun reconnectController() {
         val mac = GlassesStore.get("glasses", "controllerMacAddress") as? String
         if (mac.isNullOrEmpty()) {
@@ -2495,8 +2495,12 @@ class G2 : SGCManager() {
                             }
 
                             val mfgFirst = result.scanRecord?.manufacturerSpecificData?.valueAt(0)
-                            val mfgHex = mfgFirst?.joinToString(" ") { String.format("%02X", it) } ?: "none"
-                            Bridge.log("G2: Discovered: $name (SN: $serialNumber) mfgData[${mfgFirst?.size ?: 0}]: $mfgHex")
+                            val mfgHex =
+                                    mfgFirst?.joinToString(" ") { String.format("%02X", it) }
+                                            ?: "none"
+                            Bridge.log(
+                                    "G2: Discovered: $name (SN: $serialNumber) mfgData[${mfgFirst?.size ?: 0}]: $mfgHex"
+                            )
                             deviceNameToSerialNumber[name] = serialNumber
 
                             // Save MAC per side; ring's advStart needs the left lens MAC.
@@ -2616,9 +2620,9 @@ class G2 : SGCManager() {
     }
 
     /**
-     * Extract the BLE MAC from the G2 scan record manufacturer data.
-     * Layout (after Android strips the 2-byte company ID): SN(14) + MAC(6, little-endian) + flag(1)
-     * Returns "AA:BB:CC:DD:EE:FF" (big-endian, colon-separated).
+     * Extract the BLE MAC from the G2 scan record manufacturer data. Layout (after Android strips
+     * the 2-byte company ID): SN(14) + MAC(6, little-endian) + flag(1) Returns "AA:BB:CC:DD:EE:FF"
+     * (big-endian, colon-separated).
      */
     private fun extractMacFromScanRecord(result: ScanResult): String? {
         val scanRecord = result.scanRecord ?: return null
@@ -2669,14 +2673,19 @@ class G2 : SGCManager() {
                         // chunk into 10+ pieces. We ask for 247 (max for BLE 4.2+ data length ext).
                         // discoverServices is deferred to onMtuChanged so the larger MTU is in
                         // effect for the rest of the setup.
-                        val mtuRequested = try {
-                            gatt.requestMtu(247)
-                        } catch (e: SecurityException) {
-                            Bridge.log("G2: requestMtu SecurityException on $side: ${e.message}")
-                            false
-                        }
+                        val mtuRequested =
+                                try {
+                                    gatt.requestMtu(247)
+                                } catch (e: SecurityException) {
+                                    Bridge.log(
+                                            "G2: requestMtu SecurityException on $side: ${e.message}"
+                                    )
+                                    false
+                                }
                         if (!mtuRequested) {
-                            Bridge.log("G2: requestMtu returned false on $side, proceeding without MTU bump")
+                            Bridge.log(
+                                    "G2: requestMtu returned false on $side, proceeding without MTU bump"
+                            )
                             gatt.discoverServices()
                         }
 
@@ -2686,7 +2695,9 @@ class G2 : SGCManager() {
                         try {
                             gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                         } catch (e: SecurityException) {
-                            Bridge.log("G2: requestConnectionPriority SecurityException on $side: ${e.message}")
+                            Bridge.log(
+                                    "G2: requestConnectionPriority SecurityException on $side: ${e.message}"
+                            )
                         }
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         Bridge.log("G2: Disconnected $side")
@@ -2724,7 +2735,8 @@ class G2 : SGCManager() {
             override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
                 Bridge.log("G2: onMtuChanged $side mtu=$mtu status=$status")
                 mainHandler.post {
-                    // discoverServices was deferred until MTU negotiation finishes (success or not).
+                    // discoverServices was deferred until MTU negotiation finishes (success or
+                    // not).
                     try {
                         gatt.discoverServices()
                     } catch (e: SecurityException) {
@@ -2810,11 +2822,9 @@ class G2 : SGCManager() {
                 val data = characteristic.value ?: return
 
                 val sourceKey = if (side == "LEFT") "L" else "R"
-                mainHandler.post {
-                    when (characteristic.uuid) {
-                        G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
-                        G2BLE.CHAR_NOTIFY -> handleNotifyData(data, sourceKey)
-                    }
+                when (characteristic.uuid) {
+                    G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
+                    G2BLE.CHAR_NOTIFY -> handleNotifyData(data, sourceKey)
                 }
             }
 
@@ -3153,7 +3163,6 @@ class G2 : SGCManager() {
                     Bridge.log("G2: Ring maybe reconnected?")
                     GlassesStore.apply("glasses", "controllerFullyBooted", true)
                 }
-                
 
                 val connStatus = ringFields[4] as? Int ?: -1
                 Bridge.log("G2: Ring connection status: connStatus?=$connStatus")

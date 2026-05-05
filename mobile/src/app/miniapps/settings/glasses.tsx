@@ -150,8 +150,8 @@ function DeviceSettings() {
 
       {/* Camera Settings button moved to Gallery Settings page */}
 
-      {/* Button Settings - Only show for glasses with configurable buttons */}
-      {glassesConnected && defaultWearable && features?.hasButton && (
+      {/* Button Settings - Mentra Live only (G2's button is a touchpad and conflicts with the native menu) */}
+      {glassesConnected && defaultWearable === DeviceTypes.LIVE && (
         <ButtonSettings
           enabled={defaultButtonActionEnabled}
           selectedApp={defaultButtonActionApp}

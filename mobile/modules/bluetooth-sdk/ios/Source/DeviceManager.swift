@@ -356,7 +356,7 @@ struct ViewState {
         }
     }
 
-    private func convertAndsendMicLc3(_ pcmData: Data) {
+    private func convertAndSendMicLc3(_ pcmData: Data) {
         guard let lc3Converter = lc3Converter else {
             Bridge.log("MAN: ERROR - LC3 converter not initialized but format is LC3")
             return
@@ -371,11 +371,12 @@ struct ViewState {
     }
 
     private func handleSendingPcm(_ pcmData: Data) {
+        // Bridge.log("MAN: handleSendingPcm() shouldSendPcm: \(shouldSendPcm) shouldSendLc3: \(shouldSendLc3)")
         if shouldSendPcm {
             Bridge.sendMicPcm(pcmData)
         }
         if shouldSendLc3 {
-            convertAndsendMicLc3(pcmData)
+            convertAndSendMicLc3(pcmData)
         }
     }
 

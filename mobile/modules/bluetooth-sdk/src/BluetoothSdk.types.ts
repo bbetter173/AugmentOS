@@ -172,13 +172,11 @@ export type WsBinEvent = {
 
 export type MicPcmEvent = {
   type: "mic_pcm"
-  // base64: string
   pcm: ArrayBuffer
 }
 
 export type MicLc3Event = {
   type: "mic_lc3"
-  // base64: string
   lc3: ArrayBuffer
 }
 

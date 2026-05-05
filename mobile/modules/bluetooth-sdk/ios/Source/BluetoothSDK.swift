@@ -471,7 +471,7 @@ public final class BluetoothSDK {
 
     public func stopScan() {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "searching", false)
-        delegate?.BluetoothSDK(self, didStopScan: .cancelled)
+        delegate?.mentraBluetoothSDK(self, didStopScan: .cancelled)
     }
 
     public func connect(to device: DiscoveredDevice) {

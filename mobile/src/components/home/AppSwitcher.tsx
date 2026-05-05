@@ -22,7 +22,7 @@ import {
   useActiveApps,
   useAppStatusStore,
   type ClientApp,
-} from "island"
+} from "@mentra/island"
 import AppIcon from "@/components/home/AppIcon"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"

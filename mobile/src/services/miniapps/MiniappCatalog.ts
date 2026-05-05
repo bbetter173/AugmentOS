@@ -13,7 +13,7 @@ import {
   type ClientApp,
   type StartOptions,
   useAppStatusStore,
-} from "island"
+} from "@mentra/island"
 
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
 import {miniappHost} from "@/components/miniapp/MiniappHost"

@@ -5,7 +5,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Button, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import restComms from "@/services/RestComms"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 
 interface MiniappErrorScreenProps {
   packageName: string

@@ -7,7 +7,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Group} from "@/components/ui/Group"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import type {ClientApp} from "island"
+import type {ClientApp} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 
 interface AppPickerProps {

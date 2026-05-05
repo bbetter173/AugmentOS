@@ -7,10 +7,10 @@ import LeftEdgeBackSwipe from "@/components/miniapp/LeftEdgeBackSwipe"
 import MiniappSplash from "@/components/miniapp/MiniappSplash"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {devServerBridge} from "island"
-import {localDisplayManager} from "island"
-import {localMiniappRuntime} from "island"
-import {webviewBridge as miniComms, miniappRunningRegistry, buildMiniappGlobalsScript} from "island"
+import {devServerBridge} from "@mentra/island"
+import {localDisplayManager} from "@mentra/island"
+import {localMiniappRuntime} from "@mentra/island"
+import {webviewBridge as miniComms, miniappRunningRegistry, buildMiniappGlobalsScript} from "@mentra/island"
 
 const BEFORE_EVICT_TIMEOUT_MS = 500
 

@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useApps, useStart} from "island"
+import {useApps, useStart} from "@mentra/island"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {askPermissionsUI} from "@/utils/PermissionsUtils"
 import CoreModule, {ButtonPressEvent} from "@mentra/bluetooth-sdk"

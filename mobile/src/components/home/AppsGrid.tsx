@@ -16,7 +16,7 @@ import {
   useStop,
   type ClientApp,
   type OrderMap,
-} from "island"
+} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
 import {useForegroundApps} from "@/hooks/useAppsExtras"

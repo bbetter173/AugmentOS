@@ -4,8 +4,8 @@ import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
-import {appRegistry} from "island"
-import {devServerBridge} from "island"
+import {appRegistry} from "@mentra/island"
+import {devServerBridge} from "@mentra/island"
 import {storage} from "@/utils/storage/storage"
 
 /**

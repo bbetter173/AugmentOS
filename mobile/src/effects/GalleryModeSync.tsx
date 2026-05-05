@@ -1,6 +1,6 @@
 import {useEffect} from "react"
 
-import {useApps} from "island"
+import {useApps} from "@mentra/island"
 
 import {cameraPackageName} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"

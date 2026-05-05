@@ -1,6 +1,6 @@
 import axios from "axios"
 
-import type {ClientApp} from "island"
+import type {ClientApp} from "@mentra/island"
 import {submitAutomaticBugIncident} from "./automaticBugReport"
 
 interface SerializedStartAppError {

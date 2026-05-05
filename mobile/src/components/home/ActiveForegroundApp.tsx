@@ -5,7 +5,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Badge} from "@/components/ui"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useActiveForegroundApp, useStop} from "island"
+import {useActiveForegroundApp, useStop} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
 

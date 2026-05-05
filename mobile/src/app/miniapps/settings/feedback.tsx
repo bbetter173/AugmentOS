@@ -13,7 +13,7 @@ import {translate} from "@/i18n"
 import {buildBugReportFeedbackDataForBug, submitBugIncident} from "@/services/bugReport/bugReportIncident"
 import {buildIncidentCategorization} from "@/services/bugReport/incidentCategorization"
 import restComms from "@/services/RestComms"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 
 import {feedbackPackageName, settingsPackageName} from "@/constants/miniapps"
 import {useGlassesStore} from "@/stores/glasses"

@@ -10,7 +10,7 @@ import {RouteButton} from "@/components/ui/RouteButton"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n/translate"
-import {sortAppsByLastOpenTime, useApps, type ClientApp} from "island"
+import {sortAppsByLastOpenTime, useApps, type ClientApp} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"

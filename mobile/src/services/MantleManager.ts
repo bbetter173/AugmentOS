@@ -21,7 +21,7 @@ import {
   localMiniappRuntime,
   localSttFallbackCoordinator,
   micStateCoordinator,
-} from "island"
+} from "@mentra/island"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore, getGlasesInfoPartial} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
@@ -29,11 +29,11 @@ import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
 import {useCoreStore} from "@/stores/core"
 import udp from "@/services/UdpManager"
-import {BgTimer} from "island"
+import {BgTimer} from "@mentra/island"
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {logE2EMetric} from "@/utils/e2eMetrics"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"

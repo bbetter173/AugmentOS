@@ -10,7 +10,7 @@ import InternetConnectionFallbackComponent from "@/components/ui/InternetConnect
 import {useAppStoreWebviewPrefetch} from "@/contexts/AppStoreContext"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useRefresh} from "island"
+import {useRefresh} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 

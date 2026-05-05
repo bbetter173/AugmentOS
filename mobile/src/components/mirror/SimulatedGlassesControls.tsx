@@ -9,7 +9,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import socketComms from "@/services/SocketComms"
 import {useDisplayStore} from "@/stores/display"
 import {ThemedStyle} from "@/theme"
-import { BgTimer } from "island"
+import { BgTimer } from "@mentra/island"
 
 interface SimulatedGlassesControlsProps {}
 

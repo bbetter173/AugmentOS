@@ -5,7 +5,7 @@ import {Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {DUMMY_APPLET, useBackgroundApps, useStart, type ClientApp} from "island"
+import {DUMMY_APPLET, useBackgroundApps, useStart, type ClientApp} from "@mentra/island"
 
 import {storePackageName} from "@/constants/miniapps"
 import {ThemedStyle} from "@/theme"

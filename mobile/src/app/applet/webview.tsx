@@ -10,17 +10,17 @@ import LoadingOverlay from "@/components/ui/LoadingOverlay"
 import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import restComms from "@/services/RestComms"
-import {webviewBridge as miniComms} from "island"
+import {webviewBridge as miniComms} from "@mentra/island"
 import {WebSocketStatus} from "@/services/ws-types"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 
 import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {useConnectionStore} from "@/stores/connection"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import AppIcon from "@/components/home/AppIcon"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import {buildMiniappGlobalsScript} from "island"
+import {buildMiniappGlobalsScript} from "@mentra/island"
 
 export default function AppWebView() {
   const {webviewURL, appName, packageName, isLocal: isLocalParam} = useLocalSearchParams()

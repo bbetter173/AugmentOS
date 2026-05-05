@@ -11,7 +11,7 @@ import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import STTModelManager from "@/services/STTModelManager"
-import {useStopAll} from "island"
+import {useStopAll} from "@mentra/island"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 

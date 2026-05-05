@@ -7,7 +7,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Badge} from "@/components/ui"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {DUMMY_APPLET, type ClientApp} from "island"
+import {DUMMY_APPLET, type ClientApp} from "@mentra/island"
 
 import {useIncompatibleApps} from "@/hooks/useAppsExtras"
 import showAlert from "@/utils/AlertUtils"

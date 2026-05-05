@@ -6,9 +6,9 @@ import {StyleSheet, TextStyle, View, ViewStyle} from "react-native"
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useApps} from "island"
+import {useApps} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
-import {decideDevLaunchRoute} from "island"
+import {decideDevLaunchRoute} from "@mentra/island"
 import {storage} from "@/utils/storage/storage"
 
 /**

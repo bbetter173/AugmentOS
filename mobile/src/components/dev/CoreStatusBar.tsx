@@ -9,7 +9,7 @@ import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import CoreModule, {TouchEvent} from "@mentra/bluetooth-sdk"
-import {BgTimer} from "island"
+import {BgTimer} from "@mentra/island"
 
 function Tag({icon, label, bg}: {icon: IconTypes; label: string; bg: string}) {
   const {theme} = useAppTheme()

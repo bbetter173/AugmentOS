@@ -7,7 +7,7 @@ import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 import {translate} from "@/i18n/translate"
 import {usePathname} from "expo-router"
-import {BgTimer} from "island"
+import {BgTimer} from "@mentra/island"
 
 export interface VersionInfo {
   versionCode: number

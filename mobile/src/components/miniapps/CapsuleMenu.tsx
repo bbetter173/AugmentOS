@@ -1,7 +1,7 @@
 import {Button, Icon, Text} from "@/components/ignite"
 import {focusEffectPreventBack, push, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useAppStatusStore, type ClientApp} from "island"
+import {useAppStatusStore, type ClientApp} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
 import {SETTINGS, useSetting} from "@/stores/settings"

@@ -7,7 +7,7 @@ import {withUniwind} from "uniwind"
 import {Icon} from "@/components/ignite"
 import {DevMiniappBadge} from "@/components/miniapps/DevMiniappBadge"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import type {ClientApp} from "island"
+import type {ClientApp} from "@mentra/island"
 
 // Helper to extract style properties for width/height override
 const extractStyleProps = (style: StyleProp<ViewStyle>): Partial<ViewStyle> => {

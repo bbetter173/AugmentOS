@@ -6,7 +6,7 @@
  * G2.swift is responsible for: name truncation, running indicators, padding, numeric IDs, wire format.
  */
 
-import {sortAppsByLastOpenTime, useAppStatusStore, type ClientApp} from "island"
+import {sortAppsByLastOpenTime, useAppStatusStore, type ClientApp} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
 import {useGlassesStore} from "@/stores/glasses"

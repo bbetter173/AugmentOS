@@ -5,9 +5,9 @@ import {AppState, Platform} from "react-native"
 
 import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/NavigationHistoryContext"
 import miniappCatalog from "@/services/miniapps/MiniappCatalog"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 import mentraAuth from "@/utils/auth/authClient"
-import {BgTimer} from "island"
+import {BgTimer} from "@mentra/island"
 
 /** Returns immediately if the app is already active, otherwise waits for it. */
 const waitForActive = (): Promise<void> => {

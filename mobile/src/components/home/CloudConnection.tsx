@@ -7,10 +7,10 @@ import {Icon, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {WebSocketStatus} from "@/services/WebSocketManager"
-import {useRefresh} from "island"
+import {useRefresh} from "@mentra/island"
 import {useConnectionStore} from "@/stores/connection"
 import {ThemedStyle} from "@/theme"
-import {BgTimer} from "island"
+import {BgTimer} from "@mentra/island"
 
 export default function CloudConnection() {
   const connectionStatus = useConnectionStore((state) => state.status)

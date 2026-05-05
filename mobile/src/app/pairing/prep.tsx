@@ -13,7 +13,7 @@ import GlassesDisplayMirror from "@/components/mirror/GlassesDisplayMirror"
 import {useState} from "react"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 import CoreModule from "@mentra/bluetooth-sdk"
 
 export default function PairingPrepScreen() {

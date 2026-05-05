@@ -21,7 +21,7 @@ import {BatteryStatus} from "@/components/glasses/info/BatteryStatus"
 import {EmptyState} from "@/components/glasses/info/EmptyState"
 import {ButtonSettings} from "@/components/glasses/settings/ButtonSettings"
 import BrightnessSetting from "@/components/settings/BrightnessSetting"
-import {useApps} from "island"
+import {useApps} from "@mentra/island"
 // import showAlert from "@/utils/AlertUtils"
 import {showAlert} from "@/contexts/ModalContext"
 

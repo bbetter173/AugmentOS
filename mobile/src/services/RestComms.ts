@@ -7,7 +7,7 @@ import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {useConnectionStore} from "@/stores/connection"
 import {WebSocketStatus} from "@/services/ws-types"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
-import {BgTimer} from "island"
+import {BgTimer} from "@mentra/island"
 
 interface RequestConfig {
   method: "GET" | "POST" | "DELETE"

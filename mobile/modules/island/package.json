@@ -1,5 +1,5 @@
 {
-  "name": "island",
+  "name": "@mentra/island",
   "version": "0.1.0",
   "description": "Mentra Manager Island — miniapp registry, WebView bridge, and miniapp store",
   "main": "build/index.js",

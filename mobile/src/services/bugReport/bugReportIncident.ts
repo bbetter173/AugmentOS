@@ -6,7 +6,7 @@ import * as Location from "expo-location"
 import {Platform} from "react-native"
 
 import restComms from "@/services/RestComms"
-import {useAppStatusStore} from "island"
+import {useAppStatusStore} from "@mentra/island"
 import {useConnectionStore} from "@/stores/connection"
 import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"

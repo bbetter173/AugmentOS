@@ -12,7 +12,7 @@ import {
   useActiveBackgroundApps,
   useActiveForegroundApp,
   type ClientApp,
-} from "island"
+} from "@mentra/island"
 import {RefObject, useEffect, useRef, useState} from "react"
 import {scheduleOnRN} from "react-native-worklets"
 import {BlurView} from "expo-blur"

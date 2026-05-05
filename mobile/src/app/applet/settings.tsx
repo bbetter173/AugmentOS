@@ -24,7 +24,7 @@ import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/Navigatio
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import restComms from "@/services/RestComms"
-import {useApps, useAppStatusStore, useRefresh, useStart, useStop} from "island"
+import {useApps, useAppStatusStore, useRefresh, useStart, useStop} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
 import {ThemedStyle} from "@/theme"

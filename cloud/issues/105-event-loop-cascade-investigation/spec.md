@@ -1,6 +1,6 @@
 # Spec: Phase-1.5 Cascade Diagnostic Instrumentation
 
-**Status:** Implemented on `cloud/issue-106` — pending cloud-debug deploy/soak
+**Status:** Implemented on `cloud/issue-106` — cloud-debug smoke passed; soak ongoing
 **Target branch:** staging-first; soak on cloud-debug before staging
 **Scope:** Observability only. No behavior changes, no cascade fix in this PR.
 **Design:** [design.md](./design.md) explains the production-safety rationale and rollout model.

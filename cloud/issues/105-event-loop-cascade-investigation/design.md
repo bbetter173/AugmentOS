@@ -1,6 +1,6 @@
 # Design: Phase-1.5 Cascade Diagnostic Instrumentation
 
-**Status:** Implemented on `cloud/issue-106` — pending cloud-debug deploy/soak
+**Status:** Implemented on `cloud/issue-106` — cloud-debug smoke passed; soak ongoing
 **Date:** 2026-05-05
 **Related:** [spike.md](./spike.md), [spec.md](./spec.md), [106 spike](../106-app-ws-storm-multi-app/spike.md)
 

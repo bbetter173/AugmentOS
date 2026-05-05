@@ -2,7 +2,7 @@
 
 **Status:** Open — investigation; spec.md proposes the instrumentation needed to close the gap
 **Date:** 2026-05-04
-**Last updated:** 2026-05-05 — Phase 1.5 observability implemented on `cloud/issue-106`; pending cloud-debug deploy/soak
+**Last updated:** 2026-05-05 — Phase 1.5 observability implemented on `cloud/issue-106`; cloud-debug smoke passed; soak ongoing
 **Reporter:** Investigation conducted live during staging cascade event 17:02 UTC, then back-tested against three prior us-central prod cascades (04-30 15:40, 04-30 18:24, 05-01 11:38)
 **Related:**
 
@@ -345,10 +345,32 @@ Item 5 is the focus of [106](../106-app-ws-storm-multi-app/).
 
 ---
 
+## Cloud-Debug Validation
+
+Phase-1.5 is deployed to `cloud-debug` from branch `cloud/issue-106`.
+
+What passed on 2026-05-05:
+
+- Cloud package build passed.
+- Cloud package test suite passed: 6 suites, 6 passed.
+- GitHub Actions `porter-debug.yml` deployed commit `316e7db0a8c39631b801d779789b220e51dc3151`.
+- Kubernetes rollout completed; `cloud-debug-cloud` is `1/1 Running` with zero restarts.
+- `https://debug.augmentos.cloud/livez` returned `ok`.
+- Pod logs and BetterStack show `process-lifecycle` startup and `event-loop-delay-histogram` startup.
+- BetterStack hot table `remote(t373499_mentracloud_prod_logs)` shows new `system-vitals` fields: `eventLoopDelayMaxMs`, `eventLoopDelayP99Ms`, and `eventLoopDelayMeanMs`.
+- Synthetic `/app-ws` reconnect smoke used `com.mentra.captions.debug`, not production captions.
+- The smoke produced `feature: "app-ws-close"` with `packageName`, `userIdHash`, close code/reason, inferred close source, and send counters.
+- The same smoke produced the expected vitals counter: `appProtocol_reconnect_count = 1` and `op_appProtocol_reconnect_ms = 17`.
+- A pre-existing raw API-key debug log was removed; BetterStack confirmed the synthetic key was not present in the new log row.
+
+Soak is still ongoing. The next useful signal is either a natural cloud-debug/staging cascade or a controlled reconnect/subscription storm against cloud-debug.
+
 ## Open Follow-Ups
 
-- [ ] Ship the small Phase-1.5 instrumentation PR per spec.md (per-message-type timers, slow-app-message warnings, event-loop-lag in vitals).
-- [ ] After deploy, wait for next staging cascade (rate is ~daily). Re-analyze with new data.
+- [x] Ship Phase-1.5 instrumentation on `cloud/issue-106`.
+- [x] Deploy to cloud-debug and smoke-test BetterStack ingestion.
+- [ ] Soak on cloud-debug before staging.
+- [ ] After staging deploy, wait for next staging cascade (rate is ~daily). Re-analyze with new data.
 - [ ] Investigate 106 in parallel: does the multi-app simultaneous-1006 pattern correlate with anything observable from the pod side, or is it a network/Cloudflare/k8s-service-mesh signal?
 - [ ] Set up BetterStack alert on `feature: "slow-app-message"` (once it exists) with reasonable threshold to capture cascades in real time. The `s3Cluster(...)` historical table preserves data anyway, but a real-time alert lets us pull live diagnostics (heap snapshot, per-session state) before restart.
 

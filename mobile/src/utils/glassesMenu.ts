@@ -9,10 +9,6 @@
 import {sortAppsByLastOpenTime, useAppStatusStore, type ClientApp} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
-import {useGlassesStore} from "@/stores/glasses"
-import {SETTINGS, useSettingsStore} from "@/stores/settings"
-import {DeviceTypes} from "@/../../cloud/packages/types/src"
-// import CoreModule from "core"
 
 export interface GlassesMenuItem {
   packageName: string

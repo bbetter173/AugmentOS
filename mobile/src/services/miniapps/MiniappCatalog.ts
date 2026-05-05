@@ -1,7 +1,7 @@
 import {Platform} from "react-native"
 import * as Sentry from "@sentry/react-native"
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {
   appRegistry,
   BgTimer,

@@ -1,10 +1,10 @@
 require 'json'
 
 package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
-include_expo_adapter = ENV['MENTRA_BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER'] == '1'
+include_expo_adapter = ENV['BLUETOOTH_SDK_INCLUDE_EXPO_ADAPTER'] == '1'
 
 Pod::Spec.new do |s|
-  s.name           = 'MentraBluetoothSDK'
+  s.name           = 'BluetoothSDK'
   s.version        = package['version']
   s.summary        = package['description']
   s.description    = package['description']

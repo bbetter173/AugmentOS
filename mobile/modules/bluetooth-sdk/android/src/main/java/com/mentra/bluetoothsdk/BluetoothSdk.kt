@@ -6,16 +6,16 @@ import android.os.Looper
 import com.mentra.core.utils.PhoneAudioMonitor
 import java.util.Collections
 
-class MentraBluetoothSdk private constructor(
+class BluetoothSdk private constructor(
     context: Context,
-    private val config: MentraBluetoothSdkConfig,
-    listener: MentraBluetoothSdkListener,
+    private val config: BluetoothSdkConfig,
+    listener: BluetoothSdkListener,
 ) : AutoCloseable {
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
     private val deviceManager: CoreManager
     private val listeners =
-        Collections.synchronizedSet(mutableSetOf<MentraBluetoothSdkListener>())
+        Collections.synchronizedSet(mutableSetOf<BluetoothSdkListener>())
     private val discoveredDeviceNames = mutableSetOf<String>()
     private val bridgeEventSinkId: String
     private val storeListenerId: String
@@ -32,22 +32,22 @@ class MentraBluetoothSdk private constructor(
         @JvmStatic
         fun create(
             context: Context,
-            listener: MentraBluetoothSdkListener,
-        ): MentraBluetoothSdk = create(context, MentraBluetoothSdkConfig(), listener)
+            listener: BluetoothSdkListener,
+        ): BluetoothSdk = create(context, BluetoothSdkConfig(), listener)
 
         @JvmStatic
         fun create(
             context: Context,
-            config: MentraBluetoothSdkConfig,
-            listener: MentraBluetoothSdkListener,
-        ): MentraBluetoothSdk = MentraBluetoothSdk(context, config, listener)
+            config: BluetoothSdkConfig,
+            listener: BluetoothSdkListener,
+        ): BluetoothSdk = BluetoothSdk(context, config, listener)
     }
 
-    fun addListener(listener: MentraBluetoothSdkListener) {
+    fun addListener(listener: BluetoothSdkListener) {
         listeners.add(listener)
     }
 
-    fun removeListener(listener: MentraBluetoothSdkListener) {
+    fun removeListener(listener: BluetoothSdkListener) {
         listeners.remove(listener)
     }
 
@@ -113,84 +113,7 @@ class MentraBluetoothSdk private constructor(
     fun showDashboard() {
         deviceManager.showDashboard()
     }
-
-    @JvmOverloads
-    fun setBrightness(level: Int, autoMode: Boolean? = null) {
-        autoMode?.let { GlassesStore.apply(ObservableStore.CORE_CATEGORY, "auto_brightness", it) }
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "brightness", level)
-    }
-
-    fun setAutoBrightness(enabled: Boolean) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "auto_brightness", enabled)
-    }
-
-    fun setDashboardPosition(request: MentraDashboardPositionRequest) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "dashboard_height", request.height)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "dashboard_depth", request.depth)
-    }
-
-    fun setDashboardMenu(items: List<MentraDashboardMenuItem>) {
-        GlassesStore.apply(
-            ObservableStore.CORE_CATEGORY,
-            "dashboard_menu_apps",
-            items.map { it.toMap() },
-        )
-    }
-
-    fun setHeadUpAngle(angleDegrees: Int) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "head_up_angle", angleDegrees)
-    }
-
-    fun setScreenDisabled(disabled: Boolean) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "screen_disabled", disabled)
-    }
-
-    fun setGalleryMode(mode: MentraGalleryMode) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "gallery_mode", mode == MentraGalleryMode.AUTO)
-    }
-
-    fun setButtonMode(mode: MentraButtonMode) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_mode", mode.value)
-    }
-
-    fun setButtonPhotoSettings(settings: MentraButtonPhotoSettings) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_photo_size", settings.size.value)
-    }
-
-    fun setButtonVideoRecordingSettings(settings: MentraButtonVideoRecordingSettings) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_width", settings.width)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_height", settings.height)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_fps", settings.fps)
-    }
-
-    fun setButtonCameraLed(enabled: Boolean) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_camera_led", enabled)
-    }
-
-    fun setButtonMaxRecordingTime(minutes: Int) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_max_recording_time", minutes)
-    }
-
-    fun setCameraFov(fov: MentraCameraFov) {
-        GlassesStore.apply(
-            ObservableStore.CORE_CATEGORY,
-            "camera_fov",
-            mapOf("fov" to fov.fov, "roi_position" to fov.roiPosition),
-        )
-    }
-
-    fun setMicState(config: MentraMicConfig) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_pcm", config.sendPcmData)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_lc3", config.sendLc3Data)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_transcript", config.sendTranscript)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "bypass_vad", config.bypassVad)
-        deviceManager.setMicState()
-    }
-
-    fun setPreferredMic(preferredMic: MentraMicPreference) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "preferred_mic", preferredMic.value)
-    }
-
+    
     fun setOwnAppAudioPlaying(playing: Boolean) {
         PhoneAudioMonitor.getInstance(appContext).setOwnAppAudioPlaying(playing)
     }
@@ -361,7 +284,7 @@ class MentraBluetoothSdk private constructor(
         }
     }
 
-    private fun dispatchToListeners(callback: (MentraBluetoothSdkListener) -> Unit) {
+    private fun dispatchToListeners(callback: (BluetoothSdkListener) -> Unit) {
         val snapshot = synchronized(listeners) { listeners.toList() }
         val deliver = {
             snapshot.forEach { listener ->

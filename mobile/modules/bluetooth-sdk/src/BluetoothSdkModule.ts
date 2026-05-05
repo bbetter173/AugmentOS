@@ -28,7 +28,6 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   connectDefault(): Promise<void>
   connectByName(deviceName: string): Promise<void>
   connectDevice(deviceModel: string, deviceName: string): Promise<void>
-  connectDiscoveredDevice(device: DeviceSearchResult): Promise<void>
   connectDefaultController(): Promise<void>
   disconnectController(): Promise<void>
   connectSimulated(): Promise<void>
@@ -128,10 +127,6 @@ NativeCoreModule.updateGlasses = function (values: Partial<GlassesStatus>) {
 
 NativeCoreModule.updateCore = function (values: Record<string, any>) {
   return this.update("core", values)
-}
-
-NativeCoreModule.connectDiscoveredDevice = function (device: DeviceSearchResult) {
-  return this.connectDevice(device.deviceModel, device.deviceName)
 }
 
 NativeCoreModule.onGlassesStatus = function (callback: GlassesListener) {

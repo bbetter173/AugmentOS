@@ -127,12 +127,11 @@ class GlassesStore {
 
     /// Apply changes with side effects
     func apply(_ category: String, _ key: String, _ value: Any) {
-        let normalizedCategory = ObservableStore.normalizeCategory(category)
-        let oldValue = store.get(normalizedCategory, key)
-        store.set(normalizedCategory, key, value)
+        let oldValue = store.get(category, key)
+        store.set(category, key, value)
 
         // Trigger hardware updates based on setting changes
-        switch (normalizedCategory, key) {
+        switch (category, key) {
         case ("glasses", "fullyBooted"):
             Bridge.log("STORE: Glasses fullyBooted changed to \(value)")
             // skip if the value is the same as the old value:

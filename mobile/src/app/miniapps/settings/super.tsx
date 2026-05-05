@@ -1,5 +1,5 @@
 import {ScrollView, View} from "react-native"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {Header, Screen} from "@/components/ignite"
 import ToggleSetting from "@/components/settings/ToggleSetting"
@@ -38,7 +38,7 @@ export default function SuperSettingsScreen() {
             />
 
             <ToggleSetting
-              label="Debug Core Status Bar"
+              label="Debug Bluetooth Status Bar"
               value={debugCoreStatusBarEnabled}
               onValueChange={(value) => setDebugCoreStatusBarEnabled(value)}
             />

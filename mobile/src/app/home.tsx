@@ -27,8 +27,6 @@ import {ControllerStatus} from "@/components/home/ControllerStatus"
 export default function Homepage() {
   const refreshApps = useRefresh()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
-  const [offlineMode] = useSetting(SETTINGS.offline_mode.key)
-  const [debugCoreStatusBarEnabled] = useSetting(SETTINGS.debug_core_status_bar.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
   const isSearching = useCoreStore((state) => state.searching)
   const hasAttemptedInitialConnect = useRef(false)

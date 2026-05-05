@@ -1,5 +1,5 @@
-import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "core"
-import * as Battery from "expo-battery"
+import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus} from "@mentra/bluetooth-sdk"
+import CrustModule from "crust"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"
@@ -190,6 +190,7 @@ class MantleManager {
       // settings are now in native; safe to attempt auto-connect
       attemptReconnectToDefaultWearable()
     }, 1000)
+    await this.syncNotificationSettingsToCrust()
 
     this.initServices()
     this.setupPeriodicTasks()
@@ -253,6 +254,16 @@ class MantleManager {
     }
   }
 
+  private async syncNotificationSettingsToCrust() {
+    const settings = useSettingsStore.getState()
+    const notificationsEnabled = Boolean(settings.getSetting(SETTINGS.notifications_enabled.key))
+    const notificationsBlocklist = settings.getSetting(SETTINGS.notifications_blocklist.key)
+    await CrustModule.setNotificationConfig(
+      notificationsEnabled,
+      Array.isArray(notificationsBlocklist) ? notificationsBlocklist : [],
+    )
+  }
+
   private async setupPeriodicTasks() {
     this.sendCalendarEvents()
     // Calendar sync every hour
@@ -310,7 +321,7 @@ class MantleManager {
       {equalityFn: shallow},
     )
 
-    // subscribe to core settings changes and update the core:
+    // Subscribe to settings owned by core and forward changes.
     useSettingsStore.subscribe(
       (state) => state.getCoreSettings(),
       (state: Record<string, any>, previousState: Record<string, any>) => {
@@ -328,24 +339,35 @@ class MantleManager {
       {equalityFn: shallow},
     )
 
+    useSettingsStore.subscribe(
+      (state) => ({
+        notificationsEnabled: state.getSetting(SETTINGS.notifications_enabled.key),
+        notificationsBlocklist: state.getSetting(SETTINGS.notifications_blocklist.key),
+      }),
+      async () => {
+        await this.syncNotificationSettingsToCrust()
+      },
+      {equalityFn: shallow},
+    )
+
     // Remove old event subscriptions
     this.subs.forEach((sub) => sub.remove())
     this.subs = []
 
-    // forward core status changes to the zustand core store:
-    this.subs.push(
-      CoreModule.addListener("core_status", (changed: Partial<CoreStatus>) => {
+    // Forward core status changes to the zustand core store.
+    this.subs.push({
+      remove: CoreModule.onCoreStatus((changed: Partial<CoreStatus>) => {
         // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
-    )
-    this.subs.push(
-      CoreModule.addListener("glasses_status", (changed) => {
+    })
+    this.subs.push({
+      remove: CoreModule.onGlassesStatus((changed) => {
         // console.log("MANTLE: Glasses status changed", changed)
         useGlassesStore.getState().setGlassesInfo(changed)
         localMiniappRuntime.forwardEvent("glasses_connection_state", changed)
       }),
-    )
+    })
 
     // Subscribe to individual core events
     {
@@ -397,7 +419,7 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("heartbeat_sent", (event) => {
-          console.log("MANTLE: received heartbeat_sent event from Core", event.heartbeat_sent)
+          console.log("MANTLE: received heartbeat_sent event from Bluetooth SDK", event.heartbeat_sent)
           // TODO: remove the global event emitter and sub directly in the component where needed
           GlobalEventEmitter.emit("heartbeat_sent", {
             timestamp: event.heartbeat_sent.timestamp,
@@ -407,7 +429,7 @@ class MantleManager {
 
       this.subs.push(
         CoreModule.addListener("heartbeat_received", (event) => {
-          console.log("MANTLE: received heartbeat_received event from Core", event.heartbeat_received)
+          console.log("MANTLE: received heartbeat_received event from Bluetooth SDK", event.heartbeat_received)
           // TODO: remove the global event emitter and sub directly in the component where needed
           GlobalEventEmitter.emit("heartbeat_received", {
             timestamp: event.heartbeat_received.timestamp,
@@ -476,7 +498,110 @@ class MantleManager {
       )
 
       this.subs.push(
-        CoreModule.addListener("captions_tester_incident", (event) => {
+        CoreModule.addListener("audio_pairing_needed", (event) => {
+          GlobalEventEmitter.emit("audio_pairing_needed", {
+            deviceName: event.device_name,
+          })
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("audio_connected", (event) => {
+          GlobalEventEmitter.emit("audio_connected", {
+            deviceName: event.device_name,
+          })
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("audio_disconnected", () => {
+          GlobalEventEmitter.emit("audio_disconnected", {})
+        }),
+      )
+
+      // Allow core to persist hardware-originated setting changes.
+      this.subs.push(
+        CoreModule.addListener("save_setting", async (event) => {
+          console.log("MANTLE: Received save_setting event from core:", event)
+          await useSettingsStore.getState().setSetting(event.key, event.value)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("head_up", (event) => {
+          mantle.handle_head_up(event.up)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("vad_status", (event) => {
+          socketComms.sendVadStatus(event.status)
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("battery_status", (event) => {
+          socketComms.sendBatteryStatus(event.level, event.charging, event.timestamp)
+        }),
+      )
+
+      // G2 dashboard menu: user selected a miniapp from the glasses swipe menu
+      // G2.swift resolves the numeric appId to packageName before sending this event
+      this.subs.push(
+        CoreModule.addListener("miniapp_selected", (event) => {
+          const packageName = event.packageName as string
+          if (!packageName) return
+          const applet = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+          if (!applet) return
+          // Toggle: if already running, stop it; otherwise start it
+          if (applet.running) {
+            console.log(`MANTLE: miniapp_selected - stopping ${packageName}`)
+            useAppletStatusStore.getState().stopApplet(packageName)
+          } else {
+            console.log(`MANTLE: miniapp_selected - starting ${packageName}`)
+            useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
+          }
+        }),
+      )
+
+      this.subs.push(
+        CoreModule.addListener("local_transcription", (event) => {
+          mantle.handle_local_transcription(event)
+        }),
+      )
+
+      this.subs.push(
+        CrustModule.addListener("phone_notification", async (event) => {
+          const res = await restComms.sendPhoneNotification({
+            notificationId: event.notificationId,
+            app: event.app,
+            title: event.title,
+            content: event.content,
+            priority: event.priority.toString(),
+            timestamp: parseInt(event.timestamp.toString()),
+            packageName: event.packageName,
+          })
+          if (res.is_error()) {
+            console.error("Failed to send phone notification:", res.error)
+          }
+        }),
+      )
+
+      this.subs.push(
+        CrustModule.addListener("phone_notification_dismissed", async (event) => {
+          const res = await restComms.sendPhoneNotificationDismissed({
+            notificationKey: event.notificationKey,
+            packageName: event.packageName,
+            notificationId: event.notificationId,
+          })
+          if (res.is_error()) {
+            console.error("Failed to send phone notification dismissal:", res.error)
+          }
+        }),
+      )
+
+      this.subs.push(
+        CrustModule.addListener("captions_tester_incident", (event) => {
           const failureCode = typeof event.failure_code === "string" ? event.failure_code : "unknown"
           const failureMessage =
             typeof event.failure_message === "string" ? event.failure_message : "Captions tester incident detected."
@@ -764,7 +889,7 @@ class MantleManager {
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
 
-          // console.log("MANTLE: Received mic_lc3 event from Core", event.lc3.length)
+          // console.log("MANTLE: Received mic_lc3 event from Bluetooth SDK", event.lc3.length)
 
           // Route audio to: UDP (if enabled) -> WebSocket (fallback)
           if (udp.enabledAndReady()) {

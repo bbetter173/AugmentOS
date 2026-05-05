@@ -1,5 +1,5 @@
 import {useRoute} from "@react-navigation/native"
-import CoreModule, {PairFailureEvent, GlassesNotReadyEvent} from "core"
+import CoreModule, {PairFailureEvent, GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {View} from "react-native"
 

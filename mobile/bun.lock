@@ -31,7 +31,7 @@
         "authing-js-sdk": "^4.23.55",
         "axios": "^1.13.6",
         "babel-plugin-module-resolver": "5.0.0",
-        "core": "workspace:*",
+        "@mentra/bluetooth-sdk": "workspace:*",
         "crust": "workspace:*",
         "date-fns": "^4.1.0",
         "dotenv": "^17.3.1",
@@ -141,18 +141,18 @@
         "typescript": "~5.9.2",
       },
     },
-    "modules/core": {
-      "name": "core",
+    "modules/bluetooth-sdk": {
+      "name": "@mentra/bluetooth-sdk",
       "version": "0.1.0",
       "devDependencies": {
         "expo-module-scripts": "^55.0.2",
       },
       "peerDependencies": {
-        "@expo/config-plugins": "*",
-        "@types/react": "*",
-        "expo": "*",
-        "react": "*",
-        "react-native": "*",
+        "@expo/config-plugins": ">=8.0.0",
+        "@types/react": ">=18.0.0",
+        "expo": ">=49.0.0",
+        "react": ">=18.0.0",
+        "react-native": ">=0.72.0",
       },
     },
     "modules/crust": {
@@ -1314,7 +1314,7 @@
 
     "convert-source-map": ["convert-source-map@2.0.0", "", {}, "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="],
 
-    "core": ["core@workspace:modules/core"],
+    "@mentra/bluetooth-sdk": ["@mentra/bluetooth-sdk@workspace:modules/bluetooth-sdk"],
 
     "core-js-compat": ["core-js-compat@3.48.0", "", { "dependencies": { "browserslist": "^4.28.1" } }, "sha512-OM4cAF3D6VtH/WkLtWvyNC56EZVXsZdU3iqaMG2B4WvYrlqU831pc4UtG5yp0sE9z8Y02wVN7PjW5Zf9Gt0f1Q=="],
 

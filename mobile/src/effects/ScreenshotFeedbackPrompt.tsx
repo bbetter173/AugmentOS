@@ -1,11 +1,11 @@
 import {useEffect} from "react"
 import {Platform} from "react-native"
+import CrustModule from "crust"
 import * as ScreenCapture from "expo-screen-capture"
 
 import {push} from "@/contexts/NavigationHistoryContext"
 import {showAlert} from "@/contexts/ModalContext"
 import {translate} from "@/i18n"
-import CoreModule from "core"
 
 export function ScreenshotFeedbackPrompt() {
   useEffect(() => {
@@ -13,7 +13,7 @@ export function ScreenshotFeedbackPrompt() {
 
     let subscription: ReturnType<typeof ScreenCapture.addScreenshotListener> | null = null
 
-    CoreModule.isBetaBuild().then((isBeta) => {
+    CrustModule.isBetaBuild().then((isBeta) => {
       if (!isBeta) return
 
       subscription = ScreenCapture.addScreenshotListener(async () => {

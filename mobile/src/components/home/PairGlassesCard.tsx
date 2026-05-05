@@ -4,7 +4,7 @@ import {Button, Text} from "@/components/ignite"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import GlassView from "@/components/ui/GlassView"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useState} from "react"
 
 export const PairGlassesCard = ({style}: {style?: ViewStyle}) => {

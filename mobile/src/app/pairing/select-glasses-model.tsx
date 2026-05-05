@@ -1,5 +1,5 @@
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useFocusEffect} from "expo-router"
 import {useCallback} from "react"
 import {View, TouchableOpacity, Platform, ScrollView, Image} from "react-native"
@@ -20,7 +20,7 @@ import GlassView from "@/components/ui/GlassView"
 // import {useLocalSearchParams} from "expo-router"
 
 export default function SelectGlassesModelScreen() {
-  const {theme, themed} = useAppTheme()
+  const {theme} = useAppTheme()
   const {push, goBack} = useNavigationHistory()
   const [superMode] = useSetting(SETTINGS.super_mode.key)
 

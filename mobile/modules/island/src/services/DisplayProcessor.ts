@@ -27,7 +27,7 @@ import {
   type BreakMode,
 } from "../utils/display"
 
-import CoreModule, {GlassesStatus} from "core"
+import CoreModule, {GlassesStatus} from "@mentra/bluetooth-sdk"
 
 import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 
@@ -288,8 +288,8 @@ export class DisplayProcessor {
       console.log(`DISPLAY_PROCESSOR: Initialized DisplayProcessor with default wearable: ${defaultWearable}`)
     }
 
-    // subscribe to core status changes:
-    CoreModule.addListener("glasses_status", (changed: Partial<GlassesStatus>) => {
+    // subscribe to glasses status changes:
+    CoreModule.onGlassesStatus((changed: Partial<GlassesStatus>) => {
       if (changed.deviceModel) {
         this.setDeviceModel(changed.deviceModel)
       }

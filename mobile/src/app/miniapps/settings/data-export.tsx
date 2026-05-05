@@ -204,7 +204,7 @@ export default function DataExportPage() {
   const appStatus = useApps()
   const {goBack} = useNavigationHistory()
   const {theme, themed} = useAppTheme()
-  const coreStatus = useCoreStore()
+  const bluetoothStatus = useCoreStore()
 
   useEffect(() => {
     collectData()
@@ -215,7 +215,7 @@ export default function DataExportPage() {
     setLoading(true)
 
     try {
-      const data = await DataExportService.collectUserData(user, session, coreStatus, appStatus)
+      const data = await DataExportService.collectUserData(user, session, bluetoothStatus, appStatus)
       const formatted = DataExportService.formatAsJson(data)
 
       setExportData(data)

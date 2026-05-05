@@ -123,7 +123,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       "./plugins/remove-ipad-orientations.js",
       "./plugins/android.ts",
       [
-        "./modules/core/app.plugin.js",
+        "./modules/bluetooth-sdk/app.plugin.js",
         {
           node: true,
         },
@@ -194,6 +194,30 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
           ios: {
             deploymentTarget: "15.5", // for react-native-zip-archive
             extraPods: [
+              {
+                name: "FirebaseCore",
+                modular_headers: true,
+              },
+              {
+                name: "FirebaseCoreInternal",
+                modular_headers: true,
+              },
+              {
+                name: "FirebaseInstallations",
+                modular_headers: true,
+              },
+              {
+                name: "GoogleAppMeasurement",
+                modular_headers: true,
+              },
+              {
+                name: "GoogleUtilities",
+                modular_headers: true,
+              },
+              {
+                name: "nanopb",
+                modular_headers: true,
+              },
               {
                 name: "SDWebImage",
                 modular_headers: true,

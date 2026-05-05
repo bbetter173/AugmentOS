@@ -259,7 +259,6 @@ function withAndroidManifestModifications(config: any) {
 
     // Add permissions that need to be added
     const permissionsToAdd = [
-      {name: "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"},
       {name: "android.permission.BLUETOOTH", maxSdkVersion: 30},
       {name: "android.permission.BLUETOOTH_ADMIN", maxSdkVersion: 30},
       {name: "android.permission.BLUETOOTH_ADVERTISE"},
@@ -508,7 +507,7 @@ function withGradlePropertiesModifications(config: any) {
 //     if (!settingsGradle.includes("include ':lc3Lib'")) {
 //       settingsGradle += `
 // include ':lc3Lib'
-// project(':lc3Lib').projectDir = new File(rootDir, '../modules/core/android/lc3Lib')
+// project(':lc3Lib').projectDir = new File(rootDir, '../modules/bluetooth-sdk/android/lc3Lib')
 // `
 //     }
 

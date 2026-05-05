@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
@@ -128,14 +128,14 @@ class SocketComms {
     )
   }
 
-  public sendBatteryStatus(): void {
-    const batteryLevel = useGlassesStore.getState().batteryLevel
-    const charging = useGlassesStore.getState().charging
+  public sendBatteryStatus(level?: number, charging?: boolean, timestamp: number = Date.now()): void {
+    const batteryLevel = level ?? useGlassesStore.getState().batteryLevel
+    const isCharging = charging ?? useGlassesStore.getState().charging
     const msg = {
       type: "glasses_battery_update",
       level: batteryLevel,
-      charging: charging,
-      timestamp: Date.now(),
+      charging: isCharging,
+      timestamp,
     }
     ws.sendText(JSON.stringify(msg))
   }
@@ -468,11 +468,11 @@ class SocketComms {
       }
     }
 
-    micStateCoordinator.setCloudRequirements({
-      pcm: !!shouldSendPcmData,
-      lc3: !!shouldSendPcmData, // online apps always want lc3
-      transcript: !!shouldSendTranscript,
-      bypass_vad: !!bypassVad,
+    CoreModule.updateCore({
+      // should_send_pcm: shouldSendPcmData,
+      should_send_lc3: shouldSendPcmData, // online apps always want lc3
+      should_send_transcript: shouldSendTranscript,
+      bypass_vad: bypassVad,
     })
   }
 

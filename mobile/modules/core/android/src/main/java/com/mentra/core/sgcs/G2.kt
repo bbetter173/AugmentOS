@@ -2631,7 +2631,7 @@ class G2 : SGCManager() {
         val data = mfgData.valueAt(0) ?: return null
         if (data.size < 20) return null
         val macLE = data.copyOfRange(14, 20)
-        return macLE.reversed().joinToString(":") { String.format("%02X", it) }
+        return macLE.reversed().joinToString(":") { String.format("%02X", it.toInt() and 0xFF) }
     }
 
     private fun emitDiscoveredDevice(serialNumber: String) {
@@ -2824,7 +2824,7 @@ class G2 : SGCManager() {
                 val sourceKey = if (side == "LEFT") "L" else "R"
                 when (characteristic.uuid) {
                     G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
-                    G2BLE.CHAR_NOTIFY -> handleNotifyData(data, sourceKey)
+                    G2BLE.CHAR_NOTIFY -> mainHandler.post { handleNotifyData(data, sourceKey) }
                 }
             }
 

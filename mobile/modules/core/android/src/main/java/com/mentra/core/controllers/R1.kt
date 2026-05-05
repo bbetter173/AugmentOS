@@ -417,7 +417,7 @@ class R1 : ControllerManager() {
 
         val macBytes = parseMac(glassesMac)
         if (macBytes == null) {
-            Bridge.log("R1: connectToGlasses: could not parse glasses MAC $glassesMac")
+            Bridge.log("R1: connectToGlasses: could not parse glasses MAC")
             return
         }
         val wc = writeChar2 ?: writeChar1
@@ -427,7 +427,7 @@ class R1 : ControllerManager() {
         }
 
         val payload = byteArrayOf(R1BLE.CMD_SYSTEM, R1BLE.MODULE_SYSTEM, R1BLE.SUBCMD_ADV_START) + macBytes
-        Bridge.log("R1: advStart -> ${payload.joinToString(" ") { String.format("%02X", it) }}")
+        Bridge.log("R1: advStart sent")
 
         wc.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         wc.value = payload

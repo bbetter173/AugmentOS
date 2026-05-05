@@ -199,10 +199,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   return (
-    <DeviceStatus
-      onPress={onPress}
-      image={getCurrentGlassesImage()}
-      glassViewClassName="rounded-2xl overflow-hidden h-full px-6 flex-row gap-2 h-full">
+    <DeviceStatus onPress={onPress} image={getCurrentGlassesImage()}>
       <Text className="font-semibold text-secondary-foreground text-base" text={defaultWearable} />
       <View className="flex-row items-center gap-3">
         {batteryLevel !== -1 && (
@@ -301,7 +298,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
         {controllerBatteryLevel !== -1 && (
           <View className="flex-row items-center gap-1">
             <Icon
-              name={controllerBatteryLevel > 0 ? "battery-charging" : (getBatteryIcon(controllerBatteryLevel) as any)}
+              name={getBatteryIcon(controllerBatteryLevel) as any}
               size={22}
               color={theme.colors.foreground}
             />

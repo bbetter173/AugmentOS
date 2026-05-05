@@ -848,7 +848,11 @@ export const useAppletStatusStore = create<AppStatusState>()(
           return
         }
 
-        const showRemove = !applet.hidden
+        // Read hidden status from storage rather than the (possibly stale) applet
+        // argument so the "Remove from Home" button doesn't appear when the app
+        // is already hidden (e.g. tapping it again from the app drawer).
+        const isHidden = get().getHiddenStatus(applet.packageName)
+        const showRemove = !isHidden
         const buttons: AlertButton[] = showRemove
           ? [{text: translate("appInfo:removeFromHome"), style: "cancel"}, {text: translate("common:ok")}]
           : [{text: translate("common:ok")}]

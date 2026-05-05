@@ -2323,6 +2323,8 @@ class G2: NSObject, SGCManager {
         leftInitialized = false
         rightInitialized = false
         authStarted = false
+        leftAuthenticated = false
+        rightAuthenticated = false
         startupPageCreated = false
         pageCreated = false
         pageHasTextContainer = false

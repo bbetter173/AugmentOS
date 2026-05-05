@@ -267,13 +267,15 @@ class R1: NSObject, ControllerManager {
             Bridge.log("R1: connectToGlasses: no glasses MAC")
             return
         }
+
+        guard let macBytes = parseMac(glassesMac) else {
+            Bridge.log("R1: connectToGlasses: could not parse glasses MAC")
+            return
+        }
+
         // Cache so we can reconnect even before the glasses are scanned.
         UserDefaults.standard.set(glassesMac, forKey: "glasses_btMacAddress")
 
-        guard let macBytes = parseMac(glassesMac) else {
-            Bridge.log("R1: connectToGlasses: could not parse glasses MAC \(glassesMac)")
-            return
-        }
         guard let wc = writeChar2 ?? writeChar1 else {
             Bridge.log("R1: connectToGlasses: no write characteristic")
             return
@@ -281,7 +283,7 @@ class R1: NSObject, ControllerManager {
 
         var payload = Data([R1BLE.CMD_SYSTEM, R1BLE.MODULE_SYSTEM, R1BLE.SUBCMD_ADV_START])
         payload.append(macBytes)
-        Bridge.log("R1: advStart -> \(payload.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        Bridge.log("R1: advStart sent")
         ringPeripheral?.writeValue(payload, for: wc, type: .withoutResponse)
     }
 

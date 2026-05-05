@@ -9,7 +9,7 @@
  * CoreModule so the mic runs whenever at least one consumer needs it.
  */
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 const LOG_TAG = "MIC_COORDINATOR"
 

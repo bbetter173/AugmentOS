@@ -15,7 +15,7 @@ import * as Battery from "expo-battery"
 import * as Clipboard from "expo-clipboard"
 import {File, Paths} from "expo-file-system"
 import * as Location from "expo-location"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {
   MiniappErrorCode,

@@ -19,7 +19,7 @@
  * is off.
  */
 
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import displayProcessor from "./DisplayProcessor"
 import {getRuntimeHooks} from "../runtime/config"

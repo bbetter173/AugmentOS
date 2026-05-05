@@ -716,6 +716,9 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
       if (!parsedUserId) {
         logger.error({ sessionId: initMessage.sessionId }, "Unable to determine user ID for app init");
         ws.close(1008, "User session identity missing");
+        recordAppProtocolTiming("appProtocol_connectionInit", "connection_init", protocolTimer, {
+          packageName: initMessage.packageName,
+        });
         return;
       }
 
@@ -735,6 +738,10 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
           ),
         );
         ws.close(1008, "Session not found");
+        recordAppProtocolTiming("appProtocol_connectionInit", "connection_init", protocolTimer, {
+          packageName: initMessage.packageName,
+          userId: parsedUserId,
+        });
         return;
       }
 
@@ -784,6 +791,10 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
           ),
         );
         ws.close(1008, "Reconnect unsupported");
+        recordAppProtocolTiming("appProtocol_reconnect", "reconnect", protocolTimer, {
+          packageName: reconnectPackageName,
+          userId: reconnectUserId,
+        });
         return;
       }
 
@@ -801,6 +812,10 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
           ),
         );
         ws.close(1008, "Reconnect identity missing");
+        recordAppProtocolTiming("appProtocol_reconnect", "reconnect", protocolTimer, {
+          packageName: reconnectPackageName,
+          userId: reconnectUserId,
+        });
         return;
       }
 
@@ -825,6 +840,10 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
             ),
           );
           ws.close(1008, "Reconnect unauthenticated");
+          recordAppProtocolTiming("appProtocol_reconnect", "reconnect", protocolTimer, {
+            packageName: reconnectPackageName,
+            userId: reconnectUserId,
+          });
           return;
         }
 
@@ -845,6 +864,10 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
             ),
           );
           ws.close(1008, "Invalid API key");
+          recordAppProtocolTiming("appProtocol_reconnect", "reconnect", protocolTimer, {
+            packageName: reconnectPackageName,
+            userId: reconnectUserId,
+          });
           return;
         }
 
@@ -873,14 +896,9 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
             }),
           ),
         );
-        const durationMs = protocolTimer.durationMs;
-        cascadeDiagnostics.addTimer("appProtocol_reconnect", durationMs);
-        cascadeDiagnostics.increment("appProtocol_reconnect_count");
-        logSlowAppProtocol("reconnect", {
+        recordAppProtocolTiming("appProtocol_reconnect", "reconnect", protocolTimer, {
           packageName: reconnectPackageName,
-          userIdHash: hashUserId(reconnectUserId),
-          durationMs,
-          phaseTimings: protocolTimer.timings,
+          userId: reconnectUserId,
         });
         return;
       }
@@ -888,14 +906,9 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
       await protocolTimer.measure("handleReconnect", () =>
         activeUserSession.appManager.handleReconnect(ws as any, reconnectMessage, reconnectPackageName),
       );
-      const durationMs = protocolTimer.durationMs;
-      cascadeDiagnostics.addTimer("appProtocol_reconnect", durationMs);
-      cascadeDiagnostics.increment("appProtocol_reconnect_count");
-      logSlowAppProtocol("reconnect", {
+      recordAppProtocolTiming("appProtocol_reconnect", "reconnect", protocolTimer, {
         packageName: reconnectPackageName,
-        userIdHash: hashUserId(reconnectUserId),
-        durationMs,
-        phaseTimings: protocolTimer.timings,
+        userId: reconnectUserId,
       });
       return;
     }
@@ -918,6 +931,11 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
           }),
         ),
       );
+      recordAppProtocolTiming("appProtocol_regularMessage", "regular_message", undefined, {
+        packageName: ws.data.packageName || packageName,
+        userId: userId || ws.data.userId,
+        durationMs: performance.now() - t0,
+      });
       return;
     }
 
@@ -956,6 +974,23 @@ async function handleAppMessage(ws: AppServerWebSocket, message: string | Buffer
  */
 function isJsonBuffer(buf: Buffer | Uint8Array): boolean {
   return buf.length > 0 && buf[0] === 0x7b; // '{' character
+}
+
+function recordAppProtocolTiming(
+  timerName: "appProtocol_connectionInit" | "appProtocol_reconnect" | "appProtocol_regularMessage",
+  protocolType: Parameters<typeof logSlowAppProtocol>[0],
+  protocolTimer: ReturnType<typeof createPhaseTimer> | undefined,
+  data: { packageName?: string; userId?: string; durationMs?: number },
+): void {
+  const durationMs = data.durationMs ?? protocolTimer?.durationMs ?? 0;
+  cascadeDiagnostics.addTimer(timerName, durationMs);
+  cascadeDiagnostics.increment(`${timerName}_count`);
+  logSlowAppProtocol(protocolType, {
+    packageName: data.packageName,
+    userIdHash: hashUserId(data.userId),
+    durationMs,
+    phaseTimings: protocolTimer?.timings,
+  });
 }
 
 function handleAppClose(ws: AppServerWebSocket, code: number, reason: string): void {

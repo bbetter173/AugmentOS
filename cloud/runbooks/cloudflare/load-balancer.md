@@ -1,10 +1,18 @@
-# Regional Load Balancer
+# Regional Load Balancers
 
-Public API traffic enters at `api.mentra.glass`, which is a
-Cloudflare load balancer that geo-steers users to a Porter
-cluster in the nearest region. This doc covers how it is wired
-up, what settings we have, and how to add a new region or
-cluster to the rotation.
+We run two Cloudflare load balancers in front of the cloud. Both
+geo-steer users to a Porter cluster in the nearest healthy
+region. They share the same pool inventory but differ in
+hostname and steering policy.
+
+| LB | Hostname | Used by |
+| --- | --- | --- |
+| Production | `api.mentra.glass` | Mobile app, today's production traffic |
+| Secondary | `api.mentraglass.com` | No production customers; not pointed at by any production client |
+
+The mobile app points at `api.mentra.glass`. Anything that lives
+only on `api.mentraglass.com` (today: the `us-west` pool in WNAM)
+is reachable but not getting real production traffic.
 
 > Values in this doc were pulled live from the Cloudflare API
 > and the Porter CLI. Treat tables as a snapshot. Re-pull with
@@ -15,7 +23,7 @@ cluster to the rotation.
 ```
 User
   -> api.mentra.glass (Cloudflare anycast IP, e.g. 104.21.87.160)
-    -> Cloudflare LB "Mentra Cloud Load Balancer"
+    -> Cloudflare LB (production)
       -> geo-steered to nearest healthy pool
         -> pool origin hostname (e.g. uscentralapi.mentraglass.com)
           -> AKS public ingress IP (e.g. 128.203.164.18)
@@ -26,66 +34,95 @@ User
 TLS terminates at Cloudflare. Cloudflare opens a backend
 connection to the pool origin. The origin hostname resolves to
 the AKS LoadBalancer service IP for that cluster's nginx
-ingress. Each cluster's `cloud-prod` app declares
-`api.mentra.glass` as a domain, so nginx accepts traffic for
-that hostname and routes to the cloud pod.
+ingress. Each cluster's `cloud-prod` app declares the LB
+hostnames as domains, so nginx accepts traffic for them and
+routes to the cloud pod.
 
 ## What we have today
 
-### Load balancer
+### Production LB: `api.mentra.glass`
 
 | Field | Value |
 | --- | --- |
-| Hostname | `api.mentra.glass` |
 | Zone | `mentra.glass` |
-| Proxied | yes (orange cloud, traffic flows through Cloudflare) |
+| LB ID | `0d6e09e5427a8b94d3ce47f58496e1b8` |
+| Proxied | yes (orange cloud) |
 | Steering policy | `geo` (Cloudflare regions to pool list) |
 | Session affinity | `ip_cookie`, TTL 3600s |
 | Adaptive routing | failover across pools disabled |
 | Fallback pool | `asiaeast` |
 
-Session affinity by `ip_cookie` means once a user is steered to
-a pool, Cloudflare drops a cookie that pins them there for an
-hour. Useful for our WebSocket-heavy traffic; reduces the number
-of times a user reconnects to a new pod across regions.
-
-### Pools
-
-5 pools exist. 4 of them are wired into the steering map; 1
-(`us-east`) is provisioned but inactive (no monitor, not in any
-region's pool list).
-
-| Pool | Origin hostname | AKS public IP | Porter cluster | Monitor | Active in steering |
-| --- | --- | --- | --- | --- | --- |
-| `uscentral` | `uscentralapi.mentraglass.com` | 128.203.164.18 | mentra-cluster-central-us (4689) | yes (`/health`, 60s) | yes |
-| `france` | `franceapi.mentraglass.com` | 172.189.45.70 | france (4696) | yes (`/health`, 60s) | yes |
-| `asiaeast` | `asiaeastapi.mentraglass.com` | 20.6.155.16 | east-asia (4754) | yes (`/health`, 60s) | yes |
-| `us-west` | `uswestapi.mentraglass.com` | 4.155.178.137 | us-west (4965) | yes (`/health`, 60s) | yes (default pool list) |
-| `us-east` | `useastapi.mentraglass.com` | 4.157.182.57 | us-east (4977) | none | no (orphaned) |
-
-### Region steering
-
-Cloudflare's `geo` steering maps each Cloudflare region code to
-a pool list. The first healthy pool in the list wins.
+Region steering:
 
 | CF region | Covers | Pool used |
 | --- | --- | --- |
 | `WNAM` | West North America | `uscentral` |
 | `ENAM` | East North America | `uscentral` |
-| `NSAM` | North South America | `uscentral` |
-| `SSAM` | South South America | `uscentral` |
-| `WEU` | West Europe | `france` |
-| `EEU` | East Europe | `france` |
-| `OC` | Oceania | `asiaeast` |
-| `ME` | Middle East | `asiaeast` |
+| `NSAM` / `SSAM` | The Americas, south | `uscentral` |
+| `WEU` / `EEU` | Europe | `france` |
+| `OC` / `ME` | Oceania, Middle East | `asiaeast` |
 | (other) | Africa, Asia (non-ME) | `asiaeast` (fallback) |
 
-The default pool list (used when geo lookup is ambiguous) is
-`uscentral, france, asiaeast`, in that order.
+`us-west` is NOT in any region's pool list on this LB. WNAM
+traffic goes to `uscentral`.
+
+### Secondary LB: `api.mentraglass.com`
+
+| Field | Value |
+| --- | --- |
+| Zone | `mentraglass.com` |
+| LB ID | `b34e8b4b2d960e78ba48fa235f4742c2` |
+| Proxied | yes (orange cloud) |
+| Steering policy | `proximity` (great-circle distance to pool lat/long) |
+| Session affinity | `ip_cookie`, TTL 3600s |
+| Fallback pool | `uscentral` |
+
+Region steering (mostly mirrors production, except WNAM):
+
+| CF region | Pool used |
+| --- | --- |
+| `WNAM` | `us-west` |
+| `ENAM` | `uscentral` |
+| `NSAM` / `SSAM` | `uscentral` |
+| `WEU` / `EEU` | `france` |
+| `OC` / `ME` | `asiaeast` |
+
+The two LBs differ in two places:
+
+1. **Steering policy.** Production uses `geo` (each region maps
+   to one pool, fixed). Secondary uses `proximity` (Cloudflare
+   picks the closest healthy pool by lat/long). Practically they
+   route the same way most of the time; `proximity` falls over
+   more gracefully if a pool is unhealthy.
+2. **WNAM pool.** Production routes WNAM to `uscentral`.
+   Secondary routes WNAM to `us-west`. Today this means
+   `us-west` only receives traffic from clients pointing at
+   `api.mentraglass.com`, which is no production client.
+
+### Pools (shared between both LBs)
+
+| Pool | Origin hostname | AKS public IP | Porter cluster | Monitor | In production LB | In secondary LB |
+| --- | --- | --- | --- | --- | --- | --- |
+| `uscentral` | `uscentralapi.mentraglass.com` | 128.203.164.18 | mentra-cluster-central-us (4689) | yes | yes (WNAM, ENAM, NSAM, SSAM) | yes (ENAM, NSAM, SSAM, fallback) |
+| `france` | `franceapi.mentraglass.com` | 172.189.45.70 | france (4696) | yes | yes (WEU, EEU) | yes (WEU, EEU) |
+| `asiaeast` | `asiaeastapi.mentraglass.com` | 20.6.155.16 | east-asia (4754) | yes | yes (OC, ME, fallback) | yes (OC, ME) |
+| `us-west` | `uswestapi.mentraglass.com` | 4.155.178.137 | us-west (4965) | yes | no | yes (WNAM) |
+| `us-east` | `useastapi.mentraglass.com` | 4.157.182.57 | us-east (4977) | no (intentionally) | no | no |
+
+`us-east` is intentionally excluded from both LBs. The us-east
+AKS cluster has insufficient nodes for the `cloud-prod` workload
+and deploys often fail. The pool is left in place so it is easy
+to enable later when capacity is fixed; until then it has no
+monitor and is not wired into either LB's region map.
+
+`us-west` is in the secondary LB only. No production client
+points at `api.mentraglass.com` today, so traffic to `us-west`
+is essentially zero in practice. Putting it in the production
+LB is a separate decision (capacity check + cutover plan).
 
 ### Monitors
 
-All four active pools share the same monitor shape:
+The 4 active pools share the same monitor shape:
 
 | Field | Value |
 | --- | --- |
@@ -139,10 +176,10 @@ If WebSockets disconnect clustered exactly at 100 seconds,
 application-level pings are misconfigured. Look at
 `@mentra/sdk` and the cloud heartbeat logic.
 
-## Porter clusters not in the LB
+## Porter clusters not in any LB
 
-Two clusters run `cloud-prod` but are not in the load balancer
-rotation. Their `cloud-prod` apps only have an auto-generated
+Some Porter clusters run `cloud-prod` but are not wired into
+either LB. Their `cloud-prod` apps only have an auto-generated
 `*.onporter.run` hostname.
 
 | Porter cluster | Cluster ID | Status |
@@ -150,16 +187,21 @@ rotation. Their `cloud-prod` apps only have an auto-generated
 | canada-central | 4753 | Provisioned, no LB pool, no API hostname domains |
 | australia-east | 4978 | Provisioned, no LB pool, no API hostname domains |
 
-If you want one of these to take traffic from `api.mentra.glass`,
-follow "Adding a new region" below; the work is the same as a
-new cluster, except the cluster already exists.
+If you want one of these to take traffic from either LB, follow
+"Adding a new region" below. The work is the same as a new
+cluster, except the cluster already exists.
 
 ## Adding a new region
 
 End-to-end. Roughly: provision the AKS cluster in Porter,
 deploy `cloud-prod` with regional domains, create a Cloudflare
-pool + monitor + DNS record, plug the pool into the region
-steering map.
+pool + monitor + DNS record, plug the pool into one or both
+LBs' region steering map.
+
+If the new region should serve production traffic, plug it into
+the production LB (`api.mentra.glass`). If you only want to
+test it on the secondary LB first, plug it into the secondary LB
+and leave the production LB alone.
 
 ### 1. Provision the AKS cluster in Porter
 
@@ -173,7 +215,7 @@ The Porter CLI does not create clusters. Use the dashboard:
    (verify against an existing cluster's settings).
 5. Wait for provisioning (15-30 minutes).
 
-Once it shows up:
+Confirm the cluster exists:
 
 ```bash
 porter cluster list
@@ -184,11 +226,6 @@ Note the cluster ID; you will pass it as `--cluster <ID>` for
 the rest of this procedure.
 
 ### 2. Deploy `cloud-prod` to the new cluster
-
-The repo has a single `cloud/porter.yaml` that is shared across
-clusters at deploy time. Per-cluster differences (regional
-domain names, env groups) live in the deployment target's
-overrides on Porter, not as separate yaml files in the repo.
 
 ```bash
 # From repo root, with the appropriate branch checked out
@@ -224,14 +261,16 @@ dig +short cloud-XXXX-XXXX.onporter.run
 ### 3. Create the regional API hostname
 
 In Porter, edit the `cloud-prod` app for this cluster and add
-the regional domains to the `domains:` list:
+the API hostnames to the `domains:` list. Include both LB
+hostnames (so the cluster accepts requests from either LB) plus
+the regional hostnames in both zones:
 
 ```yaml
 domains:
-  - name: api.mentra.glass            # shared LB hostname
-  - name: api.mentraglass.com         # legacy, mirrors api.mentra.glass
-  - name: <region>api.mentra.glass    # new
-  - name: <region>api.mentraglass.com # new
+  - name: api.mentra.glass            # production LB
+  - name: api.mentraglass.com         # secondary LB
+  - name: <region>api.mentra.glass    # zone-internal regional
+  - name: <region>api.mentraglass.com # the actual LB origin name
 ```
 
 Replace `<region>` with the slug you'll use for the pool
@@ -247,6 +286,11 @@ In Cloudflare, add an A record in the `mentraglass.com` zone:
 
 The origin hostname must NOT be proxied. The Cloudflare LB needs
 to reach the origin directly to send traffic.
+
+Optional: also add `<region>api.mentra.glass` in the `mentra.glass`
+zone, gray cloud, same IP. Useful if you want a direct-access
+hostname; not strictly required for the LB to work since the LB
+uses the `mentraglass.com` origin.
 
 Verify:
 
@@ -311,31 +355,50 @@ Pool name conventions: lowercase, matches the regional hostname
 slug. Latitude/longitude can be approximate; Cloudflare uses
 them for proximity steering only.
 
-### 5. Plug the pool into region steering
+### 5. Plug the pool into one or both LBs
 
-Patch the load balancer to add the new pool to the right
-region(s):
+For a production-serving pool, update the production LB:
 
 ```bash
-LB_ID=0d6e09e5427a8b94d3ce47f58496e1b8
-ZONE=5bb5c71a90dc175143eb10edaad85d49
+PROD_LB_ID=0d6e09e5427a8b94d3ce47f58496e1b8
+PROD_ZONE=5bb5c71a90dc175143eb10edaad85d49
 
-# First fetch current state to copy region_pools and edit
-curl -s "https://api.cloudflare.com/client/v4/zones/$ZONE/load_balancers/$LB_ID" \
+# Fetch current state, copy region_pools, edit
+curl -s "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$PROD_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
-  | python3 -m json.tool > /tmp/lb.json
+  | python3 -m json.tool > /tmp/prod-lb.json
 
-# Edit /tmp/lb.json: add <POOL_ID> to whichever region keys
-# should route to it. e.g. for a Brazil cluster, add to NSAM/SSAM:
+# Edit /tmp/prod-lb.json: add <POOL_ID> to whichever region
+# keys should route to it. Order matters: first healthy pool wins.
+# e.g. for a Brazil cluster, change SSAM/NSAM:
 #   "NSAM": ["<POOL_ID>", "<existing-uscentral-pool-id>"]
-# Order matters: the first healthy pool wins.
 
-# PATCH the LB
-curl -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/load_balancers/$LB_ID" \
+# PUT the LB back
+curl -X PUT "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$PROD_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @/tmp/lb.json
+  -d @/tmp/prod-lb.json
 ```
+
+For the secondary LB, same procedure with different IDs:
+
+```bash
+SECONDARY_LB_ID=b34e8b4b2d960e78ba48fa235f4742c2
+SECONDARY_ZONE=86a59033615f078d613b3cd22fd30c44
+
+curl -s "https://api.cloudflare.com/client/v4/zones/$SECONDARY_ZONE/load_balancers/$SECONDARY_LB_ID" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  > /tmp/secondary-lb.json
+# edit
+curl -X PUT "https://api.cloudflare.com/client/v4/zones/$SECONDARY_ZONE/load_balancers/$SECONDARY_LB_ID" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/secondary-lb.json
+```
+
+Common pattern when bringing up a new region: put it in the
+secondary LB first, run real traffic at it via a test client,
+verify health, then add it to the production LB.
 
 ### 6. Verify end to end
 
@@ -346,20 +409,20 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancer
   | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['result']['healthy'])"
 # expect: True
 
-# A user in the new region resolves api.mentra.glass through the
-# new pool. Easiest check: from inside the new region's network,
-# or via a VPN, hit:
+# A user in the new region resolves api.mentra.glass through
+# the new pool. Easiest check: from inside the new region's
+# network, or via a VPN, hit:
 curl -s https://api.mentra.glass/health
 # Then look at bstack logs to confirm the new region served the
 # request:
 bstack logs --region <new-region-slug>
 ```
 
-### 7. Update the doc
+### 7. Update this doc
 
-Re-run the verification commands at the bottom of this doc,
-update the tables in this file with the new pool, region steering
-row, and Porter cluster.
+Re-run the verification commands at the bottom of this doc and
+update the tables here with the new pool, region steering rows,
+and Porter cluster.
 
 ## Adding a cluster to an existing region
 
@@ -392,6 +455,57 @@ The pool then load-balances within itself across the two
 clusters. Session affinity (`ip_cookie`) keeps a user pinned to
 one cluster for the affinity TTL.
 
+## Promoting `us-west` to production
+
+The `us-west` pool is in the secondary LB but not the
+production LB. To promote it:
+
+1. Verify capacity in the us-west AKS cluster (4965). The pool
+   today serves zero production traffic, so capacity has not
+   been validated under load.
+2. Add the `us-west` pool ID
+   (`d2cd10f549c74159581d5963aad2ec28`) to the production LB's
+   WNAM region pool list. Decide whether it goes ahead of or
+   behind `uscentral`:
+   - Ahead means WNAM users prefer `us-west`, fall back to
+     `uscentral`. This is the migration path if you want to move
+     west-coast traffic off `uscentral`.
+   - Behind means WNAM still goes to `uscentral` first, with
+     `us-west` as failover. Lower risk; useful as a smoke test.
+3. Watch BetterStack for the new region to start serving
+   traffic. Use `bstack health --region us-west` and
+   `bstack incidents`.
+4. Adjust the order if needed.
+
+## Re-enabling `us-east`
+
+The `us-east` cluster has node provisioning issues; deploys to
+that cluster often fail. When that's resolved:
+
+1. Verify `cloud-prod` deploys cleanly to the cluster:
+   ```bash
+   porter app yaml cloud-prod --cluster 4977 --target us-east-default
+   porter app status cloud-prod --cluster 4977 --target us-east-default
+   ```
+2. Confirm `useastapi.mentraglass.com` resolves and `/health`
+   returns 200.
+3. Attach a monitor to the `us-east` pool (it has none today):
+   ```bash
+   curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/monitors" \
+     -H "Authorization: Bearer $CF_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{ "type":"https","description":"US East Monitor","method":"GET","path":"/health","interval":60,"timeout":5,"retries":2,"expected_codes":"200","follow_redirects":false,"allow_insecure":false }'
+
+   # Then PATCH the pool with the new monitor id
+   curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/db72728f6d03b46205bfb2bcef78e5fb" \
+     -H "Authorization: Bearer $CF_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"monitor": "<NEW_MONITOR_ID>"}'
+   ```
+4. Add the pool to one of the LBs' region maps. Likely ENAM in
+   the secondary LB first, then promote to the production LB
+   after a soak period.
+
 ## Common operational tasks
 
 ### Drain a pool (stop sending it new traffic)
@@ -406,7 +520,8 @@ curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_ba
   -d '{"enabled": false}'
 ```
 
-To re-enable, set `enabled` back to `true`.
+To re-enable, set `enabled` back to `true`. Disabling the pool
+affects both LBs since they share the inventory.
 
 ### Disable a single origin in a pool
 
@@ -418,7 +533,10 @@ pool has multiple clusters and you want to take one out:
 curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
   -H "Authorization: Bearer $CF_TOKEN" > /tmp/pool.json
 # edit
-curl -X PUT "..." -d @/tmp/pool.json
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/pool.json
 ```
 
 ### Check pool health
@@ -442,14 +560,19 @@ The tables in this doc go stale. To refresh:
 CF_TOKEN=$(doppler secrets get CLOUDFLARE_LB_API_TOKEN \
   --project mentra-sre --config dev --plain)
 ACCOUNT_ID=3c764e987404b8a1199ce5fdc3544a94
-ZONE=5bb5c71a90dc175143eb10edaad85d49
-LB_ID=0d6e09e5427a8b94d3ce47f58496e1b8
 
-# Full LB config
-curl -s "https://api.cloudflare.com/client/v4/zones/$ZONE/load_balancers/$LB_ID" \
+# Both LBs (one per zone)
+PROD_ZONE=5bb5c71a90dc175143eb10edaad85d49
+PROD_LB=0d6e09e5427a8b94d3ce47f58496e1b8
+SECONDARY_ZONE=86a59033615f078d613b3cd22fd30c44
+SECONDARY_LB=b34e8b4b2d960e78ba48fa235f4742c2
+
+curl -s "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$PROD_LB" \
+  -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
+curl -s "https://api.cloudflare.com/client/v4/zones/$SECONDARY_ZONE/load_balancers/$SECONDARY_LB" \
   -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
 
-# All pools
+# All pools (account-wide; same pools serve both LBs)
 curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools" \
   -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
 

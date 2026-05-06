@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Dimensions, FlatList, Platform, Pressable, StyleSheet, TouchableOpacity, View} from "react-native"
-import {DraggableMasonryList} from "react-native-draggable-masonry"
+import {DraggableList} from "@/components/home/DraggableList"
 import {BlurView} from "expo-blur"
 
 import {Icon, Text} from "@/components/ignite"
@@ -525,7 +525,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
   return (
     <View className="flex-1 mt-3">
       <View ref={containerRef}>
-        <DraggableMasonryList
+        <DraggableList
           data={gridData}
           renderItem={renderItem}
           rowGap={0}

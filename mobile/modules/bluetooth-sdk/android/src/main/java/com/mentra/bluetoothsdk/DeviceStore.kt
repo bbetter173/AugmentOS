@@ -148,15 +148,14 @@ object GlassesStore {
 
     /** Apply changes with side effects */
     fun apply(category: String, key: String, value: Any) {
-        val normalizedCategory = ObservableStore.normalizeCategory(category)
-        val oldValue = store.get(normalizedCategory, key)
-        store.set(normalizedCategory, key, value)
+        val oldValue = store.get(category, key)
+        store.set(category, key, value)
         if (observableStoreWouldHaveSkipped(oldValue, value)) {
             return
         }
 
         // Trigger hardware updates based on setting changes
-        when (normalizedCategory to key) {
+        when (category to key) {
             "glasses" to "fullyBooted" -> {
                 if (value is Boolean) {
                     if (value) {

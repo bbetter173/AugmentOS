@@ -1,14 +1,13 @@
-package com.mentra.bluetoothsdk
+package com.mentra.core
 
 import android.net.wifi.WifiManager
 import android.os.Build
-import com.mentra.core.services.NotificationListener
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class CoreModule : Module() {
     private val bridge: Bridge by lazy { Bridge.getInstance() }
-    private var deviceManager: deviceManager? = null
+    private var deviceManager: CoreManager? = null
 
     override fun definition() = ModuleDefinition {
         Name("Core")
@@ -95,22 +94,23 @@ class CoreModule : Module() {
             values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
             // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
-            if (category == "core") {
-                values["core_token"]?.let { token ->
-                    val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
-                    if (token is String && token.isNotEmpty()) {
-                        val ctx = appContext.reactContext ?: appContext.currentActivity
-                        ctx?.let {
-                            it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
-                                .edit()
-                                .putString("core_token", token)
-                                .apply()
-                            android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
-                        }
-                    }
-                }
-            }
+            // TODO: move this to the mantle:
+            // if (category == "core") {
+            //     values["core_token"]?.let { token ->
+            //         val len = (token as? String)?.length ?: 0
+            //         android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
+            //         if (token is String && token.isNotEmpty()) {
+            //             val ctx = appContext.reactContext ?: appContext.currentActivity
+            //             ctx?.let {
+            //                 it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
+            //                     .edit()
+            //                     .putString("core_token", token)
+            //                     .apply()
+            //                 android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         // MARK: - Display Commands
@@ -182,24 +182,25 @@ class CoreModule : Module() {
             deviceManager?.setHotspotState(enabled)
         }
 
-        AsyncFunction("logCurrentWifiFrequency") {
-            val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
-            val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
-            if (wifiManager == null) {
-                val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
-                android.util.Log.d("CoreModule", unavailableMsg)
-                Bridge.log(unavailableMsg)
-                return@AsyncFunction null
-            }
-            val info = wifiManager.connectionInfo
-            val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
-            val is5Ghz = freqMhz >= 5000
-            val frequencyMsg =
-                "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
-            android.util.Log.d("CoreModule", frequencyMsg)
-            Bridge.log(frequencyMsg)
-            null
-        }
+        // move to crust:
+        // AsyncFunction("logCurrentWifiFrequency") {
+        //     val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
+        //     val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
+        //     if (wifiManager == null) {
+        //         val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
+        //         android.util.Log.d("CoreModule", unavailableMsg)
+        //         Bridge.log(unavailableMsg)
+        //         return@AsyncFunction null
+        //     }
+        //     val info = wifiManager.connectionInfo
+        //     val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
+        //     val is5Ghz = freqMhz >= 5000
+        //     val frequencyMsg =
+        //         "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
+        //     android.util.Log.d("CoreModule", frequencyMsg)
+        //     Bridge.log(frequencyMsg)
+        //     null
+        // }
 
         // MARK: - Gallery Commands
 
@@ -346,170 +347,5 @@ class CoreModule : Module() {
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
-
-        // MARK: - Beta Build Detection (TestFlight on iOS; TODO: Google Play Beta on Android)
-
-        AsyncFunction("isBetaBuild") {
-            false
-        }
-
-        // MARK: - Android-specific Commands
-
-        AsyncFunction("getInstalledApps") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            NotificationListener.getInstance(context).getInstalledApps()
-        }
-
-        AsyncFunction("hasNotificationListenerPermission") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            NotificationListener.getInstance(context).hasNotificationListenerPermission()
-        }
-
-        AsyncFunction("getInstalledAppsForNotifications") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            NotificationListener.getInstance(context).getInstalledApps()
-        }
-
-        // MARK: - Settings Navigation
-
-        AsyncFunction("openBluetoothSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        // Check if location services are enabled (required for WiFi operations on Android)
-        AsyncFunction("isLocationServicesEnabled") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val locationManager =
-                    context.getSystemService(android.content.Context.LOCATION_SERVICE) as
-                            android.location.LocationManager
-            // Check if either GPS or Network location provider is enabled
-            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
-                    locationManager.isProviderEnabled(
-                            android.location.LocationManager.NETWORK_PROVIDER
-                    )
-            if (!providerEnabled) {
-                // Fallback: check the system-level location toggle directly.
-                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
-                // Google Play Services or without a GPS chip, even when location is toggled on.
-                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    val systemEnabled = locationManager.isLocationEnabled
-                    if (systemEnabled) {
-                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
-                    }
-                    systemEnabled
-                } else {
-                    false
-                }
-            } else {
-                true
-            }
-        }
-
-        AsyncFunction("openLocationSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                    )
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        AsyncFunction("showLocationServicesDialog") {
-            val activity = appContext.currentActivity
-            if (activity == null) {
-                val context =
-                        appContext.reactContext
-                                ?: throw IllegalStateException("No context available")
-                val intent =
-                        android.content.Intent(
-                                android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                        )
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                return@AsyncFunction true
-            }
-
-            val locationRequest =
-                    com.google.android.gms.location.LocationRequest.Builder(
-                                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
-                                    10000
-                            )
-                            .build()
-
-            val builder =
-                    com.google.android.gms.location.LocationSettingsRequest.Builder()
-                            .addLocationRequest(locationRequest)
-                            .setAlwaysShow(true)
-
-            val client =
-                    com.google.android.gms.location.LocationServices.getSettingsClient(activity)
-            val task = client.checkLocationSettings(builder.build())
-
-            task.addOnSuccessListener { true }
-            task.addOnFailureListener { exception ->
-                if (exception is com.google.android.gms.common.api.ResolvableApiException) {
-                    try {
-                        exception.startResolutionForResult(activity, 1001)
-                    } catch (sendEx: android.content.IntentSender.SendIntentException) {
-                        // Fallback
-                        val intent =
-                                android.content.Intent(
-                                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                                )
-                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        activity.startActivity(intent)
-                    }
-                } else {
-                    val intent =
-                            android.content.Intent(
-                                    android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                            )
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    activity.startActivity(intent)
-                }
-            }
-            true
-        }
-
-        AsyncFunction("openAppSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    )
-            intent.data = android.net.Uri.parse("package:${context.packageName}")
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
     }
 }

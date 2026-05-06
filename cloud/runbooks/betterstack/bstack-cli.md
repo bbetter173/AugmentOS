@@ -130,16 +130,12 @@ seconds.
 
 ## Adding a new pre-built query
 
-If you find yourself running the same `bstack sql "..."` more
-than twice, add it as a new subcommand:
-
-1. Edit `cloud/tools/bstack/bstack.ts`. Add a `case` for the new
-   command name and aliases.
-2. Build the SQL with the existing helpers
-   (`querySql`, `formatTable`, etc.).
-3. Add the new command to the table above in this doc.
-4. If the new command supports incident response, add or update a
-   runbook in `cloud/tools/bstack/runbooks/` that uses it.
+If you keep running the same `bstack sql "..."`, add it as a
+new subcommand. The implementation is in
+`cloud/tools/bstack/bstack.ts`; copy an existing case as the
+template. Add the new command to the table above and, if it
+supports incident response, link it from a runbook in
+`cloud/tools/bstack/runbooks/`.
 
 ## Related
 

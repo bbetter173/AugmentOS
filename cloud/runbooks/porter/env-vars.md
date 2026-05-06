@@ -114,26 +114,10 @@ new pods will crashloop until the secret is in place.
 
 ## Reading what is currently set
 
-You cannot directly read a running pod's env from the dashboard
-without exec-ing into it. Two practical paths:
-
-- **Doppler dashboard / CLI** for secrets:
-  `doppler secrets --project <project> --config <config>`
-- **Repo** for static values: grep `cloud/porter*.yaml`.
-
-For an exhaustive view of which env vars are set (names only,
-not values, so it is safe to share output), run a one-off
-command in an ephemeral copy pod via `porter app run`:
-
-```bash
-porter app run cloud-prod --cluster <CLUSTER_ID> --target <TARGET> -- \
-  sh -c 'env | cut -d= -f1 | sort'
-```
-
-This spins up a copy of the deployment with the same env, lists
-the variable names (no values), and tears down. Touches no
-production traffic. To check a specific value, do a presence
-check rather than printing it (see `../doppler/adding-secrets.md`).
+- **Static values**: open the app in the Porter dashboard ->
+  Environment, or grep `cloud/porter*.yaml`.
+- **Secrets**: Doppler dashboard, or
+  `doppler secrets --project <project> --config <config>`.
 
 ## Common mistakes
 

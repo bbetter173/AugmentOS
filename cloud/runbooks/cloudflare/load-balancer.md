@@ -587,31 +587,15 @@ affects both LBs since they share the inventory.
 
 ### Disable a single origin in a pool
 
-Same shape as drain, but at the origin level. Useful when a
-pool has multiple clusters and you want to take one out:
+Open the pool in the Cloudflare dashboard and toggle the
+origin's "Enabled" switch off. Useful when a pool has multiple
+origins and you want to drain just one cluster while leaving
+the rest serving.
 
-```bash
-# Fetch the pool, strip the response wrapper, edit
-# origins[i].enabled = false, PUT back.
-curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
-  -H "Authorization: Bearer $CF_TOKEN" \
-  | jq '.result' > /tmp/pool.json
-# edit
-curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
-  -H "Authorization: Bearer $CF_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d @/tmp/pool.json
-```
+### Pool health
 
-### Check pool health
-
-```bash
-curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
-  -H "Authorization: Bearer $CF_TOKEN" \
-  | python3 -c "import sys,json; r=json.load(sys.stdin); p=r['result']; print(p['name'], 'healthy=', p['healthy']); [print(o['name'], 'enabled=', o['enabled']) for o in p['origins']]"
-```
-
-If a pool flips unhealthy, the LB stops sending it traffic.
-Cloudflare keeps health-checking; the pool comes back when
-`/health` returns 200 again. To investigate the underlying
-cause, see `cloud/tools/bstack/runbooks/pod-crash.md`.
+The Cloudflare dashboard's pool page shows current health and
+per-origin status. If a pool flips unhealthy, the LB stops
+sending it traffic; Cloudflare keeps health-checking and the
+pool comes back when `/health` returns 200 again. For the
+underlying cause, see `cloud/tools/bstack/runbooks/pod-crash.md`.

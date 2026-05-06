@@ -79,7 +79,7 @@ right service; the service routes to the right pods.
 A different shape from Deployment: runs exactly one pod per
 node, automatically. Used for things that need node-level
 access (log collectors, metrics agents). The BetterStack
-Vector pods run as a DaemonSet. See `../betterstack/concepts.md`.
+Vector pods run as a DaemonSet. See [../betterstack/concepts.md](../betterstack/concepts.md).
 
 ### Liveness probe
 
@@ -173,7 +173,7 @@ handles the build-tag-push.
 Porter uses Helm releases internally. You will see references
 to Helm in the repo (e.g. `cloud/infra/betterstack-logs/values.yaml`
 is a Helm chart we install separately for the BetterStack
-Vector DaemonSet, see `../betterstack/concepts.md`). For our
+Vector DaemonSet, see [../betterstack/concepts.md](../betterstack/concepts.md)). For our
 day-to-day Porter operations, the abstraction is "Porter app";
 the Helm release behind it is implementation detail.
 

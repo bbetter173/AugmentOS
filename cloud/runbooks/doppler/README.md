@@ -58,7 +58,7 @@ If you cannot see a project, you have not been added.
 
 ## Related
 
-- `../porter/env-vars.md`: what is static in `porter.yaml` vs
+- [../porter/env-vars.md](../porter/env-vars.md): what is static in `porter.yaml` vs
   what comes from Doppler.
-- `../betterstack/bstack-cli.md`: the bstack CLI loads its
+- [../betterstack/bstack-cli.md](../betterstack/bstack-cli.md): the bstack CLI loads its
   credentials from Doppler.

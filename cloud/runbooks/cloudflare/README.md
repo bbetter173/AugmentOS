@@ -86,10 +86,10 @@ curl -s "https://api.cloudflare.com/client/v4/zones?account.id=$ACCOUNT_ID" \
 
 ## Related
 
-- `../porter/`: the Porter clusters that the LB steers to.
+- [../porter/](../porter/): the Porter clusters that the LB steers to.
   `porter/deploys.md` covers per-cluster `cloud-prod` deploys.
-- `../doppler/`: where Cloudflare API tokens live.
-- `../infra.md`: full traffic flow including BetterStack and
+- [../doppler/](../doppler/): where Cloudflare API tokens live.
+- [../infra.md](../infra.md): full traffic flow including BetterStack and
   Vector.
 - `cloud/issues/udp-loadbalancer/`: history of the UDP-direct
   path used for audio. Kept on a gray-cloud DNS record because

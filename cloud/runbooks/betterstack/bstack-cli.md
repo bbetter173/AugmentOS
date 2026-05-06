@@ -27,7 +27,7 @@ Doppler. The credentials live in the `mentra-sre` project.
 
 You need:
 
-- `doppler` CLI installed (see `../doppler/README.md`)
+- `doppler` CLI installed (see [../doppler/README.md](../doppler/README.md))
 - A Doppler login that has been added to the `mentra-sre`
   project. Ask Isaiah or Israelov.
 
@@ -145,4 +145,4 @@ supports incident response, link it from a runbook in
   that use this CLI heavily. `pod-crash.md`,
   `client-disconnect.md`, and `weekly-error-audit.md` are the
   starting points.
-- `../doppler/`: where `bstack`'s credentials live.
+- [../doppler/](../doppler/): where `bstack`'s credentials live.

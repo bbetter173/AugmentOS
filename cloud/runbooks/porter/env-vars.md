@@ -9,7 +9,7 @@ Porter pods get their environment from two places:
    DB passwords, JWT secrets, etc.). Porter has a Doppler
    integration that pulls from a project + config and writes
    the values into the pod's env block. See
-   `../doppler/porter-integration.md` for the full flow.
+   [../doppler/porter-integration.md](../doppler/porter-integration.md) for the full flow.
 
 Anything secret belongs in Doppler. Anything that would be safe
 to commit goes in `porter.yaml`.
@@ -63,8 +63,8 @@ To change a secret, you change it in Doppler, not in
 `porter.yaml`. The pod picks up the new value the next time it
 starts (rolling restart, redeploy, or autoscaling event).
 
-See `../doppler/adding-secrets.md` for the full procedure and
-`../doppler/porter-integration.md` for the integration setup.
+See [../doppler/adding-secrets.md](../doppler/adding-secrets.md) for the full procedure and
+[../doppler/porter-integration.md](../doppler/porter-integration.md) for the integration setup.
 
 ## Forcing pods to pick up a new secret
 
@@ -83,7 +83,7 @@ options are:
 For Doppler-managed env groups, the integration re-syncs on
 deploy. A pod restart without a redeploy can roll pods that
 still see the old (cached) env. See
-`../doppler/adding-secrets.md`.
+[../doppler/adding-secrets.md](../doppler/adding-secrets.md).
 
 ## Adding a new env var
 
@@ -103,7 +103,7 @@ For secrets:
 
 1. Add it to Doppler in each environment that needs it (dev,
    staging, plus per-region prod configs). See
-   `../doppler/adding-secrets.md`.
+   [../doppler/adding-secrets.md](../doppler/adding-secrets.md).
 2. Reference it in code (`process.env.FOO`).
 3. Open a PR with the code change; merge.
 4. Trigger redeploys so the Doppler integration re-syncs.
@@ -134,8 +134,8 @@ new pods will crashloop until the secret is in place.
 - **Forgetting to redeploy after a Doppler change.** Without a
   redeploy, the Porter integration does not re-sync; pods that
   restart will still see the old value. See
-  `../doppler/adding-secrets.md`.
+  [../doppler/adding-secrets.md](../doppler/adding-secrets.md).
 - **Mismatched config names across regions.** Each region maps
   to a different Doppler config (`prod_central-us`,
   `prod_us-east`, etc.). Adding a secret to one config does not
-  add it to the others. See `../doppler/`.
+  add it to the others. See [../doppler/](../doppler/).

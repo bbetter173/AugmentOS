@@ -50,9 +50,9 @@ DaemonSet. Logs are JSON, parsed from Pino, with fields
 flattened to top-level so they are queryable.
 
 - Web UI for live tailing and dashboards: see
-  `../betterstack/using-the-website.md`.
+  [../betterstack/using-the-website.md](../betterstack/using-the-website.md).
 - CLI for SQL queries against the ClickHouse-backed log table:
-  see `../betterstack/bstack-cli.md`.
+  see [../betterstack/bstack-cli.md](../betterstack/bstack-cli.md).
 
 A typical lookup for a recent error:
 

@@ -66,7 +66,7 @@ A node is one VM in the cluster. Multiple pods share a node's
 CPU, RAM, and disk. A small cluster might be 1-3 nodes; a busy
 one might be 10+. Each Porter cluster (us-central, france,
 etc.) is a Kubernetes cluster with one or more nodes. See
-`../infra.md` for the broader Kubernetes primer.
+[../infra.md](../infra.md) for the broader Kubernetes primer.
 
 ## DaemonSet
 

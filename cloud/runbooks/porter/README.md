@@ -6,7 +6,7 @@ deploying apps, managing clusters, viewing logs, and configuring
 services. Each Porter "application" maps to a Kubernetes
 deployment.
 
-For a deeper architecture primer see `../infra.md`.
+For a deeper architecture primer see [../infra.md](../infra.md).
 
 ## What runs on Porter
 
@@ -52,13 +52,13 @@ a cluster, and at the bottom-right of pod-detail pages.
 
 ## Related
 
-- `../cloudflare/`: traffic flows Cloudflare -> nginx Ingress ->
+- [../cloudflare/](../cloudflare/): traffic flows Cloudflare -> nginx Ingress ->
   Porter pods. The Cloudflare runbook covers the edge layer.
-- `../doppler/`: Porter pulls secrets from Doppler via its
+- [../doppler/](../doppler/): Porter pulls secrets from Doppler via its
   native integration at deploy time and writes them into the
-  pod's env. See `../doppler/porter-integration.md` for how
+  pod's env. See [../doppler/porter-integration.md](../doppler/porter-integration.md) for how
   the integration is wired and how to verify it.
-- `../betterstack/`: pod stdout is shipped to BetterStack via the
+- [../betterstack/](../betterstack/): pod stdout is shipped to BetterStack via the
   Vector DaemonSet running in each cluster.
 - `cloud/tools/bstack/runbooks/pod-crash.md` walks through what
   to do when a Porter pod is crashlooping.

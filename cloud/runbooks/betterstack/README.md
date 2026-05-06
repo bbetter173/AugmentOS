@@ -9,7 +9,7 @@ BetterStack is our observability platform. We use it for:
 - **Alerts** routed to Slack / on-call
 
 For a primer on how logs flow into BetterStack (Vector DaemonSet,
-Pino JSON, hot vs S3 storage), see `../infra.md`.
+Pino JSON, hot vs S3 storage), see [../infra.md](../infra.md).
 
 ## Access
 
@@ -59,7 +59,7 @@ both; the difference matters when you write raw SQL.
 - `cloud/tools/bstack/runbooks/` has incident-response runbooks
   that go deeper than this folder. They use the `bstack` CLI
   heavily. Keep them updated alongside the CLI doc here.
-- `../porter/logs.md`: the Porter dashboard is the alternative
+- [../porter/logs.md](../porter/logs.md): the Porter dashboard is the alternative
   for live tailing during a deploy.
-- `../doppler/`: the bstack CLI reads its credentials from
+- [../doppler/](../doppler/): the bstack CLI reads its credentials from
   Doppler.

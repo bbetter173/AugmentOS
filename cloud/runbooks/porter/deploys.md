@@ -103,7 +103,7 @@ yet receiving REST traffic. Existing WebSocket connections on
 old pods stay alive until those pods are killed.
 
 Probe details and the readiness-failure cascade are documented
-in `../infra.md`.
+in [../infra.md](../infra.md).
 
 ## Rollback
 
@@ -131,7 +131,7 @@ branch and push. The next deploy uses the reverted code.
 ## Multi-region coordination
 
 Production runs `cloud-prod` on multiple regional clusters
-(see `../infra.md` for the current cluster list). Each
+(see [../infra.md](../infra.md) for the current cluster list). Each
 deployment watches its branch independently, so a merge to
 `main` triggers all of them roughly in parallel. They are not
 synchronized; one region can be rolling while another is
@@ -144,7 +144,7 @@ the Porter dashboard before merging.
 Cloudflare's load balancer is the layer that hides the per-
 region rollout from end users: an unhealthy pool drops out of
 the LB rotation while it is mid-deploy. See
-`../cloudflare/load-balancer.md`.
+[../cloudflare/load-balancer.md](../cloudflare/load-balancer.md).
 
 ## Common failures
 

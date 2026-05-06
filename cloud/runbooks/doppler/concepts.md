@@ -24,13 +24,16 @@ secret and audit every consumer.
 A secrets manager solves this by being the single source of
 truth. The repo references secrets by name; the actual values
 live in Doppler with access controls, audit logs, and the
-ability to rotate without code changes. Pods authenticate to
-Doppler with a service token at startup and pull the values
-they need.
+ability to rotate without code changes. Production pods get
+their secrets via Porter's Doppler integration (Porter pulls
+from Doppler at deploy time and writes them into the pod's
+env). Local dev tools fetch the same secrets via `doppler run
+--` at process start. See `porter-integration.md` for the
+production flow.
 
 For our setup: the repo's `porter.yaml` files declare
-non-secret env vars literally; secrets are pulled at runtime
-via `doppler run --`.
+non-secret env vars literally; secrets come from Doppler via
+the Porter integration.
 
 ## Project
 

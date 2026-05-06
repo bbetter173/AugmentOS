@@ -101,7 +101,9 @@ Or rely on the application logs: many of our startup paths log
 1. Generate the new value at the source (the API console, the DB,
    wherever).
 2. Update Doppler (web UI or `doppler secrets set` per config).
-3. Restart the pods.
+3. Re-sync Porter and roll the pods (see step 4 of "Adding a
+   secret" above; a plain pod restart without re-sync leaves
+   pods on the stale value).
 4. Verify the app is still healthy with `bstack health`.
 5. Revoke the old value at the source.
 

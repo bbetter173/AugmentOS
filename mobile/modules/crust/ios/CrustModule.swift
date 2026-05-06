@@ -32,6 +32,12 @@ public class CrustModule: Module {
             ])
         }
 
+        // Location:
+
+        AsyncFunction("showLocationServicesDialog") { () -> Bool in
+            return false
+        }
+
         // MARK: - MentraOS Notification Commands
 
         AsyncFunction("setNotificationConfig") { (_: Bool, _: [String]) in

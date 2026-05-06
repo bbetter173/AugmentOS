@@ -50,16 +50,15 @@ Pod::Spec.new do |s|
     'BluetoothSDKPrivacy' => ['Source/PrivacyInfo.xcprivacy']
   }
 
-  # Keep the bare SDK source list explicit so Expo adapter files are opt-in.
   native_source_files = [
     "Source/**/*.{h,m,mm,swift,hpp,cpp,c}",
     "Packages/CoreObjC/**/*.{h,m,mm,hpp,cpp,c}",
     "Packages/SherpaOnnx/SherpaOnnx.swift",
     "Packages/SherpaOnnx/sherpa-onnx.xcframework/Headers/**/*.{h,hpp}",
     "Packages/VAD/**/*.swift",
-    "Packages/libbz2/shim.h"
+    "Packages/libbz2/shim.h",
+    "BluetoothSdkModule.swift"
   ]
-  native_source_files << "BluetoothSdkModule.swift" if include_expo_adapter
   s.source_files = native_source_files
 
   # Explicitly mark C++ headers and internal headers as private to prevent exposure in public interface

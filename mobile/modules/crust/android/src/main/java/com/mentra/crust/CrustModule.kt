@@ -145,6 +145,65 @@ class CrustModule : Module() {
       Events("onLoad")
     }
 
+    // MARK: - Location Services Commands
+
+    AsyncFunction("showLocationServicesDialog") {
+      val activity = appContext.currentActivity
+      if (activity == null) {
+          val context =
+                  appContext.reactContext
+                          ?: throw IllegalStateException("No context available")
+          val intent =
+                  android.content.Intent(
+                          android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                  )
+          intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+          context.startActivity(intent)
+          return@AsyncFunction true
+      }
+
+      val locationRequest =
+              com.google.android.gms.location.LocationRequest.Builder(
+                              com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                              10000
+                      )
+                      .build()
+
+      val builder =
+              com.google.android.gms.location.LocationSettingsRequest.Builder()
+                      .addLocationRequest(locationRequest)
+                      .setAlwaysShow(true)
+
+      val client =
+              com.google.android.gms.location.LocationServices.getSettingsClient(activity)
+      val task = client.checkLocationSettings(builder.build())
+
+      task.addOnSuccessListener { true }
+      task.addOnFailureListener { exception ->
+          if (exception is com.google.android.gms.common.api.ResolvableApiException) {
+              try {
+                  exception.startResolutionForResult(activity, 1001)
+              } catch (sendEx: android.content.IntentSender.SendIntentException) {
+                  // Fallback
+                  val intent =
+                          android.content.Intent(
+                                  android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                          )
+                  intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                  activity.startActivity(intent)
+              }
+          } else {
+              val intent =
+                      android.content.Intent(
+                              android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                      )
+              intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+              activity.startActivity(intent)
+          }
+      }
+      true
+    }
+
     // MARK: - Image Processing Commands
 
     AsyncFunction("processGalleryImage") { inputPath: String, outputPath: String, options: Map<String, Any?> ->

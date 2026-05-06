@@ -1,4 +1,5 @@
 import CoreModule from "@mentra/bluetooth-sdk"
+import CrustModule from "crust"
 import {Linking, Platform} from "react-native"
 
 /**
@@ -46,7 +47,7 @@ export class SettingsNavigationUtils {
       if (Platform.OS === "android") {
         // Use native module for location services dialog (better UX)
         // TODO: this does not need to be in the Bluetooth SDK module:
-        await CoreModule.showLocationServicesDialog()
+        await CrustModule.showLocationServicesDialog()
       } else if (Platform.OS === "ios") {
         await this.openIosSettings()
       }

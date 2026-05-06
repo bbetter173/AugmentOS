@@ -49,10 +49,14 @@ To save a query as a view: run it in the Explore tab, then click
 "Save as View" in the top-right. Views are private by default;
 share with the team via the Share button.
 
-[screenshot: Live Tail with `feature:"system-vitals"` filter]
-
-[screenshot: Dashboard showing wsDisconnects vs wsReconnects over
-time]
+Tip: pin a tab to Live Tail with a filter while debugging. Real
+filters the team uses (visible in your search history once you
+have queried at least once): `region="us-west"`, `level=error`,
+`userId="<email>" level=error`. The filter chip turns green
+when the field exists; if you see "No matching logs found" with
+a filter, it usually means the field is not indexed by that
+name in this source (try the Explore tab to see the actual
+schema).
 
 ## Explore tab (custom queries)
 
@@ -95,10 +99,10 @@ ORDER BY dt DESC LIMIT 50
 ```
 
 Replace `t373499_mentracloud_prod` with the matching prefix for
-the source you are querying. The prefix is visible in the source
-detail page.
-
-[screenshot: Explore tab in SQL mode with the prefix visible]
+the source you are querying. To find the prefix: open the source
+in BetterStack (Sources -> click a source -> Configure ->
+Connect), where the table name is shown in the example queries.
+Each source has its own prefix.
 
 ## Common query patterns
 
@@ -154,7 +158,10 @@ Click a monitor to see its history. Failed checks become
 "incidents" with their own page; the `bstack incidents` CLI
 command surfaces these too.
 
-[screenshot: Uptime dashboard showing the regional API monitors]
+The monitors we run today cover the regional `cloud-prod`
+hostnames (`uscentralapi.mentraglass.com` etc.) and the LB
+hostnames (`api.mentra.glass`, `api.mentraglass.com`). The full
+list lives in the Uptime dashboard.
 
 ## Alerts
 

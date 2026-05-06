@@ -153,6 +153,11 @@ interface ItemProps<T extends DraggableItem> {
   draggedToIndex: SharedValue<number>
   dragX: SharedValue<number>
   dragY: SharedValue<number>
+  // Drop-phase: from/to of the in-flight drop animation. While set, the
+  // displaced item (at `dropToIndex`) animates to the from-slot in
+  // parallel with the active item's slide to the to-slot.
+  dropFromIndex: SharedValue<number>
+  dropToIndex: SharedValue<number>
 
   // visual params
   activeItemScale: number
@@ -181,6 +186,8 @@ function ItemImpl<T extends DraggableItem>(props: ItemProps<T>) {
     draggedToIndex,
     dragX,
     dragY,
+    dropFromIndex,
+    dropToIndex,
     activeItemScale,
     activeItemOpacity,
     inactiveItemScale,
@@ -210,35 +217,58 @@ function ItemImpl<T extends DraggableItem>(props: ItemProps<T>) {
       to: draggedToIndex.value,
       dx: dragX.value,
       dy: dragY.value,
+      dropFrom: dropFromIndex.value,
+      dropTo: dropToIndex.value,
     }),
     (cur) => {
-      // Drag phase has from/to set; drop phase keeps activeKey but
-      // clears from/to. We treat both as "this item is special" but
-      // visually distinct.
       const dragging = cur.key !== null && cur.from >= 0 && cur.to >= 0
+      const dropping = cur.dropFrom >= 0 && cur.dropTo >= 0 && cur.dropFrom !== cur.dropTo
 
-      // Active item — during drag, follow finger; during drop phase,
-      // dragX/dragY hold the destination offset (animated via timing).
-      if (cur.key === itemKey) {
+      // Active drag — follow finger.
+      if (dragging && cur.key === itemKey) {
         offsetX.value = cur.dx
         offsetY.value = cur.dy
-        if (dragging) {
-          scale.value = withTiming(activeItemScale, {duration: activationDur})
-          opacity.value = withTiming(activeItemOpacity, {duration: activationDur})
-          shadow.value = withTiming(activeItemShadowOpacity, {duration: activationDur})
-          zIndex.value = 10
-        } else {
-          // Drop phase — relax visuals while finishing the slide.
-          scale.value = withTiming(1, {duration: dropDur})
-          opacity.value = withTiming(1, {duration: dropDur})
-          shadow.value = withTiming(0, {duration: dropDur})
-          zIndex.value = 5
-        }
+        scale.value = withTiming(activeItemScale, {duration: activationDur})
+        opacity.value = withTiming(activeItemOpacity, {duration: activationDur})
+        shadow.value = withTiming(activeItemShadowOpacity, {duration: activationDur})
+        zIndex.value = 10
         return
       }
 
-      // Inactive items: only the item under the pointer nudges; everyone
-      // else stays in place. The actual swap happens only on release.
+      // Drop phase — the dragger slides from its origin slot to the
+      // destination slot. Driven by dropFromIndex/dropToIndex so it
+      // works regardless of whether activeKey is still set.
+      if (dropping && index === cur.dropFrom) {
+        const toCol = cur.dropTo % columns
+        const toRow = Math.floor(cur.dropTo / columns)
+        const tx = (toCol - baseCol) * cellW
+        const ty = (toRow - baseRow) * cellH
+        offsetX.value = withTiming(tx, {duration: dropDur})
+        offsetY.value = withTiming(ty, {duration: dropDur})
+        scale.value = withTiming(1, {duration: dropDur})
+        opacity.value = withTiming(1, {duration: dropDur})
+        shadow.value = withTiming(0, {duration: dropDur})
+        zIndex.value = 5
+        return
+      }
+
+      // Displaced item — slides to the dragger's origin slot.
+      if (dropping && index === cur.dropTo) {
+        const fromCol = cur.dropFrom % columns
+        const fromRow = Math.floor(cur.dropFrom / columns)
+        const tx = (fromCol - baseCol) * cellW
+        const ty = (fromRow - baseRow) * cellH
+        offsetX.value = withTiming(tx, {duration: dropDur})
+        offsetY.value = withTiming(ty, {duration: dropDur})
+        scale.value = withTiming(1, {duration: dropDur})
+        opacity.value = withTiming(1, {duration: dropDur})
+        shadow.value = withTiming(0, {duration: dropDur})
+        zIndex.value = 0
+        return
+      }
+
+      // Drag phase nudge — only the item under the pointer nudges; the
+      // actual swap happens on release.
       let tx = 0
       let ty = 0
       if (dragging && index === cur.to && index !== cur.from) {
@@ -246,10 +276,11 @@ function ItemImpl<T extends DraggableItem>(props: ItemProps<T>) {
         const fromRow = Math.floor(cur.from / columns)
         tx = (fromCol - baseCol) * cellW
         ty = (fromRow - baseRow) * cellH
-        // normalize tx and ty to be a unit vector:
         const length = Math.sqrt(tx * tx + ty * ty)
-        tx = (tx / length) * nudgeFraction
-        ty = (ty / length) * nudgeFraction
+        if (length > 0) {
+          tx = (tx / length) * nudgeFraction
+          ty = (ty / length) * nudgeFraction
+        }
       }
 
       offsetX.value = withSpring(tx, {damping: 22, stiffness: 220, mass: 0.6})
@@ -258,7 +289,7 @@ function ItemImpl<T extends DraggableItem>(props: ItemProps<T>) {
       scale.value = withTiming(dragging ? inactiveItemScale : 1, {duration: activationDur})
       opacity.value = withTiming(dragging ? inactiveItemOpacity : 1, {duration: activationDur})
       shadow.value = withTiming(0, {duration: dropDur})
-      if (!dragging) zIndex.value = 0
+      if (!dragging && !dropping) zIndex.value = 0
     },
     [index, baseCol, baseRow, cellW, cellH, columns, nudgeFraction],
   )
@@ -389,6 +420,10 @@ export function DraggableList<T extends DraggableItem>(props: DraggableListProps
   const startBaseY = useSharedValue(0)
   const lastReportedToIndex = useSharedValue(-1)
 
+  // Drop-phase indices — set on release, cleared at commit time.
+  const dropFromIndex = useSharedValue(-1)
+  const dropToIndex = useSharedValue(-1)
+
   // Latest data — read by handleDragEnd when it eventually commits.
   const dataRef = useRef(data)
   useEffect(() => {
@@ -436,12 +471,16 @@ export function DraggableList<T extends DraggableItem>(props: DraggableListProps
   const commitOrderJS = useCallback(
     (key: string, fromIndex: number, toIndex: number) => {
       commitTimerRef.current = null
-      // Clear active state and snap drag offsets to 0 before the data
-      // update lands so there's no leftover transform when items
-      // re-render at their new indices.
+      // Clear all drag/drop state and snap drag offsets to 0 before the
+      // data update lands. After the parent re-renders, each item's
+      // useEffect on `index` resets its leftover offset to 0; combined
+      // with the new baseX/baseY (from the new index) the visible
+      // position matches what was on screen at end of animation.
       activeKey.value = null
       dragX.value = 0
       dragY.value = 0
+      dropFromIndex.value = -1
+      dropToIndex.value = -1
       const cur = dataRef.current
       if (fromIndex < 0 || toIndex < 0 || fromIndex >= cur.length || toIndex >= cur.length) {
         onDragEnd?.({key, fromIndex, toIndex, data: cur})
@@ -457,7 +496,7 @@ export function DraggableList<T extends DraggableItem>(props: DraggableListProps
       next[toIndex] = a
       onDragEnd?.({key, fromIndex, toIndex, data: next})
     },
-    [onDragEnd, activeKey, dragX, dragY],
+    [onDragEnd, activeKey, dragX, dragY, dropFromIndex, dropToIndex],
   )
 
   // Schedule commit after both items have finished animating into their
@@ -561,37 +600,29 @@ export function DraggableList<T extends DraggableItem>(props: DraggableListProps
       cancelAnimation(dragX)
       cancelAnimation(dragY)
 
-      if (key === null) return
-
-      // Compute destination offset for the active item. We keep activeKey
-      // SET during the drop animation so the Item reaction continues to
-      // read dragX/dragY as the active item's offset — we just animate
-      // those shared values to the destination slot via withTiming.
-      let tx = 0
-      let ty = 0
-      if (from >= 0 && to >= 0 && from !== to) {
-        const fromCol = from % columns
-        const fromRow = Math.floor(from / columns)
-        const toCol = to % columns
-        const toRow = Math.floor(to / columns)
-        tx = (toCol - fromCol) * cellW
-        ty = (toRow - fromRow) * cellH
+      if (key === null) {
+        console.log("key is null")
+        return
       }
 
-      // Clear from/to so the displaced item's nudge relaxes. activeKey
-      // stays set so the active item is still treated as active and
-      // continues to read dragX/dragY.
+      // Set drop-phase indices — the Item reaction handles both the
+      // active and displaced items' slides into their swapped slots.
+      // Clear active/drag state immediately so the active item drops
+      // out of the "follow finger" branch.
+      if (from >= 0 && to >= 0 && from !== to) {
+        dropFromIndex.value = from
+        dropToIndex.value = to
+      }
+      activeKey.value = null
       draggedFromIndex.value = -1
       draggedToIndex.value = -1
       lastReportedToIndex.value = -1
+      dragX.value = 0
+      dragY.value = 0
 
-      dragX.value = withTiming(tx, {duration: dropAnimationDuration})
-      dragY.value = withTiming(ty, {duration: dropAnimationDuration}, (finished) => {
-        if (finished) {
-          // Drop animation done — schedule the data commit.
-          scheduleOnRN(scheduleCommitJS, key, from, to)
-        }
-      })
+      // Schedule the JS-side commit after the drop animation completes
+      // (handled by setTimeout inside scheduleCommitJS).
+      scheduleOnRN(scheduleCommitJS, key, from, to)
     })
     .onFinalize(() => {
       "worklet"
@@ -631,6 +662,8 @@ export function DraggableList<T extends DraggableItem>(props: DraggableListProps
                 draggedToIndex={draggedToIndex}
                 dragX={dragX}
                 dragY={dragY}
+                dropFromIndex={dropFromIndex}
+                dropToIndex={dropToIndex}
                 activeItemScale={activeItemScale}
                 activeItemOpacity={activeItemOpacity}
                 inactiveItemScale={inactiveItemScale}

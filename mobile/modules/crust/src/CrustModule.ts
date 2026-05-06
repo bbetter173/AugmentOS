@@ -17,6 +17,8 @@ declare class CrustModule extends NativeModule<CrustModuleEvents> {
   isBetaBuild(): Promise<boolean>
   // location services commands
   showLocationServicesDialog(): Promise<boolean>
+  isLocationServicesEnabled(): Promise<boolean>
+  openLocationSettings(): Promise<boolean>
 
   // Image Processing Commands
   processGalleryImage(

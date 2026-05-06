@@ -387,27 +387,34 @@ them for proximity steering only.
 
 ### 5. Plug the pool into one or both LBs
 
+The Cloudflare GET response wraps the LB config in
+`{"result": {...}, "success": true, ...}`. The PUT endpoint
+expects just the LB object (the contents of `result`), not the
+wrapper. Strip it with `jq '.result'` (or python) before saving
+to disk.
+
 To wire a pool into the legacy LB:
 
 ```bash
 LEGACY_LB_ID=0d6e09e5427a8b94d3ce47f58496e1b8
 LEGACY_ZONE=5bb5c71a90dc175143eb10edaad85d49
 
-# Fetch current state, copy region_pools, edit
+# Fetch current state, strip the response wrapper, save the LB
+# object so we can edit it.
 curl -s "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$LEGACY_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
-  | python3 -m json.tool > /tmp/prod-lb.json
+  | jq '.result' > /tmp/legacy-lb.json
 
-# Edit /tmp/prod-lb.json: add <POOL_ID> to whichever region
+# Edit /tmp/legacy-lb.json: add <POOL_ID> to whichever region
 # keys should route to it. Order matters: first healthy pool wins.
 # e.g. for a Brazil cluster, change SSAM/NSAM:
 #   "NSAM": ["<POOL_ID>", "<existing-uscentral-pool-id>"]
 
-# PUT the LB back
+# PUT the LB back. Body is the unwrapped LB object.
 curl -X PUT "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$LEGACY_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @/tmp/prod-lb.json
+  -d @/tmp/legacy-lb.json
 ```
 
 To wire a pool into the next-gen LB, same procedure with
@@ -419,12 +426,12 @@ NEXTGEN_ZONE=86a59033615f078d613b3cd22fd30c44
 
 curl -s "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$NEXTGEN_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
-  > /tmp/secondary-lb.json
+  | jq '.result' > /tmp/nextgen-lb.json
 # edit
 curl -X PUT "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$NEXTGEN_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @/tmp/secondary-lb.json
+  -d @/tmp/nextgen-lb.json
 ```
 
 Common pattern when bringing up a new region: put it in the
@@ -443,14 +450,22 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancer
   | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['result']['healthy'])"
 # expect: True
 
-# A user in the new region resolves api.mentra.glass through
-# the new pool. Easiest check: from inside the new region's
-# network, or via a VPN, hit:
-curl -s https://api.mentra.glass/health
+# A user in the new region resolves whichever LB(s) you wired
+# the pool into. Hit each one you added the pool to. From inside
+# the new region's network, or via a VPN, this curl picks the
+# pool the LB steers to for your geographic location.
+curl -s https://api.mentraglass.com/health   # next-gen LB
+curl -s https://api.mentra.glass/health      # legacy LB (only if you also added the pool there)
+
 # Then look at bstack logs to confirm the new region served the
 # request:
 bstack logs --region <new-region-slug>
 ```
+
+If you only added the pool to one LB (typical for a new
+region: next-gen first), only the matching curl exercises the
+pool. Hitting the LB you did not wire into is still useful as a
+control: it should NOT be served by the new pool.
 
 ### 7. Update this doc
 
@@ -467,18 +482,20 @@ behind the same pool. Less common; the steps shorten:
 2. Deploy `cloud-prod` with the same domain list as the existing
    regional cluster (step 2 + 3 above; reuse the regional
    hostname, do not invent a new one).
-3. Add a second origin to the existing pool:
+3. Add a second origin to the existing pool. Same wrapper-
+   stripping pattern as the LB edits above (PUT expects the
+   pool object, not the response wrapper):
 
 ```bash
-# Fetch current pool state
+# Fetch current pool state, strip the response wrapper
 curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
   -H "Authorization: Bearer $CF_TOKEN" \
-  | python3 -m json.tool > /tmp/pool.json
+  | jq '.result' > /tmp/pool.json
 
 # Edit /tmp/pool.json: append to "origins": [...] with weight 1
 # and address pointing at the new cluster's regional hostname.
 
-# PUT the pool
+# PUT the pool. Body is the unwrapped pool object.
 curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
   -H "Authorization: Bearer $CF_TOKEN" \
   -H "Content-Type: application/json" \
@@ -633,9 +650,11 @@ Same shape as drain, but at the origin level. Useful when a
 pool has multiple clusters and you want to take one out:
 
 ```bash
-# Fetch, edit origins[i].enabled = false, PUT back
+# Fetch the pool, strip the response wrapper, edit
+# origins[i].enabled = false, PUT back.
 curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
-  -H "Authorization: Bearer $CF_TOKEN" > /tmp/pool.json
+  -H "Authorization: Bearer $CF_TOKEN" \
+  | jq '.result' > /tmp/pool.json
 # edit
 curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
   -H "Authorization: Bearer $CF_TOKEN" \
@@ -671,9 +690,9 @@ LEGACY_LB=0d6e09e5427a8b94d3ce47f58496e1b8
 NEXTGEN_ZONE=86a59033615f078d613b3cd22fd30c44
 NEXTGEN_LB=b34e8b4b2d960e78ba48fa235f4742c2
 
-curl -s "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$PROD_LB" \
+curl -s "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$LEGACY_LB" \
   -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
-curl -s "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$SECONDARY_LB" \
+curl -s "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$NEXTGEN_LB" \
   -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
 
 # All pools (account-wide; same pools serve both LBs)

@@ -46,12 +46,16 @@ load balancer:
   `franceapi.mentraglass.com`, etc.).
 
 The rest are web properties, brand redirects, or unused. List
-them with the API:
+them with the API. Use the broader `CLOUDFLARE_API_TOKEN` from
+`mentraos-cloud` rather than the LB-only token; zone listing is
+not LB scope, and using the right token keeps the per-token
+permission boundary clean even if scopes change later.
 
 ```bash
-CF_TOKEN=$(doppler secrets get CLOUDFLARE_LB_API_TOKEN \
-  --project mentra-sre --config dev --plain)
-ACCOUNT_ID=3c764e987404b8a1199ce5fdc3544a94
+CF_TOKEN=$(doppler secrets get CLOUDFLARE_API_TOKEN \
+  --project mentraos-cloud --config dev --plain)
+ACCOUNT_ID=$(doppler secrets get CLOUDFLARE_ACCOUNT_ID \
+  --project mentraos-cloud --config dev --plain)
 curl -s "https://api.cloudflare.com/client/v4/zones?account.id=$ACCOUNT_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   | python3 -c "import sys,json; r=json.load(sys.stdin); [print(z['id'], z['name']) for z in r['result']]"

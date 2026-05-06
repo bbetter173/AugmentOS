@@ -70,14 +70,18 @@ To set or rotate it:
 run: ./start.sh
 ```
 
-instead of `doppler run -- ...`. That is because the central
-deployment's `start.sh` does its own secret loading (verify in
-the script). Either path is fine; they accomplish the same thing.
+instead of `doppler run -- ...`. The script itself is just
+`cd packages/cloud && PORT=80 bun run start`; it does not load
+secrets. Central US therefore relies on env vars set directly in
+the Porter app's environment (Settings -> Environment in the
+dashboard), not on Doppler injection at process start. If you
+work on central, check the Porter dashboard for what is set
+there before assuming a value comes from Doppler.
 
 If you stand up a new region from scratch, follow the
 us-east / us-west pattern (`run: doppler run -- bun run start`).
-It is the simpler of the two and matches what we recommend
-going forward.
+It is the simpler of the two and avoids managing two sources of
+truth for the same secrets.
 
 ## Local dev parity
 

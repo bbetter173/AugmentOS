@@ -72,13 +72,19 @@ the secret lands.
 
 ## Verification
 
-Inside one pod, confirm the var is present (only when needed,
-this exec touches a production pod):
+Inside one pod, confirm the var is present without printing
+its value (only when needed, this exec touches a production
+pod):
 
 ```bash
-porter kubectl --cluster <CLUSTER_ID> -- exec -it -n default \
-  <POD_NAME> -- printenv FOO
+porter kubectl --cluster <CLUSTER_ID> -- exec -n default \
+  <POD_NAME> -- sh -c '[ -n "$FOO" ] && echo "FOO is set" || echo "FOO is NOT set"'
 ```
+
+Avoid `printenv FOO` or `echo "$FOO"` here; both print the
+secret value to your terminal and to anywhere your shell
+history persists. The presence check above is enough to confirm
+the env var landed.
 
 Or rely on the application logs: many of our startup paths log
 "loaded X" when a new secret is wired up.
@@ -101,19 +107,26 @@ A common gotcha: a secret was added to `prod_central-us` but
 forgotten in `prod_us-east`. The east region's pods crashloop
 on next restart while central is fine.
 
-Quarterly drift check:
+Quarterly drift check across all production regional configs:
 
 ```bash
-for cfg in prod_central-us prod_us-east prod_us-west; do
+REGIONS=(prod_central-us prod_us-east prod_us-west prod_france prod_east-asia)
+
+for cfg in "${REGIONS[@]}"; do
   doppler secrets --project mentraos-cloud --config $cfg \
     --only-names > /tmp/$cfg
 done
-diff /tmp/prod_central-us /tmp/prod_us-east
-diff /tmp/prod_central-us /tmp/prod_us-west
+
+# Diff every region against the canonical baseline (central-us)
+for cfg in "${REGIONS[@]:1}"; do
+  echo "=== prod_central-us vs $cfg ==="
+  diff /tmp/prod_central-us /tmp/$cfg
+done
 ```
 
 Anything that diffs should either be reconciled or have a
-documented reason for the difference.
+documented reason for the difference. If you add a new region,
+add it to `REGIONS` here so it stays in the rotation.
 
 ## Removing a secret
 

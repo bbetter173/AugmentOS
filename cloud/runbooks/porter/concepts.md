@@ -84,8 +84,13 @@ Vector pods run as a DaemonSet. See `../betterstack/concepts.md`.
 ### Liveness probe
 
 Kubernetes periodically hits an endpoint to check if the
-process is alive. If it fails repeatedly, K8s sends SIGKILL
-(exit 137) and restarts the pod.
+process is alive. After enough consecutive failures, K8s
+restarts the pod. The restart is graceful: SIGTERM first, then
+up to `terminationGracePeriodSeconds` (10s in our `porter.yaml`)
+for the process to exit on its own, then SIGKILL (exit 137) if
+it has not. A misbehaving liveness probe can therefore terminate
+in-flight WebSocket connections; the wedged pod is replaced
+within ~10 seconds plus the new pod's startup time.
 
 Our liveness probe: `GET /livez`, zero computation, 3-second
 timeout. If `/livez` ever fails it is a real "process is

@@ -339,10 +339,13 @@ class R1 : ControllerManager() {
             val mfgHex = mfgBytes?.joinToString(" ") { String.format("%02X", it) } ?: "none"
             Bridge.log("R1: Discovered: ${deviceName ?: "?"} (RSSI: ${result.rssi}) mfgData: $mfgHex")
 
-            // Extract ring MAC from manufacturer data (last 6 bytes) and store name->MAC map
+            // Extract ring MAC from manufacturer data (last 6 bytes) and store name->MAC map.
+            // Android's manufacturerSpecificData strips the 2-byte company ID; iOS keeps it. The
+            // resulting "last 6 bytes" land in reversed byte order between platforms (verified in
+            // the field), so reverse here to match iOS's stored string ("1B:08:26:8E:0E:E6").
             if (deviceName != null && mfgBytes != null && mfgBytes.size >= 6) {
-                val macBytes = mfgBytes.copyOfRange(mfgBytes.size - 6, mfgBytes.size)
-                val macStr = macBytes.joinToString(":") { String.format("%02X", it) }
+                val tail = mfgBytes.copyOfRange(mfgBytes.size - 6, mfgBytes.size)
+                val macStr = tail.joinToString(":") { String.format("%02X", it) }
                 putRingMacInMap(deviceName, macStr)
             }
 

@@ -253,6 +253,16 @@ public class K900HardwareManager extends BaseHardwareManager {
     }
 
     @Override
+    public void setRgbLedBrightness(int brightness) {
+        if (rgbLedController != null) {
+            rgbLedController.setBrightness(brightness);
+            Log.d(TAG, String.format("🚨 RGB LED brightness set to %d", brightness));
+        } else {
+            Log.w(TAG, "RGB LED controller not available - call setBluetoothManager() first");
+        }
+    }
+
+    @Override
     public void setRgbLedOn(int ledIndex, int ontime, int offtime, int count) {
         if (rgbLedController != null) {
             rgbLedController.setLedOn(ledIndex, ontime, offtime, count);

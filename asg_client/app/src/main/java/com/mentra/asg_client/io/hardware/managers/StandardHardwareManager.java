@@ -168,6 +168,11 @@ public class StandardHardwareManager extends BaseHardwareManager {
     }
 
     @Override
+    public void setRgbLedBrightness(int brightness) {
+        Log.w(TAG, "RGB LED not supported on this device");
+    }
+
+    @Override
     public void setRgbLedOn(int ledIndex, int ontime, int offtime, int count) {
         Log.w(TAG, "RGB LED not supported on this device");
     }

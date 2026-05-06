@@ -144,6 +144,11 @@ public class BaseHardwareManager implements IHardwareManager {
     }
 
     @Override
+    public void setRgbLedBrightness(int brightness) {
+        Log.d(TAG, "setRgbLedBrightness(" + brightness + ") called - no-op on base hardware");
+    }
+
+    @Override
     public void setRgbLedOn(int ledIndex, int ontime, int offtime, int count) {
         Log.d(TAG, String.format("setRgbLedOn(%d, %d, %d, %d) called - no-op on base hardware",
                 ledIndex, ontime, offtime, count));

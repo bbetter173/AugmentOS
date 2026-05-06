@@ -167,6 +167,12 @@ public interface IHardwareManager {
     boolean supportsRgbLed();
 
     /**
+     * Set RGB LED brightness level
+     * @param brightness Brightness level (0-255, where 255 is maximum brightness)
+     */
+    void setRgbLedBrightness(int brightness);
+
+    /**
      * Turn on a specific RGB LED with custom timing pattern (default full brightness)
      * @param ledIndex LED color index (0=red, 1=green, 2=blue, 3=orange, 4=white)
      * @param ontime Duration in milliseconds for LED on state

@@ -7,11 +7,12 @@ import {withUniwind} from "uniwind"
 import {ShadowView} from "react-native-inner-shadow"
 interface NewGlassViewProps extends ViewProps {
   transparent?: boolean
+  disableOnAndroid?: boolean
 }
 
 const GlassWithStyle = withUniwind(GlassViewComponent)
 
-const GlassView = ({children, style, transparent = true, ...props}: GlassViewProps & NewGlassViewProps) => {
+const GlassView = ({children, style, transparent = true, disableOnAndroid = false, ...props}: GlassViewProps & NewGlassViewProps) => {
   const [iosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
   const {theme} = useAppTheme()
   let boxShadowStyle = "8px 8px 16px 0px rgba(0, 0, 0, 0.06)"
@@ -36,7 +37,7 @@ const GlassView = ({children, style, transparent = true, ...props}: GlassViewPro
       </GlassWithStyle>
     )
   }
-  if (Platform.OS === "android") {
+  if (Platform.OS === "android" && !disableOnAndroid) {
     // let borderRadius = props.borderRadius ?? 0
     // extract borderTopLeftRadius from style by flattening the style object
     const flatStyle = StyleSheet.flatten(style) || {}

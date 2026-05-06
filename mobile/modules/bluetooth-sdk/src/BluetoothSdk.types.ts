@@ -431,4 +431,6 @@ export interface CoreStatus {
   wifiScanResults: WifiSearchResult[]
   lastLog: string[]
   otherBtConnected: boolean
+  // desired settings the SDK sends to compatible connected glasses:
+  gallery_mode: boolean
 }

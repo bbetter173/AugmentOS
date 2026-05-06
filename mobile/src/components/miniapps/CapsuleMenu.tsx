@@ -129,14 +129,15 @@ export function MiniAppCapsuleMenu({
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
         quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
+        result: "tmpfile",
       })
-      const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
-        RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
-      })
-      let amountToChop = insets.top * PixelRatio.get()
-      amountToChop = 0
-
+      
       if (Platform.OS === "ios") {
+        const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
+          RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
+        })
+        let amountToChop = insets.top * PixelRatio.get()
+        amountToChop = 0
         const context = ImageManipulator.ImageManipulator.manipulate(uri)
         context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
         const imageRef = await context.renderAsync()
@@ -144,7 +145,7 @@ export function MiniAppCapsuleMenu({
           format: ImageManipulator.SaveFormat.JPEG,
           compress: 0.1,
         })
-        await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+        useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
       } else {
         // android is weird and the crop doesn't work properly:
         useAppStatusStore.getState().saveScreenshot(packageName, uri)

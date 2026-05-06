@@ -1076,31 +1076,52 @@ class G2 : SGCManager() {
 
     // ---------- BLE Sending ----------
 
+    // Min gap between BLE packets when bursting many in a row. Android serializes one in-flight
+    // GATT op at a time even for WRITE_TYPE_NO_RESPONSE, so back-to-back writeCharacteristic() in
+    // a tight loop drops packets silently. iOS gets this for free via CoreBluetooth; we don't.
+    // Matches the 8 ms G1.java uses for its bitmap chunk loop (ANDROID_CHUNK_DELAY_MS).
+    private val BLE_PACKET_GAP_MS = 8L
+
     @Suppress("deprecation")
+    private fun writeOnePacket(packet: ByteArray, left: Boolean, right: Boolean) {
+        if (right) {
+            rightWriteChar?.let { char ->
+                rightGatt?.let { gatt ->
+                    char.value = packet
+                    char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    gatt.writeCharacteristic(char)
+                }
+            }
+        }
+        if (left) {
+            leftWriteChar?.let { char ->
+                leftGatt?.let { gatt ->
+                    char.value = packet
+                    char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    gatt.writeCharacteristic(char)
+                }
+            }
+        }
+    }
+
     private fun sendToGlasses(
             packets: List<ByteArray>,
             left: Boolean = false,
             right: Boolean = true
     ) {
-        for (packet in packets) {
-            if (right) {
-                rightWriteChar?.let { char ->
-                    rightGatt?.let { gatt ->
-                        char.value = packet
-                        char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                        gatt.writeCharacteristic(char)
-                    }
-                }
-            }
-            if (left) {
-                leftWriteChar?.let { char ->
-                    leftGatt?.let { gatt ->
-                        char.value = packet
-                        char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                        gatt.writeCharacteristic(char)
-                    }
-                }
-            }
+        if (packets.isEmpty()) return
+        // Single-packet sends (the common case for text/settings) go straight through.
+        if (packets.size == 1) {
+            writeOnePacket(packets[0], left, right)
+            return
+        }
+        // Multi-packet bursts (bitmaps, large protobufs): write the first packet immediately,
+        // then schedule the rest with BLE_PACKET_GAP_MS spacing so the Android BLE stack can
+        // actually drain each write before the next one is queued.
+        writeOnePacket(packets[0], left, right)
+        for (i in 1 until packets.size) {
+            val packet = packets[i]
+            mainHandler.postDelayed({ writeOnePacket(packet, left, right) }, BLE_PACKET_GAP_MS * i)
         }
     }
 
@@ -1759,75 +1780,126 @@ class G2 : SGCManager() {
     override fun displayBitmap(base64ImageData: String): Boolean {
         currentBitmapBase64 = base64ImageData
         currentTextContent = ""
+        return displayBitmapQuad(base64ImageData)
+    }
 
+    private fun displayBitmapQuad(base64ImageData: String): Boolean {
         val rawData =
                 Base64.decode(base64ImageData, Base64.DEFAULT)
                         ?: run {
-                            Bridge.log("G2: displayBitmap() - failed to decode base64")
+                            Bridge.log("G2: displayBitmapQuad() - failed to decode base64")
                             return false
                         }
 
-        Bridge.log("G2: displayBitmap() - decoded ${rawData.size} bytes from base64")
-        Bridge.log(
-                "G2: displayBitmap() - state: startupPageCreated=$startupPageCreated, pageCreated=$pageCreated"
-        )
-
-        val bmpData =
-                convertToG2Bmp(rawData, 200, 100)
+        val tiles =
+                renderAndSliceTo4Tiles(rawData)
                         ?: run {
-                            Bridge.log("G2: displayBitmap() - failed to convert image to BMP")
+                            Bridge.log(
+                                    "G2: displayBitmapQuad() - failed to slice image into tiles"
+                            )
                             return false
                         }
 
-        val containerW = 200
-        val containerH = 100
-        val containerX = (576 - containerW) / 2
-        val containerY = (288 - containerH) / 2
-        val containerID = 10
-        val containerName = "img-single"
-
-        val imageContainer =
+        // 2x2 grid of 200x100 tiles covering 400x200 (matches G2.swift:1729-1745)
+        val container1 =
                 EvenHubProto.imageContainerProperty(
-                        x = containerX,
-                        y = containerY,
-                        width = containerW,
-                        height = containerH,
-                        containerID = containerID,
-                        containerName = containerName
+                        x = 0,
+                        y = 0,
+                        width = 200,
+                        height = 100,
+                        containerID = 10,
+                        containerName = "img-10"
                 )
+        val container2 =
+                EvenHubProto.imageContainerProperty(
+                        x = 200,
+                        y = 0,
+                        width = 200,
+                        height = 100,
+                        containerID = 11,
+                        containerName = "img-11"
+                )
+        val container3 =
+                EvenHubProto.imageContainerProperty(
+                        x = 0,
+                        y = 100,
+                        width = 200,
+                        height = 100,
+                        containerID = 12,
+                        containerName = "img-12"
+                )
+        val container4 =
+                EvenHubProto.imageContainerProperty(
+                        x = 200,
+                        y = 100,
+                        width = 200,
+                        height = 100,
+                        containerID = 13,
+                        containerName = "img-13"
+                )
+        val containers = listOf(container1, container2, container3, container4)
 
-        val msg: ByteArray
-        if (!startupPageCreated) {
-            Bridge.log("G2: displayBitmap() - creating startup page with image container")
-            msg =
+        val msg: ByteArray =
+                if (!startupPageCreated) {
+                    startupPageCreated = true
                     EvenHubProto.createPageMessage(
-                            imageContainers = listOf(imageContainer),
+                            imageContainers = containers,
                             magicRandom = sendManager.nextMagicRandom(),
                             appId = activeMenuAppId
                     )
-            startupPageCreated = true
-        } else {
-            Bridge.log("G2: displayBitmap() - rebuilding page with image container")
-            msg =
+                } else {
                     EvenHubProto.rebuildPageMessage(
-                            imageContainers = listOf(imageContainer),
+                            imageContainers = containers,
                             magicRandom = sendManager.nextMagicRandom(),
                             appId = activeMenuAppId
                     )
-        }
+                }
         sendEvenHubCommand(msg)
         pageCreated = true
         pageHasTextContainer = false
         currentTextContent = ""
 
-        // Send fragments after a delay (fire and forget since Android displayBitmap is synchronous)
-        Bridge.log("G2: displayBitmap() - page sent, scheduling fragment send in 1s...")
-        mainHandler.postDelayed({ sendImageData(containerID, containerName, bmpData) }, 1000)
+        // After the 1s settle delay iOS waits, send each tile's BMP in series. Android's
+        // displayBitmap signature is synchronous Boolean, so this is fire-and-forget — we
+        // chain tiles via callbacks rather than awaiting like iOS.
+        Bridge.log("G2: displayBitmapQuad() - page sent, scheduling fragment send in 1s...")
+        mainHandler.postDelayed(
+                {
+                    sendImageDataChained(
+                            tiles =
+                                    listOf(
+                                            Triple(10, "img-10", tiles[0]),
+                                            Triple(11, "img-11", tiles[1]),
+                                            Triple(12, "img-12", tiles[2]),
+                                            Triple(13, "img-13", tiles[3])
+                                    ),
+                            index = 0
+                    )
+                },
+                1000
+        )
 
         return true
     }
 
-    private fun sendImageData(containerID: Int, containerName: String, bmpData: ByteArray) {
+    /** Send the next tile's BMP in series; recurse to the next tile after this one finishes. */
+    private fun sendImageDataChained(
+            tiles: List<Triple<Int, String, ByteArray>>,
+            index: Int
+    ) {
+        if (index >= tiles.size) return
+        val (containerID, containerName, bmpData) = tiles[index]
+        sendImageData(containerID, containerName, bmpData) {
+            sendImageDataChained(tiles, index + 1)
+        }
+    }
+
+    private fun sendImageData(
+            containerID: Int,
+            containerName: String,
+            bmpData: ByteArray,
+            onComplete: (() -> Unit)? = null
+    ) {
         val fragmentSize = 4096
         imageSessionCounter++
         val sessionId = imageSessionCounter
@@ -1840,6 +1912,7 @@ class G2 : SGCManager() {
                 Bridge.log(
                         "G2: sendImageData($containerName) - $fragmentIndex fragments, ${bmpData.size} bytes"
                 )
+                onComplete?.invoke()
                 return
             }
 
@@ -1869,10 +1942,96 @@ class G2 : SGCManager() {
                 Bridge.log(
                         "G2: sendImageData($containerName) - $fragmentIndex fragments, ${bmpData.size} bytes"
                 )
+                onComplete?.invoke()
             }
         }
 
         sendNextFragment()
+    }
+
+    /**
+     * Render any image to 400x200 grayscale, then slice into 4 tiles (200x100 each).
+     * Returns 4 BMP ByteArrays: [top-left, top-right, bottom-left, bottom-right].
+     * Mirrors G2.swift renderAndSliceTo4Tiles.
+     */
+    private fun renderAndSliceTo4Tiles(data: ByteArray): List<ByteArray>? {
+        val srcBitmap =
+                BitmapFactory.decodeByteArray(data, 0, data.size)
+                        ?: run {
+                            Bridge.log("G2: renderAndSliceTo4Tiles - could not decode image")
+                            return null
+                        }
+
+        val srcWidth = srcBitmap.width
+        val srcHeight = srcBitmap.height
+        val tileWidth = 200
+        val tileHeight = 100
+        val totalW = tileWidth * 2 // 400
+        val totalH = tileHeight * 2 // 200
+
+        // Scale source to fit within 400x200 (maintain aspect ratio)
+        val scale = minOf(totalW.toDouble() / srcWidth, totalH.toDouble() / srcHeight)
+        val scaledW = maxOf(1, (srcWidth * scale).toInt())
+        val scaledH = maxOf(1, (srcHeight * scale).toInt())
+        val offsetX = (totalW - scaledW) / 2
+        val offsetY = (totalH - scaledH) / 2
+
+        Bridge.log(
+                "G2: renderAndSliceTo4Tiles - input ${srcWidth}x${srcHeight} → ${scaledW}x${scaledH} in ${totalW}x${totalH}"
+        )
+
+        // Render to 400x200 with black background
+        val destBitmap = Bitmap.createBitmap(totalW, totalH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(destBitmap)
+        canvas.drawColor(Color.BLACK)
+        val srcRect = Rect(0, 0, srcWidth, srcHeight)
+        val dstRect = Rect(offsetX, offsetY, offsetX + scaledW, offsetY + scaledH)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(srcBitmap, srcRect, dstRect, paint)
+        srcBitmap.recycle()
+
+        // Pull a single 400x200 grayscale buffer once; slice each tile from it
+        val fullPixels = ByteArray(totalW * totalH)
+        val argbRow = IntArray(totalW)
+        for (y in 0 until totalH) {
+            destBitmap.getPixels(argbRow, 0, totalW, 0, y, totalW, 1)
+            val rowOffset = y * totalW
+            for (x in 0 until totalW) {
+                val pixel = argbRow[x]
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                fullPixels[rowOffset + x] = ((r * 299 + g * 587 + b * 114) / 1000).toByte()
+            }
+        }
+        destBitmap.recycle()
+
+        // Slice into 4 tiles: top-left, top-right, bottom-left, bottom-right (matches iOS order)
+        val tileOrigins = listOf(0 to 0, tileWidth to 0, 0 to tileHeight, tileWidth to tileHeight)
+        val tiles = mutableListOf<ByteArray>()
+        for ((ox, oy) in tileOrigins) {
+            val tilePixels = ByteArray(tileWidth * tileHeight)
+            for (row in 0 until tileHeight) {
+                val srcRowStart = (oy + row) * totalW + ox
+                System.arraycopy(
+                        fullPixels,
+                        srcRowStart,
+                        tilePixels,
+                        row * tileWidth,
+                        tileWidth
+                )
+            }
+            val bmp =
+                    build4BitBmp(tilePixels, tileWidth, tileHeight)
+                            ?: run {
+                                Bridge.log(
+                                        "G2: renderAndSliceTo4Tiles - failed to build BMP for tile"
+                                )
+                                return null
+                            }
+            tiles.add(bmp)
+        }
+        return tiles
     }
 
     override fun showDashboard() {

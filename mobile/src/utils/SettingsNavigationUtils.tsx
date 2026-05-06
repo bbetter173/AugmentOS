@@ -66,7 +66,7 @@ export class SettingsNavigationUtils {
     try {
       if (Platform.OS === "android") {
         // Use native module for direct location settings access
-        await CoreModule.openLocationSettings()
+        await CrustModule.openLocationSettings()
       } else if (Platform.OS === "ios") {
         await this.openIosSettings()
       }
@@ -108,7 +108,7 @@ export class SettingsNavigationUtils {
     try {
       if (Platform.OS === "android") {
         // Use native module for app settings
-        await CoreModule.openAppSettings()
+        await CrustModule.openAppSettings()
       } else if (Platform.OS === "ios") {
         await this.openIosSettings()
       }

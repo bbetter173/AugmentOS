@@ -1,18 +1,45 @@
 # Regional Load Balancers
 
-We run two Cloudflare load balancers in front of the cloud. Both
-geo-steer users to a Porter cluster in the nearest healthy
+We run two Cloudflare load balancers in front of the cloud.
+Both route users to a Porter cluster in the nearest healthy
 region. They share the same pool inventory but differ in
-hostname and steering policy.
+hostname and steering policy. One is the legacy LB that the
+mobile app currently uses; the other is the next-gen LB on the
+new domain that we plan to migrate the mobile app to.
 
-| LB | Hostname | Used by |
-| --- | --- | --- |
-| Production | `api.mentra.glass` | Mobile app, today's production traffic |
-| Secondary | `api.mentraglass.com` | No production customers; not pointed at by any production client |
+| LB | Hostname | Steering | Status |
+| --- | --- | --- | --- |
+| Legacy (active) | `api.mentra.glass` | `geo` | Mobile app points here today |
+| Next-gen (target) | `api.mentraglass.com` | `proximity` | No production customers yet; planned migration target |
 
-The mobile app points at `api.mentra.glass`. Anything that lives
-only on `api.mentraglass.com` (today: the `us-west` pool in WNAM)
-is reachable but not getting real production traffic.
+The mobile app currently points at `api.mentra.glass`. Anything
+that lives only on `api.mentraglass.com` (today: the `us-west`
+pool in WNAM) is reachable but not getting real production
+traffic. The migration plan is to flip the mobile app to
+`api.mentraglass.com` once we are confident in the next-gen LB
+and the regions wired into it.
+
+### Why two LBs
+
+The next-gen LB exists because the legacy one's `geo` steering
+is too coarse. `geo` only lets us route by Cloudflare's
+predefined regions (`WNAM`, `ENAM`, `WEU`, etc.), which means
+all of North America gets two buckets, all of Europe gets two,
+and so on. There is no way to differentiate "user in Seattle"
+from "user in Chicago" in `WNAM`. They both go to whichever
+single pool we mapped `WNAM` to.
+
+`proximity` steering, used on the next-gen LB, picks the
+closest healthy pool by great-circle distance from the user's
+resolver to the pool's lat/long. As we add more regional pools
+the next-gen LB automatically routes users to the closest one
+without us having to redraw region maps. It also fails over
+more gracefully if a pool is unhealthy because the second-
+closest pool is the natural fallback.
+
+We are not running both LBs forever. The plan is: get
+proximity steering proven, finish wiring the regions we want,
+then cut the mobile app over and retire the legacy LB.
 
 > Values in this doc were pulled live from the Cloudflare API
 > and the Porter CLI. Treat tables as a snapshot. Re-pull with
@@ -23,8 +50,8 @@ is reachable but not getting real production traffic.
 ```
 User
   -> api.mentra.glass (Cloudflare anycast IP, e.g. 104.21.87.160)
-    -> Cloudflare LB (production)
-      -> geo-steered to nearest healthy pool
+    -> Cloudflare LB (legacy or next-gen)
+      -> steered to nearest healthy pool
         -> pool origin hostname (e.g. uscentralapi.mentraglass.com)
           -> AKS public ingress IP (e.g. 128.203.164.18)
             -> nginx ingress in Porter cluster
@@ -40,7 +67,7 @@ routes to the cloud pod.
 
 ## What we have today
 
-### Production LB: `api.mentra.glass`
+### Legacy LB: `api.mentra.glass`
 
 | Field | Value |
 | --- | --- |
@@ -66,7 +93,7 @@ Region steering:
 `us-west` is NOT in any region's pool list on this LB. WNAM
 traffic goes to `uscentral`.
 
-### Secondary LB: `api.mentraglass.com`
+### Next-gen LB: `api.mentraglass.com`
 
 | Field | Value |
 | --- | --- |
@@ -77,7 +104,7 @@ traffic goes to `uscentral`.
 | Session affinity | `ip_cookie`, TTL 3600s |
 | Fallback pool | `uscentral` |
 
-Region steering (mostly mirrors production, except WNAM):
+Region steering (mostly mirrors the legacy LB, except WNAM):
 
 | CF region | Pool used |
 | --- | --- |
@@ -89,19 +116,19 @@ Region steering (mostly mirrors production, except WNAM):
 
 The two LBs differ in two places:
 
-1. **Steering policy.** Production uses `geo` (each region maps
-   to one pool, fixed). Secondary uses `proximity` (Cloudflare
-   picks the closest healthy pool by lat/long). Practically they
-   route the same way most of the time; `proximity` falls over
-   more gracefully if a pool is unhealthy.
-2. **WNAM pool.** Production routes WNAM to `uscentral`.
-   Secondary routes WNAM to `us-west`. Today this means
-   `us-west` only receives traffic from clients pointing at
+1. **Steering policy.** Legacy uses `geo` (each Cloudflare
+   region maps to one pool, fixed). Next-gen uses `proximity`
+   (Cloudflare picks the closest healthy pool by great-circle
+   distance to the pool's lat/long). See "Why two LBs" above
+   for the reasoning.
+2. **WNAM pool.** Legacy routes WNAM to `uscentral`. Next-gen
+   routes WNAM to `us-west`. Today this means `us-west` only
+   receives traffic from clients pointing at
    `api.mentraglass.com`, which is no production client.
 
 ### Pools (shared between both LBs)
 
-| Pool | Origin hostname | AKS public IP | Porter cluster | Monitor | In production LB | In secondary LB |
+| Pool | Origin hostname | AKS public IP | Porter cluster | Monitor | In legacy LB | In next-gen LB |
 | --- | --- | --- | --- | --- | --- | --- |
 | `uscentral` | `uscentralapi.mentraglass.com` | 128.203.164.18 | mentra-cluster-central-us (4689) | yes | yes (WNAM, ENAM, NSAM, SSAM) | yes (ENAM, NSAM, SSAM, fallback) |
 | `france` | `franceapi.mentraglass.com` | 172.189.45.70 | france (4696) | yes | yes (WEU, EEU) | yes (WEU, EEU) |
@@ -115,10 +142,11 @@ and deploys often fail. The pool is left in place so it is easy
 to enable later when capacity is fixed; until then it has no
 monitor and is not wired into either LB's region map.
 
-`us-west` is in the secondary LB only. No production client
+`us-west` is in the next-gen LB only. No production client
 points at `api.mentraglass.com` today, so traffic to `us-west`
-is essentially zero in practice. Putting it in the production
-LB is a separate decision (capacity check + cutover plan).
+is essentially zero in practice. The mobile-app cutover (see
+"Migrating the mobile app" below) is what turns `us-west` into
+a real production region.
 
 ### Monitors
 
@@ -198,10 +226,12 @@ deploy `cloud-prod` with regional domains, create a Cloudflare
 pool + monitor + DNS record, plug the pool into one or both
 LBs' region steering map.
 
-If the new region should serve production traffic, plug it into
-the production LB (`api.mentra.glass`). If you only want to
-test it on the secondary LB first, plug it into the secondary LB
-and leave the production LB alone.
+For most new regions added today, plug into the next-gen LB
+(`api.mentraglass.com`) first. That's the LB we are converging
+on. Add to the legacy LB (`api.mentra.glass`) only if the
+region needs to serve production traffic before the mobile app
+cutover; that's a temporary state and the entry should be
+removed from the legacy LB after the cutover.
 
 ### 1. Provision the AKS cluster in Porter
 
@@ -267,8 +297,8 @@ the regional hostnames in both zones:
 
 ```yaml
 domains:
-  - name: api.mentra.glass            # production LB
-  - name: api.mentraglass.com         # secondary LB
+  - name: api.mentra.glass            # legacy LB
+  - name: api.mentraglass.com         # next-gen LB
   - name: <region>api.mentra.glass    # zone-internal regional
   - name: <region>api.mentraglass.com # the actual LB origin name
 ```
@@ -357,14 +387,14 @@ them for proximity steering only.
 
 ### 5. Plug the pool into one or both LBs
 
-For a production-serving pool, update the production LB:
+To wire a pool into the legacy LB:
 
 ```bash
-PROD_LB_ID=0d6e09e5427a8b94d3ce47f58496e1b8
-PROD_ZONE=5bb5c71a90dc175143eb10edaad85d49
+LEGACY_LB_ID=0d6e09e5427a8b94d3ce47f58496e1b8
+LEGACY_ZONE=5bb5c71a90dc175143eb10edaad85d49
 
 # Fetch current state, copy region_pools, edit
-curl -s "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$PROD_LB_ID" \
+curl -s "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$LEGACY_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   | python3 -m json.tool > /tmp/prod-lb.json
 
@@ -374,31 +404,35 @@ curl -s "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$P
 #   "NSAM": ["<POOL_ID>", "<existing-uscentral-pool-id>"]
 
 # PUT the LB back
-curl -X PUT "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$PROD_LB_ID" \
+curl -X PUT "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$LEGACY_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   -H "Content-Type: application/json" \
   -d @/tmp/prod-lb.json
 ```
 
-For the secondary LB, same procedure with different IDs:
+To wire a pool into the next-gen LB, same procedure with
+different IDs:
 
 ```bash
-SECONDARY_LB_ID=b34e8b4b2d960e78ba48fa235f4742c2
-SECONDARY_ZONE=86a59033615f078d613b3cd22fd30c44
+NEXTGEN_LB_ID=b34e8b4b2d960e78ba48fa235f4742c2
+NEXTGEN_ZONE=86a59033615f078d613b3cd22fd30c44
 
-curl -s "https://api.cloudflare.com/client/v4/zones/$SECONDARY_ZONE/load_balancers/$SECONDARY_LB_ID" \
+curl -s "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$NEXTGEN_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   > /tmp/secondary-lb.json
 # edit
-curl -X PUT "https://api.cloudflare.com/client/v4/zones/$SECONDARY_ZONE/load_balancers/$SECONDARY_LB_ID" \
+curl -X PUT "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$NEXTGEN_LB_ID" \
   -H "Authorization: Bearer $CF_TOKEN" \
   -H "Content-Type: application/json" \
   -d @/tmp/secondary-lb.json
 ```
 
 Common pattern when bringing up a new region: put it in the
-secondary LB first, run real traffic at it via a test client,
-verify health, then add it to the production LB.
+next-gen LB first (since that is where we are heading anyway).
+Verify health under whatever traffic you can drive at it. Add
+to the legacy LB only if the region needs to serve real
+production users before the mobile-app cutover; that is a
+temporary state, see "Migrating the mobile app" below.
 
 ### 6. Verify end to end
 
@@ -455,27 +489,97 @@ The pool then load-balances within itself across the two
 clusters. Session affinity (`ip_cookie`) keeps a user pinned to
 one cluster for the affinity TTL.
 
-## Promoting `us-west` to production
+## Migrating the mobile app
 
-The `us-west` pool is in the secondary LB but not the
-production LB. To promote it:
+The end-state for both LBs is to retire the legacy one. The
+mobile app currently resolves the API via `api.mentra.glass`;
+we want to flip it to `api.mentraglass.com` once the next-gen
+LB has been validated under real load.
 
-1. Verify capacity in the us-west AKS cluster (4965). The pool
-   today serves zero production traffic, so capacity has not
-   been validated under load.
-2. Add the `us-west` pool ID
-   (`d2cd10f549c74159581d5963aad2ec28`) to the production LB's
-   WNAM region pool list. Decide whether it goes ahead of or
-   behind `uscentral`:
-   - Ahead means WNAM users prefer `us-west`, fall back to
-     `uscentral`. This is the migration path if you want to move
-     west-coast traffic off `uscentral`.
-   - Behind means WNAM still goes to `uscentral` first, with
-     `us-west` as failover. Lower risk; useful as a smoke test.
-3. Watch BetterStack for the new region to start serving
-   traffic. Use `bstack health --region us-west` and
-   `bstack incidents`.
-4. Adjust the order if needed.
+### Why this matters
+
+Today only the next-gen LB has `us-west` wired into its WNAM
+pool. So a west-coast user's geographic latency advantage from
+us-west doesn't apply: their traffic is going through the
+legacy LB to `uscentral`. Same for any future region we
+configure on the next-gen LB only. The migration is what
+unlocks the proximity steering benefit for real users.
+
+### Pre-cutover checks
+
+1. Both LBs return 200 for `/health` from the user's region:
+   ```bash
+   curl -i https://api.mentra.glass/health
+   curl -i https://api.mentraglass.com/health
+   ```
+2. Cluster capacity is validated under load. The next-gen LB's
+   `us-west` pool today serves essentially zero traffic, so the
+   us-west cluster has not been load-tested in production.
+3. All nginx ingress configs across regional clusters list both
+   LB hostnames in their `domains:`. Verify with:
+   ```bash
+   for tuple in "4978 australia-east-default" "4696 france-default" \
+                "4689 default" "4977 us-east-default" \
+                "4754 east-asia-default" "4965 us-west-default" \
+                "4753 canada-central-default"; do
+     cid=$(echo "$tuple" | awk '{print $1}')
+     tgt=$(echo "$tuple" | awk '{print $2}')
+     echo "--- cluster $cid ---"
+     porter app yaml cloud-prod --cluster $cid --target $tgt 2>/dev/null \
+       | grep -E "name: api\\.mentra\\.glass|name: api\\.mentraglass\\.com" || \
+       echo "  MISSING ONE OR BOTH LB HOSTNAMES"
+   done
+   ```
+4. Both LBs report all pools healthy. See "Check pool health"
+   below.
+
+### Cutover
+
+Mobile app side:
+
+1. Change the API base URL in the mobile app from
+   `https://api.mentra.glass` to `https://api.mentraglass.com`.
+2. Ship a release. Mobile app update flow takes time; users on
+   stale builds keep hitting the legacy LB until they update.
+3. Both LBs stay live during the migration window. Do not
+   touch the legacy LB until the rollout is far enough along.
+
+Cloud side:
+
+- No change required. Each cluster's nginx ingress already
+  accepts both hostnames, so traffic from either LB lands the
+  same way.
+
+### Post-cutover
+
+Once nearly all mobile clients are on the new build:
+
+1. Watch traffic split between the two LBs in BetterStack.
+   Look at `bstack` queries that group by host header.
+2. After a soak period (weeks, not days, because of mobile
+   update lag), retire the legacy LB:
+   - Delete the `api.mentra.glass` LB record.
+   - Optionally keep the `mentra.glass` zone for legacy
+     redirects; the zone itself doesn't need to go.
+
+### Promoting `us-west` separately (without the cutover)
+
+If the cutover is delayed but you want WNAM users on the legacy
+LB to start using `us-west`, add the `us-west` pool ID
+(`d2cd10f549c74159581d5963aad2ec28`) to the legacy LB's WNAM
+region pool list:
+
+- Place ahead of `uscentral` to prefer `us-west` for WNAM,
+  with `uscentral` as failover. This is the migration path if
+  you want to shift west-coast traffic off `uscentral` before
+  the mobile app cutover.
+- Place behind `uscentral` to keep `uscentral` primary and use
+  `us-west` only as failover. Lower risk; useful as a smoke
+  test.
+
+This duplicates `us-west` into both LBs and is a temporary
+state. Remove from the legacy LB after the mobile app cutover
+completes.
 
 ## Re-enabling `us-east`
 
@@ -503,8 +607,8 @@ that cluster often fail. When that's resolved:
      -d '{"monitor": "<NEW_MONITOR_ID>"}'
    ```
 4. Add the pool to one of the LBs' region maps. Likely ENAM in
-   the secondary LB first, then promote to the production LB
-   after a soak period.
+   the next-gen LB first, then add to the legacy LB only if
+   needed before the mobile cutover.
 
 ## Common operational tasks
 
@@ -562,14 +666,14 @@ CF_TOKEN=$(doppler secrets get CLOUDFLARE_LB_API_TOKEN \
 ACCOUNT_ID=3c764e987404b8a1199ce5fdc3544a94
 
 # Both LBs (one per zone)
-PROD_ZONE=5bb5c71a90dc175143eb10edaad85d49
-PROD_LB=0d6e09e5427a8b94d3ce47f58496e1b8
-SECONDARY_ZONE=86a59033615f078d613b3cd22fd30c44
-SECONDARY_LB=b34e8b4b2d960e78ba48fa235f4742c2
+LEGACY_ZONE=5bb5c71a90dc175143eb10edaad85d49
+LEGACY_LB=0d6e09e5427a8b94d3ce47f58496e1b8
+NEXTGEN_ZONE=86a59033615f078d613b3cd22fd30c44
+NEXTGEN_LB=b34e8b4b2d960e78ba48fa235f4742c2
 
-curl -s "https://api.cloudflare.com/client/v4/zones/$PROD_ZONE/load_balancers/$PROD_LB" \
+curl -s "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$PROD_LB" \
   -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
-curl -s "https://api.cloudflare.com/client/v4/zones/$SECONDARY_ZONE/load_balancers/$SECONDARY_LB" \
+curl -s "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$SECONDARY_LB" \
   -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
 
 # All pools (account-wide; same pools serve both LBs)

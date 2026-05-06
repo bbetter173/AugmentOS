@@ -128,29 +128,27 @@ export function MiniAppCapsuleMenu({
     try {
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
-        quality: 0.1,
+        quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
       })
       const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
         RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
       })
       let amountToChop = insets.top * PixelRatio.get()
       amountToChop = 0
-      const context = ImageManipulator.ImageManipulator.manipulate(uri)
-      context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
-      const imageRef = await context.renderAsync()
-      const cropped = await imageRef.saveAsync({
-        format: ImageManipulator.SaveFormat.JPEG,
-        compress: 0.1,
-      })
 
       if (Platform.OS === "ios") {
+        const context = ImageManipulator.ImageManipulator.manipulate(uri)
+        context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
+        const imageRef = await context.renderAsync()
+        const cropped = await imageRef.saveAsync({
+          format: ImageManipulator.SaveFormat.JPEG,
+          compress: 0.1,
+        })
         await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
       } else {
         // android is weird and the crop doesn't work properly:
-        await useAppStatusStore.getState().saveScreenshot(packageName, uri)
+        useAppStatusStore.getState().saveScreenshot(packageName, uri)
       }
-
-      console.log("saved screenshot for", packageName, cropped.uri)
 
       // await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
       // await useAppStatusStore.getState().saveScreenshot(packageName, uri)

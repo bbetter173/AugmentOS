@@ -14,10 +14,12 @@ export default function ConnectedSimulatedGlassesInfo({
   style,
   mirrorStyle,
   showHeader = true,
+  showConnectButton = true,
 }: {
   style?: ViewStyle
   mirrorStyle?: ViewStyle
   showHeader?: boolean
+  showConnectButton?: boolean
 }) {
   const {theme} = useAppTheme()
   const [permission, requestPermission] = useCameraPermissions()
@@ -81,14 +83,16 @@ export default function ConnectedSimulatedGlassesInfo({
       {/* <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
           <Icon name="fullscreen" size={24} color={theme.colors.secondary_foreground} />
         </TouchableOpacity> */}
-      <Button
-        className="mt-3"
-        flex={false}
-        flexContainer={false}
-        tx="home:connectGlasses"
-        preset="primary"
-        onPress={() => push("/pairing/select-glasses-model")}
-      />
+      {showConnectButton && (
+        <Button
+          className="mt-3"
+          flex={false}
+          flexContainer={false}
+          tx="home:connectGlasses"
+          preset="primary"
+          onPress={() => push("/pairing/select-glasses-model")}
+        />
+      )}
     </GlassView>
   )
 }

@@ -40,7 +40,7 @@ export default function Homepage() {
       // timeout allows for screenshots to be saved and read back from storage in time:
       BgTimer.setTimeout(() => {
         refreshApps()
-      }, 100)
+      }, 250)
     }, [refreshApps]),
   )
 

@@ -17,12 +17,7 @@ export default function GallerySettingsScreen() {
         <View className="h-24" />
 
         <Group>
-          <GlassView className="bg-neutral-50 p-5">
-            <GlassesDisplayMirror fallbackMessage="Glasses mirror" />
-            {/* <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
-              <Icon name="fullscreen" size={24} color={theme.colors.secondary_foreground} />
-            </TouchableOpacity> */}
-          </GlassView>
+          <ConnectedSimulatedGlassesInfo showHeader={false} showConnectButton={false} />
         </Group>
       </Screen>
     </>

@@ -68,8 +68,7 @@ the pod with the OLD secret value. Two reliable paths:
   restart is what makes the pod read it.
 
 A plain `porter app restart` without re-sync will roll pods
-that read the same (stale) Kubernetes Secret. Verify with the
-env-grep command in `porter-integration.md` if uncertain.
+that read the same (stale) Kubernetes Secret.
 
 If the new secret is required by code that is also new, sequence
 matters: add the secret first, redeploy, then merge the code so

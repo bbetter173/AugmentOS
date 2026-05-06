@@ -69,7 +69,7 @@ class CoreModule : Module() {
             ) { eventName, data -> sendEvent(eventName, data) }
 
             // initialize deviceManager after Bridge is ready
-            deviceManager = deviceManager.getInstance()
+            deviceManager = CoreManager.getInstance()
 
             // Configure observable store event emission
             GlassesStore.store.configure { category, changes ->

@@ -1931,18 +1931,21 @@ class G2 : SGCManager() {
                             mapRawData = fragment
                     )
             sendEvenHubCommand(msg)
+            Bridge.log("G2: sendImageData($containerName) - sent fragment $fragmentIndex")
 
             fragmentIndex++
             offset = end
 
-            // 200ms between fragments
+            // 200ms between fragments — and also before onComplete, so the next tile in
+            // sendImageDataChained gets the same gap before its first fragment (matches iOS,
+            // which awaits 200ms after every fragment including the last).
             if (offset < bmpData.size) {
                 mainHandler.postDelayed({ sendNextFragment() }, 200)
             } else {
                 Bridge.log(
                         "G2: sendImageData($containerName) - $fragmentIndex fragments, ${bmpData.size} bytes"
                 )
-                onComplete?.invoke()
+                mainHandler.postDelayed({ onComplete?.invoke() }, 200)
             }
         }
 

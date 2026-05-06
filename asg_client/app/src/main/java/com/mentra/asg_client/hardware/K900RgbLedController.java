@@ -36,7 +36,6 @@ public class K900RgbLedController {
     // K900 protocol commands
     private static final String K900_CMD_RGB_LED_ON = "cs_ledon";
     private static final String K900_CMD_RGB_LED_OFF = "cs_ledoff";
-    private static final String K900_CMD_RGB_LED_SET_LEVEL = "cs_ledsetlevel";
 
     // RGB LED color indices
     public static final int RGB_LED_RED = 0;
@@ -57,48 +56,6 @@ public class K900RgbLedController {
     public K900RgbLedController(K900BluetoothManager bluetoothManager) {
         this.bluetoothManager = bluetoothManager;
         Log.d(TAG, "🚨 K900 RGB LED Controller initialized");
-    }
-
-    /**
-     * Set RGB LED brightness level
-     * @param brightness Brightness level (0-255, where 255 is maximum brightness)
-     * @return true if command was sent successfully, false otherwise
-     */
-    public boolean setBrightness(int brightness) {
-        Log.d(TAG, "🚨 Setting RGB LED brightness: " + brightness);
-
-        // Validate brightness range
-        if (brightness < 0 || brightness > 255) {
-            Log.e(TAG, "❌ Invalid brightness value: " + brightness + " (must be 0-255)");
-            return false;
-        }
-
-        try {
-            // Build K900 protocol command for LED brightness control
-            JSONObject k900Command = new JSONObject();
-            k900Command.put("C", K900_CMD_RGB_LED_SET_LEVEL);
-            k900Command.put("V", 1);  // Version field
-
-            JSONObject levelParams = new JSONObject();
-            levelParams.put("current", 0);  // Current LED index (0 for all)
-            levelParams.put("brightness", brightness);
-            k900Command.put("B", levelParams.toString());
-
-            // Send command to glasses
-            boolean sent = sendK900Command(k900Command);
-
-            if (sent) {
-                Log.i(TAG, "✅ RGB LED brightness command sent successfully to glasses (brightness: " + brightness + ")");
-            } else {
-                Log.e(TAG, "❌ Failed to send RGB LED brightness command to glasses");
-            }
-
-            return sent;
-
-        } catch (JSONException e) {
-            Log.e(TAG, "💥 Error building RGB LED brightness command", e);
-            return false;
-        }
     }
 
     /**
@@ -146,11 +103,6 @@ public class K900RgbLedController {
                 getColorName(ledIndex), ontime, offtime, count, brightness));
 
         try {
-            // Set brightness first if not at max
-            if (brightness < 255) {
-                setBrightness(brightness);
-            }
-
             // Build K900 protocol command
             JSONObject k900Command = new JSONObject();
             k900Command.put("C", K900_CMD_RGB_LED_ON);
@@ -240,11 +192,6 @@ public class K900RgbLedController {
         }
 
         try {
-            // Set brightness first if not at max
-            if (brightness < 255) {
-                setBrightness(brightness);
-            }
-
             // Build K900 protocol command for white flash
             JSONObject k900Command = new JSONObject();
             k900Command.put("C", K900_CMD_RGB_LED_ON);
@@ -298,11 +245,6 @@ public class K900RgbLedController {
         }
 
         try {
-            // Set brightness first if not at max
-            if (brightness < 255) {
-                setBrightness(brightness);
-            }
-
             // Build K900 protocol command for solid white LED
             JSONObject k900Command = new JSONObject();
             k900Command.put("C", K900_CMD_RGB_LED_ON);

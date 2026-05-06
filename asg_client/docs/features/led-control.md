@@ -19,7 +19,7 @@ A single privacy LED on the glasses, controlled directly by the Android (MTK) So
 The colored LEDs visible on the glasses themselves. Controlled by the BES microcontroller, addressed from MTK by sending K900 protocol commands over UART.
 
 - Owned by: `K900RgbLedController` (`hardware/K900RgbLedController.java`)
-- K900 commands: `cs_ledon`, `cs_ledoff`, `cs_ledsetlevel`
+- K900 commands used by the phone-facing API: `cs_ledon`, `cs_ledoff`
 - Public API entry point from the phone: [`rgb_led_control_on` / `rgb_led_control_off` / `rgb_led_photo_flash` / `rgb_led_video_solid`](../ASG_CLIENT_API.md#rgb-led-control)
 - Available colors (LED index): `0=red`, `1=green`, `2=blue`, `3=orange`, `4=white`
 
@@ -68,6 +68,8 @@ Bounds:
 - `ontime` / `offtime` — milliseconds, ≥ 0
 - `count` — cycles, ≥ 0
 - `brightness` — 0 … 255 (`DEFAULT_RGB_LED_BRIGHTNESS = 100`)
+
+Current Mentra Live firmware applies RGB color and pattern, but does not support RGB brightness control. The ASG client accepts the field for legacy command compatibility, but the K900 command path ignores it and does not send a separate brightness command.
 
 ## Phone-facing commands
 

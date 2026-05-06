@@ -484,6 +484,8 @@ Controls the RGB LEDs on the glasses themselves (not the local MTK recording LED
 | `count`      | int  | 1                                                 | ≥ 0 cycles                                |
 | `brightness` | int  | `K900RgbLedController.DEFAULT_RGB_LED_BRIGHTNESS` | 0-255                                     |
 
+Current Mentra Live firmware applies RGB color and pattern, but does not support RGB brightness control. The ASG client accepts `brightness` for legacy command compatibility, but the K900 command path ignores it and does not send a separate brightness command.
+
 #### `rgb_led_control_off`
 
 ```json

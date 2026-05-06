@@ -44,9 +44,11 @@ the change.
 ## Doppler-synced secrets
 
 Porter pulls secrets from Doppler at deploy time via the Doppler
-integration linked at the project level. Each app's environment
-configuration ("Sync from integration") names which Doppler
-project + config it pulls from. At deploy, Porter writes those
+integration linked at the project level. The integration
+creates a Doppler-managed environment group for each Doppler
+config; each app attaches the env group it needs through the
+standard "Sync environment group" UI (same path as any other
+Porter env group). At deploy time Porter writes the group's
 secrets into the Kubernetes Secret backing the deployment;
 the pod sees them as ordinary `process.env.FOO` values.
 

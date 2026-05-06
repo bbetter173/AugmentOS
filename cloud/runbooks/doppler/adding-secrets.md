@@ -51,24 +51,30 @@ if (!foo) throw new Error("FOO is not set");
 If the secret is required, fail loud at startup. Silent fallbacks
 hide misconfiguration.
 
-### 4. Restart the pods
+### 4. Re-sync Porter and roll the pods
 
-Doppler updates do not flow into a running pod. The pod read its
-env at process start. To roll the pods so they pick up the new
-value:
+Porter pulls secrets from Doppler at deploy time, not at pod
+restart, so a Doppler update plus a plain pod restart can leave
+the pod with the OLD secret value. Two reliable paths:
 
-- Porter dashboard: open the app, click Restart.
-- CLI:
-  `porter app restart <APP_NAME> --cluster <CLUSTER_ID>`
-  (verify the exact subcommand against `porter app --help`).
+- **Trigger a redeploy.** Porter resyncs from Doppler on every
+  deploy. Push a no-op commit to the watched branch, or use
+  Porter dashboard -> the app -> "Redeploy" / "Sync now" button
+  in Settings -> Environment.
+- **Force-resync, then restart.** In the Porter dashboard, open
+  the app's Environment tab, click "Sync now" against the
+  Doppler integration, then restart the pods. The Sync now step
+  is what brings the new value into the Kubernetes Secret; the
+  restart is what makes the pod read it.
 
-A restart is faster than a rebuild. Use restart for env / secret
-changes; use rebuild for code changes.
+A plain `porter app restart` without re-sync will roll pods
+that read the same (stale) Kubernetes Secret. Verify with the
+env-grep command in `porter-integration.md` if uncertain.
 
 If the new secret is required by code that is also new, sequence
-matters: add the secret first, then merge the code, then the
-rebuild picks up both. Otherwise the new pods crashloop until
-the secret lands.
+matters: add the secret first, redeploy, then merge the code so
+the next deploy picks up both. Otherwise the new pods crashloop
+until the secret lands.
 
 ## Verification
 

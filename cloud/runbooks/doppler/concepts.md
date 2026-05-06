@@ -100,13 +100,16 @@ dashboard under a config's Tokens section. Has read access
 to ONE config (or read+write if you grant it). Used by long-
 running services like Porter pods.
 
-Each Porter regional app has a service token scoped to the
-matching config (e.g. `cloud-prod-us-west` reads from
-`mentraos-cloud:prod_us-west`). The token is stored in Porter
-as the env var `DOPPLER_TOKEN`. See `porter-integration.md`.
+Service tokens are used by Porter's Doppler integration on the
+team's behalf to pull secrets at deploy time. The
+`DOPPLER_TOKEN` itself is not present in our running pods; the
+integration handles auth at sync time, and pods see only the
+already-pulled secrets in their env. See
+`porter-integration.md` for the full flow.
 
 Service tokens are revocable. Rotating one means: generate a
-new token, update the consumer (Porter), revoke the old token.
+new token, update the consumer (Porter integration), revoke the
+old token.
 
 ## `doppler run --`
 
@@ -136,25 +139,31 @@ env.
 
 ## How Porter pods get secrets
 
-Each regional Porter app's `porter.yaml` has a `run` line that
-starts with `doppler run`:
+We use Porter's native Doppler integration for production, not
+`doppler run --` at process start. The pod's `run` is just
+`./start.sh` (which is `cd packages/cloud && bun run start`),
+no Doppler CLI involved.
 
-```yaml
-run: doppler run -- bun run start
-```
+Flow at deploy time:
 
-At pod startup:
+1. Porter has a Doppler integration linked to a Doppler service
+   account. The integration is configured per Porter app to pull
+   from a specific Doppler project + config (e.g. `cloud-prod`
+   in central pulls `mentraos-cloud:prod_central-us`).
+2. When Porter deploys, it calls Doppler with the integration's
+   token, fetches the secrets, and writes them into the
+   Kubernetes Secret backing the deployment's env.
+3. The pod starts. Its env block already contains the secrets
+   plus a few Doppler metadata vars (`DOPPLER_PROJECT`,
+   `DOPPLER_CONFIG`, `DOPPLER_ENVIRONMENT`) that mark which
+   config Porter pulled from.
+4. The Bun process reads `process.env.FOO` normally.
 
-1. The container image has the Doppler CLI baked in.
-2. The pod has a `DOPPLER_TOKEN` environment variable set by
-   Porter (a Kubernetes secret). This is a service token
-   scoped to the right project + config.
-3. `doppler run --` reads `DOPPLER_TOKEN`, fetches secrets,
-   exports them, then `exec`s `bun run start`.
-4. The Bun process sees the secrets as ordinary `process.env`
-   values.
+Notice: there is no `DOPPLER_TOKEN` in the pod. That token
+lives in Porter's integration setup, not in the runtime env.
+The Doppler CLI does not run inside the pod.
 
-Doppler updates do not flow into a running pod. The pod read
+Updates do not flow into a running pod. The pod read
 its env at process start. To pick up a new value: restart the
 pod (Porter dashboard or `porter app restart`).
 
@@ -186,11 +195,18 @@ doppler run --project foo --config bar -- cmd       # inject + exec
 
 ## What this means for the cloud
 
-The cloud's process loads secrets at startup via
-`doppler run`. Code reads `process.env.FOO`. Nothing in the
+The cloud's pods get secrets from Doppler via Porter's
+integration at deploy time, not via `doppler run` at process
+start. Code reads `process.env.FOO` either way. Nothing in the
 repo references the actual secret values; everything is by
-name. Secrets are added or rotated in Doppler; pods restart to
-pick them up.
+name. Secrets are added or rotated in Doppler, then pods are
+redeployed (or restarted, which pulls the latest sync) to pick
+them up.
+
+Local dev is the inverse: `doppler run -- <command>` pulls the
+same secrets at command start, exports them as env vars for
+that one process, then exits. Same Doppler config either way;
+the difference is who pulls and when.
 
 Anything tempted to live in `porter.yaml` because it is "just
 a config" should be checked: if it would be embarrassing in a

@@ -1,9 +1,13 @@
 # Doppler
 
 Doppler is our secrets manager. Every secret used by the cloud
-or by team tooling lives here. Production pods load secrets from
-Doppler at process startup; the `bstack` CLI loads its
-credentials the same way.
+or by team tooling lives here. Production pods get their
+secrets via Porter's Doppler integration: Porter pulls from
+Doppler at deploy time and writes the values into the pod's
+env block. Local-dev tools (the `bstack` CLI, dev runs of the
+cloud, etc.) use `doppler run --` to load secrets at process
+start instead. Same source of truth, two different injection
+mechanisms.
 
 We do not check secrets into the repo. We do not put secrets in
 `porter.yaml`. They live in Doppler.
@@ -43,8 +47,10 @@ If you cannot see a project, you have not been added.
 ## Procedures
 
 - `concepts.md`: read first. Explains projects, configs, the
-  difference between personal and service tokens, and how
-  `doppler run --` injects secrets at process startup.
+  difference between personal and service tokens, and the two
+  injection paths: Porter's Doppler integration (deploy-time
+  sync, used in production) vs `doppler run --` (process-start
+  injection, used for local dev and team CLIs).
 - `daily-use.md`: log in, switch projects, read and run with
   secrets locally.
 - `adding-secrets.md`: add a new secret, sync across configs.

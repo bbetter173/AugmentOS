@@ -54,9 +54,10 @@ a cluster, and at the bottom-right of pod-detail pages.
 
 - `../cloudflare/`: traffic flows Cloudflare -> nginx Ingress ->
   Porter pods. The Cloudflare runbook covers the edge layer.
-- `../doppler/`: regional Porter apps inject secrets via
-  `doppler run` at process startup. See
-  `../doppler/porter-integration.md`.
+- `../doppler/`: Porter pulls secrets from Doppler via its
+  native integration at deploy time and writes them into the
+  pod's env. See `../doppler/porter-integration.md` for how
+  the integration is wired and how to verify it.
 - `../betterstack/`: pod stdout is shipped to BetterStack via the
   Vector DaemonSet running in each cluster.
 - `cloud/tools/bstack/runbooks/pod-crash.md` walks through what

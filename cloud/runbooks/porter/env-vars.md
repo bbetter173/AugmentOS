@@ -5,10 +5,11 @@ Porter pods get their environment from two places:
 1. **Static env in `porter.yaml`**: literal values, mostly
    non-sensitive config like `LOG_LEVEL`, `HOST`, `SERVICE_NAME`,
    `RTMP_RELAY_URLS`. Visible in the repo.
-2. **Doppler-injected at startup**: secrets (API keys, DB
-   passwords, JWT secrets, etc.). The pod's `run` command starts
-   with `doppler run --` which loads them at process boot. See
-   `../doppler/porter-integration.md` for how this works.
+2. **Synced from Doppler at deploy time**: secrets (API keys,
+   DB passwords, JWT secrets, etc.). Porter has a Doppler
+   integration that pulls from a project + config and writes
+   the values into the pod's env block. See
+   `../doppler/porter-integration.md` for the full flow.
 
 Anything secret belongs in Doppler. Anything that would be safe
 to commit goes in `porter.yaml`.
@@ -40,25 +41,28 @@ A static env change without a code change still requires a
 rebuild. Pushing the YAML edit alone is enough; Porter detects
 the change.
 
-## Doppler-injected secrets
+## Doppler-synced secrets
 
-The regional Porter apps run with:
+Porter pulls secrets from Doppler at deploy time via the Doppler
+integration linked at the project level. Each app's environment
+configuration ("Sync from integration") names which Doppler
+project + config it pulls from. At deploy, Porter writes those
+secrets into the Kubernetes Secret backing the deployment;
+the pod sees them as ordinary `process.env.FOO` values.
 
-```yaml
-run: doppler run -- bun run start
-```
-
-`doppler run` reads a Doppler service-account token from a
-Porter-side secret called `DOPPLER_TOKEN`, fetches the secrets
-for the configured project + config, exports them as env vars,
-and then execs the rest of the command. The Bun process sees
-the secrets as ordinary `process.env` values.
+The pod's `run` is just `./start.sh` (which is
+`cd packages/cloud && bun run start`). No Doppler CLI runs in
+the pod. You can verify what config a pod was synced from by
+inspecting `DOPPLER_PROJECT`, `DOPPLER_CONFIG`,
+`DOPPLER_ENVIRONMENT` in the pod env (these metadata vars are
+injected by the integration).
 
 To change a secret, you change it in Doppler, not in
 `porter.yaml`. The pod picks up the new value the next time it
 starts (rolling restart, redeploy, or autoscaling event).
 
-See `../doppler/adding-secrets.md` for the full procedure.
+See `../doppler/adding-secrets.md` for the full procedure and
+`../doppler/porter-integration.md` for the integration setup.
 
 ## Forcing pods to pick up a new secret
 

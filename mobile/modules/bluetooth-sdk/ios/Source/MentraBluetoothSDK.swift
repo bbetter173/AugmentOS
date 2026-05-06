@@ -1,5 +1,12 @@
 import Foundation
 
+private func intValue(_ value: Any?) -> Int? {
+    if let int = value as? Int { return int }
+    if let double = value as? Double { return Int(double) }
+    if let number = value as? NSNumber { return number.intValue }
+    return nil
+}
+
 public struct MentraBluetoothSDKConfiguration {
     public static let `default` = MentraBluetoothSDKConfiguration()
 
@@ -219,12 +226,25 @@ public enum MentraPhotoSize: String {
     case small
     case medium
     case large
+    case full
+}
+
+public enum MentraButtonPhotoSize: String {
+    case small
+    case medium
+    case large
+}
+
+public enum MentraPhotoCompression: String {
+    case none
+    case medium
+    case heavy
 }
 
 public struct MentraButtonPhotoSettings {
-    public let size: MentraPhotoSize
+    public let size: MentraButtonPhotoSize
 
-    public init(size: MentraPhotoSize) {
+    public init(size: MentraButtonPhotoSize) {
         self.size = size
     }
 }
@@ -284,20 +304,20 @@ public enum MentraMicPreference: String {
 public struct MentraPhotoRequest {
     public let requestId: String
     public let appId: String
-    public let size: String
+    public let size: MentraPhotoSize
     public let webhookUrl: String?
     public let authToken: String?
-    public let compress: String?
+    public let compress: MentraPhotoCompression?
     public let flash: Bool
     public let sound: Bool
 
     public init(
         requestId: String,
         appId: String,
-        size: String,
+        size: MentraPhotoSize,
         webhookUrl: String? = nil,
         authToken: String? = nil,
-        compress: String? = nil,
+        compress: MentraPhotoCompression? = nil,
         flash: Bool,
         sound: Bool
     ) {
@@ -312,19 +332,218 @@ public struct MentraPhotoRequest {
     }
 }
 
-public struct MentraStreamRequest {
-    public let values: [String: Any]
+public struct MentraStreamVideoConfig {
+    public let width: Int?
+    public let height: Int?
+    public let bitrate: Int?
+    public let frameRate: Int?
 
-    public init(values: [String: Any]) {
-        self.values = values
+    public init(
+        width: Int? = nil,
+        height: Int? = nil,
+        bitrate: Int? = nil,
+        frameRate: Int? = nil
+    ) {
+        self.width = width
+        self.height = height
+        self.bitrate = bitrate
+        self.frameRate = frameRate
+    }
+
+    var dictionary: [String: Any] {
+        var values: [String: Any] = [:]
+        if let width { values["width"] = width }
+        if let height { values["height"] = height }
+        if let bitrate { values["bitrate"] = bitrate }
+        if let frameRate { values["frameRate"] = frameRate }
+        return values
+    }
+
+    init?(values: [String: Any]?) {
+        guard let values else { return nil }
+        self.init(
+            width: intValue(values["width"] ?? values["w"]),
+            height: intValue(values["height"] ?? values["h"]),
+            bitrate: intValue(values["bitrate"] ?? values["br"]),
+            frameRate: intValue(values["frameRate"] ?? values["fr"])
+        )
+    }
+}
+
+public struct MentraStreamAudioConfig {
+    public let bitrate: Int?
+    public let sampleRate: Int?
+    public let echoCancellation: Bool?
+    public let noiseSuppression: Bool?
+
+    public init(
+        bitrate: Int? = nil,
+        sampleRate: Int? = nil,
+        echoCancellation: Bool? = nil,
+        noiseSuppression: Bool? = nil
+    ) {
+        self.bitrate = bitrate
+        self.sampleRate = sampleRate
+        self.echoCancellation = echoCancellation
+        self.noiseSuppression = noiseSuppression
+    }
+
+    var dictionary: [String: Any] {
+        var values: [String: Any] = [:]
+        if let bitrate { values["bitrate"] = bitrate }
+        if let sampleRate { values["sampleRate"] = sampleRate }
+        if let echoCancellation { values["echoCancellation"] = echoCancellation }
+        if let noiseSuppression { values["noiseSuppression"] = noiseSuppression }
+        return values
+    }
+
+    init?(values: [String: Any]?) {
+        guard let values else { return nil }
+        self.init(
+            bitrate: intValue(values["bitrate"] ?? values["br"]),
+            sampleRate: intValue(values["sampleRate"] ?? values["sr"]),
+            echoCancellation: values["echoCancellation"] as? Bool ?? values["ec"] as? Bool,
+            noiseSuppression: values["noiseSuppression"] as? Bool ?? values["ns"] as? Bool
+        )
+    }
+}
+
+public struct MentraStreamRequest {
+    public let streamUrl: String
+    public let streamId: String
+    public let keepAlive: Bool
+    public let keepAliveIntervalSeconds: Int
+    public let flash: Bool
+    public let sound: Bool
+    public let video: MentraStreamVideoConfig?
+    public let audio: MentraStreamAudioConfig?
+    public let extraValues: [String: Any]
+
+    public init(
+        streamUrl: String,
+        streamId: String = "",
+        keepAlive: Bool = true,
+        keepAliveIntervalSeconds: Int = 15,
+        flash: Bool = true,
+        sound: Bool = true,
+        video: MentraStreamVideoConfig? = nil,
+        audio: MentraStreamAudioConfig? = nil,
+        extraValues: [String: Any] = [:]
+    ) {
+        self.streamUrl = streamUrl
+        self.streamId = streamId
+        self.keepAlive = keepAlive
+        self.keepAliveIntervalSeconds = keepAliveIntervalSeconds
+        self.flash = flash
+        self.sound = sound
+        self.video = video
+        self.audio = audio
+        self.extraValues = extraValues
+    }
+
+    init(values: [String: Any]) {
+        self.init(
+            streamUrl: values["streamUrl"] as? String
+                ?? values["rtmpUrl"] as? String
+                ?? values["srtUrl"] as? String
+                ?? values["whipUrl"] as? String
+                ?? "",
+            streamId: values["streamId"] as? String ?? "",
+            keepAlive: values["keepAlive"] as? Bool ?? true,
+            keepAliveIntervalSeconds: intValue(values["keepAliveIntervalSeconds"]) ?? 15,
+            flash: values["flash"] as? Bool ?? true,
+            sound: values["sound"] as? Bool ?? true,
+            video: MentraStreamVideoConfig(values: (values["video"] ?? values["v"]) as? [String: Any]),
+            audio: MentraStreamAudioConfig(values: (values["audio"] ?? values["a"]) as? [String: Any]),
+            extraValues: values
+        )
+    }
+
+    public var values: [String: Any] {
+        var values = extraValues
+        values["type"] = "start_stream"
+        values["streamUrl"] = streamUrl
+        values["streamId"] = streamId
+        values["keepAlive"] = keepAlive
+        values["keepAliveIntervalSeconds"] = keepAliveIntervalSeconds
+        values["flash"] = flash
+        values["sound"] = sound
+        if let videoValues = video?.dictionary, !videoValues.isEmpty {
+            values["video"] = videoValues
+        }
+        if let audioValues = audio?.dictionary, !audioValues.isEmpty {
+            values["audio"] = audioValues
+        }
+        return values
     }
 }
 
 public struct MentraStreamKeepAliveRequest {
-    public let values: [String: Any]
+    public let streamId: String
+    public let ackId: String
+    public let extraValues: [String: Any]
 
-    public init(values: [String: Any]) {
-        self.values = values
+    public init(streamId: String, ackId: String, extraValues: [String: Any] = [:]) {
+        self.streamId = streamId
+        self.ackId = ackId
+        self.extraValues = extraValues
+    }
+
+    init(values: [String: Any]) {
+        self.init(
+            streamId: values["streamId"] as? String ?? "",
+            ackId: values["ackId"] as? String ?? "",
+            extraValues: values
+        )
+    }
+
+    public var values: [String: Any] {
+        var values = extraValues
+        values["type"] = "keep_stream_alive"
+        values["streamId"] = streamId
+        values["ackId"] = ackId
+        return values
+    }
+}
+
+public enum MentraRgbLedAction: String {
+    case on
+    case off
+}
+
+public enum MentraRgbLedColor: String {
+    case red
+    case green
+    case blue
+    case orange
+    case white
+}
+
+public struct MentraRgbLedRequest {
+    public let requestId: String
+    public let packageName: String?
+    public let action: MentraRgbLedAction
+    public let color: MentraRgbLedColor?
+    public let ontime: Int
+    public let offtime: Int
+    public let count: Int
+
+    public init(
+        requestId: String,
+        packageName: String?,
+        action: MentraRgbLedAction,
+        color: MentraRgbLedColor?,
+        ontime: Int,
+        offtime: Int,
+        count: Int
+    ) {
+        self.requestId = requestId
+        self.packageName = packageName
+        self.action = action
+        self.color = color
+        self.ontime = ontime
+        self.offtime = offtime
+        self.count = count
     }
 }
 
@@ -616,10 +835,10 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.photoRequest(
             request.requestId,
             request.appId,
-            request.size,
+            request.size.rawValue,
             request.webhookUrl,
             request.authToken,
-            request.compress,
+            request.compress?.rawValue,
             request.flash,
             request.sound
         )
@@ -635,6 +854,18 @@ public final class MentraBluetoothSDK {
 
     public func keepStreamAlive(_ request: MentraStreamKeepAliveRequest) {
         CoreManager.shared.keepStreamAlive(request.values)
+    }
+
+    public func rgbLedControl(_ request: MentraRgbLedRequest) {
+        CoreManager.shared.rgbLedControl(
+            requestId: request.requestId,
+            packageName: request.packageName,
+            action: request.action.rawValue,
+            color: request.color?.rawValue,
+            ontime: request.ontime,
+            offtime: request.offtime,
+            count: request.count
+        )
     }
 
     public func stopStream() {

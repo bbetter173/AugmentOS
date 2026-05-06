@@ -135,6 +135,44 @@ export type RgbLedControlResponseEvent = {
   error?: string
 }
 
+export type RgbLedAction = "on" | "off"
+export type RgbLedColor = "red" | "green" | "blue" | "orange" | "white"
+export type PhotoSize = "small" | "medium" | "large" | "full"
+export type ButtonPhotoSize = "small" | "medium" | "large"
+export type PhotoCompression = "none" | "medium" | "heavy"
+
+export type StreamVideoConfig = {
+  width?: number
+  height?: number
+  bitrate?: number
+  frameRate?: number
+}
+
+export type StreamAudioConfig = {
+  bitrate?: number
+  sampleRate?: number
+  echoCancellation?: boolean
+  noiseSuppression?: boolean
+}
+
+export type StreamStartRequest = {
+  type?: "start_stream"
+  streamUrl: string
+  streamId?: string
+  keepAlive?: boolean
+  keepAliveIntervalSeconds?: number
+  flash?: boolean
+  sound?: boolean
+  video?: StreamVideoConfig
+  audio?: StreamAudioConfig
+}
+
+export type StreamKeepAliveRequest = {
+  type?: "keep_stream_alive"
+  streamId: string
+  ackId: string
+}
+
 export type PairFailureEvent = {
   type: "pair_failure"
   error: string

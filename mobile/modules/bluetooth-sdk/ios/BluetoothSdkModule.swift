@@ -243,10 +243,10 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
                     MentraPhotoRequest(
                         requestId: requestId,
                         appId: appId,
-                        size: size,
+                        size: MentraPhotoSize(rawValue: size) ?? .medium,
                         webhookUrl: webhookUrl,
                         authToken: authToken,
-                        compress: compress,
+                        compress: compress.flatMap(MentraPhotoCompression.init(rawValue:)),
                         flash: flash,
                         sound: sound
                     )
@@ -344,23 +344,31 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
                 ontime: Int, offtime: Int, count: Int
             ) in
             await MainActor.run {
-                CoreManager.shared.rgbLedControl(
-                    requestId: requestId,
-                    packageName: packageName,
-                    action: action,
-                    color: color,
-                    ontime: ontime,
-                    offtime: offtime,
-                    count: count
+                self.bluetoothSdk().rgbLedControl(
+                    MentraRgbLedRequest(
+                        requestId: requestId,
+                        packageName: packageName,
+                        action: MentraRgbLedAction(rawValue: action) ?? .off,
+                        color: color.flatMap(MentraRgbLedColor.init(rawValue:)),
+                        ontime: ontime,
+                        offtime: offtime,
+                        count: count
+                    )
                 )
             }
         }
 
         // MARK: - Microphone Commands
 
-        AsyncFunction("setMicState") { (_: Bool, _: Bool, _: Bool) in
+        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
             await MainActor.run {
-                CoreManager.shared.setMicState()
+                self.bluetoothSdk().setMicState(
+                    MentraMicConfiguration(
+                        sendPcmData: sendPcmData,
+                        sendTranscript: sendTranscript,
+                        bypassVad: bypassVad
+                    )
+                )
             }
         }
 

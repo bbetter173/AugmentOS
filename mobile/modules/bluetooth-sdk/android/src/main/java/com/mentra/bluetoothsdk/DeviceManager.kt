@@ -1328,7 +1328,7 @@ class CoreManager {
             appId: String,
             size: String,
             webhookUrl: String,
-            authToken: String,
+            authToken: String?,
             compress: String,
             flash: Boolean,
             sound: Boolean

@@ -61,14 +61,14 @@ class BlePhotoUploadService {
      *   - imageData: Raw image data (AVIF or JPEG)
      *   - requestId: Original request ID for tracking
      *   - webhookUrl: Destination webhook URL
-     *   - authToken: Authentication token for upload
+     *   - authToken: Optional authentication token for upload
      *   - callback: Callback for success/error
      */
     static func processAndUploadPhoto(
         imageData: Data,
         requestId: String,
         webhookUrl: String,
-        authToken: String
+        authToken: String?
     ) {
         Task {
             do {
@@ -2998,13 +2998,9 @@ class MentraLive: NSObject, SGCManager {
     private func processAndUploadBlePhoto(_ transfer: BlePhotoTransfer, imageData: Data) {
         Bridge.log("LIVE: Processing BLE photo for upload. RequestId: \(transfer.requestId)")
 
-        // authToken is optional - webhook may not require authentication
-        // If provided in transfer, use it; otherwise pass empty string (uploadToWebhook handles this)
-        let authToken: String = transfer.authToken ?? ""
-
         BlePhotoUploadService.processAndUploadPhoto(
             imageData: imageData, requestId: transfer.requestId, webhookUrl: transfer.webhookUrl,
-            authToken: authToken
+            authToken: transfer.authToken
         )
     }
 

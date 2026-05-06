@@ -7,6 +7,12 @@ import {
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
+  PhotoCompression,
+  PhotoSize,
+  RgbLedAction,
+  RgbLedColor,
+  StreamKeepAliveRequest,
+  StreamStartRequest,
 } from "./BluetoothSdk.types"
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void
@@ -55,10 +61,10 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   photoRequest(
     requestId: string,
     appId: string,
-    size: string,
+    size: PhotoSize,
     webhookUrl: string | null,
     authToken: string | null,
-    compress: string,
+    compress: PhotoCompression,
     flash: boolean,
     sound: boolean,
   ): Promise<void>
@@ -74,9 +80,9 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   stopVideoRecording(requestId: string): Promise<void>
 
   // Stream Commands
-  startStream(params: Record<string, any>): Promise<void>
+  startStream(params: StreamStartRequest): Promise<void>
   stopStream(): Promise<void>
-  keepStreamAlive(params: Record<string, any>): Promise<void>
+  keepStreamAlive(params: StreamKeepAliveRequest): Promise<void>
 
   // Microphone Commands
   setMicState(sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean): Promise<void>
@@ -96,8 +102,8 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   rgbLedControl(
     requestId: string,
     packageName: string | null,
-    action: string,
-    color: string | null,
+    action: RgbLedAction,
+    color: RgbLedColor | null,
     ontime: number,
     offtime: number,
     count: number,

@@ -211,10 +211,10 @@ class MentraBluetoothSdk private constructor(
         deviceManager.photoRequest(
             request.requestId,
             request.appId,
-            request.size,
+            request.size.value,
             request.webhookUrl,
             request.authToken,
-            request.compress,
+            request.compress.value,
             request.flash,
             request.sound,
         )
@@ -225,11 +225,23 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun startStream(request: MentraStreamRequest) {
-        deviceManager.startStream(request.values.toMutableMap())
+        deviceManager.startStream(request.toMap().toMutableMap())
     }
 
     fun keepStreamAlive(request: MentraStreamKeepAliveRequest) {
-        deviceManager.keepStreamAlive(request.values.toMutableMap())
+        deviceManager.keepStreamAlive(request.toMap().toMutableMap())
+    }
+
+    fun rgbLedControl(request: MentraRgbLedRequest) {
+        deviceManager.rgbLedControl(
+            request.requestId,
+            request.packageName,
+            request.action.value,
+            request.color?.value,
+            request.ontime,
+            request.offtime,
+            request.count,
+        )
     }
 
     fun stopStream() {

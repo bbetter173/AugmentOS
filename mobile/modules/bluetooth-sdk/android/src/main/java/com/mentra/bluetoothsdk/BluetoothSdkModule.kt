@@ -295,7 +295,7 @@ class CoreModule : Module() {
                 appId: String,
                 size: String,
                 webhookUrl: String,
-                authToken: String,
+                authToken: String?,
                 compress: String,
                 flash: Boolean,
                 sound: Boolean ->
@@ -303,10 +303,10 @@ class CoreModule : Module() {
                     MentraPhotoRequest(
                             requestId = requestId,
                             appId = appId,
-                            size = size,
+                            size = MentraPhotoSize.fromValue(size),
                             webhookUrl = webhookUrl,
                             authToken = authToken,
-                            compress = compress,
+                            compress = MentraPhotoCompression.fromValue(compress),
                             flash = flash,
                             sound = sound,
                     )
@@ -340,13 +340,13 @@ class CoreModule : Module() {
         // MARK: - Stream Commands
 
         AsyncFunction("startStream") { params: Map<String, Any> ->
-            sdk?.startStream(MentraStreamRequest(params))
+            sdk?.startStream(MentraStreamRequest.fromMap(params))
         }
 
         AsyncFunction("stopStream") { sdk?.stopStream() }
 
         AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
-            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest(params))
+            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest.fromMap(params))
         }
 
         // MARK: - Microphone Commands
@@ -386,14 +386,16 @@ class CoreModule : Module() {
                 ontime: Int,
                 offtime: Int,
                 count: Int ->
-            deviceManager?.rgbLedControl(
-                    requestId,
-                    packageName,
-                    action,
-                    color,
-                    ontime,
-                    offtime,
-                    count
+            sdk?.rgbLedControl(
+                    MentraRgbLedRequest(
+                            requestId = requestId,
+                            packageName = packageName,
+                            action = MentraRgbLedAction.fromValue(action),
+                            color = MentraRgbLedColor.fromValue(color),
+                            ontime = ontime,
+                            offtime = offtime,
+                            count = count,
+                    )
             )
         }
 

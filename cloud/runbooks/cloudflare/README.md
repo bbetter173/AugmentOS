@@ -1,87 +1,89 @@
 # Cloudflare
 
-We use Cloudflare for DNS, edge proxy (HTTP/WebSocket), and DDoS
-protection. Public traffic flows through Cloudflare into our
-nginx ingress in AKS, then to the Porter pods.
+We use Cloudflare for two distinct things:
 
-```
-Mobile / browser
-  -> Cloudflare (DNS + edge proxy)
-    -> nginx Ingress (in AKS)
-      -> Porter pod (Bun process)
-```
-
-UDP audio is the exception: Cloudflare's proxy does not support
-UDP, so UDP traffic uses a "DNS only" Cloudflare record (gray
-cloud) and goes directly to the LoadBalancer IP. See
-`cloud/issues/udp-loadbalancer/udp-loadbalancer-architecture.md`
-for the historical design.
+1. **Regional load balancer** (`api.mentra.glass`). Geo-steers
+   user traffic to the nearest healthy Porter cluster. This is
+   the operational thing the team works with day to day. See
+   `load-balancer.md`.
+2. **DNS + edge proxy** for everything else: web properties,
+   regional origin hostnames, the dev console, etc. Standard
+   Cloudflare DNS; orange cloud on most records, gray cloud on
+   anything that has to bypass the proxy (UDP audio, the LB
+   origin hostnames).
 
 ## Access
 
 You need a Cloudflare account that has been added to the Mentra
-zone. Ask Isaiah or Israelov.
+account. Ask Isaiah or Israelov.
 
 - Dashboard: https://dash.cloudflare.com/
-- API tokens are in Doppler if you need scripted access.
+- API token for the LB lives in Doppler under the `mentra-sre`
+  project (`CLOUDFLARE_LB_API_TOKEN`).
+- Account-wide tokens live in Doppler under `mentraos-cloud`
+  (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
 
-## What lives in Cloudflare
+Pull a token for ad-hoc API work:
 
-- DNS records for every public-facing hostname
-  (`uscentralapi.mentraglass.com`, `useastapi.mentraglass.com`,
-  `uswestapi.mentraglass.com`, `*.mentra.glass` web properties,
-  the Porter dashboards, etc.).
-- Edge proxy (orange cloud) for HTTP/WebSocket traffic.
-- Page Rules / Configuration Rules (when needed).
-- WAF rules (when needed). Keep the rule set small; surprising
-  WAF blocks are hard to debug from inside the app.
+```bash
+CF_TOKEN=$(doppler secrets get CLOUDFLARE_LB_API_TOKEN \
+  --project mentra-sre --config dev --plain)
+curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+  -H "Authorization: Bearer $CF_TOKEN"
+```
+
+## Zones we own
+
+20+ zones (`mentra.glass`, `mentraglass.com`, `mentraos.com`,
+several brand-redirect domains). The two that matter for the API
+load balancer:
+
+- `mentra.glass` (zone id `5bb5c71a90dc175143eb10edaad85d49`):
+  hosts the public `api.mentra.glass` LB record.
+- `mentraglass.com` (zone id `86a59033615f078d613b3cd22fd30c44`):
+  hosts the per-region origin hostnames the LB points at
+  (`uscentralapi.mentraglass.com`,
+  `franceapi.mentraglass.com`, etc.).
+
+The rest are web properties, brand redirects, or unused. List
+them with the API:
+
+```bash
+CF_TOKEN=$(doppler secrets get CLOUDFLARE_LB_API_TOKEN \
+  --project mentra-sre --config dev --plain)
+ACCOUNT_ID=3c764e987404b8a1199ce5fdc3544a94
+curl -s "https://api.cloudflare.com/client/v4/zones?account.id=$ACCOUNT_ID" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  | python3 -c "import sys,json; r=json.load(sys.stdin); [print(z['id'], z['name']) for z in r['result']]"
+```
 
 ## Procedures
 
-- `load-balancer.md`: how the load balancer is set up, the idle
-  timeout that bites WebSockets, DNS-only mode for UDP, common
-  audit checklist.
+- `load-balancer.md`: how `api.mentra.glass` is configured,
+  what pools exist, and how to add a new region or cluster to
+  the rotation.
 
 ## Things to know before changing anything
 
-1. **The 100-second idle timeout.** Cloudflare drops idle
-   WebSockets at around 100s. Our SDK and cloud already exchange
-   pings well below that interval. If you change the ping
-   cadence, verify the new interval is well under 100s.
-2. **Orange cloud vs gray cloud.** Orange = proxied through
-   Cloudflare (TCP/HTTP/WS, also gives DDoS protection). Gray =
-   DNS only, traffic goes straight to the origin IP. UDP must be
-   gray. If you flip a UDP record to orange, UDP stops working.
-3. **DNS changes propagate fast inside Cloudflare** (seconds)
-   but external resolvers can cache for the record TTL. Plan
-   accordingly.
-4. **Cache Rules can serve stale responses.** We do not currently
-   cache API responses, but if you add a Page Rule or Cache Rule,
-   double-check it does not catch a hostname that should never be
-   cached.
-
-## Audit checklist
-
-Quarterly or after any infra change:
-
-- [ ] DNS records match what Porter / AKS actually exposes
-- [ ] No DNS records pointing at old IPs / decommissioned regions
-- [ ] WAF rules (if any) reviewed for false positives in logs
-- [ ] No Page Rules or Cache Rules caching API responses
-- [ ] TLS settings: at least TLS 1.2, full strict mode if origin
-      has a valid cert
-- [ ] HSTS still enabled for production hostnames
-- [ ] All API hostnames have orange cloud (proxied)
-- [ ] UDP-related records still gray cloud (DNS only)
-
-`load-balancer.md` has the screenshots and walk-through for the
-audit.
+- **Orange vs gray cloud.** Orange = proxied through Cloudflare
+  (TLS termination, DDoS protection). Gray = DNS only, traffic
+  goes direct to the origin IP. The LB hostname is orange, the
+  per-region origin hostnames are gray. Flipping these breaks
+  things.
+- **The 100-second WebSocket idle timeout.** Cloudflare drops
+  idle WebSockets at ~100s. Application-level pings handle this
+  in normal operation. See `load-balancer.md`.
+- **The LB API token is scoped to LB only.** It does not have
+  DNS read or write. For DNS work, use the
+  `CLOUDFLARE_API_TOKEN` from `mentraos-cloud`.
 
 ## Related
 
-- `../porter/`: what runs behind nginx ingress.
+- `../porter/`: the Porter clusters that the LB steers to.
+  `porter/deploys.md` covers per-cluster `cloud-prod` deploys.
+- `../doppler/`: where Cloudflare API tokens live.
 - `../infra.md`: full traffic flow including BetterStack and
   Vector.
-- `cloud/issues/udp-loadbalancer/`: history of how the
-  UDP-direct path got set up. Useful context if you ever change
-  it.
+- `cloud/issues/udp-loadbalancer/`: history of the UDP-direct
+  path used for audio. Kept on a gray-cloud DNS record because
+  Cloudflare's proxy does not handle UDP.

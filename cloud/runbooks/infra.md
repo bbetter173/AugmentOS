@@ -187,7 +187,10 @@ streamers.
 
 ## Porter Cloud Configuration
 
-From `cloud/porter.yaml` (verify in repo for current values):
+From `cloud/porter.yaml` as a reference shape; verify the deployed
+values in the Porter dashboard or with
+`porter app yaml cloud-prod --cluster <ID> --target <TARGET>`,
+since repo yamls can drift from what is actually running:
 
 - **CPU limit:** 5 cores
 - **Memory limit:** 4096 MB (4 GB)

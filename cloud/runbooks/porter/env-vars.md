@@ -121,18 +121,19 @@ without exec-ing into it. Two practical paths:
   `doppler secrets --project <project> --config <config>`
 - **Repo** for static values: grep `cloud/porter*.yaml`.
 
-For an exhaustive view, run a one-off command in an ephemeral
-copy pod via `porter app run`:
+For an exhaustive view of which env vars are set (names only,
+not values, so it is safe to share output), run a one-off
+command in an ephemeral copy pod via `porter app run`:
 
 ```bash
 porter app run cloud-prod --cluster <CLUSTER_ID> --target <TARGET> -- \
-  sh -c 'env | sort'
+  sh -c 'env | cut -d= -f1 | sort'
 ```
 
-This spins up a copy of the deployment with the same env, runs
-the command, and tears down. Touches no production traffic, but
-prints whatever secrets are in env, so do not paste output into
-a public channel.
+This spins up a copy of the deployment with the same env, lists
+the variable names (no values), and tears down. Touches no
+production traffic. To check a specific value, do a presence
+check rather than printing it (see `../doppler/adding-secrets.md`).
 
 ## Common mistakes
 

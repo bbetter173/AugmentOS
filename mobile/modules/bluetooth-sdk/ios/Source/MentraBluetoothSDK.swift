@@ -833,7 +833,9 @@ public final class MentraBluetoothSDK {
             }
         }
         storeListenerId = GlassesStore.shared.store.addListener { [weak self] category, changes in
-            self?.dispatchStoreUpdate(category, changes)
+            Task { @MainActor [weak self] in
+                self?.dispatchStoreUpdate(category, changes)
+            }
         }
     }
 

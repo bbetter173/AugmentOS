@@ -15,7 +15,7 @@ export default function GallerySettingsScreen() {
         <View className="h-24" />
 
         <Group>
-          <ConnectedSimulatedGlassesInfo showHeader={false} />
+          <ConnectedSimulatedGlassesInfo showHeader={false} showConnectButton={false} />
         </Group>
       </Screen>
     </>

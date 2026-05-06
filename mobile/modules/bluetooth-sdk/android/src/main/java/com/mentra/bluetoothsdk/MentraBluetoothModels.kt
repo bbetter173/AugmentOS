@@ -421,6 +421,34 @@ data class MentraLocalTranscriptionEvent(
     val values: Map<String, Any>,
 )
 
+data class MentraGlassesMediaVolumeGetResult(
+    val volume: Int?,
+    val statusCode: Int?,
+    val values: Map<String, Any>,
+) {
+    companion object {
+        fun fromMap(values: Map<String, Any>): MentraGlassesMediaVolumeGetResult =
+            MentraGlassesMediaVolumeGetResult(
+                volume = numberValue(values, "vol", "volume"),
+                statusCode = (values["statusCode"] as? Number)?.toInt(),
+                values = values,
+            )
+    }
+}
+
+data class MentraGlassesMediaVolumeSetResult(
+    val statusCode: Int?,
+    val values: Map<String, Any>,
+) {
+    companion object {
+        fun fromMap(values: Map<String, Any>): MentraGlassesMediaVolumeSetResult =
+            MentraGlassesMediaVolumeSetResult(
+                statusCode = (values["statusCode"] as? Number)?.toInt(),
+                values = values,
+            )
+    }
+}
+
 data class MentraBluetoothError(
     val code: String,
     val message: String,

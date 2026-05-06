@@ -224,6 +224,14 @@ class MentraBluetoothSdk private constructor(
         PhoneAudioMonitor.getInstance(appContext).setOwnAppAudioPlaying(playing)
     }
 
+    fun getGlassesMediaVolume(): MentraGlassesMediaVolumeGetResult =
+        MentraGlassesMediaVolumeGetResult.fromMap(deviceManager.getGlassesMediaVolumeBlocking())
+
+    fun setGlassesMediaVolume(level: Int): MentraGlassesMediaVolumeSetResult {
+        require(level in 0..15) { "Glasses media volume must be between 0 and 15." }
+        return MentraGlassesMediaVolumeSetResult.fromMap(deviceManager.setGlassesMediaVolumeBlocking(level))
+    }
+
     fun requestWifiScan() {
         deviceManager.requestWifiScan()
     }

@@ -79,6 +79,8 @@ class MentraBluetoothSdk private constructor(
     fun setMicState(config: MentraMicConfig)
     fun setPreferredMic(preferredMic: MentraMicPreference)
     fun setOwnAppAudioPlaying(playing: Boolean)
+    fun getGlassesMediaVolume(): MentraGlassesMediaVolumeGetResult
+    fun setGlassesMediaVolume(level: Int): MentraGlassesMediaVolumeSetResult
 
     fun requestWifiScan()
     fun sendWifiCredentials(ssid: String, password: String)
@@ -243,7 +245,7 @@ Current implementation status:
 - `MentraBluetoothSdk` owns native event/store fanout through `Bridge.addEventSink` and `DeviceStore.store.addListener`.
 - `BluetoothSdkModule.kt` now owns a `MentraBluetoothSdk` instance and maps listener callbacks back to the existing Expo event names.
 - The Android facade exposes a raw-event fallback for MentraOS compatibility so legacy events such as `save_setting`, OTA progress, BLE command traces, and other adapter-only events are still delivered while typed callbacks are added incrementally.
-- Adapter-only commands such as controller pairing, debug helpers, media volume, RGB LED control, STT utilities, permission/settings intents, and raw `update(...)` compatibility still call the current internals until the public facade grows those APIs.
+- Adapter-only commands such as controller pairing, debug helpers, STT utilities, permission/settings intents, and raw `update(...)` compatibility still call the current internals until the public facade grows those APIs.
 - `:mentra-bluetooth-sdk:compileDebugKotlin` passes with the Expo adapter using the facade for shared commands and event forwarding.
 
 ## Extraction Plan

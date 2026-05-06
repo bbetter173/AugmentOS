@@ -42,6 +42,9 @@ If you cannot see a project, you have not been added.
 
 ## Procedures
 
+- `concepts.md`: read first. Explains projects, configs, the
+  difference between personal and service tokens, and how
+  `doppler run --` injects secrets at process startup.
 - `daily-use.md`: log in, switch projects, read and run with
   secrets locally.
 - `adding-secrets.md`: add a new secret, sync across configs.

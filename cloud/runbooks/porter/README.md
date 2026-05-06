@@ -42,6 +42,9 @@ a cluster, and at the bottom-right of pod-detail pages.
 
 ## Procedures
 
+- `concepts.md`: read first. Explains Kubernetes (nodes, pods,
+  Deployments, Services, Ingress, probes), Porter, AKS, and
+  the rolling-deploy flow.
 - `deploys.md`: how to ship a change to a Porter app
 - `env-vars.md`: where environment variables live and how to
   change them

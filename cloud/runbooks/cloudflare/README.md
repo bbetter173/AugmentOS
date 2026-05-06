@@ -59,9 +59,12 @@ curl -s "https://api.cloudflare.com/client/v4/zones?account.id=$ACCOUNT_ID" \
 
 ## Procedures
 
-- `load-balancer.md`: how `api.mentra.glass` is configured,
-  what pools exist, and how to add a new region or cluster to
-  the rotation.
+- `concepts.md`: read first. Explains anycast, the edge, proxy
+  modes (orange vs gray cloud), zones, pools, monitors,
+  steering policies (geo vs proximity), and session affinity.
+- `load-balancer.md`: how `api.mentra.glass` and
+  `api.mentraglass.com` are configured, what pools exist, and
+  how to add a new region or cluster to the rotation.
 
 ## Things to know before changing anything
 

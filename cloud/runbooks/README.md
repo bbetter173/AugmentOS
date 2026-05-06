@@ -15,6 +15,10 @@ missing.
 - One folder per external service or topic.
 - Each folder has a `README.md` that explains what the service
   does for us and who has access.
+- Each folder also has a `concepts.md` that explains the
+  underlying technology (what is a DaemonSet, what is anycast,
+  what is a dist-tag). Read it first if the service is new to
+  you.
 - Specific procedures live in named files (`deploys.md`,
   `publishing.md`, etc.). Use the imperative title that matches
   the task you would type to find it.

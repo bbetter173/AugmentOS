@@ -4,6 +4,10 @@ We publish a handful of `@mentra/*` packages to npmjs.com. Today
 all publishes are manual. CI/CD is on the roadmap; this runbook
 will be updated when it lands.
 
+If you have not published an `@mentra/*` package before, read
+`concepts.md` first. It covers scoped packages, dist-tags,
+semver, monorepo workspace dependencies, and 2FA setup.
+
 ## Org access
 
 Packages are published under the `@mentra` npm org. To publish

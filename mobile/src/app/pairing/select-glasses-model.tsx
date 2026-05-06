@@ -82,7 +82,7 @@ export default function SelectGlassesModelScreen() {
   }
 
   return (
-    <Screen preset="fixed" extraAndroidInsets>
+    <Screen preset="fixed">
       <Header
         titleTx="pairing:selectModel"
         leftIcon="chevron-left"

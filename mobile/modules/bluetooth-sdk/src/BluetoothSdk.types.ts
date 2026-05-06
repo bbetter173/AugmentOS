@@ -137,6 +137,8 @@ export type RgbLedControlResponseEvent = {
 
 export type RgbLedAction = "on" | "off"
 export type RgbLedColor = "red" | "green" | "blue" | "orange" | "white"
+/** `"auto"` enables local button photo/video capture; `"manual"` reports button events without local gallery capture. */
+export type GalleryMode = "auto" | "manual"
 export type PhotoSize = "small" | "medium" | "large" | "full"
 export type ButtonPhotoSize = "small" | "medium" | "large"
 export type PhotoCompression = "none" | "medium" | "heavy"

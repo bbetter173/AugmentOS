@@ -322,7 +322,13 @@ class MentraBluetoothSdk private constructor(
                         )
                     )
                 }
-            "touch_event" -> dispatchToListeners { it.onTouch(MentraTouchEvent(data)) }
+            "touch_event" -> {
+                val event = MentraTouchEvent(data)
+                dispatchToListeners { it.onTouch(event) }
+                if (event.isSwipe) {
+                    dispatchToListeners { it.onSwipe(MentraSwipeEvent(data)) }
+                }
+            }
             "head_up" -> dispatchToListeners { it.onHeadUpChanged(data["up"] as? Boolean ?: false) }
             "battery_status" ->
                 dispatchToListeners {
@@ -335,6 +341,8 @@ class MentraBluetoothSdk private constructor(
                     )
                 }
             "wifi_status_change" -> dispatchToListeners { it.onWifiStatusChanged(MentraWifiStatusEvent(data)) }
+            "hotspot_status_change" -> dispatchToListeners { it.onHotspotStatusChanged(MentraHotspotStatusEvent(data)) }
+            "hotspot_error" -> dispatchToListeners { it.onHotspotError(MentraHotspotErrorEvent(data)) }
             "gallery_status" -> dispatchToListeners { it.onGalleryStatus(MentraGalleryStatusEvent(data)) }
             "photo_response" -> dispatchToListeners { it.onPhotoResponse(MentraPhotoResponseEvent(data)) }
             "stream_status" -> dispatchToListeners { it.onStreamStatus(MentraStreamStatusEvent(data)) }

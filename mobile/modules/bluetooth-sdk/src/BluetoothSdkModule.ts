@@ -4,6 +4,7 @@ import {
   CoreModuleEvents,
   CoreStatus,
   DeviceSearchResult,
+  GalleryMode,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
@@ -57,6 +58,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   logCurrentWifiFrequency(): Promise<void>
 
   // Gallery Commands
+  setGalleryMode(mode: GalleryMode): Promise<void>
   queryGalleryStatus(): Promise<void>
   photoRequest(
     requestId: string,

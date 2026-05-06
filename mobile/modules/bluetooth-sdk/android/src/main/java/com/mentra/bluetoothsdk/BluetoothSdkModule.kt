@@ -51,6 +51,14 @@ class CoreModule : Module() {
                     sendEvent("wifi_status_change", event.values)
                 }
 
+                override fun onHotspotStatusChanged(event: MentraHotspotStatusEvent) {
+                    sendEvent("hotspot_status_change", event.values)
+                }
+
+                override fun onHotspotError(event: MentraHotspotErrorEvent) {
+                    sendEvent("hotspot_error", event.values)
+                }
+
                 override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
                     sendEvent("gallery_status", event.values)
                 }
@@ -288,6 +296,16 @@ class CoreModule : Module() {
 
         // MARK: - Gallery Commands
 
+        AsyncFunction("setGalleryMode") { mode: String ->
+            val galleryMode =
+                    when (mode.lowercase()) {
+                        "auto" -> MentraGalleryMode.AUTO
+                        "manual" -> MentraGalleryMode.MANUAL
+                        else -> throw IllegalArgumentException("setGalleryMode mode must be \"auto\" or \"manual\".")
+                    }
+            sdk?.setGalleryMode(galleryMode)
+        }
+
         AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
 
         AsyncFunction("photoRequest") {
@@ -355,7 +373,13 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            deviceManager?.setMicState()
+            sdk?.setMicState(
+                    MentraMicConfig(
+                            sendPcmData = sendPcmData,
+                            sendTranscript = sendTranscript,
+                            bypassVad = bypassVad,
+                    )
+            )
         }
 
         AsyncFunction("restartTranscriber") { deviceManager?.restartTranscriber() }

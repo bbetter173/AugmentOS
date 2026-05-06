@@ -32,6 +32,22 @@ await BluetoothSdk.displayText({text: "Hello from Mentra", x: 0, y: 0, size: 24}
 removeStatusListener()
 ```
 
+## Default Device
+
+`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist their own small default-device record and restore it with `setDefaultDevice()` before calling `connectDefault()`.
+
+```ts
+await BluetoothSdk.setDefaultDevice({
+  model: "Mentra Live",
+  name: "Mentra_Live_E7FA",
+})
+
+const defaultDevice = BluetoothSdk.getDefaultDevice()
+await BluetoothSdk.connectDefault()
+
+await BluetoothSdk.clearDefaultDevice()
+```
+
 ## Support
 
 For integration support, request access to the private partner documentation repo from Mentra.

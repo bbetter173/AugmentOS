@@ -412,6 +412,12 @@ export interface DeviceSearchResult {
   deviceAddress?: string
 }
 
+export type DefaultDevice = {
+  model: string
+  name: string
+  address?: string
+}
+
 export interface WifiSearchResult {
   ssid: string
   requiresPassword: boolean
@@ -424,6 +430,9 @@ export interface CoreStatus {
   // state:
   searching: boolean
   searchingController: boolean
+  default_wearable?: string
+  device_name?: string
+  device_address?: string
   systemMicUnavailable: boolean
   micRanking: MicRanking[]
   currentMic: MicRanking | null

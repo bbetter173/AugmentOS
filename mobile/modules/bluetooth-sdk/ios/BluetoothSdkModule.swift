@@ -77,6 +77,12 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
+        AsyncFunction("getDefaultDevice") {
+            await MainActor.run {
+                self.bluetoothSdk().getDefaultDevice()?.dictionary
+            }
+        }
+
         AsyncFunction("update") { (category: String, values: [String: Any]) in
             await MainActor.run {
                 let normalizedCategory = ObservableStore.normalizeCategory(category)
@@ -109,6 +115,18 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("connectDefault") {
             await MainActor.run {
                 self.bluetoothSdk().connectDefault()
+            }
+        }
+
+        AsyncFunction("setDefaultDevice") { (device: [String: Any]?) in
+            await MainActor.run {
+                self.bluetoothSdk().setDefaultDevice(MentraPairedDevice(dictionary: device))
+            }
+        }
+
+        AsyncFunction("clearDefaultDevice") {
+            await MainActor.run {
+                self.bluetoothSdk().clearDefaultDevice()
             }
         }
 
@@ -520,5 +538,30 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail error: MentraBluetoothError) {
         sendEvent("pair_failure", ["error": error.message])
+    }
+}
+
+private extension MentraPairedDevice {
+    var dictionary: [String: Any] {
+        var values: [String: Any] = [
+            "model": model.deviceType,
+            "name": name,
+        ]
+        if let identifier, !identifier.isEmpty {
+            values["address"] = identifier
+        }
+        return values
+    }
+
+    init?(dictionary values: [String: Any]?) {
+        guard let values else { return nil }
+        guard let model = values["model"] as? String ?? values["deviceModel"] as? String else { return nil }
+        guard let name = values["name"] as? String ?? values["deviceName"] as? String else { return nil }
+        let identifier = values["address"] as? String ?? values["deviceAddress"] as? String
+        self.init(
+            model: MentraDeviceModel.fromDeviceType(model),
+            name: name,
+            identifier: identifier?.isEmpty == true ? nil : identifier
+        )
     }
 }

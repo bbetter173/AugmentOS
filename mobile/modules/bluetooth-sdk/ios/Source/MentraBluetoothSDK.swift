@@ -39,7 +39,7 @@ public enum MentraDeviceModel: String {
     case simulated
     case r1
 
-    var deviceType: String {
+    public var deviceType: String {
         switch self {
         case .g1:
             DeviceTypes.G1
@@ -62,7 +62,7 @@ public enum MentraDeviceModel: String {
         }
     }
 
-    static func fromDeviceType(_ deviceType: String?) -> MentraDeviceModel {
+    public static func fromDeviceType(_ deviceType: String?) -> MentraDeviceModel {
         switch deviceType {
         case DeviceTypes.G1:
             .g1
@@ -824,6 +824,9 @@ public final class MentraBluetoothSDK {
     private var discoveredDeviceNames = Set<String>()
     private var bridgeEventSinkId: String?
     private var storeListenerId: String?
+    private let defaultDeviceKeys: Set<String> = ["default_wearable", "device_name", "device_address"]
+    private var suppressDefaultDeviceEvents = false
+    private var defaultDeviceApplyGeneration = 0
 
     public init(configuration: MentraBluetoothSDKConfiguration = .default) {
         self.configuration = configuration
@@ -845,6 +848,38 @@ public final class MentraBluetoothSDK {
 
     public var bluetoothStatus: MentraBluetoothStatus {
         MentraBluetoothStatus(values: GlassesStore.shared.store.getCategory(ObservableStore.coreCategory))
+    }
+
+    public var defaultDevice: MentraPairedDevice? {
+        currentDefaultDevice()
+    }
+
+    public func getDefaultDevice() -> MentraPairedDevice? {
+        currentDefaultDevice()
+    }
+
+    public func setDefaultDevice(_ device: MentraPairedDevice?) {
+        guard let device else {
+            clearDefaultDevice()
+            return
+        }
+        defaultDeviceApplyGeneration += 1
+        let generation = defaultDeviceApplyGeneration
+        suppressDefaultDeviceEvents = true
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "default_wearable", device.model.deviceType)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "device_name", device.name)
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "device_address", device.identifier ?? "")
+        finishDefaultDeviceApply(generation: generation)
+    }
+
+    public func clearDefaultDevice() {
+        defaultDeviceApplyGeneration += 1
+        let generation = defaultDeviceApplyGeneration
+        suppressDefaultDeviceEvents = true
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "default_wearable", "")
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "device_name", "")
+        GlassesStore.shared.apply(ObservableStore.coreCategory, "device_address", "")
+        finishDefaultDeviceApply(generation: generation)
     }
 
     public func startScan(model: MentraDeviceModel) {
@@ -1086,10 +1121,37 @@ public final class MentraBluetoothSDK {
             delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: MentraGlassesStatusUpdate(values: changes))
         case ObservableStore.coreCategory:
             delegate?.mentraBluetoothSDK(self, didUpdateBluetoothStatus: MentraBluetoothStatusUpdate(values: changes))
+            if !suppressDefaultDeviceEvents && changes.keys.contains(where: { defaultDeviceKeys.contains($0) }) {
+                dispatchDefaultDeviceChanged()
+            }
             dispatchDiscoveredDevices(changes["searchResults"])
         default:
             break
         }
+    }
+
+    private func dispatchDefaultDeviceChanged() {
+        delegate?.mentraBluetoothSDK(self, didChangeDefaultDevice: currentDefaultDevice())
+    }
+
+    private func finishDefaultDeviceApply(generation: Int) {
+        Task { @MainActor [weak self] in
+            guard let self, generation == self.defaultDeviceApplyGeneration else { return }
+            self.suppressDefaultDeviceEvents = false
+            self.dispatchDefaultDeviceChanged()
+        }
+    }
+
+    private func currentDefaultDevice() -> MentraPairedDevice? {
+        let core = GlassesStore.shared.store.getCategory(ObservableStore.coreCategory)
+        guard let model = core["default_wearable"] as? String, !model.isEmpty else { return nil }
+        guard let name = core["device_name"] as? String, !name.isEmpty else { return nil }
+        let identifier = (core["device_address"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        return MentraPairedDevice(
+            model: MentraDeviceModel.fromDeviceType(model),
+            name: name,
+            identifier: identifier
+        )
     }
 
     private func dispatchDiscoveredDevices(_ rawSearchResults: Any?) {

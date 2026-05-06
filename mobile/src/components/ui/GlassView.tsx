@@ -54,17 +54,18 @@ const GlassView = ({children, style, transparent = true, disableOnAndroid = fals
 
     boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
 
-    // return (
-    //   <View style={[style, {
-    //     backgroundColor: backgroundColor,
-    //     // borderTopLeftRadius,
-    //     // borderTopRightRadius,
-    //     // borderBottomLeftRadius,
-    //     // borderBottomRightRadius,
-    //   }]}>
-    //     {children}
-    //   </View>
-    // )
+    return (
+      <View style={[style, {
+        backgroundColor: backgroundColor,
+        boxShadow: boxShadowStyle,
+        // borderTopLeftRadius,
+        // borderTopRightRadius,
+        // borderBottomLeftRadius,
+        // borderBottomRightRadius,
+      }]}>
+        {children}
+      </View>
+    )
     // let maxBorderRadius = Math.max(
     //   parseInt(borderTopLeftRadius.toString()),
     //   parseInt(borderTopRightRadius.toString()),
@@ -73,11 +74,13 @@ const GlassView = ({children, style, transparent = true, disableOnAndroid = fals
     // )
     const halve = (v: string | number | undefined) => (v === undefined ? undefined : parseInt(v.toString()) / 2)
     let innerShadowColor = theme.colors.gradient
+    // let innerShadowColor = "#00ff00"
     return (
       <View
         style={{
           borderWidth: 1.25,
           borderColor: theme.colors.background,
+          // borderColor: "#000fff",
           borderRadius: borderRadius,
           borderTopLeftRadius,
           borderTopRightRadius,
@@ -132,7 +135,7 @@ const GlassView = ({children, style, transparent = true, disableOnAndroid = fals
             inset
             shadowColor={innerShadowColor + "AA"}
             // shadowOffset={{width: 3, height: 3}}
-            shadowBlur={10}
+            shadowBlur={12}
             // boxShadow={boxShadowStyle}
             style={[
               style,

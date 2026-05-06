@@ -60,10 +60,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
               <ActivityIndicator size="large" color={theme.colors.palette.white} />
             </View>
           )}
-          <Image
-            source={imageSource as any}
-            style={{width: "100%", height: "100%", resizeMode: "cover"}}
-          />
+          <Image source={imageSource} style={{width: "100%", height: "100%", resizeMode: "cover"}} />
         </SquircleView>
       </WrapperComponent>
       {!app.healthy && (

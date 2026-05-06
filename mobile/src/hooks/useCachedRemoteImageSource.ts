@@ -1,5 +1,6 @@
 import {Image} from "expo-image"
 import {useEffect, useState} from "react"
+import type {ImageSourcePropType} from "react-native"
 
 const inflight = new Map<string, Promise<string | null>>()
 const resolvedCache = new Map<string, string>()
@@ -31,7 +32,7 @@ async function resolveCachedPath(url: string): Promise<string | null> {
   return promise
 }
 
-export function useCachedRemoteImageSource<T>(source: T): T | {uri: string} {
+export function useCachedRemoteImageSource(source: string | number | undefined | null): ImageSourcePropType {
   const url = typeof source === "string" ? source : null
   const isRemote = url !== null && (url.startsWith("http://") || url.startsWith("https://"))
   const [resolved, setResolved] = useState<string | null>(() =>
@@ -39,11 +40,14 @@ export function useCachedRemoteImageSource<T>(source: T): T | {uri: string} {
   )
 
   useEffect(() => {
-    if (!isRemote) return
-    if (resolvedCache.has(url!)) {
-      setResolved(resolvedCache.get(url!)!)
+    if (!isRemote) {
+      setResolved(null)
       return
     }
+    const cached = resolvedCache.get(url!) ?? null
+    setResolved(cached)
+    if (cached) return
+
     let cancelled = false
     resolveCachedPath(url!).then((path) => {
       if (!cancelled && path) setResolved(path)
@@ -53,6 +57,8 @@ export function useCachedRemoteImageSource<T>(source: T): T | {uri: string} {
     }
   }, [isRemote, url])
 
-  if (isRemote && resolved) return {uri: resolved}
-  return source as T
+  if (isRemote) return {uri: resolved ?? url!}
+  if (typeof source === "string") return {uri: source}
+  if (typeof source === "number") return source
+  return {uri: ""}
 }

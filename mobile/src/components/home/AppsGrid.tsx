@@ -27,6 +27,7 @@ import {storage} from "@/utils/storage"
 import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {translate} from "@/i18n"
 import GlassView from "@/components/ui/GlassView"
+import { DraggableMasonryList } from "react-native-draggable-masonry"
 
 const GRID_COLUMNS = 4
 const POPOVER_WIDTH = 180
@@ -525,7 +526,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
   return (
     <View className="flex-1 mt-3">
       <View ref={containerRef}>
-        <DraggableList
+        <DraggableMasonryList
           data={gridData}
           renderItem={renderItem}
           rowGap={0}

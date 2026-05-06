@@ -257,7 +257,7 @@ export default function PairingPrepScreen() {
       <>
         <View className="gap-4">
           <Button tx="pairing:g1Ready" onPress={advanceToPairing} />
-          <Button tx="pairing:g1NotReady" preset="secondary" onPress={() => setShowTroubleshootingModal(true)} />
+          {/* <Button tx="pairing:g1NotReady" preset="secondary" onPress={() => setShowTroubleshootingModal(true)} /> */}
         </View>
         <GlassesTroubleshootingModal
           isVisible={showTroubleshootingModal}

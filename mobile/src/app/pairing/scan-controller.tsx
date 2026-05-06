@@ -150,7 +150,7 @@ export default function SelectGlassesBluetoothScreen() {
                 {visibleResults.map((res: DeviceSearchResult, index: number) => {
                   let deviceName = filterDeviceName(res.deviceName)
                   return (
-                    <View className="flex-row items-center justify-between px-4 py-3 bg-primary-foreground/80">
+                    <View className="flex-row items-center justify-between px-4 py-3 bg-background">
                       <TouchableOpacity
                         key={index}
                         className="flex-1"
@@ -169,7 +169,7 @@ export default function SelectGlassesBluetoothScreen() {
           )}
           <Divider />
           <View className="flex-row justify-end">
-            <Button preset="alternate" compact tx="common:cancel" onPress={() => goBack()} className="min-w-[100px]" />
+            <Button preset="primary" compact tx="common:cancel" onPress={() => goBack()} className="min-w-[100px]" />
           </View>
         </GlassView>
       </View>

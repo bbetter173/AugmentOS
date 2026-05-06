@@ -1,4 +1,4 @@
-import {DeviceTypes} from "@/../../cloud/packages/types/src"
+import {ControllerTypes, DeviceTypes} from "@/../../cloud/packages/types/src"
 import {Platform} from "react-native"
 import {useRoute} from "@react-navigation/native"
 
@@ -166,6 +166,18 @@ export default function PairingSuccessScreen() {
           transition: false,
           title: translate("common:success"),
           subtitle: translate("onboarding:g1Connected"),
+        },
+      ]
+      break
+    case ControllerTypes.R1:
+      steps = [
+        {
+          name: "Start Onboarding",
+          type: "image",
+          source: glassesImage,
+          transition: false,
+          title: translate("common:success"),
+          subtitle: translate("onboarding:r1Connected"),
         },
       ]
       break

@@ -251,15 +251,20 @@ the response and pages on failure.
 
 ### Cloud process (production)
 
-```
-Cloud (Bun)
-  -> LOG_STDOUT_JSON=true
-  -> stdout (structured Pino JSON, info level and above)
-  -> Two paths on US Central, one path elsewhere:
-     1. Custom Vector DaemonSet -> filters to cloud containers
-        -> MentraCloud - Prod source
-     2. BetterStack default collector -> VRL filter
-        -> regional source (mentra-{region})
+```mermaid
+flowchart TD
+  A["Cloud (Bun)<br/>LOG_STDOUT_JSON=true"]
+  B["Container stdout<br/>structured Pino JSON, info level and above"]
+  C["Custom Vector DaemonSet<br/>filters to cloud containers<br/>(US Central only)"]
+  D["MentraCloud - Prod source"]
+  E["BetterStack default collector<br/>VRL filter to cloud-* containers<br/>(every cluster)"]
+  F["Regional source<br/>mentra-{region}"]
+
+  A --> B
+  B --> C
+  B --> E
+  C --> D
+  E --> F
 ```
 
 `MentraCloud - Prod` carries cloud logs from US Central only
@@ -271,27 +276,19 @@ emitted to stdout.
 
 ### Cloud process (dev/local)
 
-```
-Cloud (Bun)
-  -> LOG_STDOUT_JSON not set
-  -> pino-pretty -> console (human readable)
-  -> No BetterStack
-```
+When `LOG_STDOUT_JSON` is unset, Pino renders to a human-readable
+console via `pino-pretty`. Nothing ships to BetterStack.
 
 ### MiniApps (captions, dashboard, translation, etc.)
 
-```
-MiniApp (Bun/Node)
-  -> stdout
-  -> Possibly also @logtail/pino direct to BetterStack (if the
-     SDK's BETTERSTACK_SOURCE_TOKEN env var is set, which is
-     true for some internal apps)
-```
+MiniApps write to stdout. Some internal MiniApps additionally
+ship via the SDK's `@logtail/pino` transport when
+`BETTERSTACK_SOURCE_TOKEN` is set, landing in
+`MentraCloud - Prod` directly.
 
 The collector's VRL filter excludes MiniApp containers (it only
 keeps `cloud-*` containers), so MiniApp stdout is NOT picked up
-by the regional sources. MiniApps that ship via
-`@logtail/pino` land in `MentraCloud - Prod` directly.
+by the regional sources.
 
 ### Log level filtering
 

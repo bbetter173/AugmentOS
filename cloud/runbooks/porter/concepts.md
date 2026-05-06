@@ -179,31 +179,17 @@ the Helm release behind it is implementation detail.
 
 ## How a deploy actually flows
 
-```
-1. You merge a PR to main.
-   |
-   v
-2. Porter sees the new commit on the branch its app watches.
-   |
-   v
-3. Porter starts a Docker build: pulls the repo at that commit,
-   uses the Dockerfile referenced by the app's porter.yaml,
-   pushes the image to the registry.
-   |
-   v
-4. Porter applies a new revision of the Kubernetes Deployment
-   pointing at the new image tag.
-   |
-   v
-5. Kubernetes starts a new pod with the new image.
-   |
-   v
-6. New pod's liveness + readiness probes run. Traffic only
-   flows to it once readiness passes.
-   |
-   v
-7. Once new pod is Ready, K8s kills an old pod. Repeats until
-   all replicas are on the new image.
+```mermaid
+flowchart TD
+  A["You merge a PR to main"]
+  B["Porter sees the new commit on the watched branch"]
+  C["Docker build<br/>pulls repo at that commit,<br/>uses Dockerfile from porter.yaml,<br/>pushes image to the registry"]
+  D["Porter applies a new revision of the<br/>Kubernetes Deployment pointing at the new image tag"]
+  E["Kubernetes starts a new pod with the new image"]
+  F["New pod's liveness + readiness probes run<br/>Traffic flows only after readiness passes"]
+  G["K8s kills an old pod, repeats until<br/>all replicas are on the new image"]
+
+  A --> B --> C --> D --> E --> F --> G
 ```
 
 If the readiness probe never passes (e.g. the new code crashes

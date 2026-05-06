@@ -47,15 +47,18 @@ then cut the mobile app over and retire the legacy LB.
 
 ## Traffic flow
 
-```
-User
-  -> api.mentra.glass (Cloudflare anycast IP, e.g. 104.21.87.160)
-    -> Cloudflare LB (legacy or next-gen)
-      -> steered to nearest healthy pool
-        -> pool origin hostname (e.g. uscentralapi.mentraglass.com)
-          -> AKS public ingress IP (e.g. 128.203.164.18)
-            -> nginx ingress in Porter cluster
-              -> Porter pod (Bun process)
+```mermaid
+flowchart TD
+  U["User"]
+  A["api.mentra.glass (or api.mentraglass.com)<br/>Cloudflare anycast IP (e.g. 104.21.87.160)"]
+  B["Cloudflare LB (legacy or next-gen)"]
+  C["Steered to nearest healthy pool"]
+  D["Pool origin hostname<br/>(e.g. uscentralapi.mentraglass.com)"]
+  E["AKS public ingress IP (e.g. 128.203.164.18)"]
+  F["nginx ingress in Porter cluster"]
+  G["Porter pod (Bun process)"]
+
+  U --> A --> B --> C --> D --> E --> F --> G
 ```
 
 TLS terminates at Cloudflare. Cloudflare opens a backend

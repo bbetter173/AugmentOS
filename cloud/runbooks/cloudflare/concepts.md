@@ -223,33 +223,16 @@ permission for that endpoint, not that the token is invalid.
 
 ## How a request actually flows
 
-```
-1. User's app: HTTPS request to api.mentra.glass
-   |
-   v DNS resolves to Cloudflare anycast IP (e.g. 104.21.87.160)
-   |
-2. Nearest Cloudflare PoP receives the connection
-   - terminates TLS
-   - looks up the LB by hostname
-   |
-   v LB picks pool by steering policy
-   |
-3. LB filters pool origins by health monitor
-   - picks one healthy origin
-   - resolves origin hostname (e.g. uscentralapi.mentraglass.com -> 128.203.164.18)
-   |
-   v opens backend connection to origin IP
-   |
-4. AKS LoadBalancer service IP receives the connection
-   |
-   v forwards to nginx ingress controller
-   |
-5. nginx ingress reads the Host header, routes to the matching
-   service
-   - e.g. Host: api.mentra.glass -> cloud-prod service
-   |
-   v forwards to one of the cloud-prod pods
-   |
-6. Cloud Bun process handles the request, returns response
-   - response flows back along the same path
+```mermaid
+flowchart TD
+  A["User app<br/>HTTPS request to api.mentra.glass"]
+  B["DNS resolves to Cloudflare anycast IP<br/>(e.g. 104.21.87.160)"]
+  C["Nearest Cloudflare PoP<br/>terminates TLS, looks up the LB by hostname"]
+  D["LB picks a pool by steering policy<br/>(geo or proximity)"]
+  E["Pool filters origins by health monitor,<br/>picks a healthy one,<br/>resolves origin hostname (e.g. uscentralapi.mentraglass.com)"]
+  F["AKS LoadBalancer service IP<br/>(e.g. 128.203.164.18)"]
+  G["nginx ingress<br/>reads Host header,<br/>routes to cloud-prod service,<br/>forwards to a pod"]
+  H["Cloud Bun process handles the request<br/>response flows back along the same path"]
+
+  A --> B --> C --> D --> E --> F --> G --> H
 ```

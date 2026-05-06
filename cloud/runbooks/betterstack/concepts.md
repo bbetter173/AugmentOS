@@ -161,34 +161,20 @@ mapping.
 
 ## End-to-end pipeline
 
-```
-1. Cloud code:  logger.info('user signed in', { userId })
-                |
-                v Pino serializes to JSON
-                |
-2. Stdout:      {"level":30,"time":...,"msg":"user signed in","userId":"..."}
-                |
-                v container runtime captures
-                |
-3. Node disk:   /var/log/containers/cloud-prod-cloud_default_cloud-...log
-                |
-                v Vector pod (DaemonSet on this node) tails the file
-                |
-4. Vector:      filter: container_name contains "cloud-prod-cloud"? keep
-                parse: JSON object
-                flatten: msg -> message, time -> dt, level 30 -> "info"
-                decorate: add _meta.kubernetes_pod
-                |
-                v HTTPS POST with bearer token
-                |
-5. BetterStack: writes to ClickHouse table for the source
-                  e.g. mentra-us-central
-                |
-                v queryable
-                |
-6. Read:        web UI Live Tail (subscribes to new events)
-                bstack CLI (queries ClickHouse via HTTP API)
-                BetterStack dashboards
+```mermaid
+flowchart TD
+  A["Cloud Bun process<br/>logger.info('user signed in', { userId })"]
+  B["Container stdout<br/>JSON line: level, time, msg, userId, ..."]
+  C["Node disk<br/>/var/log/containers/cloud-prod-cloud_default_*.log"]
+  D["Vector pod (DaemonSet on this node)<br/>filter container_name<br/>parse JSON, flatten Pino fields<br/>decorate _meta.kubernetes_pod"]
+  E["BetterStack<br/>ClickHouse table for the source<br/>(e.g. mentra-us-central)"]
+  F["Read paths<br/>Live Tail · bstack CLI · BetterStack dashboards"]
+
+  A -->|Pino serializes to JSON| B
+  B -->|container runtime captures| C
+  C -->|Vector tails the file| D
+  D -->|HTTPS POST with bearer token| E
+  E -->|queryable| F
 ```
 
 ## Why we removed `@logtail/pino` from the cloud

@@ -68,41 +68,49 @@ See `../doppler/adding-secrets.md` for the full procedure and
 
 ## Forcing pods to pick up a new secret
 
-Doppler updates do not flow into a running pod. The pod read its
-env at process start. To roll the pods so they pick up the new
-value:
+Doppler updates do not flow into a running pod. The pod reads
+its env at process start. The Porter CLI does not have a
+restart command (`porter app --help` to confirm); the practical
+options are:
 
-- **Dashboard**: open the app, click "Restart" or trigger a
-  rebuild.
-- **CLI**: `porter app restart <APP_NAME> --cluster <CLUSTER_ID>`
-  (verify with `porter app --help`; the CLI command set evolves).
+- **Redeploy via the dashboard**: open the app, click
+  "Redeploy" or "Rebuild." This builds (or re-uses) the image
+  and rolls the pods, picking up the latest Doppler-synced env
+  group.
+- **Push a no-op commit** to the watched branch. Porter rebuilds
+  and rolls.
 
-A restart is faster than a rebuild because it does not rebuild
-the image. Use restart for env/secret changes; use rebuild for
-code changes.
+For Doppler-managed env groups, the integration re-syncs on
+deploy. A pod restart without a redeploy can roll pods that
+still see the old (cached) env. See
+`../doppler/adding-secrets.md`.
 
 ## Adding a new env var
 
-For non-secrets:
+For non-secrets, the static `env:` block in `porter*.yaml` is
+the source for newly-deployed apps, but for already-deployed
+apps Porter holds its own state and editing the yaml may not
+take effect on its own. Practical pattern:
 
-1. Add to the `env:` block in every relevant `porter*.yaml`.
+1. Add to the `env:` block in `cloud/porter.yaml` (and the
+   regional yaml files for parity).
 2. Reference it in code (`process.env.FOO`).
-3. Open a PR with both changes together.
-4. Merge, Porter rebuilds.
+3. Open a PR with both changes; merge.
+4. Confirm the change actually landed in each region's deployed
+   app via the Porter dashboard's Environment view.
 
 For secrets:
 
 1. Add it to Doppler in each environment that needs it (dev,
-   staging, prod, plus per-region prod configs). See
+   staging, plus per-region prod configs). See
    `../doppler/adding-secrets.md`.
 2. Reference it in code (`process.env.FOO`).
-3. Open a PR with the code change.
-4. Merge, Porter rebuilds. The new secret is loaded on first
-   start of each new pod.
+3. Open a PR with the code change; merge.
+4. Trigger redeploys so the Doppler integration re-syncs.
 
-If the new secret is required (the process exits when missing),
-add it to Doppler before merging the code. Otherwise the new
-pods will crashloop until the secret is in place.
+If the new secret is required (the process exits when
+missing), add it to Doppler before merging the code. Otherwise
+new pods will crashloop until the secret is in place.
 
 ## Reading what is currently set
 
@@ -113,27 +121,35 @@ without exec-ing into it. Two practical paths:
   `doppler secrets --project <project> --config <config>`
 - **Repo** for static values: grep `cloud/porter*.yaml`.
 
-For an exhaustive view, exec into a pod (only when needed):
+For an exhaustive view, run a one-off command in an ephemeral
+copy pod via `porter app run`:
 
 ```bash
-porter kubectl --cluster <CLUSTER_ID> -- exec -it -n default \
-  <POD_NAME> -- env | sort
+porter app run cloud-prod --cluster <CLUSTER_ID> --target <TARGET> -- \
+  sh -c 'env | sort'
 ```
 
-This prints everything: static + Doppler + Kubernetes-injected.
-Use sparingly; pods are production traffic.
+This spins up a copy of the deployment with the same env, runs
+the command, and tears down. Touches no production traffic, but
+prints whatever secrets are in env, so do not paste output into
+a public channel.
 
 ## Common mistakes
 
-- **Editing one regional `porter*.yaml` and forgetting the
-  others.** Multi-region apps need parallel changes. A grep for
-  the var name across `cloud/porter*.yaml` catches this.
+- **Assuming the regional `porter*.yaml` files are
+  authoritative.** They are sometimes stale; once an app is
+  deployed, Porter holds its own state for that app on that
+  cluster. Confirm what is deployed with
+  `porter app yaml cloud-prod --cluster <ID> --target <TARGET>`
+  before relying on a repo yaml as truth.
 - **Putting a secret in `porter.yaml`.** It ends up in git and
-  the pod env. Move to Doppler, rotate the value, force-push the
-  removal if the leak just happened (and rotate the secret
+  the pod env. Move to Doppler, rotate the value, force-push
+  the removal if the leak just happened (and rotate the secret
   externally).
-- **Forgetting to restart.** Doppler change without restart means
-  pods keep the old value until something else triggers a roll.
+- **Forgetting to redeploy after a Doppler change.** Without a
+  redeploy, the Porter integration does not re-sync; pods that
+  restart will still see the old value. See
+  `../doppler/adding-secrets.md`.
 - **Mismatched config names across regions.** Each region maps
   to a different Doppler config (`prod_central-us`,
   `prod_us-east`, etc.). Adding a secret to one config does not

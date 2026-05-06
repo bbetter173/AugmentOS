@@ -67,8 +67,10 @@ the pod with the OLD secret value. Two reliable paths:
   is what brings the new value into the Kubernetes Secret; the
   restart is what makes the pod read it.
 
-A plain `porter app restart` without re-sync will roll pods
-that read the same (stale) Kubernetes Secret.
+A pod restart without re-sync will roll pods that read the
+same (stale) Kubernetes Secret. The Porter CLI does not have a
+restart command (`porter app --help` to confirm); use the
+Redeploy / Rebuild flow above instead.
 
 If the new secret is required by code that is also new, sequence
 matters: add the secret first, redeploy, then merge the code so
@@ -112,7 +114,8 @@ A common gotcha: a secret was added to `prod_central-us` but
 forgotten in `prod_us-east`. The east region's pods crashloop
 on next restart while central is fine.
 
-Quarterly drift check across all production regional configs:
+When you suspect drift, run this against all production regional
+configs:
 
 ```bash
 REGIONS=(prod_central-us prod_us-east prod_us-west prod_france prod_east-asia)

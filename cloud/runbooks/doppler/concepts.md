@@ -163,9 +163,10 @@ Notice: there is no `DOPPLER_TOKEN` in the pod. That token
 lives in Porter's integration setup, not in the runtime env.
 The Doppler CLI does not run inside the pod.
 
-Updates do not flow into a running pod. The pod read
-its env at process start. To pick up a new value: restart the
-pod (Porter dashboard or `porter app restart`).
+Updates do not flow into a running pod. The pod read its env
+at process start. To pick up a new value: redeploy the app via
+the Porter dashboard, which re-syncs the Doppler integration
+and rolls the pods. See `adding-secrets.md`.
 
 ## Web UI vs CLI
 

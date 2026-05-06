@@ -128,19 +128,20 @@ The two LBs differ in two places:
 
 ### Pools (shared between both LBs)
 
-| Pool | Origin hostname | AKS public IP | Porter cluster | Monitor | In legacy LB | In next-gen LB |
-| --- | --- | --- | --- | --- | --- | --- |
-| `uscentral` | `uscentralapi.mentraglass.com` | 128.203.164.18 | mentra-cluster-central-us (4689) | yes | yes (WNAM, ENAM, NSAM, SSAM) | yes (ENAM, NSAM, SSAM, fallback) |
-| `france` | `franceapi.mentraglass.com` | 172.189.45.70 | france (4696) | yes | yes (WEU, EEU) | yes (WEU, EEU) |
-| `asiaeast` | `asiaeastapi.mentraglass.com` | 20.6.155.16 | east-asia (4754) | yes | yes (OC, ME, fallback) | yes (OC, ME) |
-| `us-west` | `uswestapi.mentraglass.com` | 4.155.178.137 | us-west (4965) | yes | no | yes (WNAM) |
-| `us-east` | `useastapi.mentraglass.com` | 4.157.182.57 | us-east (4977) | no (intentionally) | no | no |
+Pool inventory and per-pool steering can drift; for the live
+state open the Cloudflare dashboard (or list pools via the API,
+see "Adding a new region" below). The current pools, by
+convention, are named after their region: `uscentral`,
+`france`, `asiaeast`, `us-west`, `us-east`. Each pool has one
+origin pointing at the matching cluster's nginx ingress via a
+gray-cloud DNS record under `mentraglass.com`
+(e.g. `uscentralapi.mentraglass.com`).
 
 `us-east` is intentionally excluded from both LBs. The us-east
-AKS cluster has insufficient nodes for the `cloud-prod` workload
-and deploys often fail. The pool is left in place so it is easy
-to enable later when capacity is fixed; until then it has no
-monitor and is not wired into either LB's region map.
+AKS cluster has insufficient nodes for the `cloud-prod`
+workload and deploys often fail. The pool is left in place so
+it is easy to enable later when capacity is fixed; until then
+it has no monitor and is not wired into either LB's region map.
 
 `us-west` is in the next-gen LB only. No production client
 points at `api.mentraglass.com` today, so traffic to `us-west`
@@ -150,24 +151,10 @@ a real production region.
 
 ### Monitors
 
-The 4 active pools share the same monitor shape:
-
-| Field | Value |
-| --- | --- |
-| Type | HTTPS |
-| Method | GET |
-| Path | `/health` |
-| Interval | 60s |
-| Timeout | 5s |
-| Retries | 2 |
-| Expected codes | 200 |
-| Follow redirects | no |
-| Allow insecure | no |
-
-`/health` is the cloud's readiness endpoint. It iterates
-sessions, counts WebSockets, updates gauges, serializes JSON.
-A 5-second timeout is generous; a healthy region should respond
-in well under a second.
+Each active pool has a monitor with the same shape: HTTPS GET
+`/health`, 60s interval, 5s timeout, 2 retries, expecting 200.
+`/health` is the cloud's readiness endpoint; a healthy region
+responds well under the timeout.
 
 ### nginx ingress timeouts
 
@@ -267,9 +254,11 @@ porter app create cloud-prod \
   --cluster <NEW_CLUSTER_ID> \
   --target <region>-default
 
-# Watch the build
+# Tail the running app's logs (use the dashboard's Activity tab
+# for the build itself; `porter app logs` does not have a
+# build-only flag).
 porter app logs cloud-prod \
-  --cluster <NEW_CLUSTER_ID> --target <region>-default --build
+  --cluster <NEW_CLUSTER_ID> --target <region>-default
 ```
 
 Once the build completes and the pod is Ready, find the
@@ -441,37 +430,16 @@ to the legacy LB only if the region needs to serve real
 production users before the mobile-app cutover; that is a
 temporary state, see "Migrating the mobile app" below.
 
-### 6. Verify end to end
+### 6. Verify
 
-```bash
-# Pool reports healthy
-curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/<POOL_ID>" \
-  -H "Authorization: Bearer $CF_TOKEN" \
-  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['result']['healthy'])"
-# expect: True
+The Cloudflare dashboard shows the LB's region map and the
+pool's health. Confirm the new pool is listed as healthy and
+that the region you wired routes to it.
 
-# A user in the new region resolves whichever LB(s) you wired
-# the pool into. Hit each one you added the pool to. From inside
-# the new region's network, or via a VPN, this curl picks the
-# pool the LB steers to for your geographic location.
-curl -s https://api.mentraglass.com/health   # next-gen LB
-curl -s https://api.mentra.glass/health      # legacy LB (only if you also added the pool there)
-
-# Then look at bstack logs to confirm the new region served the
-# request:
-bstack logs --region <new-region-slug>
-```
-
-If you only added the pool to one LB (typical for a new
-region: next-gen first), only the matching curl exercises the
-pool. Hitting the LB you did not wire into is still useful as a
-control: it should NOT be served by the new pool.
-
-### 7. Update this doc
-
-Re-run the verification commands at the bottom of this doc and
-update the tables here with the new pool, region steering rows,
-and Porter cluster.
+A practical end-to-end check: from inside the new region's
+network or via a VPN, hit whichever LB you added the pool to,
+then look at `bstack logs --region <new-region-slug>` to
+confirm the request landed on the right cluster.
 
 ## Adding a cluster to an existing region
 
@@ -579,53 +547,26 @@ Once nearly all mobile clients are on the new build:
    - Optionally keep the `mentra.glass` zone for legacy
      redirects; the zone itself doesn't need to go.
 
-### Promoting `us-west` separately (without the cutover)
+### Promoting `us-west` and re-enabling `us-east`
 
-If the cutover is delayed but you want WNAM users on the legacy
-LB to start using `us-west`, add the `us-west` pool ID
-(`d2cd10f549c74159581d5963aad2ec28`) to the legacy LB's WNAM
-region pool list:
+These are essentially the same procedure: take an existing pool
+that is not currently serving traffic and add it to one or both
+LBs' region maps.
 
-- Place ahead of `uscentral` to prefer `us-west` for WNAM,
-  with `uscentral` as failover. This is the migration path if
-  you want to shift west-coast traffic off `uscentral` before
-  the mobile app cutover.
-- Place behind `uscentral` to keep `uscentral` primary and use
-  `us-west` only as failover. Lower risk; useful as a smoke
-  test.
+For `us-west`: it already has a monitor and is healthy; the
+work is just adding the pool ID to the legacy LB's WNAM region
+list (or waiting for the mobile cutover, which makes this
+unnecessary).
 
-This duplicates `us-west` into both LBs and is a temporary
-state. Remove from the legacy LB after the mobile app cutover
-completes.
+For `us-east`: the AKS cluster needs more capacity first
+(deploys often fail today). Once that is resolved, also attach
+a monitor to the pool (it has none today), then add to a region
+map. Use the standard "Adding a new region" pool / monitor /
+region-map procedure above; the only "new" step versus a brand
+new region is that the pool already exists.
 
-## Re-enabling `us-east`
-
-The `us-east` cluster has node provisioning issues; deploys to
-that cluster often fail. When that's resolved:
-
-1. Verify `cloud-prod` deploys cleanly to the cluster:
-   ```bash
-   porter app yaml cloud-prod --cluster 4977 --target us-east-default
-   porter app status cloud-prod --cluster 4977 --target us-east-default
-   ```
-2. Confirm `useastapi.mentraglass.com` resolves and `/health`
-   returns 200.
-3. Attach a monitor to the `us-east` pool (it has none today):
-   ```bash
-   curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/monitors" \
-     -H "Authorization: Bearer $CF_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{ "type":"https","description":"US East Monitor","method":"GET","path":"/health","interval":60,"timeout":5,"retries":2,"expected_codes":"200","follow_redirects":false,"allow_insecure":false }'
-
-   # Then PATCH the pool with the new monitor id
-   curl -X PATCH "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools/db72728f6d03b46205bfb2bcef78e5fb" \
-     -H "Authorization: Bearer $CF_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"monitor": "<NEW_MONITOR_ID>"}'
-   ```
-4. Add the pool to one of the LBs' region maps. Likely ENAM in
-   the next-gen LB first, then add to the legacy LB only if
-   needed before the mobile cutover.
+Both are temporary states until the mobile cutover plus
+capacity work converge.
 
 ## Common operational tasks
 
@@ -674,41 +615,3 @@ If a pool flips unhealthy, the LB stops sending it traffic.
 Cloudflare keeps health-checking; the pool comes back when
 `/health` returns 200 again. To investigate the underlying
 cause, see `cloud/tools/bstack/runbooks/pod-crash.md`.
-
-## Re-pull live state
-
-The tables in this doc go stale. To refresh:
-
-```bash
-CF_TOKEN=$(doppler secrets get CLOUDFLARE_LB_API_TOKEN \
-  --project mentra-sre --config dev --plain)
-ACCOUNT_ID=3c764e987404b8a1199ce5fdc3544a94
-
-# Both LBs (one per zone)
-LEGACY_ZONE=5bb5c71a90dc175143eb10edaad85d49
-LEGACY_LB=0d6e09e5427a8b94d3ce47f58496e1b8
-NEXTGEN_ZONE=86a59033615f078d613b3cd22fd30c44
-NEXTGEN_LB=b34e8b4b2d960e78ba48fa235f4742c2
-
-curl -s "https://api.cloudflare.com/client/v4/zones/$LEGACY_ZONE/load_balancers/$LEGACY_LB" \
-  -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
-curl -s "https://api.cloudflare.com/client/v4/zones/$NEXTGEN_ZONE/load_balancers/$NEXTGEN_LB" \
-  -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
-
-# All pools (account-wide; same pools serve both LBs)
-curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/pools" \
-  -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
-
-# All monitors
-curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/load_balancers/monitors" \
-  -H "Authorization: Bearer $CF_TOKEN" | python3 -m json.tool
-
-# Porter clusters and apps
-porter cluster list
-for cid in $(porter cluster list 2>/dev/null | awk 'NR>1{print $1}'); do
-  echo "--- cluster $cid ---"
-  porter app list --cluster $cid
-done
-```
-
-If the actual state differs from this doc, update the doc.

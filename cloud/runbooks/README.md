@@ -39,7 +39,7 @@ missing.
 | `betterstack/` | BetterStack | Logs, dashboards, the `bstack` CLI |
 | `doppler/` | Doppler | Secrets across environments |
 
-`infra.md` in this folder is a primer on how the pieces fit
+[infra.md](infra.md) in this folder is a primer on how the pieces fit
 together (Porter, Kubernetes, Vector, BetterStack). Read it once,
 then use the per-folder runbooks for actual tasks.
 

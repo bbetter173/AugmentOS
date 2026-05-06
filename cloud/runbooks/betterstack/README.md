@@ -19,7 +19,7 @@ Ask Isaiah or Israelov.
 - Web: https://logs.betterstack.com/ and
   https://uptime.betterstack.com/
 - API tokens for the `bstack` CLI live in Doppler under the
-  `mentra-sre` project. See `bstack-cli.md`.
+  `mentra-sre` project. See [bstack-cli.md](bstack-cli.md).
 
 ## What we have ingested
 
@@ -47,12 +47,12 @@ both; the difference matters when you write raw SQL.
 
 ## Procedures
 
-- `concepts.md`: read first. Explains Vector, DaemonSets, the
+- [concepts.md](concepts.md): read first. Explains Vector, DaemonSets, the
   BetterStack Helm chart, and how a log line travels from
   the cloud to BetterStack.
-- `using-the-website.md`: Live Tail, dashboards, query basics in
+- [using-the-website.md](using-the-website.md): Live Tail, dashboards, query basics in
   the web UI.
-- `bstack-cli.md`: install, set up Doppler, the 12+ CLI commands.
+- [bstack-cli.md](bstack-cli.md): install, set up Doppler, the 12+ CLI commands.
 
 ## Related
 

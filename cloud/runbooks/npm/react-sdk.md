@@ -23,7 +23,7 @@ is independent of the miniapp programming model). Promoting to
 
 ## Prereqs
 
-1. You are a member of `@mentra` on npm. See `README.md` in this
+1. You are a member of `@mentra` on npm. See [README.md](README.md) in this
    folder.
 2. You are on the branch with your changes. Stable releases
    usually go from `main`; beta releases usually go from a

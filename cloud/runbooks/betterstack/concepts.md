@@ -1,7 +1,7 @@
 # BetterStack: Concepts and Prerequisites
 
 Read this first if you are new to the stack. Operational
-procedures live in `using-the-website.md` and `bstack-cli.md`.
+procedures live in [using-the-website.md](using-the-website.md) and [bstack-cli.md](bstack-cli.md).
 
 The summary: the cloud writes JSON to stdout. A separate piece
 of infrastructure called Vector reads those stdout streams and
@@ -141,7 +141,7 @@ data. Two relevant facts:
   a JSON-stringified column.
 
 You do not need to know much more than that to write queries.
-Examples in `bstack-cli.md` and `using-the-website.md`.
+Examples in [bstack-cli.md](bstack-cli.md) and [using-the-website.md](using-the-website.md).
 
 ## Hot vs S3 storage
 

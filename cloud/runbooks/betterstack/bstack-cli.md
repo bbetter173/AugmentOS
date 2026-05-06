@@ -139,7 +139,7 @@ supports incident response, link it from a runbook in
 
 ## Related
 
-- `using-the-website.md`: when the web UI is the right tool
+- [using-the-website.md](using-the-website.md): when the web UI is the right tool
   instead.
 - `cloud/tools/bstack/runbooks/`: incident-response procedures
   that use this CLI heavily. `pod-crash.md`,

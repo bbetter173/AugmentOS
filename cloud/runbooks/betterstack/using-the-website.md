@@ -2,7 +2,7 @@
 
 The web UI is best for live tailing, browsing dashboards, and
 ad-hoc exploration. For repeatable queries and incident response,
-the `bstack` CLI is faster (see `bstack-cli.md`).
+the `bstack` CLI is faster (see [bstack-cli.md](bstack-cli.md)).
 
 ## Logging in
 
@@ -172,4 +172,4 @@ when done. Pausing is per-alert, not global.
 
 If you add a new alert, document its trigger and recipient in
 this folder so on-call knows what is firing. A short note in
-`README.md` is enough.
+[README.md](README.md) is enough.

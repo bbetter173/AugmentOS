@@ -5,7 +5,7 @@ all publishes are manual. CI/CD is on the roadmap; this runbook
 will be updated when it lands.
 
 If you have not published an `@mentra/*` package before, read
-`concepts.md` first. It covers scoped packages, dist-tags,
+[concepts.md](concepts.md) first. It covers scoped packages, dist-tags,
 semver, monorepo workspace dependencies, and 2FA setup.
 
 ## Org access
@@ -28,8 +28,8 @@ The `@mentra` org requires an npm account with 2FA enabled.
 
 | Package | Path | Tag policy |
 | --- | --- | --- |
-| `@mentra/sdk` | `cloud/packages/sdk` | `alpha` only. Never `latest`. See `sdk.md`. |
-| `@mentra/react` | `cloud/packages/react-sdk` | `latest` for stable, `beta` for untested. See `react-sdk.md`. |
+| `@mentra/sdk` | `cloud/packages/sdk` | `alpha` only. Never `latest`. See [sdk.md](sdk.md). |
+| `@mentra/react` | `cloud/packages/react-sdk` | `latest` for stable, `beta` for untested. See [react-sdk.md](react-sdk.md). |
 | `@mentra/types` | `cloud/packages/types` | Coupled to `@mentra/sdk` (bundled). Bump together. |
 | `@mentra/cli` | `cloud/packages/cli` | `latest` once tested. |
 | `@mentra/display-utils` | `cloud/packages/display-utils` | `latest`. |
@@ -48,7 +48,7 @@ Anything else requires explicit opt-in (`npm install <pkg>@beta`).
 - **`alpha`**: experimental or in-progress. Used today by
   `@mentra/sdk` because we are migrating to the local SDK. We do
   not want existing miniapp developers to refactor against an API
-  that will change again soon. See `sdk.md` for the full reasoning.
+  that will change again soon. See [sdk.md](sdk.md) for the full reasoning.
 - **`beta`**: pre-release of something we plan to promote to
   `latest`. Use this for `@mentra/react` when changes have not
   been thoroughly tested on real apps yet, then promote to
@@ -154,4 +154,4 @@ just-published version correctly.
 `@mentra/sdk` bundles `@mentra/types`. If your changes touched
 both packages, publish `types` first, bump the SDK's dependency
 range, rebuild the SDK, then publish the SDK. See
-`sdk.md` for the exact sequence.
+[sdk.md](sdk.md) for the exact sequence.

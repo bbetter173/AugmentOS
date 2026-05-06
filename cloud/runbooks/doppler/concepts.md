@@ -1,8 +1,8 @@
 # Doppler: Concepts and Prerequisites
 
 Read this first if you are new to the stack. Operational
-procedures live in `daily-use.md`, `adding-secrets.md`, and
-`porter-integration.md`.
+procedures live in [daily-use.md](daily-use.md), [adding-secrets.md](adding-secrets.md), and
+[porter-integration.md](porter-integration.md).
 
 The summary: Doppler holds every secret used by the cloud and
 by team tooling. Production pods load secrets from Doppler at
@@ -28,7 +28,7 @@ ability to rotate without code changes. Production pods get
 their secrets via Porter's Doppler integration (Porter pulls
 from Doppler at deploy time and writes them into the pod's
 env). Local dev tools fetch the same secrets via `doppler run
---` at process start. See `porter-integration.md` for the
+--` at process start. See [porter-integration.md](porter-integration.md) for the
 production flow.
 
 For our setup: the repo's `porter.yaml` files declare
@@ -108,7 +108,7 @@ team's behalf to pull secrets at deploy time. The
 `DOPPLER_TOKEN` itself is not present in our running pods; the
 integration handles auth at sync time, and pods see only the
 already-pulled secrets in their env. See
-`porter-integration.md` for the full flow.
+[porter-integration.md](porter-integration.md) for the full flow.
 
 Service tokens are revocable. Rotating one means: generate a
 new token, update the consumer (Porter integration), revoke the
@@ -169,7 +169,7 @@ The Doppler CLI does not run inside the pod.
 Updates do not flow into a running pod. The pod read its env
 at process start. To pick up a new value: redeploy the app via
 the Porter dashboard, which re-syncs the Doppler integration
-and rolls the pods. See `adding-secrets.md`.
+and rolls the pods. See [adding-secrets.md](adding-secrets.md).
 
 ## Web UI vs CLI
 
@@ -195,7 +195,7 @@ doppler secrets get FOO --plain                     # one value
 doppler run --project foo --config bar -- cmd       # inject + exec
 ```
 
-`daily-use.md` has the full set.
+[daily-use.md](daily-use.md) has the full set.
 
 ## What this means for the cloud
 

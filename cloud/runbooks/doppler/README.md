@@ -46,15 +46,15 @@ If you cannot see a project, you have not been added.
 
 ## Procedures
 
-- `concepts.md`: read first. Explains projects, configs, the
+- [concepts.md](concepts.md): read first. Explains projects, configs, the
   difference between personal and service tokens, and the two
   injection paths: Porter's Doppler integration (deploy-time
   sync, used in production) vs `doppler run --` (process-start
   injection, used for local dev and team CLIs).
-- `daily-use.md`: log in, switch projects, read and run with
+- [daily-use.md](daily-use.md): log in, switch projects, read and run with
   secrets locally.
-- `adding-secrets.md`: add a new secret, sync across configs.
-- `porter-integration.md`: how Doppler injects into Porter pods.
+- [adding-secrets.md](adding-secrets.md): add a new secret, sync across configs.
+- [porter-integration.md](porter-integration.md): how Doppler injects into Porter pods.
 
 ## Related
 

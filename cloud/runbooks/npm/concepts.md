@@ -1,7 +1,7 @@
 # NPM: Concepts and Prerequisites
 
 Read this first if you are new to npm publishing. Operational
-procedures live in `README.md`, `sdk.md`, and `react-sdk.md`.
+procedures live in [README.md](README.md), [sdk.md](sdk.md), and [react-sdk.md](react-sdk.md).
 
 The summary: we publish a handful of `@mentra/*` packages to
 the public npm registry. They install via `npm install`
@@ -179,7 +179,7 @@ npm publish --tag alpha       # publish under the alpha tag
 
 Always pass `--tag` explicitly. Forgetting it defaults to
 `latest`, which is how alpha or beta versions accidentally end
-up promoted. See the rollback procedure in `README.md`.
+up promoted. See the rollback procedure in [README.md](README.md).
 
 ## Workspace dependencies (monorepo)
 
@@ -216,7 +216,7 @@ install `@mentra/types` separately.
 
 Coordinating publishes: if `@mentra/types` changes, publish
 `types` first, bump the SDK's dependency range, rebuild the
-SDK, then publish the SDK. See `sdk.md`.
+SDK, then publish the SDK. See [sdk.md](sdk.md).
 
 ## `prepare` script
 

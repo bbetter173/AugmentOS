@@ -5,7 +5,7 @@ We use Cloudflare for two distinct things:
 1. **Regional load balancer** (`api.mentra.glass`). Geo-steers
    user traffic to the nearest healthy Porter cluster. This is
    the operational thing the team works with day to day. See
-   `load-balancer.md`.
+   [load-balancer.md](load-balancer.md).
 2. **DNS + edge proxy** for everything else: web properties,
    regional origin hostnames, the dev console, etc. Standard
    Cloudflare DNS; orange cloud on most records, gray cloud on
@@ -63,10 +63,10 @@ curl -s "https://api.cloudflare.com/client/v4/zones?account.id=$ACCOUNT_ID" \
 
 ## Procedures
 
-- `concepts.md`: read first. Explains anycast, the edge, proxy
+- [concepts.md](concepts.md): read first. Explains anycast, the edge, proxy
   modes (orange vs gray cloud), zones, pools, monitors,
   steering policies (geo vs proximity), and session affinity.
-- `load-balancer.md`: how `api.mentra.glass` and
+- [load-balancer.md](load-balancer.md): how `api.mentra.glass` and
   `api.mentraglass.com` are configured, what pools exist, and
   how to add a new region or cluster to the rotation.
 
@@ -79,7 +79,7 @@ curl -s "https://api.cloudflare.com/client/v4/zones?account.id=$ACCOUNT_ID" \
   things.
 - **The 100-second WebSocket idle timeout.** Cloudflare drops
   idle WebSockets at ~100s. Application-level pings handle this
-  in normal operation. See `load-balancer.md`.
+  in normal operation. See [load-balancer.md](load-balancer.md).
 - **The LB API token is scoped to LB only.** It does not have
   DNS read or write. For DNS work, use the
   `CLOUDFLARE_API_TOKEN` from `mentraos-cloud`.

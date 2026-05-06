@@ -124,9 +124,9 @@ the Porter integration above.
 
 - **Pod starts but a required env var is missing**: the Doppler
   config does not have that secret. Add it
-  (`adding-secrets.md`), then redeploy.
+  ([adding-secrets.md](adding-secrets.md)), then redeploy.
 - **One region works, another does not**: per-region configs
   drifted. See the cross-config drift check in
-  `adding-secrets.md`.
+  [adding-secrets.md](adding-secrets.md).
 - **Updates to a secret are not visible in the pod**: the pod
   loaded its env at process start. Restart the pod.

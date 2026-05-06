@@ -1,7 +1,7 @@
 # Cloudflare: Concepts and Prerequisites
 
 Read this first if you are new to the stack. Operational
-procedures live in `load-balancer.md`.
+procedures live in [load-balancer.md](load-balancer.md).
 
 The summary: Cloudflare sits between the public internet and
 our AKS clusters. It does DNS, TLS, edge caching (where we use
@@ -93,7 +93,7 @@ hits the LB hostname, Cloudflare:
    request.
 
 We have two LBs, one per zone, sharing the same pool inventory
-but with different steering policies. See `load-balancer.md`
+but with different steering policies. See [load-balancer.md](load-balancer.md)
 for the live config.
 
 ## Pool
@@ -192,7 +192,7 @@ connection is closed.
 Both ends already exchange application-level pings well below
 that interval, so it does not bite in normal operation. It
 will bite if a code change defers pings or extends the
-interval. See `load-balancer.md`.
+interval. See [load-balancer.md](load-balancer.md).
 
 ## DNS records you encounter in our setup
 

@@ -24,7 +24,7 @@ try v3 do the same.
 
 ## Prereqs
 
-1. You are a member of `@mentra` on npm. See `README.md` in this
+1. You are a member of `@mentra` on npm. See [README.md](README.md) in this
    folder.
 2. You are on the branch that has the changes you want to
    publish. Usually a feature branch off `dev`.
@@ -126,7 +126,7 @@ npm deprecate @mentra/sdk@<bad-version> "Broken; use <last-good-version>."
 ```
 
 Then fix the underlying issue and publish a new version. See the
-folder `README.md` for the general pattern.
+folder [README.md](README.md) for the general pattern.
 
 ## Hotfix
 

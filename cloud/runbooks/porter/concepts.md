@@ -1,7 +1,7 @@
 # Porter: Concepts and Prerequisites
 
 Read this first if you are new to the stack. Operational
-procedures live in `deploys.md`, `env-vars.md`, and `logs.md`.
+procedures live in [deploys.md](deploys.md), [env-vars.md](env-vars.md), and [logs.md](logs.md).
 
 The summary: the cloud runs on Kubernetes clusters in Azure.
 Porter is the platform that builds Docker images, deploys them

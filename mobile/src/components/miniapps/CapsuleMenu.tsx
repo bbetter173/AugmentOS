@@ -129,6 +129,7 @@ export function MiniAppCapsuleMenu({
     try {
       captureRef(viewShotRef, {
         format: "jpg",
+        // handleGLSurfaceViewOnAndroid: true,
         quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
         result: "tmpfile",
       }).then(async (uri) => {

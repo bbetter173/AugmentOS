@@ -167,10 +167,10 @@ export const AllProviders = withWrappers(
     )
   },
   ConnectionOverlayProvider,
-  (props) => {
-    console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering above stack (probably a root render)`)
-    return <>{props.children}</>
-  },
+  // (props) => {
+  //   console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering above stack (probably a root render)`)
+  //   return <>{props.children}</>
+  // },
   (props) => {
     const {preventBack, forceGestureEnabled, animation} = useNavigationStore(
       useShallow((s) => ({
@@ -179,13 +179,6 @@ export const AllProviders = withWrappers(
         animation: s.animation,
       })),
     )
-
-    // console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering screen`)
-    // console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering screen preventBack: ${preventBack} forceGestureEnabled: ${forceGestureEnabled}`)
-    console.log(
-      `NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering screen preventBack: ${preventBack} forceGestureEnabled: ${forceGestureEnabled} animation: ${animation}`,
-    )
-
     const screenOptions = useMemo(
       () => ({
         headerShown: false,

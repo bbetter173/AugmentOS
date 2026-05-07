@@ -139,6 +139,8 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
     //   <BlurView intensity={50} className="absolute inset-0" blurTarget={blurTargetRef} blurMethod="dimezisBlurViewSdk31Plus" />
     // )
 
+    const linGradientOnly = Platform.OS === "android" && !androidBlur
+
     return (
       //       {/* <BlurView intensity={20} className="absolute inset-0" /> */}
       // {/* <LinearGradient
@@ -160,7 +162,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
         maskElement={
           <LinearGradient
             colors={["black", "transparent"]}
-            locations={[0.4, 1]}
+            locations={linGradientOnly ? [0.2, 20] : [0.4, 1]}
             start={{x: 0, y: 1}}
             end={{x: 0, y: 0}}
             style={{
@@ -182,7 +184,7 @@ export default function AppSwitcherButton({swipeProgress, onGridButtonPress, blu
           />
         )}
 
-        {Platform.OS === "android" && !androidBlur && <View className="flex-1 h-full" />}
+        {linGradientOnly && <View className="flex-1 h-full bg-background" />}
 
         {Platform.OS === "ios" && (
           <BlurView intensity={70} className="absolute inset-0" blurMethod="dimezisBlurViewSdk31Plus" />

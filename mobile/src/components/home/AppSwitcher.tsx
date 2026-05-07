@@ -683,7 +683,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
     // doesn't work yet on android for some reason :(
     if (Platform.OS === "android" /*&& !androidBlur*/) {
       return (
-        <Animated.View className="absolute inset-0 bg-black/75" style={backdropStyle}>
+        <Animated.View className="absolute inset-0 bg-background/75" style={backdropStyle}>
           <Pressable className="flex-1" onPress={handleClose} />
         </Animated.View>
       )

@@ -125,38 +125,38 @@ export function MiniAppCapsuleMenu({
   }, [onMinusPress])
 
   const handleExit = async (shouldGoBack?: boolean) => {
-    // console.log("CAPSULE MENU: handleExit() called")
-    try {
-      const uri = await captureRef(viewShotRef, {
-        format: "jpg",
-        quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
-        result: "tmpfile",
-      })
+    console.log("CAPSULE MENU: handleExit() called")
+    // try {
+    //   const uri = await captureRef(viewShotRef, {
+    //     format: "jpg",
+    //     quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
+    //     result: "tmpfile",
+    //   })
       
-      if (Platform.OS === "ios") {
-        const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
-          RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
-        })
-        let amountToChop = insets.top * PixelRatio.get()
-        amountToChop = 0
-        const context = ImageManipulator.ImageManipulator.manipulate(uri)
-        context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
-        const imageRef = await context.renderAsync()
-        const cropped = await imageRef.saveAsync({
-          format: ImageManipulator.SaveFormat.JPEG,
-          compress: 0.1,
-        })
-        useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
-      } else {
-        // android is weird and the crop doesn't work properly:
-        useAppStatusStore.getState().saveScreenshot(packageName, uri)
-      }
+    //   if (Platform.OS === "ios") {
+    //     const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
+    //       RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
+    //     })
+    //     let amountToChop = insets.top * PixelRatio.get()
+    //     amountToChop = 0
+    //     const context = ImageManipulator.ImageManipulator.manipulate(uri)
+    //     context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
+    //     const imageRef = await context.renderAsync()
+    //     const cropped = await imageRef.saveAsync({
+    //       format: ImageManipulator.SaveFormat.JPEG,
+    //       compress: 0.1,
+    //     })
+    //     useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+    //   } else {
+    //     // android is weird and the crop doesn't work properly:
+    //     useAppStatusStore.getState().saveScreenshot(packageName, uri)
+    //   }
 
-      // await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
-      // await useAppStatusStore.getState().saveScreenshot(packageName, uri)
-    } catch (e) {
-      console.warn("screenshot failed:", e)
-    }
+    //   // await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+    //   // await useAppStatusStore.getState().saveScreenshot(packageName, uri)
+    // } catch (e) {
+    //   console.warn("screenshot failed:", e)
+    // }
 
     if (shouldGoBack) {
       goBack()

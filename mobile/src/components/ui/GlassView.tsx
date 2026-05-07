@@ -20,7 +20,7 @@ const GlassView = ({
   style,
   transparent = true,
   disableOnAndroid = false,
-  androidShadowSize = "md",
+  androidShadowSize = "lg",
   ...props
 }: GlassViewProps & NewGlassViewProps) => {
   const [iosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
@@ -62,7 +62,14 @@ const GlassView = ({
     let backgroundColor = theme.colors.primary_foreground + "C9"
     backgroundColor = flatStyle.backgroundColor?.toString() ?? backgroundColor
 
-    boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
+    // boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
+    if (androidShadowSize === "sm") {
+      boxShadowStyle = "3px 3px 4px 0px rgba(0, 0, 0, 0.1)"
+    } else if (androidShadowSize === "md") {
+      boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
+    } else if (androidShadowSize === "lg") {
+      boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
+    }
 
     // return (
     //   <View style={[style, {
@@ -89,8 +96,8 @@ const GlassView = ({
       <ShadowView
         inset
         shadowColor={innerShadowColor + "AA"}
-        shadowBlur={16}
-        shadowOffset={{width: 8, height: 8}}
+        // shadowBlur={16}
+        // shadowOffset={{width: 8, height: 8}}
         style={[
           style,
           {

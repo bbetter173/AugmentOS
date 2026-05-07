@@ -98,11 +98,11 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
     return (
-      <GlassView className="bg-primary-foreground/50 p-5" style={style}>
+      <GlassView className="bg-primary-foreground p-5" style={style}>
         <View className="flex-row justify-between items-center mb-4">
           <Text className="font-semibold text-secondary-foreground text-lg" tx="onboarding:phoneMode" />
         </View>
-        <GlassesDisplayMirror fallbackMessage="Glasses mirror"  />
+        <GlassesDisplayMirror fallbackMessage="Glasses mirror" style={{backgroundColor: theme.colors.background}} />
         {/* <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
           <Icon name="fullscreen" size={24} color={theme.colors.secondary_foreground} />
         </TouchableOpacity> */}

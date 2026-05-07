@@ -7,8 +7,8 @@ import {Header, Icon, Screen, Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n/translate"
 import {sortAppsByLastOpenTime, useApps, type ClientApp} from "@mentra/island"
 
@@ -20,7 +20,7 @@ const MAX_MENU_ITEMS = 10
 
 export default function GlassesMenuScreen() {
   const {theme} = useAppTheme()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const applets = useApps()
   const [savedMenuApps, setSavedMenuApps] = useSetting<GlassesMenuItem[] | null>(SETTINGS.menu_apps.key)
   const [menuItems, setMenuItems] = useState<GlassesMenuItem[]>([])

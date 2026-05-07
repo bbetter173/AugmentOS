@@ -16,7 +16,6 @@ import MiniappHost from "@/components/miniapp/MiniappHost"
 import {AppStoreProvider} from "@/contexts/AppStoreContext"
 import {AuthProvider} from "@/contexts/AuthContext"
 import {DeeplinkProvider} from "@/contexts/DeeplinkContext"
-import {NavigationHistoryProvider, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {SplashLoaderProvider} from "@/contexts/SplashLoaderProvider"
 import {ThemeProvider} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
@@ -83,7 +82,6 @@ export const AllProviders = withWrappers(
   KeyboardProvider,
   AuthProvider,
   AppStoreProvider,
-  NavigationHistoryProvider,
   SplashLoaderProvider,
   DeeplinkProvider,
   (props) => {
@@ -131,9 +129,11 @@ export const AllProviders = withWrappers(
   },
   KonamiCodeProvider,
   (props) => {
-    const {preventBack, getHistory} = useNavigationHistory()
+    const {preventBack, history: navHistory} = useNavigationStore(
+      useShallow((s) => ({preventBack: s.preventBack, history: s.history})),
+    )
     const [debugNavigationHistory] = useSetting(SETTINGS.debug_navigation_history.key)
-    const history = getHistory().map((item) => item.replaceAll("/", "\\"))
+    const history = navHistory.map((item) => item.replaceAll("/", "\\"))
     const {top} = useSaferAreaInsets()
     if (!debugNavigationHistory) {
       return <>{props.children}</>

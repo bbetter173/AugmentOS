@@ -5,8 +5,8 @@ import {Text, Screen, Header} from "@/components/ignite"
 import {OptionList} from "@/components/ui/Options"
 import {ThemedSlider} from "@/components/settings/ThemedSlider"
 import ToggleSetting from "@/components/settings/ToggleSetting"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import Toast from "react-native-toast-message"
 import {useGlassesStore} from "@/stores/glasses"
@@ -49,7 +49,7 @@ const ROI_POSITION_OPTIONS = [
 
 export default function CameraSettingsScreen() {
   const {theme, themed} = useAppTheme()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const [_devMode, _setDevMode] = useSetting(SETTINGS.dev_mode.key)
   const [photoSize, setPhotoSize] = useSetting(SETTINGS.button_photo_size.key)
   const [_ledEnabled, setLedEnabled] = useSetting(SETTINGS.button_camera_led.key)

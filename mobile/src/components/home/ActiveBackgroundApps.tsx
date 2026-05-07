@@ -4,15 +4,15 @@ import {Icon, Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
 import {Badge} from "@/components/ui"
 import {Group} from "@/components/ui/Group"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useBackgroundApps, useStop, type ClientApp} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
 
 export const ActiveBackgroundApps: React.FC = () => {
   const {themed, theme} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const {active} = useBackgroundApps()
   const stopApplet = useStop()
 

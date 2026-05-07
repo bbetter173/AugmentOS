@@ -20,8 +20,9 @@ import ToggleSetting from "@/components/settings/ToggleSetting"
 import Divider from "@/components/ui/Divider"
 import InfoCardSection from "@/components/ui/InfoCard"
 import {RouteButton} from "@/components/ui/RouteButton"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import restComms from "@/services/RestComms"
 import {useApps, useAppStatusStore, useRefresh, useStart, useStop} from "@mentra/island"
@@ -37,7 +38,7 @@ export default function AppSettings() {
   const {packageName, appName: appNameParam} = useLocalSearchParams()
   const [isUninstalling, setIsUninstalling] = useState(false)
   const {theme, themed} = useAppTheme()
-  const {goBack, replaceAll} = useNavigationHistory()
+  const {goBack, replaceAll} = useNavigationStore.getState()
   const insets = useSaferAreaInsets()
   const hasLoadedData = useRef(false)
 

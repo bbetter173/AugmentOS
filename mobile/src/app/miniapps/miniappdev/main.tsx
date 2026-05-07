@@ -9,13 +9,13 @@ import GlassView from "@/components/ui/GlassView"
 import GlassesDisplayMirror from "@/components/mirror/GlassesDisplayMirror"
 import {RouteButton} from "@/components/ui/RouteButton"
 import ToggleSetting from "@/components/settings/ToggleSetting"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n/translate"
 import {SETTINGS, useSetting} from "@/stores/settings"
 
 export default function MiniappDevMain() {
   const viewShotRef = useRef<View>(null)
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [localSttFallbackEnabled, setLocalSttFallbackEnabled] = useSetting(SETTINGS.local_stt_fallback_enabled.key)
 
   return (

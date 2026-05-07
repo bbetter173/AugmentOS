@@ -4,8 +4,8 @@ import {SquircleView} from "expo-squircle-view"
 import {StyleSheet, TextStyle, View, ViewStyle} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useApps} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 import {decideDevLaunchRoute} from "@mentra/island"
@@ -28,7 +28,7 @@ export default function DevMiniappOfflineScreen() {
     name?: string
     iconUrl?: string
   }>()
-  const {goBack, replace, push} = useNavigationHistory()
+  const {goBack, replace, push} = useNavigationStore.getState()
   const {theme, themed} = useAppTheme()
   const apps = useApps()
 

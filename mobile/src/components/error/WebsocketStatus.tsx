@@ -9,7 +9,7 @@ import {useConnectionStore} from "@/stores/connection"
 import {BgTimer} from "@mentra/island"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 
 type DisplayStatus = "connected" | "warning" | "disconnected"
 
@@ -44,7 +44,7 @@ export default function WebsocketStatus() {
   const disconnectionTimerRef = useRef<number | null>(null)
   const DISCONNECTION_DELAY = 3000
   const prevConnectionStatusRef = useRef(connectionStatus)
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
 
   // Track whether the WS was observed as disconnected long enough that we
   // might genuinely have missed applet state changes. Flipped true by the

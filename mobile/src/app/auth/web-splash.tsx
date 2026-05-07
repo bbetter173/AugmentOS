@@ -3,12 +3,12 @@ import {Screen} from "@/components/ignite"
 import {useCallback, useEffect, useRef} from "react"
 import {useFocusEffect, useLocalSearchParams} from "expo-router"
 import {BgTimer} from "@mentra/island"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import * as WebBrowser from "expo-web-browser"
 import {AppState} from "react-native"
 
 export default function WebSplash() {
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const {url} = useLocalSearchParams()
   const timerRef = useRef<number | null>(null)
 

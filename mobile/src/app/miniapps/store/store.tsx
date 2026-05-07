@@ -8,8 +8,8 @@ import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {Text, Screen, Header} from "@/components/ignite"
 import InternetConnectionFallbackComponent from "@/components/ui/InternetConnectionFallbackComponent"
 import {useAppStoreWebviewPrefetch} from "@/contexts/AppStoreContext"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useRefresh} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
@@ -21,7 +21,7 @@ export default function AppStoreWeb() {
   const {packageName} = useLocalSearchParams()
   const [canGoBack, setCanGoBack] = useState(false)
   const [isAuthReady, setIsAuthReady] = useState(false)
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const {appStoreUrl, webViewRef: prefetchedWebviewRef} = useAppStoreWebviewPrefetch()
   const refreshApplets = useRefresh()
   const {theme, themed} = useAppTheme()

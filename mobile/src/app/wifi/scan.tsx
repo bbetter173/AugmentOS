@@ -10,8 +10,9 @@ import {WifiUnlockedIcon} from "@/components/icons/WifiUnlockedIcon"
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {Badge} from "@/components/ui/Badge"
 import {Group} from "@/components/ui"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {usePushPrevious} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useGlassesStore} from "@/stores/glasses"
 import showAlert from "@/utils/AlertUtils"
 import WifiCredentialsService from "@/utils/wifi/WifiCredentialsService"
@@ -30,8 +31,9 @@ export default function WifiScanScreen() {
   const receivedResultsForSessionRef = useRef<boolean>(false)
   const wifiSsid = useGlassesStore((state) => state.wifiSsid)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const {push, goBack, pushPrevious, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
-    useNavigationHistory()
+  const {push, goBack, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
+    useNavigationStore.getState()
+  const pushPrevious = usePushPrevious()
   const wifiScanResults: WifiSearchResult[] = useCoreStore((state) => state.wifiScanResults)
 
   // if the previous route is in this list, or the second to last route is in this list

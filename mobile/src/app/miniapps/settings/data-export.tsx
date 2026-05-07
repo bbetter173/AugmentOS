@@ -16,8 +16,8 @@ import {Divider} from "@/components/ui/Divider"
 import {Group} from "@/components/ui/Group"
 import {Spacer} from "@/components/ui/Spacer"
 import {useAuth} from "@/contexts/AuthContext"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {useApps} from "@mentra/island"
 import {useSettingsStore} from "@/stores/settings"
@@ -202,7 +202,7 @@ export default function DataExportPage() {
 
   const {user, session} = useAuth()
   const appStatus = useApps()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const {theme, themed} = useAppTheme()
   const bluetoothStatus = useCoreStore()
 

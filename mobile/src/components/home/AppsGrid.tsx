@@ -24,7 +24,7 @@ import {uninstallAppUI} from "@/utils/uninstallAppUI"
 import {askPermissionsUI} from "@/utils/PermissionsUtils"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {storage} from "@/utils/storage"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import GlassView from "@/components/ui/GlassView"
 import { DraggableMasonryList } from "react-native-draggable-masonry"
@@ -171,7 +171,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({x: 0, y: 0, screenX: 0, screenY: 0})
   const [selectedApp, setSelectedApp] = useState<ClientApp | null>(null)
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
 
   const containerRef = useRef<View>(null)
   const isMovingRef = useRef(false)

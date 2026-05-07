@@ -7,8 +7,9 @@ import Animated, {useSharedValue, useAnimatedStyle, withTiming} from "react-nati
 import {Header, Screen, Text} from "@/components/ignite"
 import MiniappErrorScreen from "@/components/miniapps/MiniappErrorScreen"
 import LoadingOverlay from "@/components/ui/LoadingOverlay"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import restComms from "@/services/RestComms"
 import {webviewBridge as miniComms} from "@mentra/island"
 import {WebSocketStatus} from "@/services/ws-types"
@@ -32,7 +33,7 @@ export default function AppWebView() {
   const [isLoadingToken, setIsLoadingToken] = useState(!isLocal)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [retryTrigger, setRetryTrigger] = useState(0)
-  const {goBack, push} = useNavigationHistory()
+  const {goBack, push} = useNavigationStore.getState()
   const viewShotRef = useRef(null)
   const insets = useSaferAreaInsets()
   const {theme} = useAppTheme()
@@ -48,7 +49,7 @@ export default function AppWebView() {
   const hasValidParams =
     typeof webviewURL === "string" && typeof appName === "string" && typeof packageName === "string"
 
-  const {setForceGestureEnabled} = useNavigationHistory()
+  const {setForceGestureEnabled} = useNavigationStore.getState()
 
   // Back press handler for CapsuleMenu/Header buttons and Android back button.
   const handleWebViewBack = useCallback(() => {

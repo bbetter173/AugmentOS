@@ -24,8 +24,8 @@ import {
   type ClientApp,
 } from "@mentra/island"
 import AppIcon from "@/components/home/AppIcon"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BlurView} from "expo-blur"
 import GlassView from "@/components/ui/GlassView"
@@ -277,7 +277,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
   const targetIndex = useSharedValue(0)
   const prevTranslationX = useSharedValue(0)
   const openX = useSharedValue(-1)
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const insets = useSaferAreaInsets()
   let directApps = useActiveApps()
   let [apps, setApps] = useState<ClientApp[]>([])

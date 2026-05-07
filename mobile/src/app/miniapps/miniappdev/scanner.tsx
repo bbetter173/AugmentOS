@@ -4,8 +4,8 @@ import {useEffect, useState} from "react"
 import {Linking, View} from "react-native"
 
 import {Button, Header, Screen, Text} from "@/components/ignite"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import showAlert from "@/utils/AlertUtils"
 import {appRegistry, decideDevLaunchRoute} from "@mentra/island"
@@ -15,7 +15,7 @@ import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/typ
 
 export default function MiniappDeveloperScannerScreen() {
   const {theme} = useAppTheme()
-  const {goBack, replace} = useNavigationHistory()
+  const {goBack, replace} = useNavigationStore.getState()
   const [permission, requestPermission] = useCameraPermissions()
   const [scanned, setScanned] = useState(false)
 

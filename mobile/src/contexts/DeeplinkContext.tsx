@@ -3,12 +3,12 @@ import * as WebBrowser from "expo-web-browser"
 import {FC, ReactNode, createContext, useContext, useEffect} from "react"
 import {AppState, Platform} from "react-native"
 
-import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/NavigationHistoryContext"
 import {useSplashLoader} from "@/contexts/SplashLoaderProvider"
 import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {useAppStatusStore} from "@mentra/island"
 import mentraAuth from "@/utils/auth/authClient"
 import {BgTimer} from "@mentra/island"
+import { useNavigationStore } from "@/stores/navigation"
 
 /** Returns immediately if the app is already active, otherwise waits for it. */
 const waitForActive = (): Promise<void> => {
@@ -25,7 +25,7 @@ const waitForActive = (): Promise<void> => {
 
 export interface DeepLinkRoute {
   pattern: string
-  handler: (url: string, params: Record<string, string>, navObject: NavObject) => void | Promise<void>
+  handler: (url: string, params: Record<string, string>) => void | Promise<void>
   requiresAuth?: boolean
 }
 
@@ -36,17 +36,19 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Home routes
   {
     pattern: "/",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       // Don't navigate to home without authentication
       // Let the app's index route handle the navigation logic
-      navObject.replace("/")
+      nav.replace("/")
     },
     requiresAuth: false, // Let index.tsx handle auth checking
   },
   {
     pattern: "/home",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.replaceAll("/home")
+    handler: (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.replaceAll("/home")
     },
     requiresAuth: true, // Require auth for explicit /home navigation
   },
@@ -54,16 +56,17 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Settings routes
   {
     pattern: "/settings",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/miniapps/settings")
+    handler: (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/miniapps/settings")
     },
     requiresAuth: true,
   },
   {
     pattern: "/miniapps/settings/:section",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: (url: string, params: Record<string, string>) => {
       const {section} = params
-
+      const nav = useNavigationStore.getState()
       // Map section names to actual routes
       const sectionRoutes: Record<string, string> = {
         "profile": "/miniapps/settings/profile",
@@ -77,9 +80,9 @@ const deepLinkRoutes: DeepLinkRoute[] = [
 
       const route = sectionRoutes[section]
       if (route) {
-        navObject.push(route as any)
+        nav.push(route as any)
       } else {
-        navObject.push("/settings")
+        nav.push("/settings")
       }
     },
     requiresAuth: true,
@@ -88,15 +91,17 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Glasses management routes
   {
     pattern: "/glasses",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/glasses")
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/glasses")
     },
     requiresAuth: true,
   },
   {
     pattern: "/asg/gallery",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/asg/gallery")
+    handler: (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/asg/gallery")
     },
     requiresAuth: true,
   },
@@ -104,15 +109,17 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Pairing routes
   {
     pattern: "/pairing",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/pairing/guide")
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/pairing/guide")
     },
     requiresAuth: true,
   },
   {
     pattern: "/pairing/:step",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: (url: string, params: Record<string, string>) => {
       const {step} = params
+      const nav = useNavigationStore.getState()
 
       const pairingRoutes: Record<string, string> = {
         "guide": "/pairing/guide",
@@ -124,9 +131,9 @@ const deepLinkRoutes: DeepLinkRoute[] = [
 
       const route = pairingRoutes[step]
       if (route) {
-        navObject.push(route as any)
+        nav.push(route as any)
       } else {
-        navObject.push("/pairing/guide")
+        nav.push("/pairing/guide")
       }
     },
     requiresAuth: true,
@@ -135,14 +142,15 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Smart start: activates the app if installed, otherwise shows the store page
   {
     pattern: "/package/:packageName/start",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {packageName, preloaded, authed} = params
       if (preloaded && authed) {
         // Deep links can fire while the app is still in the background state.
         // Navigation calls made before the app is active get lost, so wait first.
         await waitForActive()
         // Reset stack to home, then push store on top so back always goes home.
-        navObject.replaceAll("/home")
+        useNavigationStore.getState().replaceAll("/home")
         await miniappCatalog.refresh()
         const applet = useAppStatusStore.getState().apps.find((app) => app.packageName === packageName)
         console.log("[DEEPLINK] Smart start for package:", packageName, "applet found:", !!applet)
@@ -150,13 +158,13 @@ const deepLinkRoutes: DeepLinkRoute[] = [
           setTimeout(() => useAppStatusStore.getState().start(applet), 150)
           return
         } else {
-          setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
+          setTimeout(() => nav.push("/miniapps/store/store", {packageName}), 150)
           return
         }
       }
       // Cold start or not authenticated — store raw URL so processUrl re-matches it after init
-      navObject.setPendingRoute(url)
-      navObject.replace(`/`)
+      nav.setPendingRoute(url)
+      nav.replace(`/`)
     },
     requiresAuth: true,
   },
@@ -164,28 +172,30 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Store routes
   {
     pattern: "/store",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {packageName} = params
-      navObject.replace(`/store?packageName=${packageName}`)
+      nav.replace(`/store?packageName=${packageName}`)
     },
     requiresAuth: true,
   },
   {
     pattern: "/package/:packageName",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {packageName, preloaded, authed} = params
       if (preloaded && authed) {
         // Deep links can fire while the app is still in the background state.
         // Navigation calls made before the app is active get lost, so wait first.
         await waitForActive()
         // Reset stack to home, then push store on top so back always goes home.
-        navObject.replaceAll("/home")
-        setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
+        nav.replaceAll("/home")
+        setTimeout(() => nav.push("/miniapps/store/store", {packageName}), 150)
         return
       }
       // Cold start or not authenticated — store raw URL so processUrl re-matches it after init
-      navObject.setPendingRoute(url)
-      navObject.replace(`/`)
+      nav.setPendingRoute(url)
+      nav.replace(`/`)
     },
     requiresAuth: true,
   },
@@ -193,13 +203,15 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Authentication routes
   {
     pattern: "/auth/start",
-    handler: (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.replaceAll("/auth/start")
+    handler: (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.replaceAll("/auth/start")
     },
   },
   {
     pattern: "/auth/callback",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       // console.log("[LOGIN DEBUG] params:", params)
       // console.log("[LOGIN DEBUG] url:", url)
 
@@ -227,7 +239,7 @@ const deepLinkRoutes: DeepLinkRoute[] = [
       if (authParams?.error || authParams?.error_code) {
         console.log("[LOGIN DEBUG] Error in auth callback:", authParams.error_code, authParams.error_description)
         // Navigate to login with the error code so login screen can show the message
-        navObject.replace(`/auth/start?authError=${authParams.error_code || authParams.error}`)
+        nav.replace(`/auth/start?authError=${authParams.error_code || authParams.error}`)
         return
       }
 
@@ -266,8 +278,8 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         BgTimer.setTimeout(() => {
           console.log("[LOGIN DEBUG] Inside setTimeout, navigating to index")
           try {
-            navObject.setAnimation("none")
-            navObject.replaceAll("/")
+            nav.setAnimation("none")
+            nav.replaceAll("/")
             console.log("[LOGIN DEBUG] router.replace called successfully")
           } catch (navError) {
             console.error("[LOGIN DEBUG] Error calling router.replace:", navError)
@@ -284,7 +296,7 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         if (res.is_ok()) {
           const session = res.value
           if (session?.token) {
-            navObject.replace("/")
+            nav.replace("/")
           }
         }
       }
@@ -292,7 +304,8 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   },
   {
     pattern: "/auth/reset-password",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       console.log("[RESET PASSWORD DEBUG] Handling reset password deep link")
       console.log("[RESET PASSWORD DEBUG] URL:", url)
       console.log("[RESET PASSWORD DEBUG] Params:", params)
@@ -320,7 +333,7 @@ const deepLinkRoutes: DeepLinkRoute[] = [
       if (authParams?.error || authParams?.error_code) {
         console.log("[RESET PASSWORD DEBUG] Error in reset link:", authParams.error_code, authParams.error_description)
         // Navigate to login with the error code so login screen can show the message
-        navObject.replace(`/auth/start?authError=${authParams.error_code || authParams.error}`)
+        nav.replace(`/auth/start?authError=${authParams.error_code || authParams.error}`)
         return
       }
 
@@ -332,16 +345,16 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         })
         if (res.is_error()) {
           console.error("[RESET PASSWORD DEBUG] Error setting recovery session:", res.error)
-          navObject.replace("/auth/start?authError=invalid_reset_link")
+          nav.replace("/auth/start?authError=invalid_reset_link")
           return
         }
 
         console.log("[RESET PASSWORD DEBUG] Recovery session set successfully")
         // Navigate to the reset password screen
-        navObject.replace("/auth/reset-password")
+        nav.replace("/auth/reset-password")
       } else {
         console.log("[RESET PASSWORD DEBUG] Missing required auth parameters for password reset")
-        navObject.replace("/auth/start?authError=invalid_reset_link")
+        nav.replace("/auth/start?authError=invalid_reset_link")
       }
     },
   },
@@ -349,16 +362,18 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Mirror/Gallery routes
   {
     pattern: "/mirror/gallery",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/mirror/gallery")
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/mirror/gallery")
     },
     requiresAuth: true,
   },
   {
     pattern: "/mirror/video/:videoId",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {videoId} = params
-      navObject.push(`/mirror/video-player?videoId=${videoId}`)
+      nav.push(`/mirror/video-player?videoId=${videoId}`)
     },
     requiresAuth: true,
   },
@@ -366,10 +381,11 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Search routes
   {
     pattern: "/search",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {q} = params
       const route = q ? `/search/search?q=${encodeURIComponent(q)}` : "/search/search"
-      navObject.push(route as any)
+      nav.push(route as any)
     },
     requiresAuth: true,
   },
@@ -377,31 +393,35 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   // Onboarding routes
   {
     pattern: "/welcome",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/welcome")
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/welcome")
     },
   },
   {
     pattern: "/onboarding/welcome",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      navObject.push("/onboarding/welcome")
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
+      nav.push("/onboarding/welcome")
     },
   },
 
   // Universal app link routes (for apps.mentra.glass)
   {
     pattern: "/apps/:packageName",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {packageName} = params
-      navObject.push(`/applet/webview?packageName=${packageName}`)
+      nav.push(`/applet/webview?packageName=${packageName}`)
     },
     requiresAuth: true,
   },
   {
     pattern: "/apps/:packageName/settings",
-    handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
+    handler: async (url: string, params: Record<string, string>) => {
+      const nav = useNavigationStore.getState()
       const {packageName} = params
-      navObject.push(`/applet/settings?packageName=${packageName}`)
+      nav.push(`/applet/settings?packageName=${packageName}`)
     },
     requiresAuth: true,
   },
@@ -416,20 +436,9 @@ const DeeplinkContext = createContext<DeeplinkContextType>({} as DeeplinkContext
 export const useDeeplink = () => useContext(DeeplinkContext)
 
 export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
-  const {
-    push,
-    replace,
-    goBack,
-    setPendingRoute,
-    getPendingRoute,
-    navigate,
-    replaceAll,
-    preventBack,
-    setAnimation,
-    getCurrentRoute,
-    getCurrentParams,
-  } = useNavigationHistory()
+
   const {setSplashEnabled} = useSplashLoader()
+  const nav = useNavigationStore.getState()
   const config = {
     scheme: "com.mentra",
     host: "apps.mentra.glass",
@@ -449,10 +458,9 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
     fallbackHandler: (url: string) => {
       console.warn("Fallback handler called for URL:", url)
       setTimeout(() => {
-        replaceAll("/auth/start")
+        nav.replaceAll("/auth/start")
       }, 100)
     },
-    navObject: {push, replace, goBack, setPendingRoute, getPendingRoute, navigate, replaceAll, preventBack},
   }
 
   const handleUrlRaw = async ({url}: {url: string}) => {
@@ -555,11 +563,11 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
       // delay and calls navigateToDestination() before the pending route is set,
       // causing it to navigate to /home instead of the deep link target.
       if (initial) {
-        setPendingRoute(url)
+        nav.setPendingRoute(url)
         await new Promise((resolve) => setTimeout(resolve, 1000))
         // If index.tsx already consumed and re-processed the pending route
         // during the delay, don't double-process it
-        if (getPendingRoute() !== url) {
+        if (nav.getPendingRoute() !== url) {
           console.log("DEEPLINK: Pending route was consumed during delay, skipping")
           return
         }
@@ -585,10 +593,10 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
       if (matchedRoute.requiresAuth && !authed) {
         console.warn("Authentication required for route:", matchedRoute.pattern)
         // Store the URL for after authentication
-        setPendingRoute(url)
+        nav.setPendingRoute(url)
         setTimeout(() => {
           try {
-            replace("/auth/start")
+            nav.replace("/auth/start")
           } catch (error) {
             console.warn("Navigation failed, router may not be ready:", error)
           }
@@ -608,23 +616,10 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
         console.log("@@@@@@@@@@@@@ MATCHED ROUTE @@@@@@@@@@@@@@@", matchedRoute)
         console.log("@@@@@@@@@@@@@ PARAMS @@@@@@@@@@@@@@@", params)
         console.log("@@@@@@@@@@@@@ URL @@@@@@@@@@@@@@@", url)
-        const navObject: NavObject = {
-          push,
-          replace,
-          goBack,
-          setPendingRoute,
-          getPendingRoute,
-          navigate,
-          replaceAll,
-          preventBack,
-          setAnimation,
-          getCurrentRoute,
-          getCurrentParams,
-        }
         setSplashEnabled(true)
         BgTimer.setTimeout(async () => {
-          await matchedRoute.handler(url, params, navObject)
-          setTimeout(() => {
+          await matchedRoute.handler(url, params)
+          BgTimer.setTimeout(() => {
             setSplashEnabled(false)
           }, 2500)
         }, 100)

@@ -3,8 +3,8 @@ import {FlatList, TextStyle, TouchableOpacity, View, ViewStyle} from "react-nati
 
 import {Text} from "@/components/ignite"
 import AppIcon from "@/components/home/AppIcon"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {DUMMY_APPLET, useBackgroundApps, useStart, type ClientApp} from "@mentra/island"
 
 import {storePackageName} from "@/constants/miniapps"
@@ -17,7 +17,7 @@ export const BackgroundAppsGrid = () => {
   const {themed, theme} = useAppTheme()
   const {inactive} = useBackgroundApps()
   const startApplet = useStart()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
 
   const gridData = useMemo(() => {
     // Filter out incompatible apps and running apps

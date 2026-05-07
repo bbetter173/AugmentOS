@@ -5,8 +5,8 @@ import {ActivityIndicator, Image, TouchableOpacity, View, ViewStyle} from "react
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
 import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {useSearchingState} from "@/hooks/useSearchingState"
@@ -64,7 +64,7 @@ export const DeviceStatus = ({
 
 export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   const {theme} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false)
   const glassesConnected = useGlassesStore((state) => state.connected)
@@ -232,7 +232,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
 
 export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
   const {theme} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [defaultController] = useSetting(SETTINGS.default_controller.key)
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const controllerFullyBooted = useGlassesStore((state) => state.controllerFullyBooted)

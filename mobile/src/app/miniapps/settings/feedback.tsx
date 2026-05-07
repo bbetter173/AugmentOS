@@ -21,7 +21,7 @@ import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 import mentraAuth from "@/utils/auth/authClient"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 
 export default function FeedbackPage() {
   const params = useLocalSearchParams<{
@@ -48,7 +48,7 @@ export default function FeedbackPage() {
   const apps = useAppStatusStore((state) => state.apps)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const viewShotRef = useRef<View>(null)
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
 
   const resolveScreenshotPackageName = useCallback(() => {
     if (apps.some((app) => app.packageName === feedbackPackageName && app.running)) {

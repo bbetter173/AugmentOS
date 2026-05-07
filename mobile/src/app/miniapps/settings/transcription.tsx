@@ -7,8 +7,8 @@ import {Header, Screen, Text} from "@/components/ignite"
 import ModelSelector from "@/components/settings/ModelSelector"
 import ToggleSetting from "@/components/settings/ToggleSetting"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import STTModelManager from "@/services/STTModelManager"
 import {useStopAll} from "@mentra/island"
@@ -17,7 +17,7 @@ import showAlert from "@/utils/AlertUtils"
 
 export default function TranscriptionSettingsScreen() {
   const {theme} = useAppTheme()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
 
   const [selectedModelId, setSelectedModelId] = useState(STTModelManager.getCurrentModelId())
   const [modelInfo, setModelInfo] = useState<any>(null)

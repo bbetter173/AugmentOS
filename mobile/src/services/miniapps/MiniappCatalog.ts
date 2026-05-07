@@ -18,7 +18,7 @@ import {
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {showAlert} from "@/contexts/ModalContext"
-import {getCurrentRoute, push} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {submitMiniappStartFailedBugReport} from "@/services/bugReport/miniappStartBugReport"
 import restComms from "@/services/RestComms"
@@ -146,6 +146,7 @@ class MiniappCatalog {
   }
 
   private async beforeStart(app: ClientApp, opts?: StartOptions): Promise<boolean> {
+    const nav = useNavigationStore.getState()
     // 1. Compatibility gate
     if (!app.compatibility?.isCompatible) {
       const missingTypes = app.compatibility?.missingRequired?.map((req) => req.type) || []
@@ -182,7 +183,9 @@ class MiniappCatalog {
             {text: translate("transcription:goToSettings"), style: "default"},
           ],
         })
-        if (result === 1) push("/miniapps/settings/transcription")
+        if (result === 1) {
+          nav.push("/miniapps/settings/transcription")
+        }
         return false
       }
       await CoreModule.restartTranscriber()
@@ -195,7 +198,7 @@ class MiniappCatalog {
     }
 
     // 3. Foreground navigation (skip when caller asked to)
-    if (!opts?.skipNavigation && getCurrentRoute() === "/home") {
+    if (!opts?.skipNavigation && nav.getCurrentRoute() === "/home") {
       this.navigateForApp(app)
     }
 
@@ -316,8 +319,10 @@ class MiniappCatalog {
   // ---------------------------------------------------------------------
 
   private navigateForApp(app: ClientApp): void {
+    console.log("MiniappCatalog: navigateForApp()", app.packageName)
+    const nav = useNavigationStore.getState()
     if (app.offlineRoute) {
-      push(app.offlineRoute, {transition: "zoom"})
+      nav.push(app.offlineRoute, {transition: "zoom"})
       return
     }
     if (app.offline) return // offline app without a route — nothing to navigate to
@@ -325,15 +330,15 @@ class MiniappCatalog {
       const {packageName, devUrl, name: appName, logoUrl} = app
       void decideDevLaunchRoute(packageName, devUrl).then((result) => {
         if (result.decision === "live") {
-          push("/applet/local", {packageName, devUrl, appName, transition: "zoom"})
+          nav.push("/applet/local", {packageName, devUrl, appName, transition: "zoom"})
         } else {
-          push("/applet/dev-offline", {packageName, name: appName, iconUrl: logoUrl})
+          nav.push("/applet/dev-offline", {packageName, name: appName, iconUrl: logoUrl})
         }
       })
       return
     }
     if (app.local) {
-      push("/applet/local", {
+      nav.push("/applet/local", {
         packageName: app.packageName,
         version: app.version,
         appName: app.name,
@@ -342,7 +347,7 @@ class MiniappCatalog {
       return
     }
     if (app.webviewUrl && app.healthy) {
-      push("/applet/webview", {
+      nav.push("/applet/webview", {
         webviewURL: app.webviewUrl,
         appName: app.name,
         packageName: app.packageName,
@@ -350,7 +355,7 @@ class MiniappCatalog {
       })
       return
     }
-    push("/applet/settings", {
+    nav.push("/applet/settings", {
       packageName: app.packageName,
       appName: app.name,
       transition: "zoom",

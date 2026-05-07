@@ -7,8 +7,8 @@ import {Button, Header, Icon, Screen, Text} from "@/components/ignite"
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {useAuth} from "@/contexts/AuthContext"
 import {useDeeplink} from "@/contexts/DeeplinkContext"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import mantle from "@/services/MantleManager"
 import restComms from "@/services/RestComms"
@@ -38,7 +38,7 @@ export default function InitScreen() {
   const {theme} = useAppTheme()
   const {user, session, loading: authLoading} = useAuth()
   const {replace, replaceAll, getPendingRoute, setPendingRoute, clearHistoryAndGoHome, setAnimation} =
-    useNavigationHistory()
+    useNavigationStore.getState()
   const {processUrl} = useDeeplink()
   const rootNavigationState = useRootNavigationState()
   const isNavigationReady = rootNavigationState?.key != null

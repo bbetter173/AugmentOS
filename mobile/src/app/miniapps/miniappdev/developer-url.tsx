@@ -6,8 +6,8 @@ import GlassView from "@/components/ui/GlassView"
 import {Group} from "@/components/ui/Group"
 import {RouteButton} from "@/components/ui/RouteButton"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import showAlert from "@/utils/AlertUtils"
 import {decideDevLaunchRoute} from "@mentra/island"
@@ -37,7 +37,7 @@ function resolveIconUrl(baseUrl: string, iconPath: string | undefined): string |
 
 export default function MiniappDeveloperUrlScreen() {
   const {theme} = useAppTheme()
-  const {goBack, push} = useNavigationHistory()
+  const {goBack, push} = useNavigationStore.getState()
   const [url, setUrl] = useState("")
   const [loading, setLoading] = useState(false)
   const [recent, setRecent] = useState<RecentDevApp[]>([])

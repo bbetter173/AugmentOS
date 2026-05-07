@@ -4,15 +4,15 @@ import {isLiquidGlassAvailable} from "expo-glass-effect"
 import {Screen, Header} from "@/components/ignite"
 import {Group} from "@/components/ui/Group"
 import BackgroundPicker from "@/components/settings/BackgroundPicker"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {type ThemeType} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {translate} from "@/i18n"
 import ToggleSetting from "@/components/settings/ToggleSetting"
 import {OptionList} from "@/components/ui/Options"
 
 export default function AppearanceSettingsPage() {
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
 
   const [themePreference, setThemePreference] = useSetting(SETTINGS.theme_preference.key)
   const [iosGlassEffect, setIosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)

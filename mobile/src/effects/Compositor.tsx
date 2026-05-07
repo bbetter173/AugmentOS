@@ -6,8 +6,8 @@ import {appRegistry} from "@mentra/island"
 import {localMiniappRuntime} from "@mentra/island"
 import {usePathname} from "expo-router"
 import {Screen} from "@/components/ignite"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
+import {useNavigationStore} from "@/stores/navigation"
 import CoreModule, {MicPcmEvent} from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
 // import {useCactusSTT} from "cactus-react-native"
@@ -78,7 +78,7 @@ function Compositor() {
   const pathname = usePathname()
   const viewShotRef = useRef<View>(null)
   const [packageName, setPackageName] = useState<string | null>(null)
-  const {getCurrentParams} = useNavigationHistory()
+  const {getCurrentParams} = useNavigationStore.getState()
   const [offlineCaptionsRunning, _setOfflineCaptionsRunning] = useSetting(SETTINGS.offline_captions_running.key)
   const [offlineTranslationRunning, _setOfflineTranslationRunning] = useSetting(
     SETTINGS.offline_translation_running.key,

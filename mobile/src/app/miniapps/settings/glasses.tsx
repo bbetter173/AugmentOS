@@ -4,8 +4,8 @@ import {ConnectDeviceButton} from "@/components/glasses/ConnectDeviceButton"
 import {NotConnectedInfo} from "@/components/glasses/info/NotConnectedInfo"
 import {Header, Screen, Icon} from "@/components/ignite"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n/translate"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
@@ -37,7 +37,7 @@ function DeviceSettings() {
   const [defaultButtonActionApp, setDefaultButtonActionApp] = useSetting(SETTINGS.default_button_action_app.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
 
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const applets = useApps()
   const features: Capabilities = getModelCapabilities(defaultWearable)
 
@@ -239,7 +239,7 @@ function DeviceSettings() {
 export default function Glasses() {
   const {theme} = useAppTheme()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const glassesConnected = useGlassesStore((state) => state.connected)
 
   const formatGlassesTitle = (title: string) => title.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())

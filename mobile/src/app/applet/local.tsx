@@ -3,7 +3,7 @@ import {useLocalSearchParams} from "expo-router"
 import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {appRegistry} from "@mentra/island"
 import {devServerBridge} from "@mentra/island"
 import {storage} from "@/utils/storage/storage"
@@ -24,10 +24,10 @@ export default function LocalMiniAppPage() {
     iconUrl?: string
     devPort?: string
   }>()
-  const {goBack, setForceGestureEnabled} = useNavigationHistory()
+  const {goBack, setForceGestureEnabled} = useNavigationStore.getState()
 
   // Keep a stable ref to the latest goBack so we don't re-fire the mount effect
-  // every render just because useNavigationHistory returned a new function.
+  // every render just because useNavigationStore.getState() returned a new function.
   const goBackRef = useRef(goBack)
   goBackRef.current = goBack
 

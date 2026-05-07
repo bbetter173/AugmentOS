@@ -1,6 +1,6 @@
 import CoreModule from "@mentra/bluetooth-sdk"
 
-import {push} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import {displayProcessor} from "@mentra/island"
 import {localMiniappRuntime} from "@mentra/island"
@@ -632,7 +632,8 @@ class SocketComms {
         {
           text: "Setup WiFi",
           onPress: () => {
-            push("/wifi/scan")
+            const nav = useNavigationStore.getState()
+            nav.push("/wifi/scan")
           },
         },
       ],

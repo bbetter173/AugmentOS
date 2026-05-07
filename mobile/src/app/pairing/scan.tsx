@@ -9,9 +9,10 @@ import {Icon, Button, Header, Screen, Text} from "@/components/ignite"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
 import Divider from "@/components/ui/Divider"
 import {Group} from "@/components/ui/Group"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack, usePushUnder} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
+import {useNavigationStore} from "@/stores/navigation"
 import {useGlassesStore} from "@/stores/glasses"
 import showAlert from "@/utils/AlertUtils"
 import {PermissionFeatures, requestFeaturePermissions} from "@/utils/PermissionsUtils"
@@ -23,7 +24,8 @@ import GlassView from "@/components/ui/GlassView"
 export default function SelectGlassesBluetoothScreen() {
   const {deviceModel}: {deviceModel: string} = useLocalSearchParams()
   const {theme} = useAppTheme()
-  const {goBack, replace, pushUnder, push} = useNavigationHistory()
+  const {goBack, replace, push} = useNavigationStore.getState()
+  const pushUnder = usePushUnder()
   const [showTroubleshootingModal, setShowTroubleshootingModal] = useState(false)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const [_deviceName, setDeviceName] = useSetting(SETTINGS.device_name.key)

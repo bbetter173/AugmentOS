@@ -6,8 +6,8 @@ import {Icon, Screen} from "@/components/ignite"
 import {Group} from "@/components/ui/Group"
 import {RouteButton} from "@/components/ui/RouteButton"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useRef} from "react"
@@ -15,7 +15,7 @@ import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 
 export default function MainSettingsPage() {
   const {theme, themed} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [devMode] = useSetting(SETTINGS.dev_mode.key)
   const [superMode] = useSetting(SETTINGS.super_mode.key)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)

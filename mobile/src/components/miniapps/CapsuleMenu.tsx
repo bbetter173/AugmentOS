@@ -1,6 +1,7 @@
 import {Button, Icon, Text} from "@/components/ignite"
-import {focusEffectPreventBack, push, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack, push} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useAppStatusStore, type ClientApp} from "@mentra/island"
 
 import {SYSTEM_APPS} from "@/constants/miniapps"
@@ -101,7 +102,7 @@ export function MiniAppCapsuleMenu({
   /** Fallback icon URL for miniapps not registered in the applet store. */
   iconUrlOverride?: string
 }) {
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const insets = useSaferAreaInsets()
   const {theme} = useAppTheme()
   const bottomSheetRef = useRef<BottomSheetModal>(null)
@@ -224,7 +225,7 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     const internalRef = useRef<BottomSheetModal>(null)
     const insets = useSaferAreaInsets()
     const [app, setApp] = useState<ClientApp | null>(null)
-    const {clearHistoryAndGoHome} = useNavigationHistory()
+    const {clearHistoryAndGoHome} = useNavigationStore.getState()
     const [superMode] = useSetting(SETTINGS.super_mode.key)
 
     useEffect(() => {

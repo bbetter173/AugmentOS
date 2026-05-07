@@ -24,6 +24,8 @@ const GlassView = ({
   ...props
 }: GlassViewProps & NewGlassViewProps) => {
   const [iosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
+  const [androidInnerShadow] = useSetting(SETTINGS.android_inner_shadow.key)
+  
   const {theme} = useAppTheme()
   let boxShadowStyle = "8px 8px 16px 0px rgba(0, 0, 0, 0.06)"
   let colorScheme: "light" | "dark" = theme.isDark ? "dark" : "light"
@@ -71,18 +73,24 @@ const GlassView = ({
       boxShadowStyle = "4px 4px 16px 0px rgba(0, 0, 0, 0.10)"
     }
 
-    // return (
-    //   <View style={[style, {
-    //     backgroundColor: backgroundColor,
-    //     boxShadow: boxShadowStyle,
-    //     // borderTopLeftRadius,
-    //     // borderTopRightRadius,
-    //     // borderBottomLeftRadius,
-    //     // borderBottomRightRadius,
-    //   }]}>
-    //     {children}
-    //   </View>
-    // )
+    if (!androidInnerShadow) {
+      return (
+        <View
+          style={[
+            style,
+            {
+              backgroundColor: backgroundColor,
+              boxShadow: boxShadowStyle,
+              // borderTopLeftRadius,
+              // borderTopRightRadius,
+              // borderBottomLeftRadius,
+              // borderBottomRightRadius,
+            },
+          ]}>
+          {children}
+        </View>
+      )
+    }
     // let maxBorderRadius = Math.max(
     //   parseInt(borderTopLeftRadius.toString()),
     //   parseInt(borderTopRightRadius.toString()),

@@ -36,9 +36,15 @@ export const SETTINGS: Record<string, Setting> = {
   android_blur: {
     key: "android_blur",
     defaultValue: () => {
-      // if (Platform.OS !== "android") return true
-      // const ram = Device.totalMemory
-      // return ram ? ram >= 4 * 1024 * 1024 * 1024 : true
+      return false
+    },
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  android_inner_shadow: {
+    key: "android_inner_shadow",
+    defaultValue: () => {
       return false
     },
     writable: true,

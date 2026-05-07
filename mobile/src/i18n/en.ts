@@ -570,6 +570,7 @@ const en = {
     noBackground: "None",
     chooseFromLibrary: "Choose from Library",
     androidBlur: "Blur effects",
+    androidInnerShadow: "Inner shadow",
   },
   devSettings: {
     debugConsole: "Debug Console",

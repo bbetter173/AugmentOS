@@ -17,9 +17,11 @@ export default function AppearanceSettingsPage() {
   const [themePreference, setThemePreference] = useSetting(SETTINGS.theme_preference.key)
   const [iosGlassEffect, setIosGlassEffect] = useSetting(SETTINGS.ios_glass_effect.key)
   const [androidBlur, setAndroidBlur] = useSetting(SETTINGS.android_blur.key)
+  const [androidInnerShadow, setAndroidInnerShadow] = useSetting(SETTINGS.android_inner_shadow.key)
 
   const showGlassToggle = Platform.OS === "ios" && isLiquidGlassAvailable()
   const showAndroidBlurToggle = Platform.OS === "android"
+  const showAndroidInnerShadowToggle = Platform.OS === "android"
 
   const handleThemeChange = async (newTheme: ThemeType) => {
     await setThemePreference(newTheme)
@@ -58,6 +60,16 @@ export default function AppearanceSettingsPage() {
               label={translate("appearanceSettings:androidBlur")}
               onValueChange={(value) => setAndroidBlur(value)}
               value={androidBlur}
+            />
+          </Group>
+        )}
+
+        {showAndroidInnerShadowToggle && (
+          <Group>
+            <ToggleSetting
+              label={translate("appearanceSettings:androidInnerShadow")}
+              onValueChange={(value) => setAndroidInnerShadow(value)}
+              value={androidInnerShadow}
             />
           </Group>
         )}

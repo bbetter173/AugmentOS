@@ -8,6 +8,7 @@ import {Icon} from "@/components/ignite"
 import {DevMiniappBadge} from "@/components/miniapps/DevMiniappBadge"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import type {ClientApp} from "@mentra/island"
+import {StyleSheet} from "react-native"
 
 // Helper to extract style properties for width/height override
 const extractStyleProps = (style: StyleProp<ViewStyle>): Partial<ViewStyle> => {
@@ -38,7 +39,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
   }
 
   return (
-    <View className={`items-center ${app.compatibility?.isCompatible ? "" : "opacity-30"}`}>
+    <View className={`items-center`}>
       <WrapperComponent
         onPress={onClick}
         activeOpacity={onClick ? 0.7 : undefined}
@@ -54,6 +55,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
             alignItems: "center",
             justifyContent: "center",
             ...iconSize,
+            // backgroundColor: app.compatibility?.isCompatible ? "transparent" : "gray",
           }}>
           {app.loading && !disableLoader && (
             <View className="absolute inset-0 justify-center items-center z-10 bg-black/40">
@@ -67,6 +69,15 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
             transition={200}
             cachePolicy="memory-disk"
           />
+          {!app.compatibility?.isCompatible && !app.packageName.startsWith("@") && (
+            <View
+              style={{
+                ...StyleSheet.absoluteFill,
+                backgroundColor: "gray",
+                mixBlendMode: "saturation",
+              }}
+            />
+          )}
         </SquircleView>
       </WrapperComponent>
       {!app.healthy && (

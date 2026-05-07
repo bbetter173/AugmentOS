@@ -2,7 +2,6 @@
 import {create} from "zustand"
 import {router} from "expo-router"
 import {StackAnimationTypes} from "react-native-screens"
-import {Platform} from "react-native"
 
 type NavigationState = {
   // state
@@ -174,7 +173,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       set({
         preventBackCount: 0,
         androidBackFn: undefined,
-        ...(Platform.OS !== "android" ? {preventBack: false} : {}),
+        preventBack: false,
       })
     } else {
       set({preventBackCount: next})

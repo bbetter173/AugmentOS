@@ -22,6 +22,7 @@ import {
 
 import MicIcon from "assets/icons/component/MicIcon"
 import {useCoreStore} from "@/stores/core"
+import GlassesDisplayMirror from "@/components/mirror/GlassesDisplayMirror"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -42,12 +43,7 @@ type DeviceStatusProps = {
   className?: string
 }
 
-export const DeviceStatus = ({
-  onPress,
-  image,
-  children,
-  className = "h-28",
-}: DeviceStatusProps) => {
+export const DeviceStatus = ({onPress, image, children, className = "h-28"}: DeviceStatusProps) => {
   return (
     <TouchableOpacity onPress={onPress} className={className}>
       <GlassView className="px-6 justify-center flex-1 rounded-2xl flex-row gap-2 h-full">
@@ -102,7 +98,23 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
     return (
-      <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.primary_foreground}} />
+      <GlassView className="bg-primary-foreground/50 p-5" style={style}>
+        <View className="flex-row justify-between items-center mb-4">
+          <Text className="font-semibold text-secondary-foreground text-lg" tx="onboarding:phoneMode" />
+        </View>
+        <GlassesDisplayMirror fallbackMessage="Glasses mirror"  />
+        {/* <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
+          <Icon name="fullscreen" size={24} color={theme.colors.secondary_foreground} />
+        </TouchableOpacity> */}
+        <Button
+          className="mt-3"
+          flex={false}
+          flexContainer={false}
+          tx="home:connectGlasses"
+          preset="primary"
+          onPress={() => push("/pairing/select-glasses-model")}
+        />
+      </GlassView>
     )
   }
 
@@ -290,19 +302,12 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   return (
-    <DeviceStatus
-      onPress={onPress}
-      image={getCurrentGlassesImage()}
-      className="h-28 mt-2">
+    <DeviceStatus onPress={onPress} image={getCurrentGlassesImage()} className="h-28 mt-2">
       <Text className="font-semibold text-secondary-foreground text-base" text={defaultController} />
       <View className="flex-row items-center gap-3">
         {controllerBatteryLevel !== -1 && (
           <View className="flex-row items-center gap-1">
-            <Icon
-              name={getBatteryIcon(controllerBatteryLevel) as any}
-              size={22}
-              color={theme.colors.foreground}
-            />
+            <Icon name={getBatteryIcon(controllerBatteryLevel) as any} size={22} color={theme.colors.foreground} />
             <Text className="text-secondary-foreground text-sm" text={`${controllerBatteryLevel}%`} />
           </View>
         )}

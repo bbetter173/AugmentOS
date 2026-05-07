@@ -69,7 +69,7 @@ export default function AppWebView() {
   }, [webViewCanGoBack, hasValidParams, goBack])
 
   // Block native back gesture/button — route through handleWebViewBack for Android.
-  focusEffectPreventBack(handleWebViewBack, false)
+  // focusEffectPreventBack(handleWebViewBack, false)
 
   // Dynamically toggle gesture handling based on webview navigation state:
   // - Page 0 (no history): disable WebView's gesture, force-enable React Navigation's

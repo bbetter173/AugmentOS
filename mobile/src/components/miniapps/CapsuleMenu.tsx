@@ -126,13 +126,13 @@ export function MiniAppCapsuleMenu({
 
   const handleExit = async (shouldGoBack?: boolean) => {
     console.log("CAPSULE MENU: handleExit() called")
-    try {
-      captureRef(viewShotRef, {
-        format: "jpg",
-        // handleGLSurfaceViewOnAndroid: true,
-        quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
-        result: "tmpfile",
-      }).then(async (uri) => {
+    captureRef(viewShotRef, {
+      format: "jpg",
+      // handleGLSurfaceViewOnAndroid: true,
+      quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
+      result: "tmpfile",
+    })
+      .then(async (uri) => {
         if (Platform.OS === "ios") {
           const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
             RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
@@ -152,19 +152,14 @@ export function MiniAppCapsuleMenu({
           useAppStatusStore.getState().saveScreenshot(packageName, uri)
         }
       })
-
-      // await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
-      // await useAppStatusStore.getState().saveScreenshot(packageName, uri)
-    } catch (e) {
-      console.warn("screenshot failed:", e)
-    }
+      .catch((e) => {
+        console.warn("screenshot failed:", e)
+      })
 
     // // wait 0.1 seconds on android:
     // if (Platform.OS === "android") {
     //   await new Promise((resolve) => setTimeout(resolve, 1000))
     // }
-
-    console.log("CAPSULE MENU: going back")
 
     if (shouldGoBack) {
       goBack()

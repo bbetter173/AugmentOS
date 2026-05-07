@@ -8,9 +8,24 @@ import {ExpoConfig, ConfigContext} from "@expo/config"
  * https://docs.expo.dev/workflow/configuration/#configuration-resolution-rules
  */
 module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
+  // Optional build-variant suffix. Set MENTRAOS_BUILD_NAME=stable to produce
+  // a parallel-installable build with package com.mentra.mentra.stable and app
+  // label "stable". Leave unset for the normal Mentra build.
+  const variantName = process.env.MENTRAOS_BUILD_NAME?.trim() || null
+  const isValidVariant = variantName && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(variantName)
+  if (variantName && !isValidVariant) {
+    throw new Error(
+      `MENTRAOS_BUILD_NAME="${variantName}" is invalid. Must start with a letter and contain only letters, digits, or underscores.`,
+    )
+  }
+  const appName = isValidVariant ? variantName : "Mentra"
+  const baseId = "com.mentra.mentra"
+  const androidPackage = isValidVariant ? `${baseId}.${variantName}` : baseId
+  const iosBundleId = isValidVariant ? `${baseId}.${variantName}` : baseId
+
   return {
     ...config,
-    name: "Mentra",
+    name: appName,
     slug: "Mentra",
     version: process.env.EXPO_PUBLIC_MENTRAOS_VERSION || "0.0.1",
     scheme: "com.mentra",
@@ -24,7 +39,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
     assetBundlePatterns: ["**/*"],
     android: {
       // icon: "./assets/app-icons/ic_launcher.png",
-      package: "com.mentra.mentra",
+      package: androidPackage,
       googleServicesFile: "./google-services.json",
       versionCode: 218,
       adaptiveIcon: {
@@ -65,7 +80,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       supportsTablet: false,
       requireFullScreen: true,
       buildNumber: "218",
-      bundleIdentifier: "com.mentra.mentra",
+      bundleIdentifier: iosBundleId,
       googleServicesFile: "./GoogleService-Info.plist",
       associatedDomains: ["applinks:apps.mentra.glass", "applinks:apps.mentraglass.com"],
       infoPlist: {

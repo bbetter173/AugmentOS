@@ -9,6 +9,7 @@ import {OtaUpdateChecker} from "@/effects/OtaUpdateChecker"
 import {BtClassicPairing} from "@/effects/BtClassicPairing"
 import Compositor from "@/effects/Compositor"
 import {ScreenshotFeedbackPrompt} from "@/effects/ScreenshotFeedbackPrompt"
+import NavigationHost from "@/effects/NavigationHost"
 // import TranscriptionsListener from "@/effects/TranscriptionsListener"
 // import SherpaTest from "@/effects/SherpaTest"
 // import WhisperTest from "@/effects/WhisperTest"
@@ -20,6 +21,7 @@ export const AllEffects = () => {
       <Reconnect />
       <BtClassicPairing />
       <Compositor />
+      <NavigationHost />
       {/* <WhisperTest /> */}
       {/* <SherpaTest /> */}
       {/* <TranscriptionsListener /> */}

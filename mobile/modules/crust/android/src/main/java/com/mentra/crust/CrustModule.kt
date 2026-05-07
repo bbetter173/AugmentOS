@@ -214,6 +214,17 @@ class CrustModule : Module() {
       true
     }
 
+    AsyncFunction("openBluetoothSettings") {
+      val context =
+              appContext.reactContext
+                      ?: appContext.currentActivity
+                              ?: throw IllegalStateException("No context available")
+      val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+      intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      true
+    }
+
     AsyncFunction("showLocationServicesDialog") {
       val activity = appContext.currentActivity
       if (activity == null) {

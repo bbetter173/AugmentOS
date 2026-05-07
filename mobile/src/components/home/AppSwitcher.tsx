@@ -300,7 +300,7 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
     sortAppsByLastOpenTime(directApps).then((sorted) => {
       if (!cancelled) setApps(sorted)
     })
-    console.log("apps screenshot", apps.map((a) => a.screenshot))
+    // console.log("apps screenshot", apps.map((a) => a.screenshot))
     return () => {
       cancelled = true
     }

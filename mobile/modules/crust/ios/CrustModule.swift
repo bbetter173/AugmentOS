@@ -46,6 +46,10 @@ public class CrustModule: Module {
             return false
         }
 
+        AsyncFunction("openBluetoothSettings") { () -> Bool in
+            return false
+        }
+
         // MARK: - MentraOS Notification Commands
 
         AsyncFunction("setNotificationConfig") { (_: Bool, _: [String]) in

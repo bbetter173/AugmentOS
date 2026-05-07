@@ -69,7 +69,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
   const _segments = useSegments()
   const pendingRoute = useRef<string | null>(null)
   const navigation = useNavigation()
-  const [preventBack, setPreventBack] = useState(false)
+  const [preventBack, setPreventBack] = useState(Platform.OS === "android" ? true : false)
   const preventBackCountRef = useRef(0)
   const androidBackFnRef = useRef<() => void | undefined>(undefined)
   const setAndroidBackFn = (fn: () => void) => {
@@ -132,18 +132,26 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
       return true
     })
     return () => backHandler.remove()
-  }, [preventBack])
+  }, [])
 
   const incPreventBack = useCallback(() => {
     preventBackCountRef.current++
-    setPreventBack(true)
+    // we never need to set preventBack to false on android, because it is effectively always true,
+    // and setting it to false triggers a re-render that we don't want:
+    if (Platform.OS !== "android") {
+      setPreventBack(true)
+    }
   }, [])
 
   const decPreventBack = useCallback(() => {
     preventBackCountRef.current--
     if (preventBackCountRef.current <= 0) {
       preventBackCountRef.current = 0
-      setPreventBack(false)
+      // we never need to set preventBack to false on android, because it is effectively always true,
+      // and setting it to false triggers a re-render that we don't want:
+      if (Platform.OS !== "android") {
+        setPreventBack(false)
+      }
       androidBackFnRef.current = undefined
     }
   }, [])

@@ -5,7 +5,6 @@ import * as Location from "expo-location"
 import * as TaskManager from "expo-task-manager"
 import {shallow} from "zustand/shallow"
 
-import livekit from "@/services/Livekit"
 import audioPlaybackService from "@/services/AudioPlaybackService"
 import miniSockets from "@/services/MiniSockets"
 import {requestMiniappSdkPhoto} from "@/services/miniapp/MiniappSdkPhotoHandler"
@@ -224,7 +223,6 @@ class MantleManager {
     micStateCoordinator.cleanup()
     miniSockets.stop()
 
-    livekit.disconnect()
     await socketComms.cleanup()
     restComms.goodbye()
   }

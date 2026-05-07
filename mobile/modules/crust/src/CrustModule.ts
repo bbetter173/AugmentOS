@@ -20,6 +20,7 @@ declare class CrustModule extends NativeModule<CrustModuleEvents> {
   isLocationServicesEnabled(): Promise<boolean>
   openLocationSettings(): Promise<boolean>
   openAppSettings(): Promise<boolean>
+  openBluetoothSettings(): Promise<boolean>
 
   // Image Processing Commands
   processGalleryImage(

@@ -26,6 +26,8 @@ import {KonamiCodeProvider} from "@/utils/dev/konami"
 import ConnectionOverlayProvider from "@/contexts/ConnectionOverlayContext"
 import {SaferAreaProvider, useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import CoreStatusBar from "@/components/dev/CoreStatusBar"
+import {useShallow} from "zustand/shallow"
+import {useNavigationStore} from "@/stores/navigation"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
@@ -166,12 +168,29 @@ export const AllProviders = withWrappers(
   },
   ConnectionOverlayProvider,
   (props) => {
-    const {preventBack, animation, forceGestureEnabled} = useNavigationHistory()
+    console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering above stack (probably a root render)`)
+    return <>{props.children}</>
+  },
+  (props) => {
+    const {preventBack, forceGestureEnabled, animation} = useNavigationStore(
+      useShallow((s) => ({
+        preventBack: s.preventBack,
+        forceGestureEnabled: s.forceGestureEnabled,
+        animation: s.animation,
+      })),
+    )
+
+    // console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering screen`)
+    // console.log(`NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering screen preventBack: ${preventBack} forceGestureEnabled: ${forceGestureEnabled}`)
+    console.log(
+      `NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@ rerendering screen preventBack: ${preventBack} forceGestureEnabled: ${forceGestureEnabled} animation: ${animation}`,
+    )
 
     const screenOptions = useMemo(
       () => ({
         headerShown: false,
-        gestureEnabled: forceGestureEnabled || !preventBack,
+        // gestureEnabled: forceGestureEnabled || !preventBack,
+        gestureEnabled: false,
         gestureDirection: "horizontal" as const,
         animation: convertToNativeAnimation(animation) as any,
         // Load-bearing for MiniappHost: /applet/local renders a transparent
@@ -227,7 +246,7 @@ export const AllProviders = withWrappers(
         <MiniappHost />
       </>
     )
-  }
+  },
 )
 
 type WrapperComponent = FunctionComponent<{children: React.ReactNode}>

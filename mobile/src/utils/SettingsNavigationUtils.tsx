@@ -24,7 +24,7 @@ export class SettingsNavigationUtils {
     try {
       if (Platform.OS === "android") {
         // Use native module for direct Bluetooth settings access
-        await CoreModule.openBluetoothSettings()
+        await CrustModule.openBluetoothSettings()
       } else if (Platform.OS === "ios") {
         // iOS doesn't have direct Bluetooth settings access, open general settings
         await this.openIosSettings()

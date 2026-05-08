@@ -12,8 +12,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
 import {useRefresh} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
-import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
-
+import {useRegisterCapsule} from "@/stores/capsule"
 export default function AppStoreWeb() {
   const [_webviewLoading, setWebviewLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -26,6 +25,12 @@ export default function AppStoreWeb() {
   const refreshApplets = useRefresh()
   const {theme, themed} = useAppTheme()
   const viewShotRef = useRef<View>(null)
+
+  useRegisterCapsule({
+    packageName: "com.mentra.store",
+    viewShotRef,
+    visibleOnRoutes: ["/miniapps/store"],
+  })
 
   // Construct the final URL with packageName if provided
   const finalUrl = useMemo(() => {
@@ -171,36 +176,34 @@ export default function AppStoreWeb() {
 
   // If the prefetched WebView is ready, show it in the correct style
   return (
-    <>
-      <MiniAppCapsuleMenu packageName="com.mentra.store" viewShotRef={viewShotRef} />
-      <Screen
-        preset="fixed"
-        safeAreaEdges={["top"]}
-        ref={viewShotRef}
-        className="px-0"
-        KeyboardAvoidingViewProps={{enabled: false}}>
-        <View className="bg-background flex-1">
-          {/* Show the prefetched WebView, but now visible and full size */}
-          <WebView
-            ref={prefetchedWebviewRef}
-            source={{uri: finalUrl}}
-            style={themed($webView)}
-            onLoadStart={() => setWebviewLoading(true)}
-            onLoadEnd={() => {
-              setWebviewLoading(false)
-              setIsAuthReady(true)
-            }}
-            onError={handleError}
-            onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
-            onMessage={handleWebViewMessage}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={false}
-            scalesPageToFit={false}
-            bounces={false}
-            scrollEnabled={true}
-            // Inject CSS/JS to disable zoom and selection
-            injectedJavaScript={`
+    <Screen
+      preset="fixed"
+      safeAreaEdges={["top"]}
+      ref={viewShotRef}
+      className="px-0"
+      KeyboardAvoidingViewProps={{enabled: false}}>
+      <View className="bg-background flex-1">
+        {/* Show the prefetched WebView, but now visible and full size */}
+        <WebView
+          ref={prefetchedWebviewRef}
+          source={{uri: finalUrl}}
+          style={themed($webView)}
+          onLoadStart={() => setWebviewLoading(true)}
+          onLoadEnd={() => {
+            setWebviewLoading(false)
+            setIsAuthReady(true)
+          }}
+          onError={handleError}
+          onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
+          onMessage={handleWebViewMessage}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={false}
+          scalesPageToFit={false}
+          bounces={false}
+          scrollEnabled={true}
+          // Inject CSS/JS to disable zoom and selection
+          injectedJavaScript={`
               document.body.style.userSelect = 'none';
               document.body.style.webkitUserSelect = 'none';
               document.body.style.webkitTouchCallout = 'none';
@@ -217,17 +220,16 @@ export default function AppStoreWeb() {
               
               true;
           `}
-          />
-          {/* Loading overlay - stays visible until store confirms auth ready */}
-          {!isAuthReady && (
-            <View style={themed($loadingOverlay)}>
-              <ActivityIndicator size="large" color={theme.colors.foreground} />
-              <Text text="Loading Mentra MiniApp Store..." style={themed($loadingText)} />
-            </View>
-          )}
-        </View>
-      </Screen>
-    </>
+        />
+        {/* Loading overlay - stays visible until store confirms auth ready */}
+        {!isAuthReady && (
+          <View style={themed($loadingOverlay)}>
+            <ActivityIndicator size="large" color={theme.colors.foreground} />
+            <Text text="Loading Mentra MiniApp Store..." style={themed($loadingText)} />
+          </View>
+        )}
+      </View>
+    </Screen>
   )
 }
 

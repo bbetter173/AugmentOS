@@ -8,6 +8,8 @@ import {useNavigationStore} from "@/stores/navigation"
 import {useApps} from "@mentra/island"
 import {decideDevLaunchRoute} from "@mentra/island"
 import {storage} from "@/utils/storage/storage"
+import {useRegisterCapsule} from "@/stores/capsule"
+import {useRef} from "react"
 
 /**
  * Shown when a dev miniapp is launched while the dev server is unreachable.
@@ -28,6 +30,13 @@ export default function DevMiniappOfflineScreen() {
   }>()
   const {goBack, replace, push} = useNavigationStore.getState()
   const apps = useApps()
+  const viewShotRef = useRef<View>(null)
+
+  useRegisterCapsule({
+    packageName,
+    viewShotRef,
+    visibleOnRoutes: ["/applet/dev-offline"],
+  })
 
   // Fall back to the store entry's logoUrl/name if the route didn't carry
   // them. The store entry is populated by Composer.getLocalApplets from the
@@ -38,8 +47,7 @@ export default function DevMiniappOfflineScreen() {
 
   const lastReachable = packageName ? storage.load<number>(`${packageName}_dev_last_reachable`) : null
 
-  const lastReachableLabel =
-    lastReachable && lastReachable.is_ok() ? formatRelative(lastReachable.value) : "never"
+  const lastReachableLabel = lastReachable && lastReachable.is_ok() ? formatRelative(lastReachable.value) : "never"
 
   const onTryAgain = async () => {
     if (!packageName) return
@@ -71,8 +79,7 @@ export default function DevMiniappOfflineScreen() {
   const displayName = resolvedName ?? packageName ?? "Dev mini app"
 
   return (
-    <Screen preset="fixed">
-      <Header title={displayName} leftIcon="chevron-left" onLeftPress={() => goBack()} />
+    <Screen preset="fixed" ref={viewShotRef}>
       <View className="flex-1 items-center justify-center px-8 bg-background">
         {resolvedIconUrl ? (
           <SquircleView

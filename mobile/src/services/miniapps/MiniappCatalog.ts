@@ -83,7 +83,7 @@ class MiniappCatalog {
     useSettingsStore.subscribe(
       (state) => state.getSetting(SETTINGS.default_wearable.key),
       () => {
-        void useAppStatusStore.getState().refresh()
+        useAppStatusStore.getState().refresh()
       },
     )
   }
@@ -106,7 +106,7 @@ class MiniappCatalog {
     if (startResult.is_error() && app) {
       console.error(`MiniappCatalog: retry start failed for ${packageName}: ${startResult.error}`)
       if (!app.isMiniappDev) {
-        void submitMiniappStartFailedBugReport(app, startResult.error, "retry_start")
+        submitMiniappStartFailedBugReport(app, startResult.error, "retry_start")
       }
     }
   }
@@ -210,7 +210,7 @@ class MiniappCatalog {
       if (startResult.is_error()) {
         console.error(`MiniappCatalog: startApp failed for ${app.packageName}: ${startResult.error}`)
         if (!app.isMiniappDev) {
-          void submitMiniappStartFailedBugReport(app, startResult.error, "initial_start")
+          submitMiniappStartFailedBugReport(app, startResult.error, "initial_start")
         }
         // Reset the loading/running stamp the store applies post-beforeStart.
         // Caller (island.start) already set running:true,loading:true; flip back.
@@ -221,7 +221,7 @@ class MiniappCatalog {
       }
     }
 
-    void useSettingsStore.getState().setSetting(SETTINGS.has_ever_activated_app.key, true)
+    useSettingsStore.getState().setSetting(SETTINGS.has_ever_activated_app.key, true)
     return true
   }
 
@@ -241,9 +241,9 @@ class MiniappCatalog {
     if (!app.offline && !app.local) {
       this.clearPolling()
       this.refreshTimeout = BgTimer.setTimeout(() => {
-        void this.refresh()
+        this.refresh()
       }, 2000)
-      void restComms.stopApp(app.packageName)
+      restComms.stopApp(app.packageName)
     }
   }
 
@@ -315,7 +315,7 @@ class MiniappCatalog {
     const MAX_POLLS = 6
     this.refreshInterval = BgTimer.setInterval(() => {
       pollCount++
-      void this.refresh()
+      this.refresh()
       if (pollCount >= MAX_POLLS && this.refreshInterval) {
         BgTimer.clearInterval(this.refreshInterval)
         this.refreshInterval = null
@@ -330,16 +330,18 @@ class MiniappCatalog {
   private navigateForApp(app: ClientApp): void {
     console.log("MiniappCatalog: navigateForApp()", app.packageName)
     const nav = useNavigationStore.getState()
+    // const appOpenTransition = "zoom"
+    const appOpenTransition = "fade"
     if (app.offlineRoute) {
-      nav.push(app.offlineRoute, {transition: "zoom"})
+      nav.push(app.offlineRoute, {transition: appOpenTransition})
       return
     }
     if (app.offline) return // offline app without a route — nothing to navigate to
     if (app.isMiniappDev && app.devUrl) {
       const {packageName, devUrl, name: appName, logoUrl} = app
-      void decideDevLaunchRoute(packageName, devUrl).then((result) => {
+      decideDevLaunchRoute(packageName, devUrl).then((result) => {
         if (result.decision === "live") {
-          nav.push("/applet/local", {packageName, devUrl, appName, transition: "zoom"})
+          nav.push("/applet/local", {packageName, devUrl, appName, transition: appOpenTransition})
         } else {
           nav.push("/applet/dev-offline", {packageName, name: appName, iconUrl: logoUrl})
         }
@@ -351,7 +353,7 @@ class MiniappCatalog {
         packageName: app.packageName,
         version: app.version,
         appName: app.name,
-        transition: "zoom",
+        transition: appOpenTransition,
       })
       return
     }
@@ -360,14 +362,14 @@ class MiniappCatalog {
         webviewURL: app.webviewUrl,
         appName: app.name,
         packageName: app.packageName,
-        transition: "zoom",
+        transition: appOpenTransition,
       })
       return
     }
     nav.push("/applet/settings", {
       packageName: app.packageName,
       appName: app.name,
-      transition: "zoom",
+      transition: appOpenTransition,
     })
   }
 

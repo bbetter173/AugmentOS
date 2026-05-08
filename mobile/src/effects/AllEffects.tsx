@@ -7,9 +7,9 @@ import {ConsoleLogger} from "@/utils/dev/console"
 import {FirebaseAnalyticsSetup} from "@/effects/FirebaseAnalyticsSetup"
 import {OtaUpdateChecker} from "@/effects/OtaUpdateChecker"
 import {BtClassicPairing} from "@/effects/BtClassicPairing"
-import Compositor from "@/effects/Compositor"
 import {ScreenshotFeedbackPrompt} from "@/effects/ScreenshotFeedbackPrompt"
 import NavigationHost from "@/effects/NavigationHost"
+import CapsuleMenu from "@/effects/CapsuleMenu"
 // import TranscriptionsListener from "@/effects/TranscriptionsListener"
 // import SherpaTest from "@/effects/SherpaTest"
 // import WhisperTest from "@/effects/WhisperTest"
@@ -20,7 +20,6 @@ export const AllEffects = () => {
     <>
       <Reconnect />
       <BtClassicPairing />
-      <Compositor />
       <NavigationHost />
       {/* <WhisperTest /> */}
       {/* <SherpaTest /> */}
@@ -33,6 +32,7 @@ export const AllEffects = () => {
       <ConsoleLogger />
       <FirebaseAnalyticsSetup />
       <ScreenshotFeedbackPrompt />
+      <CapsuleMenu forceShow={false} />
     </>
   )
 }

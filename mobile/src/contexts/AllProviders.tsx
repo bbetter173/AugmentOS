@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/react-native"
 import {Stack} from "expo-router"
 import {PostHogProvider} from "posthog-react-native"
 import {Suspense, FunctionComponent, PropsWithChildren, useMemo} from "react"
-import {View} from "react-native"
+import {Platform, View} from "react-native"
 import ErrorBoundary from "react-native-error-boundary"
 import {GestureHandlerRootView} from "react-native-gesture-handler"
 import {KeyboardProvider} from "react-native-keyboard-controller"
@@ -27,6 +27,7 @@ import {SaferAreaProvider, useSaferAreaInsets} from "@/contexts/SaferAreaContext
 import CoreStatusBar from "@/components/dev/CoreStatusBar"
 import {useShallow} from "zustand/shallow"
 import {useNavigationStore} from "@/stores/navigation"
+import { getAnimation, JsStack, woltScreenOptions } from "@/components/navigation/JsStack"
 // JsStack imports commented out - were used for Android-specific navigation (currently disabled)
 // import {getAnimation, JsStack, woltScreenOptions} from "@/components/navigation/JsStack"
 
@@ -174,11 +175,12 @@ export const AllProviders = withWrappers(
   (props) => {
     const {preventBack, forceGestureEnabled, animation} = useNavigationStore(
       useShallow((s) => ({
-        preventBack: s.preventBack,
+        preventBack: Platform.OS === "android" ? true : s.preventBack,
         forceGestureEnabled: s.forceGestureEnabled,
         animation: s.animation,
       })),
     )
+    console.log("NAV: @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", preventBack, forceGestureEnabled, animation)
     const screenOptions = useMemo(
       () => ({
         headerShown: false,
@@ -207,24 +209,10 @@ export const AllProviders = withWrappers(
     //     <JsStack
     //       screenOptions={{
     //         headerShown: false,
-    //         gestureEnabled: !preventBack,
-    //         gestureDirection: "horizontal",
-    //         cardStyleInterpolator: getAnimation(animation),
-    //       }}
-    //     />
-    //   </>
-    // )
-
-    // return (
-    //   <>
-    //     {props.children}
-    //     <JsStack
-    //       screenOptions={{
-    //         headerShown: false,
     //         ...woltScreenOptions,
-    //         gestureEnabled: !preventBack,
-    //         gestureDirection: "horizontal",
-    //         cardStyleInterpolator: getAnimation(animation),
+    //         gestureEnabled: screenOptions.gestureEnabled,
+    //         gestureDirection: screenOptions.gestureDirection,
+    //         cardStyleInterpolator: getAnimation(screenOptions.animation),
     //       }}
     //     />
     //   </>

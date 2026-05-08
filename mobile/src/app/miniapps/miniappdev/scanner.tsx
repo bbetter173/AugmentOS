@@ -15,7 +15,7 @@ import type {AppletInterface, AppletPermission} from "@/../../cloud/packages/typ
 
 export default function MiniappDeveloperScannerScreen() {
   const {theme} = useAppTheme()
-  const {goBack, replace} = useNavigationStore.getState()
+  const {goBack, replace, push, clearHistoryAndGoHome} = useNavigationStore.getState()
   const [permission, requestPermission] = useCameraPermissions()
   const [scanned, setScanned] = useState(false)
 
@@ -114,7 +114,8 @@ export default function MiniappDeveloperScannerScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {})
 
       if (launchResult.decision === "offline") {
-        replace("/applet/dev-offline", {packageName, name, iconUrl})
+        clearHistoryAndGoHome()
+        push("/applet/dev-offline", {packageName, name, iconUrl})
         return
       }
 
@@ -142,7 +143,8 @@ export default function MiniappDeveloperScannerScreen() {
         return
       }
 
-      replace("/applet/local", {
+      clearHistoryAndGoHome()
+      push("/applet/local", {
         packageName,
         devUrl,
         appName: name,
@@ -163,7 +165,7 @@ export default function MiniappDeveloperScannerScreen() {
           onLeftPress={() => goBack()}
         />
         <View className="flex-1 items-center justify-center">
-          <Text className="text-neutral-400 text-[14px]" tx="devSettings:miniappScanCheckingPermission" />
+          <Text className="text-[14px]" tx="devSettings:miniappScanCheckingPermission" />
         </View>
       </Screen>
     )
@@ -184,7 +186,7 @@ export default function MiniappDeveloperScannerScreen() {
               tx="devSettings:miniappScanPermissionTitle"
             />
             <Text
-              className="text-[13px] text-neutral-400 text-center mb-2 leading-[18px]"
+              className="text-[13px] text-muted-foreground text-center mb-2 leading-[18px]"
               tx="devSettings:miniappScanPermissionBody"
             />
             <Button
@@ -213,10 +215,10 @@ export default function MiniappDeveloperScannerScreen() {
     <Screen preset="fixed">
       <Header title={translate("devSettings:miniappScanTitle")} leftIcon="chevron-left" onLeftPress={() => goBack()} />
 
-      <View className="px-6 pt-2 pb-4 gap-2">
-        <Text className="text-base font-semibold text-black" tx="devSettings:miniappScanHeadline" />
+      <View className="px-4 pt-2 pb-4 gap-2">
+        <Text className="text-base font-semibold" tx="devSettings:miniappScanHeadline" />
         <Text
-          className="text-[13px] leading-[18px] text-neutral-400"
+          className="text-[13px] leading-[18px] text-muted-foreground"
           tx="devSettings:miniappScanBody"
         />
       </View>

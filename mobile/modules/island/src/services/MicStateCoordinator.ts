@@ -44,9 +44,9 @@ class MicStateCoordinator {
     this.cloudWantsLc3 = req.lc3
     this.cloudWantsTranscript = req.transcript
     this.cloudBypassVad = req.bypass_vad
-    console.log(
-      `${LOG_TAG}: cloud requirements updated — pcm=${req.pcm} lc3=${req.lc3} transcript=${req.transcript} bypass_vad=${req.bypass_vad}`,
-    )
+    // console.log(
+    //   `${LOG_TAG}: cloud requirements updated — pcm=${req.pcm} lc3=${req.lc3} transcript=${req.transcript} bypass_vad=${req.bypass_vad}`,
+    // )
     this.applyUnion()
   }
 
@@ -77,9 +77,9 @@ class MicStateCoordinator {
     const shouldSendTranscript = this.cloudWantsTranscript
     const bypassVad = this.cloudBypassVad
 
-    console.log(
-      `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`,
-    )
+    // console.log(
+    //   `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`,
+    // )
 
     CoreModule.update("core", {
       should_send_pcm: shouldSendPcm,

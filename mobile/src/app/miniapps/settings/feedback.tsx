@@ -20,8 +20,8 @@ import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting, useSettingsStore} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 import mentraAuth from "@/utils/auth/authClient"
-import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
 import {useNavigationStore} from "@/stores/navigation"
+import { useRegisterCapsule } from "@/stores/capsule"
 
 export default function FeedbackPage() {
   const params = useLocalSearchParams<{
@@ -49,6 +49,12 @@ export default function FeedbackPage() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const viewShotRef = useRef<View>(null)
   const {goBack} = useNavigationStore.getState()
+
+  useRegisterCapsule({
+    packageName: "com.mentra.settings",
+    viewShotRef,
+    visibleOnRoutes: ["/miniapps/settings/feedback"],
+  })
 
   const resolveScreenshotPackageName = useCallback(() => {
     if (apps.some((app) => app.packageName === feedbackPackageName && app.running)) {
@@ -336,8 +342,6 @@ export default function FeedbackPage() {
   }
 
   return (
-    <>
-      <MiniAppCapsuleMenu packageName={resolveScreenshotPackageName() || ""} viewShotRef={viewShotRef} />
       <Screen preset="fixed" ref={viewShotRef} safeAreaEdges={["top", "bottom"]}>
         <View className="h-12 justify-center">
           <Text tx="feedback:giveFeedback" className="text-xl text-foreground" />
@@ -509,6 +513,5 @@ export default function FeedbackPage() {
           </Button>
         </ScrollView>
       </Screen>
-    </>
   )
 }

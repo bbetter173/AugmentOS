@@ -11,7 +11,7 @@ import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useRef} from "react"
-import {MiniAppCapsuleMenu} from "@/components/miniapps/CapsuleMenu"
+import {useRegisterCapsule} from "@/stores/capsule"
 
 export default function MainSettingsPage() {
   const {theme, themed} = useAppTheme()
@@ -21,11 +21,14 @@ export default function MainSettingsPage() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const viewShotRef = useRef<View>(null)
 
+  useRegisterCapsule({
+    packageName: "com.mentra.settings",
+    viewShotRef,
+    visibleOnRoutes: ["/miniapps/settings/main"],
+  })
+
   return (
     <>
-      <View className="mr-4">
-        <MiniAppCapsuleMenu packageName="com.mentra.settings" viewShotRef={viewShotRef} />
-      </View>
       <Screen preset="fixed" safeAreaEdges={["top"]} ref={viewShotRef} className="px-0">
         <ScrollView className="pt-8 px-6" contentInsetAdjustmentBehavior="automatic">
           <View style={{flex: 1, gap: theme.spacing.s6}}>

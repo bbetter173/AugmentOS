@@ -3,6 +3,8 @@ import {create} from "zustand"
 import {router} from "expo-router"
 import {StackAnimationTypes} from "react-native-screens"
 
+export type NavigationAnimation = StackAnimationTypes | string
+
 type NavigationState = {
   // state
   history: string[]
@@ -11,7 +13,7 @@ type NavigationState = {
   preventBack: boolean
   preventBackCount: number
   androidBackFn: (() => void) | undefined
-  animation: StackAnimationTypes
+  animation: NavigationAnimation
   forceGestureEnabled: boolean
 
   // actions
@@ -34,11 +36,11 @@ type NavigationState = {
   decPreventBack: () => void
   setPreventBack: (value: boolean) => void
   setAndroidBackFn: (fn: (() => void) | undefined) => void
-  setAnimation: (animation: StackAnimationTypes) => void
+  setAnimation: (animation: NavigationAnimation) => void
   setForceGestureEnabled: (value: boolean) => void
   // internal
   _trackPathname: (newPath: string) => void
-  _resetAnimationDelayed: () => void
+  _resetAnimationDelayed: (animation?: NavigationAnimation) => void
 }
 
 export const useNavigationStore = create<NavigationState>((set, get) => ({
@@ -53,7 +55,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
   push: (path, params) => {
     console.info("NAV: push()", path)
-    console.log(`MINIAPP_TIMING: push ${path} ${Date.now()}`)
     const {history, historyParams, _resetAnimationDelayed} = get()
     if (history[history.length - 1] === path) return
 
@@ -89,9 +90,14 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
   goBack: () => {
     console.log("NAV: goBack()")
-    const {history, historyParams} = get()
+    const {history, historyParams, _resetAnimationDelayed} = get()
     const currentPath = history[history.length - 1]
     if (currentPath === "/home" || currentPath === "/") return
+
+    // if the route we're going back to is home, delayed reset the animation to fade:
+    if (history[history.length - 2] === "/home") {
+      _resetAnimationDelayed("fade")
+    }
 
     set({
       history: history.slice(0, -1),
@@ -128,8 +134,12 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   clearHistory: () => {
     console.info("NAV: clearHistory()")
     set({history: [], historyParams: []})
-    try { router.dismissAll() } catch {}
-    try { router.dismissTo("/home") } catch {}
+    try {
+      router.dismissAll()
+    } catch {}
+    try {
+      router.dismissTo("/home")
+    } catch {}
   },
 
   clearHistoryAndGoHome: (params) => {
@@ -140,7 +150,6 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       if (params?.transition) set({animation: params.transition})
       router.replace({pathname: "/home" as any, params: params as any})
       set({history: ["/home"], historyParams: [undefined]})
-      if (params?.transition) _resetAnimationDelayed()
     } catch (e) {
       console.error("NAV: clearHistoryAndGoHome() error", e)
     }
@@ -212,7 +221,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     }
   },
 
-  _resetAnimationDelayed: () => {
-    setTimeout(() => set({animation: "simple_push"}), 800)
+  _resetAnimationDelayed: (animation?: NavigationAnimation) => {
+    setTimeout(() => set({animation: animation ?? "simple_push"}), 800)
   },
 }))

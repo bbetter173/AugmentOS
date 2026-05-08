@@ -182,8 +182,7 @@ export const AllProviders = withWrappers(
     const screenOptions = useMemo(
       () => ({
         headerShown: false,
-        // gestureEnabled: forceGestureEnabled || !preventBack,
-        gestureEnabled: false,
+        gestureEnabled: forceGestureEnabled || !preventBack,
         gestureDirection: "horizontal" as const,
         animation: convertToNativeAnimation(animation) as any,
         // Load-bearing for MiniappHost: /applet/local renders a transparent

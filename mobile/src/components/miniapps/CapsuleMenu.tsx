@@ -183,23 +183,23 @@ export function MiniAppCapsuleMenu({
   //   onBackPress ? false : true,
   // )
 
-  focusEffectPreventBack(
-    onBackPress
-      ? () => {
-          console.log("CAPSULE MENU: handleBackPress() called")
-          handleExit(false)
-          onBackPress()
-        }
-      : () => {
-          console.log("CAPSULE MENU: focusEffectPreventBack() called")
-          // Defer screenshot capture so it doesn't block the navigation animation
-          InteractionManager.runAfterInteractions(() => {
-            let shouldGoBack = Platform.OS === "android"
-            handleExit(shouldGoBack)
-          })
-        },
-    true,
-  )
+  // focusEffectPreventBack(
+  //   onBackPress
+  //     ? () => {
+  //         console.log("CAPSULE MENU: handleBackPress() called")
+  //         handleExit(false)
+  //         onBackPress()
+  //       }
+  //     : () => {
+  //         console.log("CAPSULE MENU: focusEffectPreventBack() called")
+  //         // Defer screenshot capture so it doesn't block the navigation animation
+  //         InteractionManager.runAfterInteractions(() => {
+  //           let shouldGoBack = Platform.OS === "android"
+  //           handleExit(shouldGoBack)
+  //         })
+  //       },
+  //   true,
+  // )
 
   return (
     <View className="z-2 absolute right-2 items-center justify-end flex-row" style={{top: top}}>

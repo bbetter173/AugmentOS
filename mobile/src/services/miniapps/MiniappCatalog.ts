@@ -281,7 +281,16 @@ class MiniappCatalog {
       const a = out.find((x) => x.packageName === item.packageName)
       return {name: item.name, packageName: item.packageName, running: a?.running ?? false}
     })
-    useSettingsStore.getState().setSetting(SETTINGS.menu_apps.key, itemsForNative)
+    // only set the menu_apps if the list of packageNames or the status of running apps changed:
+    const changed =
+      menuItems.length !== itemsForNative.length ||
+      itemsForNative.some((item, i) => {
+        const old = menuItems![i]
+        return old.packageName !== item.packageName || (old.running ?? false) !== item.running
+      })
+    if (changed) {
+      useSettingsStore.getState().setSetting(SETTINGS.menu_apps.key, itemsForNative)
+    }
 
     return out
   }

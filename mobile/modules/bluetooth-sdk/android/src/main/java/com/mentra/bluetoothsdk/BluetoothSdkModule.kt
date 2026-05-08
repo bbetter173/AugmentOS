@@ -233,7 +233,7 @@ class CoreModule : Module() {
 
         AsyncFunction("sendOtaStart") { deviceManager?.sendOtaStart() }
         
-        AsyncFunction("sendOtaQueryStatus") { coreManager?.sendOtaQueryStatus() }
+        AsyncFunction("sendOtaQueryStatus") { deviceManager?.sendOtaQueryStatus() }
 
         // MARK: - Version Info Commands
 

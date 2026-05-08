@@ -2,7 +2,7 @@
 
 ## Overview
 
-**What this doc covers:** File-by-file implementation plan for the changes spec'd in [spec.md](./spec.md). Three deliverables: SDK version bump, local `bun patch`, and the upstream PR submission.
+**What this doc covers:** File-by-file implementation plan for the changes spec'd in [spec.md](./spec.md). Three deliverables: SDK version bump, local `patch-package` patch, and the upstream PR submission.
 
 **What you need to know first:** [spike.md](./spike.md) for the heap-snapshot evidence; [spec.md](./spec.md) for the exact behavior changes and rationale.
 
@@ -53,7 +53,7 @@ cd cloud
 bun install
 ```
 
-This updates `bun.lock` to pin `@soniox/node@2.0.0`. The bun cache layout (`node_modules/.bun/@soniox+node@2.0.0/...`) replaces the `1.1.2` directory. `bun patch` materializes from this version when we record the patch in S2.
+This updates `bun.lock` to pin `@soniox/node@2.0.0`. The bun cache layout (`node_modules/.bun/@soniox+node@2.0.0/...`) replaces the `1.1.2` directory. patch-package needs the new version in path before recording the patch.
 
 Verification: `bunx tsc --noEmit` passes from `cloud/packages/cloud/`. If any new type errors appear due to v1→v2 changes, address them in the same commit (most likely scenario: a type widened or an import name changed for a peripheral symbol).
 
@@ -137,8 +137,8 @@ Bumps @soniox/node 1.1.1 -> 2.0.0 first so the patch targets the
 version Soniox is actively maintaining, and so the upstream PR and
 our local patch are both against the same source.
 
-Drop this patch + patchedDependencies entry when upstream merges + ships
-the fix — see cloud/issues/104-soniox-eventqueue-leak/."
+Drop this patch + postinstall hook when upstream merges + ships the
+fix — see cloud/issues/104-soniox-eventqueue-leak/."
 ```
 
 ---
@@ -297,7 +297,7 @@ The PR's URL goes back into our MentraOS commit message and into the patch's lea
 
 ## Constants and Imports
 
-None added in MentraOS source. The bun patch is recorded as a unified diff under `cloud/patches/` and applied by bun against `node_modules/` at install time. MentraOS source code is unchanged.
+None added in MentraOS source. The patch-package change is in `node_modules/`. The MentraOS source code is unchanged.
 
 The upstream PR adds one private field to `RealtimeSttSession`. No imports change.
 
@@ -307,7 +307,7 @@ The upstream PR adds one private field to `RealtimeSttSession`. No imports chang
 
 ### Local
 
-1. `bun install` from `cloud/` — must succeed; bun re-applies the patch automatically via `patchedDependencies`.
+1. `bun install` from `cloud/packages/cloud/` — must succeed; postinstall must apply the patch.
 2. `bunx tsc --noEmit` — must pass.
 3. Inspect `node_modules/.bun/@soniox+node@2.0.0/.../dist/index.mjs` — confirm patch applied (search for `iteratorAttached`).
 4. Programmatic check on `cloud-debug` after deploy:
@@ -338,7 +338,7 @@ Add `cloud/104-soniox-eventqueue-leak-fix` to the `branches:` list in `.github/w
 
 1. Branch `cloud/104-soniox-eventqueue-leak-fix` off `dev`. Done.
 2. S1: bump version, run `bun install`, `bunx tsc --noEmit`.
-3. S2: `bun patch @soniox/node@2.0.0`, modify the materialized SDK files, `bun patch --commit`, verify clean reinstall.
+3. S2: install patch-package, modify SDK files, generate patch, wire postinstall, verify clean reinstall.
 4. Open MentraOS PR against `dev`.
 5. Open upstream PR against `soniox/soniox-js` in parallel (S3).
 6. Add `cloud/104-soniox-eventqueue-leak-fix` to porter-debug.yml triggers, auto-deploy, soak ≥1h.
@@ -346,7 +346,7 @@ Add `cloud/104-soniox-eventqueue-leak-fix` to the `branches:` list in `.github/w
 8. Merge MentraOS PR → auto-deploys to cloud-dev.
 9. Watch us-central-dev memory floor for 24h.
 10. Cherry-pick to main → prod regions.
-11. When upstream ships the fix in a new release: bump version, delete `cloud/patches/@soniox%2Fnode@2.0.0.patch`, remove the `patchedDependencies` entry from `cloud/package.json`, close issue 104.
+11. When upstream ships the fix in a new release: bump version, delete patch, remove postinstall hook, close issue 104.
 
 ---
 
@@ -354,11 +354,11 @@ Add `cloud/104-soniox-eventqueue-leak-fix` to the `branches:` list in `.github/w
 
 **Risk: v1→v2 SDK changes break our wrapper.** Mitigated by spec'd typecheck pass; the diff shows only additive changes to consumed surface. If we hit a breaking change at runtime, fix in the same PR.
 
-**Risk: bun fails to apply the patch after a future SDK bump.** `bun install` exits non-zero and refuses to install — that's the intended behavior. When upstream releases v2.0.1 with line numbers shifted, we want a hard fail so we know to update or drop the patch.
+**Risk: patch-package patch fails to apply after `bun install`.** patch-package exits non-zero, install fails loudly. That's the intended behavior — when upstream releases v2.0.1 with line numbers shifted, we want a hard fail so we know to update or drop the patch.
 
 **Risk: upstream PR rejected by Soniox** (e.g., they prefer a different fix shape). We keep the local patch indefinitely. Cost: tracking patch validity across SDK versions. We'd reconsider the wrapper-drain workaround as Plan B.
 
-**Risk: bun's patch reapplication interacts oddly with the content-addressed cache.** Mitigated by clean-reinstall verification (step 4 of S2). Verified empirically — `iteratorAttached` gates show up in `node_modules/.bun/@soniox+node@2.0.0/...` after every fresh install.
+**Risk: postinstall script breaks Bun's install caching.** patch-package interacts with `node_modules` directly; bun's content-addressed cache may need to materialize files differently. Mitigated by step 5 of S2 (clean reinstall verification).
 
 **Risk: deploy to debug still leaks** because debug pod hasn't been restarted with the patched build. Mitigated by waiting for the porter-debug.yml workflow run to complete, then explicitly checking pod uptime in `system-vitals` to confirm we're looking at the post-deploy pod.
 
@@ -366,6 +366,6 @@ Add `cloud/104-soniox-eventqueue-leak-fix` to the `branches:` list in `.github/w
 
 ## Summary
 
-Three small changes (one version bump, one `patchedDependencies` entry, one patch file). Zero MentraOS source-code changes. The upstream PR is parallel and independent. When upstream ships the fix, removing the patch is a 1-line PR.
+Three small changes (one version bump, one dev dep, one patch file). Zero MentraOS source-code changes. The upstream PR is parallel and independent. When upstream ships the fix, removing the patch is a 1-line PR.
 
 The fix at the SDK layer (rather than as a wrapper-side workaround) means every Soniox SDK consumer eventually benefits and our codebase stays free of compensatory hacks.

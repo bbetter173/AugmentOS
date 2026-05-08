@@ -23,7 +23,7 @@ public class OtaConstants {
     // !!    - asg_client/ota_updater/.../helper/Constants.java              !!
     // !!    - asg_client/.../OtaHelper.java::checkInternetReachable()       !!
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    public static final String VERSION_JSON_URL = "https://ota.mentraglass.com/test_bes_ota_prod_live_version.json";
+    public static final String VERSION_JSON_URL = "https://ota.mentraglass.com/prod_live_version.json";
 
     // Test URLs (uncomment to use for testing)
     // public static final String VERSION_JSON_URL = "https://github.com/Mentra-Community/MentraOS/releases/download/asg-client/live_version_test_non_production.json";

@@ -6,7 +6,7 @@ public class Constants {
     // URLs
     // !! WARNING: TEST MANIFEST !! see OtaConstants.java for full context.
     // Do not swap to test_bes_ota_prod_live_version.json until manifest schema is validated.
-    public static final String VERSION_JSON_URL = "https://ota.mentraglass.com/test_bes_ota_prod_live_version.json"; // TODO: change with real server ip address
+    public static final String VERSION_JSON_URL = "https://ota.mentraglass.com/prod_live_version.json"; // TODO: change with real server ip address
 
     // Heartbeat actions
     public static final String ACTION_HEARTBEAT = "com.augmentos.otaupdater.ACTION_HEARTBEAT";

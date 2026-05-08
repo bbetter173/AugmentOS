@@ -10,7 +10,6 @@ import {devServerBridge} from "@mentra/island"
 import {localDisplayManager} from "@mentra/island"
 import {localMiniappRuntime} from "@mentra/island"
 import {webviewBridge as miniComms, miniappRunningRegistry, buildMiniappGlobalsScript} from "@mentra/island"
-import CapsuleMenu from "@/effects/CapsuleMenu"
 
 const BEFORE_EVICT_TIMEOUT_MS = 500
 
@@ -602,9 +601,6 @@ export default function MiniappHost() {
             />
             {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}
             {isFg && <LeftEdgeBackSwipe packageName={app.packageName} onBack={app.onBack} />}
-            {isFg && (
-              <CapsuleMenu forceShow={true} />
-            )}
           </View>
         )
       })}

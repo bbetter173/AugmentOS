@@ -338,10 +338,14 @@ class MiniappCatalog {
     }
     if (app.offline) return // offline app without a route — nothing to navigate to
     if (app.isMiniappDev && app.devUrl) {
+      // Dev miniapps don't push a route. The Compositor (running as an effect)
+      // sees foreground=true and mounts/foregrounds the webview over /home.
+      // Reachability check still routes to the offline screen if the dev
+      // server isn't responding.
       const {packageName, devUrl, name: appName, logoUrl} = app
       decideDevLaunchRoute(packageName, devUrl).then((result) => {
         if (result.decision === "live") {
-          nav.push("/applet/local", {packageName, devUrl, appName, transition: appOpenTransition})
+          useAppStatusStore.getState().setForeground(packageName)
         } else {
           nav.push("/applet/dev-offline", {packageName, name: appName, iconUrl: logoUrl})
         }
@@ -349,12 +353,9 @@ class MiniappCatalog {
       return
     }
     if (app.local) {
-      nav.push("/applet/local", {
-        packageName: app.packageName,
-        version: app.version,
-        appName: app.name,
-        transition: appOpenTransition,
-      })
+      // Local miniapps: no route push. Compositor renders the foregrounded
+      // app over /home; swipe-to-back clears foreground but keeps it running.
+      useAppStatusStore.getState().setForeground(app.packageName)
       return
     }
     if (app.webviewUrl && app.healthy) {

@@ -74,6 +74,10 @@ interface AppStatusState {
   getHiddenStatus: (packageName: string) => boolean
   /** Replace the whole apps array. Hosts use this when their extra source changes. */
   setApps: (apps: ClientApp[]) => void
+  /** Mark a single app as the foreground miniapp; clears foreground on all others. */
+  setForeground: (packageName: string) => void
+  /** Clear foreground on every app — used when the user swipes/closes the host overlay. */
+  clearForeground: () => void
 }
 
 export const DUMMY_APPLET: ClientApp = {
@@ -172,13 +176,16 @@ export const useAppStatusStore = create<AppStatusState>((set, get) => ({
     }
     apps = Array.from(byPackage.values())
 
-    // Carry over screenshots from the previous snapshot.
+    // Carry over screenshots + foreground flag from the previous snapshot.
+    // refresh() rebuilds from registry+cloud sources which don't know about
+    // UI state (foreground), so preserving here keeps the Compositor's overlay
+    // from snapping off when an unrelated registry event fires mid-launch.
     const oldApps = state.apps
     for (const oldApp of oldApps) {
-      if (oldApp.screenshot) {
-        const next = apps.find((a) => a.packageName === oldApp.packageName)
-        if (next) next.screenshot = oldApp.screenshot
-      }
+      const next = apps.find((a) => a.packageName === oldApp.packageName)
+      if (!next) continue
+      if (oldApp.screenshot) next.screenshot = oldApp.screenshot
+      if (oldApp.foreground) next.foreground = true
     }
 
     // Compatibility info using host-provided capabilities.
@@ -316,6 +323,19 @@ export const useAppStatusStore = create<AppStatusState>((set, get) => ({
   },
 
   setApps: (apps) => set({apps}),
+
+  setForeground: (packageName: string) => {
+    set((s) => ({
+      apps: s.apps.map((a) => ({...a, foreground: a.packageName === packageName})),
+    }))
+  },
+
+  clearForeground: () => {
+    set((s) => {
+      if (!s.apps.some((a) => a.foreground)) return s
+      return {apps: s.apps.map((a) => (a.foreground ? {...a, foreground: false} : a))}
+    })
+  },
 }))
 
 // Project miniappRunningRegistry membership into the store's `running` field
@@ -385,4 +405,16 @@ export const useActiveBackgroundAppsCount = () => {
   return useMemo(() => apps.filter((app) => app.type === "background" && app.running).length, [apps])
 }
 
-export const useLocalMiniApps = () => useAppStatusStore.getState().apps.filter((app) => app.local)
+export const useLocalMiniApps = () => {
+  const apps = useApps()
+  return useMemo(() => apps.filter((app) => app.local), [apps])
+}
+
+/** Currently-foregrounded local miniapp, if any. The Compositor renders this. */
+export const useForegroundMiniApp = () => {
+  const apps = useApps()
+  return useMemo(() => apps.find((app) => app.local && app.foreground) ?? null, [apps])
+}
+
+export const useSetForeground = () => useAppStatusStore((state) => state.setForeground)
+export const useClearForeground = () => useAppStatusStore((state) => state.clearForeground)

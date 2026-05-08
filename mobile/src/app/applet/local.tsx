@@ -4,7 +4,7 @@ import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {miniappHost} from "@/components/miniapp/MiniappHost"
 import {useNavigationStore} from "@/stores/navigation"
-import {appRegistry} from "@mentra/island"
+import {appRegistry, useAppStatusStore} from "@mentra/island"
 import {devServerBridge} from "@mentra/island"
 import {storage} from "@/utils/storage/storage"
 
@@ -109,12 +109,17 @@ export default function LocalMiniAppPage() {
 
       if (cancelled) return
       miniappHost.setForeground(packageName, {onClose: handleClose, onBack: handleBack})
+      // Mirror to the apps store so Compositor's CapsuleMenu/forceShow + swipe
+      // overlay activate (the press path sets foreground via the store; the
+      // scanner-driven route path needs to do it manually).
+      useAppStatusStore.getState().setForeground(packageName)
     })()
 
     return () => {
       cancelled = true
       // Background on navigate away, don't unmount — keep it alive
       miniappHost.setBackground(packageName)
+      useAppStatusStore.getState().clearForeground()
     }
   }, [packageName, version, devUrl, devPort, appName, iconUrl])
 

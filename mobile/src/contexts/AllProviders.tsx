@@ -12,7 +12,6 @@ import Toast from "react-native-toast-message"
 
 // import {ErrorBoundary} from "@/components/error"
 import {Text} from "@/components/ignite"
-import MiniappHost from "@/components/miniapp/MiniappHost"
 import {AppStoreProvider} from "@/contexts/AppStoreContext"
 import {AuthProvider} from "@/contexts/AuthContext"
 import {DeeplinkProvider} from "@/contexts/DeeplinkContext"
@@ -217,15 +216,6 @@ export const AllProviders = withWrappers(
     //     />
     //   </>
     // )
-  },
-  // render the MiniappHost at the app root above everything else:
-  (props) => {
-    return (
-      <>
-        {props.children}
-        <MiniappHost />
-      </>
-    )
   },
 )
 

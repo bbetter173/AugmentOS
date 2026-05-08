@@ -1,4 +1,5 @@
 import {ButtonActions} from "@/effects/ButtonActions"
+import Compositor from "@/effects/Compositor"
 import {GalleryModeSync} from "@/effects/GalleryModeSync"
 import {MtkUpdateAlert} from "@/effects/MtkUpdateAlert"
 import {NetworkMonitoring} from "@/effects/NetworkMonitoring"
@@ -33,6 +34,7 @@ export const AllEffects = () => {
       <FirebaseAnalyticsSetup />
       <ScreenshotFeedbackPrompt />
       <CapsuleMenu forceShow={false} />
+      <Compositor />
     </>
   )
 }

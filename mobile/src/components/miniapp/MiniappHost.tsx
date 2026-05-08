@@ -503,7 +503,7 @@ export default function MiniappHost() {
   return (
     // MiniappHost sits above the Stack so the foregrounded WebView covers the
     // current route. z-[9999]/elevation keep us on top of native nav layers.
-    <View className="absolute inset-0 z-[9999]" style={{elevation: 9999}} pointerEvents="box-none">
+    <View className="absolute inset-0 z-10" pointerEvents="box-none">
       {entries.map((app) => {
         const isFg = app.isForeground
 
@@ -597,9 +597,15 @@ export default function MiniappHost() {
               // builds so miniapp authors can debug their bundle. iOS 16.4+
               // and Android changed this to opt-in.
               webviewDebuggingEnabled={__DEV__}
-              style={{flex: 1}}
+              style={{flex: 1, backgroundColor: theme.colors.background}}
             />
-            {isFg && !app.isLoaded && <MiniappSplash iconUrl={app.iconUrl} bgColor={theme.colors.background} />}
+            {isFg && (
+              <MiniappSplash
+                iconUrl={app.iconUrl}
+                bgColor={theme.colors.background}
+                isLoaded={app.isLoaded}
+              />
+            )}
             {isFg && <LeftEdgeBackSwipe packageName={app.packageName} onBack={app.onBack} />}
           </View>
         )

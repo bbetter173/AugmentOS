@@ -8,7 +8,8 @@ import {create} from "zustand"
 import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useNavigationStore} from "@/stores/navigation"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
-import {useAppStatusStore} from "@mentra/island"
+import {useAppStatusStore, useForegroundMiniApp} from "@mentra/island"
+import { captureScreenshot } from "@/effects/CapsuleMenu"
 
 export interface CapsuleRegistration {
   packageName: string
@@ -68,38 +69,7 @@ export function useRegisterCapsule({
     async (shouldGoBack?: boolean) => {
       console.log("CAPSULE MENU: handleExit() called")
 
-      if (Platform.OS === "ios") {
-        let uri = await captureRef(viewShotRef, {
-          format: "jpg",
-          quality: 0.1,
-          result: "tmpfile",
-        })
-        const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
-          RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
-        })
-        let amountToChop = insetsTopRef.current * PixelRatio.get()
-        amountToChop = 0
-        const context = ImageManipulator.ImageManipulator.manipulate(uri)
-        context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
-        const imageRef = await context.renderAsync()
-        const cropped = await imageRef.saveAsync({
-          format: ImageManipulator.SaveFormat.JPEG,
-          compress: 0.1,
-        })
-        await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
-      } else {
-        captureRef(viewShotRef, {
-          format: "jpg",
-          quality: 0.5,
-          result: "tmpfile",
-        })
-          .then((uri) => {
-            useAppStatusStore.getState().saveScreenshot(packageName, uri)
-          })
-          .catch((e) => {
-            console.warn("screenshot failed:", e)
-          })
-      }
+      captureScreenshot(viewShotRef, packageName, insets.top)
 
       console.log("CAPSULE MENU: screenshot captured")
 

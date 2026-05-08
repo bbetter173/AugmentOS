@@ -19,16 +19,19 @@
 import {useEffect, useRef} from "react"
 import {Dimensions, Platform, View} from "react-native"
 import {Gesture, GestureDetector} from "react-native-gesture-handler"
-import Animated, {runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming} from "react-native-reanimated"
+import Animated, {runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming} from "react-native-reanimated"
 
 import MiniappHost, {miniappHost} from "@/components/miniapp/MiniappHost"
 import CapsuleMenu from "@/effects/CapsuleMenu"
 import {launchLocalMiniapp} from "@/services/miniapps/launchLocalMiniapp"
+import {useCapsuleStore} from "@/stores/capsule"
 import {useAppStatusStore, useForegroundMiniApp} from "@mentra/island"
 
 const EDGE_HIT_WIDTH = 24
 const COMMIT_FRACTION = 0.4
 const COMMIT_DURATION_MS = 220
+const FADE_IN_DELAY_MS = 20
+const FADE_IN_DURATION_MS = 500
 
 export default function Compositor() {
   const foregroundApp = useForegroundMiniApp()
@@ -52,8 +55,33 @@ export default function Compositor() {
     lastForegroundPkgRef.current = next
   }, [foregroundApp])
 
+  // Register a capsule handler whenever a local miniapp is foregrounded so the
+  // global house-button reflects the Compositor-managed app without each
+  // miniapp screen having to call useRegisterCapsule.
+  useEffect(() => {
+    if (!foregroundApp) return
+    const setActive = useCapsuleStore.getState().setActive
+    setActive({
+      packageName: foregroundApp.packageName,
+      viewShotRef: {current: null},
+      appNameOverride: foregroundApp.name,
+      iconUrlOverride: foregroundApp.logoUrl,
+      handleExit: () => {
+        useAppStatusStore.getState().clearForeground()
+      },
+    })
+    return () => {
+      const current = useCapsuleStore.getState().active
+      if (current?.packageName === foregroundApp.packageName) {
+        setActive(null)
+      }
+    }
+  }, [foregroundApp])
+
   const swipeTranslateX = useSharedValue(0)
+  const fadeOpacity = useSharedValue(0)
   const animatedStyle = useAnimatedStyle(() => ({
+    opacity: fadeOpacity.value,
     transform: [{translateX: swipeTranslateX.value}],
   }))
 
@@ -84,17 +112,23 @@ export default function Compositor() {
       }
     })
 
-  // Reset translation whenever we re-enter foreground so a fresh launch
-  // doesn't paint at the previous swipe-out offset.
+  // Reset translation + run fade-in whenever we re-enter foreground (covers
+  // both fresh launches and re-foregrounding an already-running miniapp).
   useEffect(() => {
-    if (isForeground) swipeTranslateX.value = 0
-  }, [isForeground, swipeTranslateX])
+    if (isForeground) {
+      swipeTranslateX.value = 0
+      fadeOpacity.value = 0
+      fadeOpacity.value = withDelay(FADE_IN_DELAY_MS, withTiming(1, {duration: FADE_IN_DURATION_MS}))
+    } else {
+      fadeOpacity.value = 0
+    }
+  }, [isForeground, swipeTranslateX, fadeOpacity])
 
   return (
     <Animated.View
       pointerEvents={isForeground ? "auto" : "box-none"}
       style={[
-        {position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999},
+        {position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 10, elevation: 10},
         animatedStyle,
       ]}>
       <MiniappHost />
@@ -107,7 +141,7 @@ export default function Compositor() {
               bottom: 0,
               left: 0,
               width: EDGE_HIT_WIDTH,
-              zIndex: 10000,
+              zIndex: 11,
             }}
           />
         </GestureDetector>

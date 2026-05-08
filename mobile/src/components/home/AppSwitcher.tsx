@@ -17,6 +17,7 @@ import Animated, {
 import {Gesture, GestureDetector} from "react-native-gesture-handler"
 import {runOnJS, scheduleOnRN} from "react-native-worklets"
 import {
+  BgTimer,
   saveLastOpenTime,
   sortAppsByLastOpenTime,
   useActiveApps,
@@ -635,7 +636,10 @@ export default function AppSwitcher({swipeProgress, blurTargetRef: _blurTargetRe
       })
     }
 
-    handleClose()
+    // do this after the app is started:
+    BgTimer.setTimeout(() => {
+      handleClose()
+    }, 500)
   }
 
   const handleClose = useCallback(() => {

@@ -35,9 +35,9 @@ export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProp
   return (
     <GlassView
       transparent={true}
-      className="flex-row justify-between rounded-full h-8 w-20 items-center"
+      className="flex-row justify-between rounded-full h-8 w-8 items-center"
       style={androidStyle}>
-      <Pressable
+      {/* <Pressable
         hitSlop={10}
         onPress={onEllipsisPress}
         // className="w-8 h-full items-center justify-center rounded-l-full bg-red-500"
@@ -56,7 +56,7 @@ export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProp
         ]}>
         <Icon name="ellipsis" size={20} color={theme.colors.foreground} />
       </Pressable>
-      <View className="h-4 w-px bg-primary-foreground/80 absolute left-1/2 -translate-x-1/2" />
+      <View className="h-4 w-px bg-primary-foreground/80 absolute left-1/2 -translate-x-1/2" /> */}
       <Pressable
         hitSlop={10}
         onPress={onMinusPress}
@@ -74,10 +74,11 @@ export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProp
           },
         ]}>
         {/* position circle under the icon: */}
-        <View className="relative -top-[1px] left-0 w-4 h-4">
+        {/* <View className="relative -top-[1px] left-0 w-4 h-4">
           <View className="w-5.5 h-5.5 bg-input rounded-full z-0 absolute -top-0.5 -left-0.5" />
           <Icon name={"x"} size={16} color={theme.colors.foreground} className="z-0 absolute top-[1px] left-[1px]" />
-        </View>
+        </View> */}
+          <Icon name={"house"} size={16} color={theme.colors.foreground} className="ml-2 mb-0.5" />
       </Pressable>
     </GlassView>
   )
@@ -126,35 +127,46 @@ export function MiniAppCapsuleMenu({
 
   const handleExit = async (shouldGoBack?: boolean) => {
     console.log("CAPSULE MENU: handleExit() called")
-    captureRef(viewShotRef, {
-      format: "jpg",
-      // handleGLSurfaceViewOnAndroid: true,
-      quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
-      result: "tmpfile",
-    })
-      .then(async (uri) => {
-        if (Platform.OS === "ios") {
-          const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
-            RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
-          })
-          let amountToChop = insets.top * PixelRatio.get()
-          amountToChop = 0
-          const context = ImageManipulator.ImageManipulator.manipulate(uri)
-          context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
-          const imageRef = await context.renderAsync()
-          const cropped = await imageRef.saveAsync({
-            format: ImageManipulator.SaveFormat.JPEG,
-            compress: 0.1,
-          })
-          useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
-        } else {
-          // android is weird and the crop doesn't work properly:
-          useAppStatusStore.getState().saveScreenshot(packageName, uri)
-        }
+
+    if (Platform.OS === "ios") {
+      let uri = await captureRef(viewShotRef, {
+        format: "jpg",
+        quality: 0.1,
+        result: "tmpfile",
       })
-      .catch((e) => {
-        console.warn("screenshot failed:", e)
+      const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
+        RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
       })
+      let amountToChop = insets.top * PixelRatio.get()
+      amountToChop = 0
+      const context = ImageManipulator.ImageManipulator.manipulate(uri)
+      context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
+      const imageRef = await context.renderAsync()
+      const cropped = await imageRef.saveAsync({
+        format: ImageManipulator.SaveFormat.JPEG,
+        compress: 0.1,
+      })
+      await useAppStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+    } else {
+      captureRef(viewShotRef, {
+        format: "jpg",
+        // handleGLSurfaceViewOnAndroid: true,
+        quality: 0.5, // android needs a higher quality to avoid compression artifacts
+        result: "tmpfile",
+      })
+        .then(async (uri) => {
+          if (Platform.OS === "ios") {
+          } else {
+            // android is weird and the crop doesn't work properly:
+            useAppStatusStore.getState().saveScreenshot(packageName, uri)
+          }
+        })
+        .catch((e) => {
+          console.warn("screenshot failed:", e)
+        })
+    }
+
+    console.log("CAPSULE MENU: screenshot captured")
 
     // // wait 0.1 seconds on android:
     // if (Platform.OS === "android") {
@@ -166,22 +178,18 @@ export function MiniAppCapsuleMenu({
     }
   }
 
-  // focusEffectPreventBack(
-  //   onBackPress
-  //     ? () => {
-  //         onBackPress()
-  //       }
-  //     : () => {
-  //         // Defer screenshot capture so it doesn't block the navigation animation
-  //         // InteractionManager.runAfterInteractions(() => {
-  //         //   let shouldGoBack = Platform.OS === "android"
-  //         //   handleExit(shouldGoBack)
-  //         // })
-  //         let shouldGoBack = Platform.OS === "android"
-  //         handleExit(shouldGoBack)
-  //       },
-  //   onBackPress ? false : true,
-  // )
+  // needed to capture the screenshot on ios:
+  focusEffectPreventBack(
+    onBackPress
+      ? () => {
+          onBackPress()
+        }
+      : () => {
+          let shouldGoBack = Platform.OS === "android"
+          handleExit(shouldGoBack)
+        },
+    onBackPress ? false : true,
+  )
 
   // focusEffectPreventBack(
   //   onBackPress

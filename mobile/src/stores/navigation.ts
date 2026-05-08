@@ -53,6 +53,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
   push: (path, params) => {
     console.info("NAV: push()", path)
+    console.log(`MINIAPP_TIMING: push ${path} ${Date.now()}`)
     const {history, historyParams, _resetAnimationDelayed} = get()
     if (history[history.length - 1] === path) return
 

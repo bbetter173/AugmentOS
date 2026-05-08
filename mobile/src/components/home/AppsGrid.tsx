@@ -494,6 +494,7 @@ export function AppsGrid({showAllApps = false, onOpenApp, onAddToHome, searchQue
             //   showPopover(item.packageName)
             //   return
             // }
+            console.log(`MINIAPP_TIMING: press ${item.packageName} ${Date.now()}`)
             handlePress(item)
           }}
           onLongPress={() => {

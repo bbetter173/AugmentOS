@@ -909,6 +909,12 @@ class MentraLive: NSObject, SGCManager {
     private func updateConnectionState(_ state: String) {
         connectionState = state
         GlassesStore.shared.apply("glasses", "connectionState", state)
+        // Drop OTA caches when fully disconnected — avoids leaking session/step state from
+        // a previous pairing into the next one (would otherwise surface as wrong overall_percent
+        // or stale lastBesOtaProgress on the next OTA).
+        if state == ConnTypes.DISCONNECTED {
+            resetOtaCache()
+        }
     }
 
     func setDashboardPosition(_: Int, _: Int) {}
@@ -1093,6 +1099,13 @@ class MentraLive: NSObject, SGCManager {
 
     /// BES OTA progress tracking - only send to UI on 5% increments
     private var lastBesOtaProgress = -1
+
+    // Cached OTA session context from last ota_status — used to fill in session fields for sr_adota
+    private var cachedOtaSessionId: String?
+    private var cachedOtaTotalSteps = 0
+    private var cachedOtaCurrentStep = 0
+    /// Step type sequence (e.g. ["apk","bes"]) from last ota_status; used to compute BES weight in sr_adota.
+    private var cachedOtaStepSequence: [String]?
 
     // Glasses media volume (K900 cs_getvol / cs_vol, sr_getvol / sr_vol)
     private let glassesMediaVolumeLock = NSLock()
@@ -1954,27 +1967,77 @@ class MentraLive: NSObject, SGCManager {
             Bridge.log("LIVE: 📱 Received ota_start_ack from glasses")
             Bridge.sendOtaStartAck()
 
+        case "ota_status":
+            // Short keys (sid/ts/cs/st/sq/sp/op/err) are used by new firmware to keep BLE payload small.
+            // Verbose keys (session_id/total_steps/…) are the fallback for older firmware.
+            let osSessionId = json["sid"] as? String ?? json["session_id"] as? String ?? ""
+            let osTotalSteps = json["ts"] as? Int ?? json["total_steps"] as? Int ?? 0
+            let osCurrentStep = json["cs"] as? Int ?? json["current_step"] as? Int ?? 0
+            let osStepType = json["st"] as? String ?? json["step_type"] as? String ?? "apk"
+            let osPhase = json["phase"] as? String ?? "download"
+            let osStepPercent = json["sp"] as? Int ?? json["step_percent"] as? Int ?? 0
+            let osOverallPercent = json["op"] as? Int ?? json["overall_percent"] as? Int ?? 0
+            let osStatus = json["status"] as? String ?? "idle"
+            let osErrorMessage = json["err"] as? String ?? json["error_message"] as? String
+
+            // If the glasses started a new session, drop any leftover state from the old
+            // one before caching the new values. Without this, lastBesOtaProgress would
+            // stay at e.g. 95 from the previous session and cause us to silently skip the
+            // first few percent of the new BES install.
+            if !osSessionId.isEmpty, let prevSid = cachedOtaSessionId, prevSid != osSessionId {
+                resetOtaCache()
+            }
+
+            cachedOtaSessionId = osSessionId
+            cachedOtaTotalSteps = osTotalSteps
+            cachedOtaCurrentStep = osCurrentStep
+            if let seq = json["sq"] as? [String] ?? json["step_sequence"] as? [String], !seq.isEmpty {
+                cachedOtaStepSequence = seq
+            }
+
+            Bridge.log("LIVE: 📱 OTA status - step \(osCurrentStep)/\(osTotalSteps) \(osPhase) \(osStatus) \(osOverallPercent)%")
+
+            Bridge.sendOtaStatus(
+                sessionId: osSessionId,
+                totalSteps: osTotalSteps,
+                currentStep: osCurrentStep,
+                stepType: osStepType,
+                phase: osPhase,
+                stepPercent: osStepPercent,
+                overallPercent: osOverallPercent,
+                status: osStatus,
+                errorMessage: osErrorMessage
+            )
+
         case "ota_progress":
-            // Process OTA progress update from glasses
-            let stage = json["stage"] as? String ?? "download"
-            let status = json["status"] as? String ?? "PROGRESS"
-            let progress = json["progress"] as? Int ?? 0
-            let bytesDownloaded = json["bytes_downloaded"] as? Int64 ?? 0
-            let totalBytes = json["total_bytes"] as? Int64 ?? 0
+            // Legacy glasses firmware: map to unified ota_status (single RN path).
+            let legacyStage = json["stage"] as? String ?? "download"
+            let legacyStatus = json["status"] as? String ?? "PROGRESS"
+            let legacyProgress = json["progress"] as? Int ?? 0
             let currentUpdate = json["current_update"] as? String ?? "apk"
-            let errorMessage = json["error_message"] as? String
-
-            Bridge.log("📱 OTA progress - \(stage) \(status) \(progress)% (\(currentUpdate))")
-
-            // Send to React Native
-            Bridge.sendOtaProgress(
-                stage: stage,
-                status: status,
-                progress: progress,
-                bytesDownloaded: bytesDownloaded,
-                totalBytes: totalBytes,
-                currentUpdate: currentUpdate,
-                errorMessage: errorMessage
+            let err = json["error_message"] as? String
+            let legacyPhase: String = legacyStage == "install" ? "install" : "download"
+            let unified: String
+            if legacyStatus == "FAILED" {
+                unified = "failed"
+            } else if legacyStatus == "FINISHED" {
+                unified = "complete"
+            } else {
+                unified = "in_progress"
+            }
+            Bridge.log(
+                "LIVE: 📱 Legacy ota_progress → ota_status: \(legacyStage) \(legacyStatus) \(legacyProgress)%"
+            )
+            Bridge.sendOtaStatus(
+                sessionId: "",
+                totalSteps: 1,
+                currentStep: 1,
+                stepType: currentUpdate,
+                phase: legacyPhase,
+                stepPercent: legacyProgress,
+                overallPercent: legacyProgress,
+                status: unified,
+                errorMessage: err
             )
 
         default:
@@ -2034,6 +2097,46 @@ class MentraLive: NSObject, SGCManager {
     }
 
     /// Maps K900 gesture type codes to gesture names
+    /// Compute the weighted overall OTA percentage for a BES progress event arriving via sr_adota.
+    /// Mirrors the weight table in OtaSessionManager.computeStepWeights() on the glasses side.
+    ///
+    /// Weight assignments:
+    ///   [apk, mtk, bes] → bes base=50, weight=50
+    ///   [apk, bes]       → bes base=20, weight=80
+    ///   [mtk, bes]       → bes base=40, weight=60
+    ///   [bes]            → bes base=0,  weight=100
+    ///
+    /// Drops cached OTA session context. Called when the glasses disconnect or when a new
+    /// session id arrives — without this, stale fields from a previous session would leak
+    /// into sr_adota progress messages (wrong totalSteps, wrong stepSequence, stale
+    /// lastBesOtaProgress that swallows the first few percent of the new install).
+    private func resetOtaCache() {
+        cachedOtaSessionId = nil
+        cachedOtaTotalSteps = 0
+        cachedOtaCurrentStep = 0
+        cachedOtaStepSequence = nil
+        lastBesOtaProgress = -1
+    }
+
+    /// Falls back to raw besProgress when step sequence is unavailable.
+    private func computeBesOverallPercent(besProgress: Int, stepSequence: [String]?) -> Int {
+        guard let seq = stepSequence, !seq.isEmpty else { return besProgress }
+        let hasApk = seq.contains("apk")
+        let hasMtk = seq.contains("mtk")
+        let base: Int
+        let weight: Int
+        if hasApk && hasMtk {
+            base = 50; weight = 50
+        } else if hasApk {
+            base = 20; weight = 80
+        } else if hasMtk {
+            base = 40; weight = 60
+        } else {
+            base = 0; weight = 100
+        }
+        return min(100, base + besProgress * weight / 100)
+    }
+
     private func mapK900GestureType(_ type: Int) -> String? {
         switch type {
         case 0: return "single_tap"
@@ -2145,10 +2248,7 @@ class MentraLive: NSObject, SGCManager {
             updateConnectionState(ConnTypes.DISCONNECTED)
 
         case "sr_adota":
-            // BES chip OTA progress - convert to ota_progress format for phone UI
-            // This is sent by the BES chip during firmware flashing (the "install" phase)
-            // Since the glasses can't send ota_progress via serial during BES OTA (serial is busy),
-            // the BES chip sends progress via this K900 BLE command instead
+            // BES chip OTA progress — K900 path. Emit ota_status only (legacy ota_progress removed).
             if let bodyObj = json["B"] as? [String: Any] {
                 let type = bodyObj["type"] as? String ?? ""
                 let rawProgress = bodyObj["progress"] as? Int ?? 0
@@ -2170,35 +2270,52 @@ class MentraLive: NSObject, SGCManager {
 
                 // Determine status and error message based on type
                 var besOtaStatus: String
-                var besOtaProgress: Int
+                var besOtaProgressVal: Int
                 var besOtaErrorMessage: String? = nil
 
-                if type == "update" {
-                    besOtaStatus = "PROGRESS"
-                    besOtaProgress = progress
-                } else if type == "success" || rawProgress >= 100 {
+                // Order matters here: check completion (rawProgress >= 100 OR success) BEFORE
+                // type=="update", because some BES firmware emits the final 100% tick with
+                // type=="update" rather than type=="success". Treating that as PROGRESS would
+                // leave the UI stuck at 100% forever.
+                if type == "success" || rawProgress >= 100 {
                     besOtaStatus = "FINISHED"
-                    besOtaProgress = 100
+                    besOtaProgressVal = 100
                     lastBesOtaProgress = -1 // Reset for next OTA
                 } else if type == "error" || type == "fail" {
                     besOtaStatus = "FAILED"
-                    besOtaProgress = progress
+                    besOtaProgressVal = progress
                     besOtaErrorMessage = bodyObj["message"] as? String ?? "BES update failed"
                     lastBesOtaProgress = -1 // Reset for next OTA
+                } else if type == "update" {
+                    besOtaStatus = "PROGRESS"
+                    besOtaProgressVal = progress
                 } else {
                     // Unknown type, treat as progress
                     besOtaStatus = "PROGRESS"
-                    besOtaProgress = progress
+                    besOtaProgressVal = progress
                 }
 
-                // Send to React Native bridge as ota_progress
-                Bridge.sendOtaProgress(
-                    stage: "install",
-                    status: besOtaStatus,
-                    progress: besOtaProgress,
-                    bytesDownloaded: 0,
-                    totalBytes: 0,
-                    currentUpdate: "bes",
+                let syntheticStatus: String
+                if besOtaStatus == "FINISHED" {
+                    syntheticStatus = "step_complete"
+                } else if besOtaStatus == "FAILED" {
+                    syntheticStatus = "failed"
+                } else {
+                    syntheticStatus = "in_progress"
+                }
+                let sid = cachedOtaSessionId ?? ""
+                let totalSteps = cachedOtaTotalSteps > 0 ? cachedOtaTotalSteps : 1
+                let currentStep = cachedOtaCurrentStep > 0 ? cachedOtaCurrentStep : 1
+                let besOverallPercent = computeBesOverallPercent(besProgress: besOtaProgressVal, stepSequence: cachedOtaStepSequence)
+                Bridge.sendOtaStatus(
+                    sessionId: sid,
+                    totalSteps: totalSteps,
+                    currentStep: currentStep,
+                    stepType: "bes",
+                    phase: "install",
+                    stepPercent: besOtaProgressVal,
+                    overallPercent: besOverallPercent,
+                    status: syntheticStatus,
                     errorMessage: besOtaErrorMessage
                 )
             }
@@ -2364,6 +2481,17 @@ class MentraLive: NSObject, SGCManager {
         sendJson(json, wakeUp: true)
     }
 
+    func sendOtaQueryStatus() {
+        Bridge.log("LIVE: 📱 Sending ota_query_status command to glasses")
+
+        let json: [String: Any] = [
+            "type": "ota_query_status",
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+
+        sendJson(json, wakeUp: true)
+    }
+
     func keepAwake() {
         Bridge.log("LIVE: 📱 Sending keep_awake command to glasses")
 
@@ -2381,6 +2509,14 @@ class MentraLive: NSObject, SGCManager {
         Bridge.log("LIVE: 🎉 Received glasses_ready message - SOC is booted and ready!")
 
         stopReadinessCheckLoop()
+
+        // Invalidate any version fields from a prior link session so the next version_info
+        // cannot leave a stale build number in RN (ASG is source of truth for PackageInfo).
+        GlassesStore.shared.apply("glasses", "buildNumber", "")
+        GlassesStore.shared.apply("glasses", "appVersion", "")
+        GlassesStore.shared.apply("glasses", "besFwVersion", "")
+        GlassesStore.shared.apply("glasses", "mtkFwVersion", "")
+        Bridge.log("LIVE: Cleared cached version_info fields before refresh")
 
         // Perform SOC-dependent initialization
         requestBatteryStatus()

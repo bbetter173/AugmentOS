@@ -53,6 +53,8 @@ class CoreModule : Module() {
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            "ota_start_ack",
+            "ota_status",
             // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
             "send_command_to_ble",
             "receive_command_from_ble",
@@ -230,6 +232,8 @@ class CoreModule : Module() {
         // MARK: - OTA Commands
 
         AsyncFunction("sendOtaStart") { deviceManager?.sendOtaStart() }
+        
+        AsyncFunction("sendOtaQueryStatus") { coreManager?.sendOtaQueryStatus() }
 
         // MARK: - Version Info Commands
 

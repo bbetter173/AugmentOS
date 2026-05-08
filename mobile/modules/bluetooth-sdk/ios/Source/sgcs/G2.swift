@@ -2573,6 +2573,7 @@ class G2: NSObject, SGCManager {
     func forgetWifiNetwork(_: String) {}
     func sendHotspotState(_: Bool) {}
     func sendOtaStart() {}
+    func sendOtaQueryStatus() {}
 
     // MARK: - SGCManager: User Context
 

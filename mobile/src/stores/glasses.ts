@@ -1,4 +1,4 @@
-import {GlassesStatus, OtaProgress, OtaUpdateInfo} from "@mentra/bluetooth-sdk"
+import {GlassesStatus, OtaProgress, OtaStatus, OtaUpdateInfo} from "@mentra/bluetooth-sdk"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 
@@ -9,11 +9,14 @@ export function isGlassesLinkLayerBusy(connectionState: string | undefined): boo
 }
 
 interface GlassesState extends GlassesStatus {
+  wifiStatusKnown: boolean
   setGlassesInfo: (info: Partial<GlassesStatus>) => void
   setBatteryInfo: (batteryLevel: number, charging: boolean, caseBatteryLevel: number, caseCharging: boolean) => void
   setWifiInfo: (connected: boolean, ssid: string) => void
   setHotspotInfo: (enabled: boolean, ssid: string, password: string, ip: string) => void
   // OTA methods
+  otaStatus: OtaStatus | null
+  setOtaStatus: (status: OtaStatus | null) => void
   setOtaUpdateAvailable: (info: OtaUpdateInfo | null) => void
   setOtaProgress: (progress: OtaProgress | null) => void
   setOtaInProgress: (inProgress: boolean) => void
@@ -41,6 +44,8 @@ export const getGlasesInfoPartial = (state: GlassesStatus) => {
 
 interface GlassesStore extends GlassesStatus {
   mtkUpdatedThisSession: boolean
+  wifiStatusKnown: boolean
+  otaStatus: OtaStatus | null
 }
 
 const initialState: GlassesStore = {
@@ -71,6 +76,7 @@ const initialState: GlassesStore = {
   wifiConnected: false,
   wifiSsid: "",
   wifiLocalIp: "",
+  wifiStatusKnown: false,
   // battery info
   batteryLevel: -1,
   charging: false,
@@ -84,6 +90,7 @@ const initialState: GlassesStore = {
   hotspotPassword: "",
   hotspotGatewayIp: "",
   // OTA update info
+  otaStatus: null,
   otaUpdateAvailable: null,
   otaProgress: null,
   otaInProgress: false,
@@ -102,13 +109,18 @@ export const useGlassesStore = create<GlassesState>()(
 
     setGlassesInfo: (info) =>
       set((state) => {
-        const next = {...state, ...info}
-        // When glasses disconnect, reset all glasses state to initial values
-        // This prevents stale device info, firmware versions, battery, wifi, etc. from persisting
-        // console.log("GLASSES: setGlassesInfo called with: next.connected =", next.connected)
-        // if (next.connected === false) {
-        //   return {...initialState, ...info}
-        // }
+        const hasWifiInfoUpdate =
+          Object.prototype.hasOwnProperty.call(info, "wifiConnected") ||
+          Object.prototype.hasOwnProperty.call(info, "wifiSsid") ||
+          Object.prototype.hasOwnProperty.call(info, "wifiLocalIp")
+        const next = {
+          ...state,
+          ...info,
+          ...(hasWifiInfoUpdate ? {wifiStatusKnown: true} : {}),
+        }
+        if (next.connected === false) {
+          next.wifiStatusKnown = false
+        }
         return next
       }),
 
@@ -124,6 +136,7 @@ export const useGlassesStore = create<GlassesState>()(
       set({
         wifiConnected: connected,
         wifiSsid: ssid,
+        wifiStatusKnown: true,
       }),
 
     setHotspotInfo: (enabled: boolean, ssid: string, password: string, ip: string) =>
@@ -135,6 +148,8 @@ export const useGlassesStore = create<GlassesState>()(
       }),
 
     // OTA methods
+    setOtaStatus: (status: OtaStatus | null) => set({otaStatus: status}),
+
     setOtaUpdateAvailable: (info: OtaUpdateInfo | null) => set({otaUpdateAvailable: info}),
 
     setOtaProgress: (progress: OtaProgress | null) =>
@@ -143,15 +158,20 @@ export const useGlassesStore = create<GlassesState>()(
         console.log("🔍 GLASSES STORE: setOtaProgress called with:", JSON.stringify(progress))
         console.log("🔍 GLASSES STORE: otaInProgress =", otaInProgress)
 
-        // Never allow progress to regress within the same stage+currentUpdate
-        if (
+        // Never allow progress to regress within the same stage+currentUpdate — except a new
+        // work wave (STARTED) or the step after FINISHED (multi-hop APK: 27→31→36 re-downloads from 0).
+        const prev = state.otaProgress
+        const sameWave =
           progress &&
-          state.otaProgress &&
-          progress.stage === state.otaProgress.stage &&
-          progress.currentUpdate === state.otaProgress.currentUpdate &&
-          progress.progress < state.otaProgress.progress
-        ) {
-          return {otaProgress: {...progress, progress: state.otaProgress.progress}, otaInProgress}
+          prev &&
+          progress.stage === prev.stage &&
+          progress.currentUpdate === prev.currentUpdate &&
+          progress.progress < prev.progress
+        if (sameWave) {
+          const nextIsNewWave = progress.status === "STARTED" || prev.status === "FINISHED"
+          if (!nextIsNewWave) {
+            return {otaProgress: {...progress, progress: prev.progress}, otaInProgress}
+          }
         }
 
         return {otaProgress: progress, otaInProgress}

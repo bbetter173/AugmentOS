@@ -23,7 +23,7 @@ import GlassView from "@/components/ui/GlassView"
 export default function SelectGlassesBluetoothScreen() {
   const {deviceModel}: {deviceModel: string} = useLocalSearchParams()
   const {theme} = useAppTheme()
-  const {goBack, replace, pushUnder} = useNavigationHistory()
+  const {goBack, replace, pushUnder, push} = useNavigationHistory()
   const [showTroubleshootingModal, setShowTroubleshootingModal] = useState(false)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const [_deviceName, setDeviceName] = useSetting(SETTINGS.device_name.key)
@@ -36,7 +36,12 @@ export default function SelectGlassesBluetoothScreen() {
   //   }, [setRememberedSearchResults]),
   // )
 
-  focusEffectPreventBack(() => {
+  focusEffectPreventBack((event) => {
+    // Skip cleanup when navigating forward (e.g. replace() to btclassic) —
+    // only run on actual back navigation.
+    if (event && event.actionType !== "GO_BACK" && event.actionType !== "POP") {
+      return
+    }
     CoreModule.disconnect()
     CoreModule.forget()
     goBack()
@@ -91,7 +96,8 @@ export default function SelectGlassesBluetoothScreen() {
       setTimeout(() => {
         CoreModule.connectByName(deviceName)
       }, 2000)
-      replace("/pairing/loading", {deviceModel: deviceModel, deviceName: deviceName})
+      push("/pairing/loading", {deviceModel: deviceModel, deviceName: deviceName})
+      // push("/pairing/success", {deviceModel: deviceModel})
       return
     }
 
@@ -136,7 +142,11 @@ export default function SelectGlassesBluetoothScreen() {
       <Header leftIcon="chevron-left" onLeftPress={goBack} RightActionComponent={<MentraLogoStandalone />} />
       <View className="flex-1 justify-center">
         <GlassView className="gap-6 rounded-3xl p-6 bg-background" transparent={false}>
-          <Image source={getGlassesOpenImage(deviceModel)} className="h-[90px] w-[156px] mx-auto" resizeMode="contain" />
+          <Image
+            source={getGlassesOpenImage(deviceModel)}
+            className="h-[90px] w-[156px] mx-auto"
+            resizeMode="contain"
+          />
           <Text
             className="text-center text-xl font-semibold text-text-dim"
             text={translate("pairing:scanningForGlassesModel", {model: deviceModel})}

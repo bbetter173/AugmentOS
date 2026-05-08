@@ -119,7 +119,9 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
   useEffect(() => {
     console.log("NAV: ======== REGISTERING BACK HANDLER ===========")
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      console.log(`NAV: ======== BACK HANDLER CALLED preventBack: ${preventBack} fn: ${androidBackFnRef.current} ===========`)
+      console.log(
+        `NAV: ======== BACK HANDLER CALLED preventBack: ${preventBack} fn: ${androidBackFnRef.current} ===========`,
+      )
       if (!preventBack) {
         goBack()
         return true
@@ -537,7 +539,9 @@ export function useNavigationHistory() {
 }
 
 // screens that call this function will prevent the back button from being pressed:
-export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?: boolean) => {
+export type PreventBackEvent = {actionType: string}
+
+export const focusEffectPreventBack = (backFn?: (event?: PreventBackEvent) => void, iosDontPreventBack?: boolean) => {
   const {incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
   const navigation = useNavigation()
 
@@ -545,14 +549,13 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
   if (Platform.OS === "ios") {
     useFocusEffect(
       useCallback(() => {
-        if (iosDontPreventBack) return // No listener needed; native gesture handles back
-        const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-          backFn?.()
+        const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+          backFn?.({actionType: e?.data?.action?.type ?? ""})
         })
         return () => {
           unsubscribe()
         }
-      }, [backFn, iosDontPreventBack]),
+      }, [backFn]),
     )
   }
 
@@ -565,7 +568,7 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
     useCallback(() => {
       incPreventBack()
       if (backFn) {
-        setAndroidBackFn(backFn)
+        setAndroidBackFn(() => backFn())
       }
       return () => {
         decPreventBack()

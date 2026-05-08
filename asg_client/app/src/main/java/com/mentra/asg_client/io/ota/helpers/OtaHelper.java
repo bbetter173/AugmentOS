@@ -559,7 +559,6 @@ public class OtaHelper {
      */
     private boolean checkInternetReachable() {
         try {
-            // !! WARNING: TEST MANIFEST URL — see OtaConstants.VERSION_JSON_URL for full context.
             // This is just a HEAD reachability probe so the actual URL doesn't matter for the
             // probe to work, but it should be kept in sync with the manifest URL when that swaps.
             HttpURLConnection conn = (HttpURLConnection)

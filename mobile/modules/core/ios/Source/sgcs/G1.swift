@@ -321,6 +321,7 @@ class G1: NSObject, SGCManager {
     func queryGalleryStatus() {}
 
     func sendOtaStart() {}
+    func sendOtaQueryStatus() {}
 
     func ping() {}
     func dbg1() {}

@@ -500,10 +500,7 @@ class R1: NSObject, ControllerManager {
 
     func sendIncidentId(_: String, apiBaseUrl _: String?) {}
     func setMicEnabled(_: Bool) {}
-    func sortMicRanking(list: [String]) -> [String] {
-        return list
-    }
-
+    func sortMicRanking(list: [String]) -> [String] { return list }
     func sendJson(_: [String: Any], wakeUp _: Bool, requireAck _: Bool) {}
     func requestPhoto(
         _: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?,
@@ -523,10 +520,7 @@ class R1: NSObject, ControllerManager {
     func clearDisplay() {}
     func sendTextWall(_: String) {}
     func sendDoubleTextWall(_: String, _: String) {}
-    func displayBitmap(base64ImageData _: String) async -> Bool {
-        return false
-    }
-
+    func displayBitmap(base64ImageData _: String) async -> Bool { return false }
     func showDashboard() {}
     func setDashboardPosition(_: Int, _: Int) {}
     func setHeadUpAngle(_: Int) {}
@@ -546,6 +540,7 @@ class R1: NSObject, ControllerManager {
     func forgetWifiNetwork(_: String) {}
     func sendHotspotState(_: Bool) {}
     func sendOtaStart() {}
+    func sendOtaQueryStatus() {}
     func sendUserEmailToGlasses(_: String) {}
     func queryGalleryStatus() {}
     func sendGalleryMode() {}

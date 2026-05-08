@@ -32,6 +32,8 @@ const COMMIT_FRACTION = 0.4
 const COMMIT_DURATION_MS = 220
 const FADE_IN_DELAY_MS = 20
 const FADE_IN_DURATION_MS = 500
+const FADE_OUT_DURATION_MS = 300
+const FADE_OUT_SCALE_TO = 0.4
 
 export default function Compositor() {
   const foregroundApp = useForegroundMiniApp()
@@ -42,8 +44,20 @@ export default function Compositor() {
     const next = foregroundApp?.packageName ?? null
     if (prev === next) return
 
-    if (prev && prev !== next) {
+    // When foreground clears, defer the setBackground until after the
+    // Compositor's fade-out animation finishes so the WebView remains visible
+    // during the fade. When switching directly to a new app, background the
+    // previous one immediately (the new app is foregrounding right now).
+    if (prev && prev !== next && next != null) {
       miniappHost.setBackground(prev)
+    } else if (prev && next == null) {
+      const prevPkg = prev
+      setTimeout(() => {
+        // Only background if no new foreground app reclaimed this slot.
+        if (lastForegroundPkgRef.current === null) {
+          miniappHost.setBackground(prevPkg)
+        }
+      }, FADE_OUT_DURATION_MS)
     }
     if (foregroundApp) {
       void launchLocalMiniapp(foregroundApp, {
@@ -80,9 +94,10 @@ export default function Compositor() {
 
   const swipeTranslateX = useSharedValue(0)
   const fadeOpacity = useSharedValue(0)
+  const fadeScale = useSharedValue(1)
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeOpacity.value,
-    transform: [{translateX: swipeTranslateX.value}],
+    transform: [{translateX: swipeTranslateX.value}, {scale: fadeScale.value}],
   }))
 
   const isForeground = foregroundApp != null
@@ -112,17 +127,18 @@ export default function Compositor() {
       }
     })
 
-  // Reset translation + run fade-in whenever we re-enter foreground (covers
-  // both fresh launches and re-foregrounding an already-running miniapp).
+  // Drive fade-in (foreground) and fade-out + shrink (clear).
   useEffect(() => {
     if (isForeground) {
       swipeTranslateX.value = 0
       fadeOpacity.value = 0
+      fadeScale.value = 1
       fadeOpacity.value = withDelay(FADE_IN_DELAY_MS, withTiming(1, {duration: FADE_IN_DURATION_MS}))
     } else {
-      fadeOpacity.value = 0
+      fadeOpacity.value = withTiming(0, {duration: FADE_OUT_DURATION_MS})
+      fadeScale.value = withTiming(FADE_OUT_SCALE_TO, {duration: FADE_OUT_DURATION_MS})
     }
-  }, [isForeground, swipeTranslateX, fadeOpacity])
+  }, [isForeground, swipeTranslateX, fadeOpacity, fadeScale])
 
   return (
     <Animated.View

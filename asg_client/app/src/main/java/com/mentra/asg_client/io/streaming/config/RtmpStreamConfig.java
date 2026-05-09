@@ -146,7 +146,9 @@ public class RtmpStreamConfig {
 
     /**
      * Sets native camera capture dimensions (from {@code CameraCharacteristics} preflight).
-     * Use 0 to clear and fall back to output size for the preview surface.
+     * Stored exactly as selected so preview surfaces match an advertised
+     * {@link android.graphics.SurfaceTexture} size (no clamp; modes may exceed 4096).
+     * Non-positive width or height clears capture and falls back to output size for the surface.
      */
     public RtmpStreamConfig setCaptureSize(int width, int height) {
         if (width <= 0 || height <= 0) {
@@ -154,8 +156,8 @@ public class RtmpStreamConfig {
             this.captureHeight = 0;
             return this;
         }
-        this.captureWidth = clamp(width, 320, 4096);
-        this.captureHeight = clamp(height, 240, 4096);
+        this.captureWidth = width;
+        this.captureHeight = height;
         return this;
     }
 

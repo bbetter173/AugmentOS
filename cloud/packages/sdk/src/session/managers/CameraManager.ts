@@ -20,6 +20,7 @@ import {
   type AudioConfig,
   type StreamConfig,
   type VideoConfig,
+  validateVideoConfig,
 } from "../../types";
 
 export interface PhotoOptions {
@@ -286,6 +287,7 @@ export class CameraManager {
    */
   async startStream(options?: StreamOptions): Promise<StreamResult | void> {
     const opts = options ?? {};
+    validateVideoConfig(opts.video);
 
     if (opts.direct) {
       return this._startDirectStream(opts);

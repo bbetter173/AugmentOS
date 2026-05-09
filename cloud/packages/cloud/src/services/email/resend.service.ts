@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import type { FeedbackReceiptType } from "../../types/feedback.types";
 
 /**
  * Email service using Resend API for sending transactional emails
@@ -588,6 +589,101 @@ export class ResendEmailService {
       console.error("[resend.service] Error sending incident notification:", error);
       return { error };
     }
+  }
+
+  /**
+   * Sends a user-facing receipt for submitted feedback or bug reports.
+   */
+  async sendFeedbackReceipt(
+    recipientEmail: string,
+    feedbackType: FeedbackReceiptType,
+    incidentId?: string,
+  ): Promise<{ id?: string; error?: any }> {
+    const feedbackLabel = this.getFeedbackReceiptLabel(feedbackType);
+    const { html, text } = this.generateFeedbackReceiptEmail(feedbackLabel, incidentId);
+
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: this.defaultSender,
+        to: [recipientEmail],
+        subject: `Thanks for your MentraOS ${feedbackLabel}`,
+        html,
+        text,
+      });
+
+      if (error) {
+        console.error("[resend.service] Failed to send feedback receipt:", error);
+        return { error };
+      }
+
+      return { id: data?.id };
+    } catch (error) {
+      console.error("[resend.service] Error sending feedback receipt:", error);
+      return { error };
+    }
+  }
+
+  private getFeedbackReceiptLabel(feedbackType: FeedbackReceiptType): string {
+    if (feedbackType === "bug") {
+      return "bug report";
+    }
+
+    if (feedbackType === "feature") {
+      return "feature request";
+    }
+
+    return "feedback";
+  }
+
+  private generateFeedbackReceiptEmail(feedbackLabel: string, incidentId?: string): { html: string; text: string } {
+    const escapedFeedbackLabel = this.escapeHtml(feedbackLabel);
+    const escapedIncidentId = incidentId ? this.escapeHtml(incidentId) : undefined;
+    const referenceHtml = escapedIncidentId
+      ? `<p class="reference">Reference ID: <code>${escapedIncidentId}</code></p>`
+      : "";
+    const referenceText = incidentId ? [`Reference ID: ${incidentId}`] : [];
+
+    return {
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Thanks for your MentraOS ${escapedFeedbackLabel}</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f6f7f9; margin: 0; padding: 0; }
+              .container { max-width: 600px; margin: 20px auto; background: #fff; border: 1px solid #e1e4e8; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+              .header { background-color: #1f7a6d; color: #fff; padding: 24px; text-align: center; }
+              .content { padding: 24px; }
+              .reference { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; }
+              .footer { background: #f8fafc; padding: 16px; text-align: center; color: #64748b; font-size: 13px; border-top: 1px solid #e2e8f0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h2>Thanks for your ${escapedFeedbackLabel}</h2>
+              </div>
+              <div class="content">
+                <p>Thanks a ton for sending this in. Reports and requests like this are very helpful for us, and we read every one.</p>
+                <p>If we need to follow up, our team will reach out by email.</p>
+                ${referenceHtml}
+                <p>Thanks again,<br>The MentraOS Team</p>
+              </div>
+              <div class="footer">&copy; ${new Date().getFullYear()} Mentra Labs</div>
+            </div>
+          </body>
+        </html>
+      `,
+      text: [
+        `Thanks for your MentraOS ${feedbackLabel}.`,
+        "Thanks a ton for sending this in. Reports and requests like this are very helpful for us, and we read every one.",
+        "If we need to follow up, our team will reach out by email.",
+        ...referenceText,
+        "Thanks again,\nThe MentraOS Team",
+      ].join("\n\n"),
+    };
   }
 
   /**

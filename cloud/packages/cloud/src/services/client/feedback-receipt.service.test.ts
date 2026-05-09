@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  getFeedbackReceiptDetails,
   getFeedbackReceiptType,
   queueFeedbackReceipt,
   resolveFeedbackReceiptRecipient,
@@ -54,6 +55,84 @@ describe("feedback receipt helpers", () => {
     queueFeedbackReceipt("user@example.com", { type: "feature" }, { sender });
 
     expect(calls).toBe(1);
+  });
+
+  test("extracts bug report details for echo", () => {
+    expect(
+      getFeedbackReceiptDetails({
+        type: "bug",
+        expectedBehavior: "  it should work  ",
+        actualBehavior: "it crashed",
+        severityRating: 4,
+      }),
+    ).toEqual({
+      expectedBehavior: "it should work",
+      actualBehavior: "it crashed",
+      severityRating: 4,
+    });
+  });
+
+  test("extracts feature request details for echo", () => {
+    expect(
+      getFeedbackReceiptDetails({
+        type: "feature",
+        feedbackText: "add dark mode",
+        experienceRating: 5,
+      }),
+    ).toEqual({
+      feedbackText: "add dark mode",
+      experienceRating: 5,
+    });
+  });
+
+  test("extracts legacy string feedback as echo", () => {
+    expect(getFeedbackReceiptDetails("  please fix the thing  ")).toEqual({
+      legacyText: "please fix the thing",
+    });
+  });
+
+  test("returns undefined when no echo content is present", () => {
+    expect(getFeedbackReceiptDetails({ type: "bug" })).toBeUndefined();
+    expect(getFeedbackReceiptDetails("")).toBeUndefined();
+  });
+
+  test("ignores out-of-range ratings", () => {
+    expect(
+      getFeedbackReceiptDetails({
+        type: "feature",
+        feedbackText: "hi",
+        experienceRating: 12,
+      }),
+    ).toEqual({ feedbackText: "hi" });
+  });
+
+  test("passes echo details through to the sender", async () => {
+    let received: { details?: unknown } = {};
+    const sender: FeedbackReceiptSender = {
+      sendFeedbackReceipt: async (_email, _type, _incidentId, details) => {
+        received.details = details;
+        return {};
+      },
+    };
+
+    queueFeedbackReceipt(
+      "user@example.com",
+      {
+        type: "bug",
+        expectedBehavior: "should work",
+        actualBehavior: "broken",
+        severityRating: 3,
+      },
+      { sender },
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(received.details).toEqual({
+      expectedBehavior: "should work",
+      actualBehavior: "broken",
+      severityRating: 3,
+    });
   });
 
   test("does not call sender for automatic bug reports", () => {

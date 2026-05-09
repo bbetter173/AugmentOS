@@ -1,7 +1,11 @@
 // services/client/feedback-receipt.service.ts
 // Queues user-facing receipts for submitted feedback and bug reports.
 
-import type { FeedbackData, FeedbackReceiptType } from "../../types/feedback.types";
+import type {
+  FeedbackData,
+  FeedbackReceiptDetails,
+  FeedbackReceiptType,
+} from "../../types/feedback.types";
 import { logger as rootLogger } from "../logging/pino-logger";
 
 const logger = rootLogger.child({ service: "feedback-receipt.service" });
@@ -13,6 +17,7 @@ export interface FeedbackReceiptSender {
     recipientEmail: string,
     feedbackType: FeedbackReceiptType,
     incidentId?: string,
+    details?: FeedbackReceiptDetails,
   ): Promise<{ id?: string; error?: unknown }>;
 }
 
@@ -59,6 +64,46 @@ export function shouldSendFeedbackReceipt(feedback: string | FeedbackData): bool
   return !(isStructuredFeedback(feedback) && feedback.type === "bug" && feedback.submissionMode === "AUTOMATIC");
 }
 
+function trimToString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function clampRating(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  const rounded = Math.round(value);
+  if (rounded < 1 || rounded > 5) {
+    return undefined;
+  }
+
+  return rounded;
+}
+
+export function getFeedbackReceiptDetails(feedback: string | FeedbackData): FeedbackReceiptDetails | undefined {
+  if (!isStructuredFeedback(feedback)) {
+    const legacyText = trimToString(feedback);
+    return legacyText ? { legacyText } : undefined;
+  }
+
+  const details: FeedbackReceiptDetails = {
+    expectedBehavior: trimToString(feedback.expectedBehavior),
+    actualBehavior: trimToString(feedback.actualBehavior),
+    severityRating: clampRating(feedback.severityRating),
+    feedbackText: trimToString(feedback.feedbackText),
+    experienceRating: clampRating(feedback.experienceRating),
+  };
+
+  const hasAny = Object.values(details).some((value) => value !== undefined);
+  return hasAny ? details : undefined;
+}
+
 async function getDefaultSender(): Promise<FeedbackReceiptSender> {
   const { emailService } = await import("../email/resend.service");
   return emailService;
@@ -76,10 +121,16 @@ export function queueFeedbackReceipt(
   const receiptLogger = options.logger || logger;
   const recipientEmail = resolveFeedbackReceiptRecipient(authEmail, feedback);
   const feedbackType = getFeedbackReceiptType(feedback);
+  const details = getFeedbackReceiptDetails(feedback);
 
   const sendReceipt = async () => {
     const sender = options.sender || (await getDefaultSender());
-    const result = await sender.sendFeedbackReceipt(recipientEmail, feedbackType, options.incidentId);
+    const result = await sender.sendFeedbackReceipt(
+      recipientEmail,
+      feedbackType,
+      options.incidentId,
+      details,
+    );
 
     if (result.error) {
       receiptLogger.warn(

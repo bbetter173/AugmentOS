@@ -76,11 +76,19 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         "change-password": "/miniapps/settings/change-password",
         "data-export": "/miniapps/settings/data-export",
         "dashboard": "/miniapps/settings/dashboard",
+        "stress-test": "/miniapps/settings/stress-test",
       }
 
       const route = sectionRoutes[section]
       if (route) {
-        nav.push(route as any)
+        // Pass through query params (mb, n, autorun) — stress-test uses them
+        const qsKeys = ["mb", "n", "autorun"]
+        const qs = qsKeys
+          .filter((k) => params[k] != null)
+          .map((k) => `${k}=${encodeURIComponent(params[k])}`)
+          .join("&")
+        const fullRoute = qs ? `${route}?${qs}` : route
+        nav.push(fullRoute as any)
       } else {
         nav.push("/settings")
       }

@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 import {ScrollView, View, Text} from "react-native"
+import {useLocalSearchParams} from "expo-router"
 
 import {Header, Screen} from "@/components/ignite"
 import {Group} from "@/components/ui"
@@ -30,8 +31,11 @@ export default function StressTest() {
   const {goBack} = useNavigationStore.getState()
   const {active, events, residentMB, memWarnCount, start, stop, setResidentMB} = useStressTestStore()
   const [mountedCount, setMountedCount] = useState(0)
-  const [mbPerApp, setMbPerApp] = useState(DEFAULT_MB_PER_APP)
+  const params = useLocalSearchParams<{autorun?: string; mb?: string; n?: string}>()
+  const initialMb = params.mb ? Math.max(1, parseInt(params.mb, 10)) : DEFAULT_MB_PER_APP
+  const [mbPerApp, setMbPerApp] = useState(initialMb)
   const counterRef = useRef(0)
+  const autoranRef = useRef(false)
 
   // Memory poll loop
   useEffect(() => {
@@ -91,6 +95,30 @@ export default function StressTest() {
   const mountN = (n: number) => {
     for (let i = 0; i < n; i += 1) mountOne()
   }
+
+  // Autorun: when launched via deeplink with ?autorun=1&mb=X&n=Y, kick off
+  // logging and mount N dummies automatically. Only fires once per mount of
+  // this screen so backgrounding/foregrounding doesn't re-trigger.
+  useEffect(() => {
+    if (autoranRef.current) return
+    if (params.autorun !== "1" && params.autorun !== "true") return
+    autoranRef.current = true
+    const n = params.n ? Math.max(1, parseInt(params.n, 10)) : 5
+    // eslint-disable-next-line no-console
+    console.log(`STRESS: autorun ${JSON.stringify({mb: initialMb, n, at: Date.now()})}`)
+    start()
+    // Stagger the mounts slightly so each WebView has a beat to allocate
+    // before the next one starts. 200ms is enough for the data: URL to
+    // begin loading without making the test feel slow.
+    let i = 0
+    const id = setInterval(() => {
+      mountOne()
+      i += 1
+      if (i >= n) clearInterval(id)
+    }, 200)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const unmountAll = () => {
     miniappRunningRegistry.getAll()

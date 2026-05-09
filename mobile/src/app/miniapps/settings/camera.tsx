@@ -91,9 +91,7 @@ export default function CameraSettingsScreen() {
       return
     }
     setPhotoSize(size)
-    CoreModule.updateCore({button_photo_size: size}).catch((error: any) => {
-      console.error("Failed to update photo size on glasses:", error)
-    })
+    CoreModule.updateCore({button_photo_size: size})
   }
 
   const handleVideoResolutionChange = (resolution: VideoResolution) => {
@@ -105,13 +103,7 @@ export default function CameraSettingsScreen() {
     const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
     const fps = resolution === "4K" ? 15 : 30
     setVideoSettings({width, height, fps})
-    CoreModule.updateCore({
-      button_video_width: width,
-      button_video_height: height,
-      button_video_fps: fps,
-    }).catch((error: any) => {
-      console.error("Failed to update video settings on glasses:", error)
-    })
+    CoreModule.updateCore({button_video_width: width, button_video_height: height, button_video_fps: fps})
   }
 
   const _handleLedToggle = (enabled: boolean) => {
@@ -129,9 +121,7 @@ export default function CameraSettingsScreen() {
     }
     const minutes = parseInt(time.replace("m", ""))
     setMaxRecordingTime(minutes)
-    CoreModule.updateCore({button_max_recording_time: minutes}).catch((error: any) => {
-      console.error("Failed to update max recording time on glasses:", error)
-    })
+    CoreModule.updateCore({button_max_recording_time: minutes})
   }
 
   const handleCameraFovChange = (fov: number, roi_position: CameraRoiPosition) => {

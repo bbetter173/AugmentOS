@@ -81,6 +81,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       requireFullScreen: true,
       buildNumber: "218",
       bundleIdentifier: iosBundleId,
+      appleTeamId: "T5XXXL6N36",
       googleServicesFile: "./GoogleService-Info.plist",
       associatedDomains: ["applinks:apps.mentra.glass", "applinks:apps.mentraglass.com"],
       infoPlist: {

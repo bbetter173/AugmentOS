@@ -75,3 +75,29 @@ describe("CameraManager.startStream", () => {
     );
   });
 });
+
+describe("CameraManager deprecated stream entry points", () => {
+  let sent: unknown[];
+  let mgr: CameraManager;
+
+  beforeEach(() => {
+    const d = createDeps();
+    sent = d.sent;
+    mgr = new CameraManager(d.deps);
+  });
+
+  it("startDirectStream validates video before sendMessage", async () => {
+    await expect(
+      mgr.startDirectStream({
+        rtmpUrl: "rtmp://127.0.0.1/live/x",
+        video: { width: 100 },
+      }),
+    ).rejects.toThrow(RangeError);
+    expect(sent.length).toBe(0);
+  });
+
+  it("startManagedStream validates video before sendMessage", async () => {
+    await expect(mgr.startManagedStream({ video: { width: 100 } })).rejects.toThrow(RangeError);
+    expect(sent.length).toBe(0);
+  });
+});

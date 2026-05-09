@@ -10,7 +10,10 @@ console.log('Running postinstall...');
 await $({ stdio: 'inherit', cwd: 'modules/bluetooth-sdk' })`bun run prepare`;
 await $({ stdio: 'inherit', cwd: 'modules/crust' })`bun run prepare`;
 await $({ stdio: 'inherit', cwd: 'modules/miniapp' })`bun run prepare`;
-await $({ stdio: 'inherit', cwd: 'modules/island' })`bun run prepare`;
+// island depends on bluetooth-sdk + miniapp build outputs, so its prepare
+// (renamed to build:module) runs here instead of being auto-triggered by bun
+// install in parallel with its workspace deps.
+await $({ stdio: 'inherit', cwd: 'modules/island' })`bun run build:module`;
 
 // ignore scripts to avoid infinite loop:
 // await $({ stdio: 'inherit' })`bun install --ignore-scripts`;

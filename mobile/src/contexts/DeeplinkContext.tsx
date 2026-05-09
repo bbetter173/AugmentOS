@@ -3,12 +3,11 @@ import * as WebBrowser from "expo-web-browser"
 import {FC, ReactNode, createContext, useContext, useEffect} from "react"
 import {AppState, Platform} from "react-native"
 
-// import {Linking} from "react-native"
-// import {useAuth} from "@/contexts/AuthContext"
 import {NavObject, useNavigationHistory, getCurrentRoute} from "@/contexts/NavigationHistoryContext"
+import {useSplashLoader} from "@/contexts/SplashLoaderProvider"
 import {useAppletStatusStore} from "@/stores/applets"
 import mentraAuth from "@/utils/auth/authClient"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 /** Returns immediately if the app is already active, otherwise waits for it. */
 const waitForActive = (): Promise<void> => {
@@ -136,7 +135,6 @@ const deepLinkRoutes: DeepLinkRoute[] = [
   {
     pattern: "/package/:packageName/start",
     handler: async (url: string, params: Record<string, string>, navObject: NavObject) => {
-      
       const {packageName, preloaded, authed} = params
       if (preloaded && authed) {
         // Deep links can fire while the app is still in the background state.
@@ -149,7 +147,7 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         console.log("[DEEPLINK] Smart start for package:", packageName, "applet found:", !!applet)
         if (applet) {
           setTimeout(() => useAppletStatusStore.getState().startApplet(applet), 150)
-          return;
+          return
         } else {
           setTimeout(() => navObject.push("/miniapps/store/store", {packageName}), 150)
           return
@@ -264,7 +262,7 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         // Use replace() instead of replaceAll() to avoid POP_TO_TOP errors
         // when the navigation stack is empty (coming back from browser)
         console.log("[LOGIN DEBUG] About to set timeout for navigation")
-        BackgroundTimer.setTimeout(() => {
+        BgTimer.setTimeout(() => {
           console.log("[LOGIN DEBUG] Inside setTimeout, navigating to index")
           try {
             navObject.setAnimation("none")
@@ -417,8 +415,20 @@ const DeeplinkContext = createContext<DeeplinkContextType>({} as DeeplinkContext
 export const useDeeplink = () => useContext(DeeplinkContext)
 
 export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
-  const {push, replace, goBack, setPendingRoute, getPendingRoute, navigate, replaceAll, preventBack, setAnimation} =
-    useNavigationHistory()
+  const {
+    push,
+    replace,
+    goBack,
+    setPendingRoute,
+    getPendingRoute,
+    navigate,
+    replaceAll,
+    preventBack,
+    setAnimation,
+    getCurrentRoute,
+    getCurrentParams,
+  } = useNavigationHistory()
+  const {setSplashEnabled} = useSplashLoader()
   const config = {
     scheme: "com.mentra",
     host: "apps.mentra.glass",
@@ -519,6 +529,12 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
 
   const processUrl = async (url: string, initial: boolean = false) => {
     try {
+      // ignore expo-dev-deeplinks: (this was causing android to restart the app after hot-reloads twice)
+      if (url.includes("expo-development-client")) {
+        console.log("DEEPLINK: Ignoring expo-development-client URL")
+        return
+      }
+
       // Deduplicate — iOS can fire the same universal link event multiple times,
       // and on cold start both getInitialURL and addEventListener fire for the
       // same URL. Initial calls skip the check but claim the URL so that the
@@ -527,7 +543,7 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
       // so it naturally falls outside the dedup window.
       const now = Date.now()
       if (!initial && url === lastProcessedUrl && now - lastProcessedTime < 3000) {
-        console.log("[DEEPLINK] Ignoring duplicate URL:", url)
+        console.log("DEEPLINK: Ignoring duplicate URL")
         return
       }
       lastProcessedUrl = url
@@ -543,12 +559,10 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
         // If index.tsx already consumed and re-processed the pending route
         // during the delay, don't double-process it
         if (getPendingRoute() !== url) {
-          console.log("[DEEPLINK] Pending route was consumed during delay, skipping")
+          console.log("DEEPLINK: Pending route was consumed during delay, skipping")
           return
         }
       }
-
-      console.log("[LOGIN DEBUG] Deep link received:", url)
 
       // small hack since some sources strip the host and we want to put the url into URL object here
       if (url.startsWith("/")) {
@@ -603,8 +617,16 @@ export const DeeplinkProvider: FC<{children: ReactNode}> = ({children}) => {
           replaceAll,
           preventBack,
           setAnimation,
+          getCurrentRoute,
+          getCurrentParams,
         }
-        await matchedRoute.handler(url, params, navObject)
+        setSplashEnabled(true)
+        BgTimer.setTimeout(async () => {
+          await matchedRoute.handler(url, params, navObject)
+          setTimeout(() => {
+            setSplashEnabled(false)
+          }, 2500)
+        }, 100)
       } catch (error) {
         console.warn("Route handler failed, router may not be ready:", error)
       }

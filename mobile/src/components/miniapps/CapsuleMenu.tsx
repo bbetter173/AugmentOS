@@ -1,7 +1,7 @@
 import {Button, Icon, Text} from "@/components/ignite"
 import {focusEffectPreventBack, push, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {ClientAppletInterface, SYSTEM_APPS, uninstallAppUI, useAppletStatusStore} from "@/stores/applets"
+import {ClientAppletInterface, SYSTEM_APPS, useAppletStatusStore} from "@/stores/applets"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BottomSheetBackdrop, BottomSheetModal} from "@gorhom/bottom-sheet"
 import {Dimensions, Image as RNImage, InteractionManager, Platform, Share, View, PixelRatio} from "react-native"
@@ -12,11 +12,14 @@ import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AppIcon from "@/components/home/AppIcon"
 import GlassView from "@/components/ui/GlassView"
 import * as ImageManipulator from "expo-image-manipulator"
+import {withUniwind} from "uniwind"
 
 interface CapsuleButtonProps {
   onMinusPress?: () => void
   onEllipsisPress?: () => void
 }
+
+const WrappedPressable = withUniwind(Pressable)
 
 export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProps) {
   // const [isChina] = useSetting(SETTINGS.china_deployment.key)
@@ -27,13 +30,51 @@ export function CapsuleButton({onMinusPress, onEllipsisPress}: CapsuleButtonProp
   const androidStyle = Platform.OS === "android" ? {backgroundColor: theme.colors.card} : undefined
 
   return (
-    <GlassView transparent={true} className="flex-row gap-2 rounded-full px-2 h-7.5 items-center" style={androidStyle}>
-      <Pressable hitSlop={10} onPress={onEllipsisPress} style={{width: 24, alignItems: "center"}}>
-        <Icon name="ellipsis" size={18} color={theme.colors.foreground} />
+    <GlassView
+      transparent={true}
+      className="flex-row justify-between rounded-full h-8 w-20 items-center"
+      style={androidStyle}>
+      <Pressable
+        hitSlop={10}
+        onPress={onEllipsisPress}
+        // className="w-8 h-full items-center justify-center rounded-l-full bg-red-500"
+        style={({pressed}) => [
+          pressed && {backgroundColor: theme.colors.input},
+          {
+            position: "absolute",
+            left: 0,
+            width: 40,
+            height: "100%",
+            alignItems: "center",
+            justifyContent: "center",
+            borderTopLeftRadius: 40,
+            borderBottomLeftRadius: 40,
+          },
+        ]}>
+        <Icon name="ellipsis" size={20} color={theme.colors.foreground} />
       </Pressable>
-      <View className="h-4 w-px bg-primary-foreground/80" />
-      <Pressable hitSlop={10} onPress={onMinusPress} style={{width: 24, alignItems: "center"}}>
-        <Icon name={"circle-x"} size={18} color={theme.colors.foreground} />
+      <View className="h-4 w-px bg-primary-foreground/80 absolute left-1/2 -translate-x-1/2" />
+      <Pressable
+        hitSlop={10}
+        onPress={onMinusPress}
+        style={({pressed}) => [
+          pressed && {backgroundColor: theme.colors.input},
+          {
+            position: "absolute",
+            right: 0,
+            width: 40,
+            height: "100%",
+            alignItems: "center",
+            justifyContent: "center",
+            borderTopRightRadius: 40,
+            borderBottomRightRadius: 40,
+          },
+        ]}>
+        {/* position circle under the icon: */}
+        <View className="relative -top-[1px] left-0 w-4 h-4">
+          <View className="w-5.5 h-5.5 bg-input rounded-full z-0 absolute -top-0.5 -left-0.5" />
+          <Icon name={"x"} size={16} color={theme.colors.foreground} className="z-0 absolute top-[1px] left-[1px]" />
+        </View>
       </Pressable>
     </GlassView>
   )
@@ -78,22 +119,30 @@ export function MiniAppCapsuleMenu({
     try {
       const uri = await captureRef(viewShotRef, {
         format: "jpg",
-        quality: 0.1,
+        quality: Platform.OS === "android" ? 0.5 : 0.1, // android needs a higher quality to avoid compression artifacts
       })
       const {width, height} = await new Promise<{width: number; height: number}>((resolve, reject) => {
         RNImage.getSize(uri, (w, h) => resolve({width: w, height: h}), reject)
       })
       let amountToChop = insets.top * PixelRatio.get()
       amountToChop = 0
-      const context = ImageManipulator.ImageManipulator.manipulate(uri)
-      context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
-      const imageRef = await context.renderAsync()
-      const cropped = await imageRef.saveAsync({
-        format: ImageManipulator.SaveFormat.JPEG,
-        compress: 0.1,
-      })
 
-      await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      if (Platform.OS === "ios") {
+        const context = ImageManipulator.ImageManipulator.manipulate(uri)
+        context.crop({originX: 0, originY: amountToChop, width: width, height: height - amountToChop})
+        const imageRef = await context.renderAsync()
+        const cropped = await imageRef.saveAsync({
+          format: ImageManipulator.SaveFormat.JPEG,
+          compress: 0.1,
+        })
+        await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      } else {
+        // android is weird and the crop doesn't work properly:
+        useAppletStatusStore.getState().saveScreenshot(packageName, uri)
+      }
+
+      // await useAppletStatusStore.getState().saveScreenshot(packageName, cropped.uri)
+      await useAppletStatusStore.getState().saveScreenshot(packageName, uri)
     } catch (e) {
       console.warn("screenshot failed:", e)
     }
@@ -124,12 +173,11 @@ export function MiniAppCapsuleMenu({
     onBackPress
       ? () => {
           console.log("CAPSULE MENU: handleBackPress() called")
-          // InteractionManager.runAfterInteractions(() => {
-            handleExit(false)
-            onBackPress()
-          // })
+          handleExit(false)
+          onBackPress()
         }
       : () => {
+          console.log("CAPSULE MENU: focusEffectPreventBack() called")
           // Defer screenshot capture so it doesn't block the navigation animation
           InteractionManager.runAfterInteractions(() => {
             let shouldGoBack = Platform.OS === "android"
@@ -146,12 +194,13 @@ export function MiniAppCapsuleMenu({
     </View>
   )
 }
+
 interface MiniAppMoreActionsSheetProps {
   packageName: string
 }
 
 export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreActionsSheetProps>(
-  ({packageName}, ref) => {
+  function MiniAppMoreActionsSheet({packageName}, ref) {
     const {theme} = useAppTheme()
     const screenHeight = Dimensions.get("window").height
     const snapPoints = useMemo(() => [screenHeight < 700 ? "70%" : "50%"], [screenHeight])
@@ -178,14 +227,6 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
       [],
     )
 
-    const handleUninstall = useCallback(() => {
-      // Composer.getInstance().uninstallMiniApp(packageName)
-      const app = useAppletStatusStore.getState().apps.find((app) => app.packageName === packageName)
-      if (app) {
-        uninstallAppUI(app)
-      }
-    }, [packageName])
-
     const handleAddRemoveFromHome = useCallback(() => {
       if (app && app.hidden) {
         useAppletStatusStore.getState().setHiddenStatus(packageName, false)
@@ -209,8 +250,14 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
 
     const handleFeedback = useCallback(() => {
       internalRef.current?.dismiss()
-      push("/miniapps/settings/feedback")
-    }, [packageName])
+      push("/miniapps/settings/feedback", {
+        submissionMode: "USER_INITIATED",
+        triggerArea: "applet_capsule_menu",
+        triggerReason: "manual_bug_report",
+        sourceAppletPackageName: packageName,
+        sourceAppletName: app?.name,
+      })
+    }, [packageName, app?.name])
 
     const handleSettings = useCallback(() => {
       internalRef.current?.dismiss()
@@ -221,7 +268,6 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     }, [packageName])
 
     const isSystemApp = SYSTEM_APPS.includes(packageName)
-    const isUninstallable = isSystemApp ? false : true
     const size = 28
 
     return (

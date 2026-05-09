@@ -7,10 +7,9 @@ import {useConnectionStore} from "@/stores/connection"
 import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
 import {useGlassesStore} from "@/stores/glasses"
-import GlassView from "@/components/ui/GlassView"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import CoreModule, {TouchEvent} from "core"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 
 function Tag({icon, label, bg}: {icon: string; label: string; bg: string}) {
   const {theme} = useAppTheme()
@@ -41,8 +40,8 @@ export default function CoreStatusBar() {
   useEffect(() => {
     let sub = CoreModule.addListener("touch_event", (event: TouchEvent) => {
       setTouchEvent(event)
-      BackgroundTimer.clearTimeout(touchEventTimer.current ?? 0)
-      touchEventTimer.current = BackgroundTimer.setTimeout(() => {
+      BgTimer.clearTimeout(touchEventTimer.current ?? 0)
+      touchEventTimer.current = BgTimer.setTimeout(() => {
         setTouchEvent(null)
       }, 1000)
       // console.log("touch_event", event)
@@ -91,11 +90,6 @@ export default function CoreStatusBar() {
             {systemMicUnavailable && <Tag icon="unplug" label="SMIC unavailable!" bg="bg-destructive" />}
           </View>
           <View className="flex-row flex-wrap items-center justify-center justify-end">
-            <Tag
-              icon="wifi"
-              label={cloudStatus === "connected" ? "Cloud" : cloudStatus === "connecting" ? "Connecting" : cloudStatus === "error" ? "Cloud Err" : "Cloud Off"}
-              bg={cloudStatus === "connected" ? "bg-primary" : cloudStatus === "connecting" ? "bg-chart-3" : "bg-destructive"}
-            />
             <Tag icon="pointer" label={touchEvent ? (touchEvent.gesture_name ?? "None") : "None"} bg="bg-primary" />
             <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
             <Tag
@@ -108,6 +102,27 @@ export default function CoreStatusBar() {
               icon={micDataRecvd ? "microphone" : "unplug"}
               label={micDataRecvd ? "PCM" : "No PCM"}
               bg={micDataRecvd ? "bg-primary" : "bg-destructive"}
+            />
+          </View>
+          <View className="flex-row flex-wrap items-center justify-center justify-start -mt-10">
+            <Tag
+              icon="wifi"
+              label={
+                cloudStatus === "connected"
+                  ? "Cloud"
+                  : cloudStatus === "connecting"
+                    ? "Connecting"
+                    : cloudStatus === "error"
+                      ? "Cloud Err"
+                      : "Cloud Off"
+              }
+              bg={
+                cloudStatus === "connected"
+                  ? "bg-primary"
+                  : cloudStatus === "connecting"
+                    ? "bg-chart-3"
+                    : "bg-destructive"
+              }
             />
           </View>
         </View>

@@ -1,6 +1,7 @@
 #!/usr/bin/env zx
 
 import { setBuildEnv } from './set-build-env.mjs';
+import { withRetry } from './release-utils.mjs';
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -20,7 +21,7 @@ function ghTag(version) {
 
 function ipaPrefix(version) {
   const { major, minor } = parseVersion(version);
-  return `MentraOS_iOS_${major}p${minor}`;
+  return `Mentra_iOS_${major}p${minor}`;
 }
 
 // ── Load App Store Connect credentials ────────────────────────────────────────
@@ -103,9 +104,9 @@ if (!teamId) {
   process.exit(1);
 }
 
-const archivePath = path.resolve('build/MentraOS.xcarchive');
+const archivePath = path.resolve('build/Mentra.xcarchive');
 
-await $({ stdio: 'inherit' })`xcodebuild archive -workspace ios/MentraOS.xcworkspace -scheme MentraOS -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
+await $({ stdio: 'inherit' })`xcodebuild archive -workspace ios/Mentra.xcworkspace -scheme Mentra -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
 
 if (!existsSync(archivePath)) {
   console.error('Archive not found at:', archivePath);
@@ -146,7 +147,9 @@ if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !
 } else {
   // altool looks for AuthKey_<id>.p8 in $API_PRIVATE_KEYS_DIR
   const keyDir = path.dirname(ascConfig.ASC_API_KEY_PATH);
-  await $({ stdio: 'inherit', env: { ...process.env, API_PRIVATE_KEYS_DIR: keyDir } })`xcrun altool --upload-app -f ${ipaPath} -t ios --apiKey ${ascConfig.ASC_API_KEY_ID} --apiIssuer ${ascConfig.ASC_API_ISSUER_ID}`;
+  await withRetry('altool TestFlight upload', () =>
+    $({ stdio: 'inherit', env: { ...process.env, API_PRIVATE_KEYS_DIR: keyDir } })`xcrun altool --upload-app -f ${ipaPath} -t ios --apiKey ${ascConfig.ASC_API_KEY_ID} --apiIssuer ${ascConfig.ASC_API_ISSUER_ID}`
+  );
   console.log('IPA uploaded to App Store Connect (TestFlight)');
 }
 
@@ -194,10 +197,14 @@ console.log(`IPA renamed to: ${ipaName} (Beta ${betaNumber})`);
 
 if (!releaseExists) {
   console.log(`Creating new pre-release: ${tag}`);
-  await $({ stdio: 'inherit' })`gh release create ${tag} --prerelease --title ${tag} --notes ${'Pre-release ' + tag}`;
+  await withRetry('gh release create', () =>
+    $({ stdio: 'inherit' })`gh release create ${tag} --prerelease --title ${tag} --notes ${'Pre-release ' + tag}`
+  );
 }
 
-await $({ stdio: 'inherit' })`gh release upload ${tag} ${renamedIpaPath} --clobber`;
+await withRetry('gh release upload (IPA)', () =>
+  $({ stdio: 'inherit' })`gh release upload ${tag} ${renamedIpaPath} --clobber`
+);
 console.log(`Uploaded ${ipaName} to release ${tag}`);
 
 // ── Done ──────────────────────────────────────────────────────────────────────

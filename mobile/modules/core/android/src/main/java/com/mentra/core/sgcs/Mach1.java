@@ -152,21 +152,6 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
-    public void startBufferRecording() {
-
-    }
-
-    @Override
-    public void stopBufferRecording() {
-
-    }
-
-    @Override
-    public void saveBufferVideo(@NonNull String requestId, int durationSeconds) {
-
-    }
-
-    @Override
     public void startVideoRecording(@NonNull String requestId, boolean save, boolean flash, boolean sound) {
 
     }
@@ -267,6 +252,12 @@ public class Mach1 extends SGCManager {
     @Override
     public void ping() {
     }
+
+    @Override
+    public void dbg1() {}
+
+    @Override
+    public void dbg2() {}
 
     @Override
     public void setDashboardPosition(int height, int depth) {
@@ -384,7 +375,7 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
-    public void sendIncidentId(String incidentId) {
+    public void sendIncidentId(String incidentId, String apiBaseUrl) {
         // Mach1 doesn't support incident reporting (no ASG client)
     }
 

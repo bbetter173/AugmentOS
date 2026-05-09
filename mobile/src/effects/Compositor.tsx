@@ -11,39 +11,6 @@ import CoreModule, {MicPcmEvent} from "core"
 import {SETTINGS, useSetting} from "@/stores/settings"
 // import {useCactusSTT} from "cactus-react-native"
 
-const decodePcm16Base64ToFloat32 = (base64: string): Float32Array => {
-  const binaryString = atob(base64)
-  const byteLength = binaryString.length
-  const sampleCount = Math.floor(byteLength / 2)
-  const samples = new Float32Array(sampleCount)
-
-  for (let i = 0; i < sampleCount; i++) {
-    const low = binaryString.charCodeAt(i * 2)
-    const high = binaryString.charCodeAt(i * 2 + 1)
-    let sample = (high << 8) | low
-    if (sample >= 0x8000) {
-      sample -= 0x10000
-    }
-    samples[i] = sample / 0x8000
-  }
-
-  return samples
-}
-
-const decodePcm16ToFloat32 = (input: ArrayBuffer | ArrayBufferLike): Float32Array => {
-  const buffer = input instanceof ArrayBuffer ? input : new Uint8Array(input as any).buffer
-  const view = new DataView(buffer)
-  const sampleCount = Math.floor(buffer.byteLength / 2)
-  const samples = new Float32Array(sampleCount)
-
-  for (let i = 0; i < sampleCount; i++) {
-    const sample = view.getInt16(i * 2, true)
-    samples[i] = sample / 0x8000
-  }
-
-  return samples
-}
-
 const LmaContainer = memo(
   function LmaContainer({
     html,
@@ -225,16 +192,18 @@ function Compositor() {
   return (
     <View className={`absolute inset-0 ${isActive ? "z-11" : "z-0"}`} pointerEvents="box-none">
       <View className="z-12">
-        <MiniAppCapsuleMenu
-          viewShotRef={viewShotRef}
-          onEllipsisPress={() => {
-            // push("/applet/settings", {
-            //   packageName: packageName as string,
-            //   fromWebView: "true",
-            // })
-          }}
-          packageName={packageName as string}
-        />
+        {isActive && (
+          <MiniAppCapsuleMenu
+            viewShotRef={viewShotRef}
+            onEllipsisPress={() => {
+              // push("/applet/settings", {
+              //   packageName: packageName as string,
+              //   fromWebView: "true",
+              // })
+            }}
+            packageName={packageName as string}
+          />
+        )}
       </View>
       <Screen preset="fixed" safeAreaEdges={["top"]} KeyboardAvoidingViewProps={{enabled: true}} ref={viewShotRef}>
         <View className="flex-1 -mx-6">

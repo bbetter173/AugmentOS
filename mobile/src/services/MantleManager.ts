@@ -9,6 +9,7 @@ import {migrate} from "@/services/Migrations"
 import restComms from "@/services/RestComms"
 import socketComms from "@/services/SocketComms"
 import {gallerySyncService} from "@/services/asg/gallerySyncService"
+import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import {useDisplayStore} from "@/stores/display"
 import {useGlassesStore, getGlasesInfoPartial} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
@@ -16,9 +17,12 @@ import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
 import {useCoreStore} from "@/stores/core"
 import udp from "@/services/UdpManager"
-import {BackgroundTimer} from "@/utils/timers"
+import {BgTimer} from "@/utils/timers"
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
+import {logE2EMetric} from "@/utils/e2eMetrics"
+import {useAppletStatusStore} from "@/stores/applets"
+import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"
 
@@ -43,12 +47,13 @@ TaskManager.defineTask(LOCATION_TASK_NAME, ({data: {locations}, error}) => {
 
 class MantleManager {
   private static instance: MantleManager | null = null
-  private calendarSyncTimer: ReturnType<typeof BackgroundTimer.setInterval> | null = null
-  private clearTextTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
-  private micDataTimeout: ReturnType<typeof BackgroundTimer.setTimeout> | null = null
+  private calendarSyncTimer: ReturnType<typeof BgTimer.setInterval> | null = null
+  private clearTextTimeout: ReturnType<typeof BgTimer.setTimeout> | null = null
+  private micDataTimeout: ReturnType<typeof BgTimer.setTimeout> | null = null
   private MIC_TIMEOUT_MS: number = 1000
   private transcriptProcessor: TranscriptProcessor
   private subs: Array<any> = []
+  private initialized: boolean = false
 
   public static getInstance(): MantleManager {
     if (!MantleManager.instance) {
@@ -83,10 +88,25 @@ class MantleManager {
   // sets up the bridge and initializes app state
   public async init() {
     console.log("MANTLE: init()")
+
+    if (this.initialized) {
+      console.log("MANTLE: already initialized")
+      return
+    }
+    this.initialized = true
+
     await migrate() // do any local migrations here
     const res = await restComms.loadUserSettings() // get settings from server
     if (res.is_ok()) {
-      const loadedSettings = res.value
+      let loadedSettings = res.value
+      // exclude default_wearable and pending_wearable from the settings when pulling from the server:
+      delete loadedSettings["default_wearable"]
+      delete loadedSettings["pending_wearable"]
+      delete loadedSettings["default_controller"]
+      delete loadedSettings["pending_controller"]
+      delete loadedSettings["controller_device_name"]
+      delete loadedSettings["controller_address"]
+
       await useSettingsStore.getState().setManyLocally(loadedSettings) // write settings to local storage
     } else {
       console.error("MANTLE: No settings received from server")
@@ -95,8 +115,14 @@ class MantleManager {
     // Send device timezone to cloud (used for calendar/time display)
     this.syncTimezone()
 
-    await CoreModule.updateCore(useSettingsStore.getState().getCoreSettings()) // send settings to core
-    console.log("MANTLE: Settings sent to core")
+    // give the core some time to boot before sending all the initial settings:
+    BgTimer.setTimeout(() => {
+      const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
+      CoreModule.updateCore(initialCoreSettings) // send settings to core
+      console.log("MANTLE: Settings sent to core")
+      // settings are now in native; safe to attempt auto-connect
+      attemptReconnectToDefaultWearable()
+    }, 1000)
 
     this.initServices()
     this.setupPeriodicTasks()
@@ -127,7 +153,7 @@ class MantleManager {
     this.transcriptProcessor.clear()
 
     livekit.disconnect()
-    socketComms.cleanup()
+    await socketComms.cleanup()
     restComms.goodbye()
   }
 
@@ -139,7 +165,7 @@ class MantleManager {
   private async setupPeriodicTasks() {
     this.sendCalendarEvents()
     // Calendar sync every hour
-    this.calendarSyncTimer = BackgroundTimer.setInterval(
+    this.calendarSyncTimer = BgTimer.setInterval(
       () => {
         this.sendCalendarEvents()
       },
@@ -169,7 +195,7 @@ class MantleManager {
     //       return
     //     }
     //     // give some time for the glasses to be fully ready:
-    //     BackgroundTimer.setTimeout(async () => {
+    //     BgTimer.setTimeout(async () => {
     //       await CoreModule.connectDefault()
     //     }, 3000)
     //   } catch (error) {
@@ -221,7 +247,7 @@ class MantleManager {
     // forward core status changes to the zustand core store:
     this.subs.push(
       CoreModule.addListener("core_status", (changed: Partial<CoreStatus>) => {
-        console.log("MANTLE: Core status changed", changed)
+        // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
     )
@@ -359,6 +385,61 @@ class MantleManager {
       )
 
       this.subs.push(
+        CoreModule.addListener("captions_tester_incident", (event) => {
+          const failureCode = typeof event.failure_code === "string" ? event.failure_code : "unknown"
+          const failureMessage =
+            typeof event.failure_message === "string" ? event.failure_message : "Captions tester incident detected."
+          const testRunId = typeof event.test_run_id === "string" ? event.test_run_id : undefined
+          const scenarioName = typeof event.scenario_name === "string" ? event.scenario_name : undefined
+          const alertId = typeof event.alert_id === "string" ? event.alert_id : testRunId
+
+          const actualBehavior = JSON.stringify(
+            {
+              failureCode,
+              failureMessage,
+              testRunId,
+              scenarioName,
+              event,
+            },
+            null,
+            2,
+          )
+
+          const dedupeKey = ["captions_tester", failureCode, scenarioName || "unknown", testRunId || "unknown"].join(
+            "|",
+          )
+
+          void (async () => {
+            const result = await submitAutomaticBugIncident({
+              categorization: {
+                submissionMode: "AUTOMATIC",
+                triggerArea: "captions_tester",
+                triggerReason: "captions_incident_detected",
+              },
+              expectedBehavior: "Captions tester runs should complete without a captions incident.",
+              actualBehavior,
+              severityRating: 4,
+              dedupeKey,
+              logTag: "CaptionsTesterBugReport",
+            })
+
+            console.log(
+              `CAPTIONS_TESTER_INCIDENT_RESULT ${JSON.stringify({
+                alert_id: alertId,
+                test_run_id: testRunId,
+                failure_code: failureCode,
+                scenario_name: scenarioName,
+                status: result.status,
+                incident_id: result.status === "filed" ? result.incidentId : undefined,
+                reason: result.status === "skipped" ? result.reason : undefined,
+                error: result.status === "failed" ? result.error : undefined,
+              })}`,
+            )
+          })()
+        }),
+      )
+
+      this.subs.push(
         CoreModule.addListener("audio_pairing_needed", (event) => {
           GlobalEventEmitter.emit("audio_pairing_needed", {
             deviceName: event.device_name,
@@ -391,6 +472,25 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("head_up", (event) => {
           mantle.handle_head_up(event.up)
+        }),
+      )
+
+      // G2 dashboard menu: user selected a miniapp from the glasses swipe menu
+      // G2.swift resolves the numeric appId → packageName before sending this event
+      this.subs.push(
+        CoreModule.addListener("miniapp_selected", (event) => {
+          const packageName = event.packageName as string
+          if (!packageName) return
+          const applet = useAppletStatusStore.getState().apps.find((a) => a.packageName === packageName)
+          if (!applet) return
+          // Toggle: if already running, stop it; otherwise start it
+          if (applet.running) {
+            console.log(`MANTLE: miniapp_selected — stopping ${packageName}`)
+            useAppletStatusStore.getState().stopApplet(packageName)
+          } else {
+            console.log(`MANTLE: miniapp_selected — starting ${packageName}`)
+            useAppletStatusStore.getState().startApplet(applet, {skipNavigation: true})
+          }
         }),
       )
 
@@ -450,9 +550,9 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("mic_lc3", (event) => {
           if (this.micDataTimeout) {
-            BackgroundTimer.clearTimeout(this.micDataTimeout)
+            BgTimer.clearTimeout(this.micDataTimeout)
           }
-          this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+          this.micDataTimeout = BgTimer.setTimeout(() => {
             useDebugStore.getState().setDebugInfo({micDataRecvd: false})
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
@@ -472,9 +572,9 @@ class MantleManager {
       this.subs.push(
         CoreModule.addListener("mic_pcm", (event) => {
           if (this.micDataTimeout) {
-            BackgroundTimer.clearTimeout(this.micDataTimeout)
+            BgTimer.clearTimeout(this.micDataTimeout)
           }
-          this.micDataTimeout = BackgroundTimer.setTimeout(() => {
+          this.micDataTimeout = BgTimer.setTimeout(() => {
             useDebugStore.getState().setDebugInfo({micDataRecvd: false})
           }, this.MIC_TIMEOUT_MS)
           useDebugStore.getState().setDebugInfo({micDataRecvd: true})
@@ -574,11 +674,11 @@ class MantleManager {
 
     // one time get all:
     const coreStatus = await CoreModule.getCoreStatus()
-    console.log("MANTLE: core status:", coreStatus)
+    // console.log("MANTLE: core status:", coreStatus)
     useCoreStore.getState().setCoreInfo(coreStatus)
 
     const glassesStatus = await CoreModule.getGlassesStatus()
-    console.log("MANTLE: glasses status:", glassesStatus)
+    // console.log("MANTLE: glasses status:", glassesStatus)
     useGlassesStore.getState().setGlassesInfo(glassesStatus)
   }
 
@@ -657,6 +757,10 @@ class MantleManager {
 
   // mostly for debugging / local stt:
   public async displayTextMain(text: string) {
+    logE2EMetric("display_text_main", {
+      text,
+      line_count: text.split("\n").length,
+    })
     this.resetDisplayTimeout()
     socketComms.handle_display_event({
       type: "display_event",
@@ -685,19 +789,31 @@ class MantleManager {
   public async resetDisplayTimeout() {
     if (this.clearTextTimeout) {
       // console.log("MANTLE: canceling pending timeout")
-      BackgroundTimer.clearTimeout(this.clearTextTimeout)
+      BgTimer.clearTimeout(this.clearTextTimeout)
     }
-    this.clearTextTimeout = BackgroundTimer.setTimeout(() => {
+    this.clearTextTimeout = BgTimer.setTimeout(() => {
       console.log("MANTLE: clearing text from wall")
     }, 10000) // 10 seconds
   }
 
   public async handle_local_transcription(data: any) {
+    logE2EMetric("local_transcription_received", {
+      text: data?.text ?? "",
+      is_final: data?.isFinal ?? false,
+      language: data?.transcribeLanguage ?? "",
+    })
+
     // TODO: performance!
     const offlineStt = await useSettingsStore.getState().getSetting(SETTINGS.offline_captions_running.key)
     if (offlineStt) {
       this.transcriptProcessor.changeLanguage(data.transcribeLanguage)
       const processedText = this.transcriptProcessor.processString(data.text, data.isFinal ?? false)
+
+      logE2EMetric("local_transcription_processed", {
+        text: data?.text ?? "",
+        processed_text: processedText ?? "",
+        is_final: data?.isFinal ?? false,
+      })
 
       // Scheduling timeout to clear text from wall. In case of online STT online dashboard manager will handle it.
       // if (data.isFinal) {

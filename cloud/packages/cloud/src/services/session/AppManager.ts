@@ -29,8 +29,16 @@ import appService, { DEPRECATED_APPS } from "../core/app.service";
 import * as developerService from "../core/developer.service";
 import { logger as rootLogger } from "../logging/pino-logger";
 import { metricsService } from "../metrics";
+import {
+  cascadeDiagnostics,
+  createPhaseTimer,
+  hashUserId,
+  logSlowAppConnect,
+  recordWebSocketSend,
+} from "../metrics/cascade-diagnostics";
 import { PosthogService } from "../logging/posthog.service";
 import { IWebSocket, WebSocketReadyState } from "../websocket/types";
+import { deferredAppConnectionRegistry, type DeferredAppConnection } from "../websocket/DeferredAppConnectionRegistry";
 
 import { AppSession, AppConnectionState as AppSessionState } from "./AppSession";
 import { HardwareCompatibilityService } from "./HardwareCompatibilityService";
@@ -87,15 +95,36 @@ interface AppMessageResult {
   error?: string;
 }
 
+interface AppAttachOptions {
+  ackType?: CloudToAppMessageType.CONNECTION_ACK | CloudToAppMessageType.RECONNECT_ACK;
+  sdkVersion?: string;
+}
+
 // ── Hot-path allocation reduction ──────────────────────────────────────────────
 // Pre-allocated, frozen result objects for sendMessageToApp to avoid per-call
 // heap allocations on the hot path.  Reduces GC pressure / heap fragmentation
 // on Bun/JSC where short-lived objects are especially costly.
 const SEND_SUCCESS: Readonly<AppMessageResult> = Object.freeze({ sent: true, resurrectionTriggered: false });
-const SEND_FAIL_STOPPING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is being stopped" });
-const SEND_FAIL_GRACE: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "Connection lost, waiting for reconnection" });
-const SEND_FAIL_RESURRECTING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is restarting" });
-const SEND_FAIL_CONNECTING: Readonly<AppMessageResult> = Object.freeze({ sent: false, resurrectionTriggered: false, error: "App is still connecting" });
+const SEND_FAIL_STOPPING: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "App is being stopped",
+});
+const SEND_FAIL_GRACE: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "Connection lost, waiting for reconnection",
+});
+const SEND_FAIL_RESURRECTING: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "App is restarting",
+});
+const SEND_FAIL_CONNECTING: Readonly<AppMessageResult> = Object.freeze({
+  sent: false,
+  resurrectionTriggered: false,
+  error: "App is still connecting",
+});
 
 export class AppManager {
   private userSession: UserSession;
@@ -162,7 +191,14 @@ export class AppManager {
     }
 
     if (!session) {
+      // Pass the legacy sessionId format (userId-packageName) so that v2 SDKs
+      // can parse it in CONNECTION_INIT to recover the userId. The 048 branch
+      // changed AppSession to default to randomUUID(), which breaks v2 apps
+      // because the cloud parses sessionId.split("-")[0] to find the UserSession.
+      // See: cloud/issues/074 — debug deploy v2 app connection failure
+      const legacySessionId = `${this.userSession.userId}-${packageName}`;
       session = new AppSession({
+        sessionId: legacySessionId,
         packageName,
         logger: this.logger,
         onGracePeriodExpired: async (appSession) => {
@@ -305,8 +341,42 @@ export class AppManager {
       return;
     }
 
-    // User is connected - attempt resurrection
-    this.logger.info({ packageName }, `[AppManager] Grace period expired, attempting resurrection`);
+    // v3 SDK: preserve AppSession with all subscriptions — just send webhook.
+    // The app server is probably still alive (SDK crashed or network died).
+    // When it reconnects, it finds the existing AppSession waiting with all
+    // subscriptions intact. Data resumes instantly after RECONNECT_ACK.
+    // See: cloud/issues/048-sdk-v3 reconnection architecture spike
+    if (appSession.isV3) {
+      this.logger.info(
+        { packageName, sdkVersion: appSession.sdkVersion },
+        `[AppManager] v3 grace period expired — preserving subscriptions, sending webhook for resurrection`,
+      );
+      appSession.markResurrecting();
+
+      try {
+        const result = await this.startApp(packageName);
+        if (!result.success) {
+          this.logger.error(
+            { packageName, error: result.error },
+            `[AppManager] v3 resurrection webhook failed for ${packageName}: ${result.error?.message}`,
+          );
+          appSession.markStopped();
+          if (this.userSession.websocket && this.userSession.websocket.readyState === WebSocketReadyState.OPEN) {
+            this.userSession.websocket.send(
+              JSON.stringify({ type: "app_stopped", packageName, timestamp: new Date() }),
+            );
+          }
+        }
+      } catch (error) {
+        this.logger.error(error, `[AppManager] v3 resurrection failed for ${packageName}`);
+        appSession.markStopped();
+      }
+      return;
+    }
+
+    // v2 SDK (legacy): stop and restart — this destroys the AppSession and
+    // clears subscriptions. The SDK must re-register handlers in onSession().
+    this.logger.info({ packageName }, `[AppManager] Grace period expired, attempting resurrection (v2 legacy)`);
 
     try {
       // Stop and restart the app (resurrection)
@@ -797,6 +867,18 @@ export class AppManager {
       }
       appSession.startConnecting();
 
+      const deferredConnection = deferredAppConnectionRegistry.consume(this.userSession.userId, packageName);
+      if (deferredConnection) {
+        this.attachDeferredConnection(packageName, deferredConnection)
+          .then(() => {
+            resolve({ success: true });
+          })
+          .catch((error) => {
+            reject(error as Error);
+          });
+        return;
+      }
+
       // Continue with webhook trigger
       this.triggerAppWebhookInternal(app, resolve, reject, startTime);
     });
@@ -849,24 +931,42 @@ export class AppManager {
         { packageName, name, publicUrl },
         `Triggering App webhook for ${packageName} for user ${this.userSession.userId}`,
       );
+      const appSession = this.getAppSession(packageName);
+      if (!appSession) {
+        throw new Error(`AppSession missing while triggering webhook for ${packageName}`);
+      }
 
       // Set up the websocket URL for the App connection
-      const augmentOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
+      // mentraOSWebsocketUrl MUST use /app-ws — v2 SDKs read this field and
+      // connect to whatever URL it contains. /ws/miniapp is the v3 path that
+      // v2 SDKs can't use (CONNECTION_INIT format mismatch, connection timeout).
+      // websocketUrl uses the v3 path for v3 SDKs that read it instead.
+      // augmentOSWebsocketUrl is the legacy alias (deprecated, same as mentraOS).
+      // See: cloud/issues/074 — debug deploy v2 app connection failure
+      const websocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/ws/miniapp`;
+      const mentraOSWebsocketUrl = `wss://${CLOUD_PUBLIC_HOST_NAME}/app-ws`;
+      const augmentOSWebsocketUrl = mentraOSWebsocketUrl;
 
       // Construct the webhook URL from the app's public URL
       const webhookURL = `${app.publicUrl}/webhook`;
-      this.logger.info({ augmentOSWebsocketUrl, packageName }, `Triggering webhook for ${packageName}: ${webhookURL}`);
+      this.logger.info({ websocketUrl, packageName }, `Triggering webhook for ${packageName}: ${webhookURL}`);
 
       // Trigger boot screen.
       this.userSession.displayManager.handleAppStart(app.packageName);
 
-      await this.triggerWebhook(webhookURL, {
-        type: WebhookRequestType.SESSION_REQUEST,
-        sessionId: this.userSession.userId + "-" + packageName,
-        userId: this.userSession.userId,
-        timestamp: new Date().toISOString(),
-        augmentOSWebsocketUrl,
-      });
+      await this.triggerWebhook(
+        webhookURL,
+        {
+          type: WebhookRequestType.SESSION_REQUEST,
+          sessionId: appSession.sessionId,
+          userId: this.userSession.userId,
+          timestamp: new Date().toISOString(),
+          websocketUrl,
+          mentraOSWebsocketUrl,
+          augmentOSWebsocketUrl,
+        },
+        packageName,
+      );
 
       this.logger.info(
         {
@@ -962,7 +1062,7 @@ export class AppManager {
    * @param payload - Data to send
    * @throws If webhook fails after retries
    */
-  private async triggerWebhook(url: string, payload: SessionWebhookRequest): Promise<void> {
+  private async triggerWebhook(url: string, payload: SessionWebhookRequest, packageName?: string): Promise<void> {
     const maxRetries = 2;
     const baseDelay = 1000; // 1 second
 
@@ -980,7 +1080,7 @@ export class AppManager {
           if (axios.isAxiosError(error)) {
             // Enrich the error with context for better debugging
             const enrichedError = Object.assign(error, {
-              packageName: payload.sessionId.split("-")[1],
+              packageName: packageName ?? "unknown_package",
               webhookUrl: url,
               attempts: maxRetries,
               timeout: 10000,
@@ -1031,7 +1131,7 @@ export class AppManager {
       // Trigger app stop webhook
       try {
         // TODO(isaiah): Move logic to stop app out of appService and into this class.
-        await appService.triggerStopByPackageName(packageName, this.userSession.userId);
+        await appService.triggerStopByPackageName(packageName, this.userSession.userId, appSession?.sessionId);
       } catch (webhookError) {
         this.logger.error(webhookError, `Error triggering stop webhook for ${packageName}:`);
       }
@@ -1127,6 +1227,97 @@ export class AppManager {
     return appSession?.isRunning ?? false;
   }
 
+  async handleReconnect(
+    ws: IWebSocket,
+    reconnectMessage: { sessionId: string; sdkVersion?: string },
+    packageName: string,
+  ): Promise<void> {
+    const phaseTimer = createPhaseTimer();
+    try {
+      const appSession = phaseTimer.measureSync("getAppSession", () => this.apps.get(packageName));
+      const shouldDefer = await phaseTimer.measure("shouldDeferReconnect", () => this.shouldDeferReconnect(packageName));
+
+      if (!appSession && shouldDefer) {
+        recordWebSocketSend(
+          ws,
+          "app",
+          ws.send(
+            JSON.stringify({
+              type: CloudToAppMessageType.RECONNECT_DEFERRED,
+              code: "AWAITING_APP_RESTORE",
+              message: "Cloud is restoring app state",
+              timeoutMs: 30_000,
+              timestamp: new Date(),
+            }),
+          ),
+        );
+
+        phaseTimer.measureSync("deferRegister", () =>
+          deferredAppConnectionRegistry.register({
+            userId: this.userSession.userId,
+            packageName,
+            sdkVersion: reconnectMessage.sdkVersion ?? "3.0.0",
+            priorSessionId: reconnectMessage.sessionId,
+            websocket: ws as any,
+            reason: "awaiting_app_restore",
+          }),
+        );
+        return;
+      }
+
+      if (appSession && appSession.sessionId !== reconnectMessage.sessionId) {
+        recordWebSocketSend(
+          ws,
+          "app",
+          ws.send(
+            JSON.stringify({
+              type: CloudToAppMessageType.RECONNECT_REJECTED,
+              code: "SESSION_EXPIRED",
+              message: "Reconnect session identity does not match the active app session",
+              timestamp: new Date(),
+            }),
+          ),
+        );
+        ws.close(1008, "Session expired");
+        return;
+      }
+
+      if (!appSession || appSession.isStopped) {
+        recordWebSocketSend(
+          ws,
+          "app",
+          ws.send(
+            JSON.stringify({
+              type: CloudToAppMessageType.RECONNECT_REJECTED,
+              code: "NOT_RUNNING",
+              message: "App is not expected to run for this user session",
+              timestamp: new Date(),
+            }),
+          ),
+        );
+        ws.close(1008, "App not running");
+        return;
+      }
+
+      await phaseTimer.measure("attachAppSocket", () =>
+        this.attachAppSocket(packageName, ws, {
+          ackType: CloudToAppMessageType.RECONNECT_ACK,
+          sdkVersion: reconnectMessage.sdkVersion,
+        }),
+      );
+    } finally {
+      const durationMs = phaseTimer.durationMs;
+      cascadeDiagnostics.addTimer("appConnect_reconnect", durationMs);
+      cascadeDiagnostics.increment("appConnect_reconnect_count");
+      logSlowAppConnect("reconnect", {
+        packageName,
+        userIdHash: hashUserId(this.userSession.userId),
+        durationMs,
+        phaseTimings: phaseTimer.timings,
+      });
+    }
+  }
+
   /**
    * Handle App initialization
    *
@@ -1134,9 +1325,9 @@ export class AppManager {
    * @param initMessage App initialization message
    */
   async handleAppInit(ws: IWebSocket, initMessage: AppConnectionInit): Promise<void> {
+    const phaseTimer = createPhaseTimer();
+    const { packageName, apiKey } = initMessage;
     try {
-      const { packageName, apiKey, sessionId } = initMessage;
-
       // Reject deprecated apps immediately.
       if (DEPRECATED_APPS.includes(packageName)) {
         this.logger.info(
@@ -1160,7 +1351,9 @@ export class AppManager {
       }
 
       // Validate the API key
-      const isValidApiKey = await developerService.validateApiKey(packageName, apiKey, this.userSession);
+      const isValidApiKey = await phaseTimer.measure("validateApiKey", () =>
+        developerService.validateApiKey(packageName, apiKey, this.userSession),
+      );
 
       if (!isValidApiKey) {
         this.logger.error(
@@ -1241,65 +1434,12 @@ export class AppManager {
         );
       }
 
-      // Get or create AppSession and handle the connection
-      // AppSession now owns the WebSocket (Phase 4d)
-      const connectedAppSession = this.getOrCreateAppSession(packageName);
-      if (!connectedAppSession) {
-        this.logger.warn({ packageName }, `[AppManager] Cannot handle app init - AppManager disposed`);
-        ws.close(1008, "Session ended");
-        return;
-      }
-      connectedAppSession.handleConnect(ws);
-
-      // Note: Close event handler is now managed by AppSession.handleConnect()
-      // AppSession registers its own close handler and calls our onDisconnect callback
-      // This ensures proper cleanup when AppSession is disposed
-
-      // Note: AppSession state is now RUNNING after handleConnect()
-      // runningApps and loadingApps are derived from AppSession state via getRunningAppNames()/getLoadingAppNames()
-
-      // Get app settings with proper fallback hierarchy
-      const app = this.userSession.installedApps.get(packageName);
-
-      // Get user's settings with fallback to app defaults
-      const user = await User.findOrCreateUser(this.userSession.userId);
-      const userSettings = user.getAppSettings(packageName) || app?.settings || [];
-
-      // Load MentraOS system settings from UserSettingsManager (single source of truth)
-      // Maps from REST keys (snake_case) to SDK keys (camelCase) for backward compatibility
-      const mentraosSettings = this.userSession.userSettingsManager.buildMentraosSettings();
-
-      // Send connection acknowledgment with capabilities
-      const ackMessage = {
-        type: CloudToAppMessageType.CONNECTION_ACK,
-        sessionId: sessionId,
-        settings: userSettings,
-        mentraosSettings: mentraosSettings,
-        capabilities: this.userSession.getCapabilities(),
-        timestamp: new Date(),
-      };
-
-      ws.send(JSON.stringify(ackMessage));
-      metricsService.incrementMiniappMessagesOut();
-
-      // Send full device state snapshot immediately after CONNECTION_ACK
-      this.userSession.deviceManager.sendFullStateSnapshot(ws);
-
-      // update user.runningApps in database.
-      try {
-        if (user) {
-          await user.addRunningApp(packageName);
-        }
-      } catch (error) {
-        this.logger.error(
-          error,
-          `Error updating user's running apps for ${this.userSession.userId} for app ${packageName}`,
-        );
-        this.logger.debug(
-          { packageName, userId: this.userSession.userId },
-          `Failed to update user's running apps for ${this.userSession.userId}`,
-        );
-      }
+      await phaseTimer.measure("attachAppSocket", () =>
+        this.attachAppSocket(packageName, ws, {
+          ackType: CloudToAppMessageType.CONNECTION_ACK,
+          sdkVersion: initMessage.sdkVersion,
+        }),
+      );
 
       // Resolve pending connection if it exists
       const pending = this.pendingConnections.get(packageName);
@@ -1324,11 +1464,13 @@ export class AppManager {
 
         // Track app_start event in PostHog
         try {
-          await PosthogService.trackEvent("app_start", this.userSession.userId, {
-            packageName,
-            userId: this.userSession.userId,
-            sessionId: this.userSession.sessionId,
-          });
+          await phaseTimer.measure("posthogAppStart", () =>
+            PosthogService.trackEvent("app_start", this.userSession.userId, {
+              packageName,
+              userId: this.userSession.userId,
+              sessionId: this.userSession.sessionId,
+            }),
+          );
         } catch (error) {
           const logger = this.logger.child({ packageName });
           logger.error(error, "Error tracking app_start event in PostHog");
@@ -1356,7 +1498,7 @@ export class AppManager {
       });
 
       // Broadcast app state change
-      await this.broadcastAppState();
+      await phaseTimer.measure("broadcastAppState", () => this.broadcastAppState());
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -1386,6 +1528,16 @@ export class AppManager {
       } catch (sendError) {
         this.logger.error(sendError, `Error sending internal error to App:`);
       }
+    } finally {
+      const durationMs = phaseTimer.durationMs;
+      cascadeDiagnostics.addTimer("appConnect_connectionInit", durationMs);
+      cascadeDiagnostics.increment("appConnect_connectionInit_count");
+      logSlowAppConnect("connection_init", {
+        packageName,
+        userIdHash: hashUserId(this.userSession.userId),
+        durationMs,
+        phaseTimings: phaseTimer.timings,
+      });
     }
   }
 
@@ -1394,12 +1546,15 @@ export class AppManager {
    */
   async broadcastAppState(): Promise<AppStateChange | null> {
     this.logger.debug({ function: "broadcastAppState" }, `Broadcasting app state for user ${this.userSession.userId}`);
+    const phaseTimer = createPhaseTimer();
     try {
       // Refresh installed apps
-      await this.refreshInstalledApps();
+      await phaseTimer.measure("refreshInstalledApps", () => this.refreshInstalledApps());
 
       // Transform session for client
-      const clientSessionData = await this.userSession.snapshotForClient();
+      const clientSessionData = await phaseTimer.measure("snapshotForClient", () =>
+        this.userSession.snapshotForClient(),
+      );
       this.logger.debug({ clientSessionData }, `Transformed user session data for ${this.userSession.userId}`);
       // Create app state change message
       const appStateChange: AppStateChange = {
@@ -1415,12 +1570,23 @@ export class AppManager {
         return appStateChange;
       }
 
-      this.userSession.websocket.send(JSON.stringify(appStateChange));
+      const clientWebSocket = this.userSession.websocket;
+      phaseTimer.measureSync("sendClient", () =>
+        recordWebSocketSend(clientWebSocket, "glasses", clientWebSocket.send(JSON.stringify(appStateChange))),
+      );
       this.logger.debug({ appStateChange }, `Sent APP_STATE_CHANGE to ${this.userSession.userId}`);
       return appStateChange;
     } catch (error) {
       this.logger.error(error, `Error broadcasting app state for ${this.userSession.userId}`);
       return null;
+    } finally {
+      const durationMs = phaseTimer.durationMs;
+      cascadeDiagnostics.addTimer("appConnect_broadcastAppState", durationMs);
+      logSlowAppConnect("broadcast_app_state", {
+        userIdHash: hashUserId(this.userSession.userId),
+        durationMs,
+        phaseTimings: phaseTimer.timings,
+      });
     }
   }
 
@@ -1428,13 +1594,18 @@ export class AppManager {
    * Refresh the installed apps list
    */
   async refreshInstalledApps(): Promise<void> {
+    const phaseTimer = createPhaseTimer();
     try {
       // Fetch installed apps
-      const installedAppsList = await appService.getAllApps(this.userSession.userId);
+      const installedAppsList = await phaseTimer.measure("appServiceGetAllApps", () =>
+        appService.getAllApps(this.userSession.userId),
+      );
       const installedApps = new Map<string, AppI>();
-      for (const app of installedAppsList) {
-        installedApps.set(app.packageName, app);
-      }
+      phaseTimer.measureSync("mapInstalledApps", () => {
+        for (const app of installedAppsList) {
+          installedApps.set(app.packageName, app);
+        }
+      });
       this.logger.info(
         { installedAppsList: installedAppsList.map((app) => app.packageName) },
         `Fetched ${installedApps.size} installed apps for ${this.userSession.userId}`,
@@ -1446,6 +1617,8 @@ export class AppManager {
       this.logger.info(`Updated installed apps for ${this.userSession.userId}`);
     } catch (error) {
       this.logger.error(error, `Error refreshing installed apps:`);
+    } finally {
+      cascadeDiagnostics.addTimer("appConnect_refreshInstalledApps", phaseTimer.durationMs);
     }
   }
 
@@ -1664,6 +1837,110 @@ export class AppManager {
     }
   }
 
+  private async attachAppSocket(packageName: string, ws: IWebSocket, options: AppAttachOptions = {}): Promise<void> {
+    const phaseTimer = createPhaseTimer();
+    const connectedAppSession = phaseTimer.measureSync("getOrCreateAppSession", () =>
+      this.getOrCreateAppSession(packageName),
+    );
+    if (!connectedAppSession) {
+      this.logger.warn({ packageName }, `[AppManager] Cannot attach app socket - AppManager disposed`);
+      ws.close(1008, "Session ended");
+      return;
+    }
+
+    // Set SDK version before handleConnect so the disconnect handler
+    // knows whether to use TRANSPORT_DOWN (v3) or GRACE_PERIOD (v2).
+    if (options.sdkVersion) {
+      phaseTimer.measureSync("setSdkVersion", () => connectedAppSession.setSdkVersion(options.sdkVersion));
+    }
+
+    phaseTimer.measureSync("handleConnect", () => connectedAppSession.handleConnect(ws));
+    const sessionId = connectedAppSession.sessionId;
+
+    const app = this.userSession.installedApps.get(packageName);
+    const user = await phaseTimer.measure("findOrCreateUser", () => User.findOrCreateUser(this.userSession.userId));
+    const userSettings = user.getAppSettings(packageName) || app?.settings || [];
+    const mentraosSettings = phaseTimer.measureSync("buildMentraosSettings", () =>
+      this.userSession.userSettingsManager.buildMentraosSettings(),
+    );
+
+    const ackMessage = {
+      type: options.ackType ?? CloudToAppMessageType.CONNECTION_ACK,
+      sessionId,
+      settings: userSettings,
+      mentraosSettings,
+      capabilities: this.userSession.getCapabilities(),
+      subscriptions: connectedAppSession.getSubscriptions(),
+      userId: this.userSession.userId,
+      timestamp: new Date(),
+    };
+
+    phaseTimer.measureSync("sendAck", () => recordWebSocketSend(ws, "app", ws.send(JSON.stringify(ackMessage))));
+    metricsService.incrementMiniappMessagesOut();
+    phaseTimer.measureSync("sendFullStateSnapshot", () => this.userSession.deviceManager.sendFullStateSnapshot(ws));
+
+    // Issue 087: Clear dedup cache and deliver active stream state.
+    // Issue 090: Only for v3 apps. v2 apps don't expect unsolicited
+    // managed_stream_status on connect — it sets isManagedStreaming=true
+    // on the v2 SDK from stale data, blocking all new startManagedStream() calls.
+    if (connectedAppSession.isV3) {
+      this.userSession.managedStreamingExtension.clearLastSentStatus(packageName);
+      phaseTimer.measureSync("deliverActiveStreamState", () => this.deliverActiveStreamState(packageName, ws));
+    }
+
+    try {
+      await phaseTimer.measure("addRunningApp", () => user.addRunningApp(packageName));
+    } catch (error) {
+      this.logger.error(
+        error,
+        `Error updating user's running apps for ${this.userSession.userId} for app ${packageName}`,
+      );
+      this.logger.debug({ packageName, userId: this.userSession.userId }, "Failed to update user's running apps");
+    } finally {
+      cascadeDiagnostics.addTimer("appConnect_attachAppSocket", phaseTimer.durationMs);
+    }
+  }
+
+  private async attachDeferredConnection(
+    packageName: string,
+    deferredConnection: DeferredAppConnection,
+  ): Promise<void> {
+    if (deferredAppConnectionRegistry.isExpired(deferredConnection)) {
+      try {
+        deferredConnection.websocket.send(
+          JSON.stringify({
+            type: CloudToAppMessageType.RECONNECT_REJECTED,
+            code: "BOOT_TIMEOUT",
+            message: "Deferred reconnect timed out while cloud was restoring state",
+            timestamp: new Date(),
+          }),
+        );
+      } finally {
+        deferredConnection.websocket.close(1008, "Deferred reconnect timed out");
+      }
+      throw new Error(`Deferred connection expired for ${packageName}`);
+    }
+
+    await this.attachAppSocket(packageName, deferredConnection.websocket as any, {
+      ackType: CloudToAppMessageType.RECONNECT_ACK,
+    });
+
+    const pending = this.pendingConnections.get(packageName);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      this.pendingConnections.delete(packageName);
+    }
+  }
+
+  private async shouldDeferReconnect(packageName: string): Promise<boolean> {
+    if (this.pendingConnections.has(packageName)) {
+      return true;
+    }
+
+    const user = await User.findOrCreateUser(this.userSession.userId);
+    return user.runningApps.includes(packageName);
+  }
+
   /**
    * Send a message to a App with automatic resurrection if connection is dead
    * @param packageName - App package name
@@ -1693,7 +1970,7 @@ export class AppManager {
 
       // If connection is connecting, then we can't send messages yet.
       if (websocket && websocket.readyState === WebSocketReadyState.CONNECTING) {
-        if (this.logger.isLevelEnabled('debug')) {
+        if (this.logger.isLevelEnabled("debug")) {
           this.logger.warn(
             {
               userId: this.userSession.userId,
@@ -1758,6 +2035,74 @@ export class AppManager {
         resurrectionTriggered: false,
         error: errorMessage,
       };
+    }
+  }
+
+  /**
+   * If the user has active streams, send their current state to the
+   * newly-connected app. This allows the app to resume control of
+   * streams that survived a disconnect/restart.
+   *
+   * Sends existing message types (managed_stream_status / stream_status)
+   * so every SDK version handles it without changes.
+   *
+   * See: cloud/issues/085-orphaned-stream-cleanup
+   * See: cloud/issues/087-managed-stream-status-not-delivered-on-reconnect
+   */
+  private deliverActiveStreamState(packageName: string, ws: IWebSocket): void {
+    try {
+      // Check managed streams (Cloudflare relay)
+      const managedState = this.userSession.managedStreamingExtension.getUserStreamState(this.userSession.userId);
+
+      if (managedState && managedState.type === "managed") {
+        const previewUrl = `https://iframe.videodelivery.net/${managedState.cfLiveInputId}?autoplay=true&muted=true&controls=true`;
+
+        const statusMessage = {
+          type: CloudToAppMessageType.MANAGED_STREAM_STATUS,
+          status: "active",
+          streamId: managedState.streamId,
+          hlsUrl: managedState.hlsUrl,
+          dashUrl: managedState.dashUrl,
+          webrtcUrl: managedState.webrtcUrl,
+          previewUrl: previewUrl,
+          activeViewers: managedState.activeViewers.size,
+          resumed: true,
+          timestamp: new Date(),
+        };
+
+        ws.send(JSON.stringify(statusMessage));
+        metricsService.incrementMiniappMessagesOut();
+
+        this.logger.info(
+          { packageName, streamId: managedState.streamId, type: "managed" },
+          "Delivered active managed stream state to reconnected app",
+        );
+      }
+
+      // Check unmanaged/direct streams
+      const unmanagedInfo = this.userSession.unmanagedStreamingExtension.getActiveStreamInfo();
+
+      if (unmanagedInfo && unmanagedInfo.packageName === packageName) {
+        const statusMessage = {
+          type: "rtmp_stream_status" as any,
+          status: unmanagedInfo.status || "active",
+          streamId: unmanagedInfo.streamId,
+          streamUrl: unmanagedInfo.streamUrl,
+          resumed: true,
+          timestamp: new Date(),
+        };
+
+        ws.send(JSON.stringify(statusMessage));
+        metricsService.incrementMiniappMessagesOut();
+
+        this.logger.info(
+          { packageName, streamId: unmanagedInfo.streamId, type: "direct" },
+          "Delivered active direct stream state to reconnected app",
+        );
+      }
+    } catch (error) {
+      // Non-fatal — the app can still call checkExistingStream() manually.
+      this.logger.warn(error, "Failed to deliver active stream state (non-fatal)");
     }
   }
 

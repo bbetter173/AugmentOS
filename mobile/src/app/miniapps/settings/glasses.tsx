@@ -57,12 +57,12 @@ function DeviceSettings() {
     })
     if (result === 1) {
       CoreModule.forget()
-      useAppletStatusStore.getState().stopAllApplets()
-      useAppletStatusStore.getState().refreshApplets()
-      // give us a second to forget the glasses before going back
-      setTimeout(() => {
-        goBack()
-      }, 500)
+      // useAppletStatusStore.getState().stopAllApplets()
+      // useAppletStatusStore.getState().refreshApplets()
+      // // give us a second to forget the glasses before going back
+      // setTimeout(() => {
+      //   goBack()
+      // }, 500)
     }
   }
 
@@ -112,6 +112,14 @@ function DeviceSettings() {
             onPress={() => push("/miniapps/settings/dashboard")}
           />
         )}
+        {/* Glasses Menu — G2 only, requires connection */}
+        {defaultWearable === DeviceTypes.G2 && glassesConnected && (
+          <RouteButton
+            icon={<Icon name="menu-2" size={24} color={theme.colors.secondary_foreground} />}
+            label={translate("settings:glassesMenu")}
+            onPress={() => push("/miniapps/settings/glasses-menu")}
+          />
+        )}
         {/* Brightness Settings */}
         {features?.display?.adjustBrightness && glassesConnected && (
           <BrightnessSetting
@@ -142,8 +150,8 @@ function DeviceSettings() {
 
       {/* Camera Settings button moved to Gallery Settings page */}
 
-      {/* Button Settings - Only show for glasses with configurable buttons */}
-      {glassesConnected && defaultWearable && features?.hasButton && (
+      {/* Button Settings - Mentra Live only (G2's button is a touchpad and conflicts with the native menu) */}
+      {glassesConnected && defaultWearable === DeviceTypes.LIVE && (
         <ButtonSettings
           enabled={defaultButtonActionEnabled}
           selectedApp={defaultButtonActionApp}
@@ -265,6 +273,7 @@ export default function Glasses() {
         {!glassesConnected && defaultWearable && <NotConnectedInfo />}
         <Spacer height={theme.spacing.s6} />
         <DeviceSettings />
+        <Spacer height={theme.spacing.s8} />
       </ScrollView>
     </Screen>
   )

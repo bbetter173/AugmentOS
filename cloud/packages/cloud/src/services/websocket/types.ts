@@ -8,6 +8,8 @@
 
 import type { ServerWebSocket } from "bun";
 
+import type { WebSocketObservation } from "../metrics/cascade-diagnostics";
+
 /**
  * Data attached to glasses WebSocket connections
  */
@@ -15,6 +17,7 @@ export interface GlassesWebSocketData {
   type: "glasses";
   userId: string;
   udpEncryptionRequested: boolean;
+  obs?: WebSocketObservation;
 }
 
 /**
@@ -23,8 +26,11 @@ export interface GlassesWebSocketData {
 export interface AppWebSocketData {
   type: "app";
   userId: string;
-  sessionId: string;
+  sessionId?: string;
   packageName?: string;
+  apiKey?: string;
+  sdkVersion?: string;
+  obs?: WebSocketObservation;
   appJwtPayload?: {
     packageName: string;
     apiKey: string;

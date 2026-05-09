@@ -33,10 +33,17 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import android.net.ConnectivityManager;
@@ -205,7 +212,6 @@ public class MediaCaptureService {
     private final MediaUploadQueueManager mMediaQueueManager;
     private MediaCaptureListener mMediaCaptureListener;
     private ServiceCallbackInterface mServiceCallback;
-    private CircularVideoBuffer mVideoBuffer;
     private final IHardwareManager hardwareManager;
 
     // Track current video recording
@@ -293,7 +299,15 @@ public class MediaCaptureService {
 
     // Capture state tracking - prevent concurrent camera captures from SDK
     private final AtomicBoolean isCapturingPhoto = new AtomicBoolean(false);
+    private final AtomicBoolean isCleaningUp = new AtomicBoolean(false);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    /** Exclude these capture directory names from Wi‑Fi sync until integrity check finishes. */
+    private final Set<String> videoCaptureIdsPendingIntegrityCheck = ConcurrentHashMap.newKeySet();
+    private final ExecutorService videoIntegrityExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "RecordedVideoIntegrity");
+        t.setPriority(Thread.NORM_PRIORITY - 1);
+        return t;
+    });
     private static final long CAPTURE_SAFETY_TIMEOUT_MS = 15000; // 15 seconds
     private Runnable captureSafetyTimeout;
 
@@ -345,49 +359,6 @@ public class MediaCaptureService {
         // Initialize hardware manager
         hardwareManager = HardwareManagerFactory.getInstance(context);
         Log.d(TAG, "Hardware manager initialized: " + hardwareManager.getDeviceModel());
-        
-        // Initialize video buffer
-        mVideoBuffer = new CircularVideoBuffer(context);
-        mVideoBuffer.setCallback(new CircularVideoBuffer.BufferCallback() {
-            @Override
-            public void onBufferingStarted() {
-                Log.d(TAG, "Video buffering started");
-            }
-
-            @Override
-            public void onBufferingStopped() {
-                Log.d(TAG, "Video buffering stopped");
-            }
-
-            @Override
-            public void onSegmentRecorded(int segmentIndex, String filePath) {
-                Log.d(TAG, "Buffer segment " + segmentIndex + " recorded: " + filePath);
-            }
-
-            @Override
-            public void onBufferSaved(String outputPath, int durationSeconds) {
-                Log.d(TAG, "Buffer saved: " + outputPath + " (" + durationSeconds + " seconds)");
-                // Notify listener if needed
-                if (mMediaCaptureListener != null) {
-                    // Use a special ID for buffer saves
-                    mMediaCaptureListener.onVideoUploaded("buffer_save", outputPath);
-                }
-                
-                // Send gallery status update to phone after buffer video save
-                sendGalleryStatusUpdate();
-            }
-
-            @Override
-            public void onBufferError(String error) {
-                Log.e(TAG, "Buffer error: " + error);
-                // Turn off LED on buffer error
-                hardwareManager.setRecordingLedOff();
-                Log.d(TAG, "Recording LED turned OFF (buffer error)");
-                if (mMediaCaptureListener != null) {
-                    mMediaCaptureListener.onMediaError("buffer", error, MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
-                }
-            }
-        });
     }
 
     /**
@@ -829,20 +800,91 @@ public class MediaCaptureService {
                         Log.d(TAG, "Recording LED turned OFF");
                     }
 
-                    // Notify listener
-                    if (mMediaCaptureListener != null) {
-                        mMediaCaptureListener.onVideoRecordingStopped(requestId, filePath);
-                    }
-
-                    // Send gallery status update to phone after video recording
-                    sendGalleryStatusUpdate();
-
-                    // Call upload stub (which just logs for now)
-                    uploadVideo(filePath, requestId);
-
-                    // Reset state
+                    final String pendingRequestId = requestId;
+                    final String captureId = captureIdFromVideoAbsPath(filePath);
                     currentVideoId = null;
                     currentVideoPath = null;
+
+                    if (filePath == null || captureId == null) {
+                        Log.e(TAG, "onRecordingStopped received null filePath for " + pendingRequestId);
+                        if (mMediaCaptureListener != null) {
+                            mMediaCaptureListener.onMediaError(
+                                pendingRequestId,
+                                "Video recording stopped with no file path",
+                                MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
+                        }
+                        sendGalleryStatusUpdate();
+                        return;
+                    }
+
+                    if (isCleaningUp.get()) {
+                        Log.w(TAG, "Skipping video integrity check because cleanup is already in progress");
+                        sendGalleryStatusUpdate();
+                        return;
+                    }
+
+                    videoCaptureIdsPendingIntegrityCheck.add(captureId);
+
+                    try {
+                        videoIntegrityExecutor.execute(() -> {
+                            try {
+                                final boolean ok = RecordedVideoIntegrityChecker.verify(filePath);
+                                mainHandler.post(() -> {
+                                    videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+                                    if (ok) {
+                                        if (mMediaCaptureListener != null) {
+                                            mMediaCaptureListener.onVideoRecordingStopped(pendingRequestId, filePath);
+                                        }
+                                        sendGalleryStatusUpdate();
+                                        uploadVideo(filePath, pendingRequestId);
+                                    } else {
+                                        final boolean cleaningUp = isCleaningUp.get();
+                                        if (!cleaningUp) {
+                                            File bad = new File(filePath);
+                                            if (bad.exists() && !bad.delete()) {
+                                                Log.w(TAG, "Could not delete failed video file: " + filePath);
+                                            }
+                                        } else {
+                                            Log.w(TAG, "Skipping failed video deletion because cleanup is in progress");
+                                        }
+                                        if (mMediaCaptureListener != null) {
+                                            mMediaCaptureListener.onMediaError(
+                                                pendingRequestId,
+                                                cleaningUp
+                                                    ? "Video integrity check aborted during cleanup; file preserved"
+                                                    : "Video file failed integrity check and was removed",
+                                                MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
+                                        }
+                                        sendGalleryStatusUpdate();
+                                    }
+                                });
+                            } catch (Throwable t) {
+                                Log.e(TAG, "Unexpected error during video integrity check", t);
+                                mainHandler.post(() -> {
+                                    videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+                                    if (mMediaCaptureListener != null) {
+                                        mMediaCaptureListener.onMediaError(
+                                            pendingRequestId,
+                                            "Video integrity check error: " + t.getMessage(),
+                                            MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
+                                    }
+                                    sendGalleryStatusUpdate();
+                                });
+                            }
+                        });
+                    } catch (RejectedExecutionException e) {
+                        Log.w(TAG, "Video integrity check rejected because cleanup is in progress", e);
+                        videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+                        mainHandler.post(() -> {
+                            if (mMediaCaptureListener != null) {
+                                mMediaCaptureListener.onMediaError(
+                                    pendingRequestId,
+                                    "Video integrity check unavailable during cleanup",
+                                    MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
+                            }
+                            sendGalleryStatusUpdate();
+                        });
+                    }
                 }
 
                 @Override
@@ -1001,9 +1043,22 @@ public class MediaCaptureService {
         if (!isRecordingVideo || currentVideoPath == null) {
             return null;
         }
-        // currentVideoPath is e.g. /sdcard/.../VID_xxx/base.mp4
-        // We need the parent directory name ("VID_xxx") which is the capture ID
-        File f = new File(currentVideoPath);
+        return captureIdFromVideoAbsPath(currentVideoPath);
+    }
+
+    /**
+     * Capture directory names (e.g. VID_xxx) whose recording has stopped but integrity check
+     * has not finished — excluded from Wi‑Fi sync/download alongside in-progress recordings.
+     */
+    public Set<String> getPendingVideoIntegrityCaptureIds() {
+        return Collections.unmodifiableSet(videoCaptureIdsPendingIntegrityCheck);
+    }
+
+    private static String captureIdFromVideoAbsPath(String absolutePath) {
+        if (absolutePath == null) {
+            return null;
+        }
+        File f = new File(absolutePath);
         File parentDir = f.getParentFile();
         return parentDir != null ? parentDir.getName() : f.getName();
     }
@@ -1018,123 +1073,6 @@ public class MediaCaptureService {
         }
 
         return System.currentTimeMillis() - recordingStartTime;
-    }
-
-    /**
-     * Start buffer recording - continuously records last 30 seconds
-     */
-    public void startBufferRecording() {
-        // Check battery level before proceeding
-        if (mStateManager != null) {
-            int batteryLevel = mStateManager.getBatteryLevel();
-            if (batteryLevel >= 0 && batteryLevel < BatteryConstants.MIN_BATTERY_LEVEL) {
-                Log.w(TAG, "🚫 Buffer recording rejected - battery too low (" + batteryLevel + "%)");
-                playBatteryLowSound();
-                if (mMediaCaptureListener != null) {
-                    mMediaCaptureListener.onMediaError("buffer", "Battery too low to start buffer recording (" + batteryLevel + "%)", MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
-                }
-                return;
-            }
-        } else {
-            Log.w(TAG, "⚠️ StateManager not initialized - skipping battery check for buffer recording");
-        }
-
-        // Check if camera is already in use
-        if (CameraNeo.isCameraInUse()) {
-            Log.w(TAG, "Cannot start buffer recording - camera is in use");
-            if (mMediaCaptureListener != null) {
-                mMediaCaptureListener.onMediaError("buffer", "Camera is busy", MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
-            }
-            return;
-        }
-
-        // Close kept-alive camera if it exists to free resources for buffer recording
-        CameraNeo.closeKeptAliveCamera();
-
-        Log.d(TAG, "Starting buffer recording via CameraNeo");
-
-        // Use CameraNeo's buffer mode instead of local CircularVideoBuffer
-        CameraNeo.startBufferRecording(mContext, new CameraNeo.BufferCallback() {
-            @Override
-            public void onBufferStarted() {
-                Log.d(TAG, "Buffer recording started");
-                // Start blinking LED for buffer recording mode
-                hardwareManager.setRecordingLedBlinking(1000, 2000); // On for 1s, off for 2s
-                Log.d(TAG, "Recording LED set to BLINKING mode (buffer recording)");
-            }
-
-            @Override
-            public void onBufferStopped() {
-                Log.d(TAG, "Buffer recording stopped");
-                // Turn off LED when buffer recording stops
-                hardwareManager.setRecordingLedOff();
-                Log.d(TAG, "Recording LED turned OFF (buffer stopped)");
-            }
-
-            @Override
-            public void onBufferSaved(String filePath, int durationSeconds) {
-                Log.d(TAG, "Buffer saved: " + filePath + " (" + durationSeconds + " seconds)");
-                if (mMediaCaptureListener != null) {
-                    mMediaCaptureListener.onVideoUploaded("buffer_save", filePath);
-                }
-            }
-
-            @Override
-            public void onBufferError(String error) {
-                Log.e(TAG, "Buffer error: " + error);
-                // Turn off LED on buffer error
-                hardwareManager.setRecordingLedOff();
-                Log.d(TAG, "Recording LED turned OFF (buffer error)");
-                if (mMediaCaptureListener != null) {
-                    mMediaCaptureListener.onMediaError("buffer", error, MediaUploadQueueManager.MEDIA_TYPE_VIDEO);
-                }
-            }
-        });
-    }
-
-    /**
-     * Stop buffer recording
-     */
-    public void stopBufferRecording() {
-        Log.d(TAG, "Stopping buffer recording via CameraNeo");
-        CameraNeo.stopBufferRecording(mContext);
-        // Ensure LED is turned off when manually stopping buffer
-        hardwareManager.setRecordingLedOff();
-        Log.d(TAG, "Recording LED turned OFF (manual buffer stop)");
-    }
-
-    /**
-     * Save the last N seconds from buffer
-     * @param secondsToSave Number of seconds to save (max 30)
-     * @param requestId Request ID for tracking
-     */
-    public void saveBufferVideo(int secondsToSave, String requestId) {
-        Log.d(TAG, "Saving last " + secondsToSave + " seconds of buffer, requestId: " + requestId);
-        CameraNeo.saveBufferVideo(mContext, secondsToSave, requestId);
-    }
-
-    /**
-     * Get buffer recording status
-     * Note: This would need to be implemented via a callback or service binding
-     * For now, returning a basic status
-     */
-    public JSONObject getBufferStatus() {
-        JSONObject status = new JSONObject();
-        try {
-            // Basic status - would need proper implementation with CameraNeo
-            status.put("isBuffering", false); // Would need to track this
-            status.put("availableDuration", 0);
-        } catch (JSONException e) {
-            Log.e(TAG, "Error creating buffer status", e);
-        }
-        return status;
-    }
-
-    /**
-     * Check if buffer is currently recording
-     */
-    public boolean isBuffering() {
-        return CameraNeo.isInBufferMode();
     }
 
     /**
@@ -2874,6 +2812,7 @@ public class MediaCaptureService {
     public void cleanup() {
         assertMainThread();
         Log.d(TAG, "🧹 MediaCaptureService cleanup() called");
+        isCleaningUp.set(true);
 
         try {
             // Stop battery monitoring
@@ -2885,21 +2824,22 @@ public class MediaCaptureService {
                 stopVideoRecording(StopReason.ERROR);
             }
 
-            // Release video buffer
-            if (mVideoBuffer != null) {
-                try {
-                    mVideoBuffer.release();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error releasing video buffer", e);
-                }
-                mVideoBuffer = null;
-            }
-
             // Nuclear cleanup of handlers
             if (mBatteryMonitorHandler != null) {
                 mBatteryMonitorHandler.removeCallbacksAndMessages(null);
                 mBatteryMonitorHandler = null;
             }
+
+            videoIntegrityExecutor.shutdown();
+            try {
+                if (!videoIntegrityExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+                    videoIntegrityExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                videoIntegrityExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            videoCaptureIdsPendingIntegrityCheck.clear();
 
             Log.d(TAG, "✅ MediaCaptureService cleanup complete");
 
@@ -2936,6 +2876,4 @@ public class MediaCaptureService {
             Log.e(TAG, "📸 Error creating gallery status update", e);
         }
     }
-
-    // ========== CIRCULAR VIDEO BUFFER METHODS ==========
 }

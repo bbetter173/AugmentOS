@@ -9,21 +9,21 @@
 
 ## Changes Summary
 
-| Component           | File                                                                                           | What changes                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Shared types        | `cloud/packages/cloud/src/services/metrics/memory-census.ts`                                   | New `MemoryOwnerStat` and `MemoryStatsProvider` interfaces    |
-| Shared helpers      | `cloud/packages/cloud/src/services/metrics/memory-estimate.ts`                                 | String/JSON/array size estimators                             |
-| Session aggregation | `cloud/packages/cloud/src/services/session/UserSession.ts`                                     | `getMemoryCensus()` and direct session-owned stats            |
-| Transcription       | `cloud/packages/cloud/src/services/session/transcription/TranscriptionManager.ts`              | Expose transcript history, VAD buffer, stream counts          |
-| Translation         | `cloud/packages/cloud/src/services/session/translation/TranslationManager.ts`                  | Expose translation audio buffer, stream counts                |
-| Soniox provider     | `cloud/packages/cloud/src/services/session/translation/providers/SonioxTranslationProvider.ts` | Expose utterance/pending-audio/token state                    |
-| App audio           | `cloud/packages/cloud/src/services/session/AppAudioStreamManager.ts`                           | Expose pending chunks and stream counts                       |
-| Calendar            | `cloud/packages/cloud/src/services/session/CalendarManager.ts`                                 | Expose cached event counts/bytes                              |
-| Dashboard           | `cloud/packages/cloud/src/services/session/dashboard/DashboardManager.ts`                      | Expose content-map counts/bytes                               |
-| App session         | `cloud/packages/cloud/src/services/session/AppSession.ts`                                      | Expose subscription history / set size                        |
-| Metrics             | `cloud/packages/cloud/src/services/metrics/SystemVitalsLogger.ts`                              | Aggregate owners, compute deltas, log top owners and sessions |
-| Admin API           | `cloud/packages/cloud/src/api/hono/routes/admin.routes.ts`                                     | Add `memoryCensus` block to `/api/admin/memory/now`           |
-| CLI                 | `cloud/tools/bstack/bstack.ts`                                                                 | Add `memory-owners` command                                   |
+| Component           | File                                                                                           | What changes                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Shared types        | `cloud/packages/cloud/src/services/metrics/memory-census.ts`                                   | New `MemoryOwnerStat` and `MemoryStatsProvider` interfaces                     |
+| Shared helpers      | `cloud/packages/cloud/src/services/metrics/memory-estimate.ts`                                 | String/JSON/array size estimators                                              |
+| Session aggregation | `cloud/packages/cloud/src/services/session/UserSession.ts`                                     | `getMemoryCensus()` and direct session-owned stats                             |
+| Transcription       | `cloud/packages/cloud/src/services/session/transcription/TranscriptionManager.ts`              | Expose VAD buffer and active stream counts (transcript history removed in 098) |
+| Translation         | `cloud/packages/cloud/src/services/session/translation/TranslationManager.ts`                  | Expose translation audio buffer, stream counts                                 |
+| Soniox provider     | `cloud/packages/cloud/src/services/session/translation/providers/SonioxTranslationProvider.ts` | Expose utterance/pending-audio/token state                                     |
+| App audio           | `cloud/packages/cloud/src/services/session/AppAudioStreamManager.ts`                           | Expose pending chunks and stream counts                                        |
+| Calendar            | `cloud/packages/cloud/src/services/session/CalendarManager.ts`                                 | Expose cached event counts/bytes                                               |
+| Dashboard           | `cloud/packages/cloud/src/services/session/dashboard/DashboardManager.ts`                      | Expose content-map counts/bytes                                                |
+| App session         | `cloud/packages/cloud/src/services/session/AppSession.ts`                                      | Expose subscription history / set size                                         |
+| Metrics             | `cloud/packages/cloud/src/services/metrics/SystemVitalsLogger.ts`                              | Aggregate owners, compute deltas, log top owners and sessions                  |
+| Admin API           | `cloud/packages/cloud/src/api/hono/routes/admin.routes.ts`                                     | Add `memoryCensus` block to `/api/admin/memory/now`                            |
+| CLI                 | `cloud/tools/bstack/bstack.ts`                                                                 | Add `memory-owners` command                                                    |
 
 ## Shared Types
 
@@ -33,20 +33,20 @@ This file should be deliberately tiny. It is a common contract, not a framework.
 
 ```typescript
 export interface MemoryOwnerStat {
-  owner: string
-  scope: "session" | "app-session" | "stream" | "global"
-  itemCount: number
-  estimatedBytes: number
-  metadata?: Record<string, string | number | boolean | null>
+  owner: string;
+  scope: "session" | "app-session" | "stream" | "global";
+  itemCount: number;
+  estimatedBytes: number;
+  metadata?: Record<string, string | number | boolean | null>;
 }
 
 export interface SessionMemoryCensus {
-  estimatedBytes: number
-  owners: MemoryOwnerStat[]
+  estimatedBytes: number;
+  owners: MemoryOwnerStat[];
 }
 
 export interface MemoryStatsProvider {
-  getMemoryStats(): MemoryOwnerStat[]
+  getMemoryStats(): MemoryOwnerStat[];
 }
 ```
 
@@ -92,7 +92,7 @@ For transcript segments:
 estimatedBytes = sum(
   segments,
   (s) => estimateStringBytes(s.text) + estimateStringBytes(s.resultId) + estimateStringBytes(s.speakerId) + 64, // fixed scalar/object overhead proxy
-)
+);
 ```
 
 For `languageSegments`, emit one owner row per language. This matters because a single language may dominate.
@@ -245,11 +245,11 @@ Then sort sessions descending and keep top 10.
 #### New log fields
 
 ```typescript
-memoryEstimatedSessionBytes
-memoryOwnerCount
-memoryTopOwners
-memoryTopOwnerDeltas
-memoryTopSessions
+memoryEstimatedSessionBytes;
+memoryOwnerCount;
+memoryTopOwners;
+memoryTopOwnerDeltas;
+memoryTopSessions;
 ```
 
 All complex structures should be JSON strings, same pattern as other vitals fields.
@@ -467,16 +467,13 @@ Impact:
 - higher log noise
 - lower trust in the new forensic signal
 
-### 3. English transcript ownership is incompletely modeled
+### 3. Transcript-history owners were removed by issue 098
 
-Current design gap:
+Current state:
 
-- English transcript history is still retained in both the per-language structure and the legacy compatibility array
-- the current census only surfaces the legacy array when `en-US` is not present in the language map
-
-Impact:
-
-- undercounted ownership for one of the most suspicious memory paths
+- cloud-side transcript history is no longer retained (see `cloud/issues/098-kill-transcript-history/spike.md`)
+- the transcription census now reports only live in-flight structures (VAD audio buffer, active streams)
+- the previous English-history undercounting concern is moot because no transcript history is stored
 
 ### 4. Some estimators may be too expensive for steady-state prod use
 
@@ -495,8 +492,7 @@ Before first deploy, the next implementation pass should:
 
 1. make `memory-owner-growth` mean real positive growth
 2. add true per-session owner-delta attribution
-3. surface English transcription legacy ownership explicitly
-4. review and, if needed, simplify expensive estimators
+3. review and, if needed, simplify expensive estimators
 
 ## Traceability
 

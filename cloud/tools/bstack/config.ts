@@ -246,7 +246,7 @@ export const REGIONS: Record<string, Region> = {
   "east-asia": {
     name: "East Asia",
     clusterId: 4754,
-    healthUrl: "https://asiaeastapi.mentra.glass/health",
+    healthUrl: "https://asiaeastapi.mentraglass.com/health",
     dopplerConfig: "prod_east-asia",
     porterEnvGroup: "cloud-prod-east-asia",
   },

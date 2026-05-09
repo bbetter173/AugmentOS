@@ -56,6 +56,8 @@ const initialState: GlassesStore = {
   androidVersion: "",
   fwVersion: "",
   btMacAddress: "",
+  leftMacAddress: "",
+  rightMacAddress: "",
   buildNumber: "",
   otaVersionUrl: "",
   appVersion: "",
@@ -89,6 +91,7 @@ const initialState: GlassesStore = {
   // ring:
   controllerConnected: false,
   controllerFullyBooted: false,
+  controllerMacAddress: "",
   controllerBatteryLevel: -1,
   controllerSignalStrength: -1,
 }

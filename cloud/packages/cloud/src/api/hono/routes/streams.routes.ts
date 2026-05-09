@@ -107,6 +107,9 @@ async function addRestreamOutput(c: AppContext) {
   }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+  if (!streamId) {
+    return c.json({ error: "streamId is required" }, 400);
+  }
 
   if (!streamId) {
     return c.json(
@@ -254,6 +257,9 @@ async function removeRestreamOutput(c: AppContext) {
   }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+  if (!streamId || !outputId) {
+    return c.json({ error: "streamId and outputId are required" }, 400);
+  }
 
   if (!streamId || !outputId) {
     return c.json(
@@ -363,6 +369,9 @@ async function listRestreamOutputs(c: AppContext) {
   }
   const appDoc = (c as any).app as AppI;
   const packageName = appDoc.packageName;
+  if (!streamId) {
+    return c.json({ error: "streamId is required" }, 400);
+  }
 
   if (!streamId) {
     return c.json(

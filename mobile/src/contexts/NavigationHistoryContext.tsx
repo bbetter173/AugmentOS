@@ -1,5 +1,5 @@
 import {router, useFocusEffect, usePathname, useSegments, useNavigation} from "expo-router"
-import {createContext, useContext, useEffect, useRef, useCallback, useState} from "react"
+import {createContext, useContext, useEffect, useRef, useCallback, useMemo, useState} from "react"
 import {BackHandler, Platform} from "react-native"
 import {CommonActions} from "@react-navigation/native"
 
@@ -84,14 +84,14 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
 
     if (historyRef.current.length < 1) {
       historyRef.current.push(newPath)
-      setDebugHistory([...historyRef.current])
+      // setDebugHistory([...historyRef.current])
       return
     }
 
     // Keep history limited to prevent memory issues (keep last 20 entries)
     if (historyRef.current.length > 20) {
       historyRef.current = historyRef.current.slice(-20)
-      setDebugHistory([...historyRef.current])
+      // setDebugHistory([...historyRef.current])
     }
 
     let currentPath = historyRef.current[historyRef.current.length - 1]
@@ -111,7 +111,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     } else {
       historyRef.current.push(newPath)
     }
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
   }, [pathname])
 
   // always block the android back button, but allow the behavior to be overridden by the androidBackFnRef:
@@ -119,7 +119,9 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
   useEffect(() => {
     console.log("NAV: ======== REGISTERING BACK HANDLER ===========")
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      console.log("NAV: ======== BACK HANDLER CALLED ===========")
+      console.log(
+        `NAV: ======== BACK HANDLER CALLED preventBack: ${preventBack} fn: ${androidBackFnRef.current} ===========`,
+      )
       if (!preventBack) {
         goBack()
         return true
@@ -187,7 +189,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     // remove current path:
     historyRef.current.pop()
     historyParamsRef.current.pop()
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
 
     // Get previous path
     // const previousPath = historyRef.current[historyRef.current.length - 2]
@@ -224,7 +226,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
 
     historyRef.current.push(path)
     historyParamsRef.current.push(params)
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
 
     if (params?.transition) {
       setAnimation(params.transition)
@@ -244,7 +246,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     historyParamsRef.current.pop()
     historyRef.current.push(path)
     historyParamsRef.current.push(params)
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
     if (params?.transition) {
       setAnimation(params.transition)
     }
@@ -277,7 +279,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     console.info("NAV: clearHistory()")
     historyRef.current = []
     historyParamsRef.current = []
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
     try {
       router.dismissAll()
     } catch (_e) {}
@@ -320,7 +322,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
       router.replace({pathname: "/home" as any, params: params as any})
       historyRef.current = ["/home"]
       historyParamsRef.current = [undefined]
-      setDebugHistory([...historyRef.current])
+      // setDebugHistory([...historyRef.current])
       if (params?.transition) {
         resetAnimationDelayed()
       }
@@ -346,7 +348,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     // push(path, params)
     historyRef.current = [path]
     historyParamsRef.current = [params]
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
     router.replace({pathname: path as any, params: params as any})
   }
 
@@ -394,7 +396,7 @@ export function NavigationHistoryProvider({children}: {children: React.ReactNode
     // Insert new path right before current in history
     historyRef.current.splice(currentIndex, 0, path)
     historyParamsRef.current.splice(currentIndex, 0, params)
-    setDebugHistory([...historyRef.current])
+    // setDebugHistory([...historyRef.current])
   }
 
   const pushList = (routes: string[], params: any[]) => {
@@ -537,7 +539,9 @@ export function useNavigationHistory() {
 }
 
 // screens that call this function will prevent the back button from being pressed:
-export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?: boolean) => {
+export type PreventBackEvent = {actionType: string}
+
+export const focusEffectPreventBack = (backFn?: (event?: PreventBackEvent) => void, iosDontPreventBack?: boolean) => {
   const {incPreventBack, decPreventBack, setAndroidBackFn} = useNavigationHistory()
   const navigation = useNavigation()
 
@@ -545,13 +549,13 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
   if (Platform.OS === "ios") {
     useFocusEffect(
       useCallback(() => {
-        const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-          backFn?.()
+        const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+          backFn?.({actionType: e?.data?.action?.type ?? ""})
         })
         return () => {
           unsubscribe()
         }
-      }, [backFn, iosDontPreventBack]),
+      }, [backFn]),
     )
   }
 
@@ -564,7 +568,7 @@ export const focusEffectPreventBack = (backFn?: () => void, iosDontPreventBack?:
     useCallback(() => {
       incPreventBack()
       if (backFn) {
-        setAndroidBackFn(backFn)
+        setAndroidBackFn(() => backFn())
       }
       return () => {
         decPreventBack()

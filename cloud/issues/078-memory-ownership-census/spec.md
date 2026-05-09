@@ -43,15 +43,15 @@ Add shared types used by all memory-stat providers:
 
 ```typescript
 export interface MemoryOwnerStat {
-  owner: string // e.g. "transcription.history.en-US"
-  scope: "session" | "app-session" | "stream" | "global"
-  itemCount: number // number of elements / entries / chunks
-  estimatedBytes: number // best-effort estimate, not exact heap size
-  metadata?: Record<string, string | number | boolean | null>
+  owner: string; // e.g. "transcription.history.en-US"
+  scope: "session" | "app-session" | "stream" | "global";
+  itemCount: number; // number of elements / entries / chunks
+  estimatedBytes: number; // best-effort estimate, not exact heap size
+  metadata?: Record<string, string | number | boolean | null>;
 }
 
 export interface MemoryStatsProvider {
-  getMemoryStats(): MemoryOwnerStat[]
+  getMemoryStats(): MemoryOwnerStat[];
 }
 ```
 
@@ -169,11 +169,11 @@ Every vitals tick:
 Add these new fields to `system-vitals`:
 
 ```typescript
-memoryEstimatedSessionBytes
-memoryTopOwners // JSON string: top 10 owners by estimatedBytes
-memoryTopOwnerDeltas // JSON string: top 10 owners by +deltaBytes since last tick
-memoryTopSessions // JSON string: top 10 sessions by estimatedBytes
-memoryOwnerCount // number of owner rows aggregated
+memoryEstimatedSessionBytes;
+memoryTopOwners; // JSON string: top 10 owners by estimatedBytes
+memoryTopOwnerDeltas; // JSON string: top 10 owners by +deltaBytes since last tick
+memoryTopSessions; // JSON string: top 10 sessions by estimatedBytes
+memoryOwnerCount; // number of owner rows aggregated
 ```
 
 **Shape examples**

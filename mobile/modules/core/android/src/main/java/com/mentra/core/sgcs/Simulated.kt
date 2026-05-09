@@ -51,18 +51,6 @@ class Simulated : SGCManager() {
         Bridge.log("sendStreamKeepAlive")
     }
 
-    override fun startBufferRecording() {
-        Bridge.log("startBufferRecording")
-    }
-
-    override fun stopBufferRecording() {
-        Bridge.log("stopBufferRecording")
-    }
-
-    override fun saveBufferVideo(requestId: String, durationSeconds: Int) {
-        Bridge.log("saveBufferVideo")
-    }
-
     override fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {
         Bridge.log("startVideoRecording flash=$flash, sound=$sound")
     }
@@ -192,6 +180,9 @@ class Simulated : SGCManager() {
         Bridge.log("ping")
     }
 
+    override fun dbg1() {}
+    override fun dbg2() {}
+
     // Network Management
     override fun requestWifiScan() {
         Bridge.log("requestWifiScan")
@@ -213,7 +204,7 @@ class Simulated : SGCManager() {
         Bridge.log("sendUserEmailToGlasses: $email")
     }
 
-    override fun sendIncidentId(incidentId: String) {
+    override fun sendIncidentId(incidentId: String, apiBaseUrl: String?) {
         Bridge.log("sendIncidentId: $incidentId")
     }
 

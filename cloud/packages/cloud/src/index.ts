@@ -145,7 +145,12 @@ const _server = Bun.serve({
     const url = new URL(req.url);
 
     // WebSocket upgrade requests
-    if (url.pathname === "/glasses-ws" || url.pathname === "/app-ws") {
+    if (
+      url.pathname === "/glasses-ws" ||
+      url.pathname === "/app-ws" ||
+      url.pathname === "/ws/client" ||
+      url.pathname === "/ws/miniapp"
+    ) {
       const upgradeResult = handleUpgrade(req, server);
       if (upgradeResult === undefined) {
         // Upgrade successful
@@ -189,6 +194,17 @@ logger.info(`\n
     ☁️☁️☁️      ⚡ Pure Hono + Bun Native ⚡
     ☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️
     ☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️☁️\n`);
+
+logger.info(
+  {
+    feature: "process-lifecycle",
+    event: "process-started",
+    pid: process.pid,
+    bunVersion: Bun.version,
+    port: PORT,
+  },
+  "Process lifecycle: started",
+);
 
 // ---------------------------------------------------------------------------
 // Fail-fast shutdown on SIGTERM/SIGINT
@@ -273,12 +289,13 @@ async function failFastShutdown(signal: string): Promise<void> {
   // Watchdog: if anything hangs, force-exit at the budget with a distinct code.
   const watchdog = setTimeout(() => {
     shutdownStderrLine({
+      feature: "process-lifecycle",
       event: "shutdown-watchdog-fired",
       signal,
       budgetMs: SHUTDOWN_BUDGET_MS,
       elapsedMs: Date.now() - t0,
     });
-     
+
     process.exit(1);
   }, SHUTDOWN_BUDGET_MS);
   watchdog.unref();
@@ -286,6 +303,7 @@ async function failFastShutdown(signal: string): Promise<void> {
   // Step 1: announce via synchronous stderr (Pino logs may not flush in time).
   const sessions = UserSession.getAllSessions();
   shutdownStderrLine({
+    feature: "process-lifecycle",
     event: "shutdown-started",
     signal,
     pid: process.pid,
@@ -304,15 +322,20 @@ async function failFastShutdown(signal: string): Promise<void> {
     } catch {
       // swallow per-socket
     }
-    if (session.appWebsockets) {
-      for (const [, appWs] of session.appWebsockets) {
-        try {
-          appWs.close(1001, "Server shutting down");
-          closedApps++;
-        } catch {
-          // swallow per-socket
+    try {
+      const appWsMap = session.appWebsockets;
+      if (appWsMap) {
+        for (const [, appWs] of appWsMap) {
+          try {
+            appWs.close(1001, "Server shutting down");
+            closedApps++;
+          } catch {
+            // swallow per-socket
+          }
         }
       }
+    } catch {
+      // swallow per-session (getter / iteration failure must not abort the loop)
     }
   }
 
@@ -330,6 +353,7 @@ async function failFastShutdown(signal: string): Promise<void> {
 
   // Step 5: announce completion via synchronous stderr.
   shutdownStderrLine({
+    feature: "process-lifecycle",
     event: "shutdown-complete",
     signal,
     elapsedMs: Date.now() - t0,
@@ -339,7 +363,7 @@ async function failFastShutdown(signal: string): Promise<void> {
   });
 
   clearTimeout(watchdog);
-   
+
   process.exit(0);
 }
 

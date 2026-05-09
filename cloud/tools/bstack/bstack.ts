@@ -51,6 +51,56 @@ import {
 } from "./config";
 
 // ---------------------------------------------------------------------------
+// Doppler auto-load for SRE credentials
+// ---------------------------------------------------------------------------
+// If BETTERSTACK_USERNAME isn't set, try loading from Doppler mentra-sre project.
+// This means you can just run `bstack health` without wrapping in `doppler run`.
+
+function tryDopplerLoad(): void {
+  if (SQL_USERNAME && SQL_PASSWORD) return; // Already set
+
+  try {
+    const { execSync } = require("child_process");
+    const get = (key: string): string =>
+      execSync(`doppler secrets get ${key} --project mentra-sre --config dev --plain 2>/dev/null`, {
+        encoding: "utf-8",
+        timeout: 5000,
+      }).trim();
+
+    if (!process.env.BETTERSTACK_USERNAME && !process.env.BETTERSTACK_SQL_USERNAME) {
+      process.env.BETTERSTACK_USERNAME = get("BETTERSTACK_USERNAME");
+    }
+    if (!process.env.BETTERSTACK_PASSWORD && !process.env.BETTERSTACK_SQL_PASSWORD) {
+      process.env.BETTERSTACK_PASSWORD = get("BETTERSTACK_PASSWORD");
+    }
+    if (!process.env.BETTERSTACK_API_TOKEN) {
+      try {
+        process.env.BETTERSTACK_API_TOKEN = get("BETTERSTACK_API_TOKEN");
+      } catch {
+        /* optional — API token not required for SQL queries */
+      }
+    }
+    if (!process.env.MENTRA_ADMIN_JWT) {
+      try {
+        process.env.MENTRA_ADMIN_JWT = get("MENTRA_ADMIN_JWT");
+      } catch {
+        /* optional — admin JWT only needed for admin API calls */
+      }
+    }
+  } catch {
+    // Doppler not installed or not configured — fall back to env vars
+  }
+}
+
+tryDopplerLoad();
+
+// Re-read after Doppler load (config.ts reads at import time, so we re-read here)
+const _SQL_USERNAME = process.env.BETTERSTACK_SQL_USERNAME || process.env.BETTERSTACK_USERNAME || "";
+const _SQL_PASSWORD = process.env.BETTERSTACK_SQL_PASSWORD || process.env.BETTERSTACK_PASSWORD || "";
+const _API_TOKEN = process.env.BETTERSTACK_API_TOKEN || "";
+const _ADMIN_JWT = process.env.MENTRA_ADMIN_JWT || "";
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -124,10 +174,48 @@ interface QueryResult {
   statistics?: { elapsed: number; rows_read: number; bytes_read: number };
 }
 
-async function runSql(sql: string): Promise<QueryResult> {
-  validateSqlCredentials();
+/**
+ * Pick the right table based on duration — hot storage for recent (<5min),
+ * historical/S3 for anything older. The user never needs to think about this.
+ */
+function getTableForDuration(env: "prod" | "dev", duration: string): string {
+  const match = duration.match(/^(\d+)\s*(MINUTE|HOUR|DAY|SECOND)/i);
+  if (!match) return getLogsTable(env);
 
-  const auth = Buffer.from(`${SQL_USERNAME}:${SQL_PASSWORD}`).toString("base64");
+  const num = parseInt(match[1]);
+  const unit = match[2].toUpperCase();
+  const minutes = unit === "SECOND" ? num / 60 : unit === "MINUTE" ? num : unit === "HOUR" ? num * 60 : num * 1440;
+
+  // Hot storage only reliably has the last ~5 minutes
+  if (minutes <= 5) {
+    return getLogsTable(env);
+  }
+
+  // Historical S3 for anything older
+  return env === "prod" ? LOG_SOURCES.prod.historicalTable : LOG_SOURCES.dev.historicalTable;
+}
+
+/**
+ * Wrap a query with the right WHERE clause for historical tables.
+ * S3 tables need `_row_type = 1` to filter to log rows.
+ */
+function isHistoricalTable(table: string): boolean {
+  return table.includes("s3Cluster");
+}
+
+async function runSql(sql: string): Promise<QueryResult> {
+  // Use Doppler-loaded creds if available
+  const username = _SQL_USERNAME || SQL_USERNAME;
+  const password = _SQL_PASSWORD || SQL_PASSWORD;
+
+  if (!username || !password) {
+    console.error("❌ BetterStack SQL credentials not set.");
+    console.error("   Run: doppler run --project mentra-sre --config dev -- bstack <command>");
+    console.error("   Or set BETTERSTACK_USERNAME and BETTERSTACK_PASSWORD env vars.");
+    process.exit(1);
+  }
+
+  const auth = Buffer.from(`${username}:${password}`).toString("base64");
   const res = await fetch(SQL_ENDPOINT, {
     method: "POST",
     headers: {
@@ -839,6 +927,196 @@ async function cmdSources() {
 
 // ── sql ─────────────────────────────────────────────────────────────────────
 
+// ── logs — search logs for a user/keyword ────────────────────────────────────
+
+async function cmdLogs(flags: Record<string, string>, positional: string[]) {
+  const query = positional.join(" ");
+  if (!query) {
+    console.error(
+      "Usage: bstack logs <userId or keyword> [--level error] [--duration 15m] [--region us-central] [--env prod]",
+    );
+    console.error("\nExamples:");
+    console.error("  bstack logs isaiahballah@gmail.com");
+    console.error("  bstack logs isaiahballah@gmail.com --level error");
+    console.error("  bstack logs isaiahballah@gmail.com --duration 1h --env dev");
+    console.error("  bstack logs captions --level warn --region france");
+    process.exit(1);
+  }
+
+  const duration = normalizeDuration(getFlag(flags, "duration", "15m"));
+  const level = getFlag(flags, "level", "");
+  const region = getFlag(flags, "region", "");
+  const env = getFlag(flags, "env", "prod") as "prod" | "dev";
+  const limit = getFlag(flags, "limit", "30");
+  const service = getFlag(flags, "service", "");
+
+  const table = getTableForDuration(env, duration);
+  const historical = isHistoricalTable(table);
+
+  let where = `raw LIKE '%${query}%' AND dt > now() - INTERVAL ${duration}`;
+  if (historical) where = `_row_type = 1 AND ${where}`;
+  if (level)
+    where += ` AND JSONExtractString(raw, 'level') IN (${level
+      .split(",")
+      .map((l) => `'${l.trim()}'`)
+      .join(",")})`;
+  if (region) where += ` AND JSONExtractString(raw, 'region') = '${region}'`;
+  if (service) where += ` AND JSONExtractString(raw, 'service') = '${service}'`;
+
+  const sql = `SELECT dt, JSONExtractString(raw, 'level') as level, JSONExtractString(raw, 'message') as message, JSONExtractString(raw, 'service') as service FROM ${table} WHERE ${where} ORDER BY dt DESC LIMIT ${limit}`;
+
+  console.log(
+    `🔍 Logs matching "${query}" (last ${duration}, ${env}${region ? `, ${region}` : ""}${level ? `, level=${level}` : ""})\n`,
+  );
+
+  const result = await runSql(sql);
+  printTable(result.data);
+
+  if (result.statistics) {
+    console.log(
+      `\n  ${result.rows} rows | ${result.statistics.elapsed.toFixed(3)}s | ${(result.statistics.bytes_read / 1024 / 1024).toFixed(1)}MB scanned`,
+    );
+  }
+
+  if (result.rows === 0) {
+    console.log(`\n  💡 No results? Try:`);
+    console.log(`     --duration 1h  (search further back)`);
+    console.log(`     --env dev      (search dev/debug source instead of prod)`);
+    console.log(`     --level ""     (remove level filter)`);
+  }
+}
+
+// ── errors — top errors by count ─────────────────────────────────────────────
+
+async function cmdErrors(flags: Record<string, string>) {
+  const region = getFlag(flags, "region", "us-central");
+  const duration = normalizeDuration(getFlag(flags, "duration", "4h"));
+  const top = getFlag(flags, "limit", "20");
+  const env = getFlag(flags, "env", "prod") as "prod" | "dev";
+
+  const table = getTableForDuration(env, duration);
+  const historical = isHistoricalTable(table);
+  const rowFilter = historical ? "_row_type = 1 AND " : "";
+
+  const sql = `SELECT JSONExtractString(raw, 'service') as service, substring(JSONExtractString(raw, 'message'), 1, 100) as message, count() as total FROM ${table} WHERE ${rowFilter}dt >= now() - INTERVAL ${duration} AND JSONExtractString(raw, 'level') IN ('error', 'fatal') AND JSONExtractString(raw, 'region') = '${region}' GROUP BY service, message ORDER BY total DESC LIMIT ${top}`;
+
+  console.log(`🔴 Top Errors — ${region} (last ${duration})\n`);
+
+  const result = await runSql(sql);
+  printTable(result.data);
+
+  if (result.statistics) {
+    console.log(
+      `\n  ${result.rows} rows | ${result.statistics.elapsed.toFixed(3)}s | ${(result.statistics.bytes_read / 1024 / 1024).toFixed(1)}MB scanned`,
+    );
+  }
+}
+
+// ── leaks — memory leak detection ────────────────────────────────────────────
+
+async function cmdLeaks(flags: Record<string, string>) {
+  const region = getFlag(flags, "region", "us-central");
+  const duration = normalizeDuration(getFlag(flags, "duration", "12h"));
+  const env = getFlag(flags, "env", "prod") as "prod" | "dev";
+
+  const table = getTableForDuration(env, duration);
+  const historical = isHistoricalTable(table);
+  const rowFilter = historical ? "_row_type = 1 AND " : "";
+
+  console.log(`🔍 Memory Leak Check — ${region} (last ${duration})\n`);
+
+  // 1. disposedSessionsPendingGC trend
+  const leakSql = `SELECT toStartOfHour(dt) as hour, avg(JSONExtractInt(raw, 'disposedSessionsPendingGC')) as avg_leaked, avg(JSONExtractFloat(raw, 'rssMB')) as avg_rss, avg(JSONExtractFloat(raw, 'heapUsedMB')) as avg_heap, avg(JSONExtractInt(raw, 'activeSessions')) as sessions FROM ${table} WHERE ${rowFilter}JSONExtractString(raw, 'feature') = 'system-vitals' AND JSONExtractString(raw, 'region') = '${region}' AND dt >= now() - INTERVAL ${duration} GROUP BY hour ORDER BY hour ASC`;
+
+  const leakResult = await runSql(leakSql);
+  console.log("📊 Disposed Sessions Pending GC (should be 0):\n");
+  printTable(leakResult.data);
+
+  // 2. GC freed amounts
+  const gcSql = `SELECT toStartOfHour(dt) as hour, count() as probes, avg(JSONExtractFloat(raw, 'gcDurationMs')) as avg_gc_ms, max(JSONExtractFloat(raw, 'gcDurationMs')) as max_gc_ms, avg(JSONExtractFloat(raw, 'freedMB')) as avg_freed_mb FROM ${table} WHERE ${rowFilter}JSONExtractString(raw, 'feature') = 'gc-probe' AND JSONExtractString(raw, 'region') = '${region}' AND dt >= now() - INTERVAL ${duration} GROUP BY hour ORDER BY hour ASC`;
+
+  const gcResult = await runSql(gcSql);
+  console.log("\n🗑️  GC Probe Trend (freed_mb should be > 0):\n");
+  printTable(gcResult.data);
+
+  // 3. Leak warnings from MemoryLeakDetector
+  const warnSql = `SELECT dt, JSONExtractString(raw, 'tag') as tag, JSONExtractString(raw, 'message') as status FROM ${table} WHERE ${rowFilter}JSONExtractString(raw, 'service') = 'MemoryLeakDetector' AND JSONExtractString(raw, 'region') = '${region}' AND dt >= now() - INTERVAL ${duration} ORDER BY dt DESC LIMIT 20`;
+
+  const warnResult = await runSql(warnSql);
+  if (warnResult.rows > 0) {
+    console.log("\n⚠️  MemoryLeakDetector Events:\n");
+    printTable(warnResult.data);
+  }
+
+  // Summary
+  if (leakResult.data.length > 0) {
+    const latest = leakResult.data[leakResult.data.length - 1];
+    const leaked = parseFloat(latest.avg_leaked) || 0;
+    const rss = parseFloat(latest.avg_rss) || 0;
+    if (leaked > 1) {
+      console.log(`\n  🔴 LEAK DETECTED: ${leaked.toFixed(1)} disposed sessions stuck in memory`);
+      console.log(`     RSS: ${rss.toFixed(0)}MB — run timer audit (see: bstack runbook pod-crash)`);
+    } else {
+      console.log(`\n  ✅ No leak detected (disposedSessionsPendingGC = ${leaked.toFixed(1)})`);
+    }
+  }
+}
+
+// ── session — live session inspection ────────────────────────────────────────
+
+async function cmdSession(flags: Record<string, string>, positional: string[]) {
+  const userId = positional[0];
+  const host = getFlag(flags, "host", "");
+
+  if (!userId || !host) {
+    console.error("Usage: bstack session <userId> --host <hostname>");
+    console.error("\nExamples:");
+    console.error("  bstack session isaiahballah@gmail.com --host debug.augmentos.cloud");
+    console.error("  bstack session user@example.com --host uscentralapi.mentra.glass");
+    process.exit(1);
+  }
+
+  const jwt = _ADMIN_JWT || process.env.MENTRA_ADMIN_JWT || "";
+  if (!jwt) {
+    console.error("❌ MENTRA_ADMIN_JWT not set. Set it in env or Doppler mentra-sre project.");
+    process.exit(1);
+  }
+
+  console.log(`🔍 Session: ${userId} on ${host}\n`);
+
+  try {
+    const res = await fetch(`https://${host}/api/admin/memory/now`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    if (!res.ok) {
+      console.error(`❌ HTTP ${res.status}: ${await res.text()}`);
+      return;
+    }
+
+    const data = (await res.json()) as any;
+    const session = (data.sessions || []).find((s: any) => s.userId === userId);
+
+    if (!session) {
+      console.log(`  ❌ No active session for ${userId}`);
+      console.log(`  Active users: ${(data.sessions || []).map((s: any) => s.userId).join(", ") || "(none)"}`);
+      return;
+    }
+
+    console.log(`  User:          ${session.userId}`);
+    console.log(`  Running Apps:  ${(session.runningApps || []).join(", ") || "(none)"}`);
+    console.log(`  Loading Apps:  ${(session.loadingApps || []).join(", ") || "(none)"}`);
+    console.log(`  Apps:          ${JSON.stringify(session.apps || {})}`);
+    console.log(`  Subscriptions: ${JSON.stringify(session.subscriptions || {})}`);
+
+    if (session.mic !== undefined) console.log(`  Mic:           ${JSON.stringify(session.mic)}`);
+    if (session.audio !== undefined) console.log(`  Audio:         ${JSON.stringify(session.audio)}`);
+  } catch (error: any) {
+    console.error(`❌ Error: ${error.message}`);
+  }
+}
+
+// ── sql ──────────────────────────────────────────────────────────────────────
+
 async function cmdSql(positional: string[]) {
   const sql = positional.join(" ");
   if (!sql) {
@@ -896,29 +1174,145 @@ function cmdHelp() {
   console.log(`
 bstack — BetterStack CLI for MentraCloud SRE
 
-Commands:
-  bstack health                              Quick health check across all regions
-  bstack diagnostics --region <r>            Full diagnostics (GC, gaps, MongoDB, budget)
-  bstack crash-timeline --region <r>         What happened before the last crash
-  bstack memory --region <r> [--duration 1h] Memory trend over time
-  bstack memory-owners --region <r>          Top memory owners and growth
-  bstack device-state --region <r>           Device-state storm volume + top emitters (issue 099)
-  bstack gc --region <r> [--duration 1h]     GC probe analysis
-  bstack gaps --region <r> [--duration 1h]   Event loop gap analysis
-  bstack budget --region <r>                 Operation budget (CPU consumers)
-  bstack slow-queries --region <r>           MongoDB slow query breakdown
-  bstack cache --region <r>                  App cache status
-  bstack incidents [--limit 10]              Recent uptime incidents
-  bstack sources                             List all BetterStack sources/collectors
-  bstack sql "SELECT ..."                    Raw ClickHouse SQL query
-  bstack runbook <name>                      Open a runbook
+═══════════════════════════════════════════════════════════════════════════
+HOW IT WORKS (for humans and AI agents)
+═══════════════════════════════════════════════════════════════════════════
+
+This CLI sends ClickHouse SQL queries to BetterStack's HTTP API at:
+  ${SQL_ENDPOINT}
+
+Logs are stored in two places with different tradeoffs:
+  HOT storage  — last ~2-5 minutes only, fast (<1s queries)
+    Prod:  remote(t373499_mentracloud_prod_logs)
+    Dev:   remote(t373499_augmentos_logs)
+  COLD storage — full history, slower (3-5s queries), needs _row_type = 1
+    Prod:  s3Cluster(primary, t373499_mentracloud_prod_s3)
+    Dev:   s3Cluster(primary, t373499_augmentos_s3)
+
+The CLI auto-selects hot vs cold based on --duration:
+  ≤5 min  → hot table (fast, recent data only)
+  >5 min  → cold/S3 table (slow, full history, adds WHERE _row_type = 1)
+If you get zero rows for a query you expect data for, the duration might
+be too short for cold storage or too long for hot storage.
+
+Log fields are in a JSON blob called 'raw'. To extract fields use:
+  JSONExtractString(raw, 'level')    → "error", "warn", "info", "debug"
+  JSONExtractString(raw, 'message')  → the log message
+  JSONExtractString(raw, 'service')  → "AppManager", "UserSession", etc.
+  JSONExtractString(raw, 'region')   → "us-central", "france", etc.
+  JSONExtractString(raw, 'feature')  → "system-vitals", "gc-probe", etc.
+  JSONExtractString(raw, 'userId')   → user email
+  JSONExtractFloat(raw, 'rssMB')     → RSS memory in MB
+  JSONExtractInt(raw, 'activeSessions') → session count
+Do NOT use json.field dot notation — it doesn't work on these tables.
+
+Credentials are loaded in this order:
+  1. Environment variables (BETTERSTACK_USERNAME, BETTERSTACK_PASSWORD, etc.)
+  2. Auto-load from Doppler: doppler secrets get --project mentra-sre --config dev
+     (runs automatically if env vars are missing and doppler CLI is installed)
+SRE credentials live in Doppler project "mentra-sre" (NOT "mentraos-cloud").
+Cloud runtime secrets (MONGO_URL, etc.) are in "mentraos-cloud" — don't mix them.
+
+The admin API (for 'session' command) hits the cloud's /api/admin/memory/now
+endpoint with a Bearer JWT. The JWT is MENTRA_ADMIN_JWT from mentra-sre.
+
+Health checks hit each region's /health endpoint directly (no BetterStack):
+${Object.entries(REGIONS)
+  .map(([id, r]) => `  ${id.padEnd(12)} → ${r.healthUrl}`)
+  .join("\n")}
+
+If a command isn't doing what you need, use 'bstack sql' to run raw
+ClickHouse SQL directly. The patterns above show exactly how to query.
+
+═══════════════════════════════════════════════════════════════════════════
+COMMANDS
+═══════════════════════════════════════════════════════════════════════════
+
+Investigation:
+  bstack logs <user|keyword>                 Search logs by user or keyword
+    --level error,warn                         Filters: JSONExtractString(raw, 'level') IN (...)
+    --duration 1h                              How far back (default: 15m). Controls hot vs cold table.
+    --region france                            Filters: JSONExtractString(raw, 'region') = '...'
+    --service AppManager                       Filters: JSONExtractString(raw, 'service') = '...'
+    --env dev                                  Search dev/debug source instead of prod (default: prod)
+    Internally: SELECT dt, level, message, service FROM <table> WHERE raw LIKE '%<query>%' ...
+
+  bstack errors --region <r>                 Top errors grouped by service + message
+    --duration 4h                              Time window (default: 4h)
+    Internally: GROUP BY service, message ORDER BY count() DESC
+
+  bstack leaks --region <r>                  Memory leak detection — 3 queries:
+    --duration 12h                             Time window (default: 12h)
+    1. disposedSessionsPendingGC trend (from system-vitals, grouped by hour)
+       Should be 0. If climbing, sessions are stuck in memory after dispose().
+    2. GC probe trend (from gc-probe). avg_freed_mb should be > 0.
+       If GC frees 0MB consistently, objects are reachable but shouldn't be.
+    3. MemoryLeakDetector events — "Potential leak" = disposed but not GC'd
+       within 60s. "Object finalized by GC" = eventually collected (ok).
+
+  bstack session <userId> --host <hostname>  Hits GET /api/admin/memory/now on the host,
+    finds the user's session, shows running apps, subscriptions, mic state.
+    Requires MENTRA_ADMIN_JWT. Host must be the actual cloud hostname.
+
+Diagnostics:
+  bstack health                              Fetches /health from ALL regions in parallel.
+    Shows: sessions, uptime, RSS, heap, event loop lag.
+    Also fetches BetterStack uptime monitors if API_TOKEN is set.
+
+  bstack diagnostics --region <r>            Runs 5 queries: GC probes, event loop gaps,
+    MongoDB slow queries, operation budget, app cache. All from system-vitals/gc-probe/etc.
+
+  bstack crash-timeline --region <r>         Shows interleaved system-vitals, gc-probe,
+    event-loop-gap, and slow-query events to reconstruct what happened before a crash.
+
+  bstack memory --region <r> [--duration 1h] RSS/heap/external/arraybuf trend over time.
+    Calculates growth rate and estimates time to 1GB.
+
+  bstack memory-owners --region <r>          Top memory owners and growth.
+
+  bstack device-state --region <r>           Device-state storm volume + top emitters (issue 099).
+    --duration 30m                             Time window (default: 30m)
+    Shows: 1. pod-wide updates/min from system-vitals
+           2. top-10 emitters within the window
+    Internally: JSONExtract(raw, 'feature') = 'device-state'
+
+  bstack gc --region <r> [--duration 1h]     GC probe durations and freed MB.
+    Warns if max GC > 100ms (contributing to event loop blocking).
+
+  bstack gaps --region <r> [--duration 1h]   Event loop gaps (>1s freezes).
+    Zero gaps = healthy. Any gaps = something blocking (GC, MongoDB, etc.).
+
+  bstack budget --region <r>                 Per-operation CPU time breakdown.
+    Shows audio processing, app messages, display rendering, MongoDB, etc.
+    Budget > 50% = event loop is CPU-bound. < 20% = healthy headroom.
+
+  bstack slow-queries --region <r>           MongoDB queries > 100ms, grouped by
+    collection + operation. Shows count, avg/max duration, total blocking time.
+
+  bstack cache --region <r>                  App cache refresh stats (count, timing).
+
+Infrastructure:
+  bstack incidents [--limit 10]              Fetches from BetterStack Uptime API.
+    Requires BETTERSTACK_API_TOKEN. Shows start time, cause, resolution.
+
+  bstack sources                             Lists all BetterStack log sources, collectors,
+    dashboards, and uptime monitors with their IDs and table names.
+
+  bstack sql "SELECT ..."                    Runs raw ClickHouse SQL. Append FORMAT JSON
+    automatically. Use this when no built-in command covers your query.
+
+  bstack runbook <name>                      Prints a runbook from cloud/tools/bstack/runbooks/.
+    Runbooks contain step-by-step investigation procedures with example queries.
 
 Regions: ${getAllRegions().join(", ")}
+Cluster IDs: ${Object.entries(REGIONS)
+    .map(([id, r]) => `${id}=${r.clusterId}`)
+    .join(", ")}
 
-Environment:
-  BETTERSTACK_USERNAME    ClickHouse HTTP API username
-  BETTERSTACK_PASSWORD    ClickHouse HTTP API password
-  BETTERSTACK_API_TOKEN   Management API token (for uptime)
+📖 Runbooks (run 'bstack runbook <name>' to read):
+  pod-crash            What to do when a pod crashes (exit codes, heap analysis, timer audit)
+  weekly-error-audit   Weekly error audit process (top errors, log volume, churn, memory)
+  client-disconnect    Investigate client disconnection patterns (ws-close, ws-reconnect)
 `);
 }
 
@@ -978,6 +1372,22 @@ try {
       break;
     case "cache":
       await cmdCache(flags);
+      break;
+    case "logs":
+    case "log":
+      await cmdLogs(flags, positional);
+      break;
+    case "errors":
+    case "err":
+      await cmdErrors(flags);
+      break;
+    case "leaks":
+    case "leak":
+      await cmdLeaks(flags);
+      break;
+    case "session":
+    case "sess":
+      await cmdSession(flags, positional);
       break;
     case "incidents":
     case "inc":

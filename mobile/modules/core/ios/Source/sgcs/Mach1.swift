@@ -14,7 +14,7 @@ import UltraliteSDK
 
 @MainActor
 class Mach1: UltraliteBaseViewController, SGCManager {
-    func sendIncidentId(_: String) {}
+    func sendIncidentId(_: String, apiBaseUrl _: String?) {}
 
     func requestPhoto(
         _: String, appId _: String, size _: String?, webhookUrl _: String?, authToken _: String?,
@@ -92,12 +92,6 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func sendStreamKeepAlive(_: [String: Any]) {}
 
-    func startBufferRecording() {}
-
-    func stopBufferRecording() {}
-
-    func saveBufferVideo(requestId _: String, durationSeconds _: Int) {}
-
     func startVideoRecording(requestId _: String, save _: Bool, flash _: Bool, sound _: Bool) {}
 
     func stopVideoRecording(requestId _: String) {}
@@ -111,6 +105,10 @@ class Mach1: UltraliteBaseViewController, SGCManager {
     func cleanup() {}
 
     func ping() {}
+    func dbg1() {}
+    func dbg2() {}
+    func connectController() {}
+    func disconnectController() {}
 
     var type: String = DeviceTypes.MACH1
     var hasMic: Bool = false
@@ -140,7 +138,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         set { GlassesStore.shared.apply("glasses", "connected", newValue) }
     }
 
-    // Store discovered peripherals by their identifier
+    /// Store discovered peripherals by their identifier
     private var discoveredPeripherals: [String: CBPeripheral] = [:]
 
     private var textHandle: Int?
@@ -198,7 +196,7 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         setupDone = true
     }
 
-    // Handle the tap event
+    /// Handle the tap event
     @objc func handleTapEvent(_ notification: Notification) {
         Bridge.log("MACH1: handleTapEvent called!")
 
@@ -291,7 +289,8 @@ class Mach1: UltraliteBaseViewController, SGCManager {
             UltraliteManager.shared.link(device: peripheral!, callback: linked)
             UltraliteManager.shared.currentDevice?.isConnected.bind(listener: isConnectedListener!)
             UltraliteManager.shared.currentDevice?.batteryLevel.bind(
-                listener: batteryLevelListener!)
+                listener: batteryLevelListener!
+            )
             return
         }
     }

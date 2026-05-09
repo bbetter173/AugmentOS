@@ -58,7 +58,7 @@ export default function SelectControllerScreen() {
         ]
       : [
           // Android:
-          // {deviceModel: DeviceTypes.SIMULATED, key: DeviceTypes.SIMULATED},
+          {deviceModel: ControllerTypes.R1, key: "evenrealities_r1"},
         ]
 
   const triggerGlassesPairingGuide = async (deviceModel: string) => {
@@ -80,7 +80,7 @@ export default function SelectControllerScreen() {
         <View className="flex-col gap-4 pb-8">
           {controllerOptions.map((controller) => (
             <TouchableOpacity key={controller.key} onPress={() => triggerGlassesPairingGuide(controller.deviceModel)}>
-              <GlassView className="bg-primary-foreground flex-col items-center justify-center h-[190px] rounded-2xl overflow-hidden">
+              <GlassView className="bg-primary-foreground border border-background flex-col items-center justify-center h-[190px] rounded-2xl overflow-hidden">
                 <View className="flex-col items-center justify-center gap-3 w-full">
                   <View className="items-center justify-center min-h-6">
                     {getManufacturerLogo(controller.deviceModel)}
@@ -89,7 +89,7 @@ export default function SelectControllerScreen() {
                     source={getGlassesImage(controller.deviceModel)}
                     className="w-[180px] max-h-[80px] object-contain"
                   />
-                  <Text className="text-[16px] text-foreground" text={controller.deviceModel} />
+                  <Text className="text-2xl text-foreground" adjustsFontSizeToFit text={controller.deviceModel} />
                 </View>
               </GlassView>
             </TouchableOpacity>

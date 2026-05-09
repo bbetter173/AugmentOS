@@ -57,6 +57,8 @@ class CoreModule : Module() {
             // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
             "send_command_to_ble",
             "receive_command_from_ble",
+            "miniapp_selected",
+            "captions_tester_incident",
         )
 
         OnCreate {
@@ -91,12 +93,12 @@ class CoreModule : Module() {
 
         Function("update") { category: String, values: Map<String, Any> ->
             values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
-            // Persist auth_token to SharedPreferences so MentraLive.getCoreToken() finds it
+            // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
             if (category == "core") {
-                values["auth_token"]?.let { token ->
+                values["core_token"]?.let { token ->
                     val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("CoreModule", "update(core) auth_token received, len=$len")
+                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
                     if (token is String && token.isNotEmpty()) {
                         val ctx = appContext.reactContext ?: appContext.currentActivity
                         ctx?.let {
@@ -137,6 +139,12 @@ class CoreModule : Module() {
 
         AsyncFunction("forget") { coreManager?.forget() }
 
+        AsyncFunction("connectDefaultController") { coreManager?.connectDefaultController() }
+
+        AsyncFunction("disconnectController") { coreManager?.disconnectController() }
+
+        AsyncFunction("forgetController") { coreManager?.forgetController() }
+
         AsyncFunction("findCompatibleDevices") { deviceModel: String ->
             coreManager?.findCompatibleDevices(deviceModel)
         }
@@ -145,10 +153,19 @@ class CoreModule : Module() {
 
         AsyncFunction("ping") { coreManager?.ping() }
 
+        AsyncFunction("dbg1") {
+            coreManager?.dbg1()
+            coreManager?.sgc?.dbg1()
+        }
+        AsyncFunction("dbg2") {
+            coreManager?.dbg2()
+            coreManager?.sgc?.dbg2()
+        }
+
         // MARK: - Incident Reporting
 
-        AsyncFunction("sendIncidentId") { incidentId: String ->
-            coreManager?.sendIncidentId(incidentId)
+        AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
+            coreManager?.sendIncidentId(incidentId, apiBaseUrl)
         }
 
         // MARK: - WiFi Commands
@@ -224,14 +241,6 @@ class CoreModule : Module() {
         AsyncFunction("sendReboot") { coreManager?.sendReboot() }
 
         // MARK: - Video Recording Commands
-
-        AsyncFunction("startBufferRecording") { coreManager?.startBufferRecording() }
-
-        AsyncFunction("stopBufferRecording") { coreManager?.stopBufferRecording() }
-
-        AsyncFunction("saveBufferVideo") { requestId: String, durationSeconds: Int ->
-            coreManager?.saveBufferVideo(requestId, durationSeconds)
-        }
 
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
             coreManager?.startVideoRecording(requestId, save, flash, sound)

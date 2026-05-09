@@ -135,7 +135,7 @@ Explicitly out of scope for this PR:
 
 ### Local
 
-1. `bun install` from `cloud/` — must succeed; bun re-applies the patch automatically via `patchedDependencies` (no postinstall hook).
+1. `bun install` from `cloud/packages/cloud/` — must succeed; postinstall must apply the patch and report "patching @soniox/node@2.0.0".
 2. `bunx tsc --noEmit` — must pass with zero errors.
 3. `bun run test` — must pass (transcription tests should be unaffected since `.on()` semantics didn't change).
 4. Inspect `node_modules/.bun/@soniox+node@2.0.0/.../dist/index.mjs` — confirm `iteratorAttached = false` field exists and `if (this.iteratorAttached)` guards each push.
@@ -170,7 +170,7 @@ After merging to `dev` and deploying to us-central-prod:
 6. Merge MentraOS PR → auto-deploys to `cloud-dev` via porter-dev.yml.
 7. Watch dev for 24 hours; confirm memory floor stable.
 8. Cherry-pick to `main` → deploys to prod regions.
-9. When upstream merges + releases v2.0.1+: file follow-up PR to bump version + delete `cloud/patches/@soniox%2Fnode@2.0.0.patch` + remove `patchedDependencies` entry from `cloud/package.json` + close issue 104.
+9. When upstream merges + releases v2.0.1+: file follow-up PR to bump version + remove patch + remove postinstall hook + close issue 104.
 
 ---
 

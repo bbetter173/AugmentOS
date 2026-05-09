@@ -45,17 +45,17 @@ No changes to `services/shutdown.ts` (existing flag is fine), `hono-app.ts` (dra
 // See: cloud/issues/100-fail-fast-sigterm/spec.md
 // ---------------------------------------------------------------------------
 
-import {inspect} from "node:util"
+import { inspect } from "node:util";
 
-const SHUTDOWN_BUDGET_MS = 5000
-const PINO_FLUSH_TIMEOUT_MS = 500
+const SHUTDOWN_BUDGET_MS = 5000;
+const PINO_FLUSH_TIMEOUT_MS = 500;
 
-let isShutdownInProgress = false
+let isShutdownInProgress = false;
 
 function stderrLine(fields: Record<string, unknown>): void {
   // Synchronous write. Bypasses Pino. Guaranteed to leave the pod before exit.
   try {
-    process.stderr.write(JSON.stringify({ts: new Date().toISOString(), ...fields}) + "\n")
+    process.stderr.write(JSON.stringify({ ts: new Date().toISOString(), ...fields }) + "\n");
   } catch {
     // stderr write failed; nothing useful we can do.
   }
@@ -63,40 +63,40 @@ function stderrLine(fields: Record<string, unknown>): void {
 
 async function flushPinoWithTimeout(ms: number): Promise<"flushed" | "timeout"> {
   return new Promise((resolve) => {
-    let settled = false
+    let settled = false;
     const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      resolve("timeout")
-    }, ms)
-    timer.unref()
+      if (settled) return;
+      settled = true;
+      resolve("timeout");
+    }, ms);
+    timer.unref();
 
     try {
       // Pino's flush API: logger.flush(cb?) on sync transports, or Symbol.for('pino.end') / .finish on async.
       // Best-effort: if no API is available, we just race the timer.
-      const anyLogger = logger as unknown as {flush?: (cb?: (err?: Error) => void) => void}
+      const anyLogger = logger as unknown as { flush?: (cb?: (err?: Error) => void) => void };
       if (typeof anyLogger.flush === "function") {
         anyLogger.flush(() => {
-          if (settled) return
-          settled = true
-          clearTimeout(timer)
-          resolve("flushed")
-        })
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve("flushed");
+        });
       } else {
         // No flush API — rely on the timer.
       }
     } catch {
       // Flush threw; fall through to the timer.
     }
-  })
+  });
 }
 
 async function failFastShutdown(signal: string): Promise<void> {
-  if (isShutdownInProgress) return
-  isShutdownInProgress = true
+  if (isShutdownInProgress) return;
+  isShutdownInProgress = true;
 
-  const t0 = Date.now()
-  setShuttingDown()
+  const t0 = Date.now();
+  setShuttingDown();
 
   // Watchdog: if anything hangs, force-exit at the budget.
   const watchdog = setTimeout(() => {
@@ -105,36 +105,36 @@ async function failFastShutdown(signal: string): Promise<void> {
       signal,
       budgetMs: SHUTDOWN_BUDGET_MS,
       elapsedMs: Date.now() - t0,
-    })
+    });
     // eslint-disable-next-line no-process-exit
-    process.exit(1)
-  }, SHUTDOWN_BUDGET_MS)
-  watchdog.unref()
+    process.exit(1);
+  }, SHUTDOWN_BUDGET_MS);
+  watchdog.unref();
 
   // Step 1: announce via stderr (synchronous).
-  const sessions = UserSession.getAllSessions()
+  const sessions = UserSession.getAllSessions();
   stderrLine({
     event: "shutdown-started",
     signal,
     pid: process.pid,
     sessionCount: sessions.length,
-  })
+  });
 
   // Step 2: close every WebSocket with 1001. Fire-and-forget per socket.
-  let closedGlasses = 0
-  let closedApps = 0
+  let closedGlasses = 0;
+  let closedApps = 0;
   for (const session of sessions) {
     try {
-      session.websocket?.close(1001, "Server shutting down")
-      closedGlasses++
+      session.websocket?.close(1001, "Server shutting down");
+      closedGlasses++;
     } catch {
       // swallow per-socket
     }
     if (session.appWebsockets) {
       for (const [, appWs] of session.appWebsockets) {
         try {
-          appWs.close(1001, "Server shutting down")
-          closedApps++
+          appWs.close(1001, "Server shutting down");
+          closedApps++;
         } catch {
           // swallow per-socket
         }
@@ -145,13 +145,13 @@ async function failFastShutdown(signal: string): Promise<void> {
   // Step 3: fire-and-forget Mongo close.
   // Not awaited. Most of the time we'll exit before it completes — that's fine.
   try {
-    void mongoose.connection.close()
+    void mongoose.connection.close();
   } catch {
     // swallow
   }
 
   // Step 4: flush Pino with a short timeout.
-  const flushResult = await flushPinoWithTimeout(PINO_FLUSH_TIMEOUT_MS)
+  const flushResult = await flushPinoWithTimeout(PINO_FLUSH_TIMEOUT_MS);
 
   // Step 5: announce completion via stderr.
   stderrLine({
@@ -161,15 +161,15 @@ async function failFastShutdown(signal: string): Promise<void> {
     closedGlasses,
     closedApps,
     pinoFlush: flushResult,
-  })
+  });
 
-  clearTimeout(watchdog)
+  clearTimeout(watchdog);
   // eslint-disable-next-line no-process-exit
-  process.exit(0)
+  process.exit(0);
 }
 
-process.on("SIGTERM", () => void failFastShutdown("SIGTERM"))
-process.on("SIGINT", () => void failFastShutdown("SIGINT"))
+process.on("SIGTERM", () => void failFastShutdown("SIGTERM"));
+process.on("SIGINT", () => void failFastShutdown("SIGINT"));
 ```
 
 Rename `gracefulShutdown` → `failFastShutdown` to make the intent obvious at every call site.

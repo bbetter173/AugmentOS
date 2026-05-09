@@ -63,7 +63,7 @@ The handler does exactly these steps, in this order, with these timeouts.
 Armed at the very start of the handler. If 5 s elapses before step 7, a separate `setTimeout(() => { process.stderr.write(...); process.exit(1); }, 5000)` fires and force-exits.
 
 ```typescript
-const WATCHDOG_MS = 5000
+const WATCHDOG_MS = 5000;
 const watchdog = setTimeout(() => {
   process.stderr.write(
     JSON.stringify({
@@ -71,10 +71,10 @@ const watchdog = setTimeout(() => {
       elapsedMs: WATCHDOG_MS,
       reason: "handler did not complete in time",
     }) + "\n",
-  )
-  process.exit(1)
-}, WATCHDOG_MS)
-watchdog.unref()
+  );
+  process.exit(1);
+}, WATCHDOG_MS);
+watchdog.unref();
 ```
 
 `unref()` so the watchdog itself doesn't prevent normal exit. Cleared just before the normal `process.exit(0)`.

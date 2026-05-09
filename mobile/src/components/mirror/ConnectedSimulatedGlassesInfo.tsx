@@ -14,10 +14,12 @@ export default function ConnectedSimulatedGlassesInfo({
   style,
   mirrorStyle,
   showHeader = true,
+  showConnectButton = true,
 }: {
   style?: ViewStyle
   mirrorStyle?: ViewStyle
   showHeader?: boolean
+  showConnectButton?: boolean
 }) {
   const {theme} = useAppTheme()
   const [permission, requestPermission] = useCameraPermissions()
@@ -71,25 +73,26 @@ export default function ConnectedSimulatedGlassesInfo({
   }
 
   return (
-    <GlassView className="bg-primary-foreground py-2 px-3" style={style}>
+    <GlassView className="bg-neutral-50 p-5" style={style}>
       {showHeader && (
         <View className="flex-row justify-between items-center mb-4">
-          <Text className="font-semibold text-secondary-foreground text-lg" tx="home:simulatedGlasses" />
-          <Button
-            flex={false}
-            flexContainer={false}
-            preset="alternate"
-            onPress={() => push("/miniapps/settings/glasses")}>
-            <Icon name="settings" size={24} color={theme.colors.secondary_foreground} />
-          </Button>
+          <Text className="font-semibold text-secondary-foreground text-lg" tx="onboarding:phoneMode" />
         </View>
       )}
-      <View>
-        <GlassesDisplayMirror fallbackMessage="Glasses Mirror" style={mirrorStyle} />
-        <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
+      <GlassesDisplayMirror fallbackMessage="Glasses mirror" style={mirrorStyle} />
+      {/* <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
           <Icon name="fullscreen" size={24} color={theme.colors.secondary_foreground} />
-        </TouchableOpacity>
-      </View>
+        </TouchableOpacity> */}
+      {showConnectButton && (
+        <Button
+          className="mt-3"
+          flex={false}
+          flexContainer={false}
+          tx="home:connectGlasses"
+          preset="primary"
+          onPress={() => push("/pairing/select-glasses-model")}
+        />
+      )}
     </GlassView>
   )
 }

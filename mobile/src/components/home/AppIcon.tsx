@@ -1,14 +1,14 @@
 import {Image} from "expo-image"
 import {SquircleView} from "expo-squircle-view"
 import {memo} from "react"
-import {ActivityIndicator, StyleProp, TouchableOpacity, View, ViewStyle} from "react-native"
+import {ActivityIndicator, StyleProp, StyleSheet, TouchableOpacity, View, ViewStyle} from "react-native"
 import {withUniwind} from "uniwind"
 
 import {Icon} from "@/components/ignite"
 import {DevMiniappBadge} from "@/components/miniapps/DevMiniappBadge"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useCachedRemoteImageSource} from "@/hooks/useCachedRemoteImageSource"
 import type {ClientApp} from "@mentra/island"
-import {StyleSheet} from "react-native"
 
 // Helper to extract style properties for width/height override
 const extractStyleProps = (style: StyleProp<ViewStyle>): Partial<ViewStyle> => {
@@ -31,6 +31,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
   const {theme} = useAppTheme()
   const WrapperComponent = onClick ? TouchableOpacity : View
   const flatStyle = extractStyleProps(style)
+  const imageSource = useCachedRemoteImageSource(app.logoUrl)
 
   const iconSize = {
     width: flatStyle?.width ?? 64,
@@ -63,7 +64,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
             </View>
           )}
           <Image
-            source={app.logoUrl}
+            source={imageSource}
             style={{width: "100%", height: "100%", resizeMode: "cover"}}
             contentFit="cover"
             transition={200}

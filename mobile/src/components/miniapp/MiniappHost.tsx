@@ -6,6 +6,7 @@ import {WebView, WebViewMessageEvent} from "react-native-webview"
 import LeftEdgeBackSwipe from "@/components/miniapp/LeftEdgeBackSwipe"
 import MiniappSplash from "@/components/miniapp/MiniappSplash"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useStressTestStore} from "@/stores/stressTest"
 import {devServerBridge} from "@mentra/island"
 import {localDisplayManager} from "@mentra/island"
 import {localMiniappRuntime} from "@mentra/island"
@@ -438,7 +439,13 @@ export default function MiniappHost() {
 
   const handleTerminate = useCallback(
     async (packageName: string) => {
-      if (__DEV__) {
+      // Always record — stress test reads this even outside __DEV__
+      useStressTestStore.getState().recordEvent({
+        packageName,
+        at: Date.now(),
+        kind: "terminate",
+      })
+      if (__DEV__ && !useStressTestStore.getState().active) {
         Alert.alert(
           "Miniapp Terminated",
           `"${packageName}" was killed by the OS (out of memory). It has been unregistered.`,
@@ -453,7 +460,12 @@ export default function MiniappHost() {
 
   const handleError = useCallback(
     async (packageName: string) => {
-      if (__DEV__) {
+      useStressTestStore.getState().recordEvent({
+        packageName,
+        at: Date.now(),
+        kind: "error",
+      })
+      if (__DEV__ && !useStressTestStore.getState().active) {
         Alert.alert("Miniapp Error", `"${packageName}" encountered a fatal error and has been unregistered.`)
       }
       await sendBeforeEvict(packageName)

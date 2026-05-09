@@ -189,6 +189,13 @@ public class CoreModule: Module {
             }
         }
 
+        // Returns the current process resident-set-size in MB. Used by the
+        // jetsam stress test to plot memory growth as miniapp WebViews are
+        // mounted. Cheap (single mach call), safe to poll once a second.
+        Function("getMemoryMB") { () -> Double in
+            return MemoryMonitor.currentMemoryMB()
+        }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in

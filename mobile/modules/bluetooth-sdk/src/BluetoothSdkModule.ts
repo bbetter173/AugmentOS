@@ -114,6 +114,9 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   updateCore(values: Record<string, any>): Promise<void>
   onGlassesStatus(callback: GlassesListener): () => void
   onCoreStatus(callback: CoreStatusListener): () => void
+
+  // Process resident-set-size in MB. iOS-only; Android stub returns 0.
+  getMemoryMB(): number
 }
 
 // This call loads the native module object from the JSI.

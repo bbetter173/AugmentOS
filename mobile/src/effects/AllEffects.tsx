@@ -1,6 +1,7 @@
 import {ButtonActions} from "@/effects/ButtonActions"
 import Compositor from "@/effects/Compositor"
 import {GalleryModeSync} from "@/effects/GalleryModeSync"
+import {MemoryWarningMonitor} from "@/effects/MemoryWarningMonitor"
 import {MtkUpdateAlert} from "@/effects/MtkUpdateAlert"
 import {NetworkMonitoring} from "@/effects/NetworkMonitoring"
 import {Reconnect} from "@/effects/Reconnect"
@@ -35,6 +36,7 @@ export const AllEffects = () => {
       <ScreenshotFeedbackPrompt />
       <CapsuleMenu forceShow={false} />
       <Compositor />
+      <MemoryWarningMonitor />
     </>
   )
 }

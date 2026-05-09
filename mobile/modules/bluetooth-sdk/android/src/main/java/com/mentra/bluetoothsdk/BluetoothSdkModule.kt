@@ -164,6 +164,9 @@ class CoreModule : Module() {
             deviceManager?.sgc?.dbg2()
         }
 
+        // Stub on Android — iOS uses this for the jetsam stress test.
+        Function("getMemoryMB") { -> 0.0 }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->

@@ -47,6 +47,7 @@ export default function SuperSettingsScreen() {
           <Group title="Debug">
             <RouteButton label="dbg1()" onPress={() => CoreModule.dbg1()} />
             <RouteButton label="dbg2()" onPress={() => CoreModule.dbg2()} />
+            <RouteButton label="Stress Test (Jetsam)" onPress={() => push("/miniapps/settings/stress-test")} />
           </Group>
 
           <Group title="Mini Apps">

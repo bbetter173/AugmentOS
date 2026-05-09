@@ -682,6 +682,8 @@ export class ResendEmailService {
               body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f6f7f9; margin: 0; padding: 0; }
               .container { max-width: 600px; margin: 20px auto; background: #fff; border: 1px solid #e1e4e8; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
               .header { background-color: #00b869; color: #fff; padding: 24px; text-align: center; }
+              .header img { display: block; margin: 0 auto 12px; height: 32px; max-width: 200px; }
+              .header h2 { margin: 0; font-weight: 500; font-size: 20px; }
               .content { padding: 24px; }
               .reference { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; }
               .echo { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 16px 0; }
@@ -696,6 +698,7 @@ export class ResendEmailService {
           <body>
             <div class="container">
               <div class="header">
+                <img src="https://mentra-store-cdn.mentraglass.com/mentra_store_assets/Mentra_Logo/PNG/Full/Full%20-%20W.png" alt="Mentra" />
                 <h2>Thanks for your ${escapedFeedbackLabel}</h2>
               </div>
               <div class="content">

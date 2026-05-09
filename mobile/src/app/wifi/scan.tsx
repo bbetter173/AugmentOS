@@ -34,6 +34,11 @@ export default function WifiScanScreen() {
     useNavigationHistory()
   const wifiScanResults: WifiSearchResult[] = useCoreStore((state) => state.wifiScanResults)
 
+  const refreshSavedNetworks = useCallback(() => {
+    const savedCredentials = WifiCredentialsService.getAllCredentials()
+    setSavedNetworks(savedCredentials.map((cred) => cred.ssid))
+  }, [])
+
   // if the previous route is in this list, or the second to last route is in this list
   // show / allow the back button:
   const backableRoutes = ["/miniapps/settings/glasses", "/home"]
@@ -53,6 +58,7 @@ export default function WifiScanScreen() {
   // only prevent back if the showBack flag is false:
   useFocusEffect(
     useCallback(() => {
+      refreshSavedNetworks()
       if (!showBack) {
         incPreventBack()
       }
@@ -65,14 +71,13 @@ export default function WifiScanScreen() {
       return () => {
         decPreventBack()
       }
-    }, [incPreventBack, decPreventBack, showBack]),
+    }, [incPreventBack, decPreventBack, showBack, refreshSavedNetworks]),
   )
 
   useEffect(() => {
-    const savedCredentials = WifiCredentialsService.getAllCredentials()
-    setSavedNetworks(savedCredentials.map((cred) => cred.ssid))
+    refreshSavedNetworks()
     startScan()
-  }, [])
+  }, [refreshSavedNetworks])
 
   useEffect(() => {
     const handleWifiScanResults = (scanResults: WifiSearchResult[]) => {
@@ -159,6 +164,7 @@ export default function WifiScanScreen() {
                 await CoreModule.forgetWifiNetwork(selectedNetwork.ssid)
                 // Also remove from local saved credentials
                 WifiCredentialsService.removeCredentials(selectedNetwork.ssid)
+                setSavedNetworks((prev) => prev.filter((ssid) => ssid !== selectedNetwork.ssid))
                 Toast.show({
                   type: "success",
                   text1: `Forgot "${selectedNetwork.ssid}"`,

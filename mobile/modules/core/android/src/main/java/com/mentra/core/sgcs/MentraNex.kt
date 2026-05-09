@@ -148,7 +148,9 @@ class MentraNex : SGCManager() {
     private var isScanning: Boolean = false
 
     private var protobufVersionPosted: Boolean = false
-    
+
+    private var hasConnectedThisSession: Boolean = false
+
     private var bleScanCallback: ScanCallback? = null
 
     private val modernScanCallback = object : ScanCallback() {
@@ -870,6 +872,14 @@ class MentraNex : SGCManager() {
                 showHomeScreen() // Turn on the NexGlasses display
                 updateConnectionState()
 
+                if (hasConnectedThisSession) {
+                    Bridge.log("Nex: BLE reconnect detected — showing reconnected banner")
+                    sendTextWall("// MentraOS Reconnected")
+                    mainTaskHandler.postDelayed({ clearDisplay() }, 3000)
+                } else {
+                    hasConnectedThisSession = true
+                }
+
                 // Post protobuf schema version information (only once)
                 if (!protobufVersionPosted) {
                     postProtobufSchemaVersionInfo()
@@ -1127,6 +1137,7 @@ class MentraNex : SGCManager() {
         sendQueue.offer(emptyArray()) // is this needed?
         isWorkerRunning = false
         isMainConnected = false
+        hasConnectedThisSession = false
         Bridge.log("Nex: MentraNexSGC cleanup complete")
     }
 

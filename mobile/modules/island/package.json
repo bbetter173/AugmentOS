@@ -32,7 +32,9 @@
     "@types/semver": "^7.7.1"
   },
   "devDependencies": {
-    "expo-module-scripts": "^55.0.2"
+    "expo-module-scripts": "^55.0.2",
+    "@mentra/bluetooth-sdk": "workspace:*",
+    "@mentra/miniapp": "workspace:*"
   },
   "peerDependencies": {
     "expo": "*",
@@ -48,6 +50,8 @@
     "expo-battery": "*",
     "expo-clipboard": "*",
     "expo-location": "*",
-    "react-native-share": "*"
+    "react-native-share": "*",
+    "@mentra/bluetooth-sdk": "*",
+    "@mentra/miniapp": "*"
   }
 }

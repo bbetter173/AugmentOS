@@ -175,9 +175,13 @@
         "typesafe-ts": "^1.7.1",
       },
       "devDependencies": {
+        "@mentra/bluetooth-sdk": "workspace:*",
+        "@mentra/miniapp": "workspace:*",
         "expo-module-scripts": "^55.0.2",
       },
       "peerDependencies": {
+        "@mentra/bluetooth-sdk": "*",
+        "@mentra/miniapp": "*",
         "@types/react": "*",
         "expo": "*",
         "expo-battery": "*",

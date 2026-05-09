@@ -1238,6 +1238,11 @@ class CoreManager {
         (sgc as? MentraLive)?.sendOtaStart()
     }
 
+    fun sendOtaQueryStatus() {
+        Bridge.log("MAN: 📱 Sending OTA query status command to glasses")
+        (sgc as? MentraLive)?.sendOtaQueryStatus()
+    }
+
     /**
      * Read glasses media step volume (0–15) via K900 on Mentra Live only. Blocks until response,
      * error, or timeout (used from JS AsyncFunction on a worker thread).

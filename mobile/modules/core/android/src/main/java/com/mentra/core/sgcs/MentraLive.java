@@ -457,6 +457,13 @@ public class MentraLive extends SGCManager {
     
     // BES OTA progress tracking - only send to UI on 5% increments
     private int lastBesOtaProgress = -1;
+
+    // Cached OTA session context from last ota_status — used to fill in session fields for sr_adota
+    private String cachedOtaSessionId = null;
+    private int cachedOtaTotalSteps = 0;
+    private int cachedOtaCurrentStep = 0;
+    /** Step type sequence (e.g. ["apk","bes"]) from last ota_status; used to compute BES weight in sr_adota. */
+    private JSONArray cachedOtaStepSequence = null;
     private boolean rgbLedAuthorityClaimed = false; // Track if we've claimed RGB LED control from BES
 
     // Audio Pairing: Track readiness separately for BLE and audio (matches iOS implementation)
@@ -621,6 +628,41 @@ public class MentraLive extends SGCManager {
         destroy();
     }
 
+    /**
+     * Compute the weighted overall OTA percentage for a BES progress event arriving via sr_adota.
+     * Mirrors the weight table in OtaSessionManager.computeOverallPercent() / computeStepWeights().
+     *
+     * Weight assignments:
+     *   [apk, mtk, bes] → bes base=50, weight=50
+     *   [apk, bes]       → bes base=20, weight=80
+     *   [mtk, bes]       → bes base=40, weight=60
+     *   [bes]            → bes base=0,  weight=100
+     *
+     * Falls back to raw besProgress when step sequence is unavailable.
+     */
+    private int computeBesOverallPercent(int besProgress, int totalSteps, JSONArray stepSequence) {
+        if (stepSequence == null || stepSequence.length() == 0) {
+            return besProgress; // no context, fall back to raw
+        }
+        boolean hasApk = false, hasMtk = false;
+        for (int i = 0; i < stepSequence.length(); i++) {
+            String t = stepSequence.optString(i, "");
+            if ("apk".equals(t)) hasApk = true;
+            else if ("mtk".equals(t)) hasMtk = true;
+        }
+        int base, weight;
+        if (hasApk && hasMtk) {
+            base = 50; weight = 50;
+        } else if (hasApk) {
+            base = 20; weight = 80;
+        } else if (hasMtk) {
+            base = 40; weight = 60;
+        } else {
+            base = 0;  weight = 100;
+        }
+        return Math.min(100, base + besProgress * weight / 100);
+    }
+
     private void updateConnectionState(String state) {
         boolean isEqual = state.equals(getConnectionState());
         if (isEqual) {
@@ -635,12 +677,37 @@ public class MentraLive extends SGCManager {
             if (glassesReadyReceived) {
                 GlassesStore.INSTANCE.apply("glasses", "fullyBooted", true);
             }
+            // Drop cached version fields from the previous BLE session so the next version_info
+            // repopulates RN. Otherwise a stale build (e.g. 38) can remain while ASG is still 36,
+            // and the phone-side OTA check will disagree with glasses' PackageManager + ota_update_available.
+            GlassesStore.INSTANCE.apply("glasses", "buildNumber", "");
+            GlassesStore.INSTANCE.apply("glasses", "appVersion", "");
+            GlassesStore.INSTANCE.apply("glasses", "besFwVersion", "");
+            GlassesStore.INSTANCE.apply("glasses", "mtkFwVersion", "");
+            Bridge.log("LIVE: Cleared cached version_info fields for fresh session");
         }
         
         if (state.equals(ConnTypes.DISCONNECTED)) {
             GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
             GlassesStore.INSTANCE.apply("glasses", "connected", false);
+            // Drop OTA caches when fully disconnected — avoids leaking session/step state
+            // from a previous pairing into the next one.
+            resetOtaCache();
         }
+    }
+
+    /**
+     * Drops cached OTA session context. Called on disconnect and when a new session id
+     * arrives — without this, stale fields from a previous session would leak into
+     * sr_adota progress messages (wrong totalSteps, wrong stepSequence, stale
+     * lastBesOtaProgress that swallows the first few percent of the new install).
+     */
+    private void resetOtaCache() {
+        cachedOtaSessionId = null;
+        cachedOtaTotalSteps = 0;
+        cachedOtaCurrentStep = 0;
+        cachedOtaStepSequence = null;
+        lastBesOtaProgress = -1;
     }
 
     protected void setFontSizes() {
@@ -1286,6 +1353,9 @@ public class MentraLive extends SGCManager {
 
             if (isRxCharacteristic) {
                 Bridge.log("LIVE: Received data on RX characteristic");
+                // #region agent log [810da2] Hypothesis A+C: capture data.length vs negotiated MTU
+                Bridge.log("LIVE: [DEBUG-810da2-HypAC] RX dataLen=" + data.length + " mtu=" + currentMtu + " firstByte=0x" + String.format("%02X", data[0]) + " second=0x" + (data.length > 1 ? String.format("%02X", data[1]) : "??"));
+                // #endregion
             } else if (isTxCharacteristic) {
                 Bridge.log("LIVE: Received data on TX characteristic");
             } else if (isLc3ReadCharacteristic) {
@@ -2034,6 +2104,10 @@ public class MentraLive extends SGCManager {
                 processJsonMessage(json);
             } else {
                 Log.w(TAG, "Thread-" + threadId + ": Failed to parse K900 protocol data");
+                // #region agent log [810da2] Hypothesis A+B: log header-declared length vs actual data length
+                int declaredPayloadLen = (data.length >= 5) ? (((data[3] & 0xFF) << 8) | (data[4] & 0xFF)) : -1;
+                Bridge.log("LIVE: [DEBUG-810da2-HypAB] K900 PARSE FAILED thread=" + threadId + " dataLen=" + data.length + " mtu=" + currentMtu + " declaredPayloadLen=" + declaredPayloadLen + " expectedTotal=" + (declaredPayloadLen + 7));
+                // #endregion
             }
 
             return; // Exit after processing K900 protocol format
@@ -2078,7 +2152,13 @@ public class MentraLive extends SGCManager {
      * Process a JSON message
      */
     private void processJsonMessage(JSONObject json) {
-        // Bridge.log("LIVE: Got some JSON from glasses: " + json.toString());
+        // Demoted from INFO (Bridge.log) to DEBUG: per-type handlers below already log
+        // the messages that matter, and full payloads can leak PII (wifi SSID, bt_mac,
+        // OTA URLs) into the persisted file logger when they arrive every ~50ms during OTA.
+        // Re-enable on a debugging device via: adb shell setprop log.tag.MentraLive DEBUG
+        if (Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, "LIVE: Got some JSON from glasses: " + json.toString());
+        }
 
         // Check if this is an ACK response
         String type = json.optString("type", "");
@@ -2280,6 +2360,7 @@ public class MentraLive extends SGCManager {
             case "ota_update_available":
                 // Process OTA update available notification from glasses (background mode)
                 Bridge.log("LIVE: 📱 Received ota_update_available from glasses");
+                Bridge.log("LIVE: 📱 OTA update available: " + json.toString());
                 try {
                     long otaVersionCode = json.optLong("version_code", 0);
                     String otaVersionName = json.optString("version_name", "");
@@ -2311,22 +2392,67 @@ public class MentraLive extends SGCManager {
                 Bridge.sendOtaStartAck();
                 break;
 
+            case "ota_status":
+                String osSessionId = json.optString("sid", json.optString("session_id", ""));
+                int osTotalSteps = json.optInt("ts", json.optInt("total_steps", 0));
+                int osCurrentStep = json.optInt("cs", json.optInt("current_step", 0));
+                String osStepType = json.optString("st", json.optString("step_type", "apk"));
+                String osPhase = json.optString("phase", "download");
+                int osStepPercent = json.optInt("sp", json.optInt("step_percent", 0));
+                int osOverallPercent = json.optInt("op", json.optInt("overall_percent", 0));
+                String osStatus = json.optString("status", "idle");
+                String osErrorMessage = json.optString("err", json.optString("error_message", null));
+
+                // If the glasses started a new session, drop any leftover state from the
+                // old one before caching the new values. Without this, lastBesOtaProgress
+                // would stay at e.g. 95 from the previous session and cause us to silently
+                // skip the first few percent of the new BES install.
+                if (!osSessionId.isEmpty() && cachedOtaSessionId != null
+                        && !cachedOtaSessionId.equals(osSessionId)) {
+                    resetOtaCache();
+                }
+
+                cachedOtaSessionId = osSessionId;
+                cachedOtaTotalSteps = osTotalSteps;
+                cachedOtaCurrentStep = osCurrentStep;
+                JSONArray osStepSequence = json.optJSONArray("sq");
+                if (osStepSequence == null) osStepSequence = json.optJSONArray("step_sequence");
+                if (osStepSequence != null && osStepSequence.length() > 0) {
+                    cachedOtaStepSequence = osStepSequence;
+                }
+
+                Bridge.log("LIVE: 📱 OTA status - step " + osCurrentStep + "/" + osTotalSteps +
+                      " " + osPhase + " " + osStatus + " " + osOverallPercent + "%");
+
+                Bridge.sendOtaStatus(osSessionId, osTotalSteps, osCurrentStep, osStepType,
+                    osPhase, osStepPercent, osOverallPercent, osStatus, osErrorMessage);
+                break;
+
             case "ota_progress":
-                // Process OTA progress update from glasses
-                String otaStage = json.optString("stage", "download");
-                String otaStatus = json.optString("status", "PROGRESS");
-                int otaProgress = json.optInt("progress", 0);
-                long otaBytesDownloaded = json.optLong("bytes_downloaded", 0);
-                long otaTotalBytes = json.optLong("total_bytes", 0);
-                String otaCurrentUpdate = json.optString("current_update", "apk");
-                String otaErrorMessage = json.optString("error_message", null);
-
-                Bridge.log("LIVE: 📱 OTA progress - " + otaStage + " " + otaStatus +
-                      " " + otaProgress + "% (" + otaCurrentUpdate + ")");
-
-                // Send to React Native
-                Bridge.sendOtaProgress(otaStage, otaStatus, otaProgress,
-                    otaBytesDownloaded, otaTotalBytes, otaCurrentUpdate, otaErrorMessage);
+                // Legacy glasses firmware: map to unified ota_status so JS has a single path (Mantle / progress UI).
+                {
+                    String legacyStage = json.optString("stage", "download");
+                    String legacyStatus = json.optString("status", "PROGRESS");
+                    int legacyProgress = json.optInt("progress", 0);
+                    String currentUpdate = json.optString("current_update", "apk");
+                    String err = json.optString("error_message", null);
+                    if (err != null && err.isEmpty()) {
+                        err = null;
+                    }
+                    String legacyPhase = "install".equals(legacyStage) ? "install" : "download";
+                    String unified;
+                    if ("FAILED".equals(legacyStatus)) {
+                        unified = "failed";
+                    } else if ("FINISHED".equals(legacyStatus)) {
+                        unified = "complete";
+                    } else {
+                        unified = "in_progress";
+                    }
+                    Bridge.log("LIVE: 📱 Legacy ota_progress → ota_status: " + legacyStage + " "
+                            + legacyStatus + " " + legacyProgress + "%");
+                    Bridge.sendOtaStatus("", 1, 1, currentUpdate, legacyPhase,
+                            legacyProgress, legacyProgress, unified, err);
+                }
                 break;
 
             case "button_press":
@@ -2996,10 +3122,7 @@ public class MentraLive extends SGCManager {
                 break;
 
             case "sr_adota":
-                // BES chip OTA progress - convert to ota_progress format for phone UI
-                // This is sent by the BES chip during firmware flashing (the "install" phase)
-                // Since the glasses can't send ota_progress via serial during BES OTA (serial is busy),
-                // the BES chip sends progress via this K900 BLE command instead
+                // BES chip OTA progress — K900 path (serial busy during BES flash). Emit ota_status only.
                 try {
                     JSONObject bodyObj = json.optJSONObject("B");
                     if (bodyObj != null) {
@@ -3020,30 +3143,45 @@ public class MentraLive extends SGCManager {
                         
                         // Determine status and error message based on type
                         String besOtaStatus;
-                        int besOtaProgress;
+                        int besOtaProgressVal;
                         String besOtaErrorMessage = null;
                         
-                        if ("update".equals(type)) {
-                            besOtaStatus = "PROGRESS";
-                            besOtaProgress = progress;
-                        } else if ("success".equals(type) || rawProgress >= 100) {
+                        // Order matters here: check completion (rawProgress >= 100 OR success) BEFORE
+                        // type=="update", because some BES firmware emits the final 100% tick with
+                        // type=="update" rather than type=="success". Treating that as PROGRESS would
+                        // leave the UI stuck at 100% forever.
+                        if ("success".equals(type) || rawProgress >= 100) {
                             besOtaStatus = "FINISHED";
-                            besOtaProgress = 100;
+                            besOtaProgressVal = 100;
                             lastBesOtaProgress = -1; // Reset for next OTA
                         } else if ("error".equals(type) || "fail".equals(type)) {
                             besOtaStatus = "FAILED";
-                            besOtaProgress = progress;
+                            besOtaProgressVal = progress;
                             besOtaErrorMessage = bodyObj.optString("message", "BES update failed");
                             lastBesOtaProgress = -1; // Reset for next OTA
+                        } else if ("update".equals(type)) {
+                            besOtaStatus = "PROGRESS";
+                            besOtaProgressVal = progress;
                         } else {
                             // Unknown type, treat as progress
                             besOtaStatus = "PROGRESS";
-                            besOtaProgress = progress;
+                            besOtaProgressVal = progress;
                         }
                         
-                        // Send to React Native bridge as ota_progress
-                        Bridge.sendOtaProgress("install", besOtaStatus, besOtaProgress,
-                            0L, 0L, "bes", besOtaErrorMessage);
+                        String syntheticStatus;
+                        if ("FINISHED".equals(besOtaStatus)) {
+                            syntheticStatus = "step_complete";
+                        } else if ("FAILED".equals(besOtaStatus)) {
+                            syntheticStatus = "failed";
+                        } else {
+                            syntheticStatus = "in_progress";
+                        }
+                        String sid = cachedOtaSessionId != null ? cachedOtaSessionId : "";
+                        int totalSteps = cachedOtaTotalSteps > 0 ? cachedOtaTotalSteps : 1;
+                        int currentStep = cachedOtaCurrentStep > 0 ? cachedOtaCurrentStep : 1;
+                        int besOverallPercent = computeBesOverallPercent(besOtaProgressVal, totalSteps, cachedOtaStepSequence);
+                        Bridge.sendOtaStatus(sid, totalSteps, currentStep, "bes", "install",
+                                besOtaProgressVal, besOverallPercent, syntheticStatus, besOtaErrorMessage);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing sr_adota BES OTA progress", e);
@@ -3358,6 +3496,18 @@ public class MentraLive extends SGCManager {
             Bridge.log("LIVE: 📱 Sending ota_start command to glasses");
         } catch (JSONException e) {
             Log.e(TAG, "📱 Error creating ota_start command", e);
+        }
+    }
+
+    public void sendOtaQueryStatus() {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("type", "ota_query_status");
+            json.put("timestamp", System.currentTimeMillis());
+            sendJson(json, true);
+            Bridge.log("LIVE: 📱 Sending ota_query_status command to glasses");
+        } catch (JSONException e) {
+            Log.e(TAG, "📱 Error creating ota_query_status command", e);
         }
     }
 

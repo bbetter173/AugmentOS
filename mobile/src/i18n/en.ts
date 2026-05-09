@@ -311,6 +311,8 @@ const en = {
     checkFailed: "Check Failed",
     checkFailedMessage: "Unable to check for updates. You can try again later from Settings.",
     startingUpdate: "Starting Update",
+    /** Legacy multi-step OTA: shown while reconnecting / advancing past the first sequence step (not first launch). */
+    preparingNextUpdate: "Preparing next update…",
     downloading: "Downloading Update",
     installing: "Installing Update",
     doNotDisconnect: "Please keep your glasses connected and do not close the app.",

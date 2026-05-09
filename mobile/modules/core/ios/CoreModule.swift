@@ -42,7 +42,8 @@ public class CoreModule: Module {
             "keep_alive_ack",
             "mtk_update_complete",
             "ota_update_available",
-            "ota_progress",
+            "ota_start_ack",
+            "ota_status",
             "send_command_to_ble",
             "receive_command_from_ble",
             "miniapp_selected",
@@ -247,6 +248,12 @@ public class CoreModule: Module {
         AsyncFunction("sendOtaStart") {
             await MainActor.run {
                 CoreManager.shared.sendOtaStart()
+            }
+        }
+
+        AsyncFunction("sendOtaQueryStatus") {
+            await MainActor.run {
+                CoreManager.shared.sendOtaQueryStatus()
             }
         }
 

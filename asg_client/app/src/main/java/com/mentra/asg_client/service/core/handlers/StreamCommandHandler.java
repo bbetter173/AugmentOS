@@ -1,6 +1,7 @@
 package com.mentra.asg_client.service.core.handlers;
 
 import android.content.Context;
+import android.hardware.camera2.CameraAccessException;
 import android.util.Log;
 
 import com.mentra.asg_client.io.streaming.config.RtmpStreamConfig;
@@ -151,6 +152,9 @@ public class StreamCommandHandler implements ICommandHandler {
             switch (protocol) {
                 case RTMP: {
                     RtmpStreamConfig config = RtmpStreamConfig.fromJson(videoJson, audioJson);
+                    if (!preflightCameraCaptureForPackStreaming(config)) {
+                        return false;
+                    }
                     Log.d(TAG, "Starting RTMP stream to: " + streamUrl);
                     RtmpStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     RtmpStreamingService.setStateManager(stateManager);
@@ -158,6 +162,9 @@ public class StreamCommandHandler implements ICommandHandler {
                 }
                 case SRT: {
                     RtmpStreamConfig config = RtmpStreamConfig.fromJson(videoJson, audioJson);
+                    if (!preflightCameraCaptureForPackStreaming(config)) {
+                        return false;
+                    }
                     Log.d(TAG, "Starting SRT stream to: " + streamUrl);
                     SrtStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     SrtStreamingService.setStateManager(stateManager);
@@ -165,11 +172,7 @@ public class StreamCommandHandler implements ICommandHandler {
                 }
                 case WHIP: {
                     WhipStreamConfig config = WhipStreamConfig.fromJson(videoJson, audioJson);
-                    if (isResolutionTooHigh(config.getVideoWidth(), config.getVideoHeight())) {
-                        Log.w(TAG, "Rejecting WHIP stream request that exceeds supported camera output: "
-                                + config.getVideoWidth() + "x" + config.getVideoHeight());
-                        streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
-                                "Resolution too high");
+                    if (!preflightCameraCaptureForWhip(config.getVideoWidth(), config.getVideoHeight())) {
                         return false;
                     }
                     Log.d(TAG, "Starting WHIP stream to: " + streamUrl);
@@ -187,14 +190,47 @@ public class StreamCommandHandler implements ICommandHandler {
         }
     }
 
-    private boolean isResolutionTooHigh(int width, int height) {
+    /**
+     * RTMP/SRT: reject if no native mode can cover the requested output without upscaling;
+     * stamps {@link RtmpStreamConfig#setCaptureSize(int, int)} for StreamPackLite.
+     */
+    private boolean preflightCameraCaptureForPackStreaming(RtmpStreamConfig config) {
         try {
-            WhipCameraFormatSelector.SelectionResult selection =
-                    WhipCameraFormatSelector.selectCaptureSize(context, width, height);
-            return selection != null && selection.hasSupportedSizes() && selection.requiresUpscale();
-        } catch (Exception e) {
-            Log.w(TAG, "Unable to validate requested stream resolution; allowing request", e);
+            if (!WhipCameraFormatSelector.stampCaptureSizeOntoConfig(context, config)) {
+                Log.w(TAG, "Rejecting stream: camera cannot satisfy output without upscaling: "
+                        + config.getVideoWidth() + "x" + config.getVideoHeight());
+                SysControl.setEisEnable(context, true);
+                streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
+                        "Resolution not supported by camera");
+                return false;
+            }
+            return true;
+        } catch (CameraAccessException e) {
+            Log.w(TAG, "Camera access failed during stream preflight", e);
+            SysControl.setEisEnable(context, true);
+            streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
+                    "Could not access camera for resolution check");
             return false;
+        }
+    }
+
+    /**
+     * WHIP: reject upscale-only requests. On validation failure, match legacy behavior and allow.
+     */
+    private boolean preflightCameraCaptureForWhip(int width, int height) {
+        try {
+            if (!WhipCameraFormatSelector.canSatisfyWithoutUpscale(context, width, height)) {
+                Log.w(TAG, "Rejecting WHIP stream request that cannot be satisfied without upscaling: "
+                        + width + "x" + height);
+                SysControl.setEisEnable(context, true);
+                streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR,
+                        "Resolution not supported by camera");
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to validate WHIP stream resolution; allowing request", e);
+            return true;
         }
     }
 

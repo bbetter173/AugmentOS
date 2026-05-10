@@ -23,15 +23,47 @@ import os.log
 
 private let jscLog = OSLog(subsystem: "com.mentra.mentra", category: "JSCSpike")
 
-/// Log to BOTH jlog (forwarded into JS) AND os_log (visible to
-/// idevicesyslog). Release builds don't pipe RN's console.log to syslog,
-/// so we need the os_log path for agentic test capture.
+/// Log to BOTH jlog (forwarded into JS) AND os_log AND a flat file in
+/// the app's Documents directory. Release builds don't pipe RN's
+/// console.log or Swift print() to syslog, and os_log filtering through
+/// idevicesyslog is unreliable. The Documents file is the agentic-test
+/// path: `xcrun devicectl device copy from --domain-type appDataContainer
+/// --domain-identifier com.mentra.mentra --source Documents/jsc-spike.log`.
+private let logFileURL: URL = {
+    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    return docs.appendingPathComponent("jsc-spike.log")
+}()
+
 private func jlog(_ message: String) {
     Bridge.log(message)
     os_log("%{public}@", log: jscLog, type: .info, message)
+    let stamped = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"
+    if let data = stamped.data(using: .utf8) {
+        if FileManager.default.fileExists(atPath: logFileURL.path) {
+            if let handle = try? FileHandle(forWritingTo: logFileURL) {
+                defer { try? handle.close() }
+                try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            }
+        } else {
+            try? data.write(to: logFileURL, options: .atomic)
+        }
+    }
 }
 
 @objc public class JSCExperiment: NSObject {
+    /// Called from BluetoothSdkModule init. If MENTRA_RUN_JSC_BENCH env var
+    /// is set, kick off the benchmark after a 5s settle window so the app
+    /// is fully booted (RN bridge up, Metro pull done if dev, etc).
+    @objc public static func maybeAutoBenchmark() {
+        guard ProcessInfo.processInfo.environment["MENTRA_RUN_JSC_BENCH"] != nil else { return }
+        os_log("🧪 MENTRA_RUN_JSC_BENCH set — auto-running benchmark in 5s",
+               log: jscLog, type: .info)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 5.0) {
+            runBenchmark()
+        }
+    }
+
     /// id → (context, virtualMachine, timer for the workload)
     private static var contexts: [String: (JSContext, JSVirtualMachine, Timer)] = [:]
     private static let queue = DispatchQueue(label: "com.mentra.jsc-experiment")
@@ -177,9 +209,11 @@ private func jlog(_ message: String) {
     @objc public static func runBenchmark() {
         DispatchQueue.global(qos: .userInitiated).async {
             killAll()
+            // Clear log file for a fresh run.
+            try? FileManager.default.removeItem(at: logFileURL)
             Thread.sleep(forTimeInterval: 1.0)
             let baseline = MemoryMonitor.currentMemoryMB()
-            jlog("🧪 JSC-BENCH start; baseline \(String(format: "%.1f", baseline)) MB")
+            jlog("🧪 JSC-BENCH start; baseline \(String(format: "%.1f", baseline)) MB; logFile=\(logFileURL.path)")
             let waves = [1, 5, 10, 25, 50]
             var prevAlive = 0
             for target in waves {

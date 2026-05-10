@@ -4,6 +4,12 @@ public class CoreModule: Module {
     public func definition() -> ModuleDefinition {
         Name("Core")
 
+        OnCreate {
+            // Auto-trigger JSC benchmark when MENTRA_RUN_JSC_BENCH env var
+            // is set. Cheap no-op otherwise. Used by the agentic spike test.
+            JSCExperiment.maybeAutoBenchmark()
+        }
+
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",

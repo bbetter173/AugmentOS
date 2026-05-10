@@ -1,3 +1,9 @@
+// Test/benchmark infrastructure. Reachable only via Super Settings →
+// Stress Test (Jetsam), which is itself gated behind Super Mode. Used
+// to characterize per-WebView and per-JSContext memory cost on iOS for
+// the local miniapp SDK architecture decision. Zero impact on normal
+// user flows. See agents/mentrajs-two-layer-miniapp-architecture.md.
+
 import {useEffect, useRef, useState} from "react"
 import {ScrollView, View, Text} from "react-native"
 import {useLocalSearchParams} from "expo-router"

@@ -76,6 +76,7 @@ const deepLinkRoutes: DeepLinkRoute[] = [
         "change-password": "/miniapps/settings/change-password",
         "data-export": "/miniapps/settings/data-export",
         "dashboard": "/miniapps/settings/dashboard",
+        // Test/benchmark route — only useful behind Super Mode.
         "stress-test": "/miniapps/settings/stress-test",
       }
 

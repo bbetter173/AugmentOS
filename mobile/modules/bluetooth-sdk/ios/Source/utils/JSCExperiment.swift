@@ -2,6 +2,11 @@
 //  JSCExperiment.swift
 //  MentraOS
 //
+//  Test/benchmark infrastructure. Self-contained file, never invoked in
+//  normal user flow. Triggered only when (a) MENTRA_RUN_JSC_BENCH env
+//  var is set at app launch, or (b) the user taps a JSC button on the
+//  (Super-Mode-gated) stress-test screen.
+//
 //  Spike: measure the actual memory cost of N concurrent JSContexts on iOS.
 //  We want to know whether "Pebble-style native JSC per miniapp" is viable
 //  for our N-concurrent-miniapp use case (Pebble runs only 1 at a time, so

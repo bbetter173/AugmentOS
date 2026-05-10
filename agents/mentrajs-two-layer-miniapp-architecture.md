@@ -29,6 +29,50 @@ missing pieces. Critical changes in v2:
   any JSValue native code holds across calls, tear-down race ordering,
   `debugForceGC` diagnostic hook.
 
+## Writing this once, correctly
+
+The MentraOS team is excited about the local SDK. Once it ships, engineers
+will start porting cloud miniapps to it, and external developers will
+build new ones. **We get one chance to set the SDK contract.** Migrating
+the contract later means breaking every miniapp built against it.
+
+This drives several decisions:
+
+- **Live message bus from v1, not URL-redirect.** Cloud miniapps are real
+  SPAs with React/Vue/Svelte. They need real-time channels between
+  background and UI. URL-redirect is fine for "hit Save and exit"
+  config pages but won't handle live transcription previews, glasses
+  display previews, streaming sensor data into the UI, etc. We commit to
+  the bus from day one even though it's more code.
+- **Typed channels enforced at compile time.** `Channels` interface in
+  `src/shared/channels.ts` is the single source of truth; both layers
+  import from it; misnamed events fail at compile time. Catches a class
+  of bugs that would otherwise show up only at runtime in production.
+- **Storage as source of truth, not in-memory state.** Miniapps will be
+  killed and respawned (host app jetsam, glasses disconnect, user
+  toggles disable). Every miniapp must hydrate from `phone.storage` on
+  start. Documenting this as a hard rule + adding a lint that flags
+  miniapps which keep state outside storage.
+- **Permissions declared in manifest, prompted at install** — not at
+  first call. Makes the install flow predictable and avoids miniapp
+  authors getting whack-a-mole rejections from iOS permission prompts
+  scattered across their code paths.
+- **Bridge surface frozen for v1, additions go through SDK versioning.**
+  Adding a new bridge method = bumping `sdkVersion` in `mentra.json`.
+  Host refuses to spawn miniapps targeting an SDK version it doesn't
+  support. Removing a method = same. This way miniapps can be confident
+  about what works.
+- **No "two ways to do things."** Forbidden: WebView calling native
+  directly. Forbidden: background reaching into WebView DOM. The only
+  paths are background → native (via `__dispatch`) and background ↔
+  WebView (via the message bus). One way, every time.
+- **Hot-reload from day one.** Both layers reload on file change during
+  `bun run dev`. Background reloads = `kill(miniappId) + spawn(...)`
+  triggered over a websocket from the dev tooling to the host app.
+  WebView reloads via the standard reload trigger. If devs have to
+  restart the host app to test changes, they will hate the SDK. They
+  will be loud about it. We will lose them.
+
 ## Why this exists
 
 Today every running local miniapp gets its own persistent `WKWebView` in
@@ -820,24 +864,36 @@ Tasks:
     we cap at 3-5 backgrounded contexts and rotate.
 - Decision documented in this file's decision log.
 
-### Phase 2 — WebView binding (1-2 weeks)
+### Phase 2 — WebView binding (2 weeks)
 
 **Goal:** A WebView spawned on demand can talk to its bound JSContext
-via `mentra.send/on`.
+via `mentra.send/on` — a typed, live, bidirectional message bus.
 
 **This is novel work, not Pebble-validated.** Pebble's WebView model is
 one-shot URL redirect (`Pebble.openURL(url)` → user-facing settings page
 → user clicks Save → page redirects to `pebblejs://close#<json>` → host
 intercepts navigation → calls `signalWebviewClosed(data)` back into JS).
-That works but is rough for SPA-style settings UIs that need real-time
-updates from background.
+That works but is too coarse for the kind of settings UIs we want to
+support (real-time previews of glasses display, live device status,
+streaming transcription previews).
 
-Our richer message-bus model is intentionally novel. Budget for the
-bugs.
+**Decision: ship the live message bus from v1.** We are committing to
+writing this correctly once. Reasoning:
+
+- Engineers are excited to port cloud miniapps to local; that means real
+  SPAs (React/Vue/Svelte), not form-submit pages. They WILL need a
+  live channel.
+- Adding the bus later means re-architecting every miniapp that already
+  shipped on the v1 URL-redirect model. Painful migration.
+- The bus is novel but bounded: ~500 lines of TS + Swift. Pebble didn't
+  build it because their use case (config = one-time-saved settings)
+  didn't need it; ours does.
+- Tradeoff: we accept ~1 extra week of dev time + more bugs to hunt in
+  exchange for an SDK that actually fits the use case from day one.
 
 Tasks:
 - Update `LocalMiniappRuntime` to spawn WebView fresh on user navigation
-  to a miniapp's settings, destroy on exit.
+  to a miniapp's settings, destroy on exit. No pooling.
 - Native router (`MentraNativeBus`): given a WebView and a miniapp ID,
   routes `webkit.messageHandlers.mentra` messages to the JSContext's
   `ui.on()` handlers, and routes `ui.send()` outputs back to the
@@ -846,13 +902,19 @@ Tasks:
   shim. ~50 lines of JS. Buffers outbound `send()` until `ready()`
   is acked by background (mirroring the `signalReady` protocol from
   background).
-- Update `MiniappHost.tsx` to support the new lifecycle: spawn WebView
-  cold per open instead of keeping mounted.
+- Background `ui.send()` buffers messages while no WebView is bound;
+  flushes on `__open__`. WebView `mentra.send()` buffers messages until
+  `ready()` ack from background; flushes on ack.
+- Heartbeat: WebView sends `__heartbeat__` every 5s; if background
+  doesn't see one for 15s, it considers the WebView gone (covers crash/
+  navigate-away cases the `__close__` event might miss).
+- Sequence numbers on every message + dedup window on receiver, so
+  message-bus replays during reconnect don't double-fire handlers.
+- Update `MiniappHost.tsx` to support the new lifecycle.
 - Port the `Notes` example end-to-end. Verify the round-trip latency
   and the message bus.
-- **Compatibility:** also implement the simpler Pebble-style URL redirect
-  (`Pebble.openURL(url)` analog) for miniapps that just need a one-shot
-  config page. Two patterns supported; developer picks.
+- Acceptance: round-trip "WebView taps button → background runs glasses
+  display call → glasses show text" must be <50ms p95 on iPhone 15.
 
 ### Phase 3 — SDK packaging (1 week)
 

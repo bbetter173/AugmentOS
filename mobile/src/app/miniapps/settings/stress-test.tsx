@@ -38,11 +38,15 @@ export default function StressTest() {
   const {goBack} = useNavigationStore.getState()
   const {active, events, residentMB, memWarnCount, start, stop, setResidentMB} = useStressTestStore()
   const [mountedCount, setMountedCount] = useState(0)
-  const params = useLocalSearchParams<{autorun?: string; mb?: string; n?: string}>()
+  const params = useLocalSearchParams<{autorun?: string; mb?: string; n?: string; url?: string; jsc?: string}>()
   const initialMb = params.mb ? Math.max(1, parseInt(params.mb, 10)) : DEFAULT_MB_PER_APP
   const [mbPerApp, setMbPerApp] = useState(initialMb)
   const counterRef = useRef(0)
   const autoranRef = useRef(false)
+  // When ?url=<encoded URL> is provided, mount that URL instead of the
+  // synthetic dummy. Used to measure real-miniapp memory cost (e.g. the
+  // captions or streamer dev miniapps) vs the empty-WebView baseline.
+  const realUrl = params.url ? decodeURIComponent(params.url) : null
 
   // Memory poll loop
   useEffect(() => {
@@ -92,11 +96,20 @@ export default function StressTest() {
   const mountOne = () => {
     counterRef.current += 1
     const pkg = `${DUMMY_PREFIX}${counterRef.current}`
-    miniappHost.mount(pkg, dataUriFor(pkg, mbPerApp), {
+    const uri = realUrl ?? dataUriFor(pkg, mbPerApp)
+    miniappHost.mount(pkg, uri, {
       appName: `Dummy ${counterRef.current}`,
     })
     // eslint-disable-next-line no-console
-    console.log(`STRESS: mount ${JSON.stringify({pkg, mb: mbPerApp, at: Date.now()})}`)
+    console.log(
+      `STRESS: mount ${JSON.stringify({
+        pkg,
+        mode: realUrl ? "url" : "dummy",
+        url: realUrl,
+        mb: realUrl ? null : mbPerApp,
+        at: Date.now(),
+      })}`,
+    )
   }
 
   const mountN = (n: number) => {
@@ -114,9 +127,45 @@ export default function StressTest() {
     autoranThisAppLaunch = true
     autoranRef.current = true
     const n = params.n ? Math.max(1, parseInt(params.n, 10)) : 5
+    const jscN = params.jsc ? Math.max(1, parseInt(params.jsc, 10)) : 0
     // eslint-disable-next-line no-console
-    console.log(`STRESS: autorun ${JSON.stringify({mb: initialMb, n, at: Date.now()})}`)
+    console.log(`STRESS: autorun ${JSON.stringify({mb: initialMb, n, jscN, at: Date.now()})}`)
     start()
+
+    // JSC spike mode: skip WebViews entirely, just spawn N JSContexts and
+    // measure. Used for the "is the architecture viable" benchmark.
+    if (jscN > 0) {
+      const baseline = CoreModule.getMemoryMB()
+      // Spawn in waves of 1, 5, 10, 25, jscN so we get a memory curve.
+      const waves = [1, 5, 10, 25, jscN].filter((w, i, a) => w > 0 && a.indexOf(w) === i && w <= jscN)
+      let idx = 0
+      const tick = () => {
+        if (idx >= waves.length) return
+        const target = waves[idx++]
+        const aliveNow = (CoreModule as any).jscAliveCount() as number
+        const need = target - aliveNow
+        if (need > 0) {
+          const beforeMB = CoreModule.getMemoryMB()
+          const result = (CoreModule as any).jscSpawnAndMeasure(need, baseline)
+          const afterMB = CoreModule.getMemoryMB()
+          // eslint-disable-next-line no-console
+          console.log(
+            `STRESS: jsc-wave ${JSON.stringify({
+              target,
+              alive: target,
+              baselineMB: baseline,
+              beforeMB,
+              afterMB,
+              result,
+            })}`,
+          )
+        }
+        if (idx < waves.length) setTimeout(tick, 2000)
+      }
+      tick()
+      return
+    }
+
     // Stagger the mounts slightly so each WebView has a beat to allocate
     // before the next one starts. 200ms is enough for the data: URL to
     // begin loading without making the test feel slow.
@@ -184,6 +233,41 @@ export default function StressTest() {
 
           <Group title="Unmount">
             <RouteButton label="Unmount all dummies" onPress={() => unmountAll()} />
+          </Group>
+
+          <Group title="JSC Spike (no WebView)">
+            <RouteButton
+              label="Spawn 1 JSContext"
+              subtitle="Measures per-context memory cost"
+              onPress={async () => {
+                const baseline = CoreModule.getMemoryMB()
+                const result = (CoreModule as any).jscSpawnAndMeasure(1, baseline)
+                console.log("STRESS: jsc-spike", JSON.stringify(result))
+              }}
+            />
+            <RouteButton
+              label="Spawn 10 JSContexts"
+              onPress={async () => {
+                const baseline = CoreModule.getMemoryMB()
+                const result = (CoreModule as any).jscSpawnAndMeasure(10, baseline)
+                console.log("STRESS: jsc-spike", JSON.stringify(result))
+              }}
+            />
+            <RouteButton
+              label="Spawn 50 JSContexts"
+              onPress={async () => {
+                const baseline = CoreModule.getMemoryMB()
+                const result = (CoreModule as any).jscSpawnAndMeasure(50, baseline)
+                console.log("STRESS: jsc-spike", JSON.stringify(result))
+              }}
+            />
+            <RouteButton
+              label="Kill all JSContexts"
+              onPress={() => {
+                (CoreModule as any).jscKillAll()
+                console.log("STRESS: jsc-killed-all")
+              }}
+            />
           </Group>
 
           <Group title="Recent events">

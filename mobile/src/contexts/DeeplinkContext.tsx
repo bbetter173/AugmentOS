@@ -81,8 +81,8 @@ const deepLinkRoutes: DeepLinkRoute[] = [
 
       const route = sectionRoutes[section]
       if (route) {
-        // Pass through query params (mb, n, autorun) — stress-test uses them
-        const qsKeys = ["mb", "n", "autorun"]
+        // Pass through query params — stress-test uses them
+        const qsKeys = ["mb", "n", "autorun", "url", "jsc"]
         const qs = qsKeys
           .filter((k) => params[k] != null)
           .map((k) => `${k}=${encodeURIComponent(params[k])}`)

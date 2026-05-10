@@ -196,6 +196,25 @@ public class CoreModule: Module {
             return MemoryMonitor.currentMemoryMB()
         }
 
+        // JSC experiment: measure actual memory cost of N concurrent
+        // JSContexts on iOS. Pebble proves 1 context is light, but they
+        // don't run N. We do. Sub-questions:
+        //   - per-context cost: ~5 MB (extrapolated) or ~50 MB (worst case)?
+        //   - linear cost or fixed-cost cliffs?
+        //   - does N=50 even fit?
+        Function("jscSpawn") { (count: Int) -> Int in
+            return JSCExperiment.spawn(count: count)
+        }
+        Function("jscKillAll") { () -> Void in
+            JSCExperiment.killAll()
+        }
+        Function("jscAliveCount") { () -> Int in
+            return JSCExperiment.aliveCount()
+        }
+        Function("jscSpawnAndMeasure") { (count: Int, baselineMB: Double) -> [String: Any] in
+            return JSCExperiment.spawnAndMeasure(count: count, baselineMB: baselineMB)
+        }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in

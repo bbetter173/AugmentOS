@@ -133,36 +133,11 @@ export default function StressTest() {
     start()
 
     // JSC spike mode: skip WebViews entirely, just spawn N JSContexts and
-    // measure. Used for the "is the architecture viable" benchmark.
+    // measure. The native runBenchmark logs everything via Bridge.log →
+    // syslog, which IS reachable from idevicesyslog (unlike RN's
+    // console.log in release builds).
     if (jscN > 0) {
-      const baseline = CoreModule.getMemoryMB()
-      // Spawn in waves of 1, 5, 10, 25, jscN so we get a memory curve.
-      const waves = [1, 5, 10, 25, jscN].filter((w, i, a) => w > 0 && a.indexOf(w) === i && w <= jscN)
-      let idx = 0
-      const tick = () => {
-        if (idx >= waves.length) return
-        const target = waves[idx++]
-        const aliveNow = (CoreModule as any).jscAliveCount() as number
-        const need = target - aliveNow
-        if (need > 0) {
-          const beforeMB = CoreModule.getMemoryMB()
-          const result = (CoreModule as any).jscSpawnAndMeasure(need, baseline)
-          const afterMB = CoreModule.getMemoryMB()
-          // eslint-disable-next-line no-console
-          console.log(
-            `STRESS: jsc-wave ${JSON.stringify({
-              target,
-              alive: target,
-              baselineMB: baseline,
-              beforeMB,
-              afterMB,
-              result,
-            })}`,
-          )
-        }
-        if (idx < waves.length) setTimeout(tick, 2000)
-      }
-      tick()
+      ;(CoreModule as any).jscRunBenchmark()
       return
     }
 

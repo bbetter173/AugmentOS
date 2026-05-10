@@ -214,6 +214,9 @@ public class CoreModule: Module {
         Function("jscSpawnAndMeasure") { (count: Int, baselineMB: Double) -> [String: Any] in
             return JSCExperiment.spawnAndMeasure(count: count, baselineMB: baselineMB)
         }
+        Function("jscRunBenchmark") { () -> Void in
+            JSCExperiment.runBenchmark()
+        }
 
         // MARK: - Incident Reporting
 

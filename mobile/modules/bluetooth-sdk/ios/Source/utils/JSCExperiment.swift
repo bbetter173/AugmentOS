@@ -19,6 +19,17 @@
 
 import Foundation
 import JavaScriptCore
+import os.log
+
+private let jscLog = OSLog(subsystem: "com.mentra.mentra", category: "JSCSpike")
+
+/// Log to BOTH jlog (forwarded into JS) AND os_log (visible to
+/// idevicesyslog). Release builds don't pipe RN's console.log to syslog,
+/// so we need the os_log path for agentic test capture.
+private func jlog(_ message: String) {
+    Bridge.log(message)
+    os_log("%{public}@", log: jscLog, type: .info, message)
+}
 
 @objc public class JSCExperiment: NSObject {
     /// id → (context, virtualMachine, timer for the workload)
@@ -28,6 +39,8 @@ import JavaScriptCore
     /// Spawn N JSContexts at once. Each gets its own VM + a representative
     /// idle workload. Returns the count successfully spawned.
     @objc public static func spawn(count: Int) -> Int {
+        let beforeMB = MemoryMonitor.currentMemoryMB()
+        jlog("🧪 JSCExperiment.spawn(\(count)) starting; baseline \(String(format: "%.1f", beforeMB)) MB")
         var spawned = 0
         for i in 0..<count {
             let id = "spike-\(UUID().uuidString.prefix(8))-\(i)"
@@ -35,7 +48,9 @@ import JavaScriptCore
                 spawned += 1
             }
         }
-        Bridge.log("📊 JSCExperiment: spawned \(spawned) contexts (total now: \(contexts.count))")
+        let afterMB = MemoryMonitor.currentMemoryMB()
+        let perMB = spawned > 0 ? (afterMB - beforeMB) / Double(spawned) : 0
+        jlog("🧪 JSCExperiment: spawned \(spawned)/\(count) contexts; total alive \(contexts.count); mem \(String(format: "%.1f", beforeMB))→\(String(format: "%.1f", afterMB)) MB (\(String(format: "%+.2f", perMB)) MB/ctx)")
         return spawned
     }
 
@@ -125,7 +140,7 @@ import JavaScriptCore
             }
             let count = contexts.count
             contexts.removeAll()
-            Bridge.log("📊 JSCExperiment: killed all \(count) contexts")
+            jlog("📊 JSCExperiment: killed all \(count) contexts")
         }
     }
 
@@ -152,7 +167,36 @@ import JavaScriptCore
             "deltaMB": afterMB - beforeMB,
             "perContextMB": perContextMB,
         ]
-        Bridge.log("📊 JSCExperiment.spawnAndMeasure: \(result)")
+        jlog("📊 JSCExperiment.spawnAndMeasure: \(result)")
         return result
+    }
+
+    /// Run a full benchmark sweep: spawn 1, 5, 10, 25, 50 in waves with
+    /// 2s settle between, log resident MB before and after each. All
+    /// output via jlog so it reaches syslog in release builds.
+    @objc public static func runBenchmark() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            killAll()
+            Thread.sleep(forTimeInterval: 1.0)
+            let baseline = MemoryMonitor.currentMemoryMB()
+            jlog("🧪 JSC-BENCH start; baseline \(String(format: "%.1f", baseline)) MB")
+            let waves = [1, 5, 10, 25, 50]
+            var prevAlive = 0
+            for target in waves {
+                let need = target - prevAlive
+                if need > 0 {
+                    let beforeMB = MemoryMonitor.currentMemoryMB()
+                    _ = spawn(count: need)
+                    Thread.sleep(forTimeInterval: 1.0)
+                    let afterMB = MemoryMonitor.currentMemoryMB()
+                    let perContextOverall = (afterMB - baseline) / Double(target)
+                    jlog("🧪 JSC-BENCH wave: target=\(target) alive=\(aliveCount()) before=\(String(format: "%.1f", beforeMB))MB after=\(String(format: "%.1f", afterMB))MB delta=\(String(format: "%+.1f", afterMB - beforeMB))MB cumPerCtx=\(String(format: "%.2f", perContextOverall))MB")
+                    prevAlive = target
+                }
+                Thread.sleep(forTimeInterval: 2.0)
+            }
+            let final = MemoryMonitor.currentMemoryMB()
+            jlog("🧪 JSC-BENCH done; alive=\(aliveCount()) final=\(String(format: "%.1f", final))MB total-delta=\(String(format: "%+.1f", final - baseline))MB")
+        }
     }
 }

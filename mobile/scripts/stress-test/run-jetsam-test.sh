@@ -182,10 +182,17 @@ while (( $(date +%s) < END_AT )); do
   PROC_COUNT="$(xcrun devicectl device info processes \
     --device "${DEVICE_ID}" 2>/dev/null \
     | grep -c "Mentra.app" || true)"
-  # Fresh Mentra log lines indicate liveness regardless of devicectl.
-  RECENT_LINES="$(grep -c 'Mentra(' "${LOG_FILE}" 2>/dev/null || echo 0)"
-  if (( RECENT_LINES > 0 )); then
+  # Fresh Mentra log lines indicate liveness — but only count log lines
+  # FROM our app process, not wifid noise where SSID happens to be 'Mentra'.
+  # Our app emits as `Mentra(<channel>)` like `Mentra(React)`, while wifid
+  # emits the SSID inline like `wifid(WiFiPolicy)... for Mentra(ba:28:...)`.
+  # Tracking the per-iteration LINE COUNT and only resetting LAST when it
+  # grows is what we actually want.
+  CURR_LINES="$(grep -E 'Mentra\((React|UIKitCore|Swift|libsystem|CoreFoundation|Foundation)' "${LOG_FILE}" 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ -z "${PREV_LINES:-}" ]]; then PREV_LINES=0; fi
+  if (( CURR_LINES > PREV_LINES )); then
     LAST_MENTRA_LINE_AT="$(date +%s)"
+    PREV_LINES="${CURR_LINES}"
   fi
   STALE_S=$(( $(date +%s) - LAST_MENTRA_LINE_AT ))
   ELAPSED=$(( $(date +%s) - START_AT ))

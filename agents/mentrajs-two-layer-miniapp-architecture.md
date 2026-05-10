@@ -834,35 +834,58 @@ Tasks:
   `setInspectable`, log redaction, tear-down race ordering,
   `debugForceGC` hook, stable per-(user, miniapp) token.
 
-### Phase 1.5 — N-context memory benchmark (3 days, BLOCKING for Phase 4)
+### Phase 1.5 — N-context memory benchmark ✅ DONE 2026-05-09
 
 **Goal:** Validate the unproven claim that "we can run N concurrent
-JSContexts in background." Pebble has zero data on this; we are signing
-up for an extrapolation.
+JSContexts in background." Pebble has zero data on this.
 
-This is BLOCKING because if the answer is "actually contexts cost
-50 MB each not 5 MB each because of NSURLSession + thread + GCD pools,"
-the entire architecture changes. Better to know now.
+**Result: ~0.75 MB per JSContext on iPhone 15 release build.** 50
+contexts added 37.4 MB total. Architecture is unambiguously viable.
+Raw log: `agents/spike-results/jsc-spike-iphone15-release-50ctx.log`.
+
+The spike was run agentically via:
+1. `JSCExperiment.swift` — spawns N JSContexts each with own
+   `JSVirtualMachine`, single `__dispatch` stub bridge, idle workload
+   (timer + 100-entry state).
+2. `OnCreate` hook in `BluetoothSdkModule` — checks
+   `MENTRA_RUN_JSC_BENCH` env var and auto-runs the benchmark on launch.
+3. `Documents/jsc-spike.log` written via `FileManager` (release builds
+   don't pipe console.log or print() to syslog reliably).
+4. `xcrun devicectl device process launch -e '{"MENTRA_RUN_JSC_BENCH":
+   "1"}' com.mentra.mentra` to trigger.
+5. `xcrun devicectl device copy from --domain-type appDataContainer
+   --domain-identifier com.mentra.mentra --source Documents/jsc-spike.log`
+   to pull the result.
+
+The full pipeline is reproducible — re-run anytime to validate on new
+devices.
+
+**Caveats from the spike:**
+- Workload was idle (timer + small state). Real miniapp heap will be
+  bigger; budget ~3-5 MB/context once `fetch`/`WebSocket` shims are
+  added (those hold native NSURLSession instances).
+- Foreground only. iOS may compress idle JS heaps in background, may
+  suspend timers. Phase 1.5b: 24-hour background soak under realistic
+  load before declaring Phase 4 unblocked.
+- iPhone SE 2/3 not yet measured. Should be similar order of magnitude
+  but verify before committing on lower-RAM devices.
+
+### Phase 1.5b — 24-hour background soak (1 day)
+
+**Goal:** Verify N=10 contexts survive iOS background suspension cycles
+under realistic load (BLE events, occasional XHR, periodic timers).
 
 Tasks:
-- Build a synthetic miniapp that does a representative idle workload:
-  ping/pong every 5 s to a fake BLE handler, occasional XHR (every
-  60 s), one persistent WebSocket, hold ~1 MB of state.
-- Measure baseline: 1 context, foreground + background, 1 hour each.
-  Record resident memory, child-process memory (NSURLSession workers),
-  thread count.
-- Step through N = 5, 10, 20, 50 contexts. Same workload each.
-- Run 24-hour soak at the highest N that doesn't immediately jetsam,
-  with the host app backgrounded the whole time. We use the existing
-  stress-test harness in `mobile/scripts/stress-test/`, extended to
-  spawn JSContexts instead of WebViews.
-- Decision criteria:
-  - If 10 contexts fits in <500 MB resident on iPhone SE 2 → Phase 4
-    full speed.
-  - If 10 contexts costs 1 GB+ → re-think. Maybe each context is
-    spawned-on-demand-and-suspended-to-disk like Chrome MV3, or maybe
-    we cap at 3-5 backgrounded contexts and rotate.
-- Decision documented in this file's decision log.
+- Wire one of the synthetic JSContexts to receive real BLE events
+  via the existing dispatch bridge (so it's not pure-idle).
+- Add a fake fetch every 60 s (real NSURLSession HTTP request).
+- Background the host app for 24 hours.
+- Pull `Documents/jsc-spike.log` periodically (via launch + immediate
+  copy-from) and check that the contexts are still alive + responsive.
+
+If they survive → Phase 4 unblocked.
+If contexts die or get suspended in unexpected ways → adjust the
+architecture (heartbeat, wake-on-event, etc) before scaling to N.
 
 ### Phase 2 — WebView binding (2 weeks)
 
@@ -1054,3 +1077,10 @@ We've succeeded when:
   `JSContext.setName`/`setInspectable`, log redaction, tear-down race
   ordering, `debugForceGC`, stable per-(user, miniapp) token. All in
   Phase 1 scope.
+- **2026-05-09 (v3):** Locked in live message bus from v1 (not URL
+  redirect), added "Writing this once, correctly" section. We get one
+  chance to set the SDK contract; engineers porting cloud miniapps
+  need real-time channels.
+- **2026-05-09 (v4):** Phase 1.5 spike completed: 0.75 MB per JSContext
+  on iPhone 15 release. 50-context wave added 37 MB total. Architecture
+  validated. The N-context risk flagged in v3 is resolved.

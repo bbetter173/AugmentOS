@@ -1,9 +1,33 @@
 # MentraJS Two-Layer Miniapp Architecture
 
-**Status:** Proposed
+**Status:** Proposed (v2 — verified against Pebble's actual implementation)
 **Author:** Alex Israelov + Claude
 **Date:** 2026-05-09
 **Branch:** `mentra-miniapp-sdk-2`
+
+## What changed from v1
+
+v1 of this doc oversold "Pebble validates this." A deep reading of Pebble's
+actual code (see `coredevices/mobileapp` — `libpebble3/src/iosMain/kotlin/
+io/rebble/libpebblecommon/js/`) revealed two big gaps and many small
+missing pieces. Critical changes in v2:
+
+- **Pebble runs ONE PKJS context at a time, not N.** Their lifecycle is
+  "one watch app running → one JSContext." When the user starts a
+  different watch app, the previous context is torn down. **Pebble has
+  not validated the N-concurrent-context model on iOS.** We're the ones
+  signing up for that risk. Phase 1.5 added: real-device memory benchmark
+  of N=10 contexts for 24 hours before committing Phase 4 work.
+- **Pebble's WebView ↔ JS communication is one-shot via URL redirect**,
+  not a live message bus. Our typed-bus design is more powerful but is
+  novel work, not Pebble-proven. Spec now flags this honestly.
+- Added missing pieces Pebble has and we forgot: `signalReady` round-trip
+  with NACK timeout, `evalCatching` wrapper around every script,
+  `console.*` rewiring, `window.onerror` / `onunhandledrejection`,
+  `JSContext.setName` + `setInspectable`, log redaction for sensitive
+  terms, stable per-(user, miniapp) token primitive, `JSManagedValue` for
+  any JSValue native code holds across calls, tear-down race ordering,
+  `debugForceGC` diagnostic hook.
 
 ## Why this exists
 
@@ -558,6 +582,146 @@ The risk that's actually worth taking seriously is **4.7.2**: don't
 extend native API surface beyond what we audit. Stay narrow in
 `__dispatch`.
 
+## Pieces inherited from Pebble (do not skip these)
+
+A deep read of `coredevices/mobileapp` revealed several "small" things
+that aren't optional. They are how PKJS doesn't crash in production. We
+copy each one, with citations.
+
+### Single `__dispatch`, NOT per-method bindings (the production crash)
+
+`JavascriptCoreJsRunner.kt:89-114` documents a real production crash:
+
+> "Previously, ~35 Kotlin function references were individually set as
+> JSValue properties, each becoming a KotlinBase wrapper. JSC's GC
+> would call `[KotlinBase hash]` on these from its Heap Helper Thread,
+> racing with K/N's GC and causing EXC_BAD_ACCESS."
+
+`CrashReproducer.kt` is kept in their tree as a regression test. It
+reproduces by spawning concurrent threads doing high-rate native→JS
+calls + JSC GC pressure + JS code mixing native objects into WeakMap
+keys + concurrent GC.
+
+Note: the **specific** crash is Kotlin/Native GC × JSC GC. Swift uses
+ARC, not a tracing GC, so we wouldn't hit this exact failure. But we'd
+hit different ARC-vs-JSC issues. Take the lesson (single dispatcher),
+not the literal cause.
+
+### `JSManagedValue` for held JSValues
+
+Any JSValue that native code retains across calls must be wrapped in
+`JSManagedValue` and registered with `addManagedReference` on the
+context's virtual machine, then unregistered on destruction. See
+`JSCJSLocalStorageInterface.kt:36-42`.
+
+Forgetting this → JSC's GC frees something we still reference → crash.
+The reverse (forgetting to unregister) → memory leak across miniapp
+restart cycles.
+
+### `evalCatching` wraps every script
+
+`JsCoreExtensions.kt:26-49`. Every `evaluateScript` call goes through a
+wrapper that injects a JS try/catch around user code, piping any error
+to a global error handler before rethrowing. This catches syntax errors
+and synchronous throws that wouldn't fire `window.onerror`. **Never
+call `evaluateScript` directly outside of init.**
+
+### `signalReady` round-trip with NACK timeout
+
+`PKJSApp.kt:91-117`. When the host needs to deliver a message to JS,
+it first checks if the JS side has signalled `ready`. JS confirms via
+`_Pebble.privateFnConfirmReadySignal(success)`. The `JsRunner.readyState`
+`MutableStateFlow` only flips to `true` when JS confirms. Until then,
+incoming messages **either wait up to 6 seconds or NACK**.
+
+Our `mentra.ready()` needs the same shape: explicit ack from JS, host
+buffers messages with a bounded timeout, NACKs on timeout. Document the
+chosen timeout (we'll use 6s to match Pebble unless we have a reason
+to differ).
+
+### `console.*` rewiring + `window.onerror` + `onunhandledrejection`
+
+`startup.js:4-9` and `64-130`. All of:
+
+```js
+console.log, console.warn, console.error, console.info,
+console.debug, console.trace, console.assert
+```
+
+are rewired to forward to `_Pebble.onConsoleLog(level, message, traceback)`
+**while still calling the original**. Plus `window.onerror` →
+`_Pebble.onError(...)` and `window.addEventListener('unhandledrejection')`
+→ `_Pebble.onUnhandledRejection(...)`.
+
+This is how you debug user code in production. Without it, the only
+way a developer's bug becomes visible is if they happen to attach Safari
+Web Inspector mid-bug. Forward all console output to our log stream and
+to Sentry (with redaction — see next).
+
+### Console-log redaction
+
+`PrivatePKJSInterface.kt:39-65`. When `obfuscateContent` is set,
+log lines containing "token", "password", "secret", "auth", "key" etc.
+are redacted before being forwarded to native. Sentry hygiene measure.
+Worth copying — turn on in release builds, off in dev.
+
+### `JSContext.setName()` and `setInspectable`
+
+`JavascriptCoreJsRunner.kt:144-151`. Each context is named
+`"PKJS: $appName"` so Safari Web Inspector picks up a sensible label
+when developers attach. `setInspectable` is iOS 16.4+, gated by
+`#available` check, **and** by a runtime config flag (so we can disable
+inspection in release builds even on iOS 16.4+).
+
+5 lines of Swift. Best DX feature in their whole runtime. Ship from
+Phase 1.
+
+### Stable per-(user, miniapp) token
+
+`PKJSInterface.kt:35-61`. `Pebble.getAccountToken()` returns a stable
+identifier scoped to (user, app), hashed so the developer never sees
+actual user identity but can still recognize "this is the same user
+returning." `getWatchToken()` is similar but scoped to (device, app).
+
+Sideloaded apps get a per-developer-ID token; app-store apps get a
+per-app-UUID token. Either way, the developer can correlate sessions
+without identifying the user.
+
+We need an analog: `phone.identity.appToken()` returning a UUID stable
+per (user, miniapp). Important security/privacy primitive that miniapp
+authors will want for any kind of cloud sync.
+
+### Tear-down race ordering
+
+`JavascriptCoreJsRunner.kt:155-173`. The exact sequence matters:
+
+```
+1. Cancel the coroutine scope
+2. Join all in-flight jobs (so nothing is mid-evaluate)
+3. Remove all JSManagedValue references (so JSC stops tracking them)
+4. Drop the dispatcher StableRef
+5. Close the threadContext
+6. Force a GC.collect() to break cycles
+```
+
+Doing these out of order → race where threadContext closes mid-job, or
+JSC GC fires after we've freed Kotlin/Swift objects it still
+references. Bake this exact order into the runtime's destructor.
+
+### `debugForceGC()` diagnostic hook
+
+Exposed as `JSGarbageCollect(jsContext.JSGlobalContextRef())`. Used by
+`CrashReproducer` for repro and by us during memory leak hunts. Ship it,
+gated to dev/super-mode builds.
+
+### What we DON'T inherit from Pebble
+
+- **Multiple concurrent JSContexts.** Pebble has one. We need N. **This
+  is the single biggest risk in the architecture and is unproven.** See
+  the new Phase 1.5 below.
+- **Live message bus between WebView and JS.** Pebble does one-shot URL
+  redirect. Ours is novel; budget for the bugs.
+
 ## Implementation plan
 
 Each phase is a standalone, shippable milestone. Each builds on the
@@ -619,11 +783,57 @@ Tasks:
   the per-method pattern races JSC's GC with Swift's ARC and crashes in
   production. We inherit that lesson for free by going single-dispatcher
   from day one.
+- All the inherited Pebble pieces from the section above are in scope
+  for Phase 1: `JSManagedValue` for held JSValues, `evalCatching`,
+  `console.*` rewiring, `window.onerror` / `onunhandledrejection`,
+  `signalReady` with 6s NACK timeout, `JSContext.setName` +
+  `setInspectable`, log redaction, tear-down race ordering,
+  `debugForceGC` hook, stable per-(user, miniapp) token.
 
-### Phase 2 — WebView binding (1 week)
+### Phase 1.5 — N-context memory benchmark (3 days, BLOCKING for Phase 4)
+
+**Goal:** Validate the unproven claim that "we can run N concurrent
+JSContexts in background." Pebble has zero data on this; we are signing
+up for an extrapolation.
+
+This is BLOCKING because if the answer is "actually contexts cost
+50 MB each not 5 MB each because of NSURLSession + thread + GCD pools,"
+the entire architecture changes. Better to know now.
+
+Tasks:
+- Build a synthetic miniapp that does a representative idle workload:
+  ping/pong every 5 s to a fake BLE handler, occasional XHR (every
+  60 s), one persistent WebSocket, hold ~1 MB of state.
+- Measure baseline: 1 context, foreground + background, 1 hour each.
+  Record resident memory, child-process memory (NSURLSession workers),
+  thread count.
+- Step through N = 5, 10, 20, 50 contexts. Same workload each.
+- Run 24-hour soak at the highest N that doesn't immediately jetsam,
+  with the host app backgrounded the whole time. We use the existing
+  stress-test harness in `mobile/scripts/stress-test/`, extended to
+  spawn JSContexts instead of WebViews.
+- Decision criteria:
+  - If 10 contexts fits in <500 MB resident on iPhone SE 2 → Phase 4
+    full speed.
+  - If 10 contexts costs 1 GB+ → re-think. Maybe each context is
+    spawned-on-demand-and-suspended-to-disk like Chrome MV3, or maybe
+    we cap at 3-5 backgrounded contexts and rotate.
+- Decision documented in this file's decision log.
+
+### Phase 2 — WebView binding (1-2 weeks)
 
 **Goal:** A WebView spawned on demand can talk to its bound JSContext
 via `mentra.send/on`.
+
+**This is novel work, not Pebble-validated.** Pebble's WebView model is
+one-shot URL redirect (`Pebble.openURL(url)` → user-facing settings page
+→ user clicks Save → page redirects to `pebblejs://close#<json>` → host
+intercepts navigation → calls `signalWebviewClosed(data)` back into JS).
+That works but is rough for SPA-style settings UIs that need real-time
+updates from background.
+
+Our richer message-bus model is intentionally novel. Budget for the
+bugs.
 
 Tasks:
 - Update `LocalMiniappRuntime` to spawn WebView fresh on user navigation
@@ -633,11 +843,16 @@ Tasks:
   `ui.on()` handlers, and routes `ui.send()` outputs back to the
   WebView via `evaluateJavaScript("window.__mentra.recv(...)")`.
 - WKUserScript injection: at WebView mount, inject a `window.mentra`
-  shim. ~50 lines of JS.
+  shim. ~50 lines of JS. Buffers outbound `send()` until `ready()`
+  is acked by background (mirroring the `signalReady` protocol from
+  background).
 - Update `MiniappHost.tsx` to support the new lifecycle: spawn WebView
   cold per open instead of keeping mounted.
 - Port the `Notes` example end-to-end. Verify the round-trip latency
   and the message bus.
+- **Compatibility:** also implement the simpler Pebble-style URL redirect
+  (`Pebble.openURL(url)` analog) for miniapps that just need a one-shot
+  config page. Two patterns supported; developer picks.
 
 ### Phase 3 — SDK packaging (1 week)
 
@@ -763,3 +978,17 @@ We've succeeded when:
   Best memory profile, proven at WeChat scale, Apple-precedent through
   WeChat/Pebble/RN/CodePush, narrow bridge surface keeps 4.7.2 risk
   manageable.
+- **2026-05-09 (v2):** After verifying against Pebble's actual code,
+  flagged that **Pebble has not validated the N-concurrent-context
+  model** — they run one PKJS context at a time. We're extrapolating.
+  Added Phase 1.5 as a blocking benchmark before Phase 4.
+- **2026-05-09 (v2):** After verifying against Pebble's actual code,
+  flagged that **our live-message-bus WebView model is novel** —
+  Pebble does one-shot URL redirect. Phase 2 includes both: our richer
+  bus AND a simpler URL-redirect path for compatibility.
+- **2026-05-09 (v2):** Added all the Pebble-inherited "small" pieces
+  that aren't optional: `JSManagedValue`, `evalCatching`, `console.*`
+  rewiring, `window.onerror`, `signalReady` with NACK timeout,
+  `JSContext.setName`/`setInspectable`, log redaction, tear-down race
+  ordering, `debugForceGC`, stable per-(user, miniapp) token. All in
+  Phase 1 scope.

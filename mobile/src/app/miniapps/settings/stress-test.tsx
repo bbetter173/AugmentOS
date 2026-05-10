@@ -16,6 +16,13 @@ const DUMMY_PREFIX = "com.mentra.stress.dummy."
 const DEFAULT_MB_PER_APP = 25
 const POLL_MS = 1000
 
+// Module-level guard so the autorun fires AT MOST ONCE per app launch.
+// The deeplink can be processed twice on cold start (Linking.getInitialURL
+// + the addEventListener("url") callback both fire), causing the screen
+// to remount and re-fire any component-local autorun guards. Survives
+// screen remounts by living outside React.
+let autoranThisAppLaunch = false
+
 function dataUriFor(packageName: string, mb: number): string {
   const html = buildDummyMiniappHtml(packageName, mb)
   // base64 keeps things robust vs URL-encoding the % signs in the HTML
@@ -97,11 +104,14 @@ export default function StressTest() {
   }
 
   // Autorun: when launched via deeplink with ?autorun=1&mb=X&n=Y, kick off
-  // logging and mount N dummies automatically. Only fires once per mount of
-  // this screen so backgrounding/foregrounding doesn't re-trigger.
+  // logging and mount N dummies automatically. The module-level
+  // autoranThisAppLaunch flag guarantees this fires AT MOST ONCE per
+  // app launch even if the deeplink remounts the screen.
   useEffect(() => {
+    if (autoranThisAppLaunch) return
     if (autoranRef.current) return
     if (params.autorun !== "1" && params.autorun !== "true") return
+    autoranThisAppLaunch = true
     autoranRef.current = true
     const n = params.n ? Math.max(1, parseInt(params.n, 10)) : 5
     // eslint-disable-next-line no-console

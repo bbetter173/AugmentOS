@@ -85,19 +85,37 @@ echo "==> Starting idevicesyslog → ${LOG_FILE}"
 # STRESS: tag in console output. idevicesyslog has no process-name filter,
 # so we use --match on the bracketed process tag form, which is reliable
 # (avoids false matches against the WiFi SSID also being called "Mentra").
-idevicesyslog \
-  --match "Mentra(" \
-  --match "jetsam" \
-  --match "memorystatus" \
-  --match "STRESS:" \
-  --no-colors \
-  > "${LOG_FILE}" 2>&1 &
+#
+# Wrap in a relauncher so transient device disconnects (USB hiccups, sleep)
+# don't silently kill the whole run.
+(
+  while true; do
+    idevicesyslog \
+      --match "Mentra(" \
+      --match "jetsam" \
+      --match "memorystatus" \
+      --match "STRESS:" \
+      --no-colors
+    EC=$?
+    echo "[harness] idevicesyslog exited code=${EC}, restarting in 1s" >&2
+    sleep 1
+  done
+) >> "${LOG_FILE}" 2>&1 &
 LOG_PID=$!
-echo "==> idevicesyslog PID: ${LOG_PID}"
-trap 'kill ${LOG_PID} 2>/dev/null || true' EXIT
+echo "==> idevicesyslog wrapper PID: ${LOG_PID}"
+trap 'kill -- -${LOG_PID} 2>/dev/null || kill ${LOG_PID} 2>/dev/null || true' EXIT
 
 # Give the log relay a beat to attach
-sleep 2
+sleep 3
+# Verify the log relay actually attached. If not, fail fast — no point
+# running the whole test with no observability.
+if ! grep -q "connected:" "${LOG_FILE}" 2>/dev/null; then
+  echo "!! idevicesyslog did not attach (LOG_FILE empty after 3s)."
+  echo "   Make sure: phone is unlocked, USB is plugged in, and"
+  echo "   'idevice_id -l' returns a UDID."
+  exit 1
+fi
+echo "==> idevicesyslog attached"
 
 # -- 3. Launch the app via deeplink that auto-runs the test ----------------
 # The stress-test screen accepts query params:
@@ -149,19 +167,39 @@ if [[ "${SCENARIO}" == "background" || "${SCENARIO}" == "long" ]]; then
 fi
 
 echo "==> Dwelling ${DWELL}s while events accumulate..."
-# Periodically check that the app is still alive
-END_AT=$(( $(date +%s) + DWELL ))
+# We confirm app death two ways and require BOTH before declaring it dead:
+#   1. devicectl process listing has no Mentra entry
+#   2. idevicesyslog has stopped emitting Mentra(*) lines for >15s
+# This avoids false positives during scene transitions or process probe lag.
+START_AT="$(date +%s)"
+END_AT=$(( START_AT + DWELL ))
+LAST_MENTRA_LINE_AT="${START_AT}"
+DEATH_CONFIRMED=0
+# Sleep up front so we don't probe during the launch-to-running window.
+sleep 15
 while (( $(date +%s) < END_AT )); do
-  ALIVE="$(xcrun devicectl device info processes \
+  # devicectl process info is slow + flaky; use it loosely.
+  PROC_COUNT="$(xcrun devicectl device info processes \
     --device "${DEVICE_ID}" 2>/dev/null \
-    | grep -c "${APP_BUNDLE_ID}" || true)"
-  echo "    [$(date +%H:%M:%S)] alive=${ALIVE} elapsed=$(( $(date +%s) - (END_AT - DWELL) ))s"
-  if [[ "${ALIVE}" == "0" ]]; then
-    echo "==> APP DIED at $(date +%H:%M:%S)"
+    | grep -c "Mentra.app" || true)"
+  # Fresh Mentra log lines indicate liveness regardless of devicectl.
+  RECENT_LINES="$(grep -c 'Mentra(' "${LOG_FILE}" 2>/dev/null || echo 0)"
+  if (( RECENT_LINES > 0 )); then
+    LAST_MENTRA_LINE_AT="$(date +%s)"
+  fi
+  STALE_S=$(( $(date +%s) - LAST_MENTRA_LINE_AT ))
+  ELAPSED=$(( $(date +%s) - START_AT ))
+  echo "    [$(date +%H:%M:%S)] elapsed=${ELAPSED}s procs=${PROC_COUNT} log_stale=${STALE_S}s"
+  if (( PROC_COUNT == 0 && STALE_S > 15 )); then
+    echo "==> APP CONFIRMED DEAD at $(date +%H:%M:%S) (procs=0, no log lines for ${STALE_S}s)"
+    DEATH_CONFIRMED=1
     break
   fi
   sleep 30
 done
+if (( DEATH_CONFIRMED == 0 )); then
+  echo "==> App survived the dwell window (${DWELL}s) ✓"
+fi
 
 # -- 6. Stop log stream and parse -------------------------------------------
 echo "==> Stopping log stream..."

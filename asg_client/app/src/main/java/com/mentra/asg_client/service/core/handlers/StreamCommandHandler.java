@@ -88,6 +88,8 @@ public class StreamCommandHandler implements ICommandHandler {
      * Handle start stream command — routes to RTMP, SRT, or WHIP service based on URL.
      */
     private boolean handleStartCommand(JSONObject data) {
+        boolean eisDisabled = false;
+        boolean streamStarted = false;
         try {
             // Accept streamUrl first, then legacy rtmpUrl / srtUrl keys
             String streamUrl = data.optString("streamUrl", "");
@@ -148,6 +150,7 @@ public class StreamCommandHandler implements ICommandHandler {
 
             // Disable EIS during streaming to reduce camera HAL thermal load
             SysControl.setEisEnable(context, false);
+            eisDisabled = true;
 
             switch (protocol) {
                 case RTMP: {
@@ -157,6 +160,7 @@ public class StreamCommandHandler implements ICommandHandler {
                     }
                     Log.d(TAG, "Starting RTMP stream to: " + streamUrl);
                     RtmpStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
+                    streamStarted = true;
                     RtmpStreamingService.setStateManager(stateManager);
                     break;
                 }
@@ -167,6 +171,7 @@ public class StreamCommandHandler implements ICommandHandler {
                     }
                     Log.d(TAG, "Starting SRT stream to: " + streamUrl);
                     SrtStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
+                    streamStarted = true;
                     SrtStreamingService.setStateManager(stateManager);
                     break;
                 }
@@ -177,6 +182,7 @@ public class StreamCommandHandler implements ICommandHandler {
                     }
                     Log.d(TAG, "Starting WHIP stream to: " + streamUrl);
                     WhipStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
+                    streamStarted = true;
                     WhipStreamingService.setStateManager(stateManager);
                     break;
                 }
@@ -184,6 +190,9 @@ public class StreamCommandHandler implements ICommandHandler {
 
             return true;
         } catch (Exception e) {
+            if (eisDisabled && !streamStarted) {
+                SysControl.setEisEnable(context, true);
+            }
             Log.e(TAG, "Error handling start stream command", e);
             streamingManager.sendStreamStatusResponse(false, ServiceConstants.STATUS_ERROR, e.getMessage());
             return false;

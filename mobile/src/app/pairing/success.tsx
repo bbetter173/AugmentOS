@@ -9,17 +9,17 @@ import {waitForGlassesState} from "@/stores/glasses"
 import {getGlassesImage} from "@/utils/getGlassesImage"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
 import {translate} from "@/i18n"
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
 export default function PairingSuccessScreen() {
-  const {clearHistoryAndGoHome, pushUnder} = useNavigationHistory()
+  const {clearHistoryAndGoHome, push, pushUnder} = useNavigationHistory()
   const route = useRoute()
   const {deviceModel: routeDeviceModel} = (route.params as {deviceModel?: string}) || {}
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
-  const {push} = useNavigationHistory()
   const [onboardingOsCompleted] = useSetting(SETTINGS.onboarding_os_completed.key)
   const [buttonText, setButtonText] = useState<string>(translate("common:continue"))
   const [stack, setStack] = useState<string[]>([])
+  const stackPromiseRef = useRef<Promise<string[]> | null>(null)
 
   focusEffectPreventBack()
 
@@ -33,7 +33,7 @@ export default function PairingSuccessScreen() {
 
   const glassesImage = getGlassesImage(deviceModel)
 
-  const getStack = async () => {
+  const buildLiveStack = useCallback(async (): Promise<string[]> => {
     const order = ["/pairing/btclassic", "/wifi/scan", "/ota/check-for-updates", "/onboarding/live", "/onboarding/os"]
     let newStack: string[] = []
 
@@ -47,19 +47,12 @@ export default function PairingSuccessScreen() {
       if (!btcConnected) {
         newStack.push("/pairing/btclassic")
       }
-      // check if the glasses are already connected:
-      // wait for the glasses to be connected to wifi for up to 1 second:
-      let wifiConnected = await waitForGlassesState("wifiConnected", (value) => value === true, 1000)
-      if (!wifiConnected) {
-        newStack.push("/wifi/scan")
-      }
+      // OTA check runs on the phone; WiFi is only required after an update is confirmed (see check-for-updates).
       newStack.push("/ota/check-for-updates")
       if (!onboardingOsCompleted) {
         // newStack.push("/onboarding/os")
       }
-      newStack.push("/onboarding/live")
 
-      // sort the stack by the order:
       newStack.sort((a, b) => order.indexOf(a) - order.indexOf(b))
     }
     if (deviceModel === DeviceTypes.G1 || deviceModel === DeviceTypes.G2) {
@@ -67,26 +60,29 @@ export default function PairingSuccessScreen() {
         // newStack.push("/onboarding/os")
       }
     }
-    setStack(newStack)
-  }
+    return newStack
+  }, [deviceModel, onboardingOsCompleted])
+
+  useLayoutEffect(() => {
+    stackPromiseRef.current = buildLiveStack().then((routes) => {
+      setStack(routes)
+      return routes
+    })
+  }, [buildLiveStack])
 
   const handleContinue = async () => {
-    console.log("PAIR_SUCCESS: stack", stack)
-    // clear the history and go home so that we don't navigate back here:
+    const routes = await (stackPromiseRef.current ?? buildLiveStack())
+    console.log("PAIR_SUCCESS: stack", routes)
     clearHistoryAndGoHome()
-    // if the stack is empty, we are done:
-    if (stack.length === 0) {
+    if (routes.length === 0) {
       return
     }
-    let stackCopy = stack.slice()
-    // push the first element in the stack (removing it from the list):
+    let stackCopy = routes.slice()
     const first = stackCopy.shift()
     push(first!)
-    // go bottom to top and pushUnder the rest (in reverse order):
     for (let i = stackCopy.length - 1; i >= 0; i--) {
       pushUnder(stackCopy[i])
     }
-    return
   }
 
   let steps: OnboardingStep[] = []
@@ -170,11 +166,6 @@ export default function PairingSuccessScreen() {
       ]
       break
   }
-
-  // initialize the stack:
-  useEffect(() => {
-    getStack()
-  }, [])
 
   useEffect(() => {
     const updateButtonText = async () => {

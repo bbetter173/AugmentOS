@@ -3,11 +3,12 @@ import {Platform} from "react-native"
 import CrustModule from "crust"
 import * as ScreenCapture from "expo-screen-capture"
 
-import {push} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {showAlert} from "@/contexts/ModalContext"
 import {translate} from "@/i18n"
 
 export function ScreenshotFeedbackPrompt() {
+  const {push} = useNavigationStore.getState()
   useEffect(() => {
     if (Platform.OS !== "ios") return
 

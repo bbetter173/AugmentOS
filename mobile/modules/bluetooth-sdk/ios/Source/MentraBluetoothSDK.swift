@@ -893,6 +893,10 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.sendOtaStart()
     }
 
+    public func sendOtaQueryStatus() {
+        CoreManager.shared.sendOtaQueryStatus()
+    }
+
     public func sendShutdown() {
         CoreManager.shared.sendShutdown()
     }

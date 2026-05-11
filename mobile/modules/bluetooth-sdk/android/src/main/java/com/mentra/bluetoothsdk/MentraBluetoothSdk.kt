@@ -264,6 +264,10 @@ class MentraBluetoothSdk private constructor(
         deviceManager.sendOtaStart()
     }
 
+    fun sendOtaQueryStatus() {
+        deviceManager.sendOtaQueryStatus()
+    }
+
     fun sendShutdown() {
         deviceManager.sendShutdown()
     }

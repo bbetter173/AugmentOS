@@ -649,6 +649,19 @@ public class AsgClientServiceManager {
     }
 
     /**
+     * Mark the phone connection active after the phone_ready/glasses_ready handshake completes.
+     */
+    public void onPhoneReadyHandshakeComplete() {
+        Log.d(TAG, "📱 Phone ready handshake complete");
+
+        if (service != null) {
+            service.onPhoneReadyHandshakeComplete();
+        } else {
+            Log.w(TAG, "⚠️ AsgClientService reference is null - cannot mark phone ready handshake complete");
+        }
+    }
+
+    /**
      * Handle service heartbeat received from MentraLiveSGC
      */
     public void onServiceHeartbeatReceived() {
@@ -661,4 +674,4 @@ public class AsgClientServiceManager {
             Log.w(TAG, "⚠️ AsgClientService reference is null - cannot notify about heartbeat");
         }
     }
-} 
+}

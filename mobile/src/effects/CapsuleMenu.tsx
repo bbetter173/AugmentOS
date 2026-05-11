@@ -27,7 +27,7 @@ function CapsuleButton({onMinusPress}: CapsuleButtonProps) {
   return (
     <GlassView
       transparent={true}
-      className="flex-row justify-between rounded-full h-8 w-8 items-center"
+      className="flex-row justify-between rounded-full h-10.5 w-10.5 items-center"
       style={androidStyle}>
       <Pressable
         hitSlop={10}
@@ -36,9 +36,10 @@ function CapsuleButton({onMinusPress}: CapsuleButtonProps) {
           pressed && {backgroundColor: theme.colors.input},
           {
             position: "absolute",
-            // right: 0,
-            width: 32,
-            height: 32,
+            // right: 20,
+            // left: 4,
+            width: 42,
+            height: 42,
             // height: "100%",
             alignItems: "center",
             justifyContent: "center",
@@ -47,7 +48,7 @@ function CapsuleButton({onMinusPress}: CapsuleButtonProps) {
             // borderBottomRightRadius: 40,
           },
         ]}>
-        <Icon name={"house"} size={16} color={theme.colors.foreground} className="mb-0.5" />
+        <Icon name={"house"} size={20} color={theme.colors.foreground} className="mb-0.5" />
       </Pressable>
     </GlassView>
   )

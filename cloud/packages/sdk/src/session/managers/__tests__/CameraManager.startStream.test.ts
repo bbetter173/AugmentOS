@@ -64,7 +64,7 @@ describe("CameraManager.startStream", () => {
   });
 
   it("validates video before the Already streaming guard (managed)", async () => {
-    void mgr.startStream({ video: { width: 1280, height: 720 } });
+    const inflight = mgr.startStream({ video: { width: 1280, height: 720 } });
     await new Promise<void>((r) => setImmediate(() => r()));
     expect(sent.length).toBe(1);
 
@@ -73,6 +73,9 @@ describe("CameraManager.startStream", () => {
     await expect(mgr.startStream({ video: { width: 1280, height: 720 } })).rejects.toThrow(
       "Already streaming",
     );
+
+    mgr["pendingManagedStreamRequest"]?.reject(new Error("cleanup"));
+    await expect(inflight).rejects.toThrow("cleanup");
   });
 });
 

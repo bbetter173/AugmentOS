@@ -49,7 +49,7 @@ describe("CameraManagedExtension.startManagedStream", () => {
   });
 
   it("validates video before the Already streaming guard", async () => {
-    void ext.startManagedStream({ video: { width: 1280, height: 720 } });
+    const inflight = ext.startManagedStream({ video: { width: 1280, height: 720 } });
     await new Promise<void>((r) => setImmediate(() => r()));
     expect(sent.length).toBe(1);
 
@@ -57,5 +57,8 @@ describe("CameraManagedExtension.startManagedStream", () => {
     expect(sent.length).toBe(1);
 
     await expect(ext.startManagedStream({ video: { width: 1280, height: 720 } })).rejects.toThrow("Already streaming");
+
+    (ext as any)["pendingManagedStreamRequest"]?.reject(new Error("cleanup"));
+    await expect(inflight).rejects.toThrow("cleanup");
   });
 });

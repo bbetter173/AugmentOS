@@ -447,27 +447,32 @@ public class Bridge private constructor() {
             sendTypedMessage("ota_start_ack", eventBody as Map<String, Any>)
         }
 
-        /** Send OTA progress update - glasses are downloading/installing an update */
         @JvmStatic
-        fun sendOtaProgress(
-                stage: String,
+        fun sendOtaStatus(
+                sessionId: String,
+                totalSteps: Int,
+                currentStep: Int,
+                stepType: String,
+                phase: String,
+                stepPercent: Int,
+                overallPercent: Int,
                 status: String,
-                progress: Int,
-                bytesDownloaded: Long,
-                totalBytes: Long,
-                currentUpdate: String,
                 errorMessage: String?
         ) {
             val eventBody = HashMap<String, Any>()
-            eventBody["stage"] = stage
+            eventBody["session_id"] = sessionId
+            eventBody["total_steps"] = totalSteps
+            eventBody["current_step"] = currentStep
+            eventBody["step_type"] = stepType
+            eventBody["phase"] = phase
+            eventBody["step_percent"] = stepPercent
+            eventBody["overall_percent"] = overallPercent
             eventBody["status"] = status
-            eventBody["progress"] = progress
-            eventBody["bytes_downloaded"] = bytesDownloaded
-            eventBody["total_bytes"] = totalBytes
-            eventBody["current_update"] = currentUpdate
             errorMessage?.let { eventBody["error_message"] = it }
 
-            sendTypedMessage("ota_progress", eventBody as Map<String, Any>)
+            Log.d(TAG, "Bridge: sendOtaStatus: $eventBody")
+
+            sendTypedMessage("ota_status", eventBody as Map<String, Any>)
         }
 
         /** Send stream status - forwards to websocket system (matches iOS) */

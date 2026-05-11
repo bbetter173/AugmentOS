@@ -12,7 +12,10 @@ jest.mock("@react-navigation/native", () => ({
 
 jest.mock("@/contexts/NavigationHistoryContext", () => ({
   focusEffectPreventBack: jest.fn(),
-  useNavigationHistory: jest.fn(),
+}))
+
+jest.mock("@/stores/navigation", () => ({
+  useNavigationStore: {getState: jest.fn()},
 }))
 
 jest.mock("@/services/bugReport/automaticBugReport", () => ({
@@ -80,7 +83,7 @@ import type {ReactNode} from "react"
 
 import CoreModule from "@mentra/bluetooth-sdk"
 import {useRoute} from "@react-navigation/native"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import GlassesPairingLoadingScreen from "@/app/pairing/loading"
 import {useGlassesStore} from "@/stores/glasses"
@@ -98,7 +101,7 @@ describe("pairing loading screen", () => {
     ;(useRoute as jest.Mock).mockReturnValue({
       params: {deviceModel: "Mentra Live", deviceName: "MENTRA_LIVE_BLE_001"},
     })
-    ;(useNavigationHistory as jest.Mock).mockReturnValue({replace, goBack})
+    ;(useNavigationStore.getState as jest.Mock).mockReturnValue({replace, goBack})
   })
 
   afterEach(() => {

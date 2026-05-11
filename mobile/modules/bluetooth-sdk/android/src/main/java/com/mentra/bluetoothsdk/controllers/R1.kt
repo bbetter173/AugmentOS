@@ -46,6 +46,12 @@ private object R1BLE {
     val CONFIG_FC = byteArrayOf(0xFC.toByte())
     val CONFIG_11 = byteArrayOf(0x11.toByte())
 
+    // BleRing1 command header (cmd, module, subCmd) for advStart.
+    // From RE: BleRing1Cmd_system=0, BleRing1Module_system=0, BleRing1SubCmd_advStart=9
+    const val CMD_SYSTEM: Byte = 0x00
+    const val MODULE_SYSTEM: Byte = 0x00
+    const val SUBCMD_ADV_START: Byte = 0x09
+
     const val GESTURE_MARKER: Byte = 0xFF.toByte()
 }
 
@@ -109,7 +115,19 @@ class R1 : ControllerManager() {
     // Device search
     private var deviceSearchId: String = "NOT_SET"
 
-    // Stored MAC for background reconnection (Android exposes real MAC, so no UUID/name→MAC map)
+    // BLE handle used by Android for reconnection (BluetoothDevice.address — may be a
+    // resolvable/random address depending on bonding state; not the ring's public MAC).
+    private var ringBleAddress: String?
+        get() = prefs.getString("r1_ringBleAddress", null)
+        set(value) {
+            prefs.edit().apply {
+                if (value == null) remove("r1_ringBleAddress") else putString("r1_ringBleAddress", value)
+                apply()
+            }
+        }
+
+    // Public ring MAC parsed from advertisement manufacturer data (last 6 bytes), formatted
+    // as "AA:BB:CC:DD:EE:FF". This is what gets published to GlassesStore/controllerMacAddress.
     private var ringMacAddress: String?
         get() = prefs.getString("r1_ringMacAddress", null)
         set(value) {
@@ -118,6 +136,34 @@ class R1 : ControllerManager() {
                 apply()
             }
         }
+
+    // peripheral name -> 6-byte ring MAC (hex string), populated from mfgData on every scan.
+    // Mirrors iOS ringMacAddressMap so reconnects re-validate freshness instead of trusting
+    // a stale stored MAC.
+    private fun loadRingMacAddressMap(): MutableMap<String, String> {
+        val raw = prefs.getString("r1_ringMacAddressMap", null) ?: return mutableMapOf()
+        val out = mutableMapOf<String, String>()
+        for (entry in raw.split(';')) {
+            if (entry.isEmpty()) continue
+            val idx = entry.indexOf('=')
+            if (idx <= 0) continue
+            out[entry.substring(0, idx)] = entry.substring(idx + 1)
+        }
+        return out
+    }
+
+    private fun saveRingMacAddressMap(map: Map<String, String>) {
+        val raw = map.entries.joinToString(";") { "${it.key}=${it.value}" }
+        prefs.edit().putString("r1_ringMacAddressMap", raw).apply()
+    }
+
+    private fun putRingMacInMap(name: String, mac: String) {
+        val map = loadRingMacAddressMap()
+        map[name] = mac
+        saveRingMacAddressMap(map)
+    }
+
+    private fun getRingMacFromMap(name: String): String? = loadRingMacAddressMap()[name]
 
     // Reconnection (defined but currently unwired — matches iOS which leaves it commented)
     private val reconnectionManager = R1ReconnectionManager()
@@ -175,10 +221,19 @@ class R1 : ControllerManager() {
             return false
         }
 
+        // Already connected — don't start a new scan
+        if (ringGatt != null) {
+            Bridge.log("R1: Already connected, skipping scan")
+            return true
+        }
+
         isDisconnecting = false
 
-        // Try MAC-based reconnection first
-        if (connectByMac()) {
+        // Stop any prior scan before starting a new one (avoids leaking ScanCallback)
+        stopScan()
+
+        // Try address-based reconnection first
+        if (connectByBleAddress()) {
             return true
         }
 
@@ -220,24 +275,29 @@ class R1 : ControllerManager() {
         } catch (e: SecurityException) {
             Bridge.log("R1: stopScan SecurityException: ${e.message}")
         }
+        scanCallback = null
     }
 
-    private fun connectByMac(): Boolean {
+    private fun connectByBleAddress(): Boolean {
         if (deviceSearchId == "NOT_SET" || deviceSearchId.isEmpty()) {
-            Bridge.log("R1: No deviceSearchId set, skipping connect by MAC")
+            Bridge.log("R1: No deviceSearchId set, skipping connect by address")
             return false
         }
-        val mac = ringMacAddress ?: return false
+        val address = ringBleAddress ?: return false
         val adapter = bluetoothAdapter ?: return false
+        if (ringGatt != null) {
+            Bridge.log("R1: connectByBleAddress skipped — already connected")
+            return true
+        }
         val device = try {
-            adapter.getRemoteDevice(mac)
+            adapter.getRemoteDevice(address)
         } catch (e: IllegalArgumentException) {
-            Bridge.log("R1: Invalid stored MAC: $mac")
+            Bridge.log("R1: Invalid stored BLE address: $address")
             return false
         }
         try {
             ringGatt = device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
-            Bridge.log("R1: Reconnecting by MAC to ${device.name ?: mac}")
+            Bridge.log("R1: Reconnecting by address to ${device.name ?: address}")
         } catch (e: SecurityException) {
             Bridge.log("R1: connectGatt SecurityException: ${e.message}")
             return false
@@ -267,14 +327,27 @@ class R1 : ControllerManager() {
             advertisedName
         }
         mainHandler.post {
+            // Already connected — ignore further scan results
+            if (ringGatt != null) {
+                stopScan()
+                return@post
+            }
             if (!matchesNameFilter(deviceName)) return@post
 
             val mfgMap = result.scanRecord?.manufacturerSpecificData
-            val mfgHex = if (mfgMap != null && mfgMap.size() > 0) {
-                val first = mfgMap.valueAt(0)
-                first?.joinToString(" ") { String.format("%02X", it) } ?: "none"
-            } else "none"
+            val mfgBytes: ByteArray? = if (mfgMap != null && mfgMap.size() > 0) mfgMap.valueAt(0) else null
+            val mfgHex = mfgBytes?.joinToString(" ") { String.format("%02X", it) } ?: "none"
             Bridge.log("R1: Discovered: ${deviceName ?: "?"} (RSSI: ${result.rssi}) mfgData: $mfgHex")
+
+            // Extract ring MAC from manufacturer data (last 6 bytes) and store name->MAC map.
+            // Android's manufacturerSpecificData strips the 2-byte company ID; iOS keeps it. The
+            // resulting "last 6 bytes" land in reversed byte order between platforms (verified in
+            // the field), so reverse here to match iOS's stored string ("1B:08:26:8E:0E:E6").
+            if (deviceName != null && mfgBytes != null && mfgBytes.size >= 6) {
+                val tail = mfgBytes.copyOfRange(mfgBytes.size - 6, mfgBytes.size)
+                val macStr = tail.joinToString(":") { String.format("%02X", it) }
+                putRingMacInMap(deviceName, macStr)
+            }
 
             // Emit discovered device
             val id = deviceName?.let { extractRingId(it) }
@@ -291,7 +364,7 @@ class R1 : ControllerManager() {
             if (parsedId != deviceSearchId && !name.contains(deviceSearchId)) return@post
 
             if (ringGatt == null) {
-                ringMacAddress = device.address
+                ringBleAddress = device.address
                 try {
                     ringGatt = device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
                 } catch (e: SecurityException) {
@@ -358,6 +431,9 @@ class R1 : ControllerManager() {
         GlassesStore.apply("glasses", "controllerConnected", true)
         // GlassesStore.apply("glasses", "controllerFullyBooted", true)
 
+        // tell the ring to connect to the glasses if we have its mac address:
+        connectToGlasses()
+
         // after a second, connect the glasses to the controller if needed:
         CoroutineScope(Dispatchers.Main).launch {
             delay(1000)
@@ -365,6 +441,61 @@ class R1 : ControllerManager() {
         }
 
         startHeartbeat()
+    }
+
+    /**
+     * Tells the ring to start advertising / connect to the glasses.
+     * Sends BleRing1 advStart (cmd=0, module=0, subCmd=9) with the 6-byte glasses MAC as payload
+     * to WRITE_CHAR_2 (BAE80012-…). Reverse-engineered from the Even Realities mobile app
+     * (BleRing1CmdProto::advStart -> BleRing1CmdPublicExt.sendCmd).
+     *
+     * TODO: BleRing1CmdPublicExt.sendCmd may add additional outer framing (length/seq/CRC) around
+     * the 3-byte header + MAC. If the ring rejects this raw payload, decode the wrapper.
+     */
+    private fun connectToGlasses() {
+        // Try GlassesStore first; fall back to cached value in SharedPreferences.
+        val glassesMac = (GlassesStore.get("glasses", "btMacAddress") as? String)
+            ?: prefs.getString("glasses_btMacAddress", null)
+        if (glassesMac == null) {
+            Bridge.log("R1: connectToGlasses: no glasses MAC")
+            return
+        }
+        // Cache so we can reconnect even before the glasses are scanned.
+        prefs.edit().putString("glasses_btMacAddress", glassesMac).apply()
+
+        val macBytes = parseMac(glassesMac)
+        if (macBytes == null) {
+            Bridge.log("R1: connectToGlasses: could not parse glasses MAC")
+            return
+        }
+        val wc = writeChar2 ?: writeChar1
+        if (wc == null) {
+            Bridge.log("R1: connectToGlasses: no write characteristic")
+            return
+        }
+
+        val payload = byteArrayOf(R1BLE.CMD_SYSTEM, R1BLE.MODULE_SYSTEM, R1BLE.SUBCMD_ADV_START) + macBytes
+        Bridge.log("R1: advStart sent")
+
+        wc.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+        wc.value = payload
+        try {
+            ringGatt?.writeCharacteristic(wc)
+        } catch (e: SecurityException) {
+            Bridge.log("R1: connectToGlasses writeCharacteristic SecurityException: ${e.message}")
+        }
+    }
+
+    /** Parse "AA:BB:CC:DD:EE:FF" or "AABBCCDDEEFF" into 6 raw bytes. */
+    private fun parseMac(s: String): ByteArray? {
+        val cleaned = s.replace(":", "").replace("-", "")
+        if (cleaned.length != 12) return null
+        val out = ByteArray(6)
+        for (i in 0 until 6) {
+            val byte = cleaned.substring(i * 2, i * 2 + 2).toIntOrNull(16) ?: return null
+            out[i] = byte.toByte()
+        }
+        return out
     }
 
     // MARK: - Heartbeat
@@ -467,6 +598,7 @@ class R1 : ControllerManager() {
         descriptorWriteInFlight = false
         readInFlight = false
         ringMacAddress = null
+        ringBleAddress = null
         GlassesStore.apply("glasses", "controllerConnected", false)
         GlassesStore.apply("glasses", "controllerFullyBooted", false)
     }
@@ -479,6 +611,26 @@ class R1 : ControllerManager() {
                 BluetoothGatt.STATE_CONNECTED -> {
                     val name = try { gatt.device.name } catch (e: SecurityException) { null }
                     Bridge.log("R1: Connected to ${name ?: "ring"}")
+
+                    // Validate against the name->MAC map populated during scan. If the connected
+                    // peripheral isn't in the map we don't have its true public MAC — drop the
+                    // connection and rescan rather than publishing a stale/wrong MAC. Mirrors
+                    // iOS R1.swift didConnect.
+                    val mappedMac = name?.let { getRingMacFromMap(it) }
+                    if (mappedMac == null) {
+                        Bridge.log("R1: No MAC stored in map found for ${name ?: "ring"}")
+                        mainHandler.post {
+                            disconnect()
+                            ringBleAddress = null
+                            GlassesStore.apply("glasses", "controllerConnected", false)
+                            GlassesStore.apply("glasses", "controllerFullyBooted", false)
+                            GlassesStore.apply("glasses", "controllerSearching", true)
+                            mainHandler.postDelayed({ startScan() }, 1000)
+                        }
+                        return
+                    }
+                    ringMacAddress = mappedMac
+
                     try {
                         gatt.discoverServices()
                     } catch (e: SecurityException) {
@@ -672,6 +824,8 @@ class R1 : ControllerManager() {
     override fun forget() {
         disconnect()
         ringMacAddress = null
+        ringBleAddress = null
+        prefs.edit().remove("r1_ringMacAddressMap").apply()
         deviceSearchId = "NOT_SET"
     }
 

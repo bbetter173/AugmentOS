@@ -1,6 +1,6 @@
 //
 //  DeviceStore.swift
-//  MentraBluetoothSDK
+//  BluetoothSDK
 //
 //  Centralized observable state store for glasses and Bluetooth SDK settings
 //
@@ -45,6 +45,7 @@ class GlassesStore {
         store.set("glasses", "hotspotPassword", "")
         store.set("glasses", "hotspotGatewayIp", "")
         store.set("glasses", "bluetoothName", "")
+        store.set("glasses", "macAddress", "")
         store.set("glasses", "controllerConnected", false)
         store.set("glasses", "controllerMacAddress", "")
         store.set("glasses", "controllerBatteryLevel", -1)
@@ -126,12 +127,11 @@ class GlassesStore {
 
     /// Apply changes with side effects
     func apply(_ category: String, _ key: String, _ value: Any) {
-        let normalizedCategory = ObservableStore.normalizeCategory(category)
-        let oldValue = store.get(normalizedCategory, key)
-        store.set(normalizedCategory, key, value)
+        let oldValue = store.get(category, key)
+        store.set(category, key, value)
 
         // Trigger hardware updates based on setting changes
-        switch (normalizedCategory, key) {
+        switch (category, key) {
         case ("glasses", "fullyBooted"):
             Bridge.log("STORE: Glasses fullyBooted changed to \(value)")
             // skip if the value is the same as the old value:
@@ -253,6 +253,11 @@ class GlassesStore {
 
         case ("core", "offline_captions_running"):
             if let running = value as? Bool {
+                CoreManager.shared.setMicState()
+            }
+
+        case ("core", "local_stt_fallback_active"):
+            if let active = value as? Bool {
                 CoreManager.shared.setMicState()
             }
 

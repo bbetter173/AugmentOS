@@ -3,8 +3,8 @@ import {ScrollView, Image, View} from "react-native"
 import {ConnectControllerButton} from "@/components/glasses/ConnectDeviceButton"
 import {Header, Screen, Icon} from "@/components/ignite"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n/translate"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
@@ -24,7 +24,7 @@ function DeviceSettings() {
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const [superMode] = useSetting(SETTINGS.super_mode.key)
 
-  const {push, goBack} = useNavigationHistory()
+  const {push, goBack} = useNavigationStore.getState()
 
   const confirmForgetController = async () => {
     let result = await showAlert({
@@ -97,7 +97,7 @@ function DeviceSettings() {
 export default function ControllerSettings() {
   const {theme} = useAppTheme()
   const [defaultController] = useSetting(SETTINGS.default_controller.key)
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
 
   const formatGlassesTitle = (title: string) => title.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())

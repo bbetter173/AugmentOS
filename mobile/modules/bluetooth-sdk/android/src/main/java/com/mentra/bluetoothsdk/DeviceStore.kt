@@ -148,15 +148,14 @@ object GlassesStore {
 
     /** Apply changes with side effects */
     fun apply(category: String, key: String, value: Any) {
-        val normalizedCategory = ObservableStore.normalizeCategory(category)
-        val oldValue = store.get(normalizedCategory, key)
-        store.set(normalizedCategory, key, value)
+        val oldValue = store.get(category, key)
+        store.set(category, key, value)
         if (observableStoreWouldHaveSkipped(oldValue, value)) {
             return
         }
 
         // Trigger hardware updates based on setting changes
-        when (normalizedCategory to key) {
+        when (category to key) {
             "glasses" to "fullyBooted" -> {
                 if (value is Boolean) {
                     if (value) {
@@ -279,6 +278,12 @@ object GlassesStore {
             "core" to "offline_captions_running" -> {
                 (value as? Boolean)?.let { running ->
                     Bridge.log("GlassesStore: offline_captions_running changed to $running")
+                    CoreManager.getInstance().setMicState()
+                }
+            }
+            "core" to "local_stt_fallback_active" -> {
+                (value as? Boolean)?.let { active ->
+                    Bridge.log("GlassesStore: local_stt_fallback_active changed to $active")
                     CoreManager.getInstance().setMicState()
                 }
             }

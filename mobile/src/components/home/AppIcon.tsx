@@ -1,11 +1,11 @@
-import {Image} from "expo-image"
 import {SquircleView} from "expo-squircle-view"
 import {memo} from "react"
-import {ActivityIndicator, StyleProp, TouchableOpacity, View, ViewStyle} from "react-native"
+import {ActivityIndicator, Image, StyleProp, TouchableOpacity, View, ViewStyle} from "react-native"
 import {withUniwind} from "uniwind"
 
 import {Icon} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useCachedRemoteImageSource} from "@/hooks/useCachedRemoteImageSource"
 import {ClientAppletInterface} from "@/stores/applets"
 
 // Helper to extract style properties for width/height override
@@ -29,6 +29,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
   const {theme} = useAppTheme()
   const WrapperComponent = onClick ? TouchableOpacity : View
   const flatStyle = extractStyleProps(style)
+  const imageSource = useCachedRemoteImageSource(app.logoUrl)
 
   const iconSize = {
     width: flatStyle?.width ?? 64,
@@ -59,13 +60,7 @@ const AppIcon = ({app, onClick, style, disableLoader}: AppIconProps) => {
               <ActivityIndicator size="large" color={theme.colors.palette.white} />
             </View>
           )}
-          <Image
-            source={app.logoUrl}
-            style={{width: "100%", height: "100%", resizeMode: "cover"}}
-            contentFit="cover"
-            transition={200}
-            cachePolicy="memory-disk"
-          />
+          <Image source={imageSource} style={{width: "100%", height: "100%", resizeMode: "cover"}} />
         </SquircleView>
       </WrapperComponent>
       {!app.healthy && (

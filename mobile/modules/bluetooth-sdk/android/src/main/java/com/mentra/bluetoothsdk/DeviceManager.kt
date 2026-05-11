@@ -140,6 +140,10 @@ class CoreManager {
         get() = GlassesStore.store.get("core", "offline_captions_running") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "offline_captions_running", value)
 
+    private var localSttFallbackActive: Boolean
+        get() = GlassesStore.store.get("core", "local_stt_fallback_active") as? Boolean ?: false
+        set(value) = GlassesStore.apply("core", "local_stt_fallback_active", value)
+
     private var shouldSendPcm: Boolean
         get() = GlassesStore.store.get("core", "should_send_pcm") as? Boolean ?: false
         set(value) = GlassesStore.apply("core", "should_send_pcm", value)
@@ -641,7 +645,7 @@ class CoreManager {
         handleSendingPcm(pcmData)
 
         // Send PCM to local transcriber (always needs raw PCM)
-        if (shouldSendTranscript || offlineCaptionsRunning) {
+        if (shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive) {
             transcriber?.acceptAudio(pcmData)
         }
     }
@@ -1230,6 +1234,11 @@ class CoreManager {
         (sgc as? MentraLive)?.sendOtaStart()
     }
 
+    fun sendOtaQueryStatus() {
+        Bridge.log("MAN: 📱 Sending OTA query status command to glasses")
+        (sgc as? MentraLive)?.sendOtaQueryStatus()
+    }
+
     /**
      * Read glasses media step volume (0–15) via K900 on Mentra Live only. Blocks until response,
      * error, or timeout (used from JS AsyncFunction on a worker thread).
@@ -1317,7 +1326,7 @@ class CoreManager {
 
     fun setMicState() {
         val willSendPcm = shouldSendPcm || shouldSendLc3
-        val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive
         micEnabled = willSendPcm || willSendTranscript
         vadBuffer.clear()
         updateMicState()
@@ -1417,6 +1426,23 @@ class CoreManager {
 
         initSGC(pendingWearable)
         sgc?.connectById(deviceName)
+    }
+
+    fun connectDevice(deviceModel: String, deviceName: String) {
+        Bridge.log("MAN: Connecting to device: $deviceModel $deviceName")
+        if (DeviceTypes.ALL.contains(deviceModel)) {
+            pendingWearable = deviceModel
+            initSGC(pendingWearable)
+            sgc?.connectById(deviceName)
+            return
+        }
+        if (ControllerTypes.ALL.contains(deviceModel)) {
+            pendingWearable = deviceModel
+            initController(deviceModel)
+            controller?.connectById(deviceName)
+            return
+        }
+        Bridge.log("MAN: No compatible device model, returning")
     }
 
     fun connectSimulated() {

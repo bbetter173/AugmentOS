@@ -1,7 +1,5 @@
 package com.mentra.core
 
-import android.net.wifi.WifiManager
-import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -122,6 +120,8 @@ class CoreModule : Module() {
             "audio_connected",
             "audio_disconnected",
             "save_setting",
+            "phone_notification",
+            "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
             "mic_pcm",
@@ -131,10 +131,13 @@ class CoreModule : Module() {
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            "ota_start_ack",
+            "ota_status",
             // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
             "send_command_to_ble",
             "receive_command_from_ble",
             "miniapp_selected",
+            "captions_tester_incident",
         )
 
         OnCreate {
@@ -167,24 +170,6 @@ class CoreModule : Module() {
         Function("update") { category: String, values: Map<String, Any> ->
             val normalizedCategory = ObservableStore.normalizeCategory(category)
             values.forEach { (key, value) -> GlassesStore.apply(normalizedCategory, key, value) }
-            // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
-            // (bridge may run this after glasses_ready; prefs survive retries and next connection)
-            if (normalizedCategory == ObservableStore.CORE_CATEGORY) {
-                values["core_token"]?.let { token ->
-                    val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
-                    if (token is String && token.isNotEmpty()) {
-                        val ctx = appContext.reactContext ?: appContext.currentActivity
-                        ctx?.let {
-                            it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
-                                .edit()
-                                .putString("core_token", token)
-                                .apply()
-                            android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
-                        }
-                    }
-                }
-            }
         }
 
         // MARK: - Display Commands
@@ -247,6 +232,9 @@ class CoreModule : Module() {
             deviceManager?.sgc?.dbg2()
         }
 
+        // Stub on Android — iOS uses this for the jetsam stress test.
+        Function("getMemoryMB") { -> 0.0 }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
@@ -265,25 +253,6 @@ class CoreModule : Module() {
 
         AsyncFunction("setHotspotState") { enabled: Boolean ->
             sdk?.setHotspotState(enabled)
-        }
-
-        AsyncFunction("logCurrentWifiFrequency") {
-            val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
-            val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
-            if (wifiManager == null) {
-                val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
-                android.util.Log.d("CoreModule", unavailableMsg)
-                Bridge.log(unavailableMsg)
-                return@AsyncFunction null
-            }
-            val info = wifiManager.connectionInfo
-            val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
-            val is5Ghz = freqMhz >= 5000
-            val frequencyMsg =
-                "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
-            android.util.Log.d("CoreModule", frequencyMsg)
-            Bridge.log(frequencyMsg)
-            null
         }
 
         // MARK: - Gallery Commands
@@ -316,6 +285,8 @@ class CoreModule : Module() {
         // MARK: - OTA Commands
 
         AsyncFunction("sendOtaStart") { sdk?.sendOtaStart() }
+
+        AsyncFunction("sendOtaQueryStatus") { sdk?.sendOtaQueryStatus() }
 
         // MARK: - Version Info Commands
 
@@ -355,7 +326,7 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            deviceManager?.setMicState()
+            sdk?.setMicState(MentraMicConfig(sendPcmData, sendTranscript, bypassVad))
         }
 
         AsyncFunction("restartTranscriber") { deviceManager?.restartTranscriber() }

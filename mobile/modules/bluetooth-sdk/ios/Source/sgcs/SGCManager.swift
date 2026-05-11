@@ -88,6 +88,7 @@ protocol SGCManager {
     func forgetWifiNetwork(_ ssid: String)
     func sendHotspotState(_ enabled: Bool)
     func sendOtaStart()
+    func sendOtaQueryStatus()
 
     // MARK: - User Context (for crash reporting)
 
@@ -113,12 +114,12 @@ extension SGCManager {
     // MARK: - Dashboard (default: combined wire format; Nex implements single-field)
 
     func setDashboardHeightOnly(_ height: Int) {
-        let d = DeviceStore.shared.get("bluetooth", "dashboard_depth") as? Int ?? 2
+        let d = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 2
         setDashboardPosition(height, d)
     }
 
     func setDashboardDepthOnly(_ depth: Int) {
-        let h = DeviceStore.shared.get("bluetooth", "dashboard_height") as? Int ?? 4
+        let h = GlassesStore.shared.get("core", "dashboard_height") as? Int ?? 4
         setDashboardPosition(h, depth)
     }
 
@@ -126,117 +127,117 @@ extension SGCManager {
 
     func setDashboardMenu(_: [[String: Any]]) {}
 
-    // MARK: - Default DeviceStore-backed property implementations
+    // MARK: - Default GlassesStore-backed property implementations
 
     var fullyBooted: Bool {
-        DeviceStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
     }
 
     var connected: Bool {
-        DeviceStore.shared.get("glasses", "connected") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "connected") as? Bool ?? false
     }
 
     var appVersion: String {
-        DeviceStore.shared.get("glasses", "appVersion") as? String ?? ""
+        GlassesStore.shared.get("glasses", "appVersion") as? String ?? ""
     }
 
     var buildNumber: String {
-        DeviceStore.shared.get("glasses", "buildNumber") as? String ?? ""
+        GlassesStore.shared.get("glasses", "buildNumber") as? String ?? ""
     }
 
     var deviceModel: String {
-        DeviceStore.shared.get("glasses", "deviceModel") as? String ?? ""
+        GlassesStore.shared.get("glasses", "deviceModel") as? String ?? ""
     }
 
     var androidVersion: String {
-        DeviceStore.shared.get("glasses", "androidVersion") as? String ?? ""
+        GlassesStore.shared.get("glasses", "androidVersion") as? String ?? ""
     }
 
     var otaVersionUrl: String {
-        DeviceStore.shared.get("glasses", "otaVersionUrl") as? String ?? ""
+        GlassesStore.shared.get("glasses", "otaVersionUrl") as? String ?? ""
     }
 
     var firmwareVersion: String {
-        DeviceStore.shared.get("glasses", "fwVersion") as? String ?? ""
+        GlassesStore.shared.get("glasses", "fwVersion") as? String ?? ""
     }
 
     var btMacAddress: String {
-        DeviceStore.shared.get("glasses", "btMacAddress") as? String ?? ""
+        GlassesStore.shared.get("glasses", "btMacAddress") as? String ?? ""
     }
 
     var serialNumber: String {
-        DeviceStore.shared.get("glasses", "serialNumber") as? String ?? ""
+        GlassesStore.shared.get("glasses", "serialNumber") as? String ?? ""
     }
 
     var style: String {
-        DeviceStore.shared.get("glasses", "style") as? String ?? ""
+        GlassesStore.shared.get("glasses", "style") as? String ?? ""
     }
 
     var color: String {
-        DeviceStore.shared.get("glasses", "color") as? String ?? ""
+        GlassesStore.shared.get("glasses", "color") as? String ?? ""
     }
 
     var micEnabled: Bool {
-        DeviceStore.shared.get("glasses", "micEnabled") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "micEnabled") as? Bool ?? false
     }
 
     var vadEnabled: Bool {
-        DeviceStore.shared.get("glasses", "vadEnabled") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "vadEnabled") as? Bool ?? false
     }
 
     var batteryLevel: Int {
-        DeviceStore.shared.get("glasses", "batteryLevel") as? Int ?? -1
+        GlassesStore.shared.get("glasses", "batteryLevel") as? Int ?? -1
     }
 
     var headUp: Bool {
-        DeviceStore.shared.get("glasses", "headUp") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
     }
 
     var charging: Bool {
-        DeviceStore.shared.get("glasses", "charging") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "charging") as? Bool ?? false
     }
 
     var caseOpen: Bool {
-        DeviceStore.shared.get("glasses", "caseOpen") as? Bool ?? true
+        GlassesStore.shared.get("glasses", "caseOpen") as? Bool ?? true
     }
 
     var caseRemoved: Bool {
-        DeviceStore.shared.get("glasses", "caseRemoved") as? Bool ?? true
+        GlassesStore.shared.get("glasses", "caseRemoved") as? Bool ?? true
     }
 
     var caseCharging: Bool {
-        DeviceStore.shared.get("glasses", "caseCharging") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "caseCharging") as? Bool ?? false
     }
 
     var caseBatteryLevel: Int {
-        DeviceStore.shared.get("glasses", "caseBatteryLevel") as? Int ?? -1
+        GlassesStore.shared.get("glasses", "caseBatteryLevel") as? Int ?? -1
     }
 
     var wifiSsid: String {
-        DeviceStore.shared.get("glasses", "wifiSsid") as? String ?? ""
+        GlassesStore.shared.get("glasses", "wifiSsid") as? String ?? ""
     }
 
     var wifiConnected: Bool {
-        DeviceStore.shared.get("glasses", "wifiConnected") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "wifiConnected") as? Bool ?? false
     }
 
     var wifiLocalIp: String {
-        DeviceStore.shared.get("glasses", "wifiLocalIp") as? String ?? ""
+        GlassesStore.shared.get("glasses", "wifiLocalIp") as? String ?? ""
     }
 
     var hotspotEnabled: Bool {
-        DeviceStore.shared.get("glasses", "hotspotEnabled") as? Bool ?? false
+        GlassesStore.shared.get("glasses", "hotspotEnabled") as? Bool ?? false
     }
 
     var hotspotSsid: String {
-        DeviceStore.shared.get("glasses", "hotspotSsid") as? String ?? ""
+        GlassesStore.shared.get("glasses", "hotspotSsid") as? String ?? ""
     }
 
     var hotspotPassword: String {
-        DeviceStore.shared.get("glasses", "hotspotPassword") as? String ?? ""
+        GlassesStore.shared.get("glasses", "hotspotPassword") as? String ?? ""
     }
 
     var hotspotGatewayIp: String {
-        DeviceStore.shared.get("glasses", "hotspotGatewayIp") as? String ?? ""
+        GlassesStore.shared.get("glasses", "hotspotGatewayIp") as? String ?? ""
     }
 }

@@ -6,7 +6,7 @@ import * as Location from "expo-location"
 import {Platform} from "react-native"
 
 import restComms from "@/services/RestComms"
-import {useAppletStatusStore} from "@/stores/applets"
+import {useAppStatusStore} from "@mentra/island"
 import {useConnectionStore} from "@/stores/connection"
 import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
@@ -27,7 +27,7 @@ export interface BuildBugReportFeedbackDataForBugParams {
 }
 
 export function buildBugReportPhoneState(): Record<string, unknown> {
-  const appletState = useAppletStatusStore.getState()
+  const appletState = useAppStatusStore.getState()
   const settingsState = useSettingsStore.getState()
   const {setCoreInfo: _setCoreInfo, reset: _resetBluetooth, ...bluetoothState} = useCoreStore.getState()
   const {setDebugInfo: _setDebugInfo, reset: _resetDebug, ...debugState} = useDebugStore.getState()
@@ -151,7 +151,7 @@ export async function buildBugReportFeedbackDataForBug(
     console.log("Failed to get location:", e)
   }
 
-  const apps = useAppletStatusStore.getState().apps
+  const apps = useAppStatusStore.getState().apps
   const runningApps = apps.filter((app) => app.running).map((app) => app.packageName)
 
   const glassesConnected = useGlassesStore.getState().connected

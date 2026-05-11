@@ -1,107 +1,27 @@
-package com.mentra.bluetoothsdk
+package com.mentra.core
 
 import android.net.wifi.WifiManager
 import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
-class BluetoothSdkModule : Module() {
-    private var sdk: MentraBluetoothSdk? = null
-    private var deviceManager: DeviceManager? = null
-    private val sdkListener =
-            object : MentraBluetoothSdkListener {
-                override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
-                    sendEvent("glasses_status", status.values)
-                }
-
-                override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
-                    sendEvent("bluetooth_status", status.values)
-                }
-
-                override fun onScanStopped(reason: MentraScanStopReason) {
-                    if (reason == MentraScanStopReason.COMPLETED) {
-                        sendEvent("compatible_glasses_search_stop", mapOf("type" to "compatible_glasses_search_stop"))
-                    }
-                }
-
-                override fun onButtonPress(event: MentraButtonPressEvent) {
-                    sendEvent(
-                            "button_press",
-                            mapOf(
-                                    "buttonId" to event.buttonId,
-                                    "pressType" to event.pressType,
-                                    "timestamp" to (event.timestamp ?: System.currentTimeMillis())
-                            )
-                    )
-                }
-
-                override fun onTouch(event: MentraTouchEvent) {
-                    sendEvent("touch_event", event.values)
-                }
-
-                override fun onHeadUpChanged(headUp: Boolean) {
-                    sendEvent("head_up", mapOf("up" to headUp))
-                }
-
-                override fun onBatteryStatus(event: MentraBatteryStatusEvent) {
-                    sendEvent("battery_status", event.values)
-                }
-
-                override fun onWifiStatusChanged(event: MentraWifiStatusEvent) {
-                    sendEvent("wifi_status_change", event.values)
-                }
-
-                override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
-                    sendEvent("gallery_status", event.values)
-                }
-
-                override fun onPhotoResponse(event: MentraPhotoResponseEvent) {
-                    sendEvent("photo_response", event.values)
-                }
-
-                override fun onStreamStatus(event: MentraStreamStatusEvent) {
-                    sendEvent("stream_status", event.values)
-                }
-
-                override fun onMicPcm(frame: ByteArray) {
-                    sendEvent("mic_pcm", mapOf("pcm" to frame))
-                }
-
-                override fun onMicLc3(frame: ByteArray) {
-                    sendEvent("mic_lc3", mapOf("lc3" to frame))
-                }
-
-                override fun onLocalTranscription(event: MentraLocalTranscriptionEvent) {
-                    sendEvent("local_transcription", event.values)
-                }
-
-                override fun onLog(message: String) {
-                    sendEvent("log", mapOf("message" to message))
-                }
-
-                override fun onError(error: MentraBluetoothError) {
-                    sendEvent("pair_failure", mapOf("error" to error.message))
-                }
-
-                override fun onRawEvent(eventName: String, values: Map<String, Any>) {
-                    sendEvent(eventName, values)
-                }
-            }
+class CoreModule : Module() {
+    private val bridge: Bridge by lazy { Bridge.getInstance() }
+    private var deviceManager: CoreManager? = null
 
     override fun definition() = ModuleDefinition {
-        Name("BluetoothSdk")
+        Name("Core")
 
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "bluetooth_status",
+            "core_status",
             "log",
             // Individual event handlers
             "glasses_not_ready",
             "button_press",
             "touch_event",
             "head_up",
-            "vad_status",
             "battery_status",
             "local_transcription",
             "wifi_status_change",
@@ -122,6 +42,8 @@ class BluetoothSdkModule : Module() {
             "audio_connected",
             "audio_disconnected",
             "save_setting",
+            "phone_notification",
+            "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
             "mic_pcm",
@@ -131,98 +53,93 @@ class BluetoothSdkModule : Module() {
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            "ota_start_ack",
+            "ota_status",
             // Nex / BLE debug (NexEventUtils → Bridge.sendTypedMessage)
             "send_command_to_ble",
             "receive_command_from_ble",
             "miniapp_selected",
+            "captions_tester_incident",
         )
 
         OnCreate {
-            val context =
+            // Initialize Bridge with Android context and event callback
+            Bridge.initialize(
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            sdk = MentraBluetoothSdk.create(context, sdkListener)
-            deviceManager = DeviceManager.getInstance()
-        }
+            ) { eventName, data -> sendEvent(eventName, data) }
 
-        OnDestroy {
-            sdk?.close()
-            sdk = null
-            deviceManager = null
+            // initialize deviceManager after Bridge is ready
+            deviceManager = CoreManager.getInstance()
+
+            // Configure observable store event emission
+            GlassesStore.store.configure { category, changes ->
+                when (category) {
+                    "glasses" -> sendEvent("glasses_status", changes)
+                    "core" -> sendEvent("core_status", changes)
+                }
+            }
         }
 
         // MARK: - Observable Store Functions
 
-        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.values ?: DeviceStore.store.getCategory("glasses") }
+        Function("getGlassesStatus") { GlassesStore.store.getCategory("glasses") }
 
-        Function("getBluetoothStatus") {
-            sdk?.getBluetoothStatus()?.values ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
-        }
+        Function("getCoreStatus") { GlassesStore.store.getCategory("core") }
 
         Function("set") { category: String, key: String, value: Any ->
-            DeviceStore.apply(category, key, value)
+            GlassesStore.apply(category, key, value)
         }
 
         Function("update") { category: String, values: Map<String, Any> ->
-            val normalizedCategory = ObservableStore.normalizeCategory(category)
-            values.forEach { (key, value) -> DeviceStore.apply(normalizedCategory, key, value) }
+            values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
             // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
-            if (normalizedCategory == ObservableStore.BLUETOOTH_CATEGORY) {
-                values["core_token"]?.let { token ->
-                    val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("BluetoothSdkModule", "update(bluetooth) core_token received, len=$len")
-                    if (token is String && token.isNotEmpty()) {
-                        val ctx = appContext.reactContext ?: appContext.currentActivity
-                        ctx?.let {
-                            it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
-                                .edit()
-                                .putString("core_token", token)
-                                .apply()
-                            android.util.Log.d("BluetoothSdkModule", "Persisted core_token to SharedPreferences, len=${token.length}")
-                        }
-                    }
-                }
-            }
+            // TODO: move this to the mantle:
+            // if (category == "core") {
+            //     values["core_token"]?.let { token ->
+            //         val len = (token as? String)?.length ?: 0
+            //         android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
+            //         if (token is String && token.isNotEmpty()) {
+            //             val ctx = appContext.reactContext ?: appContext.currentActivity
+            //             ctx?.let {
+            //                 it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
+            //                     .edit()
+            //                     .putString("core_token", token)
+            //                     .apply()
+            //                 android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { params: Map<String, Any> ->
-            sdk?.displayEvent(MentraDisplayEventRequest(params))
+            deviceManager?.displayEvent(params)
         }
 
         AsyncFunction("displayText") { params: Map<String, Any> ->
-            sdk?.displayText(
-                    MentraDisplayTextRequest(
-                            text = params["text"] as? String ?: "",
-                            x = (params["x"] as? Number)?.toInt() ?: 0,
-                            y = (params["y"] as? Number)?.toInt() ?: 0,
-                            size = (params["size"] as? Number)?.toInt() ?: 24,
-                    )
-            )
+            deviceManager?.displayText(params)
         }
 
-        AsyncFunction("clearDisplay") { sdk?.clearDisplay() }
+        AsyncFunction("clearDisplay") { deviceManager?.clearDisplay() }
 
         // MARK: - Connection Commands
 
-        AsyncFunction("connectDefault") { sdk?.connectDefault() }
+        AsyncFunction("connectDefault") { deviceManager?.connectDefault() }
 
         AsyncFunction("connectByName") { deviceName: String ->
-            sdk?.connectByName(deviceName)
+            deviceManager?.connectByName(deviceName)
         }
 
-        AsyncFunction("connectDevice") { deviceModel: String, deviceName: String ->
-            sdk?.connectByName(MentraDeviceModel.fromDeviceType(deviceModel), deviceName)
-        }
+        AsyncFunction("connectSimulated") { deviceManager?.connectSimulated() }
 
-        AsyncFunction("connectSimulated") { sdk?.connectSimulated() }
+        AsyncFunction("disconnect") { deviceManager?.disconnect() }
 
-        AsyncFunction("disconnect") { sdk?.disconnect() }
-
-        AsyncFunction("forget") { sdk?.forget() }
+        AsyncFunction("forget") { deviceManager?.forget() }
 
         AsyncFunction("connectDefaultController") { deviceManager?.connectDefaultController() }
 
@@ -231,10 +148,10 @@ class BluetoothSdkModule : Module() {
         AsyncFunction("forgetController") { deviceManager?.forgetController() }
 
         AsyncFunction("findCompatibleDevices") { deviceModel: String ->
-            sdk?.startScan(MentraDeviceModel.fromDeviceType(deviceModel))
+            deviceManager?.findCompatibleDevices(deviceModel)
         }
 
-        AsyncFunction("showDashboard") { sdk?.showDashboard() }
+        AsyncFunction("showDashboard") { deviceManager?.showDashboard() }
 
         AsyncFunction("ping") { deviceManager?.ping() }
 
@@ -247,48 +164,52 @@ class BluetoothSdkModule : Module() {
             deviceManager?.sgc?.dbg2()
         }
 
+        // Stub on Android — iOS uses this for the jetsam stress test.
+        Function("getMemoryMB") { -> 0.0 }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
-            sdk?.sendIncidentId(incidentId, apiBaseUrl)
+            deviceManager?.sendIncidentId(incidentId, apiBaseUrl)
         }
 
         // MARK: - WiFi Commands
 
-        AsyncFunction("requestWifiScan") { sdk?.requestWifiScan() }
+        AsyncFunction("requestWifiScan") { deviceManager?.requestWifiScan() }
 
         AsyncFunction("sendWifiCredentials") { ssid: String, password: String ->
-            sdk?.sendWifiCredentials(ssid, password)
+            deviceManager?.sendWifiCredentials(ssid, password)
         }
 
-        AsyncFunction("forgetWifiNetwork") { ssid: String -> sdk?.forgetWifiNetwork(ssid) }
+        AsyncFunction("forgetWifiNetwork") { ssid: String -> deviceManager?.forgetWifiNetwork(ssid) }
 
         AsyncFunction("setHotspotState") { enabled: Boolean ->
-            sdk?.setHotspotState(enabled)
+            deviceManager?.setHotspotState(enabled)
         }
 
-        AsyncFunction("logCurrentWifiFrequency") {
-            val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
-            val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
-            if (wifiManager == null) {
-                val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
-                android.util.Log.d("BluetoothSdkModule", unavailableMsg)
-                Bridge.log(unavailableMsg)
-                return@AsyncFunction null
-            }
-            val info = wifiManager.connectionInfo
-            val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
-            val is5Ghz = freqMhz >= 5000
-            val frequencyMsg =
-                "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
-            android.util.Log.d("BluetoothSdkModule", frequencyMsg)
-            Bridge.log(frequencyMsg)
-            null
-        }
+        // move to crust:
+        // AsyncFunction("logCurrentWifiFrequency") {
+        //     val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
+        //     val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
+        //     if (wifiManager == null) {
+        //         val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
+        //         android.util.Log.d("CoreModule", unavailableMsg)
+        //         Bridge.log(unavailableMsg)
+        //         return@AsyncFunction null
+        //     }
+        //     val info = wifiManager.connectionInfo
+        //     val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
+        //     val is5Ghz = freqMhz >= 5000
+        //     val frequencyMsg =
+        //         "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
+        //     android.util.Log.d("CoreModule", frequencyMsg)
+        //     Bridge.log(frequencyMsg)
+        //     null
+        // }
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
+        AsyncFunction("queryGalleryStatus") { deviceManager?.queryGalleryStatus() }
 
         AsyncFunction("photoRequest") {
                 requestId: String,
@@ -299,54 +220,54 @@ class BluetoothSdkModule : Module() {
                 compress: String,
                 flash: Boolean,
                 sound: Boolean ->
-            sdk?.requestPhoto(
-                    MentraPhotoRequest(
-                            requestId = requestId,
-                            appId = appId,
-                            size = size,
-                            webhookUrl = webhookUrl,
-                            authToken = authToken,
-                            compress = compress,
-                            flash = flash,
-                            sound = sound,
-                    )
+            deviceManager?.photoRequest(
+                    requestId,
+                    appId,
+                    size,
+                    webhookUrl,
+                    authToken,
+                    compress,
+                    flash,
+                    sound
             )
         }
 
         // MARK: - OTA Commands
 
-        AsyncFunction("sendOtaStart") { sdk?.sendOtaStart() }
+        AsyncFunction("sendOtaStart") { deviceManager?.sendOtaStart() }
+        
+        AsyncFunction("sendOtaQueryStatus") { deviceManager?.sendOtaQueryStatus() }
 
         // MARK: - Version Info Commands
 
-        AsyncFunction("requestVersionInfo") { sdk?.requestVersionInfo() }
+        AsyncFunction("requestVersionInfo") { deviceManager?.requestVersionInfo() }
 
         // MARK: - Power Control Commands
 
-        AsyncFunction("sendShutdown") { sdk?.sendShutdown() }
+        AsyncFunction("sendShutdown") { deviceManager?.sendShutdown() }
 
-        AsyncFunction("sendReboot") { sdk?.sendReboot() }
+        AsyncFunction("sendReboot") { deviceManager?.sendReboot() }
 
         // MARK: - Video Recording Commands
 
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
-            sdk?.startVideoRecording(MentraVideoRecordingRequest(requestId, save, flash, sound))
+            deviceManager?.startVideoRecording(requestId, save, flash, sound)
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
-            sdk?.stopVideoRecording(requestId)
+            deviceManager?.stopVideoRecording(requestId)
         }
 
         // MARK: - Stream Commands
 
         AsyncFunction("startStream") { params: Map<String, Any> ->
-            sdk?.startStream(MentraStreamRequest(params))
+            deviceManager?.startStream(params.toMutableMap())
         }
 
-        AsyncFunction("stopStream") { sdk?.stopStream() }
+        AsyncFunction("stopStream") { deviceManager?.stopStream() }
 
         AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
-            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest(params))
+            deviceManager?.keepStreamAlive(params.toMutableMap())
         }
 
         // MARK: - Microphone Commands
@@ -363,16 +284,19 @@ class BluetoothSdkModule : Module() {
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { playing: Boolean ->
-            sdk?.setOwnAppAudioPlaying(playing)
+            // Notify PhoneAudioMonitor that our app started/stopped playing audio
+            // This is used to suspend LC3 mic during audio playback to avoid MCU overload
+            val context = appContext.reactContext ?: return@AsyncFunction
+            com.mentra.core.utils.PhoneAudioMonitor.getInstance(context).setOwnAppAudioPlaying(playing)
         }
 
         AsyncFunction("getGlassesMediaVolume") {
-            val cm = deviceManager ?: throw IllegalStateException("device_manager_null")
+            val cm = deviceManager ?: throw IllegalStateException("core_manager_null")
             cm.getGlassesMediaVolumeBlocking()
         }
 
         AsyncFunction("setGlassesMediaVolume") { level: Int ->
-            val cm = deviceManager ?: throw IllegalStateException("device_manager_null")
+            val cm = deviceManager ?: throw IllegalStateException("core_manager_null")
             cm.setGlassesMediaVolumeBlocking(level)
         }
 
@@ -404,7 +328,7 @@ class BluetoothSdkModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.bluetoothsdk.stt.STTTools.setSttModelDetails(context, path, languageCode)
+            com.mentra.core.stt.STTTools.setSttModelDetails(context, path, languageCode)
         }
 
         AsyncFunction("getSttModelPath") { ->
@@ -412,7 +336,7 @@ class BluetoothSdkModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.bluetoothsdk.stt.STTTools.getSttModelPath(context)
+            com.mentra.core.stt.STTTools.getSttModelPath(context)
         }
 
         AsyncFunction("checkSttModelAvailable") { ->
@@ -420,148 +344,15 @@ class BluetoothSdkModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.bluetoothsdk.stt.STTTools.checkSTTModelAvailable(context)
+            com.mentra.core.stt.STTTools.checkSTTModelAvailable(context)
         }
 
         AsyncFunction("validateSttModel") { path: String ->
-            com.mentra.bluetoothsdk.stt.STTTools.validateSTTModel(path)
+            com.mentra.core.stt.STTTools.validateSTTModel(path)
         }
 
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
-            com.mentra.bluetoothsdk.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
+            com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
-
-        // MARK: - Settings Navigation
-
-        AsyncFunction("openBluetoothSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        // Check if location services are enabled (required for WiFi operations on Android)
-        AsyncFunction("isLocationServicesEnabled") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val locationManager =
-                    context.getSystemService(android.content.Context.LOCATION_SERVICE) as
-                            android.location.LocationManager
-            // Check if either GPS or Network location provider is enabled
-            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
-                    locationManager.isProviderEnabled(
-                            android.location.LocationManager.NETWORK_PROVIDER
-                    )
-            if (!providerEnabled) {
-                // Fallback: check the system-level location toggle directly.
-                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
-                // Google Play Services or without a GPS chip, even when location is toggled on.
-                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    val systemEnabled = locationManager.isLocationEnabled
-                    if (systemEnabled) {
-                        android.util.Log.w("BluetoothSdkModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
-                    }
-                    systemEnabled
-                } else {
-                    false
-                }
-            } else {
-                true
-            }
-        }
-
-        AsyncFunction("openLocationSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                    )
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        AsyncFunction("showLocationServicesDialog") {
-            val activity = appContext.currentActivity
-            if (activity == null) {
-                val context =
-                        appContext.reactContext
-                                ?: throw IllegalStateException("No context available")
-                val intent =
-                        android.content.Intent(
-                                android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                        )
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                return@AsyncFunction true
-            }
-
-            val locationRequest =
-                    com.google.android.gms.location.LocationRequest.Builder(
-                                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
-                                    10000
-                            )
-                            .build()
-
-            val builder =
-                    com.google.android.gms.location.LocationSettingsRequest.Builder()
-                            .addLocationRequest(locationRequest)
-                            .setAlwaysShow(true)
-
-            val client =
-                    com.google.android.gms.location.LocationServices.getSettingsClient(activity)
-            val task = client.checkLocationSettings(builder.build())
-
-            task.addOnSuccessListener { true }
-            task.addOnFailureListener { exception ->
-                if (exception is com.google.android.gms.common.api.ResolvableApiException) {
-                    try {
-                        exception.startResolutionForResult(activity, 1001)
-                    } catch (sendEx: android.content.IntentSender.SendIntentException) {
-                        // Fallback
-                        val intent =
-                                android.content.Intent(
-                                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                                )
-                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        activity.startActivity(intent)
-                    }
-                } else {
-                    val intent =
-                            android.content.Intent(
-                                    android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                            )
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    activity.startActivity(intent)
-                }
-            }
-            true
-        }
-
-        AsyncFunction("openAppSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    )
-            intent.data = android.net.Uri.parse("package:${context.packageName}")
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
     }
 }

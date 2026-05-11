@@ -1,4 +1,4 @@
-// Bluetooth SDK Event Types
+// Core Event Types
 export type GlassesNotReadyEvent = {
   type: "glasses_not_ready"
   message: string
@@ -172,13 +172,11 @@ export type WsBinEvent = {
 
 export type MicPcmEvent = {
   type: "mic_pcm"
-  // base64: string
   pcm: ArrayBuffer
 }
 
 export type MicLc3Event = {
   type: "mic_lc3"
-  // base64: string
   lc3: ArrayBuffer
 }
 
@@ -204,12 +202,14 @@ export type OtaUpdateAvailableEvent = {
   version_name?: string
   updates?: string[]
   total_size?: number
+  cache_ready?: boolean
 }
 
+/** @deprecated Glasses no longer emit ota_progress; use {@link OtaStatusEvent} and legacy store mapping. */
 export type OtaProgressEvent = {
   type: "ota_progress"
   stage?: OtaStage
-  status?: OtaStatus
+  status?: OtaProgressStatus
   progress?: number
   bytes_downloaded?: number
   total_bytes?: number
@@ -220,6 +220,19 @@ export type OtaProgressEvent = {
 export type OtaStartAckEvent = {
   type: "ota_start_ack"
   timestamp: number
+}
+
+export type OtaStatusEvent = {
+  type: "ota_status"
+  session_id: string
+  total_steps: number
+  current_step: number
+  step_type: 'apk' | 'mtk' | 'bes'
+  phase: 'download' | 'install'
+  step_percent: number
+  overall_percent: number
+  status: 'in_progress' | 'step_complete' | 'complete' | 'failed' | 'idle'
+  error_message?: string
 }
 
 /** Nex BLE protobuf trace (NexEventUtils); payload matches native Map keys. */
@@ -234,12 +247,12 @@ export type MiniappSelectedEvent = {
   packageName: string
 }
 
-// Union type of all Bluetooth SDK events
-export type BluetoothSdkEvent = Parameters<BluetoothSdkModuleEvents[keyof BluetoothSdkModuleEvents]>[0]
+// Union type of all core events
+export type CoreEvent = Parameters<CoreModuleEvents[keyof CoreModuleEvents]>[0]
 
-export type BluetoothSdkModuleEvents = {
+export type CoreModuleEvents = {
   glasses_status: (changed: Partial<GlassesStatus>) => void
-  bluetooth_status: (changed: Partial<BluetoothStatus>) => void
+  core_status: (changed: Partial<CoreStatus>) => void
   log: (event: LogEvent) => void
   // Individual event handlers
   glasses_not_ready: (event: GlassesNotReadyEvent) => void
@@ -273,8 +286,8 @@ export type BluetoothSdkModuleEvents = {
   keep_alive_ack: (event: KeepAliveAckEvent) => void
   mtk_update_complete: (event: MtkUpdateCompleteEvent) => void
   ota_update_available: (event: OtaUpdateAvailableEvent) => void
-  ota_progress: (event: OtaProgressEvent) => void
   ota_start_ack: (event: OtaStartAckEvent) => void
+  ota_status: (event: OtaStatusEvent) => void
   send_command_to_ble: (event: BleCommandTraceEvent) => void
   receive_command_from_ble: (event: BleCommandTraceEvent) => void
   miniapp_selected: (event: MiniappSelectedEvent) => void
@@ -284,7 +297,19 @@ export type GlassesConnectionState = "disconnected" | "connected" | "connecting"
 
 // OTA update status types
 export type OtaStage = "download" | "install"
-export type OtaStatus = "STARTED" | "PROGRESS" | "FINISHED" | "FAILED"
+export type OtaProgressStatus = "STARTED" | "PROGRESS" | "FINISHED" | "FAILED"
+
+export interface OtaStatus {
+  sessionId: string
+  totalSteps: number
+  currentStep: number
+  stepType: 'apk' | 'mtk' | 'bes'
+  phase: 'download' | 'install'
+  stepPercent: number
+  overallPercent: number
+  status: 'in_progress' | 'step_complete' | 'complete' | 'failed' | 'idle'
+  error?: string
+}
 
 export interface OtaUpdateInfo {
   available: boolean
@@ -292,11 +317,12 @@ export interface OtaUpdateInfo {
   versionName: string
   updates: string[] // ["apk", "mtk", "bes"]
   totalSize: number
+  cacheReady?: boolean
 }
 
 export interface OtaProgress {
   stage: OtaStage
-  status: OtaStatus
+  status: OtaProgressStatus
   progress: number
   bytesDownloaded: number
   totalBytes: number
@@ -319,6 +345,8 @@ export interface GlassesStatus {
   besFwVersion: string
   mtkFwVersion: string
   btMacAddress: string
+  leftMacAddress: string
+  rightMacAddress: string
   buildNumber: string
   otaVersionUrl: string
   appVersion: string
@@ -354,6 +382,16 @@ export interface GlassesStatus {
   controllerSignalStrength: number
 }
 
+interface DashboardMenuItem {
+  name: string
+  packageName: string
+  running: boolean
+}
+
+export interface CoreSettings {
+  menu_apps: DashboardMenuItem[]
+}
+
 export type MicRanking = "auto" | "phone" | "glasses" | "bluetooth"
 
 export interface DeviceSearchResult {
@@ -370,7 +408,7 @@ export interface WifiSearchResult {
   frequency?: number
 }
 
-export interface BluetoothStatus {
+export interface CoreStatus {
   // state:
   searching: boolean
   searchingController: boolean

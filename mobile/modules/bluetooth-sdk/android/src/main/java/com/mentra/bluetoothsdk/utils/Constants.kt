@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.utils
+package com.mentra.core.utils
 
 object DeviceTypes {
     const val SIMULATED = "Simulated Glasses"

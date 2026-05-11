@@ -2,7 +2,7 @@ import {useEffect} from "react"
 import {Button, Screen} from "@/components/ignite"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
 import {translate} from "@/i18n"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack, usePushPrevious} from "@/contexts/NavigationHistoryContext"
 import {useGlassesStore} from "@/stores/glasses"
 import CoreModule from "@mentra/bluetooth-sdk"
 import {SETTINGS, useSetting} from "@/stores/settings"
@@ -10,10 +10,12 @@ import {SettingsNavigationUtils} from "@/utils/SettingsNavigationUtils"
 import {useCoreStore} from "@/stores/core"
 import {View} from "react-native"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import CrustModule from "crust"
 
 export default function BtClassicPairingScreen() {
-  const {pushPrevious, goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
+  const pushPrevious = usePushPrevious()
   const btcConnected = useGlassesStore((state) => state.btcConnected)
   const otherBtConnected = useCoreStore((state) => state.otherBtConnected)
   const [deviceName] = useSetting(SETTINGS.device_name.key)

@@ -332,14 +332,14 @@ class PhoneMic {
             if _isRecording {
                 _isRecording = false
                 currentMicMode = ""
-                DeviceManager.shared.onInterruption(began: true)
+                CoreManager.shared.onInterruption(began: true)
             }
         case .ended:
             Bridge.log("Audio session interruption ended")
             if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 if options.contains(.shouldResume) {
-                    DeviceManager.shared.onInterruption(began: false)
+                    CoreManager.shared.onInterruption(began: false)
                 }
             }
         @unknown default:
@@ -357,7 +357,7 @@ class PhoneMic {
         }
 
         Bridge.log("MIC: handleRouteChange: \(reason)")
-        DeviceManager.shared.onRouteChange(
+        CoreManager.shared.onRouteChange(
             reason: reason, availableInputs: audioSession?.availableInputs ?? []
         )
 
@@ -599,7 +599,7 @@ class PhoneMic {
             }
 
             let pcmData = self.extractInt16Data(from: convertedBuffer)
-            DeviceManager.shared.handlePcm(pcmData)
+            CoreManager.shared.handlePcm(pcmData)
         }
 
         // Start the audio engine

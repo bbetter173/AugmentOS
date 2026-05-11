@@ -108,7 +108,7 @@ class Bridge {
     static func sendDiscoveredDevice(_ deviceModel: String, _ deviceName: String) {
         Task {
             await MainActor.run {
-                let searchResults = DeviceStore.shared.get("bluetooth", "searchResults") as? [[String: Any]] ?? []
+                let searchResults = GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
                 let newResult: [String: Any] = [
                     "deviceModel": deviceModel,
                     "deviceName": deviceName,
@@ -119,7 +119,7 @@ class Bridge {
                     guard let name = $0["deviceName"] as? String else { return false }
                     return seen.insert(name).inserted
                 }.reversed()
-                DeviceStore.shared.set("bluetooth", "searchResults", Array(uniqueResults))
+                GlassesStore.shared.set("core", "searchResults", Array(uniqueResults))
             }
         }
     }
@@ -242,7 +242,7 @@ class Bridge {
         Task {
             await MainActor.run {
                 var storedNetworks: [[String: Any]] =
-                    DeviceStore.shared.get("bluetooth", "wifiScanResults") as? [[String: Any]] ?? []
+                    GlassesStore.shared.get("core", "wifiScanResults") as? [[String: Any]] ?? []
                 // add the networks to the storedNetworks array, removing duplicates by ssid
                 for network in networks {
                     if !storedNetworks.contains(where: {
@@ -251,7 +251,7 @@ class Bridge {
                         storedNetworks.append(network)
                     }
                 }
-                DeviceStore.shared.apply("bluetooth", "wifiScanResults", storedNetworks)
+                GlassesStore.shared.apply("core", "wifiScanResults", storedNetworks)
             }
         }
     }
@@ -288,28 +288,31 @@ class Bridge {
         Bridge.sendTypedMessage("ota_update_available", body: eventBody)
     }
 
-    /// Send OTA progress update - glasses are downloading/installing an update
-    static func sendOtaProgress(
-        stage: String,
+    static func sendOtaStatus(
+        sessionId: String,
+        totalSteps: Int,
+        currentStep: Int,
+        stepType: String,
+        phase: String,
+        stepPercent: Int,
+        overallPercent: Int,
         status: String,
-        progress: Int,
-        bytesDownloaded: Int64,
-        totalBytes: Int64,
-        currentUpdate: String,
         errorMessage: String?
     ) {
         var eventBody: [String: Any] = [
-            "stage": stage,
+            "session_id": sessionId,
+            "total_steps": totalSteps,
+            "current_step": currentStep,
+            "step_type": stepType,
+            "phase": phase,
+            "step_percent": stepPercent,
+            "overall_percent": overallPercent,
             "status": status,
-            "progress": progress,
-            "bytes_downloaded": bytesDownloaded,
-            "total_bytes": totalBytes,
-            "current_update": currentUpdate,
         ]
         if let error = errorMessage {
             eventBody["error_message"] = error
         }
-        Bridge.sendTypedMessage("ota_progress", body: eventBody)
+        Bridge.sendTypedMessage("ota_status", body: eventBody)
     }
 
     /// Arbitrary WS Comms (dont use these, make a dedicated function for your use case):

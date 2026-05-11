@@ -1,4 +1,4 @@
-package com.mentra.bluetoothsdk.stt
+package com.mentra.core.stt
 
 import android.content.Context
 import android.util.Log

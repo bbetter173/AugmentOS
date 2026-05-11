@@ -36,9 +36,16 @@ export const SETTINGS: Record<string, Setting> = {
   android_blur: {
     key: "android_blur",
     defaultValue: () => {
-      if (Platform.OS !== "android") return true
-      const ram = Device.totalMemory
-      return ram ? ram >= 4 * 1024 * 1024 * 1024 : true
+      return false
+    },
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  android_inner_shadow: {
+    key: "android_inner_shadow",
+    defaultValue: () => {
+      return false
     },
     writable: true,
     saveOnServer: true,
@@ -367,8 +374,8 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
-  glasses_menu_apps: {
-    key: "glasses_menu_apps",
+  menu_apps: {
+    key: "menu_apps",
     defaultValue: () => null,
     writable: true,
     saveOnServer: true,
@@ -449,6 +456,22 @@ export const SETTINGS: Record<string, Setting> = {
     writable: true,
     saveOnServer: true,
     persist: true,
+  },
+  local_stt_fallback_enabled: {
+    key: "local_stt_fallback_enabled",
+    defaultValue: () => true,
+    writable: true,
+    saveOnServer: true,
+    persist: true,
+  },
+  // Runtime flag: coordinator flips this on when cloud STT has failed and fallback is active.
+  // Native GlassesStore watches it to gate PCM → Sherpa feeding. Not user-facing.
+  local_stt_fallback_active: {
+    key: "local_stt_fallback_active",
+    defaultValue: () => false,
+    writable: true,
+    saveOnServer: false,
+    persist: false,
   },
   gallery_mode: {key: "gallery_mode", defaultValue: () => false, writable: true, saveOnServer: true, persist: true},
   gallery_sync_explained: {
@@ -563,6 +586,7 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.auto_brightness.key,
   SETTINGS.dashboard_height.key,
   SETTINGS.dashboard_depth.key,
+  SETTINGS.menu_apps.key,
   // button:
   SETTINGS.button_mode.key,
   SETTINGS.button_photo_size.key,

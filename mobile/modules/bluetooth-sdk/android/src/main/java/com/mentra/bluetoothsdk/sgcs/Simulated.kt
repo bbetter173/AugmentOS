@@ -1,19 +1,19 @@
-package com.mentra.bluetoothsdk.sgcs
+package com.mentra.core.sgcs
 
-import com.mentra.bluetoothsdk.Bridge
-import com.mentra.bluetoothsdk.DeviceManager
-import com.mentra.bluetoothsdk.utils.ConnTypes
-import com.mentra.bluetoothsdk.utils.DeviceTypes
-import com.mentra.bluetoothsdk.DeviceStore
+import com.mentra.core.Bridge
+import com.mentra.core.CoreManager
+import com.mentra.core.utils.ConnTypes
+import com.mentra.core.utils.DeviceTypes
+import com.mentra.core.GlassesStore
 
 class Simulated : SGCManager() {
 
     init {
         type = DeviceTypes.SIMULATED
-        DeviceStore.apply("glasses", "fullyBooted", true)
-        DeviceStore.apply("glasses", "connected", true)
-        DeviceStore.apply("glasses", "connectionState", ConnTypes.CONNECTED)
-        DeviceStore.apply("glasses", "micEnabled", false)
+        GlassesStore.apply("glasses", "fullyBooted", true)
+        GlassesStore.apply("glasses", "connected", true)
+        GlassesStore.apply("glasses", "connectionState", ConnTypes.CONNECTED)
+        GlassesStore.apply("glasses", "micEnabled", false)
     }
 
     // Audio Control

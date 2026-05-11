@@ -5,8 +5,8 @@ import {Text, Screen, Header} from "@/components/ignite"
 import {OptionList} from "@/components/ui/Options"
 import {ThemedSlider} from "@/components/settings/ThemedSlider"
 import ToggleSetting from "@/components/settings/ToggleSetting"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import Toast from "react-native-toast-message"
 import {useGlassesStore} from "@/stores/glasses"
@@ -49,7 +49,7 @@ const ROI_POSITION_OPTIONS = [
 
 export default function CameraSettingsScreen() {
   const {theme, themed} = useAppTheme()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const [_devMode, _setDevMode] = useSetting(SETTINGS.dev_mode.key)
   const [photoSize, setPhotoSize] = useSetting(SETTINGS.button_photo_size.key)
   const [_ledEnabled, setLedEnabled] = useSetting(SETTINGS.button_camera_led.key)
@@ -91,9 +91,7 @@ export default function CameraSettingsScreen() {
       return
     }
     setPhotoSize(size)
-    CoreModule.updateBluetoothSettings({button_photo_size: size}).catch((error: any) => {
-      console.error("Failed to update photo size on glasses:", error)
-    })
+    CoreModule.updateCore({button_photo_size: size})
   }
 
   const handleVideoResolutionChange = (resolution: VideoResolution) => {
@@ -105,13 +103,7 @@ export default function CameraSettingsScreen() {
     const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
     const fps = resolution === "4K" ? 15 : 30
     setVideoSettings({width, height, fps})
-    CoreModule.updateBluetoothSettings({
-      button_video_width: width,
-      button_video_height: height,
-      button_video_fps: fps,
-    }).catch((error: any) => {
-      console.error("Failed to update video settings on glasses:", error)
-    })
+    CoreModule.updateCore({button_video_width: width, button_video_height: height, button_video_fps: fps})
   }
 
   const _handleLedToggle = (enabled: boolean) => {
@@ -129,9 +121,7 @@ export default function CameraSettingsScreen() {
     }
     const minutes = parseInt(time.replace("m", ""))
     setMaxRecordingTime(minutes)
-    CoreModule.updateBluetoothSettings({button_max_recording_time: minutes}).catch((error: any) => {
-      console.error("Failed to update max recording time on glasses:", error)
-    })
+    CoreModule.updateCore({button_max_recording_time: minutes})
   }
 
   const handleCameraFovChange = (fov: number, roi_position: CameraRoiPosition) => {

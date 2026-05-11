@@ -8,12 +8,12 @@
 @MainActor
 class Simulated: SGCManager {
     init() {
-        DeviceStore.shared.apply("glasses", "fullyBooted", true)
-        DeviceStore.shared.apply("glasses", "connected", true)
-        DeviceStore.shared.apply("glasses", "connectionState", ConnTypes.CONNECTED)
-        DeviceStore.shared.apply("glasses", "micEnabled", false)
-        DeviceStore.shared.apply("glasses", "vadEnabled", false)
-        DeviceStore.shared.apply("glasses", "btcConnected", false)
+        GlassesStore.shared.apply("glasses", "fullyBooted", true)
+        GlassesStore.shared.apply("glasses", "connected", true)
+        GlassesStore.shared.apply("glasses", "connectionState", ConnTypes.CONNECTED)
+        GlassesStore.shared.apply("glasses", "micEnabled", false)
+        GlassesStore.shared.apply("glasses", "vadEnabled", false)
+        GlassesStore.shared.apply("glasses", "btcConnected", false)
     }
 
     // MARK: - Device Information
@@ -244,6 +244,10 @@ class Simulated: SGCManager {
 
     func sendOtaStart() {
         Bridge.log("sendOtaStart")
+    }
+
+    func sendOtaQueryStatus() {
+        Bridge.log("sendOtaQueryStatus")
     }
 
     // MARK: - Gallery

@@ -9,7 +9,7 @@ import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/Navigatio
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {checkForOtaUpdate, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecker"
 import {translate} from "@/i18n/translate"
-import {useGlassesStore} from "@/stores/glasses"
+import {useGlassesStore, waitForGlassesState} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BgTimer} from "@/utils/timers"
 
@@ -34,7 +34,8 @@ export default function OtaCheckForUpdatesScreen() {
   const waitStartTimeRef = useRef<number | null>(null)
   const hasInitiatedCheckRef = useRef(false) // Track if we've initiated check for this checkKey
   const checkCompletedRef = useRef(false) // Guards against stale timeout callbacks firing after check progresses
-  const firmwareInfoWaitExpiredRef = useRef(false)
+  /** Incremented each effect run so stale async performCheck exits before mutating state. */
+  const performCheckGenerationRef = useRef(0)
 
   focusEffectPreventBack()
 
@@ -51,7 +52,6 @@ export default function OtaCheckForUpdatesScreen() {
       waitStartTimeRef.current = null
       hasInitiatedCheckRef.current = false // Reset for fresh check
       checkCompletedRef.current = false
-      firmwareInfoWaitExpiredRef.current = false
       setCheckKey((k) => k + 1)
     }, []),
   )
@@ -61,7 +61,8 @@ export default function OtaCheckForUpdatesScreen() {
   useEffect(() => {
     const MIN_DISPLAY_TIME_MS = 1100
     const MAX_WAIT_FOR_VERSION_INFO_MS = 10000 // Wait up to 10 seconds for version_info
-    const MAX_WAIT_FOR_FIRMWARE_INFO_MS = 1500 // version_info_3 usually follows build info within a few hundred ms
+    const myGen = ++performCheckGenerationRef.current
+    let cancelled = false
 
     const performCheck = async () => {
       // Bail out if the check already completed for this checkKey — prevents re-entry
@@ -115,50 +116,40 @@ export default function OtaCheckForUpdatesScreen() {
         return
       }
 
-      // Build number arrives in version_info_1, while MTK/BES firmware arrives later in version_info_3.
-      // Give firmware a short chance to arrive, but do not block onboarding or assume an update if it does not.
-      if ((!mtkFwVersion || !besFwVersion) && !firmwareInfoWaitExpiredRef.current) {
-        if (!waitStartTimeRef.current) {
-          waitStartTimeRef.current = Date.now()
-          hasInitiatedCheckRef.current = true
-          console.log(
-            "OTA: Waiting briefly for firmware version_info (MTK:",
-            mtkFwVersion || "unknown",
-            "BES:",
-            besFwVersion || "unknown",
-            ")",
-          )
-          CoreModule.requestVersionInfo()
-        }
+      // Match OtaUpdateChecker home path: BES often arrives late in version_info_3 (chip init after reflash).
+      void CoreModule.requestVersionInfo()
 
-        const firmwareWaitStartedAt = waitStartTimeRef.current ?? Date.now()
-        waitStartTimeRef.current = firmwareWaitStartedAt
-        const elapsed = Date.now() - firmwareWaitStartedAt
-        const remainingWaitMs = Math.max(0, MAX_WAIT_FOR_FIRMWARE_INFO_MS - elapsed)
-        if (remainingWaitMs > 0) {
-          if (!versionInfoTimeoutRef.current) {
-            versionInfoTimeoutRef.current = BgTimer.setTimeout(() => {
-              if (checkCompletedRef.current) {
-                console.log("OTA: Firmware wait timeout fired but check already progressed - ignoring stale timeout")
-                return
-              }
-              console.log("OTA: Firmware version_info still incomplete - checking without firmware comparison")
-              waitStartTimeRef.current = null
-              versionInfoTimeoutRef.current = null
-              firmwareInfoWaitExpiredRef.current = true
-              setCheckKey((k) => k + 1)
-            }, remainingWaitMs)
-          }
-          return
+      let latestBesFwVersion = useGlassesStore.getState().besFwVersion
+      if (!latestBesFwVersion) {
+        console.log("OTA: BES version still unknown - waiting up to 5s for it to arrive...")
+        await waitForGlassesState("besFwVersion", (v) => !!v, 5000)
+        latestBesFwVersion = useGlassesStore.getState().besFwVersion
+        if (latestBesFwVersion) {
+          console.log(`OTA: BES version arrived: ${latestBesFwVersion}`)
+        } else {
+          console.log("OTA: BES version still unknown after extended wait - proceeding without it")
         }
+      }
 
-        if (versionInfoTimeoutRef.current) {
-          BgTimer.clearTimeout(versionInfoTimeoutRef.current)
-          versionInfoTimeoutRef.current = null
-        }
-        console.log("OTA: Firmware version_info still incomplete - checking without firmware comparison")
-        waitStartTimeRef.current = null
-        firmwareInfoWaitExpiredRef.current = true
+      if (cancelled || myGen !== performCheckGenerationRef.current) {
+        return
+      }
+      if (!useGlassesStore.getState().connected) {
+        console.log("OTA: Glasses disconnected while waiting for firmware info")
+        return
+      }
+
+      let latestMtkFwVersion = useGlassesStore.getState().mtkFwVersion
+      if (!latestMtkFwVersion) {
+        await waitForGlassesState("mtkFwVersion", (v) => !!v, 2000)
+        latestMtkFwVersion = useGlassesStore.getState().mtkFwVersion
+      }
+
+      if (cancelled || myGen !== performCheckGenerationRef.current) {
+        return
+      }
+      if (!useGlassesStore.getState().connected) {
+        return
       }
 
       // Clear timeout since we got the data
@@ -179,7 +170,12 @@ export default function OtaCheckForUpdatesScreen() {
         console.log("OTA: Requesting fresh version_info from glasses before HTTP compare")
         void CoreModule.requestVersionInfo()
 
-        const result = await checkForOtaUpdate(OTA_VERSION_URL_PROD, currentBuildNumber, mtkFwVersion, besFwVersion)
+        const result = await checkForOtaUpdate(
+          OTA_VERSION_URL_PROD,
+          currentBuildNumber,
+          latestMtkFwVersion,
+          latestBesFwVersion,
+        )
         console.log("📱 OTA check completed - result:", JSON.stringify(result))
 
         // Calculate remaining time to meet minimum display duration
@@ -245,6 +241,7 @@ export default function OtaCheckForUpdatesScreen() {
 
     // Cleanup timeouts on unmount or when dependencies change
     return () => {
+      cancelled = true
       if (versionInfoTimeoutRef.current) {
         BgTimer.clearTimeout(versionInfoTimeoutRef.current)
         versionInfoTimeoutRef.current = null
@@ -278,7 +275,6 @@ export default function OtaCheckForUpdatesScreen() {
     waitStartTimeRef.current = null
     hasInitiatedCheckRef.current = false
     checkCompletedRef.current = false
-    firmwareInfoWaitExpiredRef.current = false
     setCheckKey((k) => k + 1)
   }
 

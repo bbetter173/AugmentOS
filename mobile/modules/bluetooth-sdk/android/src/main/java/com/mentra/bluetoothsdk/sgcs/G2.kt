@@ -1034,9 +1034,10 @@ class G2 : SGCManager() {
     private var heartbeatRunnable: Runnable? = null
     private var devSettingsHeartbeatRunnable: Runnable? = null
     private var evenHubQueueRunnable: Runnable? = null
+    private var micReinitRunnable: Runnable? = null
+    private var lastLc3Event: Long? = null
     private var pendingTextMsg: ByteArray? = null
     private val EVEN_HUB_QUEUE_TICK_MS = 100L
-    private var micEnabled_: Boolean = false
     private var startupPageCreated: Boolean = false
     private var pageCreated: Boolean = false
     private var pageHasTextContainer: Boolean = false
@@ -1715,6 +1716,17 @@ class G2 : SGCManager() {
                 }
         evenHubQueueRunnable = queueRunnable
         mainHandler.postDelayed(queueRunnable, EVEN_HUB_QUEUE_TICK_MS)
+
+        // Mic reinit check every 10 seconds
+        val micReinitR =
+                object : Runnable {
+                    override fun run() {
+                        checkAndReinitGlassesMic()
+                        mainHandler.postDelayed(this, 10_000)
+                    }
+                }
+        micReinitRunnable = micReinitR
+        mainHandler.postDelayed(micReinitR, 10_000)
     }
 
     private fun stopHeartbeats() {
@@ -1724,6 +1736,8 @@ class G2 : SGCManager() {
         devSettingsHeartbeatRunnable = null
         evenHubQueueRunnable?.let { mainHandler.removeCallbacks(it) }
         evenHubQueueRunnable = null
+        micReinitRunnable?.let { mainHandler.removeCallbacks(it) }
+        micReinitRunnable = null
         pendingTextMsg = null
     }
 
@@ -2324,7 +2338,6 @@ class G2 : SGCManager() {
 
     override fun setMicEnabled(enabled: Boolean) {
         Bridge.log("G2: setMicEnabled($enabled)")
-        micEnabled_ = enabled
         GlassesStore.apply("glasses", "micEnabled", enabled)
 
         val msg = EvenHubProto.audioControlMessage(enabled)
@@ -3500,7 +3513,23 @@ class G2 : SGCManager() {
         if (usableLength < 40) return
 
         val audioData = data.copyOfRange(0, usableLength)
+        lastLc3Event = System.currentTimeMillis()
         CoreManager.getInstance().handleGlassesMicData(audioData, 40)
+    }
+
+    private fun checkAndReinitGlassesMic() {
+        // if the glasses mic is marked as enabled (and the glasses are connected), but our last known lc3 event is from > 5 seconds ago, reinitialize the mic:
+        val glassesMicEnabled = GlassesStore.get("glasses", "micEnabled") as? Boolean ?: false
+        val glassesConnected = GlassesStore.get("glasses", "connected") as? Boolean ?: false
+        if (!glassesMicEnabled || !glassesConnected) {
+            return
+        }
+
+        val timeSinceLastLc3Event = System.currentTimeMillis() - (lastLc3Event ?: System.currentTimeMillis())
+        if (timeSinceLastLc3Event > 5000) {
+            Bridge.log("G2: No audio activity in the last 5 seconds from glasses, reinitializing glasses mic")
+            setMicEnabled(true)
+        }
     }
 
     // ---------- Reconnection ----------

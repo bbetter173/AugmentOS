@@ -513,8 +513,7 @@ export default function MiniappHost() {
   )
 
   return (
-    // MiniappHost sits above the Stack so the foregrounded WebView covers the
-    // current route. z-[9999]/elevation keep us on top of native nav layers.
+    // MiniappHost sits above the Stack so the foregrounded WebView
     <View className="absolute inset-0 z-10" pointerEvents="box-none">
       {entries.map((app) => {
         const isFg = app.isForeground

@@ -103,7 +103,28 @@ schedule a cheap app-state broadcast from cached state
 
 Do not refresh installed apps from Mongo just because a socket reattached.
 
-### 4. Refresh on Real State Changes
+### 4. Reuse Per-App Settings After First Attach
+
+The app ACK includes app-specific settings. On first attach, cloud can read those settings from the user document and cache them in the active `AppManager`.
+
+On later reconnects for an app that was already running, cloud should reuse that cache instead of reading the user document again. If the user changes settings while the session is active, the settings route should update both Mongo and the active in-memory cache before sending the settings update.
+
+This keeps reconnect cheap while preserving correctness:
+
+```text
+first attach -> load settings from user document
+settings changed -> update document and active-session cache
+reconnect -> reuse active-session cache
+cache missing -> fall back to user document
+```
+
+### 5. Avoid Redundant Running-App Writes
+
+`addRunningApp(packageName)` should remain on the first real app attach/start path, but reconnect should skip it when in-memory app state already says the app is running, dormant, or in grace period.
+
+The database should record actual state changes. It should not be required for restoring a socket that cloud already expected to exist.
+
+### 6. Refresh on Real State Changes
 
 Callers that can change installed or running state should request an explicit refresh when needed.
 
@@ -163,12 +184,23 @@ after: reconnect burst runs zero refreshes on reconnect, or one coalesced refres
 
 The harness does not need to perfectly recreate Porter or AKS. It only needs to prove the cloud reconnect path no longer amplifies a socket storm into repeated DB-backed work.
 
+The local sync-pressure comparison added for this issue showed:
+
+```text
+origin/staging: 56 reconnects caused a 2737 ms event-loop heartbeat gap
+cheap reconnect, realistic warm reconnect: 56 reconnects caused about a 230 ms max round heartbeat gap
+```
+
+That is enough to show we reproduced the process-level health-check failure shape locally and removed the specific reconnect amplification we saw in prod logs.
+
 ## Success Criteria
 
 Under a local reconnect burst comparable to the May 11 incident:
 
 - app reconnect ACKs are still sent
 - installed-app refresh count is near zero for reconnect-only traffic
+- already-running reconnects do not reread user settings
+- already-running reconnects do not rewrite running-app state
 - duplicate app-state broadcasts collapse per user
 - event loop remains responsive enough for health checks
 - slow `connection_init` logs no longer show `refreshInstalledApps` as the dominant phase
@@ -184,5 +216,5 @@ Under a local reconnect burst comparable to the May 11 incident:
 ## Open Questions
 
 1. Should uninstall call a second explicit broadcast after `stopApp()` so the installed app list refresh is guaranteed?
-2. Should `addRunningApp()` be made fully non-blocking during reconnect, or is the current no-op save behavior enough after removing the installed-app refresh?
+2. Should `validateApiKey` get a per-package cache if debug/staging shows it becomes the next storm bottleneck?
 3. Should the storm guard be implemented now, or should this PR focus on making normal reconnect cheap and leave guard logging for the next PR?

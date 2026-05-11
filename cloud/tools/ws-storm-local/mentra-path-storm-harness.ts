@@ -115,11 +115,13 @@ const { WebSocketReadyState } = await import("../../packages/cloud/src/services/
 
 const silentLogger = makeSilentLogger();
 let lastHeartbeat = performance.now();
+let currentRoundMaxHeartbeatGapMs = 0;
 
 const heartbeat = setInterval(() => {
   const now = performance.now();
   const gap = now - lastHeartbeat - 100;
   if (gap > metrics.maxHeartbeatGapMs) metrics.maxHeartbeatGapMs = gap;
+  if (gap > currentRoundMaxHeartbeatGapMs) currentRoundMaxHeartbeatGapMs = gap;
   if (gap > 1000) metrics.heartbeatGapsOver1s++;
   lastHeartbeat = now;
 }, 100);
@@ -142,6 +144,8 @@ for (let round = 1; round <= args.rounds; round++) {
   const startSubscriptionCount = getStat("subscription").count;
   const startUserFindOneCount = getStat("user.findOne").count;
   const startAppFindCount = getStat("app.find").count;
+  const startHeartbeatGapsOver1s = metrics.heartbeatGapsOver1s;
+  currentRoundMaxHeartbeatGapMs = 0;
 
   await timed("round", async () => {
     await Promise.all(
@@ -180,6 +184,8 @@ for (let round = 1; round <= args.rounds; round++) {
       subscriptionOps: getStat("subscription").count - startSubscriptionCount,
       installedAppUserLookups: getStat("user.findOne").count - startUserFindOneCount,
       installedAppQueries: getStat("app.find").count - startAppFindCount,
+      roundMaxHeartbeatGapMs: Math.round(currentRoundMaxHeartbeatGapMs),
+      roundHeartbeatGapsOver1s: metrics.heartbeatGapsOver1s - startHeartbeatGapsOver1s,
       maxHeartbeatGapMs: Math.round(metrics.maxHeartbeatGapMs),
       heartbeatGapsOver1s: metrics.heartbeatGapsOver1s,
       stats: snapshotStats(["round", "close", "reconnect", "subscription", "user.findOne", "app.find"]),

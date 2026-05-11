@@ -303,10 +303,17 @@ Prototype changes tried:
 - callers can still request `broadcastAppState({ refreshInstalledApps: true })` for real app-list changes.
 - `AppManager.scheduleBroadcastAppState()` coalesces duplicate broadcasts over a short 150 ms window.
 - app `connection_init` schedules a cheap app-state broadcast instead of awaiting a DB-backed installed-app refresh inline.
+- app `connection_init` reuses cached app-specific settings when the app was already expected to be running.
+- app `connection_init` skips `addRunningApp(packageName)` when in-memory state already says the app is running, dormant, or in its grace period.
+- the app settings route updates the in-session settings cache when settings change.
 - install and uninstall routes request an explicit installed-app refresh.
-- the local Mentra-path storm harness waits for scheduled broadcasts and reports installed-app lookup counts.
+- the local Mentra-path storm harness waits for scheduled broadcasts and reports installed-app lookup counts and per-round event-loop heartbeat gaps.
 
-Local harness command:
+### Async DB Delay Test
+
+This test injected async DB-like delay. It proves the reconnect path stopped repeating installed-app refreshes and that async wait time alone does not pin the loop.
+
+Command:
 
 ```bash
 cd cloud
@@ -333,5 +340,73 @@ Interpretation:
 
 - The reconnect burst no longer repeats `refreshInstalledApps()` per app connection.
 - The event loop stayed responsive in the local harness.
-- The remaining dominant phase is `attachAppSocket`, mostly because it still reads the user document for legacy app-specific settings and running-app persistence. That is async DB work, not the loop-pinning installed-app refresh fanout seen in the incident logs.
-- Avoiding the legacy settings DB read may be possible later, but it is a broader behavior change and should not be mixed into this crash-prevention PR unless debug/staging still shows reconnect pressure after this fix.
+- The first prototype still had extra `attachAppSocket` work from legacy app-specific settings and running-app persistence.
+- The follow-up prototype below removes that extra work for already-running app reconnects by caching settings in the active `AppManager` and skipping `addRunningApp()` when in-memory state already says the app is running.
+
+### Sync Pressure Before/After Test
+
+This test injected short synchronous pauses into the same DB call sites. It is not claiming Mongo is synchronous in production. It is a local way to model what happens when reconnect fanout causes enough CPU, GC, or blocking work to make health-check timers late.
+
+Before fix, running the harness against `origin/staging` produced a liveness-like event-loop gap:
+
+```bash
+cd /tmp/mentraos-107-staging/cloud
+bun run tools/ws-storm-local/mentra-path-storm-harness.ts \
+  --connect-mode=init \
+  --users=56 \
+  --apps-per-user=1 \
+  --rounds=1 \
+  --subscription-updates=0 \
+  --user-db-sync-ms=20 \
+  --app-db-sync-ms=5 \
+  --reconnect-delay-ms=100 \
+  --label=issue-107-before-staging-sync-pressure
+```
+
+Result:
+
+```text
+reconnect avg: about 2691 ms
+reconnect p95: about 2819 ms
+max heartbeat gap: 2737 ms
+heartbeat gaps over 1s: 1
+installed-app User.findOne lookups: 56
+App.find queries: 57
+dominant slow phase: broadcastAppState -> refreshInstalledApps
+```
+
+After the cheap-reconnect changes, the same sync-pressure shape still has a first-round cache warmup artifact in the harness because the harness creates fake already-running app sessions without going through the real first attach path. The second round is the realistic already-running reconnect shape:
+
+```bash
+cd cloud
+bun run tools/ws-storm-local/mentra-path-storm-harness.ts \
+  --connect-mode=init \
+  --users=56 \
+  --apps-per-user=1 \
+  --rounds=2 \
+  --subscription-updates=0 \
+  --user-db-sync-ms=20 \
+  --app-db-sync-ms=5 \
+  --reconnect-delay-ms=100 \
+  --broadcast-settle-ms=300 \
+  --label=issue-107-after-pr-per-round-heartbeat
+```
+
+Result:
+
+```text
+round 1 max heartbeat gap: 1310 ms
+round 1 heartbeat gaps over 1s: 1
+round 2 max heartbeat gap: about 230 ms
+round 2 heartbeat gaps over 1s: 0
+round 2 installed-app User.findOne lookups: 0
+round 2 attachAppSocket phase: about 0.2-0.4 ms per reconnect
+round 2 scheduleBroadcastAppState phase: 0 ms
+```
+
+Interpretation:
+
+- The old code can locally reproduce the process-level shape that makes Kubernetes health checks time out.
+- The new code removes the confirmed `refreshInstalledApps()` amplification during reconnect.
+- The new code also avoids the app-specific settings read and `addRunningApp()` write once the app has already attached once.
+- The remaining synthetic slow phase is `validateApiKey`, which does an `App.findOne({ packageName })`. It was around 9.9 ms in the sampled prod incident logs, while the confirmed incident slow phase was `broadcastAppState -> refreshInstalledApps`. Keep watching it, but do not widen this PR unless debug/staging shows it becoming the new bottleneck.

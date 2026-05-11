@@ -15,6 +15,7 @@ import {
   AppConnectionInit,
   AppStateChange,
   AppI,
+  AppSetting,
   WebhookRequestType,
   SessionWebhookRequest,
   AppType,
@@ -148,6 +149,7 @@ export class AppManager {
 
   private appStateBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAppStateRefresh = false;
+  private appSettingsByPackage = new Map<string, AppSetting[]>();
 
   // Cache of installed apps
   // private installedApps: AppI[] = [];
@@ -1622,6 +1624,14 @@ export class AppManager {
     timer.unref?.();
   }
 
+  updateCachedAppSettings(packageName: string, settings: AppSetting[] | undefined): void {
+    if (settings) {
+      this.appSettingsByPackage.set(packageName, settings);
+    } else {
+      this.appSettingsByPackage.delete(packageName);
+    }
+  }
+
   /**
    * Refresh the installed apps list
    */
@@ -1886,12 +1896,22 @@ export class AppManager {
       phaseTimer.measureSync("setSdkVersion", () => connectedAppSession.setSdkVersion(options.sdkVersion));
     }
 
+    const wasExpectedRunning =
+      connectedAppSession.isRunning || connectedAppSession.isInGracePeriod || connectedAppSession.isDormant;
+
     phaseTimer.measureSync("handleConnect", () => connectedAppSession.handleConnect(ws));
     const sessionId = connectedAppSession.sessionId;
 
     const app = this.userSession.installedApps.get(packageName);
-    const user = await phaseTimer.measure("findOrCreateUser", () => User.findOrCreateUser(this.userSession.userId));
-    const userSettings = user.getAppSettings(packageName) || app?.settings || [];
+    let userSettings = this.appSettingsByPackage.get(packageName);
+    let user: Awaited<ReturnType<typeof User.findOrCreateUser>> | null = null;
+
+    if (!userSettings || !wasExpectedRunning) {
+      user = await phaseTimer.measure("findOrCreateUser", () => User.findOrCreateUser(this.userSession.userId));
+      userSettings = user.getAppSettings(packageName) || app?.settings || [];
+      this.appSettingsByPackage.set(packageName, userSettings);
+    }
+
     const mentraosSettings = phaseTimer.measureSync("buildMentraosSettings", () =>
       this.userSession.userSettingsManager.buildMentraosSettings(),
     );
@@ -1920,17 +1940,22 @@ export class AppManager {
       phaseTimer.measureSync("deliverActiveStreamState", () => this.deliverActiveStreamState(packageName, ws));
     }
 
-    try {
-      await phaseTimer.measure("addRunningApp", () => user.addRunningApp(packageName));
-    } catch (error) {
-      this.logger.error(
-        error,
-        `Error updating user's running apps for ${this.userSession.userId} for app ${packageName}`,
-      );
-      this.logger.debug({ packageName, userId: this.userSession.userId }, "Failed to update user's running apps");
-    } finally {
-      cascadeDiagnostics.addTimer("appConnect_attachAppSocket", phaseTimer.durationMs);
+    if (!wasExpectedRunning) {
+      try {
+        await phaseTimer.measure("addRunningApp", async () => {
+          const userForUpdate = user ?? (await User.findOrCreateUser(this.userSession.userId));
+          await userForUpdate.addRunningApp(packageName);
+        });
+      } catch (error) {
+        this.logger.error(
+          error,
+          `Error updating user's running apps for ${this.userSession.userId} for app ${packageName}`,
+        );
+        this.logger.debug({ packageName, userId: this.userSession.userId }, "Failed to update user's running apps");
+      }
     }
+
+    cascadeDiagnostics.addTimer("appConnect_attachAppSocket", phaseTimer.durationMs);
   }
 
   private async attachDeferredConnection(

@@ -164,6 +164,31 @@ Option B:
 
 Preferred: A where easy, B where correctness requires eventual persistence.
 
+Implementation note for this PR:
+
+- compute whether the app was already expected to be running before calling `handleConnect(ws)`
+- skip `addRunningApp(packageName)` when the app was already running, dormant, or in grace period
+- keep the write on the first real attach/start path
+
+### S4.5: Reuse App-Specific Settings on Reconnect
+
+`attachAppSocket()` also reads the user document to get app-specific settings before sending `CONNECTION_ACK`.
+
+During reconnect, the active session can reuse settings it already loaded for that app. Keep an in-memory per-`AppManager` settings cache:
+
+```text
+first attach for package -> read user settings and cache them
+settings update route -> update user settings and refresh the active session cache
+already-running reconnect -> reuse cached settings
+```
+
+Fallback behavior:
+
+- if settings are missing from the cache, read from the user document
+- if app settings are updated while a session is active, update the cache before sending the settings update message
+
+This keeps reconnect cheap without changing the settings protocol.
+
 ### S5: Keep `refreshInstalledApps()` But Make Its Use Intentional
 
 Do not delete `refreshInstalledApps()`. It is still useful when the app list may be stale.
@@ -239,6 +264,8 @@ Add tests for `AppManager` behavior:
 4. if any coalesced call requests refresh, the final broadcast refreshes once.
 5. reconnect attach does not block on installed-app refresh.
 6. reconnect attach does not call `addRunningApp` if app is already running.
+7. reconnect attach reuses cached app-specific settings after the first successful attach.
+8. active-session settings cache updates when the app settings route saves new settings.
 
 ### Integration / Harness Tests
 
@@ -257,6 +284,7 @@ Acceptance:
 - no multi-minute vitals gap
 - slow `connection_init` count drops sharply
 - no repeated `refreshInstalledApps` per app reconnect
+- no repeated user settings read per already-running app reconnect
 - app state is eventually correct
 
 ### Production Verification
@@ -329,4 +357,3 @@ Mitigation: clear timers in `AppManager.dispose()` / `UserSession.dispose()`.
 3. Should `refreshInstalledApps` have its own slow diagnostic with user hash and call-site reason?
 4. Should app reconnect ACK be sent before any persistence work?
 5. Should app WebSocket reconnects have jitter/backoff guidance in the SDK?
-

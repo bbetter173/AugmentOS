@@ -620,6 +620,72 @@ public struct MentraTouchEvent: CustomStringConvertible {
     }
 }
 
+public struct MentraWifiStatus: CustomStringConvertible {
+    public let connected: Bool
+    public let ssid: String
+    public let localIp: String
+
+    public init(connected: Bool, ssid: String, localIp: String) {
+        self.connected = connected
+        self.ssid = ssid
+        self.localIp = localIp
+    }
+
+    public init(values: [String: Any]) {
+        self.connected = boolValue(values, "connected") ?? boolValue(values, "wifiConnected") ?? false
+        self.ssid = stringValue(values, "ssid", "wifiSsid") ?? ""
+        self.localIp = stringValue(values, "localIp", "local_ip", "wifiLocalIp") ?? ""
+    }
+
+    public var values: [String: Any] {
+        [
+            "connected": connected,
+            "ssid": ssid,
+            "localIp": localIp,
+        ]
+    }
+
+    public var description: String {
+        "MentraWifiStatus(connected: \(connected), ssid: \(ssid.isEmpty ? "none" : ssid), localIp: \(localIp.isEmpty ? "none" : localIp))"
+    }
+}
+
+public struct MentraWifiStatusEvent: CustomStringConvertible {
+    public let status: MentraWifiStatus
+
+    public init(status: MentraWifiStatus) {
+        self.status = status
+    }
+
+    public init(connected: Bool, ssid: String, localIp: String) {
+        self.status = MentraWifiStatus(connected: connected, ssid: ssid, localIp: localIp)
+    }
+
+    public init(values: [String: Any]) {
+        self.status = MentraWifiStatus(values: values)
+    }
+
+    public var connected: Bool {
+        status.connected
+    }
+
+    public var ssid: String {
+        status.ssid
+    }
+
+    public var localIp: String {
+        status.localIp
+    }
+
+    public var values: [String: Any] {
+        status.values.merging(["type": "wifi_status_change"]) { _, new in new }
+    }
+
+    public var description: String {
+        "MentraWifiStatusEvent(\(status))"
+    }
+}
+
 public struct MentraHotspotStatusEvent: CustomStringConvertible {
     public let values: [String: Any]
 
@@ -759,6 +825,7 @@ public struct MentraLocalTranscriptionEvent: CustomStringConvertible {
 public enum MentraBluetoothEvent: CustomStringConvertible {
     case buttonPress(MentraButtonPressEvent)
     case touch(MentraTouchEvent)
+    case wifiStatus(MentraWifiStatusEvent)
     case hotspotStatus(MentraHotspotStatusEvent)
     case hotspotError(MentraHotspotErrorEvent)
     case photoResponse(MentraPhotoResponseEvent)
@@ -771,6 +838,8 @@ public enum MentraBluetoothEvent: CustomStringConvertible {
         case let .buttonPress(event):
             event.description
         case let .touch(event):
+            event.description
+        case let .wifiStatus(event):
             event.description
         case let .hotspotStatus(event):
             event.description
@@ -1199,6 +1268,8 @@ public final class MentraBluetoothSDK {
             delegate?.mentraBluetoothSDK(self, didReceive: .localTranscription(event))
         case "hotspot_status_change":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(MentraHotspotStatusEvent(values: data)))
+        case "wifi_status_change":
+            delegate?.mentraBluetoothSDK(self, didReceive: .wifiStatus(MentraWifiStatusEvent(values: data)))
         case "hotspot_error":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotError(MentraHotspotErrorEvent(values: data)))
         case "photo_response":

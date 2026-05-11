@@ -230,12 +230,12 @@ class Bridge {
     }
 
     static func sendWifiStatusChange(connected: Bool, ssid: String?, localIp: String?) {
-        let event: [String: Any] = [
-            "connected": connected,
-            "ssid": ssid,
-            "local_ip": localIp,
-        ]
-        Bridge.sendTypedMessage("wifi_status_change", body: event)
+        let status = MentraWifiStatus(
+            connected: connected,
+            ssid: ssid ?? "",
+            localIp: localIp ?? ""
+        )
+        Bridge.sendTypedMessage("wifi_status_change", body: status.values)
     }
 
     static func updateWifiScanResults(_ networks: [[String: Any]]) {

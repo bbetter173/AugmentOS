@@ -538,6 +538,8 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             )
         case let .touch(touch):
             sendEvent("touch_event", touch.values)
+        case let .wifiStatus(status):
+            sendEvent("wifi_status_change", status.values)
         case let .hotspotStatus(status):
             sendEvent("hotspot_status_change", status.values)
         case let .hotspotError(error):

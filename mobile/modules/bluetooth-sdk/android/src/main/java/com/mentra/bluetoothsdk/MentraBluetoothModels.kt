@@ -370,12 +370,42 @@ data class MentraBatteryStatusEvent(
     val values: Map<String, Any>,
 )
 
-data class MentraWifiStatusEvent(
-    val values: Map<String, Any>,
+data class MentraWifiStatus(
+    val connected: Boolean,
+    val ssid: String,
+    val localIp: String,
 ) {
-    val connected: Boolean? get() = boolValue(values, "connected")
-    val ssid: String? get() = stringValue(values, "ssid", "wifiSsid")
-    val localIp: String? get() = stringValue(values, "local_ip", "localIp", "wifiLocalIp")
+    fun toMap(): Map<String, Any> =
+        mapOf(
+            "connected" to connected,
+            "ssid" to ssid,
+            "localIp" to localIp,
+        )
+
+    fun toEventMap(): Map<String, Any> =
+        toMap() + mapOf("type" to "wifi_status_change")
+
+    companion object {
+        @JvmStatic
+        fun fromMap(values: Map<String, Any>): MentraWifiStatus =
+            MentraWifiStatus(
+                connected = boolValue(values, "connected") ?: boolValue(values, "wifiConnected") ?: false,
+                ssid = stringValue(values, "ssid", "wifiSsid") ?: "",
+                localIp = stringValue(values, "localIp", "local_ip", "wifiLocalIp") ?: "",
+            )
+    }
+}
+
+data class MentraWifiStatusEvent(
+    val status: MentraWifiStatus,
+) {
+    constructor(values: Map<String, Any>) : this(MentraWifiStatus.fromMap(values))
+    constructor(connected: Boolean, ssid: String, localIp: String) : this(MentraWifiStatus(connected, ssid, localIp))
+
+    val connected: Boolean get() = status.connected
+    val ssid: String get() = status.ssid
+    val localIp: String get() = status.localIp
+    val values: Map<String, Any> get() = status.toEventMap()
 }
 
 data class MentraHotspotStatusEvent(

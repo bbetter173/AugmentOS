@@ -5,7 +5,8 @@ import {Platform} from "react-native"
 import {useRoute} from "@react-navigation/native"
 
 import PairingSuccessScreen from "@/app/pairing/success"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {usePushUnder} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {waitForGlassesState} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 
@@ -26,7 +27,11 @@ jest.mock("@react-navigation/native", () => ({
 
 jest.mock("@/contexts/NavigationHistoryContext", () => ({
   focusEffectPreventBack: jest.fn(),
-  useNavigationHistory: jest.fn(),
+  usePushUnder: jest.fn(),
+}))
+
+jest.mock("@/stores/navigation", () => ({
+  useNavigationStore: {getState: jest.fn()},
 }))
 
 jest.mock("@/stores/glasses", () => ({
@@ -88,7 +93,8 @@ describe("pairing success screen", () => {
     useSettingsStore.getState().resetAllSettingsLocally()
     setPlatformOS("ios")
     ;(useRoute as jest.Mock).mockReturnValue({params: {deviceModel: "Mentra Live"}})
-    ;(useNavigationHistory as jest.Mock).mockReturnValue({clearHistoryAndGoHome, push, pushUnder})
+    ;(useNavigationStore.getState as jest.Mock).mockReturnValue({clearHistoryAndGoHome, push})
+    ;(usePushUnder as jest.Mock).mockReturnValue(pushUnder)
   })
 
   afterEach(() => {

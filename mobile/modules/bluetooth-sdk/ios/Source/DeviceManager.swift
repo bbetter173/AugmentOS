@@ -177,6 +177,11 @@ struct ViewState {
         set { GlassesStore.shared.apply("core", "offline_captions_running", newValue) }
     }
 
+    private var localSttFallbackActive: Bool {
+        get { GlassesStore.shared.get("core", "local_stt_fallback_active") as? Bool ?? false }
+        set { GlassesStore.shared.apply("core", "local_stt_fallback_active", newValue) }
+    }
+
     private var shouldSendPcm: Bool {
         get { GlassesStore.shared.get("core", "should_send_pcm") as? Bool ?? false }
         set { GlassesStore.shared.apply("core", "should_send_pcm", newValue) }
@@ -351,7 +356,7 @@ struct ViewState {
         }
     }
 
-    private func convertAndsendMicLc3(_ pcmData: Data) {
+    private func convertAndSendMicLc3(_ pcmData: Data) {
         guard let lc3Converter = lc3Converter else {
             Bridge.log("MAN: ERROR - LC3 converter not initialized but format is LC3")
             return
@@ -366,11 +371,12 @@ struct ViewState {
     }
 
     private func handleSendingPcm(_ pcmData: Data) {
+        // Bridge.log("MAN: handleSendingPcm() shouldSendPcm: \(shouldSendPcm) shouldSendLc3: \(shouldSendLc3)")
         if shouldSendPcm {
             Bridge.sendMicPcm(pcmData)
         }
         if shouldSendLc3 {
-            convertAndsendMicLc3(pcmData)
+            convertAndSendMicLc3(pcmData)
         }
     }
 
@@ -423,7 +429,7 @@ struct ViewState {
             handleSendingPcm(pcmData)
 
             // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript || offlineCaptionsRunning {
+            if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
                 transcriber?.acceptAudio(pcm16le: pcmData)
             }
             return
@@ -459,7 +465,7 @@ struct ViewState {
             handleSendingPcm(pcmData)
 
             // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript || offlineCaptionsRunning {
+            if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
                 transcriber?.acceptAudio(pcm16le: pcmData)
             }
         } else {
@@ -1139,6 +1145,11 @@ struct ViewState {
         sgc?.sendOtaStart()
     }
 
+    func sendOtaQueryStatus() {
+        Bridge.log("MAN: 📱 Sending OTA query status command to glasses")
+        (sgc as? MentraLive)?.sendOtaQueryStatus()
+    }
+
     /// Request version info from glasses.
     /// Glasses will respond with version_info message containing build number, firmware version, etc.
     func requestVersionInfo() {
@@ -1174,7 +1185,7 @@ struct ViewState {
 
     func setMicState() {
         let willSendPcm = shouldSendPcm || shouldSendLc3
-        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning
+        let willSendTranscript = shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive
         micEnabled = willSendPcm || willSendTranscript
         updateMicState()
     }
@@ -1316,6 +1327,23 @@ struct ViewState {
             initSGC(self.pendingWearable)
             sgc?.connectById(self.deviceName)
         }
+    }
+
+    func connectDevice(_ deviceModel: String, _ deviceName: String) {
+        Bridge.log("MAN: Connecting to device: \(deviceModel) \(deviceName)")
+        if DeviceTypes.ALL.contains(deviceModel) {
+            pendingWearable = deviceModel
+            initSGC(pendingWearable)
+            sgc?.connectById(deviceName)
+            return
+        }
+        if ControllerTypes.ALL.contains(deviceModel) {
+            pendingWearable = deviceModel
+            initController(deviceModel)
+            controller?.connectById(deviceName)
+            return
+        }
+        Bridge.log("MAN: No compatible device model, returning")
     }
 
     func connectSimulated() {

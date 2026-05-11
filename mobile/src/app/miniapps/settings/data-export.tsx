@@ -16,10 +16,10 @@ import {Divider} from "@/components/ui/Divider"
 import {Group} from "@/components/ui/Group"
 import {Spacer} from "@/components/ui/Spacer"
 import {useAuth} from "@/contexts/AuthContext"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
-import {useApplets} from "@/stores/applets"
+import {useApps} from "@mentra/island"
 import {useSettingsStore} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
 import {showAlert} from "@/utils/AlertUtils"
@@ -201,8 +201,8 @@ export default function DataExportPage() {
   const [previewExpanded, setPreviewExpanded] = useState(false)
 
   const {user, session} = useAuth()
-  const appStatus = useApplets()
-  const {goBack} = useNavigationHistory()
+  const appStatus = useApps()
+  const {goBack} = useNavigationStore.getState()
   const {theme, themed} = useAppTheme()
   const bluetoothStatus = useCoreStore()
 

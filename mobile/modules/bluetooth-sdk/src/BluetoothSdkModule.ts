@@ -4,7 +4,6 @@ import {
   CoreModuleEvents,
   CoreStatus,
   DefaultDevice,
-  DeviceSearchResult,
   GalleryMode,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
@@ -39,7 +38,6 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   clearDefaultDevice(): Promise<void>
   connectByName(deviceName: string): Promise<void>
   connectDevice(deviceModel: string, deviceName: string): Promise<void>
-  connectDiscoveredDevice(device: DeviceSearchResult): Promise<void>
   connectDefaultController(): Promise<void>
   disconnectController(): Promise<void>
   connectSimulated(): Promise<void>
@@ -77,6 +75,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
 
   // OTA Commands
   sendOtaStart(): Promise<void>
+  sendOtaQueryStatus(): Promise<void>
 
   // Version Info Commands
   requestVersionInfo(): Promise<void>
@@ -127,6 +126,9 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   updateCore(values: Record<string, any>): Promise<void>
   onGlassesStatus(callback: GlassesListener): () => void
   onCoreStatus(callback: CoreStatusListener): () => void
+
+  // Process resident-set-size in MB. iOS-only; Android stub returns 0.
+  getMemoryMB(): number
 }
 
 // This call loads the native module object from the JSI.
@@ -140,10 +142,6 @@ NativeCoreModule.updateGlasses = function (values: Partial<GlassesStatus>) {
 
 NativeCoreModule.updateCore = function (values: Record<string, any>) {
   return this.update("core", values)
-}
-
-NativeCoreModule.connectDiscoveredDevice = function (device: DeviceSearchResult) {
-  return this.connectDevice(device.deviceModel, device.deviceName)
 }
 
 NativeCoreModule.onGlassesStatus = function (callback: GlassesListener) {

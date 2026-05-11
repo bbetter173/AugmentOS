@@ -21,7 +21,11 @@ jest.mock("@/../../cloud/packages/types/src", () => ({
 
 jest.mock("@/contexts/NavigationHistoryContext", () => ({
   focusEffectPreventBack: jest.fn(),
-  useNavigationHistory: jest.fn(),
+  usePushUnder: jest.fn(),
+}))
+
+jest.mock("@/stores/navigation", () => ({
+  useNavigationStore: {getState: jest.fn()},
 }))
 
 jest.mock("@/utils/PermissionsUtils", () => ({
@@ -136,7 +140,8 @@ import {Platform} from "react-native"
 
 import CoreModule from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {usePushUnder} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {requestFeaturePermissions} from "@/utils/PermissionsUtils"
 import SelectGlassesBluetoothScreen from "@/app/pairing/scan"
 import {useCoreStore} from "@/stores/core"
@@ -162,7 +167,8 @@ describe("pairing scan screen", () => {
     useGlassesStore.getState().reset()
     useSettingsStore.getState().resetAllSettingsLocally()
     ;(useLocalSearchParams as jest.Mock).mockReturnValue({deviceModel: "Mentra Live"})
-    ;(useNavigationHistory as jest.Mock).mockReturnValue({replace, pushUnder, goBack})
+    ;(useNavigationStore.getState as jest.Mock).mockReturnValue({replace, goBack})
+    ;(usePushUnder as jest.Mock).mockReturnValue(pushUnder)
     ;(requestFeaturePermissions as jest.Mock).mockResolvedValue(true)
     setPlatformOS("ios")
   })

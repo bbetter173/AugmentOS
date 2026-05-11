@@ -865,7 +865,7 @@ async function isLocationServicesEnabled(): Promise<boolean> {
   try {
     if (Platform.OS === "android") {
       // Use our native module to check if location services are enabled
-      const locationServicesEnabled = await CoreModule.isLocationServicesEnabled()
+      const locationServicesEnabled = await CrustModule.isLocationServicesEnabled()
       console.log("Location services enabled (native check):", locationServicesEnabled)
       return locationServicesEnabled
     } else if (Platform.OS === "ios") {

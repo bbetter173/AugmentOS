@@ -36,6 +36,8 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             "audio_disconnected",
             "save_setting",
             "local_transcription",
+            "phone_notification",
+            "phone_notification_dismissed",
             "ws_text",
             "ws_bin",
             "mic_pcm",
@@ -45,12 +47,16 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             "mtk_update_complete",
             "ota_update_available",
             "ota_progress",
+            "ota_start_ack",
+            "ota_status",
             "send_command_to_ble",
             "receive_command_from_ble",
-            "miniapp_selected"
+            "miniapp_selected",
+            "captions_tester_incident"
         )
 
         OnCreate {
+            JSCExperiment.maybeAutoBenchmark()
             Task { @MainActor [weak self] in
                 _ = self?.bluetoothSdk()
             }
@@ -210,6 +216,30 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
+        Function("getMemoryMB") { () -> Double in
+            MemoryMonitor.currentMemoryMB()
+        }
+
+        Function("jscSpawn") { (count: Int) -> Int in
+            JSCExperiment.spawn(count: count)
+        }
+
+        Function("jscKillAll") { () -> Void in
+            JSCExperiment.killAll()
+        }
+
+        Function("jscAliveCount") { () -> Int in
+            JSCExperiment.aliveCount()
+        }
+
+        Function("jscSpawnAndMeasure") { (count: Int, baselineMB: Double) -> [String: Any] in
+            JSCExperiment.spawnAndMeasure(count: count, baselineMB: baselineMB)
+        }
+
+        Function("jscRunBenchmark") { () -> Void in
+            JSCExperiment.runBenchmark()
+        }
+
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { (incidentId: String, apiBaseUrl: String?) in
@@ -295,6 +325,12 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("sendOtaStart") {
             await MainActor.run {
                 self.bluetoothSdk().sendOtaStart()
+            }
+        }
+
+        AsyncFunction("sendOtaQueryStatus") {
+            await MainActor.run {
+                self.bluetoothSdk().sendOtaQueryStatus()
             }
         }
 

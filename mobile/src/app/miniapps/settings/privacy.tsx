@@ -6,8 +6,8 @@ import {Header, Screen} from "@/components/ignite"
 import PermissionButton from "@/components/settings/PermButton"
 import ToggleSetting from "@/components/settings/ToggleSetting"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {checkAndRequestNotificationAccessSpecialPermission} from "@/utils/NotificationServiceUtils"
@@ -21,7 +21,7 @@ export default function PrivacySettingsScreen() {
   const [locationPermissionPending, setLocationPermissionPending] = useState(false)
   const [appState, setAppState] = useState(AppState.currentState)
   const {theme} = useAppTheme()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const [sensingEnabled, setSensingEnabled] = useSetting(SETTINGS.sensing_enabled.key)
 
   // Check permissions when screen loads

@@ -1033,6 +1033,9 @@ class G2 : SGCManager() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var heartbeatRunnable: Runnable? = null
     private var devSettingsHeartbeatRunnable: Runnable? = null
+    private var evenHubQueueRunnable: Runnable? = null
+    private var pendingTextMsg: ByteArray? = null
+    private val EVEN_HUB_QUEUE_TICK_MS = 100L
     private var micEnabled_: Boolean = false
     private var startupPageCreated: Boolean = false
     private var pageCreated: Boolean = false
@@ -1680,6 +1683,17 @@ class G2 : SGCManager() {
                 }
         devSettingsHeartbeatRunnable = dsRunnable
         mainHandler.postDelayed(dsRunnable, 5000)
+
+        // EvenHub text command queue: drain the most recent pending updateText every 100ms
+        val queueRunnable =
+                object : Runnable {
+                    override fun run() {
+                        drainEvenHubQueue()
+                        mainHandler.postDelayed(this, EVEN_HUB_QUEUE_TICK_MS)
+                    }
+                }
+        evenHubQueueRunnable = queueRunnable
+        mainHandler.postDelayed(queueRunnable, EVEN_HUB_QUEUE_TICK_MS)
     }
 
     private fun stopHeartbeats() {
@@ -1687,6 +1701,9 @@ class G2 : SGCManager() {
         heartbeatRunnable = null
         devSettingsHeartbeatRunnable?.let { mainHandler.removeCallbacks(it) }
         devSettingsHeartbeatRunnable = null
+        evenHubQueueRunnable?.let { mainHandler.removeCallbacks(it) }
+        evenHubQueueRunnable = null
+        pendingTextMsg = null
     }
 
     private fun sendEvenHubHeartbeat() {
@@ -1981,9 +1998,21 @@ class G2 : SGCManager() {
                         contentLength = text.toByteArray(Charsets.UTF_8).size,
                         content = text
                 )
-        sendEvenHubCommand(msg)
+        queueEvenHubCommand(msg)
         currentTextContent = text
         currentBitmapBase64 = ""
+    }
+
+    @Synchronized
+    private fun queueEvenHubCommand(payload: ByteArray) {
+        pendingTextMsg = payload
+    }
+
+    @Synchronized
+    private fun drainEvenHubQueue() {
+        val msg = pendingTextMsg ?: return
+        pendingTextMsg = null
+        sendEvenHubCommand(msg)
     }
 
     // ---------- Bitmap Conversion ----------
@@ -3043,7 +3072,7 @@ class G2 : SGCManager() {
             }
 
             Bridge.sendTouchEvent(DeviceTypes.G2, gestureName, timestamp, eventSource)
-            // Bridge.log("G2: SysEvent → $eventType $eventSource")
+            Bridge.log("G2: SysEvent → $eventType $eventSource")
 
             if (eventSource == 2) {
                 // controller must be connected and fully booted:
@@ -3055,10 +3084,10 @@ class G2 : SGCManager() {
                 val isHeadUp = GlassesStore.get("glasses", "headUp") as? Boolean ?: false
                 // toggle head up:
                 GlassesStore.apply("glasses", "headUp", !isHeadUp)
-                if (isHeadUp) {
-                    // clear the display after a delay:
-                    mainHandler.postDelayed({ clearDisplay() }, 500)
-                }
+                // if (isHeadUp) {
+                //     // clear the display after a delay:
+                //     mainHandler.postDelayed({ clearDisplay() }, 500)
+                // }
             }
 
             // System exit: glasses killed our EvenHub page (user opened menu or another app)

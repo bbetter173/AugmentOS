@@ -9,6 +9,7 @@ interface HarnessArgs {
   appsPerUser: number;
   rounds: number;
   reconnectDelayMs: number;
+  broadcastSettleMs: number;
   roundPauseMs: number;
   subscriptionUpdates: number;
   userDbAsyncMs: number;
@@ -67,6 +68,7 @@ const args: HarnessArgs = {
   appsPerUser: numberArg("apps-per-user", 1),
   rounds: numberArg("rounds", 5),
   reconnectDelayMs: numberArg("reconnect-delay-ms", 1000),
+  broadcastSettleMs: numberArg("broadcast-settle-ms", 300),
   roundPauseMs: numberArg("round-pause-ms", 250),
   subscriptionUpdates: numberArg("subscription-updates", 1),
   userDbAsyncMs: numberArg("user-db-async-ms", 0),
@@ -138,6 +140,8 @@ for (let round = 1; round <= args.rounds; round++) {
   const startCloseCount = getStat("close").count;
   const startReconnectCount = getStat("reconnect").count;
   const startSubscriptionCount = getStat("subscription").count;
+  const startUserFindOneCount = getStat("user.findOne").count;
+  const startAppFindCount = getStat("app.find").count;
 
   await timed("round", async () => {
     await Promise.all(
@@ -156,6 +160,8 @@ for (let round = 1; round <= args.rounds; round++) {
       }),
     );
 
+    await sleep(args.broadcastSettleMs);
+
     for (let i = 0; i < args.subscriptionUpdates; i++) {
       await Promise.all(
         appRefs.map((ref) =>
@@ -172,9 +178,11 @@ for (let round = 1; round <= args.rounds; round++) {
       closeOps: getStat("close").count - startCloseCount,
       reconnectOps: getStat("reconnect").count - startReconnectCount,
       subscriptionOps: getStat("subscription").count - startSubscriptionCount,
+      installedAppUserLookups: getStat("user.findOne").count - startUserFindOneCount,
+      installedAppQueries: getStat("app.find").count - startAppFindCount,
       maxHeartbeatGapMs: Math.round(metrics.maxHeartbeatGapMs),
       heartbeatGapsOver1s: metrics.heartbeatGapsOver1s,
-      stats: snapshotStats(["round", "close", "reconnect", "subscription"]),
+      stats: snapshotStats(["round", "close", "reconnect", "subscription", "user.findOne", "app.find"]),
     }),
   );
 

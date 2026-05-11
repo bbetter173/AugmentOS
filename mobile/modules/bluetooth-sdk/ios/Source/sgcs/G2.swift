@@ -1117,6 +1117,9 @@ class G2: NSObject, SGCManager {
     private var imageSessionCounter: Int = 0
     private var heartbeatTask: Task<Void, Never>?
     private var heartbeatCounter: Int = 0
+    private var evenHubQueueTask: Task<Void, Never>?
+    private var pendingTextMsg: Data?
+    private let evenHubQueueLock = NSLock()
     private var authStarted: Bool = false
 
     /// Dashboard menu: appId → packageName mapping for selection reverse lookup
@@ -1522,11 +1525,28 @@ class G2: NSObject, SGCManager {
                 }
             }
         }
+
+        // EvenHub text command queue: drain the most recent pending updateText every 100ms
+        evenHubQueueTask?.cancel()
+        evenHubQueueTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                guard !Task.isCancelled else { break }
+                await MainActor.run {
+                    self?.drainEvenHubQueue()
+                }
+            }
+        }
     }
 
     private func stopHeartbeats() {
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        evenHubQueueTask?.cancel()
+        evenHubQueueTask = nil
+        evenHubQueueLock.lock()
+        pendingTextMsg = nil
+        evenHubQueueLock.unlock()
     }
 
     private func sendEvenHubHeartbeat() {
@@ -2246,9 +2266,24 @@ class G2: NSObject, SGCManager {
             contentLength: Int32(text.utf8.count),
             content: text
         )
-        sendEvenHubCommand(msg)
+        queueEvenHubCommand(msg)
         currentTextContent = text
         currentBitmapBase64 = ""
+    }
+
+    private func queueEvenHubCommand(_ payload: Data) {
+        evenHubQueueLock.lock()
+        pendingTextMsg = payload
+        evenHubQueueLock.unlock()
+    }
+
+    private func drainEvenHubQueue() {
+        evenHubQueueLock.lock()
+        let msg = pendingTextMsg
+        pendingTextMsg = nil
+        evenHubQueueLock.unlock()
+        guard let msg = msg else { return }
+        sendEvenHubCommand(msg)
     }
 
     // MARK: - SGCManager: Audio Control
@@ -2825,9 +2860,9 @@ class G2: NSObject, SGCManager {
                         Bridge.log("G2: Menu miniapp selected — \(packageName)")
                         Bridge.sendMiniappSelected(packageName: packageName)
                         // clear the display after a delay:
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self.clearDisplay()
-                        }
+                        // DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        //     self.clearDisplay()
+                        // }
                     } else {
                         Bridge.log(
                             "G2: Menu selection ignored — placeholder or unknown appId=\(appId)"

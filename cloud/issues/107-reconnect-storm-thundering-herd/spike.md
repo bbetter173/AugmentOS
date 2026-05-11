@@ -410,3 +410,71 @@ Interpretation:
 - The new code removes the confirmed `refreshInstalledApps()` amplification during reconnect.
 - The new code also avoids the app-specific settings read and `addRunningApp()` write once the app has already attached once.
 - The remaining synthetic slow phase is `validateApiKey`, which does an `App.findOne({ packageName })`. It was around 9.9 ms in the sampled prod incident logs, while the confirmed incident slow phase was `broadcastAppState -> refreshInstalledApps`. Keep watching it, but do not widen this PR unless debug/staging shows it becoming the new bottleneck.
+
+## Cloud-Debug Validation
+
+Date: May 11, 2026.
+
+PR branch `codex/issue-107-reconnect-storm` was deployed to `cloud-debug` using the manual `Deploy cloud-debug` GitHub workflow.
+
+Deployed image:
+
+```text
+p15081loccentralussub83c25aaff6.azurecr.io/cloud-debug:94236545dc53b88dad06b97b16d42b46a97a22f3
+```
+
+The rollout initially created the new pod but left it pending because the 5 CPU request could not fit while the old debug pod was still running. Cloud-debug had 0 active sessions, so the old pod was deleted to free the slot. The new pod then became ready with 0 restarts.
+
+Post-deploy health:
+
+```text
+status: ok
+activeSessions: 0
+eventLoopLagMs: about 1 ms
+rssMB: about 234 MB
+```
+
+BetterStack hot-tier logs showed `system-vitals` from `cloud-debug` after deployment and no `event-loop-delay` warnings:
+
+```text
+22:20 UTC: vitals=2, event_loop_delay=0, max_event_loop_delay_ms=19.3
+22:21 UTC: vitals=2, event_loop_delay=0, max_event_loop_delay_ms=24.0
+22:22 UTC: vitals=2, event_loop_delay=0, max_event_loop_delay_ms=40.6
+```
+
+The storm harness was also run inside the deployed cloud-debug container to verify the exact Porter image/runtime:
+
+```bash
+porter kubectl --cluster 4689 -- exec -n default cloud-debug-cloud-7bbf467cdf-2jc2q -- bash -lc '
+  cd /app &&
+  bun run tools/ws-storm-local/mentra-path-storm-harness.ts \
+    --connect-mode=init \
+    --users=56 \
+    --apps-per-user=1 \
+    --rounds=2 \
+    --subscription-updates=0 \
+    --user-db-sync-ms=20 \
+    --app-db-sync-ms=5 \
+    --reconnect-delay-ms=100 \
+    --broadcast-settle-ms=300 \
+    --label=issue-107-cloud-debug-in-pod-sync-pressure
+'
+```
+
+Result:
+
+```text
+round 1 max heartbeat gap: 1326 ms
+round 1 heartbeat gaps over 1s: 1
+round 2 max heartbeat gap: 232 ms
+round 2 heartbeat gaps over 1s: 0
+round 2 installed-app User.findOne lookups: 0
+round 2 installed-app App.find queries: 0
+```
+
+Interpretation:
+
+- The deployed cloud-debug image contains the cheap reconnect fix.
+- The image-level harness result matches local validation.
+- `/health` stayed responsive during and after the in-pod harness run.
+- This is still not a full live remote reconnect-storm test, because cloud-debug had no active user sessions and no real miniapp traffic at the time. A true remote test needs active debug sessions plus valid miniapp connections, or a purpose-built debug-only synthetic session endpoint/harness.

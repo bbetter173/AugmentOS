@@ -1,6 +1,6 @@
 import {Screen} from "@/components/ignite"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
@@ -10,7 +10,7 @@ import {Platform} from "react-native"
 const CDN_BASE = "https://mentra-videos-cdn.mentraglass.com/onboarding/mentra-live/light"
 
 export default function MentraLiveOnboarding() {
-  const {clearHistoryAndGoHome} = useNavigationHistory()
+  const {clearHistoryAndGoHome} = useNavigationStore.getState()
   const [_onboardingLiveCompleted, setOnboardingLiveCompleted] = useSetting(SETTINGS.onboarding_live_completed.key)
 
   // NOTE: you can't have 2 transition videos in a row or things will break:

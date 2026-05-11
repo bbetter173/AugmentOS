@@ -858,7 +858,7 @@ private class G2SendManager {
 private class G2ReceiveManager {
     private val partials = mutableMapOf<String, Pair<ByteArrayOutputStream, Byte>>()
 
-    fun handlePacket(rawData: ByteArray): Pair<Byte, ByteArray>? {
+    fun handlePacket(rawData: ByteArray, sourceKey: String = ""): Pair<Byte, ByteArray>? {
         if (rawData.size < 8) return null
         if (rawData[0] != G2BLE.HEADER_BYTE) return null
 
@@ -880,7 +880,9 @@ private class G2ReceiveManager {
         val payload = rawData.copyOfRange(8, payloadEnd)
 
         val syncId = rawData[2]
-        val key = "${serviceId.toInt() and 0xFF}-${syncId.toInt() and 0xFF}"
+        // Include sourceKey so concurrent multi-packet responses from the L and R lenses with
+        // the same syncId don't cross-merge into one broken payload.
+        val key = "$sourceKey-${serviceId.toInt() and 0xFF}-${syncId.toInt() and 0xFF}"
 
         if ((serialNum.toInt() and 0xFF) > 1) {
             val existing = partials[key] ?: return null
@@ -1040,6 +1042,8 @@ class G2 : SGCManager() {
     private var imageSessionCounter: Int = 0
     private var heartbeatCounter: Int = 0
     private var authStarted: Boolean = false
+    private var leftAuthenticated: Boolean = false
+    private var rightAuthenticated: Boolean = false
     private var currentBitmapBase64: String = ""
 
     // Dashboard menu state
@@ -1072,31 +1076,52 @@ class G2 : SGCManager() {
 
     // ---------- BLE Sending ----------
 
+    // Min gap between BLE packets when bursting many in a row. Android serializes one in-flight
+    // GATT op at a time even for WRITE_TYPE_NO_RESPONSE, so back-to-back writeCharacteristic() in
+    // a tight loop drops packets silently. iOS gets this for free via CoreBluetooth; we don't.
+    // Matches the 8 ms G1.java uses for its bitmap chunk loop (ANDROID_CHUNK_DELAY_MS).
+    private val BLE_PACKET_GAP_MS = 8L
+
     @Suppress("deprecation")
+    private fun writeOnePacket(packet: ByteArray, left: Boolean, right: Boolean) {
+        if (right) {
+            rightWriteChar?.let { char ->
+                rightGatt?.let { gatt ->
+                    char.value = packet
+                    char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    gatt.writeCharacteristic(char)
+                }
+            }
+        }
+        if (left) {
+            leftWriteChar?.let { char ->
+                leftGatt?.let { gatt ->
+                    char.value = packet
+                    char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    gatt.writeCharacteristic(char)
+                }
+            }
+        }
+    }
+
     private fun sendToGlasses(
             packets: List<ByteArray>,
             left: Boolean = false,
             right: Boolean = true
     ) {
-        for (packet in packets) {
-            if (right) {
-                rightWriteChar?.let { char ->
-                    rightGatt?.let { gatt ->
-                        char.value = packet
-                        char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                        gatt.writeCharacteristic(char)
-                    }
-                }
-            }
-            if (left) {
-                leftWriteChar?.let { char ->
-                    leftGatt?.let { gatt ->
-                        char.value = packet
-                        char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                        gatt.writeCharacteristic(char)
-                    }
-                }
-            }
+        if (packets.isEmpty()) return
+        // Single-packet sends (the common case for text/settings) go straight through.
+        if (packets.size == 1) {
+            writeOnePacket(packets[0], left, right)
+            return
+        }
+        // Multi-packet bursts (bitmaps, large protobufs): write the first packet immediately,
+        // then schedule the rest with BLE_PACKET_GAP_MS spacing so the Android BLE stack can
+        // actually drain each write before the next one is queued.
+        writeOnePacket(packets[0], left, right)
+        for (i in 1 until packets.size) {
+            val packet = packets[i]
+            mainHandler.postDelayed({ writeOnePacket(packet, left, right) }, BLE_PACKET_GAP_MS * i)
         }
     }
 
@@ -1716,7 +1741,8 @@ class G2 : SGCManager() {
     }
 
     private fun sendMenuApps() {
-        val menuItems = GlassesStore.get("core", "menu_apps") as? List<Map<String, Any>> ?: emptyList()
+        val menuItems =
+                GlassesStore.get("core", "menu_apps") as? List<Map<String, Any>> ?: emptyList()
         if (menuItems.isNotEmpty()) {
             setDashboardMenu(menuItems)
         }
@@ -1754,75 +1780,126 @@ class G2 : SGCManager() {
     override fun displayBitmap(base64ImageData: String): Boolean {
         currentBitmapBase64 = base64ImageData
         currentTextContent = ""
+        return displayBitmapQuad(base64ImageData)
+    }
 
+    private fun displayBitmapQuad(base64ImageData: String): Boolean {
         val rawData =
                 Base64.decode(base64ImageData, Base64.DEFAULT)
                         ?: run {
-                            Bridge.log("G2: displayBitmap() - failed to decode base64")
+                            Bridge.log("G2: displayBitmapQuad() - failed to decode base64")
                             return false
                         }
 
-        Bridge.log("G2: displayBitmap() - decoded ${rawData.size} bytes from base64")
-        Bridge.log(
-                "G2: displayBitmap() - state: startupPageCreated=$startupPageCreated, pageCreated=$pageCreated"
-        )
-
-        val bmpData =
-                convertToG2Bmp(rawData, 200, 100)
+        val tiles =
+                renderAndSliceTo4Tiles(rawData)
                         ?: run {
-                            Bridge.log("G2: displayBitmap() - failed to convert image to BMP")
+                            Bridge.log(
+                                    "G2: displayBitmapQuad() - failed to slice image into tiles"
+                            )
                             return false
                         }
 
-        val containerW = 200
-        val containerH = 100
-        val containerX = (576 - containerW) / 2
-        val containerY = (288 - containerH) / 2
-        val containerID = 10
-        val containerName = "img-single"
-
-        val imageContainer =
+        // 2x2 grid of 200x100 tiles covering 400x200 (matches G2.swift:1729-1745)
+        val container1 =
                 EvenHubProto.imageContainerProperty(
-                        x = containerX,
-                        y = containerY,
-                        width = containerW,
-                        height = containerH,
-                        containerID = containerID,
-                        containerName = containerName
+                        x = 0,
+                        y = 0,
+                        width = 200,
+                        height = 100,
+                        containerID = 10,
+                        containerName = "img-10"
                 )
+        val container2 =
+                EvenHubProto.imageContainerProperty(
+                        x = 200,
+                        y = 0,
+                        width = 200,
+                        height = 100,
+                        containerID = 11,
+                        containerName = "img-11"
+                )
+        val container3 =
+                EvenHubProto.imageContainerProperty(
+                        x = 0,
+                        y = 100,
+                        width = 200,
+                        height = 100,
+                        containerID = 12,
+                        containerName = "img-12"
+                )
+        val container4 =
+                EvenHubProto.imageContainerProperty(
+                        x = 200,
+                        y = 100,
+                        width = 200,
+                        height = 100,
+                        containerID = 13,
+                        containerName = "img-13"
+                )
+        val containers = listOf(container1, container2, container3, container4)
 
-        val msg: ByteArray
-        if (!startupPageCreated) {
-            Bridge.log("G2: displayBitmap() - creating startup page with image container")
-            msg =
+        val msg: ByteArray =
+                if (!startupPageCreated) {
+                    startupPageCreated = true
                     EvenHubProto.createPageMessage(
-                            imageContainers = listOf(imageContainer),
+                            imageContainers = containers,
                             magicRandom = sendManager.nextMagicRandom(),
                             appId = activeMenuAppId
                     )
-            startupPageCreated = true
-        } else {
-            Bridge.log("G2: displayBitmap() - rebuilding page with image container")
-            msg =
+                } else {
                     EvenHubProto.rebuildPageMessage(
-                            imageContainers = listOf(imageContainer),
+                            imageContainers = containers,
                             magicRandom = sendManager.nextMagicRandom(),
                             appId = activeMenuAppId
                     )
-        }
+                }
         sendEvenHubCommand(msg)
         pageCreated = true
         pageHasTextContainer = false
         currentTextContent = ""
 
-        // Send fragments after a delay (fire and forget since Android displayBitmap is synchronous)
-        Bridge.log("G2: displayBitmap() - page sent, scheduling fragment send in 1s...")
-        mainHandler.postDelayed({ sendImageData(containerID, containerName, bmpData) }, 1000)
+        // After the 1s settle delay iOS waits, send each tile's BMP in series. Android's
+        // displayBitmap signature is synchronous Boolean, so this is fire-and-forget — we
+        // chain tiles via callbacks rather than awaiting like iOS.
+        Bridge.log("G2: displayBitmapQuad() - page sent, scheduling fragment send in 1s...")
+        mainHandler.postDelayed(
+                {
+                    sendImageDataChained(
+                            tiles =
+                                    listOf(
+                                            Triple(10, "img-10", tiles[0]),
+                                            Triple(11, "img-11", tiles[1]),
+                                            Triple(12, "img-12", tiles[2]),
+                                            Triple(13, "img-13", tiles[3])
+                                    ),
+                            index = 0
+                    )
+                },
+                1000
+        )
 
         return true
     }
 
-    private fun sendImageData(containerID: Int, containerName: String, bmpData: ByteArray) {
+    /** Send the next tile's BMP in series; recurse to the next tile after this one finishes. */
+    private fun sendImageDataChained(
+            tiles: List<Triple<Int, String, ByteArray>>,
+            index: Int
+    ) {
+        if (index >= tiles.size) return
+        val (containerID, containerName, bmpData) = tiles[index]
+        sendImageData(containerID, containerName, bmpData) {
+            sendImageDataChained(tiles, index + 1)
+        }
+    }
+
+    private fun sendImageData(
+            containerID: Int,
+            containerName: String,
+            bmpData: ByteArray,
+            onComplete: (() -> Unit)? = null
+    ) {
         val fragmentSize = 4096
         imageSessionCounter++
         val sessionId = imageSessionCounter
@@ -1835,6 +1912,7 @@ class G2 : SGCManager() {
                 Bridge.log(
                         "G2: sendImageData($containerName) - $fragmentIndex fragments, ${bmpData.size} bytes"
                 )
+                onComplete?.invoke()
                 return
             }
 
@@ -1853,21 +1931,110 @@ class G2 : SGCManager() {
                             mapRawData = fragment
                     )
             sendEvenHubCommand(msg)
+            Bridge.log("G2: sendImageData($containerName) - sent fragment $fragmentIndex")
 
             fragmentIndex++
             offset = end
 
-            // 200ms between fragments
+            // 200ms between fragments — and also before onComplete, so the next tile in
+            // sendImageDataChained gets the same gap before its first fragment (matches iOS,
+            // which awaits 200ms after every fragment including the last).
             if (offset < bmpData.size) {
                 mainHandler.postDelayed({ sendNextFragment() }, 200)
             } else {
                 Bridge.log(
                         "G2: sendImageData($containerName) - $fragmentIndex fragments, ${bmpData.size} bytes"
                 )
+                mainHandler.postDelayed({ onComplete?.invoke() }, 200)
             }
         }
 
         sendNextFragment()
+    }
+
+    /**
+     * Render any image to 400x200 grayscale, then slice into 4 tiles (200x100 each).
+     * Returns 4 BMP ByteArrays: [top-left, top-right, bottom-left, bottom-right].
+     * Mirrors G2.swift renderAndSliceTo4Tiles.
+     */
+    private fun renderAndSliceTo4Tiles(data: ByteArray): List<ByteArray>? {
+        val srcBitmap =
+                BitmapFactory.decodeByteArray(data, 0, data.size)
+                        ?: run {
+                            Bridge.log("G2: renderAndSliceTo4Tiles - could not decode image")
+                            return null
+                        }
+
+        val srcWidth = srcBitmap.width
+        val srcHeight = srcBitmap.height
+        val tileWidth = 200
+        val tileHeight = 100
+        val totalW = tileWidth * 2 // 400
+        val totalH = tileHeight * 2 // 200
+
+        // Scale source to fit within 400x200 (maintain aspect ratio)
+        val scale = minOf(totalW.toDouble() / srcWidth, totalH.toDouble() / srcHeight)
+        val scaledW = maxOf(1, (srcWidth * scale).toInt())
+        val scaledH = maxOf(1, (srcHeight * scale).toInt())
+        val offsetX = (totalW - scaledW) / 2
+        val offsetY = (totalH - scaledH) / 2
+
+        Bridge.log(
+                "G2: renderAndSliceTo4Tiles - input ${srcWidth}x${srcHeight} → ${scaledW}x${scaledH} in ${totalW}x${totalH}"
+        )
+
+        // Render to 400x200 with black background
+        val destBitmap = Bitmap.createBitmap(totalW, totalH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(destBitmap)
+        canvas.drawColor(Color.BLACK)
+        val srcRect = Rect(0, 0, srcWidth, srcHeight)
+        val dstRect = Rect(offsetX, offsetY, offsetX + scaledW, offsetY + scaledH)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(srcBitmap, srcRect, dstRect, paint)
+        srcBitmap.recycle()
+
+        // Pull a single 400x200 grayscale buffer once; slice each tile from it
+        val fullPixels = ByteArray(totalW * totalH)
+        val argbRow = IntArray(totalW)
+        for (y in 0 until totalH) {
+            destBitmap.getPixels(argbRow, 0, totalW, 0, y, totalW, 1)
+            val rowOffset = y * totalW
+            for (x in 0 until totalW) {
+                val pixel = argbRow[x]
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                fullPixels[rowOffset + x] = ((r * 299 + g * 587 + b * 114) / 1000).toByte()
+            }
+        }
+        destBitmap.recycle()
+
+        // Slice into 4 tiles: top-left, top-right, bottom-left, bottom-right (matches iOS order)
+        val tileOrigins = listOf(0 to 0, tileWidth to 0, 0 to tileHeight, tileWidth to tileHeight)
+        val tiles = mutableListOf<ByteArray>()
+        for ((ox, oy) in tileOrigins) {
+            val tilePixels = ByteArray(tileWidth * tileHeight)
+            for (row in 0 until tileHeight) {
+                val srcRowStart = (oy + row) * totalW + ox
+                System.arraycopy(
+                        fullPixels,
+                        srcRowStart,
+                        tilePixels,
+                        row * tileWidth,
+                        tileWidth
+                )
+            }
+            val bmp =
+                    build4BitBmp(tilePixels, tileWidth, tileHeight)
+                            ?: run {
+                                Bridge.log(
+                                        "G2: renderAndSliceTo4Tiles - failed to build BMP for tile"
+                                )
+                                return null
+                            }
+            tiles.add(bmp)
+        }
+        return tiles
     }
 
     override fun showDashboard() {
@@ -1895,6 +2062,7 @@ class G2 : SGCManager() {
     }
 
     override fun setDashboardMenu(items: List<Map<String, Any>>) {
+        Bridge.log("G2: setDashboardMenu -- items: $items")
         val menuItems =
                 items.mapNotNull { dict ->
                     val name = dict["name"] as? String ?: return@mapNotNull null
@@ -2244,6 +2412,8 @@ class G2 : SGCManager() {
         leftInitialized = false
         rightInitialized = false
         authStarted = false
+        leftAuthenticated = false
+        rightAuthenticated = false
         startupPageCreated = false
         pageCreated = false
         pageHasTextContainer = false
@@ -2295,7 +2465,6 @@ class G2 : SGCManager() {
         disconnectController()
     }
 
-
     fun reconnectController() {
         val mac = GlassesStore.get("glasses", "controllerMacAddress") as? String
         if (mac.isNullOrEmpty()) {
@@ -2321,7 +2490,7 @@ class G2 : SGCManager() {
             Bridge.log("G2: connectController - invalid MAC format: $mac")
             return
         }
-        Bridge.log("G2: about to connectController - MAC: $mac")
+        Bridge.log("G2: connectController() - MAC: $mac")
         val macData = hexParts.toByteArray()
         val msg = DevSettingsProto.ringConnectInfo(sendManager.nextMagicRandom(), true, macData)
         sendDevSettingsCommand(msg)
@@ -2483,8 +2652,25 @@ class G2 : SGCManager() {
                                 return@post
                             }
 
-                            Bridge.log("G2: Discovered: $name (SN: $serialNumber)")
+                            val mfgFirst = result.scanRecord?.manufacturerSpecificData?.valueAt(0)
+                            val mfgHex =
+                                    mfgFirst?.joinToString(" ") { String.format("%02X", it) }
+                                            ?: "none"
+                            Bridge.log(
+                                    "G2: Discovered: $name (SN: $serialNumber) mfgData[${mfgFirst?.size ?: 0}]: $mfgHex"
+                            )
                             deviceNameToSerialNumber[name] = serialNumber
+
+                            // Save MAC per side; ring's advStart needs the left lens MAC.
+                            val mac = extractMacFromScanRecord(result)
+                            if (mac != null) {
+                                if (name.contains("_L_")) {
+                                    GlassesStore.apply("glasses", "leftMacAddress", mac)
+                                    GlassesStore.apply("glasses", "btMacAddress", mac)
+                                } else if (name.contains("_R_")) {
+                                    GlassesStore.apply("glasses", "rightMacAddress", mac)
+                                }
+                            }
                             // Stop scanning once we have both
                             if (leftGatt != null && rightGatt != null) {
                                 stopScan()
@@ -2591,6 +2777,21 @@ class G2 : SGCManager() {
         return if (sn.isNotEmpty()) sn else null
     }
 
+    /**
+     * Extract the BLE MAC from the G2 scan record manufacturer data. Layout (after Android strips
+     * the 2-byte company ID): SN(14) + MAC(6, little-endian) + flag(1) Returns "AA:BB:CC:DD:EE:FF"
+     * (big-endian, colon-separated).
+     */
+    private fun extractMacFromScanRecord(result: ScanResult): String? {
+        val scanRecord = result.scanRecord ?: return null
+        val mfgData = scanRecord.manufacturerSpecificData
+        if (mfgData == null || mfgData.size() == 0) return null
+        val data = mfgData.valueAt(0) ?: return null
+        if (data.size < 20) return null
+        val macLE = data.copyOfRange(14, 20)
+        return macLE.reversed().joinToString(":") { String.format("%02X", it.toInt() and 0xFF) }
+    }
+
     private fun emitDiscoveredDevice(serialNumber: String) {
         Bridge.sendDiscoveredDevice(DeviceTypes.G2, serialNumber)
     }
@@ -2625,7 +2826,37 @@ class G2 : SGCManager() {
                             rightGlassAddress = address
                         }
 
-                        gatt.discoverServices()
+                        // Request a larger MTU so 200-byte audio notifications aren't fragmented.
+                        // Default ATT MTU is 23 → max payload 20 bytes, which would chop each audio
+                        // chunk into 10+ pieces. We ask for 247 (max for BLE 4.2+ data length ext).
+                        // discoverServices is deferred to onMtuChanged so the larger MTU is in
+                        // effect for the rest of the setup.
+                        val mtuRequested =
+                                try {
+                                    gatt.requestMtu(247)
+                                } catch (e: SecurityException) {
+                                    Bridge.log(
+                                            "G2: requestMtu SecurityException on $side: ${e.message}"
+                                    )
+                                    false
+                                }
+                        if (!mtuRequested) {
+                            Bridge.log(
+                                    "G2: requestMtu returned false on $side, proceeding without MTU bump"
+                            )
+                            gatt.discoverServices()
+                        }
+
+                        // Ask for high connection priority so the link can sustain 16 kHz / 10 ms
+                        // audio without dropped notifications. Caller is responsible for dropping
+                        // back to BALANCED later if power becomes a concern.
+                        try {
+                            gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                        } catch (e: SecurityException) {
+                            Bridge.log(
+                                    "G2: requestConnectionPriority SecurityException on $side: ${e.message}"
+                            )
+                        }
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         Bridge.log("G2: Disconnected $side")
 
@@ -2645,6 +2876,8 @@ class G2 : SGCManager() {
                         leftAudioChar = null
                         rightAudioChar = null
                         authStarted = false
+                        leftAuthenticated = false
+                        rightAuthenticated = false
 
                         startupPageCreated = false
                         pageCreated = false
@@ -2653,6 +2886,19 @@ class G2 : SGCManager() {
                         GlassesStore.apply("glasses", "fullyBooted", false)
 
                         startReconnectionTimer()
+                    }
+                }
+            }
+
+            override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+                Bridge.log("G2: onMtuChanged $side mtu=$mtu status=$status")
+                mainHandler.post {
+                    // discoverServices was deferred until MTU negotiation finishes (success or
+                    // not).
+                    try {
+                        gatt.discoverServices()
+                    } catch (e: SecurityException) {
+                        Bridge.log("G2: discoverServices SecurityException on $side: ${e.message}")
                     }
                 }
             }
@@ -2733,11 +2979,10 @@ class G2 : SGCManager() {
             ) {
                 val data = characteristic.value ?: return
 
-                mainHandler.post {
-                    when (characteristic.uuid) {
-                        G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
-                        G2BLE.CHAR_NOTIFY -> handleNotifyData(data)
-                    }
+                val sourceKey = if (side == "LEFT") "L" else "R"
+                when (characteristic.uuid) {
+                    G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
+                    G2BLE.CHAR_NOTIFY -> mainHandler.post { handleNotifyData(data, sourceKey) }
                 }
             }
 
@@ -2789,15 +3034,15 @@ class G2 : SGCManager() {
 
     // ---------- Incoming Data Handling ----------
 
-    private fun handleNotifyData(data: ByteArray) {
-        val result = receiveManager.handlePacket(data) ?: return
+    private fun handleNotifyData(data: ByteArray, sourceKey: String) {
+        val result = receiveManager.handlePacket(data, sourceKey) ?: return
 
         val serviceId = result.first
         val payload = result.second
 
         when (serviceId) {
             ServiceID.EVEN_HUB.value -> handleEvenHubResponse(payload)
-            ServiceID.DEVICE_SETTINGS.value -> handleDevSettingsResponse(payload)
+            ServiceID.DEVICE_SETTINGS.value -> handleDevSettingsResponse(payload, sourceKey)
             ServiceID.G2_SETTING.value -> handleG2SettingResponse(payload)
             ServiceID.MENU.value -> handleMenuResponse(payload)
             ServiceID.DASHBOARD.value -> handleDashboardResponse(payload)
@@ -2982,6 +3227,9 @@ class G2 : SGCManager() {
                 pageHasTextContainer = false
                 currentTextContent = ""
                 currentBitmapBase64 = ""
+                // Firmware kills the mic on system exit; re-arm it if it should be on
+                GlassesStore.apply("glasses", "micEnabled", false)
+                CoreManager.getInstance().updateMicState()
             }
             return
         }
@@ -3023,7 +3271,7 @@ class G2 : SGCManager() {
         }
     }
 
-    private fun handleDevSettingsResponse(payload: ByteArray) {
+    private fun handleDevSettingsResponse(payload: ByteArray, sourceKey: String) {
         val reader = ProtobufReader(payload)
         val fields = reader.parseFields()
         val cmdValue = fields[1] as? Int ?: -1
@@ -3034,6 +3282,29 @@ class G2 : SGCManager() {
         Bridge.log(
                 "G2: DevSettings response: ${payload.take(32).joinToString(":") { String.format("%02X", it) }}"
         )
+
+        if (cmdValue == DevCfgCommandId.AUTHENTICATION.value) {
+            // DevCfgDataPackage: field 2 = magicRandom, field 3 = AuthMgr { field 1 = secAuth }
+            var secAuth: Boolean? = null
+            (fields[3] as? ByteArray)?.let { authData ->
+                val authReader = ProtobufReader(authData)
+                val authFields = authReader.parseFields()
+                (authFields[1] as? Int)?.let { secAuth = (it != 0) }
+            }
+            val secAuthStr = secAuth?.toString() ?: "?"
+            Bridge.log("G2: Authentication response: $sourceKey secAuth=$secAuthStr")
+            if (secAuth == true) {
+                if (sourceKey == "L") {
+                    leftAuthenticated = true
+                } else if (sourceKey == "R") {
+                    rightAuthenticated = true
+                }
+                if (leftAuthenticated && rightAuthenticated) {
+                    Bridge.log("G2: Both sides authenticated, setting fully booted and connected")
+                    setFullyConnected()
+                }
+            }
+        }
 
         // RING_CONNECT_INFO response (cmd 6)
         if (cmdValue == DevCfgCommandId.RING_CONNECT_INFO.value) {
@@ -3050,7 +3321,6 @@ class G2 : SGCManager() {
                     Bridge.log("G2: Ring maybe reconnected?")
                     GlassesStore.apply("glasses", "controllerFullyBooted", true)
                 }
-
 
                 val connStatus = ringFields[4] as? Int ?: -1
                 Bridge.log("G2: Ring connection status: connStatus?=$connStatus")
@@ -3189,6 +3459,10 @@ class G2 : SGCManager() {
     // ---------- Audio Handling ----------
 
     private fun handleAudioData(data: ByteArray) {
+        // Diagnostic: if BLE notifications are arriving fragmented (MTU too small), data.size
+        // will be consistently < 200. Expected: ~200-byte chunks (5 × 40-byte LC3 frames).
+        // Bridge.log("G2: audio chunk size=${data.size}")
+
         val usableLength = minOf(data.size, 200)
         if (usableLength < 40) return
 

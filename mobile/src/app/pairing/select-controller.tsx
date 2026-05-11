@@ -10,8 +10,8 @@ import {VuzixLogo} from "@/components/brands/VuzixLogo"
 import {Text, Header} from "@/components/ignite"
 import {Screen} from "@/components/ignite/Screen"
 import {Spacer} from "@/components/ui/Spacer"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {getGlassesImage} from "@/utils/getGlassesImage"
 import GlassView from "@/components/ui/GlassView"
 
@@ -19,7 +19,7 @@ import GlassView from "@/components/ui/GlassView"
 
 export default function SelectControllerScreen() {
   const {theme} = useAppTheme()
-  const {push, goBack} = useNavigationHistory()
+  const {push, goBack} = useNavigationStore.getState()
 
   // when this screen is focused, forget any glasses that may be paired:
   useFocusEffect(

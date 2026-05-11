@@ -155,10 +155,6 @@ jest.mock("@/utils/e2eMetrics", () => ({
   logE2EMetric: jest.fn(),
 }))
 
-jest.mock("@/utils/glassesMenu", () => ({
-  syncDashboardMenu: jest.fn(() => Promise.resolve()),
-}))
-
 jest.mock("expo-calendar", () => ({
   getCalendarsAsync: jest.fn(() => Promise.resolve([])),
   getEventsAsync: jest.fn(() => Promise.resolve([])),

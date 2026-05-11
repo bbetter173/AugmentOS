@@ -1,6 +1,6 @@
 //
 //  ObservableStore.swift
-//  MentraBluetoothSDK
+//  Core
 //
 //  Observable state management with immediate event emission
 //
@@ -9,33 +9,18 @@ import Foundation
 
 @MainActor
 class ObservableStore {
+    private nonisolated(unsafe) var values: [String: Any] = [:]
+    private var onEmit: ((String, [String: Any]) -> Void)?
+
     nonisolated static let coreCategory = "core"
     private nonisolated static let legacyBluetoothCategory = "bluetooth"
 
-    nonisolated static func normalizeCategory(_ category: String) -> String {
-        category == legacyBluetoothCategory ? coreCategory : category
-    }
-
-    private nonisolated(unsafe) var values: [String: Any] = [:]
-    private var emitListeners: [String: (String, [String: Any]) -> Void] = [:]
-
     func configure(onEmit: @escaping (String, [String: Any]) -> Void) {
-        emitListeners["default"] = onEmit
-    }
-
-    func addListener(onEmit: @escaping (String, [String: Any]) -> Void) -> String {
-        let id = UUID().uuidString
-        emitListeners[id] = onEmit
-        return id
-    }
-
-    func removeListener(_ id: String) {
-        emitListeners.removeValue(forKey: id)
+        self.onEmit = onEmit
     }
 
     func set(_ category: String, _ key: String, _ value: Any) {
-        let normalizedCategory = Self.normalizeCategory(category)
-        let fullKey = "\(normalizedCategory).\(key)"
+        let fullKey = "\(category).\(key)"
         let oldValue = values[fullKey]
 
         // Skip if unchanged
@@ -46,16 +31,16 @@ class ObservableStore {
         values[fullKey] = value
 
         // Emit immediately
-        emitListeners.values.forEach { $0(normalizedCategory, [key: value]) }
+        onEmit?(category, [key: value])
     }
 
     nonisolated func get(_ category: String, _ key: String) -> Any? {
-        values["\(Self.normalizeCategory(category)).\(key)"]
+        values["\(category).\(key)"]
     }
 
     func getCategory(_ category: String) -> [String: Any] {
         var result: [String: Any] = [:]
-        let prefix = "\(Self.normalizeCategory(category))."
+        let prefix = "\(category)."
         for (key, value) in values where key.hasPrefix(prefix) {
             let shortKey = String(key.dropFirst(prefix.count))
             result[shortKey] = value

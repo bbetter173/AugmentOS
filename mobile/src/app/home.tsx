@@ -10,22 +10,21 @@ import {AppsGrid} from "@/components/home/AppsGrid"
 import {PairGlassesCard} from "@/components/home/PairGlassesCard"
 import {Screen} from "@/components/ignite"
 import {Group} from "@/components/ui"
-import {useRefreshApplets} from "@/stores/applets"
+import {BgTimer, useRefresh} from "@mentra/island"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {useGlassesStore} from "@/stores/glasses"
 import {useCoreStore} from "@/stores/core"
 import AppSwitcherButton from "@/components/home/AppSwitcherButtton"
 import AppSwitcher from "@/components/home/AppSwitcher"
-import {DeviceStatus} from "@/components/home/DeviceStatus"
+import {GlassesStatus, ControllerStatus} from "@/components/home/DeviceStatus"
 import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import AllAppsGridSheet from "@/components/home/AllAppsGridSheet"
 import BottomSheet from "@gorhom/bottom-sheet"
 import {BlurTargetView, BlurView} from "expo-blur"
-import {ControllerStatus} from "@/components/home/ControllerStatus"
 
 export default function Homepage() {
-  const refreshApplets = useRefreshApplets()
+  const refreshApps = useRefresh()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const glassesConnected = useGlassesStore((state) => state.connected)
   const isSearching = useCoreStore((state) => state.searching)
@@ -38,8 +37,11 @@ export default function Homepage() {
 
   useFocusEffect(
     useCallback(() => {
-      refreshApplets()
-    }, [refreshApplets]),
+      // timeout allows for screenshots to be saved and read back from storage in time:
+      BgTimer.setTimeout(() => {
+        refreshApps()
+      }, 250)
+    }, [refreshApps]),
   )
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export default function Homepage() {
     return (
       <>
         <Group>
-          <DeviceStatus />
+          <GlassesStatus />
         </Group>
         <Group>
           <ControllerStatus />

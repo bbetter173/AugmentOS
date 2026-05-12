@@ -165,7 +165,7 @@ class MentraBluetoothSdk private constructor(
     fun setDashboardMenu(items: List<MentraDashboardMenuItem>) {
         GlassesStore.apply(
             ObservableStore.CORE_CATEGORY,
-            "dashboard_menu_apps",
+            "menu_apps",
             items.map { it.toMap() },
         )
     }

@@ -1340,7 +1340,9 @@ public class MentraLive extends SGCManager {
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
             rssiReadInProgress = false;
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                updateSignalStrength(rssi);
+                if (isConnected && bluetoothGatt != null && gatt == bluetoothGatt) {
+                    updateSignalStrength(rssi);
+                }
             } else {
                 Log.e(TAG, "RSSI read failed with status: " + status);
             }

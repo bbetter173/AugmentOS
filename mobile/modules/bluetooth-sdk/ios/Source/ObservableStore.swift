@@ -49,7 +49,7 @@ class ObservableStore {
         // Emit immediately
         let changes = [key: value]
         onEmit?(normalizedCategory, changes)
-        for listener in listeners.values {
+        for listener in Array(listeners.values) {
             listener(normalizedCategory, changes)
         }
     }

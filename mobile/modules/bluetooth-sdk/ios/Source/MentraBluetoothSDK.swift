@@ -1397,7 +1397,7 @@ public final class MentraBluetoothSDK {
     public func setDashboardMenu(_ items: [MentraDashboardMenuItem]) async throws {
         GlassesStore.shared.apply(
             ObservableStore.coreCategory,
-            "dashboard_menu_apps",
+            "menu_apps",
             items.map(\.dictionary)
         )
     }

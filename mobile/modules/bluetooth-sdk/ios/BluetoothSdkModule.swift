@@ -71,20 +71,20 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         // MARK: - Observable Store Functions
 
-        AsyncFunction("getGlassesStatus") {
-            await MainActor.run {
+        Function("getGlassesStatus") { () -> [String: Any] in
+            self.readOnMainActor {
                 self.bluetoothSdk().glassesStatus.values
             }
         }
 
-        AsyncFunction("getCoreStatus") {
-            await MainActor.run {
+        Function("getCoreStatus") { () -> [String: Any] in
+            self.readOnMainActor {
                 self.bluetoothSdk().bluetoothStatus.values
             }
         }
 
-        AsyncFunction("getDefaultDevice") {
-            await MainActor.run {
+        Function("getDefaultDevice") { () -> [String: Any]? in
+            self.readOnMainActor {
                 self.bluetoothSdk().getDefaultDevice()?.dictionary
             }
         }
@@ -492,6 +492,20 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         return sdk
     }
 
+    private func readOnMainActor<T>(_ body: @MainActor () -> T) -> T {
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated {
+                body()
+            }
+        }
+
+        return DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                body()
+            }
+        }
+    }
+
     private func intValue(_ value: Any?, defaultValue: Int) -> Int {
         switch value {
         case let value as Int:
@@ -521,7 +535,15 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan reason: MentraScanStopReason) {
         guard reason == .completed else { return }
-        sendEvent("compatible_glasses_search_stop", ["type": "compatible_glasses_search_stop"])
+        let status = bluetoothSdk().bluetoothStatus
+        let deviceModel = status.pendingWearable.isEmpty ? status.defaultWearable : status.pendingWearable
+        sendEvent(
+            "compatible_glasses_search_stop",
+            [
+                "type": "compatible_glasses_search_stop",
+                "device_model": deviceModel,
+            ]
+        )
     }
 
     @MainActor

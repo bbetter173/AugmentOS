@@ -18,7 +18,18 @@ class CoreModule : Module() {
 
                 override fun onScanStopped(reason: MentraScanStopReason) {
                     if (reason == MentraScanStopReason.COMPLETED) {
-                        sendEvent("compatible_glasses_search_stop", mapOf("type" to "compatible_glasses_search_stop"))
+                        val status = sdk?.getBluetoothStatus()
+                        val deviceModel =
+                                status?.pendingWearable?.takeIf { it.isNotBlank() }
+                                        ?: status?.defaultWearable
+                                        ?: ""
+                        sendEvent(
+                                "compatible_glasses_search_stop",
+                                mapOf(
+                                        "type" to "compatible_glasses_search_stop",
+                                        "device_model" to deviceModel,
+                                )
+                        )
                     }
                 }
 

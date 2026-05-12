@@ -1035,6 +1035,9 @@ class G2 : SGCManager() {
     private var devSettingsHeartbeatRunnable: Runnable? = null
     private var evenHubQueueRunnable: Runnable? = null
     private var pendingTextMsg: ByteArray? = null
+    private var lastEvenHubMsg: ByteArray? = null
+    private var lastEvenHubResendsRemaining: Int = 0
+    private val EVEN_HUB_RESEND_COUNT: Int = 1
     private val EVEN_HUB_QUEUE_TICK_MS = 100L
     private var micEnabled_: Boolean = false
     private var startupPageCreated: Boolean = false
@@ -1704,6 +1707,8 @@ class G2 : SGCManager() {
         evenHubQueueRunnable?.let { mainHandler.removeCallbacks(it) }
         evenHubQueueRunnable = null
         pendingTextMsg = null
+        lastEvenHubMsg = null
+        lastEvenHubResendsRemaining = 0
     }
 
     private fun sendEvenHubHeartbeat() {
@@ -2010,9 +2015,19 @@ class G2 : SGCManager() {
 
     @Synchronized
     private fun drainEvenHubQueue() {
-        val msg = pendingTextMsg ?: return
+        val msg = pendingTextMsg
         pendingTextMsg = null
-        sendEvenHubCommand(msg)
+        val toSend: ByteArray? = if (msg != null) {
+            lastEvenHubMsg = msg
+            lastEvenHubResendsRemaining = EVEN_HUB_RESEND_COUNT
+            msg
+        } else if (lastEvenHubResendsRemaining > 0 && lastEvenHubMsg != null) {
+            lastEvenHubResendsRemaining -= 1
+            lastEvenHubMsg
+        } else {
+            null
+        }
+        toSend?.let { sendEvenHubCommand(it) }
     }
 
     // ---------- Bitmap Conversion ----------

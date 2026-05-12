@@ -242,6 +242,8 @@ class CoreManager {
     private val lc3Lock = Any()
     // Audio output format - defaults to LC3 for bandwidth savings
     private var audioOutputFormat: AudioOutputFormat = AudioOutputFormat.LC3
+    private var lastLc3Event: Long? = null
+    private var micReinitRunnable: Runnable? = null
 
     // VAD
     private val vadBuffer = mutableListOf<ByteArray>()
@@ -294,6 +296,32 @@ class CoreManager {
             Bridge.log("Failed to initialize LC3 encoder/decoder: ${e.message}")
             lc3EncoderPtr = 0
             lc3DecoderPtr = 0
+        }
+
+        // Mic reinit check every 10 seconds
+        val micReinitR =
+                object : Runnable {
+                    override fun run() {
+                        checkAndReinitGlassesMic()
+                        mainHandler.postDelayed(this, 10_000)
+                    }
+                }
+        micReinitRunnable = micReinitR
+        mainHandler.postDelayed(micReinitR, 10_000)
+    }
+
+    private fun checkAndReinitGlassesMic() {
+        // if the glasses mic is marked as enabled (and the glasses are connected), but our last known lc3 event is from > 5 seconds ago, reinitialize the mic:
+        val glassesMicEnabled = GlassesStore.get("glasses", "micEnabled") as? Boolean ?: false
+        val glassesConnected = GlassesStore.get("glasses", "connected") as? Boolean ?: false
+        if (!glassesMicEnabled || !glassesConnected) {
+            return
+        }
+
+        val timeSinceLastLc3Event = System.currentTimeMillis() - (lastLc3Event ?: System.currentTimeMillis())
+        if (timeSinceLastLc3Event > 5000) {
+            Bridge.log("MAN: No audio activity in the last 5 seconds from glasses, reinitializing glasses mic")
+            sgc?.setMicEnabled(true)
         }
     }
 
@@ -622,6 +650,7 @@ class CoreManager {
      * phone→cloud encoding.
      */
     fun handleGlassesMicData(rawLC3Data: ByteArray, frameSize: Int = 40) {
+        lastLc3Event = System.currentTimeMillis()
         val pcmData: ByteArray?
         synchronized(lc3Lock) {
             if (lc3DecoderPtr == 0L) {
@@ -1516,6 +1545,9 @@ class CoreManager {
     // MARK: Cleanup
     fun cleanup() {
         stopBluetoothStateMonitoring()
+
+        micReinitRunnable?.let { mainHandler.removeCallbacks(it) }
+        micReinitRunnable = null
 
         // Clean up transcriber resources
         transcriber?.shutdown()

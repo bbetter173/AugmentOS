@@ -2338,8 +2338,20 @@ class G2 : SGCManager() {
 
     override fun setMicEnabled(enabled: Boolean) {
         Bridge.log("G2: setMicEnabled($enabled)")
+        val currentEnabled = GlassesStore.get("glasses", "micEnabled") as? Boolean ?: false
+        
+        // if already enabled, set to disabled, then send enabled after 500ms:
+        if (currentEnabled && enabled) {
+            GlassesStore.apply("glasses", "micEnabled", true)
+            val msg = EvenHubProto.audioControlMessage(false)
+            sendEvenHubCommand(msg)
+            mainHandler.postDelayed({
+                val msg = EvenHubProto.audioControlMessage(true)
+                sendEvenHubCommand(msg)
+            }, 500)
+            return
+        }
         GlassesStore.apply("glasses", "micEnabled", enabled)
-
         val msg = EvenHubProto.audioControlMessage(enabled)
         sendEvenHubCommand(msg)
     }
@@ -3027,7 +3039,7 @@ class G2 : SGCManager() {
 
                 val sourceKey = if (side == "LEFT") "L" else "R"
                 when (characteristic.uuid) {
-                    G2BLE.AUDIO_NOTIFY -> handleAudioData(data)
+                    G2BLE.AUDIO_NOTIFY -> handleAudioData(data, sourceKey)
                     G2BLE.CHAR_NOTIFY -> mainHandler.post { handleNotifyData(data, sourceKey) }
                 }
             }
@@ -3504,15 +3516,22 @@ class G2 : SGCManager() {
 
     // ---------- Audio Handling ----------
 
-    private fun handleAudioData(data: ByteArray) {
+    private var lastAudioFrame: ByteArray? = null
+
+    private fun handleAudioData(data: ByteArray, sourceKey: String) {
         // Diagnostic: if BLE notifications are arriving fragmented (MTU too small), data.size
         // will be consistently < 200. Expected: ~200-byte chunks (5 × 40-byte LC3 frames).
-        // Bridge.log("G2: audio chunk size=${data.size}")
 
         val usableLength = minOf(data.size, 200)
         if (usableLength < 40) return
 
         val audioData = data.copyOfRange(0, usableLength)
+        if (lastAudioFrame?.contentEquals(audioData) == true) {
+            // Bridge.log("G2: audio dup from $sourceKey: ${data.take(10).joinToString("") { String.format("%02X", it) }}")
+            return
+        }
+        lastAudioFrame = audioData
+        Bridge.log("G2: audio data from $sourceKey: ${data.take(10).joinToString("") { String.format("%02X", it) }}")
         CoreManager.getInstance().handleGlassesMicData(audioData, 40)
     }
 

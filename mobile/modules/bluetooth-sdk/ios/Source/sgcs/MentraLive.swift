@@ -683,10 +683,11 @@ extension MentraLive: CBCentralManagerDelegate {
 
 extension MentraLive: CBPeripheralDelegate {
     func peripheral(_: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        signalStrengthReadInFlight = false
         if let error {
             Bridge.log("LIVE: Error reading RSSI: \(error.localizedDescription)")
         } else {
-            Bridge.log("LIVE: RSSI: \(RSSI)")
+            updateSignalStrength(Int(truncating: RSSI))
         }
     }
 
@@ -768,7 +769,6 @@ extension MentraLive: CBPeripheralDelegate {
             updateConnectionState(ConnTypes.CONNECTING)
 
             // Request MTU size
-            peripheral.readRSSI()
             let mtuSize = peripheral.maximumWriteValueLength(for: .withResponse)
             Bridge.log("LIVE: Current MTU size: \(mtuSize + 3) bytes")
 
@@ -787,6 +787,7 @@ extension MentraLive: CBPeripheralDelegate {
             }
 
             // Start readiness check loop
+            startSignalStrengthPolling()
             startReadinessCheckLoop()
         } else {
             Bridge.log("LIVE: Required BLE characteristics not found")
@@ -913,6 +914,9 @@ class MentraLive: NSObject, SGCManager {
         // a previous pairing into the next one (would otherwise surface as wrong overall_percent
         // or stale lastBesOtaProgress on the next OTA).
         if state == ConnTypes.DISCONNECTED {
+            stopSignalStrengthPolling()
+            GlassesStore.shared.apply("glasses", "signalStrength", -1)
+            GlassesStore.shared.apply("glasses", "signalStrengthUpdatedAt", 0)
             resetOtaCache()
         }
     }
@@ -1047,6 +1051,7 @@ class MentraLive: NSObject, SGCManager {
     private let CONNECTION_TIMEOUT_MS: UInt64 = 100_000_000_000 // 100 seconds
     private let HEARTBEAT_INTERVAL_MS: TimeInterval = 30.0 // 30 seconds
     private let BATTERY_REQUEST_EVERY_N_HEARTBEATS = 10
+    private let SIGNAL_STRENGTH_READ_INTERVAL_MS: TimeInterval = 10.0
     private let MIN_SEND_DELAY_MS: UInt64 = 160_000_000 // 160ms in nanoseconds
     private let READINESS_CHECK_INTERVAL_MS: TimeInterval = 2.5 // 2.5 seconds
 
@@ -1094,6 +1099,8 @@ class MentraLive: NSObject, SGCManager {
     // Timers
     private var heartbeatTimer: Timer?
     private var heartbeatCounter = 0
+    private var signalStrengthTimer: DispatchSourceTimer?
+    private var signalStrengthReadInFlight = false
     private var readinessCheckTimer: Timer?
     private var readinessCheckCounter = 0
 
@@ -3582,6 +3589,49 @@ class MentraLive: NSObject, SGCManager {
         heartbeatCounter = 0
     }
 
+    private func startSignalStrengthPolling() {
+        Bridge.log("LIVE: 📶 Starting RSSI polling")
+        stopSignalStrengthPolling()
+
+        requestSignalStrength()
+
+        let interval = DispatchTimeInterval.milliseconds(Int(SIGNAL_STRENGTH_READ_INTERVAL_MS * 1000))
+        signalStrengthTimer = DispatchSource.makeTimerSource(queue: bluetoothQueue)
+        signalStrengthTimer?.schedule(
+            deadline: .now() + interval,
+            repeating: interval
+        )
+        signalStrengthTimer?.setEventHandler { [weak self] in
+            self?.requestSignalStrength()
+        }
+        signalStrengthTimer?.resume()
+    }
+
+    private func stopSignalStrengthPolling() {
+        signalStrengthTimer?.cancel()
+        signalStrengthTimer = nil
+        signalStrengthReadInFlight = false
+        Bridge.log("LIVE: 📶 Stopping RSSI polling")
+    }
+
+    private func requestSignalStrength() {
+        guard let peripheral = connectedPeripheral else { return }
+        guard !signalStrengthReadInFlight else {
+            Bridge.log("LIVE: 📶 Skipping RSSI read - previous read still pending")
+            return
+        }
+
+        signalStrengthReadInFlight = true
+        peripheral.readRSSI()
+    }
+
+    private func updateSignalStrength(_ rssi: Int) {
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        GlassesStore.shared.apply("glasses", "signalStrength", rssi)
+        GlassesStore.shared.apply("glasses", "signalStrengthUpdatedAt", now)
+        Bridge.log("LIVE: 📶 RSSI: \(rssi) dBm")
+    }
+
     private func sendHeartbeat() {
         guard fullyBooted, connectionState == ConnTypes.CONNECTED else {
             Bridge.log("LIVE: Skipping heartbeat - glasses not fully booted or not connected")
@@ -3695,6 +3745,7 @@ class MentraLive: NSObject, SGCManager {
 
     private func stopAllTimers() {
         stopHeartbeat()
+        stopSignalStrengthPolling()
         stopReadinessCheckLoop()
         stopConnectionTimeout()
         stopMicBeat() // Stop LC3 audio micbeat

@@ -151,6 +151,7 @@ public class MentraLive extends SGCManager {
     // Heartbeat parameters
     private static final int HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
     private static final int BATTERY_REQUEST_EVERY_N_HEARTBEATS = 10; // Every 10 heartbeats (5 minutes)
+    private static final long RSSI_READ_INTERVAL_MS = 10000; // 10 seconds
 
     // Micbeat parameters - periodically enable custom audio TX
     private static final long MICBEAT_INTERVAL_MS = (1000 * 60) * 30; // micbeat every 30 minutes
@@ -454,6 +455,11 @@ public class MentraLive extends SGCManager {
     private Runnable heartbeatRunnable;
     private int heartbeatCounter = 0;
     private boolean glassesReady = false;
+
+    // RSSI tracking
+    private Handler rssiReadHandler = new Handler(Looper.getMainLooper());
+    private Runnable rssiReadRunnable;
+    private boolean rssiReadInProgress = false;
     
     // BES OTA progress tracking - only send to UI on 5% increments
     private int lastBesOtaProgress = -1;
@@ -565,6 +571,14 @@ public class MentraLive extends SGCManager {
                 sendHeartbeat();
                 // Schedule next heartbeat
                 heartbeatHandler.postDelayed(this, HEARTBEAT_INTERVAL_MS);
+            }
+        };
+
+        rssiReadRunnable = new Runnable() {
+            @Override
+            public void run() {
+                requestSignalStrength();
+                rssiReadHandler.postDelayed(this, RSSI_READ_INTERVAL_MS);
             }
         };
 
@@ -690,6 +704,8 @@ public class MentraLive extends SGCManager {
         if (state.equals(ConnTypes.DISCONNECTED)) {
             GlassesStore.INSTANCE.apply("glasses", "fullyBooted", false);
             GlassesStore.INSTANCE.apply("glasses", "connected", false);
+            GlassesStore.INSTANCE.apply("glasses", "signalStrength", -1);
+            GlassesStore.INSTANCE.apply("glasses", "signalStrengthUpdatedAt", 0L);
             // Drop OTA caches when fully disconnected — avoids leaking session/step state
             // from a previous pairing into the next one.
             resetOtaCache();
@@ -1170,6 +1186,9 @@ public class MentraLive extends SGCManager {
                     // Stop heartbeat mechanism
                     stopHeartbeat();
 
+                    // Stop RSSI polling
+                    stopSignalStrengthPolling();
+
                     // Stop micbeat mechanism
                     stopMicBeat();
 
@@ -1210,6 +1229,9 @@ public class MentraLive extends SGCManager {
 
                 // Stop heartbeat mechanism
                 stopHeartbeat();
+
+                // Stop RSSI polling
+                stopSignalStrengthPolling();
 
                 // Stop micbeat mechanism
                 stopMicBeat();
@@ -1311,6 +1333,16 @@ public class MentraLive extends SGCManager {
                 // Process the read data if needed
             } else {
                 Log.e(TAG, "Characteristic read failed with status: " + status);
+            }
+        }
+
+        @Override
+        public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+            rssiReadInProgress = false;
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                updateSignalStrength(rssi);
+            } else {
+                Log.e(TAG, "RSSI read failed with status: " + status);
             }
         }
 
@@ -1450,6 +1482,7 @@ public class MentraLive extends SGCManager {
 
             // Now that all GATT setup operations are complete, start data flow
             Bridge.log("LIVE: Starting send queue and readiness check loop");
+            startSignalStrengthPolling();
             handler.post(processSendQueueRunnable);
             startReadinessCheckLoop();
             return;
@@ -1602,6 +1635,7 @@ public class MentraLive extends SGCManager {
         } else {
             // No descriptors to write, start data flow immediately
             Bridge.log("LIVE: No descriptor writes needed, starting send queue and readiness check loop");
+            startSignalStrengthPolling();
             handler.post(processSendQueueRunnable);
             startReadinessCheckLoop();
         }
@@ -3622,6 +3656,48 @@ public class MentraLive extends SGCManager {
         // stopTestMessages();
     }
 
+    private void startSignalStrengthPolling() {
+        Bridge.log("LIVE: 📶 Starting RSSI polling");
+        rssiReadHandler.removeCallbacks(rssiReadRunnable);
+        requestSignalStrength();
+        rssiReadHandler.postDelayed(rssiReadRunnable, RSSI_READ_INTERVAL_MS);
+    }
+
+    private void stopSignalStrengthPolling() {
+        Bridge.log("LIVE: 📶 Stopping RSSI polling");
+        rssiReadHandler.removeCallbacks(rssiReadRunnable);
+        rssiReadInProgress = false;
+    }
+
+    private void requestSignalStrength() {
+        if (!isConnected || bluetoothGatt == null) {
+            return;
+        }
+
+        if (!hasPermissions()) {
+            Bridge.log("LIVE: 📶 Cannot read RSSI - missing Bluetooth permission");
+            return;
+        }
+
+        if (rssiReadInProgress) {
+            Bridge.log("LIVE: 📶 Skipping RSSI read - previous read still pending");
+            return;
+        }
+
+        boolean started = bluetoothGatt.readRemoteRssi();
+        rssiReadInProgress = started;
+        if (!started) {
+            Bridge.log("LIVE: 📶 RSSI read did not start");
+        }
+    }
+
+    private void updateSignalStrength(int rssi) {
+        long now = System.currentTimeMillis();
+        GlassesStore.INSTANCE.apply("glasses", "signalStrength", rssi);
+        GlassesStore.INSTANCE.apply("glasses", "signalStrengthUpdatedAt", now);
+        Bridge.log("LIVE: 📶 RSSI: " + rssi + " dBm");
+    }
+
     /**
      * Start the micbeat mechanism - periodically enable custom audio TX
      */
@@ -4528,6 +4604,9 @@ public class MentraLive extends SGCManager {
         // Stop heartbeat mechanism
         stopHeartbeat();
 
+        // Stop RSSI polling
+        stopSignalStrengthPolling();
+
         // Stop micbeat mechanism
         stopMicBeat();
 
@@ -4550,6 +4629,7 @@ public class MentraLive extends SGCManager {
         // Cancel any pending handlers
         handler.removeCallbacksAndMessages(null);
         heartbeatHandler.removeCallbacksAndMessages(null);
+        rssiReadHandler.removeCallbacksAndMessages(null);
         micBeatHandler.removeCallbacksAndMessages(null);
         connectionTimeoutHandler.removeCallbacksAndMessages(null);
         testMessageHandler.removeCallbacksAndMessages(null);

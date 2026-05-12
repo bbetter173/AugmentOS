@@ -82,6 +82,8 @@ object GlassesStore {
         store.set("glasses", "hotspotPassword", "")
         store.set("glasses", "hotspotGatewayIp", "")
         store.set("glasses", "bluetoothName", "")
+        store.set("glasses", "signalStrength", -1)
+        store.set("glasses", "signalStrengthUpdatedAt", 0L)
         store.set("glasses", "controllerConnected", false)
         store.set("glasses", "controllerFullyBooted", false)
         store.set("glasses", "controllerMacAddress", "")

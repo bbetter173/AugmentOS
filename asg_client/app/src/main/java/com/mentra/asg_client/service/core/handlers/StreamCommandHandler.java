@@ -38,6 +38,12 @@ public class StreamCommandHandler implements ICommandHandler {
      */
     private static final boolean EIS_IN_LIVESTREAMS = true;
 
+    /**
+     * EIS only kicks in below this pixel budget. Higher resolutions push the camera
+     * HAL into thermal/throughput regimes where EIS makes the stream worse.
+     */
+    private static final int EIS_MAX_PIXELS = 500_000;
+
     private final Context context;
     private final IStateManager stateManager;
     private final IMediaManager streamingManager;
@@ -157,16 +163,16 @@ public class StreamCommandHandler implements ICommandHandler {
             JSONObject audioJson = data.optJSONObject("audio");
             if (audioJson == null) audioJson = data.optJSONObject("a");
 
-            // Toggle EIS for the duration of the stream (see EIS_IN_LIVESTREAMS)
-            applyEisForStreaming();
-            eisChanged = true;
-
             switch (protocol) {
                 case RTMP: {
                     RtmpStreamConfig config = RtmpStreamConfig.fromJson(videoJson, audioJson);
                     if (!preflightCameraCaptureForPackStreaming(config)) {
                         return false;
                     }
+                    // Toggle EIS for the duration of the stream (see EIS_IN_LIVESTREAMS).
+                    // Gate on resolution so EIS only runs when the camera HAL can handle it.
+                    applyEisForStreaming(config.getVideoWidth(), config.getVideoHeight());
+                    eisChanged = true;
                     Log.d(TAG, "Starting RTMP stream to: " + streamUrl);
                     RtmpStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     streamStarted = true;
@@ -178,6 +184,8 @@ public class StreamCommandHandler implements ICommandHandler {
                     if (!preflightCameraCaptureForPackStreaming(config)) {
                         return false;
                     }
+                    applyEisForStreaming(config.getVideoWidth(), config.getVideoHeight());
+                    eisChanged = true;
                     Log.d(TAG, "Starting SRT stream to: " + streamUrl);
                     SrtStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     streamStarted = true;
@@ -189,6 +197,8 @@ public class StreamCommandHandler implements ICommandHandler {
                     if (!preflightCameraCaptureForWhip(config.getVideoWidth(), config.getVideoHeight())) {
                         return false;
                     }
+                    applyEisForStreaming(config.getVideoWidth(), config.getVideoHeight());
+                    eisChanged = true;
                     Log.d(TAG, "Starting WHIP stream to: " + streamUrl);
                     WhipStreamingService.startStreaming(context, streamUrl, streamId, flash, sound, config);
                     streamStarted = true;
@@ -212,10 +222,19 @@ public class StreamCommandHandler implements ICommandHandler {
      * Apply EIS configuration for an active livestream. Updates the Pixsmart
      * system property and arms the StreamPackLite per-CaptureRequest hook so
      * the next session start uses SPORTS scene mode plus the vendor key.
+     *
+     * EIS is only enabled when the requested resolution is at or below
+     * {@link #EIS_MAX_PIXELS}; above that, EIS is forced off because the camera
+     * HAL cannot sustain it without degrading the stream.
      */
-    private void applyEisForStreaming() {
-        SysControl.setEisEnable(context, EIS_IN_LIVESTREAMS);
-        CameraController.enablePixsmartEisOnRequest = EIS_IN_LIVESTREAMS;
+    private void applyEisForStreaming(int width, int height) {
+        boolean withinEisBudget = ((long) width * (long) height) < EIS_MAX_PIXELS;
+        boolean enable = EIS_IN_LIVESTREAMS && withinEisBudget;
+        if (EIS_IN_LIVESTREAMS && !withinEisBudget) {
+            Log.i(TAG, "EIS disabled for " + width + "x" + height + " (>= " + EIS_MAX_PIXELS + " px)");
+        }
+        SysControl.setEisEnable(context, enable);
+        CameraController.enablePixsmartEisOnRequest = enable;
     }
 
     /**

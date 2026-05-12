@@ -49,6 +49,14 @@ class CoreModule : Module() {
                     sendEvent("wifi_status_change", event.values)
                 }
 
+                override fun onHotspotStatusChanged(event: MentraHotspotStatusEvent) {
+                    sendEvent("hotspot_status_change", event.values)
+                }
+
+                override fun onHotspotError(event: MentraHotspotErrorEvent) {
+                    sendEvent("hotspot_error", event.values)
+                }
+
                 override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
                     sendEvent("gallery_status", event.values)
                 }
@@ -163,6 +171,8 @@ class CoreModule : Module() {
             sdk?.getBluetoothStatus()?.values ?: GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
         }
 
+        Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }
+
         Function("set") { category: String, key: String, value: Any ->
             GlassesStore.apply(category, key, value)
         }
@@ -194,6 +204,12 @@ class CoreModule : Module() {
         // MARK: - Connection Commands
 
         AsyncFunction("connectDefault") { sdk?.connectDefault() }
+
+        AsyncFunction("setDefaultDevice") { device: Map<String, Any>? ->
+            sdk?.setDefaultDevice(device.toMentraPairedDevice())
+        }
+
+        AsyncFunction("clearDefaultDevice") { sdk?.clearDefaultDevice() }
 
         AsyncFunction("connectByName") { deviceName: String ->
             sdk?.connectByName(deviceName)
@@ -256,6 +272,16 @@ class CoreModule : Module() {
         }
 
         // MARK: - Gallery Commands
+
+        AsyncFunction("setGalleryMode") { mode: String ->
+            val galleryMode =
+                    when (mode.lowercase()) {
+                        "auto" -> MentraGalleryMode.AUTO
+                        "manual" -> MentraGalleryMode.MANUAL
+                        else -> throw IllegalArgumentException("setGalleryMode mode must be \"auto\" or \"manual\".")
+                    }
+            sdk?.setGalleryMode(galleryMode)
+        }
 
         AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
 
@@ -326,7 +352,13 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            sdk?.setMicState(MentraMicConfig(sendPcmData, sendTranscript, bypassVad))
+            sdk?.setMicState(
+                    MentraMicConfig(
+                            sendPcmData = sendPcmData,
+                            sendTranscript = sendTranscript,
+                            bypassVad = bypassVad,
+                    )
+            )
         }
 
         AsyncFunction("restartTranscriber") { deviceManager?.restartTranscriber() }
@@ -537,4 +569,23 @@ class CoreModule : Module() {
         }
 
     }
+}
+
+private fun MentraPairedDevice.toMap(): Map<String, Any> =
+        buildMap {
+            put("model", model.deviceType)
+            put("name", name)
+            address?.let { put("address", it) }
+        }
+
+private fun Map<String, Any>?.toMentraPairedDevice(): MentraPairedDevice? {
+    val values = this ?: return null
+    val model = values["model"] as? String ?: values["deviceModel"] as? String ?: return null
+    val name = values["name"] as? String ?: values["deviceName"] as? String ?: return null
+    val address = values["address"] as? String ?: values["deviceAddress"] as? String
+    return MentraPairedDevice(
+            model = MentraDeviceModel.fromDeviceType(model),
+            name = name,
+            address = address?.takeIf { it.isNotBlank() },
+    )
 }

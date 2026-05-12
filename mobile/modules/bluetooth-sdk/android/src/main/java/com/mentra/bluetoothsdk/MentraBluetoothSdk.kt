@@ -19,6 +19,7 @@ class MentraBluetoothSdk private constructor(
     private val discoveredDeviceNames = mutableSetOf<String>()
     private val bridgeEventSinkId: String
     private val storeListenerId: String
+    private var suppressDefaultDeviceEvents = false
 
     init {
         listeners.add(listener)
@@ -29,6 +30,8 @@ class MentraBluetoothSdk private constructor(
     }
 
     companion object {
+        private val DEFAULT_DEVICE_KEYS = setOf("default_wearable", "device_name", "device_address")
+
         @JvmStatic
         fun create(
             context: Context,
@@ -56,6 +59,36 @@ class MentraBluetoothSdk private constructor(
 
     fun getBluetoothStatus(): MentraBluetoothStatus =
         MentraBluetoothStatus(GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY))
+
+    fun getDefaultDevice(): MentraPairedDevice? = currentDefaultDevice()
+
+    fun setDefaultDevice(device: MentraPairedDevice?) {
+        if (device == null) {
+            clearDefaultDevice()
+            return
+        }
+        suppressDefaultDeviceEvents = true
+        try {
+            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "default_wearable", device.model.deviceType)
+            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_name", device.name)
+            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_address", device.address ?: "")
+        } finally {
+            suppressDefaultDeviceEvents = false
+        }
+        dispatchDefaultDeviceChanged()
+    }
+
+    fun clearDefaultDevice() {
+        suppressDefaultDeviceEvents = true
+        try {
+            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "default_wearable", "")
+            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_name", "")
+            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_address", "")
+        } finally {
+            suppressDefaultDeviceEvents = false
+        }
+        dispatchDefaultDeviceChanged()
+    }
 
     fun startScan(model: MentraDeviceModel) {
         discoveredDeviceNames.clear()
@@ -191,6 +224,14 @@ class MentraBluetoothSdk private constructor(
         PhoneAudioMonitor.getInstance(appContext).setOwnAppAudioPlaying(playing)
     }
 
+    fun getGlassesMediaVolume(): MentraGlassesMediaVolumeGetResult =
+        MentraGlassesMediaVolumeGetResult.fromMap(deviceManager.getGlassesMediaVolumeBlocking())
+
+    fun setGlassesMediaVolume(level: Int): MentraGlassesMediaVolumeSetResult {
+        require(level in 0..15) { "Glasses media volume must be between 0 and 15." }
+        return MentraGlassesMediaVolumeSetResult.fromMap(deviceManager.setGlassesMediaVolumeBlocking(level))
+    }
+
     fun requestWifiScan() {
         deviceManager.requestWifiScan()
     }
@@ -296,9 +337,30 @@ class MentraBluetoothSdk private constructor(
                 dispatchToListeners {
                     it.onBluetoothStatusChanged(MentraBluetoothStatusUpdate(changes))
                 }
+                if (!suppressDefaultDeviceEvents && changes.keys.any { it in DEFAULT_DEVICE_KEYS }) {
+                    dispatchDefaultDeviceChanged()
+                }
                 dispatchDiscoveredDevices(changes["searchResults"])
             }
         }
+    }
+
+    private fun dispatchDefaultDeviceChanged() {
+        val defaultDevice = currentDefaultDevice()
+        dispatchToListeners { it.onDefaultDeviceChanged(defaultDevice) }
+    }
+
+    private fun currentDefaultDevice(): MentraPairedDevice? {
+        val core = GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
+        val model = core["default_wearable"] as? String ?: return null
+        val name = core["device_name"] as? String ?: return null
+        if (model.isBlank() || name.isBlank()) return null
+        val address = (core["device_address"] as? String)?.takeIf { it.isNotBlank() }
+        return MentraPairedDevice(
+            model = MentraDeviceModel.fromDeviceType(model),
+            name = name,
+            address = address,
+        )
     }
 
     private fun dispatchDiscoveredDevices(rawSearchResults: Any?) {
@@ -326,7 +388,13 @@ class MentraBluetoothSdk private constructor(
                         )
                     )
                 }
-            "touch_event" -> dispatchToListeners { it.onTouch(MentraTouchEvent(data)) }
+            "touch_event" -> {
+                val event = MentraTouchEvent(data)
+                dispatchToListeners { it.onTouch(event) }
+                if (event.isSwipe) {
+                    dispatchToListeners { it.onSwipe(MentraSwipeEvent(data)) }
+                }
+            }
             "head_up" -> dispatchToListeners { it.onHeadUpChanged(data["up"] as? Boolean ?: false) }
             "battery_status" ->
                 dispatchToListeners {
@@ -339,6 +407,8 @@ class MentraBluetoothSdk private constructor(
                     )
                 }
             "wifi_status_change" -> dispatchToListeners { it.onWifiStatusChanged(MentraWifiStatusEvent(data)) }
+            "hotspot_status_change" -> dispatchToListeners { it.onHotspotStatusChanged(MentraHotspotStatusEvent(data)) }
+            "hotspot_error" -> dispatchToListeners { it.onHotspotError(MentraHotspotErrorEvent(data)) }
             "gallery_status" -> dispatchToListeners { it.onGalleryStatus(MentraGalleryStatusEvent(data)) }
             "photo_response" -> dispatchToListeners { it.onPhotoResponse(MentraPhotoResponseEvent(data)) }
             "stream_status" -> dispatchToListeners { it.onStreamStatus(MentraStreamStatusEvent(data)) }

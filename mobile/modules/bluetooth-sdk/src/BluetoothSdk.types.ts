@@ -137,6 +137,8 @@ export type RgbLedControlResponseEvent = {
 
 export type RgbLedAction = "on" | "off"
 export type RgbLedColor = "red" | "green" | "blue" | "orange" | "white"
+/** `"auto"` enables local button photo/video capture; `"manual"` reports button events without local gallery capture. */
+export type GalleryMode = "auto" | "manual"
 export type PhotoSize = "small" | "medium" | "large" | "full"
 export type ButtonPhotoSize = "small" | "medium" | "large"
 export type PhotoCompression = "none" | "medium" | "heavy"
@@ -438,6 +440,12 @@ export interface DeviceSearchResult {
   deviceAddress?: string
 }
 
+export type DefaultDevice = {
+  model: string
+  name: string
+  address?: string
+}
+
 export interface WifiSearchResult {
   ssid: string
   requiresPassword: boolean
@@ -450,6 +458,9 @@ export interface CoreStatus {
   // state:
   searching: boolean
   searchingController: boolean
+  default_wearable?: string
+  device_name?: string
+  device_address?: string
   systemMicUnavailable: boolean
   micRanking: MicRanking[]
   currentMic: MicRanking | null
@@ -457,4 +468,6 @@ export interface CoreStatus {
   wifiScanResults: WifiSearchResult[]
   lastLog: string[]
   otherBtConnected: boolean
+  // desired settings the SDK sends to compatible connected glasses:
+  gallery_mode: boolean
 }

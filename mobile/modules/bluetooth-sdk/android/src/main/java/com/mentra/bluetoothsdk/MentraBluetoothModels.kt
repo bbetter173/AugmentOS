@@ -349,7 +349,20 @@ data class MentraButtonPressEvent(
 
 data class MentraTouchEvent(
     val values: Map<String, Any>,
-)
+) {
+    val deviceModel: String? get() = stringValue(values, "device_model", "deviceModel")
+    val gestureName: String? get() = stringValue(values, "gesture_name", "gestureName")
+    val timestamp: Long? get() = longValue(values, "timestamp")
+    val isSwipe: Boolean get() = gestureName?.contains("swipe", ignoreCase = true) == true
+}
+
+data class MentraSwipeEvent(
+    val values: Map<String, Any>,
+) {
+    val deviceModel: String? get() = stringValue(values, "device_model", "deviceModel")
+    val gestureName: String? get() = stringValue(values, "gesture_name", "gestureName")
+    val timestamp: Long? get() = longValue(values, "timestamp")
+}
 
 data class MentraBatteryStatusEvent(
     val level: Int?,
@@ -359,7 +372,27 @@ data class MentraBatteryStatusEvent(
 
 data class MentraWifiStatusEvent(
     val values: Map<String, Any>,
-)
+) {
+    val connected: Boolean? get() = boolValue(values, "connected")
+    val ssid: String? get() = stringValue(values, "ssid", "wifiSsid")
+    val localIp: String? get() = stringValue(values, "local_ip", "localIp", "wifiLocalIp")
+}
+
+data class MentraHotspotStatusEvent(
+    val values: Map<String, Any>,
+) {
+    val enabled: Boolean? get() = boolValue(values, "enabled")
+    val ssid: String? get() = stringValue(values, "ssid")
+    val password: String? get() = stringValue(values, "password")
+    val localIp: String? get() = stringValue(values, "local_ip", "localIp")
+}
+
+data class MentraHotspotErrorEvent(
+    val values: Map<String, Any>,
+) {
+    val message: String? get() = stringValue(values, "error_message", "message", "error")
+    val timestamp: Long? get() = longValue(values, "timestamp")
+}
 
 data class MentraGalleryStatusEvent(
     val values: Map<String, Any>,
@@ -367,17 +400,54 @@ data class MentraGalleryStatusEvent(
 
 data class MentraPhotoResponseEvent(
     val values: Map<String, Any>,
-)
+) {
+    val requestId: String? get() = stringValue(values, "requestId", "request_id")
+    val success: Boolean? get() = boolValue(values, "success")
+    val photoUrl: String? get() = stringValue(values, "photoUrl", "photo_url")
+    val errorCode: String? get() = stringValue(values, "errorCode", "error_code")
+    val errorMessage: String? get() = stringValue(values, "errorMessage", "error_message")
+}
 
 data class MentraStreamStatusEvent(
     val values: Map<String, Any>,
-)
+) {
+    val status: String? get() = stringValue(values, "status")
+    val streamId: String? get() = stringValue(values, "streamId", "stream_id")
+}
 
 data class MentraLocalTranscriptionEvent(
     val text: String,
     val isFinal: Boolean,
     val values: Map<String, Any>,
 )
+
+data class MentraGlassesMediaVolumeGetResult(
+    val volume: Int?,
+    val statusCode: Int?,
+    val values: Map<String, Any>,
+) {
+    companion object {
+        fun fromMap(values: Map<String, Any>): MentraGlassesMediaVolumeGetResult =
+            MentraGlassesMediaVolumeGetResult(
+                volume = numberValue(values, "vol", "volume"),
+                statusCode = (values["statusCode"] as? Number)?.toInt(),
+                values = values,
+            )
+    }
+}
+
+data class MentraGlassesMediaVolumeSetResult(
+    val statusCode: Int?,
+    val values: Map<String, Any>,
+) {
+    companion object {
+        fun fromMap(values: Map<String, Any>): MentraGlassesMediaVolumeSetResult =
+            MentraGlassesMediaVolumeSetResult(
+                statusCode = (values["statusCode"] as? Number)?.toInt(),
+                values = values,
+            )
+    }
+}
 
 data class MentraBluetoothError(
     val code: String,
@@ -398,9 +468,12 @@ interface MentraBluetoothSdkListener {
     fun onScanStopped(reason: MentraScanStopReason) {}
     fun onButtonPress(event: MentraButtonPressEvent) {}
     fun onTouch(event: MentraTouchEvent) {}
+    fun onSwipe(event: MentraSwipeEvent) {}
     fun onHeadUpChanged(headUp: Boolean) {}
     fun onBatteryStatus(event: MentraBatteryStatusEvent) {}
     fun onWifiStatusChanged(event: MentraWifiStatusEvent) {}
+    fun onHotspotStatusChanged(event: MentraHotspotStatusEvent) {}
+    fun onHotspotError(event: MentraHotspotErrorEvent) {}
     fun onGalleryStatus(event: MentraGalleryStatusEvent) {}
     fun onPhotoResponse(event: MentraPhotoResponseEvent) {}
     fun onStreamStatus(event: MentraStreamStatusEvent) {}
@@ -420,3 +493,21 @@ private fun numberValue(
     fullKey: String,
     compactKey: String,
 ): Int? = ((values[fullKey] ?: values[compactKey]) as? Number)?.toInt()
+
+private fun stringValue(
+    values: Map<String, Any>,
+    vararg keys: String,
+): String? =
+    keys.firstNotNullOfOrNull { key ->
+        values[key]?.let { it as? String }
+    }
+
+private fun boolValue(
+    values: Map<String, Any>,
+    key: String,
+): Boolean? = values[key] as? Boolean
+
+private fun longValue(
+    values: Map<String, Any>,
+    key: String,
+): Long? = (values[key] as? Number)?.toLong()

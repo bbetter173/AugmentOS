@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import Foundation
 
 public class CoreModule: Module, MentraBluetoothSDKDelegate {
     private var sdk: MentraBluetoothSDK?
@@ -82,6 +83,12 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
+        AsyncFunction("getDefaultDevice") {
+            await MainActor.run {
+                self.bluetoothSdk().getDefaultDevice()?.dictionary
+            }
+        }
+
         AsyncFunction("update") { (category: String, values: [String: Any]) in
             await MainActor.run {
                 let normalizedCategory = ObservableStore.normalizeCategory(category)
@@ -114,6 +121,18 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("connectDefault") {
             await MainActor.run {
                 self.bluetoothSdk().connectDefault()
+            }
+        }
+
+        AsyncFunction("setDefaultDevice") { (device: [String: Any]?) in
+            await MainActor.run {
+                self.bluetoothSdk().setDefaultDevice(MentraPairedDevice(dictionary: device))
+            }
+        }
+
+        AsyncFunction("clearDefaultDevice") {
+            await MainActor.run {
+                self.bluetoothSdk().clearDefaultDevice()
             }
         }
 
@@ -256,6 +275,23 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         }
 
         // MARK: - Gallery Commands
+
+        AsyncFunction("setGalleryMode") { (mode: String) in
+            let galleryMode: MentraGalleryMode
+            switch mode.lowercased() {
+            case "auto":
+                galleryMode = .auto
+            case "manual":
+                galleryMode = .manual
+            default:
+                throw MentraBluetoothError(
+                    code: "invalid_gallery_mode",
+                    message: "setGalleryMode mode must be \"auto\" or \"manual\"."
+                )
+            }
+            let sdk = await MainActor.run { self.bluetoothSdk() }
+            try await sdk.setGalleryMode(galleryMode)
+        }
 
         AsyncFunction("queryGalleryStatus") {
             await MainActor.run {
@@ -491,6 +527,25 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive event: MentraBluetoothEvent) {
         switch event {
+        case let .buttonPress(button):
+            sendEvent(
+                "button_press",
+                [
+                    "buttonId": button.buttonId,
+                    "pressType": button.pressType,
+                    "timestamp": button.timestamp ?? Int(Date().timeIntervalSince1970 * 1000),
+                ]
+            )
+        case let .touch(touch):
+            sendEvent("touch_event", touch.values)
+        case let .hotspotStatus(status):
+            sendEvent("hotspot_status_change", status.values)
+        case let .hotspotError(error):
+            sendEvent("hotspot_error", error.values)
+        case let .photoResponse(response):
+            sendEvent("photo_response", response.values)
+        case let .streamStatus(status):
+            sendEvent("stream_status", status.values)
         case let .localTranscription(transcription):
             sendEvent("local_transcription", transcription.values)
         case let .raw(name, values):
@@ -519,5 +574,30 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail error: MentraBluetoothError) {
         sendEvent("pair_failure", ["error": error.message])
+    }
+}
+
+private extension MentraPairedDevice {
+    var dictionary: [String: Any] {
+        var values: [String: Any] = [
+            "model": model.deviceType,
+            "name": name,
+        ]
+        if let identifier, !identifier.isEmpty {
+            values["address"] = identifier
+        }
+        return values
+    }
+
+    init?(dictionary values: [String: Any]?) {
+        guard let values else { return nil }
+        guard let model = values["model"] as? String ?? values["deviceModel"] as? String else { return nil }
+        guard let name = values["name"] as? String ?? values["deviceName"] as? String else { return nil }
+        let identifier = values["address"] as? String ?? values["deviceAddress"] as? String
+        self.init(
+            model: MentraDeviceModel.fromDeviceType(model),
+            name: name,
+            identifier: identifier?.isEmpty == true ? nil : identifier
+        )
     }
 }

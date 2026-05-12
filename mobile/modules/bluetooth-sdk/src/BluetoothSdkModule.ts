@@ -3,6 +3,8 @@ import {NativeModule, requireNativeModule} from "expo"
 import {
   CoreModuleEvents,
   CoreStatus,
+  DefaultDevice,
+  GalleryMode,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
@@ -21,6 +23,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): GlassesStatus
   getCoreStatus(): CoreStatus
+  getDefaultDevice(): DefaultDevice | null
   update(category: string, values: Record<string, any>): Promise<void>
 
   // Display Commands
@@ -31,6 +34,8 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   // Connection Commands
   requestStatus(): Promise<void>
   connectDefault(): Promise<void>
+  setDefaultDevice(device: DefaultDevice | null): Promise<void>
+  clearDefaultDevice(): Promise<void>
   connectByName(deviceName: string): Promise<void>
   connectDevice(deviceModel: string, deviceName: string): Promise<void>
   connectDefaultController(): Promise<void>
@@ -55,6 +60,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   logCurrentWifiFrequency(): Promise<void>
 
   // Gallery Commands
+  setGalleryMode(mode: GalleryMode): Promise<void>
   queryGalleryStatus(): Promise<void>
   photoRequest(
     requestId: string,

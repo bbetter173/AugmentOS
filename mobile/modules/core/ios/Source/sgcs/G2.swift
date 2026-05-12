@@ -2313,9 +2313,10 @@ class G2: NSObject, SGCManager {
             GlassesStore.shared.apply("glasses", "micEnabled", true)
             let msg = EvenHubProto.audioControlMessage(enable: false)
             sendEvenHubCommand(msg)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self else { return }
                 let msg = EvenHubProto.audioControlMessage(enable: true)
-                sendEvenHubCommand(msg)
+                self.sendEvenHubCommand(msg)
             }
             return
         }

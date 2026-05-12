@@ -414,6 +414,7 @@ struct ViewState {
      * This matches Android behavior - glasses forward raw LC3, CoreManager handles encoding.
      */
     func handleGlassesMicData(_ lc3Data: Data, _ frameSize: Int = 20) {
+        lastLc3Event = Date()
         guard let lc3Converter = lc3Converter else {
             Bridge.log("MAN: LC3 converter not initialized")
             return
@@ -429,9 +430,6 @@ struct ViewState {
             Bridge.log("MAN: Failed to decode glasses LC3 audio")
             return
         }
-
-        lastLc3Event = Date()
-
         // Forward to handlePcm which handles VAD and encoding
         handlePcm(pcmData)
     }

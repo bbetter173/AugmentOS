@@ -1119,6 +1119,9 @@ class G2: NSObject, SGCManager {
     private var heartbeatCounter: Int = 0
     private var evenHubQueueTask: Task<Void, Never>?
     private var pendingTextMsg: Data?
+    private var lastEvenHubMsg: Data?
+    private var lastEvenHubResendsRemaining: Int = 0
+    private let EVEN_HUB_RESEND_COUNT: Int = 1
     private let evenHubQueueLock = NSLock()
     private var authStarted: Bool = false
 
@@ -1546,6 +1549,8 @@ class G2: NSObject, SGCManager {
         evenHubQueueTask = nil
         evenHubQueueLock.lock()
         pendingTextMsg = nil
+        lastEvenHubMsg = nil
+        lastEvenHubResendsRemaining = 0
         evenHubQueueLock.unlock()
     }
 
@@ -2281,9 +2286,20 @@ class G2: NSObject, SGCManager {
         evenHubQueueLock.lock()
         let msg = pendingTextMsg
         pendingTextMsg = nil
+        let toSend: Data?
+        if let msg = msg {
+            lastEvenHubMsg = msg
+            lastEvenHubResendsRemaining = EVEN_HUB_RESEND_COUNT
+            toSend = msg
+        } else if lastEvenHubResendsRemaining > 0, let last = lastEvenHubMsg {
+            lastEvenHubResendsRemaining -= 1
+            toSend = last
+        } else {
+            toSend = nil
+        }
         evenHubQueueLock.unlock()
-        guard let msg = msg else { return }
-        sendEvenHubCommand(msg)
+        guard let toSend = toSend else { return }
+        sendEvenHubCommand(toSend)
     }
 
     // MARK: - SGCManager: Audio Control

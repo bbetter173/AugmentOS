@@ -952,6 +952,7 @@ class MentraLive: NSObject, SGCManager {
         // Stop scanning first
         if isScanning {
             stopScan()
+            emitStopScanEvent()
         }
 
         // Then do full cleanup (disconnect + clear all references)
@@ -1574,16 +1575,13 @@ class MentraLive: NSObject, SGCManager {
         //    }
     }
 
-    private func stopScan() {
+    func stopScan() {
         guard isScanning else { return }
 
         centralManager?.stopScan()
         isScanning = false
         GlassesStore.shared.apply(ObservableStore.coreCategory, "searching", false)
         Bridge.log("LIVE: BLE scan stopped")
-
-        // Emit event
-        emitStopScanEvent()
     }
 
     // MARK: - Connection Management
@@ -3846,6 +3844,7 @@ class MentraLive: NSObject, SGCManager {
         // Stop scanning
         if isScanning {
             stopScan()
+            emitStopScanEvent()
         }
 
         // Stop phone audio monitor

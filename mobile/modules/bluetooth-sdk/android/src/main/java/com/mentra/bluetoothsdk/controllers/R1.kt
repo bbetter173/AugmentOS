@@ -267,7 +267,7 @@ class R1 : ControllerManager() {
         return true
     }
 
-    private fun stopScan() {
+    override fun stopScan() {
         val s = scanner ?: return
         val cb = scanCallback ?: return
         try {

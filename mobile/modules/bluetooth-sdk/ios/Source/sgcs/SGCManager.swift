@@ -71,6 +71,7 @@ protocol SGCManager {
     func disconnect()
     func forget()
     func findCompatibleDevices()
+    func stopScan()
     func connectById(_ id: String)
     func getConnectedBluetoothName() -> String?
     func connectController()

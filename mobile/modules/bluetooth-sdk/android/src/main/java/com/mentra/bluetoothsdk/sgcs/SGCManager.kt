@@ -85,6 +85,7 @@ abstract class SGCManager {
     abstract fun disconnect()
     abstract fun forget()
     abstract fun findCompatibleDevices()
+    abstract fun stopScan()
     abstract fun connectById(id: String)
     abstract fun getConnectedBluetoothName(): String
     abstract fun cleanup()

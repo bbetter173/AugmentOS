@@ -1172,7 +1172,7 @@ class MentraNex : SGCManager() {
         // handler.postDelayed({ stopScan() }, 10000)
     }
 
-    private fun stopScan() {
+    override fun stopScan() {
         val scanner = bluetoothAdapter.bluetoothLeScanner
         scanner?.stopScan(modernScanCallback)
         isScanning = false

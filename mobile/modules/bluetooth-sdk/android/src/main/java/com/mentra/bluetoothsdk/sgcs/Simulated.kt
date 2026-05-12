@@ -161,6 +161,10 @@ class Simulated : SGCManager() {
         Bridge.log("findCompatibleDevices")
     }
 
+    override fun stopScan() {
+        Bridge.log("stopScan")
+    }
+
     override fun connectById(id: String) {
     }
 

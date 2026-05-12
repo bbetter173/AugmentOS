@@ -187,7 +187,7 @@ class R1: NSObject, ControllerManager {
         return true
     }
 
-    private func stopScan() {
+    func stopScan() {
         centralManager?.stopScan()
     }
 

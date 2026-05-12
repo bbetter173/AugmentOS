@@ -97,6 +97,7 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun stopScan() {
+        deviceManager.stopScan()
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "searching", false)
         dispatchToListeners { it.onScanStopped(MentraScanStopReason.CANCELLED) }
     }

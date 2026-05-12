@@ -318,6 +318,11 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
+    public void stopScan() {
+        Bridge.log("Mach1: stopScan() - no active BLE scanner owned by Mach1");
+    }
+
+    @Override
     public void connectById(@NonNull String id) {
         Bridge.log("Mach1: connectById() - id: " + id);
         // The Mach1 uses UltraliteSDK which handles connection internally

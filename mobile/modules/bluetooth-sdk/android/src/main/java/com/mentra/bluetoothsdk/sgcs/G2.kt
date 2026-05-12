@@ -2761,7 +2761,7 @@ class G2 : SGCManager() {
         return true
     }
 
-    private fun stopScan() {
+    override fun stopScan() {
         scanCallback?.let { cb -> bluetoothAdapter?.bluetoothLeScanner?.stopScan(cb) }
         scanCallback = null
     }

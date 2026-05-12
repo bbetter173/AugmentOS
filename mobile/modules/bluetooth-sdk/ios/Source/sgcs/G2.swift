@@ -2693,7 +2693,7 @@ class G2: NSObject, SGCManager {
         return true
     }
 
-    private func stopScan() {
+    func stopScan() {
         centralManager?.stopScan()
     }
 

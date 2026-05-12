@@ -321,6 +321,10 @@ class Mach1: UltraliteBaseViewController, SGCManager {
         connected = false
     }
 
+    func stopScan() {
+        UltraliteManager.shared.stopScan()
+    }
+
     func sendTextWall(_ text: String) {
         //    displayTextWall(text)
         guard let device = UltraliteManager.shared.currentDevice else {

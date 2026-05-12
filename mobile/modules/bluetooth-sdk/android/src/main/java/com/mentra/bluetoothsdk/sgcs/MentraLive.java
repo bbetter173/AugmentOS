@@ -787,6 +787,7 @@ public class MentraLive extends SGCManager {
                 public void run() {
                     if (isScanning) {
                         stopScan();
+                        emitStopScanEvent();
                         
                         if (isReconnecting) {
                             synchronized (connectionLock) {
@@ -815,7 +816,8 @@ public class MentraLive extends SGCManager {
     /**
      * Stops BLE scanning
      */
-    private void stopScan() {
+    @Override
+    public void stopScan() {
         if (bluetoothAdapter == null || bluetoothScanner == null || !isScanning) {
             return;
         }
@@ -825,9 +827,6 @@ public class MentraLive extends SGCManager {
             isScanning = false;
             GlassesStore.INSTANCE.apply("core", "searching", false);
             Bridge.log("LIVE: BLE scan stopped");
-            Map<String, Object> body = new HashMap<>();
-            body.put("device_model", DeviceTypes.LIVE);
-            Bridge.sendTypedMessage("compatible_glasses_search_stop", body);
 
             // Post event only if we haven't been destroyed
             // if (smartGlassesDevice != null) {
@@ -838,6 +837,12 @@ public class MentraLive extends SGCManager {
             // Ensure isScanning is false even if stop failed
             isScanning = false;
         }
+    }
+
+    private void emitStopScanEvent() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("device_model", DeviceTypes.LIVE);
+        Bridge.sendTypedMessage("compatible_glasses_search_stop", body);
     }
 
     Set<String> seenDevices = new HashSet<>();
@@ -905,6 +910,7 @@ public class MentraLive extends SGCManager {
                         isConnecting = true;
                     }
                     stopScan();
+                    emitStopScanEvent();
                     isReconnecting = false;
                     connectToDevice(device);
                 }
@@ -3886,7 +3892,10 @@ public class MentraLive extends SGCManager {
             removeBond(connectedDevice);
         }
 
-        stopScan();
+        if (isScanning) {
+            stopScan();
+            emitStopScanEvent();
+        }
         disconnect();
     }
 
@@ -4591,6 +4600,7 @@ public class MentraLive extends SGCManager {
         // Stop scanning if in progress
         if (isScanning) {
             stopScan();
+            emitStopScanEvent();
         }
 
         // CTKD Implementation: Unregister bonding receiver

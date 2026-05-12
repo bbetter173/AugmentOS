@@ -1531,6 +1531,13 @@ class CoreManager {
         sgc?.findCompatibleDevices()
     }
 
+    fun stopScan() {
+        controller?.stopScan()
+        sgc?.stopScan()
+        GlassesStore.apply("core", "searching", false)
+        GlassesStore.apply("core", "searchingController", false)
+    }
+
     // MARK: Cleanup
     fun cleanup() {
         stopBluetoothStateMonitoring()

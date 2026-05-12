@@ -195,6 +195,10 @@ class Simulated: SGCManager {
         Bridge.log("findCompatibleDevices")
     }
 
+    func stopScan() {
+        Bridge.log("stopScan")
+    }
+
     func connectById(_: String) {
         Bridge.log("connectById")
     }

@@ -1328,6 +1328,7 @@ public final class MentraBluetoothSDK {
     }
 
     public func stopScan() {
+        CoreManager.shared.stopScan()
         GlassesStore.shared.apply(ObservableStore.coreCategory, "searching", false)
         delegate?.mentraBluetoothSDK(self, didStopScan: .cancelled)
     }

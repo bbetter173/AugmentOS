@@ -1,0 +1,39 @@
+{
+  "name": "@mentra/jsc",
+  "version": "0.1.0",
+  "description": "Mentra JavaScriptCore runtime — isolated JS contexts with fetch/timers/console polyfills and a bridge into native services.",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "expo-module build",
+    "clean": "expo-module clean",
+    "lint": "expo-module lint",
+    "test": "expo-module test",
+    "prepare": "expo-module prepare",
+    "prepublishOnly": "expo-module prepublishOnly",
+    "expo-module": "expo-module"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "jsc",
+    "javascriptcore",
+    "mentra"
+  ],
+  "repository": "https://github.com/Mentra-Community/MentraOS",
+  "bugs": {
+    "url": "https://github.com/Mentra-Community/MentraOS/issues"
+  },
+  "author": "Mentra Community",
+  "license": "MIT",
+  "homepage": "https://github.com/Mentra-Community/MentraOS#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "expo-module-scripts": "^55.0.2"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

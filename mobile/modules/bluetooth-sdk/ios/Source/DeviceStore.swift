@@ -81,7 +81,6 @@ class GlassesStore {
         store.set("core", "contextual_dashboard", true)
         store.set("core", "gallery_mode", false)
         store.set("core", "screen_disabled", false)
-        store.set("core", "button_mode", "photo")
         store.set("core", "button_photo_size", "medium")
         store.set("core", "button_camera_led", true)
         store.set("core", "button_max_recording_time", 10)
@@ -225,9 +224,6 @@ class GlassesStore {
                     CoreManager.shared.sgc?.clearDisplay()
                 }
             }
-
-        case ("core", "button_mode"):
-            CoreManager.shared.sgc?.sendButtonModeSetting()
 
         case ("core", "button_photo_size"):
             CoreManager.shared.sgc?.sendButtonPhotoSettings()

@@ -33,8 +33,6 @@ class Mach1: UltraliteBaseViewController, SGCManager {
 
     func sendButtonPhotoSettings() {}
 
-    func sendButtonModeSetting() {}
-
     func sendButtonVideoRecordingSettings() {}
 
     func sendButtonMaxRecordingTime(_: Int) {}

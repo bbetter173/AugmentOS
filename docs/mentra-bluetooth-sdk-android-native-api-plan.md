@@ -70,7 +70,6 @@ class MentraBluetoothSdk private constructor(
     fun setHeadUpAngle(angleDegrees: Int)
     fun setScreenDisabled(disabled: Boolean)
     fun setGalleryMode(mode: MentraGalleryMode)
-    fun setButtonMode(mode: MentraButtonMode)
     fun setButtonPhotoSettings(settings: MentraButtonPhotoSettings)
     fun setButtonVideoRecordingSettings(settings: MentraButtonVideoRecordingSettings)
     fun setButtonCameraLed(enabled: Boolean)
@@ -167,7 +166,7 @@ Add typed public models before exposing the facade:
 - `MentraGlassesStatus`: current snapshot of connected, fully booted, battery, charging, model, firmware, serial, Wi-Fi, hotspot, head-up, controller, and signal state.
 - `MentraBluetoothStatus`: current snapshot of searching, mic, current mic, search results, Wi-Fi scan results, permission availability, and audio availability.
 - `MentraDisplayTextRequest`, `MentraDisplayEventRequest`, `MentraDashboardPositionRequest`, `MentraDashboardMenuItem`, `MentraPhotoRequest`, `MentraStreamRequest`, `MentraVideoRecordingRequest`, `MentraMicConfig`, `MentraBluetoothError`.
-- Settings models/enums for values currently routed through `DeviceStore.apply()`: `MentraGalleryMode`, `MentraButtonMode`, `MentraButtonPhotoSettings`, `MentraButtonVideoRecordingSettings`, `MentraCameraFov`, and `MentraMicPreference`.
+- Settings models/enums for values currently routed through `DeviceStore.apply()`: `MentraGalleryMode`, `MentraButtonPhotoSettings`, `MentraButtonVideoRecordingSettings`, `MentraCameraFov`, and `MentraMicPreference`.
 
 For Java ergonomics, models with many optional fields should have builders instead of huge constructors.
 

@@ -4437,29 +4437,8 @@ extension MentraLive {
         return protocolData.subdata(in: 5 ..< (5 + length))
     }
 
-    // MARK: - Button Mode Settings
-
-    func sendButtonModeSetting() {
-        let mode = GlassesStore.shared.get("core", "button_mode") as! String
-        Bridge.log("Sending button mode setting to glasses: \(mode)")
-
-        guard connectionState == ConnTypes.CONNECTED else {
-            Bridge.log("Cannot send button mode - not connected")
-            return
-        }
-
-        let json: [String: Any] = [
-            "type": "button_mode_setting",
-            "mode": mode,
-        ]
-        sendJson(json)
-    }
-
     private func sendUserSettings() {
         Bridge.log("Sending user settings to glasses")
-
-        // Send button mode setting
-        sendButtonModeSetting()
 
         // Send button video recording settings
         sendButtonVideoRecordingSettings()

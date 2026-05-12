@@ -2392,10 +2392,6 @@ class G2 : SGCManager() {
         Bridge.log("G2: sendButtonPhotoSettings")
     }
 
-    override fun sendButtonModeSetting() {
-        Bridge.log("G2: sendButtonModeSetting")
-    }
-
     override fun sendButtonVideoRecordingSettings() {
         Bridge.log("G2: sendButtonVideoRecordingSettings")
     }

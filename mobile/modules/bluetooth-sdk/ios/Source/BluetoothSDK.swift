@@ -215,12 +215,6 @@
 //     case manual
 // }
 
-// public enum ButtonMode: String {
-//     case photo
-//     case video
-//     case none
-// }
-
 // public enum PhotoSize: String {
 //     case small
 //     case medium
@@ -554,10 +548,6 @@
 
 //     public func setGalleryMode(_ mode: GalleryMode) async throws {
 //         GlassesStore.shared.apply(ObservableStore.coreCategory, "gallery_mode", mode == .auto)
-//     }
-
-//     public func setButtonMode(_ mode: ButtonMode) async throws {
-//         GlassesStore.shared.apply(ObservableStore.coreCategory, "button_mode", mode.rawValue)
 //     }
 
 //     public func setButtonPhotoSettings(_ settings: ButtonPhotoSettings) async throws {

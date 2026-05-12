@@ -511,7 +511,6 @@ class R1: NSObject, ControllerManager {
     func stopStream() {}
     func sendStreamKeepAlive(_: [String: Any]) {}
     func sendButtonPhotoSettings() {}
-    func sendButtonModeSetting() {}
     func sendButtonVideoRecordingSettings() {}
     func sendButtonMaxRecordingTime() {}
     func sendButtonCameraLedSetting() {}

@@ -32,7 +32,6 @@ abstract class ControllerManager {
 
     // Button Settings
     abstract fun sendButtonPhotoSettings()
-    abstract fun sendButtonModeSetting()
     abstract fun sendButtonVideoRecordingSettings()
     abstract fun sendButtonMaxRecordingTime()
     abstract fun sendButtonCameraLedSetting()

@@ -6293,39 +6293,10 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Send button mode setting to the smart glasses
-     *
-     * @param mode The button mode (photo, apps, both)
-     */
-    @Override
-    public void sendButtonModeSetting() {
-        Bridge.log("LIVE: Sending button mode setting to glasses");
-
-        if (!isConnected) {
-            Log.w(TAG, "Cannot send button mode - not connected");
-            return;
-        }
-
-        String mode = (String) GlassesStore.INSTANCE.get("core", "button_mode");
-
-        try {
-            JSONObject json = new JSONObject();
-            json.put("type", "button_mode_setting");
-            json.put("mode", mode);
-            sendJson(json);
-        } catch (JSONException e) {
-            Log.e(TAG, "Error creating button mode message", e);
-        }
-    }
-
-    /**
      * Send user settings to glasses after connection is established
      */
     private void sendUserSettings() {
         Bridge.log("LIVE: [VIDEO_SYNC] Sending user settings to glasses on connection");
-
-        // Send button mode setting
-        sendButtonModeSetting();
 
         // Send button video recording settings
         sendButtonVideoRecordingSettings();

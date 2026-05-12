@@ -167,11 +167,6 @@ public class Mach1 extends SGCManager {
     }
 
     @Override
-    public void sendButtonModeSetting() {
-
-    }
-
-    @Override
     public void sendButtonVideoRecordingSettings() {
 
     }

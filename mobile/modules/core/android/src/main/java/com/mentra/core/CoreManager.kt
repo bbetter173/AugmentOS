@@ -318,7 +318,9 @@ class CoreManager {
             return
         }
 
-        val timeSinceLastLc3Event = System.currentTimeMillis() - (lastLc3Event ?: System.currentTimeMillis())
+        // When no frame has ever been received, treat elapsed as "forever" so we
+        // actually attempt recovery (was 0 before, which made the watchdog a no-op).
+        val timeSinceLastLc3Event = System.currentTimeMillis() - (lastLc3Event ?: 0L)
         if (timeSinceLastLc3Event > 5000) {
             Bridge.log("MAN: No audio activity in the last 5 seconds from glasses, reinitializing glasses mic")
             sgc?.setMicEnabled(true)

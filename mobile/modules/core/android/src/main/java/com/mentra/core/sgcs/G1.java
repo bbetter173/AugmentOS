@@ -1362,10 +1362,12 @@ public class G1 extends SGCManager {
             // Auto-reconnect paths may fire before BLUETOOTH_SCAN is granted on Android 12+
             Bridge.log("G1: startScan SecurityException — bluetooth permission missing: " + e.getMessage());
             isScanning = false;
+            connectionState = SmartGlassesConnectionState.DISCONNECTED;
             return;
         } catch (Exception e) {
             Bridge.log("G1: startScan failed: " + e.getMessage());
             isScanning = false;
+            connectionState = SmartGlassesConnectionState.DISCONNECTED;
             return;
         }
         Bridge.log("G1: CALL START SCAN - Started scanning for devices...");

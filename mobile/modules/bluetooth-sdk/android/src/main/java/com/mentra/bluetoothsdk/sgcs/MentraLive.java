@@ -272,14 +272,14 @@ public class MentraLive extends SGCManager {
             this.bleImgId = bleImgId;
             this.requestId = requestId;
             this.webhookUrl = webhookUrl;
-            this.authToken = "";
+            this.authToken = null;
             this.phoneStartTime = System.currentTimeMillis();
             this.bleTransferStartTime = 0;
             this.glassesCompressionDurationMs = 0;
         }
 
         void setAuthToken(String authToken) {
-            this.authToken = authToken != null ? authToken : "";
+            this.authToken = authToken;
         }
     }
 
@@ -3973,7 +3973,8 @@ public class MentraLive extends SGCManager {
     }
 
     public void requestPhoto(String requestId, String appId, String size, String webhookUrl, String authToken, String compress, boolean flash, boolean sound) {
-        Bridge.log("LIVE: Requesting photo: " + requestId + " for app: " + appId + " with size: " + size + ", webhookUrl: " + webhookUrl + ", authToken: " + (authToken.isEmpty() ? "none" : "***") + ", compress=" + compress + ", flash=" + flash + ", sound=" + sound);
+        boolean hasAuthToken = authToken != null && !authToken.isEmpty();
+        Bridge.log("LIVE: Requesting photo: " + requestId + " for app: " + appId + " with size: " + size + ", webhookUrl: " + webhookUrl + ", authToken: " + (hasAuthToken ? "***" : "none") + ", compress=" + compress + ", flash=" + flash + ", sound=" + sound);
 
         try {
             JSONObject json = new JSONObject();
@@ -3983,7 +3984,7 @@ public class MentraLive extends SGCManager {
             if (webhookUrl != null && !webhookUrl.isEmpty()) {
                 json.put("webhookUrl", webhookUrl);
             }
-            if (authToken != null && !authToken.isEmpty()) {
+            if (hasAuthToken) {
                 json.put("authToken", authToken);
             }
             if (size != null && !size.isEmpty()) {

@@ -1,13 +1,90 @@
 package com.mentra.core
 
-import android.net.wifi.WifiManager
-import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class CoreModule : Module() {
-    private val bridge: Bridge by lazy { Bridge.getInstance() }
+    private var sdk: MentraBluetoothSdk? = null
     private var deviceManager: CoreManager? = null
+    private val sdkListener =
+            object : MentraBluetoothSdkListener {
+                override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
+                    sendEvent("glasses_status", status.values)
+                }
+
+                override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
+                    sendEvent("core_status", status.values)
+                }
+
+                override fun onScanStopped(reason: MentraScanStopReason) {
+                    if (reason == MentraScanStopReason.COMPLETED) {
+                        sendEvent("compatible_glasses_search_stop", mapOf("type" to "compatible_glasses_search_stop"))
+                    }
+                }
+
+                override fun onButtonPress(event: MentraButtonPressEvent) {
+                    sendEvent(
+                            "button_press",
+                            mapOf(
+                                    "buttonId" to event.buttonId,
+                                    "pressType" to event.pressType,
+                                    "timestamp" to (event.timestamp ?: System.currentTimeMillis())
+                            )
+                    )
+                }
+
+                override fun onTouch(event: MentraTouchEvent) {
+                    sendEvent("touch_event", event.values)
+                }
+
+                override fun onHeadUpChanged(headUp: Boolean) {
+                    sendEvent("head_up", mapOf("up" to headUp))
+                }
+
+                override fun onBatteryStatus(event: MentraBatteryStatusEvent) {
+                    sendEvent("battery_status", event.values)
+                }
+
+                override fun onWifiStatusChanged(event: MentraWifiStatusEvent) {
+                    sendEvent("wifi_status_change", event.values)
+                }
+
+                override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
+                    sendEvent("gallery_status", event.values)
+                }
+
+                override fun onPhotoResponse(event: MentraPhotoResponseEvent) {
+                    sendEvent("photo_response", event.values)
+                }
+
+                override fun onStreamStatus(event: MentraStreamStatusEvent) {
+                    sendEvent("stream_status", event.values)
+                }
+
+                override fun onMicPcm(frame: ByteArray) {
+                    sendEvent("mic_pcm", mapOf("pcm" to frame))
+                }
+
+                override fun onMicLc3(frame: ByteArray) {
+                    sendEvent("mic_lc3", mapOf("lc3" to frame))
+                }
+
+                override fun onLocalTranscription(event: MentraLocalTranscriptionEvent) {
+                    sendEvent("local_transcription", event.values)
+                }
+
+                override fun onLog(message: String) {
+                    sendEvent("log", mapOf("message" to message))
+                }
+
+                override fun onError(error: MentraBluetoothError) {
+                    sendEvent("pair_failure", mapOf("error" to error.message))
+                }
+
+                override fun onRawEvent(eventName: String, values: Map<String, Any>) {
+                    sendEvent(eventName, values)
+                }
+            }
 
     override fun definition() = ModuleDefinition {
         Name("Core")
@@ -22,6 +99,7 @@ class CoreModule : Module() {
             "button_press",
             "touch_event",
             "head_up",
+            "vad_status",
             "battery_status",
             "local_transcription",
             "wifi_status_change",
@@ -63,83 +141,73 @@ class CoreModule : Module() {
         )
 
         OnCreate {
-            // Initialize Bridge with Android context and event callback
-            Bridge.initialize(
+            val context =
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            ) { eventName, data -> sendEvent(eventName, data) }
-
-            // initialize deviceManager after Bridge is ready
+            sdk = MentraBluetoothSdk.create(context, sdkListener)
             deviceManager = CoreManager.getInstance()
+        }
 
-            // Configure observable store event emission
-            GlassesStore.store.configure { category, changes ->
-                when (category) {
-                    "glasses" -> sendEvent("glasses_status", changes)
-                    "core" -> sendEvent("core_status", changes)
-                }
-            }
+        OnDestroy {
+            sdk?.close()
+            sdk = null
+            deviceManager = null
         }
 
         // MARK: - Observable Store Functions
 
-        Function("getGlassesStatus") { GlassesStore.store.getCategory("glasses") }
+        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.values ?: GlassesStore.store.getCategory("glasses") }
 
-        Function("getCoreStatus") { GlassesStore.store.getCategory("core") }
+        Function("getCoreStatus") {
+            sdk?.getBluetoothStatus()?.values ?: GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
+        }
 
         Function("set") { category: String, key: String, value: Any ->
             GlassesStore.apply(category, key, value)
         }
 
         Function("update") { category: String, values: Map<String, Any> ->
-            values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
-            // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
-            // (bridge may run this after glasses_ready; prefs survive retries and next connection)
-            // TODO: move this to the mantle:
-            // if (category == "core") {
-            //     values["core_token"]?.let { token ->
-            //         val len = (token as? String)?.length ?: 0
-            //         android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
-            //         if (token is String && token.isNotEmpty()) {
-            //             val ctx = appContext.reactContext ?: appContext.currentActivity
-            //             ctx?.let {
-            //                 it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
-            //                     .edit()
-            //                     .putString("core_token", token)
-            //                     .apply()
-            //                 android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
-            //             }
-            //         }
-            //     }
-            // }
+            val normalizedCategory = ObservableStore.normalizeCategory(category)
+            values.forEach { (key, value) -> GlassesStore.apply(normalizedCategory, key, value) }
         }
 
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { params: Map<String, Any> ->
-            deviceManager?.displayEvent(params)
+            sdk?.displayEvent(MentraDisplayEventRequest(params))
         }
 
         AsyncFunction("displayText") { params: Map<String, Any> ->
-            deviceManager?.displayText(params)
+            sdk?.displayText(
+                    MentraDisplayTextRequest(
+                            text = params["text"] as? String ?: "",
+                            x = (params["x"] as? Number)?.toInt() ?: 0,
+                            y = (params["y"] as? Number)?.toInt() ?: 0,
+                            size = (params["size"] as? Number)?.toInt() ?: 24,
+                    )
+            )
         }
 
-        AsyncFunction("clearDisplay") { deviceManager?.clearDisplay() }
+        AsyncFunction("clearDisplay") { sdk?.clearDisplay() }
 
         // MARK: - Connection Commands
 
-        AsyncFunction("connectDefault") { deviceManager?.connectDefault() }
+        AsyncFunction("connectDefault") { sdk?.connectDefault() }
 
         AsyncFunction("connectByName") { deviceName: String ->
-            deviceManager?.connectByName(deviceName)
+            sdk?.connectByName(deviceName)
         }
 
-        AsyncFunction("connectSimulated") { deviceManager?.connectSimulated() }
+        AsyncFunction("connectDevice") { deviceModel: String, deviceName: String ->
+            sdk?.connectByName(MentraDeviceModel.fromDeviceType(deviceModel), deviceName)
+        }
 
-        AsyncFunction("disconnect") { deviceManager?.disconnect() }
+        AsyncFunction("connectSimulated") { sdk?.connectSimulated() }
 
-        AsyncFunction("forget") { deviceManager?.forget() }
+        AsyncFunction("disconnect") { sdk?.disconnect() }
+
+        AsyncFunction("forget") { sdk?.forget() }
 
         AsyncFunction("connectDefaultController") { deviceManager?.connectDefaultController() }
 
@@ -148,10 +216,10 @@ class CoreModule : Module() {
         AsyncFunction("forgetController") { deviceManager?.forgetController() }
 
         AsyncFunction("findCompatibleDevices") { deviceModel: String ->
-            deviceManager?.findCompatibleDevices(deviceModel)
+            sdk?.startScan(MentraDeviceModel.fromDeviceType(deviceModel))
         }
 
-        AsyncFunction("showDashboard") { deviceManager?.showDashboard() }
+        AsyncFunction("showDashboard") { sdk?.showDashboard() }
 
         AsyncFunction("ping") { deviceManager?.ping() }
 
@@ -170,104 +238,86 @@ class CoreModule : Module() {
         // MARK: - Incident Reporting
 
         AsyncFunction("sendIncidentId") { incidentId: String, apiBaseUrl: String? ->
-            deviceManager?.sendIncidentId(incidentId, apiBaseUrl)
+            sdk?.sendIncidentId(incidentId, apiBaseUrl)
         }
 
         // MARK: - WiFi Commands
 
-        AsyncFunction("requestWifiScan") { deviceManager?.requestWifiScan() }
+        AsyncFunction("requestWifiScan") { sdk?.requestWifiScan() }
 
         AsyncFunction("sendWifiCredentials") { ssid: String, password: String ->
-            deviceManager?.sendWifiCredentials(ssid, password)
+            sdk?.sendWifiCredentials(ssid, password)
         }
 
-        AsyncFunction("forgetWifiNetwork") { ssid: String -> deviceManager?.forgetWifiNetwork(ssid) }
+        AsyncFunction("forgetWifiNetwork") { ssid: String -> sdk?.forgetWifiNetwork(ssid) }
 
         AsyncFunction("setHotspotState") { enabled: Boolean ->
-            deviceManager?.setHotspotState(enabled)
+            sdk?.setHotspotState(enabled)
         }
-
-        // move to crust:
-        // AsyncFunction("logCurrentWifiFrequency") {
-        //     val ctx = appContext.reactContext ?: appContext.currentActivity ?: return@AsyncFunction null
-        //     val wifiManager = ctx.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
-        //     if (wifiManager == null) {
-        //         val unavailableMsg = "NATIVE: 📶 WiFi frequency: WifiManager unavailable"
-        //         android.util.Log.d("CoreModule", unavailableMsg)
-        //         Bridge.log(unavailableMsg)
-        //         return@AsyncFunction null
-        //     }
-        //     val info = wifiManager.connectionInfo
-        //     val freqMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) info.frequency else -1
-        //     val is5Ghz = freqMhz >= 5000
-        //     val frequencyMsg =
-        //         "NATIVE: 📶 Current WiFi frequency: ${freqMhz} MHz, 5 GHz: $is5Ghz (SSID: ${info.ssid?.trim('\"') ?: "unknown"})"
-        //     android.util.Log.d("CoreModule", frequencyMsg)
-        //     Bridge.log(frequencyMsg)
-        //     null
-        // }
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("queryGalleryStatus") { deviceManager?.queryGalleryStatus() }
+        AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
 
         AsyncFunction("photoRequest") {
                 requestId: String,
                 appId: String,
                 size: String,
                 webhookUrl: String,
-                authToken: String,
+                authToken: String?,
                 compress: String,
                 flash: Boolean,
                 sound: Boolean ->
-            deviceManager?.photoRequest(
-                    requestId,
-                    appId,
-                    size,
-                    webhookUrl,
-                    authToken,
-                    compress,
-                    flash,
-                    sound
+            sdk?.requestPhoto(
+                    MentraPhotoRequest(
+                            requestId = requestId,
+                            appId = appId,
+                            size = MentraPhotoSize.fromValue(size),
+                            webhookUrl = webhookUrl,
+                            authToken = authToken,
+                            compress = MentraPhotoCompression.fromValue(compress),
+                            flash = flash,
+                            sound = sound,
+                    )
             )
         }
 
         // MARK: - OTA Commands
 
-        AsyncFunction("sendOtaStart") { deviceManager?.sendOtaStart() }
-        
-        AsyncFunction("sendOtaQueryStatus") { deviceManager?.sendOtaQueryStatus() }
+        AsyncFunction("sendOtaStart") { sdk?.sendOtaStart() }
+
+        AsyncFunction("sendOtaQueryStatus") { sdk?.sendOtaQueryStatus() }
 
         // MARK: - Version Info Commands
 
-        AsyncFunction("requestVersionInfo") { deviceManager?.requestVersionInfo() }
+        AsyncFunction("requestVersionInfo") { sdk?.requestVersionInfo() }
 
         // MARK: - Power Control Commands
 
-        AsyncFunction("sendShutdown") { deviceManager?.sendShutdown() }
+        AsyncFunction("sendShutdown") { sdk?.sendShutdown() }
 
-        AsyncFunction("sendReboot") { deviceManager?.sendReboot() }
+        AsyncFunction("sendReboot") { sdk?.sendReboot() }
 
         // MARK: - Video Recording Commands
 
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
-            deviceManager?.startVideoRecording(requestId, save, flash, sound)
+            sdk?.startVideoRecording(MentraVideoRecordingRequest(requestId, save, flash, sound))
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
-            deviceManager?.stopVideoRecording(requestId)
+            sdk?.stopVideoRecording(requestId)
         }
 
         // MARK: - Stream Commands
 
         AsyncFunction("startStream") { params: Map<String, Any> ->
-            deviceManager?.startStream(params.toMutableMap())
+            sdk?.startStream(MentraStreamRequest.fromMap(params))
         }
 
-        AsyncFunction("stopStream") { deviceManager?.stopStream() }
+        AsyncFunction("stopStream") { sdk?.stopStream() }
 
         AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
-            deviceManager?.keepStreamAlive(params.toMutableMap())
+            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest.fromMap(params))
         }
 
         // MARK: - Microphone Commands
@@ -276,7 +326,7 @@ class CoreModule : Module() {
                 sendPcmData: Boolean,
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
-            deviceManager?.setMicState()
+            sdk?.setMicState(MentraMicConfig(sendPcmData, sendTranscript, bypassVad))
         }
 
         AsyncFunction("restartTranscriber") { deviceManager?.restartTranscriber() }
@@ -284,19 +334,16 @@ class CoreModule : Module() {
         // MARK: - Audio Playback Monitoring
 
         AsyncFunction("setOwnAppAudioPlaying") { playing: Boolean ->
-            // Notify PhoneAudioMonitor that our app started/stopped playing audio
-            // This is used to suspend LC3 mic during audio playback to avoid MCU overload
-            val context = appContext.reactContext ?: return@AsyncFunction
-            com.mentra.core.utils.PhoneAudioMonitor.getInstance(context).setOwnAppAudioPlaying(playing)
+            sdk?.setOwnAppAudioPlaying(playing)
         }
 
         AsyncFunction("getGlassesMediaVolume") {
-            val cm = deviceManager ?: throw IllegalStateException("core_manager_null")
+            val cm = deviceManager ?: throw IllegalStateException("device_manager_null")
             cm.getGlassesMediaVolumeBlocking()
         }
 
         AsyncFunction("setGlassesMediaVolume") { level: Int ->
-            val cm = deviceManager ?: throw IllegalStateException("core_manager_null")
+            val cm = deviceManager ?: throw IllegalStateException("device_manager_null")
             cm.setGlassesMediaVolumeBlocking(level)
         }
 
@@ -310,14 +357,16 @@ class CoreModule : Module() {
                 ontime: Int,
                 offtime: Int,
                 count: Int ->
-            deviceManager?.rgbLedControl(
-                    requestId,
-                    packageName,
-                    action,
-                    color,
-                    ontime,
-                    offtime,
-                    count
+            sdk?.rgbLedControl(
+                    MentraRgbLedRequest(
+                            requestId = requestId,
+                            packageName = packageName,
+                            action = MentraRgbLedAction.fromValue(action),
+                            color = MentraRgbLedColor.fromValue(color),
+                            ontime = ontime,
+                            offtime = offtime,
+                            count = count,
+                    )
             )
         }
 
@@ -354,5 +403,138 @@ class CoreModule : Module() {
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
+
+        // MARK: - Settings Navigation
+
+        AsyncFunction("openBluetoothSettings") {
+            val context =
+                    appContext.reactContext
+                            ?: appContext.currentActivity
+                                    ?: throw IllegalStateException("No context available")
+            val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        }
+
+        // Check if location services are enabled (required for WiFi operations on Android)
+        AsyncFunction("isLocationServicesEnabled") {
+            val context =
+                    appContext.reactContext
+                            ?: appContext.currentActivity
+                                    ?: throw IllegalStateException("No context available")
+            val locationManager =
+                    context.getSystemService(android.content.Context.LOCATION_SERVICE) as
+                            android.location.LocationManager
+            // Check if either GPS or Network location provider is enabled
+            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
+                    locationManager.isProviderEnabled(
+                            android.location.LocationManager.NETWORK_PROVIDER
+                    )
+            if (!providerEnabled) {
+                // Fallback: check the system-level location toggle directly.
+                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
+                // Google Play Services or without a GPS chip, even when location is toggled on.
+                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val systemEnabled = locationManager.isLocationEnabled
+                    if (systemEnabled) {
+                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
+                    }
+                    systemEnabled
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
+        }
+
+        AsyncFunction("openLocationSettings") {
+            val context =
+                    appContext.reactContext
+                            ?: appContext.currentActivity
+                                    ?: throw IllegalStateException("No context available")
+            val intent =
+                    android.content.Intent(
+                            android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                    )
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        }
+
+        AsyncFunction("showLocationServicesDialog") {
+            val activity = appContext.currentActivity
+            if (activity == null) {
+                val context =
+                        appContext.reactContext
+                                ?: throw IllegalStateException("No context available")
+                val intent =
+                        android.content.Intent(
+                                android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                        )
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return@AsyncFunction true
+            }
+
+            val locationRequest =
+                    com.google.android.gms.location.LocationRequest.Builder(
+                                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                                    10000
+                            )
+                            .build()
+
+            val builder =
+                    com.google.android.gms.location.LocationSettingsRequest.Builder()
+                            .addLocationRequest(locationRequest)
+                            .setAlwaysShow(true)
+
+            val client =
+                    com.google.android.gms.location.LocationServices.getSettingsClient(activity)
+            val task = client.checkLocationSettings(builder.build())
+
+            task.addOnSuccessListener { true }
+            task.addOnFailureListener { exception ->
+                if (exception is com.google.android.gms.common.api.ResolvableApiException) {
+                    try {
+                        exception.startResolutionForResult(activity, 1001)
+                    } catch (sendEx: android.content.IntentSender.SendIntentException) {
+                        // Fallback
+                        val intent =
+                                android.content.Intent(
+                                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                                )
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        activity.startActivity(intent)
+                    }
+                } else {
+                    val intent =
+                            android.content.Intent(
+                                    android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                            )
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    activity.startActivity(intent)
+                }
+            }
+            true
+        }
+
+        AsyncFunction("openAppSettings") {
+            val context =
+                    appContext.reactContext
+                            ?: appContext.currentActivity
+                                    ?: throw IllegalStateException("No context available")
+            val intent =
+                    android.content.Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                    )
+            intent.data = android.net.Uri.parse("package:${context.packageName}")
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        }
+
     }
 }

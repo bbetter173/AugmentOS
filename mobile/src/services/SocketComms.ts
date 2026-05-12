@@ -1,4 +1,9 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import CoreModule, {
+  type PhotoCompression,
+  type PhotoSize,
+  type RgbLedAction,
+  type RgbLedColor,
+} from "@mentra/bluetooth-sdk"
 
 import {useNavigationStore} from "@/stores/navigation"
 import audioPlaybackService from "@/services/AudioPlaybackService"
@@ -17,6 +22,29 @@ import {showAlert} from "@/utils/AlertUtils"
 import restComms from "@/services/RestComms"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {throttle} from "@mentra/island"
+
+const PHOTO_SIZES = new Set<PhotoSize>(["small", "medium", "large", "full"])
+const PHOTO_COMPRESSIONS = new Set<PhotoCompression>(["none", "medium", "heavy"])
+const RGB_LED_ACTIONS = new Set<RgbLedAction>(["on", "off"])
+const RGB_LED_COLORS = new Set<RgbLedColor>(["red", "green", "blue", "orange", "white"])
+
+function normalizePhotoSize(value: unknown): PhotoSize {
+  return typeof value === "string" && PHOTO_SIZES.has(value as PhotoSize) ? (value as PhotoSize) : "medium"
+}
+
+function normalizePhotoCompression(value: unknown): PhotoCompression {
+  return typeof value === "string" && PHOTO_COMPRESSIONS.has(value as PhotoCompression)
+    ? (value as PhotoCompression)
+    : "none"
+}
+
+function normalizeRgbLedAction(value: unknown): RgbLedAction {
+  return typeof value === "string" && RGB_LED_ACTIONS.has(value as RgbLedAction) ? (value as RgbLedAction) : "off"
+}
+
+function normalizeRgbLedColor(value: unknown): RgbLedColor | null {
+  return typeof value === "string" && RGB_LED_COLORS.has(value as RgbLedColor) ? (value as RgbLedColor) : null
+}
 
 class SocketComms {
   private static instance: SocketComms | null = null
@@ -541,9 +569,9 @@ class SocketComms {
     const requestId = msg.requestId ?? ""
     const appId = msg.appId ?? ""
     const webhookUrl = msg.webhookUrl ?? ""
-    const size = msg.size ?? "medium"
-    const authToken = msg.authToken ?? ""
-    const compress = msg.compress ?? "none"
+    const size = normalizePhotoSize(msg.size)
+    const authToken = typeof msg.authToken === "string" && msg.authToken.length > 0 ? msg.authToken : null
+    const compress = normalizePhotoCompression(msg.compress)
     const flash = msg.flash ?? true
     const sound = msg.sound ?? true
     console.log(
@@ -604,8 +632,8 @@ class SocketComms {
     CoreModule.rgbLedControl(
       msg.requestId,
       msg.packageName ?? null,
-      msg.action ?? "off",
-      msg.color ?? null,
+      normalizeRgbLedAction(msg.action),
+      normalizeRgbLedColor(msg.color),
       coerceNumber(msg.ontime, 1000),
       coerceNumber(msg.offtime, 0),
       coerceNumber(msg.count, 1),

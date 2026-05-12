@@ -3736,11 +3736,6 @@ class MentraLive: NSObject, SGCManager {
     // }
 
     private func emitWifiStatusChange() {
-        let eventBody: [String: Any] = [
-            "connected": wifiConnected,
-            "ssid": wifiSsid,
-            "local_ip": wifiLocalIp,
-        ]
         Bridge.sendWifiStatusChange(connected: wifiConnected, ssid: wifiSsid, localIp: wifiLocalIp)
     }
 

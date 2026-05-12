@@ -55,10 +55,14 @@ export type LogEvent = {
   message: string
 }
 
-export type WifiStatusChangeEvent = {
-  type: "wifi_status_change"
+export type WifiStatus = {
   connected: boolean
   ssid: string
+  localIp: string
+}
+
+export type WifiStatusChangeEvent = WifiStatus & {
+  type: "wifi_status_change"
 }
 
 export type HotspotStatusChangeEvent = {

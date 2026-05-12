@@ -8,6 +8,10 @@ private func intValue(_ value: Any?) -> Int? {
 }
 
 private func stringValue(_ values: [String: Any], _ keys: String...) -> String? {
+    stringValue(values, keys)
+}
+
+private func stringValue(_ values: [String: Any], _ keys: [String]) -> String? {
     for key in keys {
         if let value = values[key] as? String {
             return value
@@ -16,10 +20,62 @@ private func stringValue(_ values: [String: Any], _ keys: String...) -> String? 
     return nil
 }
 
-private func boolValue(_ values: [String: Any], _ key: String) -> Bool? {
-    if let value = values[key] as? Bool { return value }
-    if let value = values[key] as? NSNumber { return value.boolValue }
+private func boolValue(_ values: [String: Any], _ keys: String...) -> Bool? {
+    boolValue(values, keys)
+}
+
+private func boolValue(_ values: [String: Any], _ keys: [String]) -> Bool? {
+    for key in keys {
+        if let value = values[key] as? Bool { return value }
+        if let value = values[key] as? NSNumber { return value.boolValue }
+    }
     return nil
+}
+
+private func hasAnyKey(_ values: [String: Any], _ keys: String...) -> Bool {
+    hasAnyKey(values, keys)
+}
+
+private func hasAnyKey(_ values: [String: Any], _ keys: [String]) -> Bool {
+    keys.contains { values.keys.contains($0) }
+}
+
+private func optionalStringValue(_ values: [String: Any], _ keys: String...) -> String? {
+    hasAnyKey(values, keys) ? (stringValue(values, keys) ?? "") : nil
+}
+
+private func optionalIntValue(_ values: [String: Any], _ keys: String...) -> Int? {
+    guard hasAnyKey(values, keys) else { return nil }
+    for key in keys {
+        if let value = intValue(values[key]) { return value }
+    }
+    return nil
+}
+
+private func optionalBoolValue(_ values: [String: Any], _ keys: String...) -> Bool? {
+    hasAnyKey(values, keys) ? (boolValue(values, keys) ?? false) : nil
+}
+
+private func stringListValue(_ values: [String: Any], _ key: String) -> [String] {
+    values[key] as? [String] ?? []
+}
+
+private func optionalStringListValue(_ values: [String: Any], _ key: String) -> [String]? {
+    values.keys.contains(key) ? stringListValue(values, key) : nil
+}
+
+private func dictionaryListValue(_ values: [String: Any], _ key: String) -> [[String: Any]] {
+    values[key] as? [[String: Any]] ?? []
+}
+
+private func optionalDictionaryListValue(_ values: [String: Any], _ key: String) -> [[String: Any]]? {
+    values.keys.contains(key) ? dictionaryListValue(values, key) : nil
+}
+
+private func putIfNotNil(_ map: inout [String: Any], _ key: String, _ value: Any?) {
+    if let value {
+        map[key] = value
+    }
 }
 
 public struct MentraBluetoothSDKConfiguration {
@@ -127,12 +183,162 @@ public struct MentraPairedDevice: CustomStringConvertible {
     }
 }
 
-public struct MentraGlassesStatus: CustomStringConvertible {
-    public let values: [String: Any]
+public struct MentraDeviceSearchResult: CustomStringConvertible {
+    public let deviceModel: String
+    public let deviceName: String
+    public let deviceAddress: String
 
-    public init(values: [String: Any]) {
+    public init(deviceModel: String, deviceName: String, deviceAddress: String = "") {
+        self.deviceModel = deviceModel
+        self.deviceName = deviceName
+        self.deviceAddress = deviceAddress
+    }
+
+    init(values: [String: Any]) {
+        deviceModel = stringValue(values, "deviceModel", "device_model") ?? ""
+        deviceName = stringValue(values, "deviceName", "device_name") ?? ""
+        deviceAddress = stringValue(values, "deviceAddress", "device_address") ?? ""
+    }
+
+    var dictionary: [String: Any] {
+        [
+            "deviceModel": deviceModel,
+            "deviceName": deviceName,
+            "deviceAddress": deviceAddress,
+        ]
+    }
+
+    public var description: String {
+        "MentraDeviceSearchResult(deviceModel: \(deviceModel), deviceName: \(deviceName))"
+    }
+}
+
+public struct MentraWifiScanResult: CustomStringConvertible {
+    public let ssid: String
+    public let requiresPassword: Bool
+    public let signalStrength: Int
+    public let frequency: Int?
+
+    public init(ssid: String, requiresPassword: Bool, signalStrength: Int, frequency: Int? = nil) {
+        self.ssid = ssid
+        self.requiresPassword = requiresPassword
+        self.signalStrength = signalStrength
+        self.frequency = frequency
+    }
+
+    init(values: [String: Any]) {
+        ssid = stringValue(values, "ssid") ?? ""
+        requiresPassword = boolValue(values, "requiresPassword", "requires_password", "auth_required") ?? false
+        signalStrength = intValue(values["signalStrength"] ?? values["signal_strength"] ?? values["rssi"]) ?? -1
+        frequency = intValue(values["frequency"])
+    }
+
+    var dictionary: [String: Any] {
+        var values: [String: Any] = [
+            "ssid": ssid,
+            "requiresPassword": requiresPassword,
+            "signalStrength": signalStrength,
+        ]
+        if let frequency {
+            values["frequency"] = frequency
+        }
+        return values
+    }
+
+    public var description: String {
+        "MentraWifiScanResult(ssid: \(ssid), signalStrength: \(signalStrength))"
+    }
+}
+
+public struct MentraGlassesStatus: CustomStringConvertible {
+    let values: [String: Any]
+
+    init(values: [String: Any]) {
         self.values = values
     }
+
+    public func applying(_ update: MentraGlassesStatusUpdate) -> MentraGlassesStatus {
+        MentraGlassesStatus(values: values.merging(update.values) { _, new in new })
+    }
+
+    public func withBattery(level: Int, charging: Bool) -> MentraGlassesStatus {
+        applying(MentraGlassesStatusUpdate(values: ["batteryLevel": level, "charging": charging]))
+    }
+
+    public func withWifi(_ wifi: MentraWifiStatus) -> MentraGlassesStatus {
+        applying(MentraGlassesStatusUpdate(values: [
+            "wifiConnected": wifi.connected,
+            "wifiSsid": wifi.ssid,
+            "wifiLocalIp": wifi.localIp,
+        ]))
+    }
+
+    public func withHotspot(enabled: Bool, ssid: String, password: String, gatewayIp: String) -> MentraGlassesStatus {
+        applying(MentraGlassesStatusUpdate(values: [
+            "hotspotEnabled": enabled,
+            "hotspotSsid": ssid,
+            "hotspotPassword": password,
+            "hotspotGatewayIp": gatewayIp,
+        ]))
+    }
+
+    public func disconnected() -> MentraGlassesStatus {
+        applying(MentraGlassesStatusUpdate(values: [
+            "connected": false,
+            "connectionState": "DISCONNECTED",
+            "fullyBooted": false,
+            "batteryLevel": -1,
+            "charging": false,
+            "hotspotEnabled": false,
+            "hotspotGatewayIp": "",
+            "hotspotPassword": "",
+            "hotspotSsid": "",
+            "wifiConnected": false,
+            "wifiSsid": "",
+            "wifiLocalIp": "",
+        ]))
+    }
+
+    public var fullyBooted: Bool { boolValue(values, "fullyBooted") ?? false }
+    public var connected: Bool { boolValue(values, "connected") ?? false }
+    public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
+    public var connectionState: String { stringValue(values, "connectionState") ?? "disconnected" }
+    public var btcConnected: Bool { boolValue(values, "btcConnected") ?? false }
+    public var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
+    public var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
+    public var androidVersion: String { stringValue(values, "androidVersion") ?? "" }
+    public var firmwareVersion: String { stringValue(values, "firmwareVersion", "fwVersion") ?? "" }
+    public var besFirmwareVersion: String { stringValue(values, "besFwVersion", "besFirmwareVersion") ?? "" }
+    public var mtkFirmwareVersion: String { stringValue(values, "mtkFwVersion", "mtkFirmwareVersion") ?? "" }
+    public var btMacAddress: String { stringValue(values, "btMacAddress") ?? "" }
+    public var leftMacAddress: String { stringValue(values, "leftMacAddress") ?? "" }
+    public var rightMacAddress: String { stringValue(values, "rightMacAddress") ?? "" }
+    public var macAddress: String { stringValue(values, "macAddress") ?? "" }
+    public var buildNumber: String { stringValue(values, "buildNumber") ?? "" }
+    public var otaVersionUrl: String { stringValue(values, "otaVersionUrl") ?? "" }
+    public var appVersion: String { stringValue(values, "appVersion") ?? "" }
+    public var bluetoothName: String { stringValue(values, "bluetoothName") ?? "" }
+    public var serialNumber: String { stringValue(values, "serialNumber") ?? "" }
+    public var style: String { stringValue(values, "style") ?? "" }
+    public var color: String { stringValue(values, "color") ?? "" }
+    public var wifi: MentraWifiStatus { MentraWifiStatus(values: values) }
+    public var batteryLevel: Int { intValue(values["batteryLevel"]) ?? -1 }
+    public var charging: Bool { boolValue(values, "charging") ?? false }
+    public var caseBatteryLevel: Int { intValue(values["caseBatteryLevel"]) ?? -1 }
+    public var caseCharging: Bool { boolValue(values, "caseCharging") ?? false }
+    public var caseOpen: Bool { boolValue(values, "caseOpen") ?? true }
+    public var caseRemoved: Bool { boolValue(values, "caseRemoved") ?? true }
+    public var hotspotEnabled: Bool { boolValue(values, "hotspotEnabled") ?? false }
+    public var hotspotSsid: String { stringValue(values, "hotspotSsid") ?? "" }
+    public var hotspotPassword: String { stringValue(values, "hotspotPassword") ?? "" }
+    public var hotspotGatewayIp: String { stringValue(values, "hotspotGatewayIp", "hotspotLocalIp") ?? "" }
+    public var headUp: Bool { boolValue(values, "headUp") ?? false }
+    public var controllerConnected: Bool { boolValue(values, "controllerConnected") ?? false }
+    public var controllerFullyBooted: Bool { boolValue(values, "controllerFullyBooted") ?? false }
+    public var controllerMacAddress: String { stringValue(values, "controllerMacAddress") ?? "" }
+    public var controllerBatteryLevel: Int { intValue(values["controllerBatteryLevel"]) ?? -1 }
+    public var controllerSignalStrength: Int { intValue(values["controllerSignalStrength"]) ?? -1 }
+    public var ringSignalStrength: Int { intValue(values["ringSignalStrength"]) ?? -1 }
 
     public var description: String {
         values.description
@@ -140,10 +346,79 @@ public struct MentraGlassesStatus: CustomStringConvertible {
 }
 
 public struct MentraBluetoothStatus: CustomStringConvertible {
-    public let values: [String: Any]
+    let values: [String: Any]
 
-    public init(values: [String: Any]) {
+    init(values: [String: Any]) {
         self.values = values
+    }
+
+    public func applying(_ update: MentraBluetoothStatusUpdate) -> MentraBluetoothStatus {
+        MentraBluetoothStatus(values: values.merging(update.values) { _, new in new })
+    }
+
+    public func withDefaultDevice(_ device: MentraPairedDevice?) -> MentraBluetoothStatus {
+        applying(MentraBluetoothStatusUpdate(values: [
+            "default_wearable": device?.model.deviceType ?? "",
+            "device_name": device?.name ?? "",
+            "device_address": device?.identifier ?? "",
+        ]))
+    }
+
+    public var searching: Bool { boolValue(values, "searching") ?? false }
+    public var searchingController: Bool { boolValue(values, "searchingController") ?? false }
+    public var systemMicUnavailable: Bool { boolValue(values, "systemMicUnavailable") ?? false }
+    public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
+    public var currentMic: String { stringValue(values, "currentMic") ?? "" }
+    public var micRanking: [String] { stringListValue(values, "micRanking") }
+    public var searchResults: [MentraDeviceSearchResult] {
+        dictionaryListValue(values, "searchResults").map(MentraDeviceSearchResult.init(values:))
+    }
+    public var wifiScanResults: [MentraWifiScanResult] {
+        dictionaryListValue(values, "wifiScanResults").map(MentraWifiScanResult.init(values:))
+    }
+    public var lastLog: [String] { stringListValue(values, "lastLog") }
+    public var otherBtConnected: Bool { boolValue(values, "otherBtConnected") ?? false }
+    public var defaultWearable: String { stringValue(values, "default_wearable") ?? "" }
+    public var pendingWearable: String { stringValue(values, "pending_wearable") ?? "" }
+    public var deviceName: String { stringValue(values, "device_name") ?? "" }
+    public var deviceAddress: String { stringValue(values, "device_address") ?? "" }
+    public var defaultController: String { stringValue(values, "default_controller") ?? "" }
+    public var pendingController: String { stringValue(values, "pending_controller") ?? "" }
+    public var controllerDeviceName: String { stringValue(values, "controller_device_name") ?? "" }
+    public var screenDisabled: Bool { boolValue(values, "screen_disabled") ?? false }
+    public var preferredMic: String { stringValue(values, "preferred_mic") ?? "auto" }
+    public var sensingEnabled: Bool { boolValue(values, "sensing_enabled") ?? true }
+    public var powerSavingMode: Bool { boolValue(values, "power_saving_mode") ?? false }
+    public var brightness: Int { intValue(values["brightness"]) ?? 50 }
+    public var autoBrightness: Bool { boolValue(values, "auto_brightness") ?? true }
+    public var dashboardHeight: Int { intValue(values["dashboard_height"]) ?? 4 }
+    public var dashboardDepth: Int { intValue(values["dashboard_depth"]) ?? 2 }
+    public var headUpAngle: Int { intValue(values["head_up_angle"]) ?? 30 }
+    public var contextualDashboard: Bool { boolValue(values, "contextual_dashboard") ?? true }
+    public var galleryModeAuto: Bool { boolValue(values, "gallery_mode") ?? false }
+    public var buttonPhotoSize: MentraButtonPhotoSize {
+        MentraButtonPhotoSize(rawValue: stringValue(values, "button_photo_size") ?? "") ?? .medium
+    }
+    public var buttonCameraLed: Bool { boolValue(values, "button_camera_led") ?? true }
+    public var buttonMaxRecordingTime: Int { intValue(values["button_max_recording_time"]) ?? 10 }
+    public var buttonVideoWidth: Int { intValue(values["button_video_width"]) ?? 1280 }
+    public var buttonVideoHeight: Int { intValue(values["button_video_height"]) ?? 720 }
+    public var buttonVideoFps: Int { intValue(values["button_video_fps"]) ?? 30 }
+    public var shouldSendPcm: Bool { boolValue(values, "should_send_pcm") ?? false }
+    public var shouldSendLc3: Bool { boolValue(values, "should_send_lc3") ?? false }
+    public var shouldSendTranscript: Bool { boolValue(values, "should_send_transcript") ?? false }
+    public var bypassVad: Bool { boolValue(values, "bypass_vad") ?? false }
+    public var offlineCaptionsRunning: Bool { boolValue(values, "offline_captions_running") ?? false }
+    public var localSttFallbackActive: Bool { boolValue(values, "local_stt_fallback_active") ?? false }
+    public var shouldSendBootingMessage: Bool { boolValue(values, "shouldSendBootingMessage") ?? true }
+
+    public var defaultDevice: MentraPairedDevice? {
+        guard !defaultWearable.isEmpty else { return nil }
+        return MentraPairedDevice(
+            model: MentraDeviceModel.fromDeviceType(defaultWearable),
+            name: deviceName,
+            identifier: deviceAddress.isEmpty ? nil : deviceAddress
+        )
     }
 
     public var description: String {
@@ -152,11 +427,54 @@ public struct MentraBluetoothStatus: CustomStringConvertible {
 }
 
 public struct MentraGlassesStatusUpdate: CustomStringConvertible {
-    public let values: [String: Any]
+    let values: [String: Any]
 
-    public init(values: [String: Any]) {
+    init(values: [String: Any]) {
         self.values = values
     }
+
+    public var fullyBooted: Bool? { optionalBoolValue(values, "fullyBooted") }
+    public var connected: Bool? { optionalBoolValue(values, "connected") }
+    public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
+    public var connectionState: String? { optionalStringValue(values, "connectionState") }
+    public var btcConnected: Bool? { optionalBoolValue(values, "btcConnected") }
+    public var signalStrength: Int? { optionalIntValue(values, "signalStrength") }
+    public var deviceModel: String? { optionalStringValue(values, "deviceModel") }
+    public var androidVersion: String? { optionalStringValue(values, "androidVersion") }
+    public var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion", "fwVersion") }
+    public var besFirmwareVersion: String? { optionalStringValue(values, "besFwVersion", "besFirmwareVersion") }
+    public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFwVersion", "mtkFirmwareVersion") }
+    public var btMacAddress: String? { optionalStringValue(values, "btMacAddress") }
+    public var leftMacAddress: String? { optionalStringValue(values, "leftMacAddress") }
+    public var rightMacAddress: String? { optionalStringValue(values, "rightMacAddress") }
+    public var macAddress: String? { optionalStringValue(values, "macAddress") }
+    public var buildNumber: String? { optionalStringValue(values, "buildNumber") }
+    public var otaVersionUrl: String? { optionalStringValue(values, "otaVersionUrl") }
+    public var appVersion: String? { optionalStringValue(values, "appVersion") }
+    public var bluetoothName: String? { optionalStringValue(values, "bluetoothName") }
+    public var serialNumber: String? { optionalStringValue(values, "serialNumber") }
+    public var style: String? { optionalStringValue(values, "style") }
+    public var color: String? { optionalStringValue(values, "color") }
+    public var wifi: MentraWifiStatus? {
+        hasAnyKey(values, "wifiConnected", "wifiSsid", "wifiLocalIp") ? MentraWifiStatus(values: values) : nil
+    }
+    public var batteryLevel: Int? { optionalIntValue(values, "batteryLevel") }
+    public var charging: Bool? { optionalBoolValue(values, "charging") }
+    public var caseBatteryLevel: Int? { optionalIntValue(values, "caseBatteryLevel") }
+    public var caseCharging: Bool? { optionalBoolValue(values, "caseCharging") }
+    public var caseOpen: Bool? { optionalBoolValue(values, "caseOpen") }
+    public var caseRemoved: Bool? { optionalBoolValue(values, "caseRemoved") }
+    public var hotspotEnabled: Bool? { optionalBoolValue(values, "hotspotEnabled") }
+    public var hotspotSsid: String? { optionalStringValue(values, "hotspotSsid") }
+    public var hotspotPassword: String? { optionalStringValue(values, "hotspotPassword") }
+    public var hotspotGatewayIp: String? { optionalStringValue(values, "hotspotGatewayIp", "hotspotLocalIp") }
+    public var headUp: Bool? { optionalBoolValue(values, "headUp") }
+    public var controllerConnected: Bool? { optionalBoolValue(values, "controllerConnected") }
+    public var controllerFullyBooted: Bool? { optionalBoolValue(values, "controllerFullyBooted") }
+    public var controllerMacAddress: String? { optionalStringValue(values, "controllerMacAddress") }
+    public var controllerBatteryLevel: Int? { optionalIntValue(values, "controllerBatteryLevel") }
+    public var controllerSignalStrength: Int? { optionalIntValue(values, "controllerSignalStrength") }
+    public var ringSignalStrength: Int? { optionalIntValue(values, "ringSignalStrength") }
 
     public var description: String {
         values.description
@@ -164,11 +482,59 @@ public struct MentraGlassesStatusUpdate: CustomStringConvertible {
 }
 
 public struct MentraBluetoothStatusUpdate: CustomStringConvertible {
-    public let values: [String: Any]
+    let values: [String: Any]
 
-    public init(values: [String: Any]) {
+    init(values: [String: Any]) {
         self.values = values
     }
+
+    public var searching: Bool? { optionalBoolValue(values, "searching") }
+    public var searchingController: Bool? { optionalBoolValue(values, "searchingController") }
+    public var systemMicUnavailable: Bool? { optionalBoolValue(values, "systemMicUnavailable") }
+    public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
+    public var currentMic: String? { optionalStringValue(values, "currentMic") }
+    public var micRanking: [String]? { optionalStringListValue(values, "micRanking") }
+    public var searchResults: [MentraDeviceSearchResult]? {
+        optionalDictionaryListValue(values, "searchResults")?.map(MentraDeviceSearchResult.init(values:))
+    }
+    public var wifiScanResults: [MentraWifiScanResult]? {
+        optionalDictionaryListValue(values, "wifiScanResults")?.map(MentraWifiScanResult.init(values:))
+    }
+    public var lastLog: [String]? { optionalStringListValue(values, "lastLog") }
+    public var otherBtConnected: Bool? { optionalBoolValue(values, "otherBtConnected") }
+    public var defaultWearable: String? { optionalStringValue(values, "default_wearable") }
+    public var pendingWearable: String? { optionalStringValue(values, "pending_wearable") }
+    public var deviceName: String? { optionalStringValue(values, "device_name") }
+    public var deviceAddress: String? { optionalStringValue(values, "device_address") }
+    public var defaultController: String? { optionalStringValue(values, "default_controller") }
+    public var pendingController: String? { optionalStringValue(values, "pending_controller") }
+    public var controllerDeviceName: String? { optionalStringValue(values, "controller_device_name") }
+    public var screenDisabled: Bool? { optionalBoolValue(values, "screen_disabled") }
+    public var preferredMic: String? { optionalStringValue(values, "preferred_mic") }
+    public var sensingEnabled: Bool? { optionalBoolValue(values, "sensing_enabled") }
+    public var powerSavingMode: Bool? { optionalBoolValue(values, "power_saving_mode") }
+    public var brightness: Int? { optionalIntValue(values, "brightness") }
+    public var autoBrightness: Bool? { optionalBoolValue(values, "auto_brightness") }
+    public var dashboardHeight: Int? { optionalIntValue(values, "dashboard_height") }
+    public var dashboardDepth: Int? { optionalIntValue(values, "dashboard_depth") }
+    public var headUpAngle: Int? { optionalIntValue(values, "head_up_angle") }
+    public var contextualDashboard: Bool? { optionalBoolValue(values, "contextual_dashboard") }
+    public var galleryModeAuto: Bool? { optionalBoolValue(values, "gallery_mode") }
+    public var buttonPhotoSize: MentraButtonPhotoSize? {
+        optionalStringValue(values, "button_photo_size").flatMap(MentraButtonPhotoSize.init(rawValue:))
+    }
+    public var buttonCameraLed: Bool? { optionalBoolValue(values, "button_camera_led") }
+    public var buttonMaxRecordingTime: Int? { optionalIntValue(values, "button_max_recording_time") }
+    public var buttonVideoWidth: Int? { optionalIntValue(values, "button_video_width") }
+    public var buttonVideoHeight: Int? { optionalIntValue(values, "button_video_height") }
+    public var buttonVideoFps: Int? { optionalIntValue(values, "button_video_fps") }
+    public var shouldSendPcm: Bool? { optionalBoolValue(values, "should_send_pcm") }
+    public var shouldSendLc3: Bool? { optionalBoolValue(values, "should_send_lc3") }
+    public var shouldSendTranscript: Bool? { optionalBoolValue(values, "should_send_transcript") }
+    public var bypassVad: Bool? { optionalBoolValue(values, "bypass_vad") }
+    public var offlineCaptionsRunning: Bool? { optionalBoolValue(values, "offline_captions_running") }
+    public var localSttFallbackActive: Bool? { optionalBoolValue(values, "local_stt_fallback_active") }
+    public var shouldSendBootingMessage: Bool? { optionalBoolValue(values, "shouldSendBootingMessage") }
 
     public var description: String {
         values.description
@@ -620,6 +986,72 @@ public struct MentraTouchEvent: CustomStringConvertible {
     }
 }
 
+public struct MentraWifiStatus: CustomStringConvertible {
+    public let connected: Bool
+    public let ssid: String
+    public let localIp: String
+
+    public init(connected: Bool, ssid: String, localIp: String) {
+        self.connected = connected
+        self.ssid = ssid
+        self.localIp = localIp
+    }
+
+    public init(values: [String: Any]) {
+        self.connected = boolValue(values, "connected") ?? boolValue(values, "wifiConnected") ?? false
+        self.ssid = stringValue(values, "ssid", "wifiSsid") ?? ""
+        self.localIp = stringValue(values, "localIp", "local_ip", "wifiLocalIp") ?? ""
+    }
+
+    public var values: [String: Any] {
+        [
+            "connected": connected,
+            "ssid": ssid,
+            "localIp": localIp,
+        ]
+    }
+
+    public var description: String {
+        "MentraWifiStatus(connected: \(connected), ssid: \(ssid.isEmpty ? "none" : ssid), localIp: \(localIp.isEmpty ? "none" : localIp))"
+    }
+}
+
+public struct MentraWifiStatusEvent: CustomStringConvertible {
+    public let status: MentraWifiStatus
+
+    public init(status: MentraWifiStatus) {
+        self.status = status
+    }
+
+    public init(connected: Bool, ssid: String, localIp: String) {
+        self.status = MentraWifiStatus(connected: connected, ssid: ssid, localIp: localIp)
+    }
+
+    public init(values: [String: Any]) {
+        self.status = MentraWifiStatus(values: values)
+    }
+
+    public var connected: Bool {
+        status.connected
+    }
+
+    public var ssid: String {
+        status.ssid
+    }
+
+    public var localIp: String {
+        status.localIp
+    }
+
+    public var values: [String: Any] {
+        status.values.merging(["type": "wifi_status_change"]) { _, new in new }
+    }
+
+    public var description: String {
+        "MentraWifiStatusEvent(\(status))"
+    }
+}
+
 public struct MentraHotspotStatusEvent: CustomStringConvertible {
     public let values: [String: Any]
 
@@ -759,6 +1191,7 @@ public struct MentraLocalTranscriptionEvent: CustomStringConvertible {
 public enum MentraBluetoothEvent: CustomStringConvertible {
     case buttonPress(MentraButtonPressEvent)
     case touch(MentraTouchEvent)
+    case wifiStatus(MentraWifiStatusEvent)
     case hotspotStatus(MentraHotspotStatusEvent)
     case hotspotError(MentraHotspotErrorEvent)
     case photoResponse(MentraPhotoResponseEvent)
@@ -771,6 +1204,8 @@ public enum MentraBluetoothEvent: CustomStringConvertible {
         case let .buttonPress(event):
             event.description
         case let .touch(event):
+            event.description
+        case let .wifiStatus(event):
             event.description
         case let .hotspotStatus(event):
             event.description
@@ -1199,6 +1634,8 @@ public final class MentraBluetoothSDK {
             delegate?.mentraBluetoothSDK(self, didReceive: .localTranscription(event))
         case "hotspot_status_change":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(MentraHotspotStatusEvent(values: data)))
+        case "wifi_status_change":
+            delegate?.mentraBluetoothSDK(self, didReceive: .wifiStatus(MentraWifiStatusEvent(values: data)))
         case "hotspot_error":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotError(MentraHotspotErrorEvent(values: data)))
         case "photo_response":

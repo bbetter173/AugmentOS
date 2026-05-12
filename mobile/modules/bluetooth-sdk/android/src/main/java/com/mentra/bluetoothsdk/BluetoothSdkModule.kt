@@ -9,11 +9,11 @@ class CoreModule : Module() {
     private val sdkListener =
             object : MentraBluetoothSdkListener {
                 override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
-                    sendEvent("glasses_status", status.values)
+                    sendEvent("glasses_status", status.toMap())
                 }
 
                 override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
-                    sendEvent("core_status", status.values)
+                    sendEvent("core_status", status.toMap())
                 }
 
                 override fun onScanStopped(reason: MentraScanStopReason) {
@@ -165,10 +165,10 @@ class CoreModule : Module() {
 
         // MARK: - Observable Store Functions
 
-        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.values ?: GlassesStore.store.getCategory("glasses") }
+        Function("getGlassesStatus") { sdk?.getGlassesStatus()?.toMap() ?: GlassesStore.store.getCategory("glasses") }
 
         Function("getCoreStatus") {
-            sdk?.getBluetoothStatus()?.values ?: GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
+            sdk?.getBluetoothStatus()?.toMap() ?: GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
         }
 
         Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }

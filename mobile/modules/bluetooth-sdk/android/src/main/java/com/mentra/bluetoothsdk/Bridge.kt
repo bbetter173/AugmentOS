@@ -341,11 +341,12 @@ public class Bridge private constructor() {
         /** Send WiFi status change */
         @JvmStatic
         fun sendWifiStatusChange(connected: Boolean, ssid: String?, localIp: String?) {
-            val event = HashMap<String, Any?>()
-            event["connected"] = connected
-            event["ssid"] = ssid
-            event["local_ip"] = localIp
-            sendTypedMessage("wifi_status_change", event as Map<String, Any>)
+            val status = MentraWifiStatus(
+                connected = connected,
+                ssid = ssid.orEmpty(),
+                localIp = localIp.orEmpty(),
+            )
+            sendTypedMessage("wifi_status_change", status.toMap())
         }
 
         /** Send WiFi scan results */

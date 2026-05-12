@@ -55,10 +55,10 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun getGlassesStatus(): MentraGlassesStatus =
-        MentraGlassesStatus(GlassesStore.store.getCategory("glasses"))
+        MentraGlassesStatus.fromMap(GlassesStore.store.getCategory("glasses"))
 
     fun getBluetoothStatus(): MentraBluetoothStatus =
-        MentraBluetoothStatus(GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY))
+        MentraBluetoothStatus.fromMap(GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY))
 
     fun getDefaultDevice(): MentraPairedDevice? = currentDefaultDevice()
 
@@ -331,11 +331,11 @@ class MentraBluetoothSdk private constructor(
         when (ObservableStore.normalizeCategory(category)) {
             "glasses" ->
                 dispatchToListeners {
-                    it.onGlassesStatusChanged(MentraGlassesStatusUpdate(changes))
+                    it.onGlassesStatusChanged(MentraGlassesStatusUpdate.fromMap(changes))
                 }
             ObservableStore.CORE_CATEGORY -> {
                 dispatchToListeners {
-                    it.onBluetoothStatusChanged(MentraBluetoothStatusUpdate(changes))
+                    it.onBluetoothStatusChanged(MentraBluetoothStatusUpdate.fromMap(changes))
                 }
                 if (!suppressDefaultDeviceEvents && changes.keys.any { it in DEFAULT_DEVICE_KEYS }) {
                     dispatchDefaultDeviceChanged()

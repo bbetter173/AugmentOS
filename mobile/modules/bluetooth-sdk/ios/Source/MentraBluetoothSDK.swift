@@ -296,6 +296,8 @@ public struct MentraGlassesStatus: CustomStringConvertible {
             "wifiConnected": false,
             "wifiSsid": "",
             "wifiLocalIp": "",
+            "signalStrength": -1,
+            "signalStrengthUpdatedAt": 0,
         ]))
     }
 
@@ -305,6 +307,7 @@ public struct MentraGlassesStatus: CustomStringConvertible {
     public var connectionState: String { stringValue(values, "connectionState") ?? "disconnected" }
     public var btcConnected: Bool { boolValue(values, "btcConnected") ?? false }
     public var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
+    public var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
     public var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
     public var androidVersion: String { stringValue(values, "androidVersion") ?? "" }
     public var firmwareVersion: String { stringValue(values, "firmwareVersion", "fwVersion") ?? "" }
@@ -439,6 +442,7 @@ public struct MentraGlassesStatusUpdate: CustomStringConvertible {
     public var connectionState: String? { optionalStringValue(values, "connectionState") }
     public var btcConnected: Bool? { optionalBoolValue(values, "btcConnected") }
     public var signalStrength: Int? { optionalIntValue(values, "signalStrength") }
+    public var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }
     public var deviceModel: String? { optionalStringValue(values, "deviceModel") }
     public var androidVersion: String? { optionalStringValue(values, "androidVersion") }
     public var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion", "fwVersion") }
@@ -1557,7 +1561,7 @@ public final class MentraBluetoothSDK {
     private func dispatchStoreUpdate(_ category: String, _ changes: [String: Any]) {
         switch ObservableStore.normalizeCategory(category) {
         case "glasses":
-            delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: MentraGlassesStatusUpdate(values: changes))
+            delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: MentraGlassesStatusUpdate(values: glassesStatusChanges(changes)))
         case ObservableStore.coreCategory:
             delegate?.mentraBluetoothSDK(self, didUpdateBluetoothStatus: MentraBluetoothStatusUpdate(values: changes))
             if !suppressDefaultDeviceEvents && changes.keys.contains(where: { defaultDeviceKeys.contains($0) }) {
@@ -1567,6 +1571,16 @@ public final class MentraBluetoothSDK {
         default:
             break
         }
+    }
+
+    private func glassesStatusChanges(_ changes: [String: Any]) -> [String: Any] {
+        guard changes["signalStrengthUpdatedAt"] != nil, changes["signalStrength"] == nil else {
+            return changes
+        }
+
+        var merged = changes
+        merged["signalStrength"] = GlassesStore.shared.get("glasses", "signalStrength") as? Int ?? -1
+        return merged
     }
 
     private func dispatchDefaultDeviceChanged() {

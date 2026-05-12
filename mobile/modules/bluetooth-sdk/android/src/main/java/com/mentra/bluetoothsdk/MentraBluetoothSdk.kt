@@ -331,7 +331,7 @@ class MentraBluetoothSdk private constructor(
         when (ObservableStore.normalizeCategory(category)) {
             "glasses" ->
                 dispatchToListeners {
-                    it.onGlassesStatusChanged(MentraGlassesStatusUpdate.fromMap(changes))
+                    it.onGlassesStatusChanged(MentraGlassesStatusUpdate.fromMap(glassesStatusChanges(changes)))
                 }
             ObservableStore.CORE_CATEGORY -> {
                 dispatchToListeners {
@@ -343,6 +343,15 @@ class MentraBluetoothSdk private constructor(
                 dispatchDiscoveredDevices(changes["searchResults"])
             }
         }
+    }
+
+    private fun glassesStatusChanges(changes: Map<String, Any>): Map<String, Any> {
+        if (!changes.containsKey("signalStrengthUpdatedAt") || changes.containsKey("signalStrength")) {
+            return changes
+        }
+
+        val signalStrength = (GlassesStore.get("glasses", "signalStrength") as? Number)?.toInt() ?: -1
+        return changes + ("signalStrength" to signalStrength)
     }
 
     private fun dispatchDefaultDeviceChanged() {

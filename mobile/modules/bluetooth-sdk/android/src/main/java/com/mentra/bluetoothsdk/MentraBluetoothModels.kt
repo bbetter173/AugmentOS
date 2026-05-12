@@ -96,6 +96,7 @@ data class MentraGlassesStatus(
     val connectionState: String,
     val btcConnected: Boolean,
     val signalStrength: Int,
+    val signalStrengthUpdatedAt: Long,
     val deviceModel: String,
     val androidVersion: String,
     val firmwareVersion: String,
@@ -139,6 +140,7 @@ data class MentraGlassesStatus(
             "connectionState" to connectionState,
             "btcConnected" to btcConnected,
             "signalStrength" to signalStrength,
+            "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
             "deviceModel" to deviceModel,
             "androidVersion" to androidVersion,
             "fwVersion" to firmwareVersion,
@@ -186,6 +188,7 @@ data class MentraGlassesStatus(
                 connectionState = stringValue(values, "connectionState") ?: "disconnected",
                 btcConnected = boolValue(values, "btcConnected") ?: false,
                 signalStrength = numberValue(values, "signalStrength") ?: -1,
+                signalStrengthUpdatedAt = longValue(values, "signalStrengthUpdatedAt") ?: 0L,
                 deviceModel = stringValue(values, "deviceModel") ?: "",
                 androidVersion = stringValue(values, "androidVersion") ?: "",
                 firmwareVersion = stringValue(values, "firmwareVersion", "fwVersion") ?: "",
@@ -379,6 +382,7 @@ data class MentraGlassesStatusUpdate(
     val connectionState: String? = null,
     val btcConnected: Boolean? = null,
     val signalStrength: Int? = null,
+    val signalStrengthUpdatedAt: Long? = null,
     val deviceModel: String? = null,
     val androidVersion: String? = null,
     val firmwareVersion: String? = null,
@@ -422,6 +426,7 @@ data class MentraGlassesStatusUpdate(
             putIfNotNull("connectionState", connectionState)
             putIfNotNull("btcConnected", btcConnected)
             putIfNotNull("signalStrength", signalStrength)
+            putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
             putIfNotNull("deviceModel", deviceModel)
             putIfNotNull("androidVersion", androidVersion)
             putIfNotNull("fwVersion", firmwareVersion)
@@ -471,6 +476,7 @@ data class MentraGlassesStatusUpdate(
                 connectionState = optionalStringValue(values, "connectionState"),
                 btcConnected = optionalBoolValue(values, "btcConnected"),
                 signalStrength = optionalNumberValue(values, "signalStrength"),
+                signalStrengthUpdatedAt = optionalLongValue(values, "signalStrengthUpdatedAt"),
                 deviceModel = optionalStringValue(values, "deviceModel"),
                 androidVersion = optionalStringValue(values, "androidVersion"),
                 firmwareVersion = optionalStringValue(values, "firmwareVersion", "fwVersion"),
@@ -1151,8 +1157,11 @@ private fun boolValue(
 
 private fun longValue(
     values: Map<String, Any>,
-    key: String,
-): Long? = (values[key] as? Number)?.toLong()
+    vararg keys: String,
+): Long? =
+    keys.firstNotNullOfOrNull { key ->
+        (values[key] as? Number)?.toLong()
+    }
 
 private fun hasAnyKey(
     values: Map<String, Any>,
@@ -1165,6 +1174,16 @@ private fun optionalNumberValue(
 ): Int? =
     if (hasAnyKey(values, *keys)) {
         numberValue(values, *keys)
+    } else {
+        null
+    }
+
+private fun optionalLongValue(
+    values: Map<String, Any>,
+    vararg keys: String,
+): Long? =
+    if (hasAnyKey(values, *keys)) {
+        longValue(values, *keys)
     } else {
         null
     }

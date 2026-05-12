@@ -51,6 +51,7 @@ class GlassesStore {
         store.set("glasses", "controllerBatteryLevel", -1)
         store.set("glasses", "controllerSignalStrength", -1)
         store.set("glasses", "signalStrength", -1)
+        store.set("glasses", "signalStrengthUpdatedAt", 0)
         store.set("glasses", "ringSignalStrength", -1)
 
         // CORE STATE:

@@ -382,6 +382,8 @@ export interface GlassesStatus {
   connectionState: string
   btcConnected: boolean
   signalStrength: number
+  /** Milliseconds since epoch when signalStrength was last refreshed by the phone BLE stack. */
+  signalStrengthUpdatedAt: number
   // device info
   deviceModel: string
   androidVersion: string

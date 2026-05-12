@@ -2307,8 +2307,20 @@ class G2: NSObject, SGCManager {
 
     func setMicEnabled(_ enabled: Bool) {
         Bridge.log("G2: setMicEnabled(\(enabled))")
-        GlassesStore.shared.apply("glasses", "micEnabled", enabled)
+        let currentEnabled = GlassesStore.shared.get("glasses", "micEnabled") as? Bool ?? false
+        if currentEnabled && enabled {
+            // if already enabled, set to disabled, then send enabled after 500ms:
+            GlassesStore.shared.apply("glasses", "micEnabled", true)
+            let msg = EvenHubProto.audioControlMessage(false)
+            sendEvenHubCommand(msg)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                let msg = EvenHubProto.audioControlMessage(true)
+                sendEvenHubCommand(msg)
+            }
+            return
+        }
 
+        GlassesStore.shared.apply("glasses", "micEnabled", enabled)
         let msg = EvenHubProto.audioControlMessage(enable: enabled)
         sendEvenHubCommand(msg)
     }
@@ -3392,6 +3404,8 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    private var lastAudioFrame: Data?
+
     private func handleAudioData(_ data: Data) {
         // G2 audio arrives on AUDIO_NOTIFY characteristic
         // Format: ~200+ byte chunks, use first 200 bytes, split into 40-byte LC3 frames
@@ -3400,11 +3414,16 @@ class G2: NSObject, SGCManager {
         let usableLength = min(data.count, 200)
         guard usableLength >= 40 else { return }
 
-        let audioData = data.prefix(usableLength)
+        let audioData = Data(data.prefix(usableLength))
+        if lastAudioFrame == audioData {
+            // Bridge.log("G2: audio dup")
+            return
+        }
+        lastAudioFrame = audioData
 
         // Forward LC3 data to CoreManager for decoding
         // G2 uses 40-byte frames (vs G1's 20-byte frames)
-        CoreManager.shared.handleGlassesMicData(Data(audioData), 40)
+        CoreManager.shared.handleGlassesMicData(audioData, 40)
     }
 }
 

@@ -1,24 +1,25 @@
 import {useFocusEffect} from "expo-router"
 import {useEffect, useState, useCallback, useRef} from "react"
 import {View, ActivityIndicator} from "react-native"
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 
 import {MINIMUM_OTA_STATUS_BUILD} from "@/app/ota/otaProgressTimeouts"
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {Screen, Header, Button, Text, Icon} from "@/components/ignite"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {checkForOtaUpdate, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecker"
 import {translate} from "@/i18n/translate"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "@mentra/island"
 
 type CheckState = "checking" | "update_available" | "no_update" | "error"
 
 export default function OtaCheckForUpdatesScreen() {
   const {theme} = useAppTheme()
-  const {replace, clearHistoryAndGoHome} = useNavigationHistory()
+  const {replace, clearHistoryAndGoHome} = useNavigationStore.getState()
   const currentBuildNumber = useGlassesStore((state) => state.buildNumber)
   const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
   const besFwVersion = useGlassesStore((state) => state.besFwVersion)

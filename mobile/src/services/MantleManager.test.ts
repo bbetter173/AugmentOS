@@ -129,20 +129,6 @@ jest.mock("@/services/bugReport/automaticBugReport", () => ({
   submitAutomaticBugIncident: jest.fn(async () => ({status: "filed", incidentId: "incident-1"})),
 }))
 
-jest.mock("@/stores/applets", () => ({
-  useAppletStatusStore: {
-    getState: () => ({
-      apps: [],
-      refreshApplets: jest.fn(),
-      startApplet: jest.fn(),
-      stopApplet: jest.fn(),
-    }),
-    subscribe: jest.fn(() => ({
-      remove: jest.fn(),
-    })),
-  },
-}), {virtual: true})
-
 jest.mock("@/utils/PermissionsUtils", () => ({
   PermissionFeatures: {
     LOCATION: "location",
@@ -506,33 +492,40 @@ describe("MantleManager", () => {
       versionName: "1.0.1",
       updates: ["apk"],
       totalSize: 2048,
+      cacheReady: false,
     })
 
-    emitCoreModuleEvent("ota_progress", {
-      stage: "download",
-      status: "PROGRESS",
-      progress: 80,
-      bytes_downloaded: 800,
-      total_bytes: 1000,
-      current_update: "apk",
+    emitCoreModuleEvent("ota_status", {
+      session_id: "session-1",
+      total_steps: 1,
+      current_step: 1,
+      step_type: "apk",
+      phase: "download",
+      step_percent: 80,
+      overall_percent: 80,
+      status: "in_progress",
     })
-    emitCoreModuleEvent("ota_progress", {
-      stage: "download",
-      status: "PROGRESS",
-      progress: 50,
-      bytes_downloaded: 500,
-      total_bytes: 1000,
-      current_update: "apk",
+    emitCoreModuleEvent("ota_status", {
+      session_id: "session-1",
+      total_steps: 1,
+      current_step: 1,
+      step_type: "apk",
+      phase: "download",
+      step_percent: 50,
+      overall_percent: 50,
+      status: "in_progress",
     })
     expect(useGlassesStore.getState().otaProgress?.progress).toBe(80)
 
-    emitCoreModuleEvent("ota_progress", {
-      stage: "install",
-      status: "FINISHED",
-      progress: 100,
-      bytes_downloaded: 1000,
-      total_bytes: 1000,
-      current_update: "apk",
+    emitCoreModuleEvent("ota_status", {
+      session_id: "session-1",
+      total_steps: 1,
+      current_step: 1,
+      step_type: "apk",
+      phase: "install",
+      step_percent: 100,
+      overall_percent: 100,
+      status: "complete",
     })
     expect(useGlassesStore.getState().otaUpdateAvailable).toBeNull()
     expect(useGlassesStore.getState().otaInProgress).toBe(false)

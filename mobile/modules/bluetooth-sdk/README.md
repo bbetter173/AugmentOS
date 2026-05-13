@@ -19,17 +19,25 @@ npx pod-install
 ## Minimal Usage
 
 ```ts
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {type MentraDevice} from "@mentra/bluetooth-sdk"
 
 const removeStatusListener = BluetoothSdk.onGlassesStatus((status) => {
   console.log("Glasses status changed", status)
 })
 
+const firstDevice = new Promise<MentraDevice>((resolve) => {
+  let removeCoreListener = () => {}
+  removeCoreListener = BluetoothSdk.onCoreStatus((status) => {
+    const device = status.searchResults?.[0]
+    if (device) {
+      removeCoreListener()
+      resolve(device)
+    }
+  })
+})
+
 await BluetoothSdk.startScan({model: "Mentra Live"})
-const device = BluetoothSdk.getCoreStatus().searchResults[0]
-if (device) {
-  await BluetoothSdk.connect(device)
-}
+await BluetoothSdk.connect(await firstDevice)
 await BluetoothSdk.displayText({text: "Hello from Mentra", x: 0, y: 0, size: 24})
 
 removeStatusListener()

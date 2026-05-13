@@ -1077,6 +1077,8 @@ class G2: NSObject, SGCManager {
     private var rightAuthenticated: Bool = false
     private var isDisconnecting = false
     private var pairingTimeoutTimer: DispatchWorkItem?
+    private var useEvenDashboard = true
+    private var dashboardShowing = 0
 
     /// Device search
     var DEVICE_SEARCH_ID = "NOT_SET"
@@ -2211,16 +2213,19 @@ class G2: NSObject, SGCManager {
     /// The glasses fall back to the dashboard automatically when no page is up.
     func showDashboard() {
         Bridge.log("G2: showDashboard")
+        dashboardShowing += 1
         let msg = EvenHubProto.shutdownMessage()
         sendEvenHubCommand(msg)
         pageCreated = false
         pageHasTextContainer = false
         currentTextContent = ""
         currentBitmapBase64 = ""
-        
-        // activate the dashboard by setting dept to the current setting:
-        let currentDepth = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 0
-        setDashboardDepthOnly(currentDepth)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            // activate the dashboard by setting dept to the current setting:
+            let currentDepth = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 0
+            self.setDashboardDepthOnly(currentDepth)
+        }
     }
 
     func setDashboardPosition(_ height: Int, _ depth: Int) {
@@ -3053,8 +3058,11 @@ class G2: NSObject, SGCManager {
             if eventType == .doubleClick {
                 // trigger dashboard:
                 let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
+                
                 // toggle head up:
-                GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
+                // GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
+                showDashboard()
+                
                 // if isHeadUp {
                 //     // Bridge.log("G2: going back to home, clearing display")
                 //     // clear the display after a delay:
@@ -3405,12 +3413,23 @@ class G2: NSObject, SGCManager {
         // if we got 08011A00 that means we closed the dashboard, which means the mic is probably dead,
         // so we need to revive it:
         if data == Data([0x08, 0x01, 0x1A, 0x00]) {
-            Bridge.log("G2: gesture_ctrl response: dashboard closed")
-            // // re-send mic on / update mic state:
-            // GlassesStore.shared.apply("glasses", "micEnabled", false)
-            // CoreManager.shared.updateMicState() // should set the mic back on if it should be on
-            // // reset the text container (different from clearDisplay())
-            // sendTextWall(" ")
+            Bridge.log("G2: gesture_ctrl response: dashboard closed or we called shutdown")
+            if !useEvenDashboard {
+                // re-send mic on / update mic state:
+                GlassesStore.shared.apply("glasses", "micEnabled", false)
+                CoreManager.shared.updateMicState() // should set the mic back on if it should be on
+                // reset the text container (different from clearDisplay())
+                // sendTextWall(" ")
+                // createPageWithText(" ")
+                CoreManager.shared.sendCurrentState()
+            } else {
+                if dashboardShowing <= 0 {
+                    dashboardShowing = 0
+                    CoreManager.shared.sendCurrentState()
+                }
+                // do nothing this time since we just closed the dashboard
+                dashboardShowing -= 1
+            }
         }
 
         // if we got 08011097012200 that means we selected a menu item:

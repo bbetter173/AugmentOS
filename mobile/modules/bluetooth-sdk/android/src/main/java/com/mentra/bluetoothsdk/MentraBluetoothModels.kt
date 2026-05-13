@@ -7,13 +7,13 @@ data class MentraBluetoothSdkConfig(
     val deliverCallbacksOnMainThread: Boolean = true,
 )
 
-class MentraBluetoothException(
+class BluetoothException(
     val code: String,
     message: String,
     cause: Throwable? = null,
 ) : IllegalStateException(message, cause)
 
-enum class MentraDeviceModel(val deviceType: String) {
+enum class DeviceModel(val deviceType: String) {
     G1(DeviceTypes.G1),
     G2(DeviceTypes.G2),
     MENTRA_LIVE(DeviceTypes.LIVE),
@@ -26,13 +26,13 @@ enum class MentraDeviceModel(val deviceType: String) {
 
     companion object {
         @JvmStatic
-        fun fromDeviceType(deviceType: String?): MentraDeviceModel =
+        fun fromDeviceType(deviceType: String?): DeviceModel =
             values().firstOrNull { it.deviceType == deviceType } ?: MENTRA_LIVE
     }
 }
 
-data class MentraDevice(
-    val model: MentraDeviceModel,
+data class Device(
+    val model: DeviceModel,
     val name: String,
     val address: String? = null,
     val rssi: Int? = null,
@@ -50,14 +50,14 @@ data class MentraDevice(
         }
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraDevice? {
+        internal fun fromMap(values: Map<String, Any>): Device? {
             val model = stringValue(values, "model", "deviceModel", "device_model") ?: return null
             val name = stringValue(values, "name", "deviceName", "device_name") ?: return null
             val address = stringValue(values, "address", "deviceAddress", "device_address")?.takeIf { it.isNotBlank() }
             val rssi = numberValue(values, "rssi", "signalStrength", "signal_strength")
             val id = stringValue(values, "id")?.takeIf { it.isNotBlank() } ?: address ?: "${model}:$name"
-            return MentraDevice(
-                model = MentraDeviceModel.fromDeviceType(model),
+            return Device(
+                model = DeviceModel.fromDeviceType(model),
                 name = name,
                 address = address,
                 rssi = rssi,
@@ -67,12 +67,12 @@ data class MentraDevice(
     }
 }
 
-data class MentraConnectOptions(
+data class ConnectOptions(
     val saveAsDefault: Boolean = true,
     val cancelExistingConnectionAttempt: Boolean = true,
 )
 
-data class MentraWifiScanResult(
+data class WifiScanResult(
     val ssid: String,
     val requiresPassword: Boolean,
     val signalStrength: Int,
@@ -90,8 +90,8 @@ data class MentraWifiScanResult(
     }
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraWifiScanResult =
-            MentraWifiScanResult(
+        internal fun fromMap(values: Map<String, Any>): WifiScanResult =
+            WifiScanResult(
                 ssid = stringValue(values, "ssid") ?: "",
                 requiresPassword =
                     boolValue(values, "requiresPassword", "requires_password", "auth_required") ?: false,
@@ -101,7 +101,7 @@ data class MentraWifiScanResult(
     }
 }
 
-data class MentraGlassesStatus(
+data class GlassesStatus(
     val fullyBooted: Boolean,
     val connected: Boolean,
     val micEnabled: Boolean,
@@ -132,7 +132,7 @@ data class MentraGlassesStatus(
     val caseCharging: Boolean,
     val caseOpen: Boolean,
     val caseRemoved: Boolean,
-    val hotspot: MentraHotspotStatus,
+    val hotspot: HotspotStatus,
     val headUp: Boolean,
     val controllerConnected: Boolean,
     val controllerFullyBooted: Boolean,
@@ -184,8 +184,8 @@ data class MentraGlassesStatus(
         )
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraGlassesStatus =
-            MentraGlassesStatus(
+        internal fun fromMap(values: Map<String, Any>): GlassesStatus =
+            GlassesStatus(
                 fullyBooted = boolValue(values, "fullyBooted") ?: false,
                 connected = boolValue(values, "connected") ?: false,
                 micEnabled = boolValue(values, "micEnabled") ?: false,
@@ -216,7 +216,7 @@ data class MentraGlassesStatus(
                 caseCharging = boolValue(values, "caseCharging") ?: false,
                 caseOpen = boolValue(values, "caseOpen") ?: true,
                 caseRemoved = boolValue(values, "caseRemoved") ?: true,
-                hotspot = MentraHotspotStatus.fromStoreMap(values) ?: MentraHotspotStatus.Disabled,
+                hotspot = HotspotStatus.fromStoreMap(values) ?: HotspotStatus.Disabled,
                 headUp = boolValue(values, "headUp") ?: false,
                 controllerConnected = boolValue(values, "controllerConnected") ?: false,
                 controllerFullyBooted = boolValue(values, "controllerFullyBooted") ?: false,
@@ -228,15 +228,15 @@ data class MentraGlassesStatus(
     }
 }
 
-data class MentraBluetoothStatus(
+data class BluetoothStatus(
     val searching: Boolean,
     val searchingController: Boolean,
     val systemMicUnavailable: Boolean,
     val micEnabled: Boolean,
     val currentMic: String,
     val micRanking: List<String>,
-    val searchResults: List<MentraDevice>,
-    val wifiScanResults: List<MentraWifiScanResult>,
+    val searchResults: List<Device>,
+    val wifiScanResults: List<WifiScanResult>,
     val lastLog: List<String>,
     val otherBtConnected: Boolean,
     val defaultWearable: String,
@@ -257,7 +257,7 @@ data class MentraBluetoothStatus(
     val headUpAngle: Int,
     val contextualDashboard: Boolean,
     val galleryModeAuto: Boolean,
-    val buttonPhotoSize: MentraButtonPhotoSize,
+    val buttonPhotoSize: ButtonPhotoSize,
     val buttonCameraLed: Boolean,
     val buttonMaxRecordingTime: Int,
     val buttonVideoWidth: Int,
@@ -271,11 +271,11 @@ data class MentraBluetoothStatus(
     val localSttFallbackActive: Boolean,
     val shouldSendBootingMessage: Boolean,
 ) {
-    val defaultDevice: MentraDevice?
+    val defaultDevice: Device?
         get() =
             defaultWearable.takeIf { it.isNotBlank() }?.let {
-                MentraDevice(
-                    model = MentraDeviceModel.fromDeviceType(it),
+                Device(
+                    model = DeviceModel.fromDeviceType(it),
                     name = deviceName,
                     address = deviceAddress.takeIf(String::isNotBlank),
                 )
@@ -289,7 +289,7 @@ data class MentraBluetoothStatus(
             "micEnabled" to micEnabled,
             "currentMic" to currentMic,
             "micRanking" to micRanking,
-            "searchResults" to searchResults.map(MentraDevice::toMap),
+            "searchResults" to searchResults.map(Device::toMap),
             "wifiScanResults" to wifiScanResults.map { it.toMap() },
             "lastLog" to lastLog,
             "otherBtConnected" to otherBtConnected,
@@ -327,8 +327,8 @@ data class MentraBluetoothStatus(
         )
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraBluetoothStatus =
-            MentraBluetoothStatus(
+        internal fun fromMap(values: Map<String, Any>): BluetoothStatus =
+            BluetoothStatus(
                 searching = boolValue(values, "searching") ?: false,
                 searchingController = boolValue(values, "searchingController") ?: false,
                 systemMicUnavailable = boolValue(values, "systemMicUnavailable") ?: false,
@@ -336,9 +336,9 @@ data class MentraBluetoothStatus(
                 currentMic = stringValue(values, "currentMic") ?: "",
                 micRanking = stringListValue(values, "micRanking"),
                 searchResults =
-                    mapListValue(values, "searchResults").mapNotNull(MentraDevice::fromMap),
+                    mapListValue(values, "searchResults").mapNotNull(Device::fromMap),
                 wifiScanResults =
-                    mapListValue(values, "wifiScanResults").map(MentraWifiScanResult::fromMap),
+                    mapListValue(values, "wifiScanResults").map(WifiScanResult::fromMap),
                 lastLog = stringListValue(values, "lastLog"),
                 otherBtConnected = boolValue(values, "otherBtConnected") ?: false,
                 defaultWearable = stringValue(values, "default_wearable") ?: "",
@@ -359,7 +359,7 @@ data class MentraBluetoothStatus(
                 headUpAngle = numberValue(values, "head_up_angle") ?: 30,
                 contextualDashboard = boolValue(values, "contextual_dashboard") ?: true,
                 galleryModeAuto = boolValue(values, "gallery_mode") ?: false,
-                buttonPhotoSize = MentraButtonPhotoSize.fromValue(stringValue(values, "button_photo_size")),
+                buttonPhotoSize = ButtonPhotoSize.fromValue(stringValue(values, "button_photo_size")),
                 buttonCameraLed = boolValue(values, "button_camera_led") ?: true,
                 buttonMaxRecordingTime = numberValue(values, "button_max_recording_time") ?: 10,
                 buttonVideoWidth = numberValue(values, "button_video_width") ?: 1280,
@@ -376,7 +376,7 @@ data class MentraBluetoothStatus(
     }
 }
 
-data class MentraGlassesStatusUpdate(
+data class GlassesStatusUpdate(
     val fullyBooted: Boolean? = null,
     val connected: Boolean? = null,
     val micEnabled: Boolean? = null,
@@ -407,7 +407,7 @@ data class MentraGlassesStatusUpdate(
     val caseCharging: Boolean? = null,
     val caseOpen: Boolean? = null,
     val caseRemoved: Boolean? = null,
-    val hotspot: MentraHotspotStatus? = null,
+    val hotspot: HotspotStatus? = null,
     val headUp: Boolean? = null,
     val controllerConnected: Boolean? = null,
     val controllerFullyBooted: Boolean? = null,
@@ -463,8 +463,8 @@ data class MentraGlassesStatusUpdate(
         }
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraGlassesStatusUpdate =
-            MentraGlassesStatusUpdate(
+        internal fun fromMap(values: Map<String, Any>): GlassesStatusUpdate =
+            GlassesStatusUpdate(
                 fullyBooted = optionalBoolValue(values, "fullyBooted"),
                 connected = optionalBoolValue(values, "connected"),
                 micEnabled = optionalBoolValue(values, "micEnabled"),
@@ -504,9 +504,9 @@ data class MentraGlassesStatusUpdate(
                 caseRemoved = optionalBoolValue(values, "caseRemoved"),
                 hotspot =
                     if (hasAnyKey(values, "hotspot")) {
-                        MentraHotspotStatus.fromMap(values)
+                        HotspotStatus.fromMap(values)
                     } else if (hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp", "hotspotLocalIp")) {
-                        MentraHotspotStatus.fromStoreMap(values)
+                        HotspotStatus.fromStoreMap(values)
                     } else {
                         null
                     },
@@ -521,15 +521,15 @@ data class MentraGlassesStatusUpdate(
     }
 }
 
-data class MentraBluetoothStatusUpdate(
+data class BluetoothStatusUpdate(
     val searching: Boolean? = null,
     val searchingController: Boolean? = null,
     val systemMicUnavailable: Boolean? = null,
     val micEnabled: Boolean? = null,
     val currentMic: String? = null,
     val micRanking: List<String>? = null,
-    val searchResults: List<MentraDevice>? = null,
-    val wifiScanResults: List<MentraWifiScanResult>? = null,
+    val searchResults: List<Device>? = null,
+    val wifiScanResults: List<WifiScanResult>? = null,
     val lastLog: List<String>? = null,
     val otherBtConnected: Boolean? = null,
     val defaultWearable: String? = null,
@@ -550,7 +550,7 @@ data class MentraBluetoothStatusUpdate(
     val headUpAngle: Int? = null,
     val contextualDashboard: Boolean? = null,
     val galleryModeAuto: Boolean? = null,
-    val buttonPhotoSize: MentraButtonPhotoSize? = null,
+    val buttonPhotoSize: ButtonPhotoSize? = null,
     val buttonCameraLed: Boolean? = null,
     val buttonMaxRecordingTime: Int? = null,
     val buttonVideoWidth: Int? = null,
@@ -572,8 +572,8 @@ data class MentraBluetoothStatusUpdate(
             putIfNotNull("micEnabled", micEnabled)
             putIfNotNull("currentMic", currentMic)
             putIfNotNull("micRanking", micRanking)
-            searchResults?.let { put("searchResults", it.map(MentraDevice::toMap)) }
-            wifiScanResults?.let { put("wifiScanResults", it.map(MentraWifiScanResult::toMap)) }
+            searchResults?.let { put("searchResults", it.map(Device::toMap)) }
+            wifiScanResults?.let { put("wifiScanResults", it.map(WifiScanResult::toMap)) }
             putIfNotNull("lastLog", lastLog)
             putIfNotNull("otherBtConnected", otherBtConnected)
             putIfNotNull("default_wearable", defaultWearable)
@@ -610,8 +610,8 @@ data class MentraBluetoothStatusUpdate(
         }
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraBluetoothStatusUpdate =
-            MentraBluetoothStatusUpdate(
+        internal fun fromMap(values: Map<String, Any>): BluetoothStatusUpdate =
+            BluetoothStatusUpdate(
                 searching = optionalBoolValue(values, "searching"),
                 searchingController = optionalBoolValue(values, "searchingController"),
                 systemMicUnavailable = optionalBoolValue(values, "systemMicUnavailable"),
@@ -620,10 +620,10 @@ data class MentraBluetoothStatusUpdate(
                 micRanking = optionalStringListValue(values, "micRanking"),
                 searchResults =
                     optionalMapListValue(values, "searchResults")
-                        ?.mapNotNull(MentraDevice::fromMap),
+                        ?.mapNotNull(Device::fromMap),
                 wifiScanResults =
                     optionalMapListValue(values, "wifiScanResults")
-                        ?.map(MentraWifiScanResult::fromMap),
+                        ?.map(WifiScanResult::fromMap),
                 lastLog = optionalStringListValue(values, "lastLog"),
                 otherBtConnected = optionalBoolValue(values, "otherBtConnected"),
                 defaultWearable = optionalStringValue(values, "default_wearable"),
@@ -645,7 +645,7 @@ data class MentraBluetoothStatusUpdate(
                 contextualDashboard = optionalBoolValue(values, "contextual_dashboard"),
                 galleryModeAuto = optionalBoolValue(values, "gallery_mode"),
                 buttonPhotoSize =
-                    optionalStringValue(values, "button_photo_size")?.let(MentraButtonPhotoSize::fromValue),
+                    optionalStringValue(values, "button_photo_size")?.let(ButtonPhotoSize::fromValue),
                 buttonCameraLed = optionalBoolValue(values, "button_camera_led"),
                 buttonMaxRecordingTime = optionalNumberValue(values, "button_max_recording_time"),
                 buttonVideoWidth = optionalNumberValue(values, "button_video_width"),
@@ -662,7 +662,7 @@ data class MentraBluetoothStatusUpdate(
     }
 }
 
-data class MentraDisplayTextRequest(
+data class DisplayTextRequest(
     val text: String,
     val x: Int = 0,
     val y: Int = 0,
@@ -677,18 +677,18 @@ data class MentraDisplayTextRequest(
         )
 }
 
-data class MentraDisplayEventRequest(
+data class DisplayEventRequest(
     val values: Map<String, Any>,
 ) {
     fun toMap(): Map<String, Any> = values
 }
 
-data class MentraDashboardPositionRequest(
+data class DashboardPositionRequest(
     val height: Int,
     val depth: Int,
 )
 
-data class MentraDashboardMenuItem(
+data class DashboardMenuItem(
     val title: String,
     val packageName: String,
     val values: Map<String, Any> = emptyMap(),
@@ -700,12 +700,12 @@ data class MentraDashboardMenuItem(
         )
 }
 
-enum class MentraGalleryMode {
+enum class GalleryMode {
     AUTO,
     MANUAL,
 }
 
-enum class MentraPhotoSize(val value: String) {
+enum class PhotoSize(val value: String) {
     SMALL("small"),
     MEDIUM("medium"),
     LARGE("large"),
@@ -713,58 +713,58 @@ enum class MentraPhotoSize(val value: String) {
 
     companion object {
         @JvmStatic
-        fun fromValue(value: String?): MentraPhotoSize =
+        fun fromValue(value: String?): PhotoSize =
             values().firstOrNull { it.value == value } ?: MEDIUM
     }
 }
 
-enum class MentraButtonPhotoSize(val value: String) {
+enum class ButtonPhotoSize(val value: String) {
     SMALL("small"),
     MEDIUM("medium"),
     LARGE("large");
 
     companion object {
         @JvmStatic
-        fun fromValue(value: String?): MentraButtonPhotoSize =
+        fun fromValue(value: String?): ButtonPhotoSize =
             values().firstOrNull { it.value == value } ?: MEDIUM
     }
 }
 
-enum class MentraPhotoCompression(val value: String) {
+enum class PhotoCompression(val value: String) {
     NONE("none"),
     MEDIUM("medium"),
     HEAVY("heavy");
 
     companion object {
         @JvmStatic
-        fun fromValue(value: String?): MentraPhotoCompression =
+        fun fromValue(value: String?): PhotoCompression =
             values().firstOrNull { it.value == value } ?: NONE
     }
 }
 
-data class MentraButtonPhotoSettings(
-    val size: MentraButtonPhotoSize,
+data class ButtonPhotoSettings(
+    val size: ButtonPhotoSize,
 )
 
-data class MentraButtonVideoRecordingSettings(
+data class ButtonVideoRecordingSettings(
     val width: Int,
     val height: Int,
     val fps: Int,
 )
 
-enum class MentraCameraFov(val fov: Int, val roiPosition: Int) {
+enum class CameraFov(val fov: Int, val roiPosition: Int) {
     STANDARD(118, 0),
     WIDE(118, 0),
 }
 
-data class MentraMicConfig(
+data class MicConfig(
     val sendPcmData: Boolean,
     val sendTranscript: Boolean,
     val bypassVad: Boolean,
     val sendLc3Data: Boolean = false,
 )
 
-enum class MentraMicPreference(val value: String) {
+enum class MicPreference(val value: String) {
     AUTO("auto"),
     PHONE("phone"),
     GLASSES("glasses"),
@@ -772,18 +772,18 @@ enum class MentraMicPreference(val value: String) {
     BT("bt"),
 }
 
-data class MentraPhotoRequest @JvmOverloads constructor(
+data class PhotoRequest @JvmOverloads constructor(
     val requestId: String,
     val appId: String,
-    val size: MentraPhotoSize,
+    val size: PhotoSize,
     val webhookUrl: String,
     val authToken: String? = null,
-    val compress: MentraPhotoCompression = MentraPhotoCompression.MEDIUM,
+    val compress: PhotoCompression = PhotoCompression.MEDIUM,
     val flash: Boolean = false,
     val sound: Boolean = true,
 )
 
-data class MentraStreamVideoConfig @JvmOverloads constructor(
+data class StreamVideoConfig @JvmOverloads constructor(
     val width: Int? = null,
     val height: Int? = null,
     val bitrate: Int? = null,
@@ -799,9 +799,9 @@ data class MentraStreamVideoConfig @JvmOverloads constructor(
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<*, *>?): MentraStreamVideoConfig? {
+        fun fromMap(values: Map<*, *>?): StreamVideoConfig? {
             values ?: return null
-            return MentraStreamVideoConfig(
+            return StreamVideoConfig(
                 width = numberValue(values, "width", "w"),
                 height = numberValue(values, "height", "h"),
                 bitrate = numberValue(values, "bitrate", "br"),
@@ -811,7 +811,7 @@ data class MentraStreamVideoConfig @JvmOverloads constructor(
     }
 }
 
-data class MentraStreamAudioConfig @JvmOverloads constructor(
+data class StreamAudioConfig @JvmOverloads constructor(
     val bitrate: Int? = null,
     val sampleRate: Int? = null,
     val echoCancellation: Boolean? = null,
@@ -827,9 +827,9 @@ data class MentraStreamAudioConfig @JvmOverloads constructor(
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<*, *>?): MentraStreamAudioConfig? {
+        fun fromMap(values: Map<*, *>?): StreamAudioConfig? {
             values ?: return null
-            return MentraStreamAudioConfig(
+            return StreamAudioConfig(
                 bitrate = numberValue(values, "bitrate", "br"),
                 sampleRate = numberValue(values, "sampleRate", "sr"),
                 echoCancellation = values["echoCancellation"] as? Boolean ?: values["ec"] as? Boolean,
@@ -839,15 +839,15 @@ data class MentraStreamAudioConfig @JvmOverloads constructor(
     }
 }
 
-data class MentraStreamRequest @JvmOverloads constructor(
+data class StreamRequest @JvmOverloads constructor(
     val streamUrl: String,
     val streamId: String = "",
     val keepAlive: Boolean = true,
     val keepAliveIntervalSeconds: Int = 15,
     val flash: Boolean = true,
     val sound: Boolean = true,
-    val video: MentraStreamVideoConfig? = null,
-    val audio: MentraStreamAudioConfig? = null,
+    val video: StreamVideoConfig? = null,
+    val audio: StreamAudioConfig? = null,
     val extraValues: Map<String, Any> = emptyMap(),
 ) {
     fun toMap(): Map<String, Any> {
@@ -866,8 +866,8 @@ data class MentraStreamRequest @JvmOverloads constructor(
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<String, Any>): MentraStreamRequest =
-            MentraStreamRequest(
+        fun fromMap(values: Map<String, Any>): StreamRequest =
+            StreamRequest(
                 streamUrl =
                     (values["streamUrl"] ?: values["rtmpUrl"] ?: values["srtUrl"] ?: values["whipUrl"]) as? String
                         ?: "",
@@ -876,14 +876,14 @@ data class MentraStreamRequest @JvmOverloads constructor(
                 keepAliveIntervalSeconds = (values["keepAliveIntervalSeconds"] as? Number)?.toInt() ?: 15,
                 flash = values["flash"] as? Boolean ?: true,
                 sound = values["sound"] as? Boolean ?: true,
-                video = MentraStreamVideoConfig.fromMap((values["video"] ?: values["v"]) as? Map<*, *>),
-                audio = MentraStreamAudioConfig.fromMap((values["audio"] ?: values["a"]) as? Map<*, *>),
+                video = StreamVideoConfig.fromMap((values["video"] ?: values["v"]) as? Map<*, *>),
+                audio = StreamAudioConfig.fromMap((values["audio"] ?: values["a"]) as? Map<*, *>),
                 extraValues = values,
             )
     }
 }
 
-data class MentraStreamKeepAliveRequest @JvmOverloads constructor(
+data class StreamKeepAliveRequest @JvmOverloads constructor(
     val streamId: String,
     val ackId: String,
     val extraValues: Map<String, Any> = emptyMap(),
@@ -898,8 +898,8 @@ data class MentraStreamKeepAliveRequest @JvmOverloads constructor(
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<String, Any>): MentraStreamKeepAliveRequest =
-            MentraStreamKeepAliveRequest(
+        fun fromMap(values: Map<String, Any>): StreamKeepAliveRequest =
+            StreamKeepAliveRequest(
                 streamId = values["streamId"] as? String ?: "",
                 ackId = values["ackId"] as? String ?: "",
                 extraValues = values,
@@ -907,18 +907,18 @@ data class MentraStreamKeepAliveRequest @JvmOverloads constructor(
     }
 }
 
-enum class MentraRgbLedAction(val value: String) {
+enum class RgbLedAction(val value: String) {
     ON("on"),
     OFF("off");
 
     companion object {
         @JvmStatic
-        fun fromValue(value: String?): MentraRgbLedAction =
+        fun fromValue(value: String?): RgbLedAction =
             values().firstOrNull { it.value == value } ?: OFF
     }
 }
 
-enum class MentraRgbLedColor(val value: String) {
+enum class RgbLedColor(val value: String) {
     RED("red"),
     GREEN("green"),
     BLUE("blue"),
@@ -927,35 +927,35 @@ enum class MentraRgbLedColor(val value: String) {
 
     companion object {
         @JvmStatic
-        fun fromValue(value: String?): MentraRgbLedColor? =
+        fun fromValue(value: String?): RgbLedColor? =
             values().firstOrNull { it.value == value }
     }
 }
 
-data class MentraRgbLedRequest @JvmOverloads constructor(
+data class RgbLedRequest @JvmOverloads constructor(
     val requestId: String,
     val packageName: String?,
-    val action: MentraRgbLedAction,
-    val color: MentraRgbLedColor?,
+    val action: RgbLedAction,
+    val color: RgbLedColor?,
     val ontime: Int,
     val offtime: Int,
     val count: Int,
 )
 
-data class MentraVideoRecordingRequest(
+data class VideoRecordingRequest(
     val requestId: String,
     val save: Boolean,
     val flash: Boolean,
     val sound: Boolean,
 )
 
-data class MentraButtonPressEvent(
+data class ButtonPressEvent(
     val buttonId: String,
     val pressType: String,
     val timestamp: Long? = null,
 )
 
-data class MentraTouchEvent(
+data class TouchEvent(
     val values: Map<String, Any>,
 ) {
     val deviceModel: String? get() = stringValue(values, "device_model", "deviceModel")
@@ -964,7 +964,7 @@ data class MentraTouchEvent(
     val isSwipe: Boolean get() = gestureName?.contains("swipe", ignoreCase = true) == true
 }
 
-data class MentraSwipeEvent(
+data class SwipeEvent(
     val values: Map<String, Any>,
 ) {
     val deviceModel: String? get() = stringValue(values, "device_model", "deviceModel")
@@ -972,7 +972,7 @@ data class MentraSwipeEvent(
     val timestamp: Long? get() = longValue(values, "timestamp")
 }
 
-data class MentraBatteryStatusEvent(
+data class BatteryStatusEvent(
     val level: Int?,
     val charging: Boolean?,
     val values: Map<String, Any>,
@@ -1055,7 +1055,7 @@ data class WifiStatusEvent(
     val values: Map<String, Any> get() = status.toEventMap()
 }
 
-sealed interface MentraHotspotStatus {
+sealed interface HotspotStatus {
     val state: String
 
     fun toMap(): Map<String, Any> =
@@ -1073,7 +1073,7 @@ sealed interface MentraHotspotStatus {
     fun toEventMap(): Map<String, Any> =
         toMap() + mapOf("type" to "hotspot_status_change")
 
-    object Disabled : MentraHotspotStatus {
+    object Disabled : HotspotStatus {
         override val state: String = "disabled"
     }
 
@@ -1081,12 +1081,12 @@ sealed interface MentraHotspotStatus {
         val ssid: String,
         val password: String,
         val localIp: String,
-    ) : MentraHotspotStatus {
+    ) : HotspotStatus {
         override val state: String = "enabled"
     }
 
     companion object {
-        internal fun fromMap(values: Map<String, Any>): MentraHotspotStatus? {
+        internal fun fromMap(values: Map<String, Any>): HotspotStatus? {
             val hotspotValues = (values["hotspot"] as? Map<*, *>)?.stringKeyedMap() ?: values
             return when (stringValue(hotspotValues, "state")?.lowercase()) {
                 "enabled" -> enabledFrom(hotspotValues)
@@ -1095,7 +1095,7 @@ sealed interface MentraHotspotStatus {
             }
         }
 
-        internal fun fromStoreMap(values: Map<String, Any>): MentraHotspotStatus? {
+        internal fun fromStoreMap(values: Map<String, Any>): HotspotStatus? {
             val enabled = boolValue(values, "hotspotEnabled") ?: return null
             return fromStoreFields(
                 enabled = enabled,
@@ -1110,7 +1110,7 @@ sealed interface MentraHotspotStatus {
             ssid: String?,
             password: String?,
             localIp: String?,
-        ): MentraHotspotStatus? {
+        ): HotspotStatus? {
             if (!enabled) return Disabled
             val nonEmptySsid = ssid?.trim()?.takeIf { it.isNotEmpty() }
             val nonEmptyPassword = password?.trim()?.takeIf { it.isNotEmpty() }
@@ -1122,7 +1122,7 @@ sealed interface MentraHotspotStatus {
             }
         }
 
-        private fun enabledFrom(values: Map<String, Any>): MentraHotspotStatus? =
+        private fun enabledFrom(values: Map<String, Any>): HotspotStatus? =
             fromStoreFields(
                 enabled = true,
                 ssid = stringValue(values, "ssid"),
@@ -1132,29 +1132,29 @@ sealed interface MentraHotspotStatus {
     }
 }
 
-data class MentraHotspotStatusEvent(
-    val status: MentraHotspotStatus,
+data class HotspotStatusEvent(
+    val status: HotspotStatus,
 ) {
-    internal constructor(values: Map<String, Any>) : this(MentraHotspotStatus.fromMap(values) ?: MentraHotspotStatus.Disabled)
+    internal constructor(values: Map<String, Any>) : this(HotspotStatus.fromMap(values) ?: HotspotStatus.Disabled)
     internal constructor(enabled: Boolean, ssid: String?, password: String?, localIp: String?) : this(
-        MentraHotspotStatus.fromStoreFields(enabled, ssid, password, localIp) ?: MentraHotspotStatus.Disabled
+        HotspotStatus.fromStoreFields(enabled, ssid, password, localIp) ?: HotspotStatus.Disabled
     )
 
     val values: Map<String, Any> get() = status.toEventMap()
 }
 
-data class MentraHotspotErrorEvent(
+data class HotspotErrorEvent(
     val values: Map<String, Any>,
 ) {
     val message: String? get() = stringValue(values, "error_message", "message", "error")
     val timestamp: Long? get() = longValue(values, "timestamp")
 }
 
-data class MentraGalleryStatusEvent(
+data class GalleryStatusEvent(
     val values: Map<String, Any>,
 )
 
-sealed interface MentraPhotoResponse {
+sealed interface PhotoResponse {
     val state: String
     val requestId: String
     val timestamp: Long
@@ -1186,7 +1186,7 @@ sealed interface MentraPhotoResponse {
         override val requestId: String,
         val photoUrl: String,
         override val timestamp: Long,
-    ) : MentraPhotoResponse {
+    ) : PhotoResponse {
         override val state: String = "success"
     }
 
@@ -1195,12 +1195,12 @@ sealed interface MentraPhotoResponse {
         val errorCode: String?,
         val errorMessage: String,
         override val timestamp: Long,
-    ) : MentraPhotoResponse {
+    ) : PhotoResponse {
         override val state: String = "error"
     }
 
     companion object {
-        fun fromMap(values: Map<String, Any>): MentraPhotoResponse {
+        fun fromMap(values: Map<String, Any>): PhotoResponse {
             val requestId = stringValue(values, "requestId", "request_id").orEmpty()
             val timestamp = longValue(values, "timestamp") ?: System.currentTimeMillis()
             val state = stringValue(values, "state", "status")?.lowercase()
@@ -1221,16 +1221,16 @@ sealed interface MentraPhotoResponse {
     }
 }
 
-data class MentraPhotoResponseEvent(
-    val response: MentraPhotoResponse,
+data class PhotoResponseEvent(
+    val response: PhotoResponse,
 ) {
-    constructor(values: Map<String, Any>) : this(MentraPhotoResponse.fromMap(values))
+    constructor(values: Map<String, Any>) : this(PhotoResponse.fromMap(values))
 
     val requestId: String get() = response.requestId
     val values: Map<String, Any> get() = response.toEventMap()
 }
 
-enum class MentraStreamState(val value: String) {
+enum class StreamState(val value: String) {
     INITIALIZING("initializing"),
     STREAMING("streaming"),
     STOPPING("stopping"),
@@ -1242,7 +1242,7 @@ enum class MentraStreamState(val value: String) {
 
     companion object {
         @JvmStatic
-        fun fromValue(value: String?): MentraStreamState? =
+        fun fromValue(value: String?): StreamState? =
             when (value?.lowercase()) {
                 "initializing", "starting", "connecting" -> INITIALIZING
                 "streaming", "streaming_started", "active" -> STREAMING
@@ -1257,16 +1257,16 @@ enum class MentraStreamState(val value: String) {
     }
 }
 
-enum class MentraStreamStatusKind(val value: String) {
+enum class StreamStatusKind(val value: String) {
     LIFECYCLE("lifecycle"),
     RECONNECT("reconnect"),
     ERROR("error"),
     SNAPSHOT("snapshot"),
 }
 
-sealed interface MentraStreamStatus {
-    val kind: MentraStreamStatusKind
-    val state: MentraStreamState
+sealed interface StreamStatus {
+    val kind: StreamStatusKind
+    val state: StreamState
     val streamId: String?
     val timestamp: Long?
 
@@ -1301,11 +1301,11 @@ sealed interface MentraStreamStatus {
     fun toEventMap(): Map<String, Any> = toMap() + mapOf("type" to "stream_status")
 
     data class Lifecycle(
-        override val state: MentraStreamState,
+        override val state: StreamState,
         override val streamId: String?,
         override val timestamp: Long?,
-    ) : MentraStreamStatus {
-        override val kind: MentraStreamStatusKind = MentraStreamStatusKind.LIFECYCLE
+    ) : StreamStatus {
+        override val kind: StreamStatusKind = StreamStatusKind.LIFECYCLE
     }
 
     data class Reconnecting(
@@ -1314,52 +1314,52 @@ sealed interface MentraStreamStatus {
         val maxAttempts: Int,
         val reason: String,
         override val timestamp: Long?,
-    ) : MentraStreamStatus {
-        override val kind: MentraStreamStatusKind = MentraStreamStatusKind.RECONNECT
-        override val state: MentraStreamState = MentraStreamState.RECONNECTING
+    ) : StreamStatus {
+        override val kind: StreamStatusKind = StreamStatusKind.RECONNECT
+        override val state: StreamState = StreamState.RECONNECTING
     }
 
     data class Reconnected(
         override val streamId: String?,
         val attempt: Int,
         override val timestamp: Long?,
-    ) : MentraStreamStatus {
-        override val kind: MentraStreamStatusKind = MentraStreamStatusKind.RECONNECT
-        override val state: MentraStreamState = MentraStreamState.RECONNECTED
+    ) : StreamStatus {
+        override val kind: StreamStatusKind = StreamStatusKind.RECONNECT
+        override val state: StreamState = StreamState.RECONNECTED
     }
 
     data class ReconnectFailed(
         override val streamId: String?,
         val maxAttempts: Int,
         override val timestamp: Long?,
-    ) : MentraStreamStatus {
-        override val kind: MentraStreamStatusKind = MentraStreamStatusKind.RECONNECT
-        override val state: MentraStreamState = MentraStreamState.RECONNECT_FAILED
+    ) : StreamStatus {
+        override val kind: StreamStatusKind = StreamStatusKind.RECONNECT
+        override val state: StreamState = StreamState.RECONNECT_FAILED
     }
 
     data class Error(
         override val streamId: String?,
         val errorDetails: String,
         override val timestamp: Long?,
-    ) : MentraStreamStatus {
-        override val kind: MentraStreamStatusKind = MentraStreamStatusKind.ERROR
-        override val state: MentraStreamState = MentraStreamState.ERROR
+    ) : StreamStatus {
+        override val kind: StreamStatusKind = StreamStatusKind.ERROR
+        override val state: StreamState = StreamState.ERROR
     }
 
     data class Snapshot(
-        override val state: MentraStreamState,
+        override val state: StreamState,
         val streaming: Boolean,
         val reconnecting: Boolean,
         override val streamId: String?,
         val attempt: Int?,
         override val timestamp: Long?,
-    ) : MentraStreamStatus {
-        override val kind: MentraStreamStatusKind = MentraStreamStatusKind.SNAPSHOT
+    ) : StreamStatus {
+        override val kind: StreamStatusKind = StreamStatusKind.SNAPSHOT
     }
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<String, Any>): MentraStreamStatus {
+        fun fromMap(values: Map<String, Any>): StreamStatus {
             val rawState = stringValue(values, "status")
             val streaming = boolValue(values, "streaming")
             val reconnecting = boolValue(values, "reconnecting") ?: false
@@ -1371,9 +1371,9 @@ sealed interface MentraStreamStatus {
             if (streaming != null || hasAnyKey(values, "reconnecting")) {
                 return Snapshot(
                     state = when {
-                        reconnecting -> MentraStreamState.RECONNECTING
-                        streaming == true -> MentraStreamState.STREAMING
-                        else -> MentraStreamState.STOPPED
+                        reconnecting -> StreamState.RECONNECTING
+                        streaming == true -> StreamState.STREAMING
+                        else -> StreamState.STOPPED
                     },
                     streaming = streaming == true,
                     reconnecting = reconnecting,
@@ -1383,7 +1383,7 @@ sealed interface MentraStreamStatus {
                 )
             }
 
-            val state = MentraStreamState.fromValue(rawState)
+            val state = StreamState.fromValue(rawState)
                 ?: return Error(
                     streamId = streamId,
                     errorDetails = rawState?.let { "Unknown stream status: $it" } ?: "Missing stream status",
@@ -1391,24 +1391,24 @@ sealed interface MentraStreamStatus {
                 )
 
             return when (state) {
-                MentraStreamState.RECONNECTING -> Reconnecting(
+                StreamState.RECONNECTING -> Reconnecting(
                     streamId = streamId,
                     attempt = attempt ?: 0,
                     maxAttempts = maxAttempts,
                     reason = stringValue(values, "reason") ?: "",
                     timestamp = timestamp,
                 )
-                MentraStreamState.RECONNECTED -> Reconnected(
+                StreamState.RECONNECTED -> Reconnected(
                     streamId = streamId,
                     attempt = attempt ?: 0,
                     timestamp = timestamp,
                 )
-                MentraStreamState.RECONNECT_FAILED -> ReconnectFailed(
+                StreamState.RECONNECT_FAILED -> ReconnectFailed(
                     streamId = streamId,
                     maxAttempts = maxAttempts,
                     timestamp = timestamp,
                 )
-                MentraStreamState.ERROR -> Error(
+                StreamState.ERROR -> Error(
                     streamId = streamId,
                     errorDetails = stringValue(values, "errorDetails", "error_details", "details", "error", "errorMessage")
                         ?: if (rawState == "error_not_streaming") "not_streaming" else "Unknown stream error",
@@ -1424,17 +1424,17 @@ sealed interface MentraStreamStatus {
     }
 }
 
-data class MentraStreamStatusEvent(
-    val status: MentraStreamStatus,
+data class StreamStatusEvent(
+    val status: StreamStatus,
 ) {
-    constructor(values: Map<String, Any>) : this(MentraStreamStatus.fromMap(values))
+    constructor(values: Map<String, Any>) : this(StreamStatus.fromMap(values))
 
-    val state: MentraStreamState get() = status.state
+    val state: StreamState get() = status.state
     val streamId: String? get() = status.streamId
     val values: Map<String, Any> get() = status.toEventMap()
 }
 
-data class MentraKeepAliveAckEvent(
+data class KeepAliveAckEvent(
     val streamId: String,
     val ackId: String,
     val timestamp: Long?,
@@ -1454,20 +1454,20 @@ data class MentraKeepAliveAckEvent(
         }
 }
 
-data class MentraLocalTranscriptionEvent(
+data class LocalTranscriptionEvent(
     val text: String,
     val isFinal: Boolean,
     val values: Map<String, Any>,
 )
 
-data class MentraGlassesMediaVolumeGetResult(
+data class GlassesMediaVolumeGetResult(
     val volume: Int?,
     val statusCode: Int?,
     val values: Map<String, Any>,
 ) {
     companion object {
-        fun fromMap(values: Map<String, Any>): MentraGlassesMediaVolumeGetResult =
-            MentraGlassesMediaVolumeGetResult(
+        fun fromMap(values: Map<String, Any>): GlassesMediaVolumeGetResult =
+            GlassesMediaVolumeGetResult(
                 volume = numberValue(values, "vol", "volume"),
                 statusCode = (values["statusCode"] as? Number)?.toInt(),
                 values = values,
@@ -1475,54 +1475,54 @@ data class MentraGlassesMediaVolumeGetResult(
     }
 }
 
-data class MentraGlassesMediaVolumeSetResult(
+data class GlassesMediaVolumeSetResult(
     val statusCode: Int?,
     val values: Map<String, Any>,
 ) {
     companion object {
-        fun fromMap(values: Map<String, Any>): MentraGlassesMediaVolumeSetResult =
-            MentraGlassesMediaVolumeSetResult(
+        fun fromMap(values: Map<String, Any>): GlassesMediaVolumeSetResult =
+            GlassesMediaVolumeSetResult(
                 statusCode = (values["statusCode"] as? Number)?.toInt(),
                 values = values,
             )
     }
 }
 
-data class MentraBluetoothError(
+data class BluetoothError(
     val code: String,
     val message: String,
     val cause: Throwable? = null,
 )
 
-enum class MentraScanStopReason {
+enum class ScanStopReason {
     COMPLETED,
     CANCELLED,
     ERROR,
 }
 
 interface MentraBluetoothSdkListener {
-    fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {}
-    fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {}
-    fun onDeviceDiscovered(device: MentraDevice) {}
-    fun onScanStopped(reason: MentraScanStopReason) {}
-    fun onButtonPress(event: MentraButtonPressEvent) {}
-    fun onTouch(event: MentraTouchEvent) {}
-    fun onSwipe(event: MentraSwipeEvent) {}
+    fun onGlassesStatusChanged(status: GlassesStatusUpdate) {}
+    fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {}
+    fun onDeviceDiscovered(device: Device) {}
+    fun onScanStopped(reason: ScanStopReason) {}
+    fun onButtonPress(event: ButtonPressEvent) {}
+    fun onTouch(event: TouchEvent) {}
+    fun onSwipe(event: SwipeEvent) {}
     fun onHeadUpChanged(headUp: Boolean) {}
-    fun onBatteryStatus(event: MentraBatteryStatusEvent) {}
+    fun onBatteryStatus(event: BatteryStatusEvent) {}
     fun onWifiStatusChanged(event: WifiStatusEvent) {}
-    fun onHotspotStatusChanged(event: MentraHotspotStatusEvent) {}
-    fun onHotspotError(event: MentraHotspotErrorEvent) {}
-    fun onGalleryStatus(event: MentraGalleryStatusEvent) {}
-    fun onPhotoResponse(event: MentraPhotoResponseEvent) {}
-    fun onStreamStatus(event: MentraStreamStatusEvent) {}
-    fun onKeepAliveAck(event: MentraKeepAliveAckEvent) {}
+    fun onHotspotStatusChanged(event: HotspotStatusEvent) {}
+    fun onHotspotError(event: HotspotErrorEvent) {}
+    fun onGalleryStatus(event: GalleryStatusEvent) {}
+    fun onPhotoResponse(event: PhotoResponseEvent) {}
+    fun onStreamStatus(event: StreamStatusEvent) {}
+    fun onKeepAliveAck(event: KeepAliveAckEvent) {}
     fun onMicPcm(frame: ByteArray) {}
     fun onMicLc3(frame: ByteArray) {}
-    fun onLocalTranscription(event: MentraLocalTranscriptionEvent) {}
-    fun onDefaultDeviceChanged(device: MentraDevice?) {}
+    fun onLocalTranscription(event: LocalTranscriptionEvent) {}
+    fun onDefaultDeviceChanged(device: Device?) {}
     fun onLog(message: String) {}
-    fun onError(error: MentraBluetoothError) {}
+    fun onError(error: BluetoothError) {}
     fun onRawEvent(eventName: String, values: Map<String, Any>) {}
 }
 

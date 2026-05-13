@@ -21,13 +21,13 @@ npx pod-install
 `startScan()` starts the scan. Discovered devices arrive asynchronously through `onCoreStatus()` updates.
 
 ```ts
-import BluetoothSdk, {type MentraDevice} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {type Device} from "@mentra/bluetooth-sdk"
 
 const removeStatusListener = BluetoothSdk.onGlassesStatus((status) => {
   console.log("Glasses status changed", status)
 })
 
-const firstDevice = new Promise<MentraDevice>((resolve) => {
+const firstDevice = new Promise<Device>((resolve) => {
   let removeCoreListener = () => {}
   removeCoreListener = BluetoothSdk.onCoreStatus((status) => {
     const device = status.searchResults?.[0]
@@ -49,7 +49,7 @@ removeStatusListener()
 
 ## Default Device
 
-`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist the scanned `MentraDevice` in their own storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
+`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist the scanned `Device` in their own storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
 ```ts
 const savedDevice = await loadSavedDeviceFromYourAppStorage()

@@ -9,19 +9,19 @@ class CoreModule : Module() {
     private var deviceManager: CoreManager? = null
     private val sdkListener =
             object : MentraBluetoothSdkListener {
-                override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
+                override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
                     sendEvent("glasses_status", status.toMap())
                 }
 
-                override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
+                override fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {
                     sendEvent("core_status", status.toMap())
                 }
 
-                override fun onDeviceDiscovered(device: MentraDevice) {
+                override fun onDeviceDiscovered(device: Device) {
                     sendEvent("device_discovered", device.toMap())
                 }
 
-                override fun onDefaultDeviceChanged(device: MentraDevice?) {
+                override fun onDefaultDeviceChanged(device: Device?) {
                     val event =
                             buildMap<String, Any> {
                                 device?.let { put("device", it.toMap()) }
@@ -29,8 +29,8 @@ class CoreModule : Module() {
                     sendEvent("default_device_changed", event)
                 }
 
-                override fun onScanStopped(reason: MentraScanStopReason) {
-                    if (reason == MentraScanStopReason.COMPLETED) {
+                override fun onScanStopped(reason: ScanStopReason) {
+                    if (reason == ScanStopReason.COMPLETED) {
                         val status = sdk?.getBluetoothStatus()
                         val deviceModel =
                                 status?.pendingWearable?.takeIf { it.isNotBlank() }
@@ -46,7 +46,7 @@ class CoreModule : Module() {
                     }
                 }
 
-                override fun onButtonPress(event: MentraButtonPressEvent) {
+                override fun onButtonPress(event: ButtonPressEvent) {
                     sendEvent(
                             "button_press",
                             mapOf(
@@ -57,7 +57,7 @@ class CoreModule : Module() {
                     )
                 }
 
-                override fun onTouch(event: MentraTouchEvent) {
+                override fun onTouch(event: TouchEvent) {
                     sendEvent("touch_event", event.values)
                 }
 
@@ -65,7 +65,7 @@ class CoreModule : Module() {
                     sendEvent("head_up", mapOf("up" to headUp))
                 }
 
-                override fun onBatteryStatus(event: MentraBatteryStatusEvent) {
+                override fun onBatteryStatus(event: BatteryStatusEvent) {
                     sendEvent("battery_status", event.values)
                 }
 
@@ -73,27 +73,27 @@ class CoreModule : Module() {
                     sendEvent("wifi_status_change", event.values)
                 }
 
-                override fun onHotspotStatusChanged(event: MentraHotspotStatusEvent) {
+                override fun onHotspotStatusChanged(event: HotspotStatusEvent) {
                     sendEvent("hotspot_status_change", event.values)
                 }
 
-                override fun onHotspotError(event: MentraHotspotErrorEvent) {
+                override fun onHotspotError(event: HotspotErrorEvent) {
                     sendEvent("hotspot_error", event.values)
                 }
 
-                override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
+                override fun onGalleryStatus(event: GalleryStatusEvent) {
                     sendEvent("gallery_status", event.values)
                 }
 
-                override fun onPhotoResponse(event: MentraPhotoResponseEvent) {
+                override fun onPhotoResponse(event: PhotoResponseEvent) {
                     sendEvent("photo_response", event.values)
                 }
 
-                override fun onStreamStatus(event: MentraStreamStatusEvent) {
+                override fun onStreamStatus(event: StreamStatusEvent) {
                     sendEvent("stream_status", event.values)
                 }
 
-                override fun onKeepAliveAck(event: MentraKeepAliveAckEvent) {
+                override fun onKeepAliveAck(event: KeepAliveAckEvent) {
                     sendEvent("keep_alive_ack", event.values)
                 }
 
@@ -105,7 +105,7 @@ class CoreModule : Module() {
                     sendEvent("mic_lc3", mapOf("lc3" to frame))
                 }
 
-                override fun onLocalTranscription(event: MentraLocalTranscriptionEvent) {
+                override fun onLocalTranscription(event: LocalTranscriptionEvent) {
                     sendEvent("local_transcription", event.values)
                 }
 
@@ -113,7 +113,7 @@ class CoreModule : Module() {
                     sendEvent("log", mapOf("message" to message))
                 }
 
-                override fun onError(error: MentraBluetoothError) {
+                override fun onError(error: BluetoothError) {
                     sendEvent("pair_failure", mapOf("error" to error.message))
                 }
 
@@ -197,7 +197,7 @@ class CoreModule : Module() {
 
         Function("getGlassesStatus") {
             sdk?.getGlassesStatus()?.toMap()
-                    ?: MentraGlassesStatus.fromMap(GlassesStore.store.getCategory("glasses")).toMap()
+                    ?: GlassesStatus.fromMap(GlassesStore.store.getCategory("glasses")).toMap()
         }
 
         Function("getCoreStatus") {
@@ -243,12 +243,12 @@ class CoreModule : Module() {
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { params: Map<String, Any> ->
-            sdk?.displayEvent(MentraDisplayEventRequest(params))
+            sdk?.displayEvent(DisplayEventRequest(params))
         }
 
         AsyncFunction("displayText") { params: Map<String, Any> ->
             sdk?.displayText(
-                    MentraDisplayTextRequest(
+                    DisplayTextRequest(
                             text = params["text"] as? String ?: "",
                             x = (params["x"] as? Number)?.toInt() ?: 0,
                             y = (params["y"] as? Number)?.toInt() ?: 0,
@@ -275,7 +275,7 @@ class CoreModule : Module() {
 
         AsyncFunction("connectWithOptions") { device: Map<String, Any>, options: Map<String, Any> ->
             sdk?.connect(
-                    device.toMentraDevice() ?: throw IllegalArgumentException("connect requires a MentraDevice with model and name."),
+                    device.toMentraDevice() ?: throw IllegalArgumentException("connect requires a Device with model and name."),
                     options.toMentraConnectOptions(),
             )
         }
@@ -294,7 +294,7 @@ class CoreModule : Module() {
 
         AsyncFunction("startScan") { params: Map<String, Any> ->
             val model = params["model"] as? String ?: DeviceTypes.LIVE
-            sdk?.startScan(MentraDeviceModel.fromDeviceType(model))
+            sdk?.startScan(DeviceModel.fromDeviceType(model))
         }
 
         AsyncFunction("cancelConnectionAttempt") { sdk?.cancelConnectionAttempt() }
@@ -340,8 +340,8 @@ class CoreModule : Module() {
         AsyncFunction("setGalleryMode") { mode: String ->
             val galleryMode =
                     when (mode.lowercase()) {
-                        "auto" -> MentraGalleryMode.AUTO
-                        "manual" -> MentraGalleryMode.MANUAL
+                        "auto" -> GalleryMode.AUTO
+                        "manual" -> GalleryMode.MANUAL
                         else -> throw IllegalArgumentException("setGalleryMode mode must be \"auto\" or \"manual\".")
                     }
             sdk?.setGalleryMode(galleryMode)
@@ -359,13 +359,13 @@ class CoreModule : Module() {
                 flash: Boolean,
                 sound: Boolean ->
             sdk?.requestPhoto(
-                    MentraPhotoRequest(
+                    PhotoRequest(
                             requestId = requestId,
                             appId = appId,
-                            size = MentraPhotoSize.fromValue(size),
+                            size = PhotoSize.fromValue(size),
                             webhookUrl = webhookUrl,
                             authToken = authToken,
-                            compress = MentraPhotoCompression.fromValue(compress),
+                            compress = PhotoCompression.fromValue(compress),
                             flash = flash,
                             sound = sound,
                     )
@@ -391,7 +391,7 @@ class CoreModule : Module() {
         // MARK: - Video Recording Commands
 
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
-            sdk?.startVideoRecording(MentraVideoRecordingRequest(requestId, save, flash, sound))
+            sdk?.startVideoRecording(VideoRecordingRequest(requestId, save, flash, sound))
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
@@ -401,13 +401,13 @@ class CoreModule : Module() {
         // MARK: - Stream Commands
 
         AsyncFunction("startStream") { params: Map<String, Any> ->
-            sdk?.startStream(MentraStreamRequest.fromMap(params))
+            sdk?.startStream(StreamRequest.fromMap(params))
         }
 
         AsyncFunction("stopStream") { sdk?.stopStream() }
 
         AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
-            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest.fromMap(params))
+            sdk?.keepStreamAlive(StreamKeepAliveRequest.fromMap(params))
         }
 
         // MARK: - Microphone Commands
@@ -417,7 +417,7 @@ class CoreModule : Module() {
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
             sdk?.setMicState(
-                    MentraMicConfig(
+                    MicConfig(
                             sendPcmData = sendPcmData,
                             sendTranscript = sendTranscript,
                             bypassVad = bypassVad,
@@ -454,11 +454,11 @@ class CoreModule : Module() {
                 offtime: Int,
                 count: Int ->
             sdk?.rgbLedControl(
-                    MentraRgbLedRequest(
+                    RgbLedRequest(
                             requestId = requestId,
                             packageName = packageName,
-                            action = MentraRgbLedAction.fromValue(action),
-                            color = MentraRgbLedColor.fromValue(color),
+                            action = RgbLedAction.fromValue(action),
+                            color = RgbLedColor.fromValue(color),
                             ontime = ontime,
                             offtime = offtime,
                             count = count,
@@ -503,15 +503,15 @@ class CoreModule : Module() {
     }
 }
 
-private fun Map<String, Any>?.toMentraDevice(): MentraDevice? {
+private fun Map<String, Any>?.toMentraDevice(): Device? {
     val values = this ?: return null
     val model = values["model"] as? String ?: values["deviceModel"] as? String ?: return null
     val name = values["name"] as? String ?: values["deviceName"] as? String ?: return null
     val address = values["address"] as? String ?: values["deviceAddress"] as? String
     val rssi = (values["rssi"] as? Number)?.toInt()
     val id = values["id"] as? String
-    return MentraDevice(
-            model = MentraDeviceModel.fromDeviceType(model),
+    return Device(
+            model = DeviceModel.fromDeviceType(model),
             name = name,
             address = address?.takeIf { it.isNotBlank() },
             rssi = rssi,
@@ -519,9 +519,9 @@ private fun Map<String, Any>?.toMentraDevice(): MentraDevice? {
     )
 }
 
-private fun Map<String, Any>?.toMentraConnectOptions(): MentraConnectOptions {
-    val values = this ?: return MentraConnectOptions()
-    return MentraConnectOptions(
+private fun Map<String, Any>?.toMentraConnectOptions(): ConnectOptions {
+    val values = this ?: return ConnectOptions()
+    return ConnectOptions(
             saveAsDefault = values["saveAsDefault"] as? Boolean ?: true,
             cancelExistingConnectionAttempt = values["cancelExistingConnectionAttempt"] as? Boolean ?: true,
     )

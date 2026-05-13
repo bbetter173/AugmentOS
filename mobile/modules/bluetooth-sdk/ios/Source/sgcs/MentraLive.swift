@@ -3783,7 +3783,7 @@ class MentraLive: NSObject, SGCManager {
     }
 
     private func emitHotspotStatusChange() {
-        guard let status = MentraHotspotStatus.fromStoreFields(
+        guard let status = HotspotStatus.fromStoreFields(
             enabled: hotspotEnabled,
             ssid: hotspotSsid,
             password: hotspotPassword,

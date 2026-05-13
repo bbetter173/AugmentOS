@@ -105,11 +105,11 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("displayEvent") { (params: [String: Any]) in
             let sdk = await MainActor.run { self.bluetoothSdk() }
-            try? await sdk.displayEvent(MentraDisplayEventRequest(values: params))
+            try? await sdk.displayEvent(DisplayEventRequest(values: params))
         }
 
         AsyncFunction("displayText") { (params: [String: Any]) in
-            let request = MentraDisplayTextRequest(
+            let request = DisplayTextRequest(
                 text: params["text"] as? String ?? "",
                 x: intValue(params["x"], defaultValue: 0),
                 y: intValue(params["y"], defaultValue: 0),
@@ -129,13 +129,13 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("connectDefaultWithOptions") { (options: [String: Any]) in
             try await MainActor.run {
-                try self.bluetoothSdk().connectDefault(options: MentraConnectOptions(dictionary: options))
+                try self.bluetoothSdk().connectDefault(options: ConnectOptions(dictionary: options))
             }
         }
 
         AsyncFunction("setDefaultDevice") { (device: [String: Any]?) in
             await MainActor.run {
-                self.bluetoothSdk().setDefaultDevice(MentraDevice(dictionary: device))
+                self.bluetoothSdk().setDefaultDevice(Device(dictionary: device))
             }
         }
 
@@ -147,13 +147,13 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("connectWithOptions") { (device: [String: Any], options: [String: Any]) in
             try await MainActor.run {
-                guard let target = MentraDevice(dictionary: device) else {
-                    throw MentraBluetoothError(
+                guard let target = Device(dictionary: device) else {
+                    throw BluetoothError(
                         code: "invalid_device",
-                        message: "connect requires a MentraDevice with model and name."
+                        message: "connect requires a Device with model and name."
                     )
                 }
-                try self.bluetoothSdk().connect(to: target, options: MentraConnectOptions(dictionary: options))
+                try self.bluetoothSdk().connect(to: target, options: ConnectOptions(dictionary: options))
             }
         }
 
@@ -196,7 +196,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("startScan") { (params: [String: Any]) in
             try await MainActor.run {
                 let model = params["model"] as? String ?? DeviceTypes.LIVE
-                try self.bluetoothSdk().startScan(model: MentraDeviceModel.fromDeviceType(model))
+                try self.bluetoothSdk().startScan(model: DeviceModel.fromDeviceType(model))
             }
         }
 
@@ -293,14 +293,14 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         // MARK: - Gallery Commands
 
         AsyncFunction("setGalleryMode") { (mode: String) in
-            let galleryMode: MentraGalleryMode
+            let galleryMode: GalleryMode
             switch mode.lowercased() {
             case "auto":
                 galleryMode = .auto
             case "manual":
                 galleryMode = .manual
             default:
-                throw MentraBluetoothError(
+                throw BluetoothError(
                     code: "invalid_gallery_mode",
                     message: "setGalleryMode mode must be \"auto\" or \"manual\"."
                 )
@@ -322,13 +322,13 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             ) in
             await MainActor.run {
                 self.bluetoothSdk().requestPhoto(
-                    MentraPhotoRequest(
+                    PhotoRequest(
                         requestId: requestId,
                         appId: appId,
-                        size: MentraPhotoSize(rawValue: size) ?? .medium,
+                        size: PhotoSize(rawValue: size) ?? .medium,
                         webhookUrl: webhookUrl,
                         authToken: authToken,
-                        compress: compress.flatMap(MentraPhotoCompression.init(rawValue:)),
+                        compress: compress.flatMap(PhotoCompression.init(rawValue:)),
                         flash: flash,
                         sound: sound
                     )
@@ -377,7 +377,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
             await MainActor.run {
                 self.bluetoothSdk().startVideoRecording(
-                    MentraVideoRecordingRequest(requestId: requestId, save: save, flash: flash, sound: sound)
+                    VideoRecordingRequest(requestId: requestId, save: save, flash: flash, sound: sound)
                 )
             }
         }
@@ -392,7 +392,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("startStream") { (params: [String: Any]) in
             await MainActor.run {
-                self.bluetoothSdk().startStream(MentraStreamRequest(values: params))
+                self.bluetoothSdk().startStream(StreamRequest(values: params))
             }
         }
 
@@ -404,7 +404,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("keepStreamAlive") { (params: [String: Any]) in
             await MainActor.run {
-                self.bluetoothSdk().keepStreamAlive(MentraStreamKeepAliveRequest(values: params))
+                self.bluetoothSdk().keepStreamAlive(StreamKeepAliveRequest(values: params))
             }
         }
 
@@ -433,11 +433,11 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             ) in
             await MainActor.run {
                 self.bluetoothSdk().rgbLedControl(
-                    MentraRgbLedRequest(
+                    RgbLedRequest(
                         requestId: requestId,
                         packageName: packageName,
-                        action: MentraRgbLedAction(rawValue: action) ?? .off,
-                        color: color.flatMap(MentraRgbLedColor.init(rawValue:)),
+                        action: RgbLedAction(rawValue: action) ?? .off,
+                        color: color.flatMap(RgbLedColor.init(rawValue:)),
                         ontime: ontime,
                         offtime: offtime,
                         count: count
@@ -451,7 +451,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
             await MainActor.run {
                 self.bluetoothSdk().setMicState(
-                    MentraMicConfiguration(
+                    MicConfiguration(
                         sendPcmData: sendPcmData,
                         sendTranscript: sendTranscript,
                         bypassVad: bypassVad
@@ -536,22 +536,22 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus status: MentraGlassesStatusUpdate) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
         sendEvent("glasses_status", status.dictionary)
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus status: MentraBluetoothStatusUpdate) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate) {
         sendEvent("core_status", status.values)
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didDiscover device: MentraDevice) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didDiscover device: Device) {
         sendEvent("device_discovered", device.dictionary)
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan reason: MentraScanStopReason) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan reason: ScanStopReason) {
         guard reason == .completed else { return }
         let status = bluetoothSdk().bluetoothStatus
         let deviceModel = status.pendingWearable.isEmpty ? status.defaultWearable : status.pendingWearable
@@ -565,7 +565,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive event: MentraBluetoothEvent) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive event: BluetoothEvent) {
         switch event {
         case let .buttonPress(button):
             sendEvent(
@@ -608,7 +608,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didChangeDefaultDevice device: MentraDevice?) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didChangeDefaultDevice device: Device?) {
         var event: [String: Any] = [:]
         if let device {
             event["device"] = device.dictionary
@@ -622,12 +622,12 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail error: MentraBluetoothError) {
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail error: BluetoothError) {
         sendEvent("pair_failure", ["error": error.message])
     }
 }
 
-private extension MentraDevice {
+private extension Device {
     init?(dictionary values: [String: Any]?) {
         guard let values else { return nil }
         guard let model = values["model"] as? String ?? values["deviceModel"] as? String else { return nil }
@@ -646,7 +646,7 @@ private extension MentraDevice {
         }
         let id = values["id"] as? String
         self.init(
-            model: MentraDeviceModel.fromDeviceType(model),
+            model: DeviceModel.fromDeviceType(model),
             name: name,
             identifier: identifier?.isEmpty == true ? nil : identifier,
             rssi: rssi,
@@ -655,7 +655,7 @@ private extension MentraDevice {
     }
 }
 
-private extension MentraConnectOptions {
+private extension ConnectOptions {
     init(dictionary values: [String: Any]?) {
         self.init(
             saveAsDefault: values?["saveAsDefault"] as? Bool ?? true,

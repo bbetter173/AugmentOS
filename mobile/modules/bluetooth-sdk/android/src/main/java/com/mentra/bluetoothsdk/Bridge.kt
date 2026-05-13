@@ -419,7 +419,7 @@ public class Bridge private constructor() {
                 password: String,
                 gatewayIp: String
         ) {
-            val status = MentraHotspotStatus.fromStoreFields(enabled, ssid, password, gatewayIp) ?: return
+            val status = HotspotStatus.fromStoreFields(enabled, ssid, password, gatewayIp) ?: return
             sendTypedMessage("hotspot_status_change", status.toMap())
         }
 

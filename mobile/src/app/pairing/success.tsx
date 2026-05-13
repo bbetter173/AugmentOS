@@ -9,7 +9,7 @@ import {waitForGlassesState} from "@/stores/glasses"
 import {getGlassesImage} from "@/utils/getGlassesImage"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
 import {translate} from "@/i18n"
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 export default function PairingSuccessScreen() {
   const {clearHistoryAndGoHome, push, pushUnder} = useNavigationHistory()
@@ -18,7 +18,7 @@ export default function PairingSuccessScreen() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [onboardingOsCompleted] = useSetting(SETTINGS.onboarding_os_completed.key)
   const [buttonText, setButtonText] = useState<string>(translate("common:continue"))
-  const [stack, setStack] = useState<string[]>([])
+  const [isStackReady, setIsStackReady] = useState(false)
   const stackPromiseRef = useRef<Promise<string[]> | null>(null)
 
   focusEffectPreventBack()
@@ -63,9 +63,9 @@ export default function PairingSuccessScreen() {
     return newStack
   }, [deviceModel, onboardingOsCompleted])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     stackPromiseRef.current = buildLiveStack().then((routes) => {
-      setStack(routes)
+      setIsStackReady(true)
       return routes
     })
   }, [buildLiveStack])
@@ -168,15 +168,10 @@ export default function PairingSuccessScreen() {
   }
 
   useEffect(() => {
-    const updateButtonText = async () => {
-      console.log("PAIR_SUCCESS: stack", stack)
-      console.log("STACK LENGTH", stack.length)
-      if (stack.length > 0) {
-        setButtonText(translate("onboarding:continueSetup"))
-      }
+    if (isStackReady) {
+      setButtonText(translate("onboarding:continueSetup"))
     }
-    updateButtonText()
-  }, [stack])
+  }, [isStackReady])
 
   return (
     <Screen preset="fixed" safeAreaEdges={["bottom"]} extraAndroidInsets>

@@ -1,4 +1,4 @@
-import type {OtaProgress, OtaStatus} from "core"
+import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk"
 
 export type DisplayState = "starting" | "updating" | "complete" | "failed" | "disconnected" | "restarting"
 

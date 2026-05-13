@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
 import {useEffect, useState, useRef, useCallback} from "react"
 import {View, ActivityIndicator} from "react-native"
 
@@ -6,7 +6,7 @@ import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {useConnectionOverlayConfig} from "@/contexts/ConnectionOverlayContext"
 import {Screen, Header, Button, Text, Icon} from "@/components/ignite"
 import {LoadingCoverVideo} from "@/components/ota/LoadingCoverVideo"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {checkBesUpdate, findMatchingMtkPatch, fetchVersionInfo, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecker"
 import {useGlassesStore} from "@/stores/glasses"
@@ -24,6 +24,7 @@ import {
   PROGRESS_TIMEOUT_MS,
   RETRY_INTERVAL_MS,
 } from "@/app/ota/otaProgressTimeouts"
+import { useNavigationStore } from "@/stores/navigation"
 
 /** Legacy OTA: +20s on every watchdog / timer duration (shared defaults stay unchanged for progress.tsx). */
 const LEGACY_EXTRA_TIMEOUT_MS = 20_000
@@ -61,7 +62,7 @@ const OTA_COVER_VIDEO_URL = "https://mentra-videos-cdn.mentraglass.com/onboardin
 
 export default function OtaProgressScreen() {
   const {theme} = useAppTheme()
-  const {replace, push} = useNavigationHistory()
+  const {replace, push} = useNavigationStore.getState()
   const [superMode] = useSetting(SETTINGS.super_mode.key)
   const otaProgress = useGlassesStore((state) => state.otaProgress)
   const otaUpdateAvailable = useGlassesStore((state) => state.otaUpdateAvailable)

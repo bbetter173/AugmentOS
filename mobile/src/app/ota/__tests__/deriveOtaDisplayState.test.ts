@@ -1,4 +1,4 @@
-import type {OtaProgress, OtaStatus} from "core"
+import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk"
 
 import {deriveDisplayState, type DisplayState} from "@/app/ota/deriveOtaDisplayState"
 

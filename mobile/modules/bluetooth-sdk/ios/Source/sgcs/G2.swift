@@ -767,6 +767,8 @@ private enum MenuProto {
 
         // Always first: built-in Notification (SID=4)
         wireItems.append(WireItem(displayName: nil, appId: 4, isBuiltIn: true))
+        wireItems.append(WireItem(displayName: nil, appId: 5, isBuiltIn: true))
+
 
         // Third-party items — leave room for the built-in
         for item in items.prefix(MAX_MENU_SIZE - 1) {
@@ -2311,17 +2313,17 @@ class G2: NSObject, SGCManager {
             // if already enabled, set to disabled, then send enabled after 500ms:
             GlassesStore.shared.apply("glasses", "micEnabled", true)
             let msg = EvenHubProto.audioControlMessage(enable: false)
-            sendEvenHubCommand(msg)
+            self.sendEvenHubCommand(msg)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 let msg = EvenHubProto.audioControlMessage(enable: true)
-                sendEvenHubCommand(msg)
+                self.sendEvenHubCommand(msg)
             }
             return
         }
 
         GlassesStore.shared.apply("glasses", "micEnabled", enabled)
         let msg = EvenHubProto.audioControlMessage(enable: enabled)
-        sendEvenHubCommand(msg)
+        self.sendEvenHubCommand(msg)
     }
 
     func sortMicRanking(list: [String]) -> [String] {

@@ -20,7 +20,7 @@ export default function PairingSuccessScreen() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [onboardingOsCompleted] = useSetting(SETTINGS.onboarding_os_completed.key)
   const [buttonText, setButtonText] = useState<string>(translate("common:continue"))
-  const [hasSetupRoutes, setHasSetupRoutes] = useState(false)
+  const [isStackReady, setIsStackReady] = useState(false)
   const stackPromiseRef = useRef<Promise<string[]> | null>(null)
 
   focusEffectPreventBack()
@@ -67,7 +67,7 @@ export default function PairingSuccessScreen() {
 
   useEffect(() => {
     stackPromiseRef.current = buildLiveStack().then((routes) => {
-      setHasSetupRoutes(routes.length > 0)
+      setIsStackReady(true)
       return routes
     })
   }, [buildLiveStack])
@@ -182,10 +182,10 @@ export default function PairingSuccessScreen() {
   }
 
   useEffect(() => {
-    if (hasSetupRoutes) {
+    if (isStackReady) {
       setButtonText(translate("onboarding:continueSetup"))
     }
-  }, [hasSetupRoutes])
+  }, [isStackReady])
 
   return (
     <Screen preset="fixed" safeAreaEdges={["bottom"]} extraAndroidInsets>

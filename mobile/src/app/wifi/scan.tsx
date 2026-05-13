@@ -29,8 +29,9 @@ export default function WifiScanScreen() {
   const scanTimeoutRef = useRef<number | null>(null)
   const currentScanSessionRef = useRef<number>(Date.now())
   const receivedResultsForSessionRef = useRef<boolean>(false)
-  const wifiSsid = useGlassesStore((state) => state.wifiSsid)
-  const wifiConnected = useGlassesStore((state) => state.wifiConnected)
+  const wifi = useGlassesStore((state) => state.wifi)
+  const wifiConnected = wifi.state === "connected"
+  const wifiSsid = wifiConnected ? wifi.ssid : ""
   const {push, goBack, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
     useNavigationStore.getState()
   const pushPrevious = usePushPrevious()

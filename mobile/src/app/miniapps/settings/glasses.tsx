@@ -41,7 +41,9 @@ function DeviceSettings() {
   const applets = useApps()
   const features: Capabilities = getModelCapabilities(defaultWearable)
 
-  const wifiLocalIp = useGlassesStore((state) => state.wifiSsid)
+  const wifiLocalIp = useGlassesStore((state) =>
+    state.wifi.state === "connected" ? (state.wifi.localIp ?? "") : "",
+  )
   const bluetoothName = useGlassesStore((state) => state.bluetoothName)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
   const otaProgress = useGlassesStore((state) => state.otaProgress)

@@ -21,8 +21,9 @@ export default function DeviceInfoScreen() {
   const btMacAddress = useGlassesStore((state) => state.btMacAddress)
   const appVersion = useGlassesStore((state) => state.appVersion)
   const serialNumber = useGlassesStore((state) => state.serialNumber)
-  const wifiSsid = useGlassesStore((state) => state.wifiSsid)
-  const wifiLocalIp = useGlassesStore((state) => state.wifiLocalIp)
+  const wifi = useGlassesStore((state) => state.wifi)
+  const wifiSsid = wifi.state === "connected" ? wifi.ssid : ""
+  const wifiLocalIp = wifi.state === "connected" ? (wifi.localIp ?? "") : ""
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
 
   // Extract short bluetooth ID from full name (e.g., "MentraLive_664ebf" -> "664ebf")

@@ -72,7 +72,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   const caseOpen = useGlassesStore((state) => state.caseOpen)
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
   const charging = useGlassesStore((state) => state.charging)
-  const wifiConnected = useGlassesStore((state) => state.wifiConnected)
+  const wifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const searching = useCoreStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 

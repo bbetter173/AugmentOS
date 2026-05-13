@@ -28,8 +28,9 @@ export default function WifiConnectingScreen() {
 
   const {goBack, push} = useNavigationStore.getState()
   const pushPrevious = usePushPrevious()
-  const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const wifiSsid = useGlassesStore((state) => state.wifiSsid)
+  const wifi = useGlassesStore((state) => state.wifi)
+  const wifiConnected = wifi.state === "connected"
+  const wifiSsid = wifiConnected ? wifi.ssid : ""
 
   useEffect(() => {
     // Start connection attempt

@@ -137,9 +137,10 @@ class SocketComms {
     const glassesInfo = useGlassesStore.getState()
 
     // Always include WiFi info - null means "unknown", false means "explicitly disconnected"
+    const wifi = glassesInfo.wifi
     const wifiInfo = {
-      connected: glassesInfo.wifiConnected ?? null,
-      ssid: glassesInfo.wifiSsid ?? null,
+      connected: glassesInfo.wifiStatusKnown ? wifi.state === "connected" : null,
+      ssid: wifi.state === "connected" ? wifi.ssid : null,
     }
 
     const connected = glassesInfo.connected

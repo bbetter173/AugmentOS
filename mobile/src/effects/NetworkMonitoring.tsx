@@ -4,7 +4,9 @@ import {useGlassesStore} from "@/stores/glasses"
 import {asgCameraApi} from "@/services/asg/asgCameraApi"
 
 export function NetworkMonitoring() {
-  const hotspotGatewayIp = useGlassesStore((state) => state.hotspotGatewayIp)
+  const hotspotGatewayIp = useGlassesStore((state) =>
+    state.hotspot.state === "enabled" ? state.hotspot.localIp : "",
+  )
   useEffect(() => {
     asgCameraApi.setServer(hotspotGatewayIp, 8089)
   }, [hotspotGatewayIp])

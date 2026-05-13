@@ -50,7 +50,7 @@ export default function PairingSuccessScreen() {
       }
       // check if the glasses are already connected:
       // wait for the glasses to be connected to wifi for up to 1 second:
-      let wifiConnected = await waitForGlassesState("wifiConnected", (value) => value === true, 1000)
+      let wifiConnected = await waitForGlassesState("wifi", (value) => value.state === "connected", 1000)
       if (!wifiConnected) {
         newStack.push("/wifi/scan")
       }

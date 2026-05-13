@@ -75,8 +75,9 @@ export default function FeedbackPage() {
   const appVersion = useGlassesStore((state) => state.appVersion)
   const serialNumber = useGlassesStore((state) => state.serialNumber)
   const androidVersion = useGlassesStore((state) => state.androidVersion)
-  const glassesWifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const glassesWifiSsid = useGlassesStore((state) => state.wifiSsid)
+  const glassesWifi = useGlassesStore((state) => state.wifi)
+  const glassesWifiConnected = glassesWifi.state === "connected"
+  const glassesWifiSsid = glassesWifiConnected ? glassesWifi.ssid : ""
   const glassesBatteryLevel = useGlassesStore((state) => state.batteryLevel)
 
   const [userEmail, setUserEmail] = useState("")

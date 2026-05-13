@@ -162,8 +162,9 @@ export async function buildBugReportFeedbackDataForBug(
   const appVersion = useGlassesStore.getState().appVersion
   const serialNumber = useGlassesStore.getState().serialNumber
   const androidVersion = useGlassesStore.getState().androidVersion
-  const glassesWifiConnected = useGlassesStore.getState().wifiConnected
-  const glassesWifiSsid = useGlassesStore.getState().wifiSsid
+  const glassesWifi = useGlassesStore.getState().wifi
+  const glassesWifiConnected = glassesWifi.state === "connected"
+  const glassesWifiSsid = glassesWifiConnected ? glassesWifi.ssid : ""
   const glassesBatteryLevel = useGlassesStore.getState().batteryLevel
 
   const glassesBluetoothId = glassesBluetoothName?.split("_").pop() || glassesBluetoothName

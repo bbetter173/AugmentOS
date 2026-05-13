@@ -356,8 +356,6 @@ describe("MantleManager", () => {
     })
 
     expect(useGlassesStore.getState().wifi).toEqual({state: "connected", ssid: "Mentra"})
-    expect(useGlassesStore.getState().wifiConnected).toBe(true)
-    expect(useGlassesStore.getState().wifiSsid).toBe("Mentra")
 
     emitCoreModuleEvent("wifi_status_change", {
       type: "wifi_status_change",
@@ -365,8 +363,6 @@ describe("MantleManager", () => {
     })
 
     expect(useGlassesStore.getState().wifi).toEqual({state: "disconnected"})
-    expect(useGlassesStore.getState().wifiConnected).toBe(false)
-    expect(useGlassesStore.getState().wifiSsid).toBe("")
   })
 
   it("renders offline local transcription locally instead of forwarding it to cloud", async () => {

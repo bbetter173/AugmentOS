@@ -126,8 +126,8 @@ if (project.hasProperty("sentryUploadEnabled") && project.property("sentryUpload
       )
     }
 
-    // 2. Update versionName to 2.10.0
-    buildGradle = buildGradle.replace(/versionName\s+["'][^"']*["']/, 'versionName "2.10.0"')
+    // 2. Update versionName to 2.10.1
+    buildGradle = buildGradle.replace(/versionName\s+["'][^"']*["']/, 'versionName "2.10.1"')
 
     // 3. Add externalNativeBuild configuration in defaultConfig
     if (!buildGradle.includes("externalNativeBuild")) {

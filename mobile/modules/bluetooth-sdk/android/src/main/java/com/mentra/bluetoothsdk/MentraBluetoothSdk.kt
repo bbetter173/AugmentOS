@@ -485,7 +485,7 @@ class MentraBluetoothSdk private constructor(
                         )
                     )
                 }
-            "wifi_status_change" -> dispatchToListeners { it.onWifiStatusChanged(MentraWifiStatusEvent(data)) }
+            "wifi_status_change" -> dispatchToListeners { it.onWifiStatusChanged(WifiStatusEvent(data)) }
             "hotspot_status_change" -> dispatchToListeners { it.onHotspotStatusChanged(MentraHotspotStatusEvent(data)) }
             "hotspot_error" -> dispatchToListeners { it.onHotspotError(MentraHotspotErrorEvent(data)) }
             "gallery_status" -> dispatchToListeners { it.onGalleryStatus(MentraGalleryStatusEvent(data)) }

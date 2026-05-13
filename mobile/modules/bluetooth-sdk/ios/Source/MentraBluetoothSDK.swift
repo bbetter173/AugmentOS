@@ -273,7 +273,7 @@ public struct MentraGlassesStatus: CustomStringConvertible {
         applying(MentraGlassesStatusUpdate(values: ["batteryLevel": level, "charging": charging]))
     }
 
-    public func withWifi(_ wifi: MentraWifiStatus) -> MentraGlassesStatus {
+    public func withWifi(_ wifi: WifiStatus) -> MentraGlassesStatus {
         applying(MentraGlassesStatusUpdate(values: wifi.storeValues))
     }
 
@@ -323,7 +323,7 @@ public struct MentraGlassesStatus: CustomStringConvertible {
     public var serialNumber: String { stringValue(values, "serialNumber") ?? "" }
     public var style: String { stringValue(values, "style") ?? "" }
     public var color: String { stringValue(values, "color") ?? "" }
-    public var wifi: MentraWifiStatus { MentraWifiStatus.fromStoreValues(values) ?? .disconnected }
+    public var wifi: WifiStatus { WifiStatus.fromStoreValues(values) ?? .disconnected }
     public var hotspot: MentraHotspotStatus { MentraHotspotStatus.fromStoreValues(values) ?? .disabled }
     public var dictionary: [String: Any] { Self.dictionary(from: values) }
     public var batteryLevel: Int { intValue(values["batteryLevel"]) ?? -1 }
@@ -346,7 +346,7 @@ public struct MentraGlassesStatus: CustomStringConvertible {
 
     static func dictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
-        dictionary["wifi"] = (MentraWifiStatus.fromStoreValues(values) ?? .disconnected).values
+        dictionary["wifi"] = (WifiStatus.fromStoreValues(values) ?? .disconnected).values
         dictionary["hotspot"] = (MentraHotspotStatus.fromStoreValues(values) ?? .disabled).values
         dictionary.removeValue(forKey: "wifiConnected")
         dictionary.removeValue(forKey: "wifiSsid")
@@ -362,8 +362,8 @@ public struct MentraGlassesStatus: CustomStringConvertible {
     static func updateDictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
         if hasAnyKey(values, "wifi", "wifiConnected", "wifiSsid", "wifiLocalIp") {
-            let wifi = (values["wifi"] as? [String: Any]).flatMap(MentraWifiStatus.init(values:))
-                ?? MentraWifiStatus.fromStoreValues(values)
+            let wifi = (values["wifi"] as? [String: Any]).flatMap(WifiStatus.init(values:))
+                ?? WifiStatus.fromStoreValues(values)
             if let wifi {
                 dictionary["wifi"] = wifi.values
             }
@@ -508,12 +508,12 @@ public struct MentraGlassesStatusUpdate: CustomStringConvertible {
     public var serialNumber: String? { optionalStringValue(values, "serialNumber") }
     public var style: String? { optionalStringValue(values, "style") }
     public var color: String? { optionalStringValue(values, "color") }
-    public var wifi: MentraWifiStatus? {
+    public var wifi: WifiStatus? {
         if let wifi = values["wifi"] as? [String: Any] {
-            return MentraWifiStatus(values: wifi)
+            return WifiStatus(values: wifi)
         }
         if hasAnyKey(values, "wifiConnected", "wifiSsid", "wifiLocalIp") {
-            return MentraWifiStatus.fromStoreValues(values)
+            return WifiStatus.fromStoreValues(values)
         }
         return nil
     }
@@ -1055,7 +1055,7 @@ public struct MentraTouchEvent: CustomStringConvertible {
     }
 }
 
-public enum MentraWifiStatus: CustomStringConvertible, Equatable {
+public enum WifiStatus: CustomStringConvertible, Equatable {
     public enum State: String {
         case disconnected
         case connected
@@ -1084,7 +1084,7 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
 
     init?(values: [String: Any]) {
         if let nested = values["wifi"] as? [String: Any] {
-            guard let wifi = MentraWifiStatus(values: nested) else {
+            guard let wifi = WifiStatus(values: nested) else {
                 return nil
             }
             self = wifi
@@ -1094,7 +1094,7 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
         if let state = stringValue(values, "state")?.lowercased() {
             switch state {
             case State.connected.rawValue:
-                guard let wifi = MentraWifiStatus(
+                guard let wifi = WifiStatus(
                     connected: true,
                     ssid: nonEmptyStringValue(values, "ssid"),
                     localIp: nonEmptyStringValue(values, "localIp")
@@ -1113,7 +1113,7 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
         return nil
     }
 
-    static func fromStoreValues(_ values: [String: Any]) -> MentraWifiStatus? {
+    static func fromStoreValues(_ values: [String: Any]) -> WifiStatus? {
         guard let connected = boolValue(values, "wifiConnected") else { return nil }
         return fromStoreFields(
             connected: connected,
@@ -1122,8 +1122,8 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
         )
     }
 
-    static func fromStoreFields(connected: Bool, ssid: String?, localIp: String?) -> MentraWifiStatus? {
-        MentraWifiStatus(connected: connected, ssid: ssid, localIp: localIp)
+    static func fromStoreFields(connected: Bool, ssid: String?, localIp: String?) -> WifiStatus? {
+        WifiStatus(connected: connected, ssid: ssid, localIp: localIp)
     }
 
     public var state: State {
@@ -1178,26 +1178,26 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
     public var description: String {
         switch self {
         case .disconnected:
-            "MentraWifiStatus(disconnected)"
+            "WifiStatus(disconnected)"
         case let .connected(ssid, localIp):
-            "MentraWifiStatus(connected: \(ssid), localIp: \(localIp ?? "unknown"))"
+            "WifiStatus(connected: \(ssid), localIp: \(localIp ?? "unknown"))"
         }
     }
 }
 
-public struct MentraWifiStatusEvent: CustomStringConvertible {
-    public let status: MentraWifiStatus
+public struct WifiStatusEvent: CustomStringConvertible {
+    public let status: WifiStatus
 
-    public init(status: MentraWifiStatus) {
+    public init(status: WifiStatus) {
         self.status = status
     }
 
     init(connected: Bool, ssid: String?, localIp: String?) {
-        self.status = MentraWifiStatus.fromStoreFields(connected: connected, ssid: ssid, localIp: localIp) ?? .disconnected
+        self.status = WifiStatus.fromStoreFields(connected: connected, ssid: ssid, localIp: localIp) ?? .disconnected
     }
 
     init(values: [String: Any]) {
-        self.status = MentraWifiStatus(values: values) ?? .disconnected
+        self.status = WifiStatus(values: values) ?? .disconnected
     }
 
     public var values: [String: Any] {
@@ -1205,7 +1205,7 @@ public struct MentraWifiStatusEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraWifiStatusEvent(\(status))"
+        "WifiStatusEvent(\(status))"
     }
 }
 
@@ -1849,7 +1849,7 @@ public struct MentraLocalTranscriptionEvent: CustomStringConvertible {
 public enum MentraBluetoothEvent: CustomStringConvertible {
     case buttonPress(MentraButtonPressEvent)
     case touch(MentraTouchEvent)
-    case wifiStatus(MentraWifiStatusEvent)
+    case wifiStatus(WifiStatusEvent)
     case hotspotStatus(MentraHotspotStatusEvent)
     case hotspotError(MentraHotspotErrorEvent)
     case photoResponse(MentraPhotoResponseEvent)
@@ -2337,7 +2337,7 @@ public final class MentraBluetoothSDK {
         case "hotspot_status_change":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(MentraHotspotStatusEvent(values: data)))
         case "wifi_status_change":
-            delegate?.mentraBluetoothSDK(self, didReceive: .wifiStatus(MentraWifiStatusEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .wifiStatus(WifiStatusEvent(values: data)))
         case "hotspot_error":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotError(MentraHotspotErrorEvent(values: data)))
         case "photo_response":

@@ -243,7 +243,7 @@ class Bridge {
     }
 
     static func sendWifiStatusChange(connected: Bool, ssid: String?, localIp: String?) {
-        guard let status = MentraWifiStatus.fromStoreFields(
+        guard let status = WifiStatus.fromStoreFields(
             connected: connected,
             ssid: ssid,
             localIp: localIp

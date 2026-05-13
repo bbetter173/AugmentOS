@@ -372,7 +372,7 @@ public class Bridge private constructor() {
         /** Send WiFi status change */
         @JvmStatic
         fun sendWifiStatusChange(connected: Boolean, ssid: String?, localIp: String?) {
-            val status = MentraWifiStatus.fromStoreFields(connected, ssid, localIp) ?: return
+            val status = WifiStatus.fromStoreFields(connected, ssid, localIp) ?: return
             sendTypedMessage("wifi_status_change", status.toMap())
         }
 

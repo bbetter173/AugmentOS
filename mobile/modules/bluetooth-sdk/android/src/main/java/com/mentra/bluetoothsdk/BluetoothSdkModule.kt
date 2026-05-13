@@ -69,7 +69,7 @@ class CoreModule : Module() {
                     sendEvent("battery_status", event.values)
                 }
 
-                override fun onWifiStatusChanged(event: MentraWifiStatusEvent) {
+                override fun onWifiStatusChanged(event: WifiStatusEvent) {
                     sendEvent("wifi_status_change", event.values)
                 }
 
@@ -498,138 +498,6 @@ class CoreModule : Module() {
 
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
-        }
-
-        // MARK: - Settings Navigation
-
-        AsyncFunction("openBluetoothSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        // Check if location services are enabled (required for WiFi operations on Android)
-        AsyncFunction("isLocationServicesEnabled") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val locationManager =
-                    context.getSystemService(android.content.Context.LOCATION_SERVICE) as
-                            android.location.LocationManager
-            // Check if either GPS or Network location provider is enabled
-            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
-                    locationManager.isProviderEnabled(
-                            android.location.LocationManager.NETWORK_PROVIDER
-                    )
-            if (!providerEnabled) {
-                // Fallback: check the system-level location toggle directly.
-                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
-                // Google Play Services or without a GPS chip, even when location is toggled on.
-                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    val systemEnabled = locationManager.isLocationEnabled
-                    if (systemEnabled) {
-                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
-                    }
-                    systemEnabled
-                } else {
-                    false
-                }
-            } else {
-                true
-            }
-        }
-
-        AsyncFunction("openLocationSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                    )
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        AsyncFunction("showLocationServicesDialog") {
-            val activity = appContext.currentActivity
-            if (activity == null) {
-                val context =
-                        appContext.reactContext
-                                ?: throw IllegalStateException("No context available")
-                val intent =
-                        android.content.Intent(
-                                android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                        )
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                return@AsyncFunction true
-            }
-
-            val locationRequest =
-                    com.google.android.gms.location.LocationRequest.Builder(
-                                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
-                                    10000
-                            )
-                            .build()
-
-            val builder =
-                    com.google.android.gms.location.LocationSettingsRequest.Builder()
-                            .addLocationRequest(locationRequest)
-                            .setAlwaysShow(true)
-
-            val client =
-                    com.google.android.gms.location.LocationServices.getSettingsClient(activity)
-            val task = client.checkLocationSettings(builder.build())
-
-            task.addOnSuccessListener { true }
-            task.addOnFailureListener { exception ->
-                if (exception is com.google.android.gms.common.api.ResolvableApiException) {
-                    try {
-                        exception.startResolutionForResult(activity, 1001)
-                    } catch (sendEx: android.content.IntentSender.SendIntentException) {
-                        // Fallback
-                        val intent =
-                                android.content.Intent(
-                                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                                )
-                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        activity.startActivity(intent)
-                    }
-                } else {
-                    val intent =
-                            android.content.Intent(
-                                    android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                            )
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    activity.startActivity(intent)
-                }
-            }
-            true
-        }
-
-        AsyncFunction("openAppSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    )
-            intent.data = android.net.Uri.parse("package:${context.packageName}")
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
         }
 
     }

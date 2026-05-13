@@ -142,7 +142,7 @@ interface MentraBluetoothSdkListener {
     fun onTouch(event: MentraTouchEvent) {}
     fun onHeadUpChanged(headUp: Boolean) {}
     fun onBatteryStatus(event: MentraBatteryStatusEvent) {}
-    fun onWifiStatusChanged(event: MentraWifiStatusEvent) {}
+    fun onWifiStatusChanged(event: WifiStatusEvent) {}
     fun onGalleryStatus(event: MentraGalleryStatusEvent) {}
     fun onPhotoResponse(event: MentraPhotoResponseEvent) {}
     fun onStreamStatus(event: MentraStreamStatusEvent) {}

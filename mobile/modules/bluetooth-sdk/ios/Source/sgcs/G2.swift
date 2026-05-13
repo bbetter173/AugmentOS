@@ -764,9 +764,6 @@ private enum MenuProto {
         }
 
         var wireItems: [WireItem] = []
-        // SID=1 =
-        // SID=2 = 
-        // SID=3 = 
         // SID=4 = notification
         // SID=5 = translate
         // SID=6 = teleprompt
@@ -2209,8 +2206,21 @@ class G2: NSObject, SGCManager {
         return bmp
     }
 
+    /// Bring the Even Realities dashboard (the OS-level home/idle screen) to
+    /// the foreground by tearing down whatever EvenHub page we currently own.
+    /// The glasses fall back to the dashboard automatically when no page is up.
     func showDashboard() {
-        // G2 doesn't have a native dashboard concept via EvenHub
+        Bridge.log("G2: showDashboard")
+        let msg = EvenHubProto.shutdownMessage()
+        sendEvenHubCommand(msg)
+        pageCreated = false
+        pageHasTextContainer = false
+        currentTextContent = ""
+        currentBitmapBase64 = ""
+        
+        // activate the dashboard by setting dept to the current setting:
+        let currentDepth = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 0
+        setDashboardDepthOnly(currentDepth)
     }
 
     func setDashboardPosition(_ height: Int, _ depth: Int) {
@@ -2523,7 +2533,8 @@ class G2: NSObject, SGCManager {
         // }
 
         // connectController("1B:08:26:8E:0E:E6")
-        connectController()
+        // connectController()
+        showDashboard()
     }
 
     func dbg2() {
@@ -2550,6 +2561,8 @@ class G2: NSObject, SGCManager {
         // // update the text
         // Bridge.log("G2: sendTextWall() - updating text container")
         // updateText("test2")
+        let currentDepth = GlassesStore.shared.get("core", "dashboard_depth") as? Int ?? 0
+        setDashboardDepthOnly(currentDepth)
     }
 
     // MARK: - SGCManager: Device Control
@@ -3393,17 +3406,11 @@ class G2: NSObject, SGCManager {
         // so we need to revive it:
         if data == Data([0x08, 0x01, 0x1A, 0x00]) {
             Bridge.log("G2: gesture_ctrl response: dashboard closed")
-            // re-send mic on / update mic state:
-            GlassesStore.shared.apply("glasses", "micEnabled", false)
-            CoreManager.shared.updateMicState() // should set the mic back on if it should be on
-            //     // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
-
-            //     // toggle head up:
-            //     GlassesStore.shared.apply("glasses", "headUp", false)
-            //     // send the current state to the glasses
-            //     CoreManager.shared.sendCurrentState()
-            // reset the text container (different from clearDisplay())
-            sendTextWall(" ")
+            // // re-send mic on / update mic state:
+            // GlassesStore.shared.apply("glasses", "micEnabled", false)
+            // CoreManager.shared.updateMicState() // should set the mic back on if it should be on
+            // // reset the text container (different from clearDisplay())
+            // sendTextWall(" ")
         }
 
         // if we got 08011097012200 that means we selected a menu item:

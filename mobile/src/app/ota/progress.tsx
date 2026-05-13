@@ -1,5 +1,5 @@
-import CoreModule from "core"
-import type {OtaProgress, OtaStatus} from "core"
+import CoreModule from "@mentra/bluetooth-sdk"
+import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {View, ActivityIndicator} from "react-native"
 
@@ -8,7 +8,6 @@ import {
   DOWNLOAD_STUCK_TIMEOUT_MS,
   GLOBAL_OTA_TIMEOUT_MS,
   MAX_RETRIES,
-  MINIMUM_OTA_STATUS_BUILD,
   MTK_INSTALL_TIMEOUT_MS,
   OtaProgressMessages,
   PING_INTERVAL_MS,
@@ -19,12 +18,13 @@ import {
 } from "@/app/ota/otaProgressTimeouts"
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {Screen, Header, Button, Text, Icon} from "@/components/ignite"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useConnectionOverlayConfig} from "@/contexts/ConnectionOverlayContext"
 import {useGlassesStore} from "@/stores/glasses"
 import {getOtaErrorMessage, shouldShowChangeWifiForOtaDownloadFailure} from "@/utils/otaErrorMapping"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
+import { useNavigationStore } from "@/stores/navigation"
 
 function isTerminalForWatchdog(d: DisplayState): boolean {
   return d === "complete" || d === "failed" || d === "restarting"
@@ -73,9 +73,8 @@ function hasRecoveringOtaReply(otaStatus: OtaStatus | null, otaProgress: OtaProg
 
 export default function OtaProgressScreen() {
   const {theme} = useAppTheme()
-  const {push, replace} = useNavigationHistory()
+  const {replace, push} = useNavigationStore.getState()
   const connected = useGlassesStore((s) => s.connected)
-  const currentBuildNumber = useGlassesStore((s) => s.buildNumber)
   const otaStatus = useGlassesStore((s) => s.otaStatus)
   const otaProgress = useGlassesStore((s) => s.otaProgress)
 
@@ -173,13 +172,6 @@ export default function OtaProgressScreen() {
     }
     return () => clearConfig()
   }, [isFirmwareCompleting, setConfig, clearConfig])
-
-  const buildNum = parseInt(currentBuildNumber || "0", 10)
-  useEffect(() => {
-    if (buildNum > 0 && buildNum < MINIMUM_OTA_STATUS_BUILD) {
-      replace("/ota/progress-legacy")
-    }
-  }, [buildNum, replace])
 
   // --- Timer cleanup helpers ---
 

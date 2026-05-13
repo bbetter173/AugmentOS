@@ -1,4 +1,4 @@
-import CoreModule, {WifiSearchResult} from "core"
+import CoreModule, {WifiSearchResult} from "@mentra/bluetooth-sdk"
 import {useFocusEffect} from "expo-router"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {ActivityIndicator, ScrollView, TouchableOpacity, View} from "react-native"
@@ -10,13 +10,14 @@ import {WifiUnlockedIcon} from "@/components/icons/WifiUnlockedIcon"
 import {Button, Header, Screen, Text} from "@/components/ignite"
 import {Badge} from "@/components/ui/Badge"
 import {Group} from "@/components/ui"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {usePushPrevious} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useGlassesStore} from "@/stores/glasses"
 import showAlert from "@/utils/AlertUtils"
 import WifiCredentialsService from "@/utils/wifi/WifiCredentialsService"
 import {translate} from "@/i18n"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "@mentra/island"
 import {useCoreStore} from "@/stores/core"
 
 export default function WifiScanScreen() {
@@ -30,8 +31,9 @@ export default function WifiScanScreen() {
   const receivedResultsForSessionRef = useRef<boolean>(false)
   const wifiSsid = useGlassesStore((state) => state.wifiSsid)
   const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const {push, goBack, pushPrevious, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
-    useNavigationHistory()
+  const {push, goBack, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
+    useNavigationStore.getState()
+  const pushPrevious = usePushPrevious()
   const wifiScanResults: WifiSearchResult[] = useCoreStore((state) => state.wifiScanResults)
 
   const refreshSavedNetworks = useCallback(() => {

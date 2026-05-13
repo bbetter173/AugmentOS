@@ -1,15 +1,15 @@
 import {Capabilities, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import type {OtaUpdateInfo} from "core"
+import type {OtaUpdateInfo} from "@mentra/bluetooth-sdk"
 
 import {useEffect, useRef} from "react"
 
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {useGlassesStore, waitForGlassesState} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 import {translate} from "@/i18n/translate"
 import {usePathname} from "expo-router"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "@mentra/island"
 
 export interface VersionInfo {
   versionCode: number
@@ -381,7 +381,7 @@ export async function checkForOtaUpdate(
 // }
 
 export function OtaUpdateChecker() {
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const pathname = usePathname()
 
   // OTA check state from glasses store

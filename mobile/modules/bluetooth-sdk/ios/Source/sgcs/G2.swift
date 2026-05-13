@@ -54,7 +54,6 @@ private enum ServiceID: UInt8 {
     case dashboard = 1 // 0x01 - UI_BACKGROUND_DASHBOARD_APP_ID
     case menu = 3 // 0x03 - UI_FOREGROUND_MEUN_ID (typo is intentional — matches Even's proto)
     case evenAI = 7 // 0x07 - UI_FOREGROUND_EVEN_AI_ID
-    case navigation = 8 // 0x08 - UI_NAVIGATION
     case g2Setting = 9 // 0x09 - UI_SETTING_APP_ID
     case gestureCtrl = 13 // 0x0D - gesture_ctrl lifecycle signals
     case onboarding = 16 // 0x10 - UI_ONBOARDING_APP_ID
@@ -841,168 +840,6 @@ private enum MenuProto {
     }
 }
 
-// MARK: - Navigation Protobuf Builders (navigation.proto, service ID 8)
-
-/// G2NavigationState — outer envelope's field 1
-enum NavigationState: Int32 {
-    case dashboardWidget = 2
-    case activeNavigation = 7
-}
-
-/// G2NavigationConstants.SubCommand — inner nested message's field 1
-private enum NavigationSubCommand: Int32 {
-    case start = 1
-    case basicInfo = 2 // turn-by-turn payload (distance/instruction/eta/icon/...)
-    case miniMap = 3
-    case overviewMap = 4
-    case heartbeat = 5
-    case recalculating = 6
-    case arrive = 7
-    case stop = 8
-    case startError = 9
-    case favoriteList = 10
-}
-
-/// G2NavigationIcon — values 1..36, used in basicInfo.f8.
-/// Names follow the iOS SDK's G2NavigationIcon enum.
-public enum NavigationIcon: Int32 {
-    case turnLeft = 1
-    case turnRight = 2
-    case turnSlightLeft = 3
-    case turnSlightRight = 4
-    case turnSharpLeft = 5
-    case turnSharpRight = 6
-    case uTurnLeft = 7
-    case uTurnRight = 8
-    case straight = 9
-    case keepLeft = 10
-    case keepRight = 11
-    case roundaboutEnter = 12
-    case roundaboutExit = 13
-    case rampLeft = 14
-    case rampRight = 15
-    case mergeLeft = 16
-    case mergeRight = 17
-    case forkLeft = 18
-    case forkRight = 19
-    case departure = 20
-    case arrival = 21
-    case arrivalLeft = 22
-    case arrivalRight = 23
-    case ferry = 24
-    case ferryTrain = 25
-    case onRamp = 26
-    case offRamp = 27
-    case roundabout1 = 28
-    case roundabout2 = 29
-    case roundabout3 = 30
-    case roundabout4 = 31
-    case roundabout5 = 32
-    case roundabout6 = 33
-    case continueOn = 34
-    case waypoint = 35
-    case unknown = 36
-}
-
-private enum NavigationProto {
-    /// Build the navigation outer envelope:
-    ///   f1 = state (varint)
-    ///   f2 = msgId (varint)
-    ///   f5 = inner sub-command message (length-delimited)
-    private static func envelope(state: NavigationState, msgId: Int32, inner: Data) -> Data {
-        var w = ProtobufWriter()
-        w.writeInt32Field(1, state.rawValue)
-        w.writeInt32Field(2, msgId)
-        w.writeMessageField(5, inner)
-        return w.data
-    }
-
-    /// start(1): f5 = { f1 = 1 }
-    static func start(msgId: Int32) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.start.rawValue)
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-
-    /// stop(8): f5 = { f1 = 8 }
-    static func stop(msgId: Int32) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.stop.rawValue)
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-
-    /// arrive(7): f5 = { f1 = 7 }
-    static func arrive(msgId: Int32) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.arrive.rawValue)
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-
-    /// recalculating(6): f5 = { f1 = 6 }
-    static func recalculating(msgId: Int32) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.recalculating.rawValue)
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-
-    /// heartbeat(5): f5 = { f1 = 5 }
-    static func heartbeat(msgId: Int32) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.heartbeat.rawValue)
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-
-    /// startError(9): f5 = { f1 = 9, f2 = errorInfo }
-    static func startError(msgId: Int32, errorInfo: String) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.startError.rawValue)
-        inner.writeStringField(2, errorInfo)
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-
-    /// basicInfo(2): turn-by-turn update.
-    ///   f1 = 2, f2 = distance, f3 = instruction, f4 = timeRemaining,
-    ///   f5 = totalDistance, f6 = eta, f7 = speed, f8 = icon (1..36)
-    static func basicInfo(
-        msgId: Int32,
-        distance: String,
-        instruction: String,
-        timeRemaining: String,
-        totalDistance: String,
-        eta: String,
-        speed: String,
-        icon: NavigationIcon,
-        state: NavigationState = .activeNavigation
-    ) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.basicInfo.rawValue)
-        inner.writeStringField(2, distance)
-        inner.writeStringField(3, instruction)
-        inner.writeStringField(4, timeRemaining)
-        inner.writeStringField(5, totalDistance)
-        inner.writeStringField(6, eta)
-        inner.writeStringField(7, speed)
-        inner.writeInt32Field(8, icon.rawValue)
-        return envelope(state: state, msgId: msgId, inner: inner.data)
-    }
-
-    /// favoriteList(10): f5 = { f1 = 10, f9 = repeated{ f1=index, f2=name, f3=address? } }
-    static func favoriteList(msgId: Int32, items: [(index: Int32, name: String, address: String?)]) -> Data {
-        var inner = ProtobufWriter()
-        inner.writeInt32Field(1, NavigationSubCommand.favoriteList.rawValue)
-        for item in items {
-            var entry = ProtobufWriter()
-            entry.writeInt32Field(1, item.index)
-            entry.writeStringField(2, item.name)
-            if let address = item.address {
-                entry.writeStringField(3, address)
-            }
-            inner.writeMessageField(9, entry.data)
-        }
-        return envelope(state: .activeNavigation, msgId: msgId, inner: inner.data)
-    }
-}
-
 // MARK: - EvenBLE Transport Layer
 
 /// Builds and splits payloads into BLE packets with the EvenHub transport framing
@@ -1426,26 +1263,6 @@ class G2: NSObject, SGCManager {
             reserveFlag: true
         )
         sendToGlasses(packets)
-    }
-
-    private func sendNavigationCommand(_ payload: Data) {
-        // Navigation runs on both eyes; send to both to keep them in sync.
-        let packets = sendManager.buildPackets(
-            serviceId: ServiceID.navigation.rawValue,
-            payload: payload,
-            reserveFlag: true
-        )
-        sendToGlasses(packets, left: true, right: true)
-    }
-
-    // MARK: - Navigation State
-
-    private var navigationMsgIdCounter: Int32 = 0
-    private var navigationHeartbeatTask: Task<Void, Never>?
-
-    private func nextNavigationMsgId() -> Int32 {
-        navigationMsgIdCounter &+= 1
-        return navigationMsgIdCounter
     }
 
     // MARK: - Authentication Sequence
@@ -2503,166 +2320,6 @@ class G2: NSObject, SGCManager {
         sendEvenHubCommand(toSend)
     }
 
-    // MARK: - Navigation (service 0x08)
-
-    /// Start a navigation session. The glasses bring the navigation app to the
-    /// foreground when they see this. Also starts a 5s heartbeat that keeps the
-    /// session alive — matches what the official app does. Call `stopNavigation`
-    /// (or `arriveNavigation`) to end the session and cancel the heartbeat.
-    func startNavigation() {
-        Bridge.log("G2: startNavigation")
-        let payload = NavigationProto.start(msgId: nextNavigationMsgId())
-        sendNavigationCommand(payload)
-        startNavigationHeartbeat()
-    }
-
-    /// End the navigation session via an explicit stop. Glasses leave the nav UI.
-    func stopNavigation() {
-        Bridge.log("G2: stopNavigation")
-        stopNavigationHeartbeat()
-        let payload = NavigationProto.stop(msgId: nextNavigationMsgId())
-        sendNavigationCommand(payload)
-    }
-
-    /// Notify glasses that the user has arrived at their destination.
-    /// Distinct from stop — glasses can show an arrival UI before tearing down.
-    func arriveNavigation() {
-        Bridge.log("G2: arriveNavigation")
-        stopNavigationHeartbeat()
-        let payload = NavigationProto.arrive(msgId: nextNavigationMsgId())
-        sendNavigationCommand(payload)
-    }
-
-    /// Signal that the route is being recalculated (e.g. user went off-route).
-    /// Glasses typically show a "recalculating" indicator.
-    func navigationRecalculating() {
-        Bridge.log("G2: navigationRecalculating")
-        let payload = NavigationProto.recalculating(msgId: nextNavigationMsgId())
-        sendNavigationCommand(payload)
-    }
-
-    /// Report a startup error to the glasses (shown as a toast/banner).
-    /// Cancels any pending heartbeat — start failed, no session to keep alive.
-    func navigationStartError(_ errorInfo: String) {
-        Bridge.log("G2: navigationStartError(\(errorInfo))")
-        stopNavigationHeartbeat()
-        let payload = NavigationProto.startError(msgId: nextNavigationMsgId(), errorInfo: errorInfo)
-        sendNavigationCommand(payload)
-    }
-
-    /// Push a turn-by-turn update. All string fields are sent verbatim — format
-    /// them the way you want them displayed (e.g. "500 ft", "2.3 mi", "12:45 PM").
-    /// `icon` picks the maneuver glyph (1..36 in `NavigationIcon`).
-    func updateNavigationDirection(
-        distance: String,
-        instruction: String,
-        timeRemaining: String,
-        totalDistance: String,
-        eta: String,
-        speed: String,
-        icon: NavigationIcon
-    ) {
-        Bridge.log("G2: updateNavigationDirection(\(instruction), \(distance), icon=\(icon))")
-        let payload = NavigationProto.basicInfo(
-            msgId: nextNavigationMsgId(),
-            distance: distance,
-            instruction: instruction,
-            timeRemaining: timeRemaining,
-            totalDistance: totalDistance,
-            eta: eta,
-            speed: speed,
-            icon: icon
-        )
-        sendNavigationCommand(payload)
-    }
-
-    /// Push a favorite list for on-glasses selection. `items` is (index, name, address?).
-    func sendNavigationFavorites(_ items: [(index: Int32, name: String, address: String?)]) {
-        Bridge.log("G2: sendNavigationFavorites(\(items.count) items)")
-        let payload = NavigationProto.favoriteList(msgId: nextNavigationMsgId(), items: items)
-        sendNavigationCommand(payload)
-    }
-
-    private func startNavigationHeartbeat() {
-        stopNavigationHeartbeat()
-        navigationHeartbeatTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-                guard !Task.isCancelled, let self = self else { return }
-                let payload = NavigationProto.heartbeat(msgId: self.nextNavigationMsgId())
-                self.sendNavigationCommand(payload)
-            }
-        }
-    }
-
-    private func stopNavigationHeartbeat() {
-        navigationHeartbeatTask?.cancel()
-        navigationHeartbeatTask = nil
-    }
-
-    /// Walks through a fake turn-by-turn route so you can eyeball the nav UI
-    /// without needing GPS/Mapbox wired up. Sends start, then a handful of
-    /// basicInfo updates ~2s apart, then arrive. Safe to call again — each run
-    /// stops any in-flight demo first.
-    func demoNavigation() {
-        Bridge.log("G2: demoNavigation start")
-        stopNavigationHeartbeat()
-        startNavigation()
-
-        struct Step {
-            let distance: String
-            let instruction: String
-            let timeRemaining: String
-            let totalDistance: String
-            let eta: String
-            let speed: String
-            let icon: NavigationIcon
-        }
-
-        let steps: [Step] = [
-            Step(distance: "500 ft", instruction: "Head north on Market St",
-                 timeRemaining: "12 min", totalDistance: "2.4 mi",
-                 eta: "3:42 PM", speed: "0 mph", icon: .straight),
-            Step(distance: "300 ft", instruction: "Turn right onto 5th St",
-                 timeRemaining: "11 min", totalDistance: "2.4 mi",
-                 eta: "3:42 PM", speed: "18 mph", icon: .turnRight),
-            Step(distance: "0.4 mi", instruction: "Continue on 5th St",
-                 timeRemaining: "9 min", totalDistance: "2.4 mi",
-                 eta: "3:42 PM", speed: "24 mph", icon: .straight),
-            Step(distance: "0.2 mi", instruction: "Turn left onto Howard St",
-                 timeRemaining: "6 min", totalDistance: "2.4 mi",
-                 eta: "3:43 PM", speed: "22 mph", icon: .turnLeft),
-            Step(distance: "800 ft", instruction: "Take the ramp onto US-101 S",
-                 timeRemaining: "4 min", totalDistance: "2.4 mi",
-                 eta: "3:43 PM", speed: "28 mph", icon: .rampRight),
-            Step(distance: "200 ft", instruction: "Destination on the right",
-                 timeRemaining: "1 min", totalDistance: "2.4 mi",
-                 eta: "3:44 PM", speed: "12 mph", icon: .arrivalRight),
-        ]
-
-        Task { @MainActor [weak self] in
-            // Brief gap so the nav app has time to come to the foreground.
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            for step in steps {
-                guard let self = self else { return }
-                if Task.isCancelled { return }
-                self.updateNavigationDirection(
-                    distance: step.distance,
-                    instruction: step.instruction,
-                    timeRemaining: step.timeRemaining,
-                    totalDistance: step.totalDistance,
-                    eta: step.eta,
-                    speed: step.speed,
-                    icon: step.icon
-                )
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-            }
-            guard let self = self else { return }
-            self.arriveNavigation()
-            Bridge.log("G2: demoNavigation done")
-        }
-    }
-
     // MARK: - SGCManager: Audio Control
 
     func setMicEnabled(_ enabled: Bool) {
@@ -2727,7 +2384,6 @@ class G2: NSObject, SGCManager {
         isDisconnecting = true
         cancelPairingTimeout()
         stopHeartbeats()
-        stopNavigationHeartbeat()
         Task { await reconnectionManager.stop() }
 
         // Disconnect known peripherals
@@ -2851,7 +2507,6 @@ class G2: NSObject, SGCManager {
 
     func dbg1() {
         Bridge.log("G2: dbg1()")
-        // demoNavigation()
 
         // // send a shutdown message
         // let msg = EvenHubProto.shutdownMessage()
@@ -2872,7 +2527,6 @@ class G2: NSObject, SGCManager {
 
     func dbg2() {
         Bridge.log("G2: dbg2()")
-        demoNavigation()
 
         // createPageWithText("test1")
 

@@ -200,7 +200,7 @@ public class Bridge private constructor() {
                                         ?.toMap()
                             }
                             ?: emptyList()
-            val id = if (deviceAddress.isNotBlank()) deviceAddress else "$deviceModel:$deviceName"
+            val id = "$deviceModel:$deviceName"
             val newResult =
                     buildMap<String, Any> {
                         put("id", id)
@@ -212,7 +212,15 @@ public class Bridge private constructor() {
                         rssi?.let { put("rssi", it) }
                     }
             val allResults = searchResults + newResult
-            val uniqueResults = allResults.associateBy { it["id"] ?: it["name"] }.values.toList()
+            val uniqueResults =
+                    allResults
+                            .asReversed()
+                            .distinctBy {
+                                val model = it["model"] ?: it["deviceModel"] ?: deviceModel
+                                val name = it["name"] ?: it["deviceName"] ?: return@distinctBy null
+                                "$model:$name"
+                            }
+                            .asReversed()
             GlassesStore.set("core", "searchResults", uniqueResults)
         }
 

@@ -114,7 +114,7 @@ class Bridge {
         Task {
             await MainActor.run {
                 let searchResults = GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
-                let id = deviceAddress.isEmpty ? "\(deviceModel):\(deviceName)" : deviceAddress
+                let id = "\(deviceModel):\(deviceName)"
                 var newResult: [String: Any] = [
                     "id": id,
                     "model": deviceModel,
@@ -129,8 +129,9 @@ class Bridge {
                 let allResults = searchResults + [newResult]
                 var seen = Set<String>()
                 let uniqueResults = allResults.reversed().filter {
-                    guard let id = $0["id"] as? String ?? $0["name"] as? String else { return false }
-                    return seen.insert(id).inserted
+                    let model = $0["model"] as? String ?? $0["deviceModel"] as? String ?? deviceModel
+                    guard let name = $0["name"] as? String ?? $0["deviceName"] as? String else { return false }
+                    return seen.insert("\(model):\(name)").inserted
                 }.reversed()
                 GlassesStore.shared.set("core", "searchResults", Array(uniqueResults))
             }

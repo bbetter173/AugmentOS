@@ -18,6 +18,8 @@ npx pod-install
 
 ## Minimal Usage
 
+`startScan()` starts the scan. Discovered devices arrive asynchronously through `onCoreStatus()` updates.
+
 ```ts
 import BluetoothSdk, {type MentraDevice} from "@mentra/bluetooth-sdk"
 
@@ -38,6 +40,8 @@ const firstDevice = new Promise<MentraDevice>((resolve) => {
 
 await BluetoothSdk.startScan({model: "Mentra Live"})
 await BluetoothSdk.connect(await firstDevice)
+
+// Only call display APIs for glasses models that support a display.
 await BluetoothSdk.displayText({text: "Hello from Mentra", x: 0, y: 0, size: 24})
 
 removeStatusListener()
@@ -45,18 +49,21 @@ removeStatusListener()
 
 ## Default Device
 
-`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist their own small default-device record and restore it with `setDefaultDevice()` before calling `connectDefault()`.
+`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist the scanned `MentraDevice` in their own storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
 ```ts
-await BluetoothSdk.setDefaultDevice({
-  model: "Mentra Live",
-  name: "Mentra_Live_E7FA",
-})
+const savedDevice = await loadSavedDeviceFromYourAppStorage()
+if (savedDevice) {
+  await BluetoothSdk.setDefaultDevice(savedDevice)
+  await BluetoothSdk.connectDefault()
+}
 
-const defaultDevice = BluetoothSdk.getDefaultDevice()
-await BluetoothSdk.connectDefault()
+const discoveredDevice = await scanAndChooseDevice()
+await BluetoothSdk.connect(discoveredDevice)
+await saveDeviceToYourAppStorage(discoveredDevice)
 
 await BluetoothSdk.clearDefaultDevice()
+await saveDeviceToYourAppStorage(null)
 ```
 
 ## Support

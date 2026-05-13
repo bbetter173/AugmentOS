@@ -165,7 +165,7 @@ export default function SelectGlassesBluetoothScreen() {
                   let deviceName = filterDeviceName(res.deviceName)
 
                   return (
-                    <View className="flex-row items-center justify-between px-4 py-3 bg-background">
+                    <View className="flex-row items-center justify-between px-4 py-3 bg-primary-foreground">
                       <TouchableOpacity
                         key={index}
                         className="flex-1"

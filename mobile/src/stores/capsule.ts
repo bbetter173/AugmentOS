@@ -9,7 +9,7 @@ import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useNavigationStore} from "@/stores/navigation"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import {useAppStatusStore, useForegroundMiniApp} from "@mentra/island"
-import { captureScreenshot } from "@/effects/CapsuleMenu"
+import {captureScreenshot} from "@/effects/CapsuleMenu"
 
 export interface CapsuleRegistration {
   packageName: string
@@ -20,6 +20,8 @@ export interface CapsuleRegistration {
   visibleOnRoutes?: string[]
   /** Called when the user taps the house/minus button. Captures screenshot + navigates back. */
   handleExit: (shouldGoBack?: boolean) => Promise<void> | void
+  /** Called when the user taps the ellipsis button. Opens the more actions sheet. */
+  handleEllipsis?: () => void
   offsetTop?: number
   offsetRight?: number
 }
@@ -120,5 +122,14 @@ export function useRegisterCapsule({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packageName, viewShotRef, appNameOverride, iconUrlOverride, routesKey, handleExit, offsetTop, offsetRight])
+  }, [
+    packageName,
+    viewShotRef,
+    appNameOverride,
+    iconUrlOverride,
+    routesKey,
+    handleExit,
+    offsetTop,
+    offsetRight,
+  ])
 }

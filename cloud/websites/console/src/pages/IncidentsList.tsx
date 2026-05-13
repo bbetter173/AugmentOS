@@ -18,8 +18,10 @@ import api, { Incident } from "../services/api.service";
 
 const IncidentsList: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const limit = Math.max(1, parseInt(searchParams.get("limit") || "25", 10));
-  const offset = Math.max(0, parseInt(searchParams.get("offset") || "0", 10));
+  const limitParam = Number(searchParams.get("limit"));
+  const offsetParam = Number(searchParams.get("offset"));
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.floor(limitParam) : 25;
+  const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? Math.floor(offsetParam) : 0;
   const q = searchParams.get("q") || "";
   const submissionMode = (searchParams.get("submissionMode") || "") as "" | Incident["submissionMode"];
   const triggerArea = searchParams.get("triggerArea") || "";

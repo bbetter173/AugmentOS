@@ -764,14 +764,30 @@ private enum MenuProto {
         }
 
         var wireItems: [WireItem] = []
+        // SID=1 =
+        // SID=2 = 
+        // SID=3 = 
+        // SID=4 = notification
+        // SID=5 = translate
+        // SID=6 = teleprompt
+        // SID=7 = evenai
+        // SID=8 = navigation
 
         // Always first: built-in Notification (SID=4)
+        // wireItems.append(WireItem(displayName: nil, appId: 1, isBuiltIn: true))
+        // wireItems.append(WireItem(displayName: nil, appId: 2, isBuiltIn: true))
+        // wireItems.append(WireItem(displayName: nil, appId: 3, isBuiltIn: true))
         wireItems.append(WireItem(displayName: nil, appId: 4, isBuiltIn: true))
-        wireItems.append(WireItem(displayName: nil, appId: 5, isBuiltIn: true))
+        wireItems.append(WireItem(displayName: nil, appId: 8, isBuiltIn: true))
+        // wireItems.append(WireItem(displayName: nil, appId: 5, isBuiltIn: true))
+        // wireItems.append(WireItem(displayName: nil, appId: 6, isBuiltIn: true))
+        // wireItems.append(WireItem(displayName: nil, appId: 9, isBuiltIn: true))
+        // wireItems.append(WireItem(displayName: nil, appId: 10, isBuiltIn: true))
+
 
 
         // Third-party items — leave room for the built-in
-        for item in items.prefix(MAX_MENU_SIZE - 1) {
+        for item in items.prefix(MAX_MENU_SIZE - 2) {
             let appId = packageNameToAppId(item.packageName)
             appIdMap[appId] = item.packageName
 
@@ -3025,13 +3041,13 @@ class G2: NSObject, SGCManager {
                 let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                 // toggle head up:
                 GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
-                if isHeadUp {
-                    // Bridge.log("G2: going back to home, clearing display")
-                    // clear the display after a delay:
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.clearDisplay()
-                    }
-                }
+                // if isHeadUp {
+                //     // Bridge.log("G2: going back to home, clearing display")
+                //     // clear the display after a delay:
+                //     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                //         self.clearDisplay()
+                //     }
+                // }
                 // sendDashboardCommand(DashboardCommand.trigger)
 
                 // toggle head up:

@@ -163,8 +163,10 @@ export async function buildBugReportFeedbackDataForBug(
   const serialNumber = useGlassesStore.getState().serialNumber
   const androidVersion = useGlassesStore.getState().androidVersion
   const glassesWifi = useGlassesStore.getState().wifi
-  const glassesWifiConnected = glassesWifi.state === "connected"
-  const glassesWifiSsid = glassesWifiConnected ? glassesWifi.ssid : ""
+  const glassesWifiInfo =
+    glassesWifi.state === "connected"
+      ? {wifiConnected: true, wifiSsid: glassesWifi.ssid}
+      : {wifiConnected: false}
   const glassesBatteryLevel = useGlassesStore.getState().batteryLevel
 
   const glassesBluetoothId = glassesBluetoothName?.split("_").pop() || glassesBluetoothName
@@ -205,8 +207,7 @@ export async function buildBugReportFeedbackDataForBug(
         fwVersion: glassesFwVersion || undefined,
         appVersion: appVersion || undefined,
         androidVersion: androidVersion || undefined,
-        wifiConnected: glassesWifiConnected,
-        ...(glassesWifiConnected && glassesWifiSsid && {wifiSsid: glassesWifiSsid}),
+        ...glassesWifiInfo,
         ...(glassesBatteryLevel >= 0 && {batteryLevel: glassesBatteryLevel}),
       },
     }),

@@ -29,9 +29,8 @@ export default function WifiScanScreen() {
   const scanTimeoutRef = useRef<number | null>(null)
   const currentScanSessionRef = useRef<number>(Date.now())
   const receivedResultsForSessionRef = useRef<boolean>(false)
-  const wifi = useGlassesStore((state) => state.wifi)
-  const wifiConnected = wifi.state === "connected"
-  const wifiSsid = wifiConnected ? wifi.ssid : ""
+  const connectedWifi = useGlassesStore((state) => (state.wifi.state === "connected" ? state.wifi : null))
+  const connectedWifiSsid = connectedWifi?.ssid
   const {push, goBack, getPreviousRoute, incPreventBack, decPreventBack, setAndroidBackFn} =
     useNavigationStore.getState()
   const pushPrevious = usePushPrevious()
@@ -48,7 +47,7 @@ export default function WifiScanScreen() {
 
   const secondLastRoute = getPreviousRoute(1)
   const showBack = backableRoutes.includes(getPreviousRoute() || "") || backableRoutes.includes(secondLastRoute || "")
-  const showSkip = wifiConnected
+  const showSkip = connectedWifi !== null
 
   const handleBack = () => {
     if (showBack) {
@@ -149,7 +148,7 @@ export default function WifiScanScreen() {
   }
 
   const handleNetworkSelect = (selectedNetwork: WifiSearchResult) => {
-    if (wifiConnected && wifiSsid === selectedNetwork.ssid) {
+    if (connectedWifiSsid === selectedNetwork.ssid) {
       showAlert(
         "Forget Network",
         `Would you like to forget "${selectedNetwork.ssid}"? You will need to re-enter the password to connect again.`,
@@ -208,7 +207,7 @@ export default function WifiScanScreen() {
   }
 
   const renderNetworkItem = (item: WifiSearchResult) => {
-    const isConnected = wifiConnected && wifiSsid === item.ssid
+    const isConnected = connectedWifiSsid === item.ssid
     const isSaved = savedNetworks.includes(item.ssid)
 
     return (
@@ -250,15 +249,15 @@ export default function WifiScanScreen() {
   const sortedNetworks = useMemo(
     () =>
       networks.sort((a, b) => {
-        if (wifiConnected && wifiSsid === a.ssid) {
+        if (connectedWifiSsid === a.ssid) {
           return -1
         }
-        if (wifiConnected && wifiSsid === b.ssid) {
+        if (connectedWifiSsid === b.ssid) {
           return 1
         }
         return 0
       }),
-    [networks, wifiConnected, wifiSsid],
+    [connectedWifiSsid, networks],
   )
 
   return (

@@ -95,6 +95,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             await MainActor.run {
                 let normalizedCategory = ObservableStore.normalizeCategory(category)
                 for (key, value) in values {
+                    if value is NSNull { continue }
                     GlassesStore.shared.apply(normalizedCategory, key, value)
                 }
             }

@@ -87,19 +87,24 @@ class CoreModule : Module() {
 
         Function("getCoreStatus") { GlassesStore.store.getCategory("core") }
 
-        Function("set") { category: String, key: String, value: Any ->
-            GlassesStore.apply(category, key, value)
+        Function("set") { category: String, key: String, value: Any? ->
+            if (value != null) {
+                GlassesStore.apply(category, key, value)
+            }
         }
 
-        Function("update") { category: String, values: Map<String, Any> ->
-            values.forEach { (key, value) -> GlassesStore.apply(category, key, value) }
+        Function("update") { category: String, values: Map<String, Any?> ->
+            values.forEach { (key, value) ->
+                if (value != null) {
+                    GlassesStore.apply(category, key, value)
+                }
+            }
             // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
             if (category == "core") {
-                values["core_token"]?.let { token ->
-                    val len = (token as? String)?.length ?: 0
-                    android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
-                    if (token is String && token.isNotEmpty()) {
+                (values["core_token"] as? String)?.let { token ->
+                    android.util.Log.d("CoreModule", "update(core) core_token received, len=${token.length}")
+                    if (token.isNotEmpty()) {
                         val ctx = appContext.reactContext ?: appContext.currentActivity
                         ctx?.let {
                             it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)

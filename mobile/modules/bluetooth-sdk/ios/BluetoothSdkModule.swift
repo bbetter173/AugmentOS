@@ -75,7 +75,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         Function("getGlassesStatus") { () -> [String: Any] in
             self.readOnMainActor {
-                self.bluetoothSdk().glassesStatus.values
+                self.bluetoothSdk().glassesStatus.dictionary
             }
         }
 
@@ -536,7 +536,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus status: MentraGlassesStatusUpdate) {
-        sendEvent("glasses_status", status.values)
+        sendEvent("glasses_status", status.dictionary)
     }
 
     @MainActor

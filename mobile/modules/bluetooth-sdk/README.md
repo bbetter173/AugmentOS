@@ -1,31 +1,116 @@
-# Mentra Bluetooth SDK
+# @mentra/bluetooth-sdk
 
-SDK for communicating with Mentra smart glasses from React Native and Expo apps.
+React Native and Expo SDK for connecting mobile apps directly to supported Mentra smart glasses over Bluetooth.
 
-## Documentation
+The package includes:
 
-This package README is intentionally brief. Full partner documentation, getting started guides, production checklists, and example apps live in the private `Mentra-Bluetooth-SDK-Partner-Kit` repository for licensed partners.
+- A React Native / Expo module API exposed as `BluetoothSdk`.
+- Native Android code published as `com.mentra:bluetooth-sdk`.
+- Native iOS code published as the `MentraBluetoothSDK` CocoaPod.
+- An Expo config plugin that wires the native dependencies into generated Android and iOS projects.
 
-## Installation
+Use a development build or production native build. Expo Go cannot load this package because the SDK contains native code.
 
-The SDK contains native code and requires a React Native or Expo development build. It does not run inside Expo Go.
+## Requirements
+
+- React Native `0.72+`.
+- Expo `49+` when using Expo.
+- Android min SDK `28+`.
+- iOS deployment target `15.1+`.
+- A physical phone for real Bluetooth testing.
+- Bluetooth permissions, plus Android location permission where BLE scanning requires it.
+
+## Install
 
 ```sh
 npm install @mentra/bluetooth-sdk
+npx expo install expo-build-properties
+```
+
+For Expo apps, add the plugin to `app.json` or `app.config.ts`:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      [
+        "@mentra/bluetooth-sdk",
+        {
+          "node": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 28,
+            "packagingOptions": {
+              "pickFirst": [
+                "**/libc++_shared.so",
+                "**/libonnxruntime.so",
+                "**/libonnxruntime4j_jni.so"
+              ]
+            }
+          }
+        }
+      ]
+    ]
+  }
+}
+```
+
+Then regenerate native projects and run a development build:
+
+```sh
 npx expo prebuild
-npx pod-install
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+## Permissions
+
+Android apps should request the permissions required by the features they use:
+
+```json
+{
+  "android": {
+    "permissions": [
+      "android.permission.BLUETOOTH",
+      "android.permission.BLUETOOTH_ADMIN",
+      "android.permission.BLUETOOTH_SCAN",
+      "android.permission.BLUETOOTH_CONNECT",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.RECORD_AUDIO",
+      "android.permission.INTERNET",
+      "android.permission.POST_NOTIFICATIONS"
+    ]
+  }
+}
+```
+
+Some Android 12+ devices still require Location permission and Location services before BLE scan callbacks are delivered.
+
+iOS apps should include usage descriptions:
+
+```json
+{
+  "ios": {
+    "infoPlist": {
+      "NSBluetoothAlwaysUsageDescription": "This app connects to your smart glasses over Bluetooth.",
+      "NSMicrophoneUsageDescription": "This app uses the microphone when you enable audio features.",
+      "NSLocalNetworkUsageDescription": "This app connects to local photo and streaming helpers during development."
+    }
+  }
+}
 ```
 
 ## Minimal Usage
 
-`startScan()` starts the scan. Discovered devices arrive asynchronously through `onBluetoothStatus()` updates.
+`startScan()` starts the scan. Discovered devices arrive asynchronously through `onBluetoothStatus()` updates and `device_discovered` events.
 
 ```ts
-import BluetoothSdk, {type Device} from "@mentra/bluetooth-sdk"
-
-const removeStatusListener = BluetoothSdk.onGlassesStatus((status) => {
-  console.log("Glasses status changed", status)
-})
+import BluetoothSdk, {type Device} from '@mentra/bluetooth-sdk'
 
 const firstDevice = new Promise<Device>((resolve) => {
   let removeBluetoothListener = () => {}
@@ -38,18 +123,26 @@ const firstDevice = new Promise<Device>((resolve) => {
   })
 })
 
-await BluetoothSdk.startScan({model: "Mentra Live"})
+const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
+  console.log('Glasses status changed', status)
+})
+
+await BluetoothSdk.startScan({model: 'Mentra Live'})
+
 await BluetoothSdk.connect(await firstDevice)
+await BluetoothSdk.displayText({
+  text: 'Hello from Mentra',
+  x: 0,
+  y: 0,
+  size: 24,
+})
 
-// Only call display APIs for glasses models that support a display.
-await BluetoothSdk.displayText({text: "Hello from Mentra", x: 0, y: 0, size: 24})
-
-removeStatusListener()
+removeGlassesListener()
 ```
 
 ## Default Device
 
-`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist the scanned `Device` in their own storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
+`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist the scanned `Device` in app storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
 ```ts
 const savedDevice = await loadSavedDeviceFromYourAppStorage()
@@ -66,6 +159,100 @@ await BluetoothSdk.clearDefaultDevice()
 await saveDeviceToYourAppStorage(null)
 ```
 
-## Support
+## Common Commands
 
-For integration support, request access to the private partner documentation repo from Mentra.
+```ts
+await BluetoothSdk.clearDisplay()
+await BluetoothSdk.showDashboard()
+
+await BluetoothSdk.requestWifiScan()
+await BluetoothSdk.sendWifiCredentials('Office WiFi', 'secret')
+await BluetoothSdk.forgetWifiNetwork('Office WiFi')
+await BluetoothSdk.setHotspotState(true)
+
+await BluetoothSdk.setGalleryMode('auto')
+await BluetoothSdk.setGalleryMode('manual')
+
+await BluetoothSdk.setMicState(true, true, false)
+await BluetoothSdk.setOwnAppAudioPlaying(false)
+
+await BluetoothSdk.rgbLedControl(
+  `led-${Date.now()}`,
+  'com.example.app',
+  'on',
+  'green',
+  500,
+  500,
+  3,
+)
+```
+
+## Photo Upload
+
+```ts
+await BluetoothSdk.photoRequest(
+  `photo-${Date.now()}`,
+  'com.example.app',
+  'medium',
+  'https://api.example.com/mentra/photo',
+  'optional-token',
+  'medium',
+  false,
+  true,
+)
+```
+
+The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`.
+
+## Streaming
+
+```ts
+const streamId = `stream-${Date.now()}`
+
+await BluetoothSdk.startStream({
+  type: 'start_stream',
+  streamUrl: 'http://192.168.1.42:8889/mentra-live/whip',
+  streamId,
+})
+
+await BluetoothSdk.keepStreamAlive({
+  type: 'keep_stream_alive',
+  streamId,
+  ackId: `ack-${Date.now()}`,
+})
+
+await BluetoothSdk.stopStream()
+```
+
+Use `rtmp://` or `rtmps://` for RTMP, `srt://` for SRT, and `http://` or `https://` for WHIP/WebRTC ingest. Send keep-alives about every 15 seconds while streaming.
+
+## Events
+
+```ts
+const subscriptions = [
+  BluetoothSdk.addListener('button_press', (event) => console.log(event)),
+  BluetoothSdk.addListener('touch_event', (event) => console.log(event)),
+  BluetoothSdk.addListener('photo_response', (event) => console.log(event)),
+  BluetoothSdk.addListener('stream_status', (event) => console.log(event)),
+  BluetoothSdk.addListener('mic_pcm', (event) => console.log(event.pcm)),
+]
+
+subscriptions.forEach((subscription) => subscription.remove())
+```
+
+Common event names include `button_press`, `touch_event`, `head_up`, `battery_status`, `wifi_status_change`, `hotspot_status_change`, `photo_response`, `gallery_status`, `stream_status`, `keep_alive_ack`, `mic_pcm`, `mic_lc3`, `local_transcription`, `rgb_led_control_response`, `audio_connected`, `audio_disconnected`, `log`, `send_command_to_ble`, and `receive_command_from_ble`.
+
+## Local SDK Development
+
+For normal app development, install the published npm package. For SDK development before a package release, install a local checkout and point Metro/native resolution at the same path:
+
+```sh
+npm install --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk
+MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk npx expo run:ios
+```
+
+Use `npx expo run:android` for Android. Keep local paths in your shell or CI environment, not in committed app config.
+
+## Example App
+
+The partner example app lives in `Mentra-Bluetooth-SDK-Partner-Kit/examples/react-native`. It demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery-button mode, and console event inspection.

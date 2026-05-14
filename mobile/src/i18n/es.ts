@@ -1,4 +1,4 @@
-import en from "./en"
+import en, {type TranslationResource} from "./en"
 
 const es = {
   ...en,
@@ -128,6 +128,6 @@ const es = {
         "No se han agregado episodios favoritos todavía. ¡Presiona el corazón dentro de un episodio para agregarlo a tus favoritos!",
     },
   },
-}
+} satisfies TranslationResource
 
 export default es

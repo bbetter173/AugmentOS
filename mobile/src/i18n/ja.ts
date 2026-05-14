@@ -1,4 +1,4 @@
-import en from "./en"
+import en, {type TranslationResource} from "./en"
 
 const ja = {
   ...en,
@@ -125,6 +125,6 @@ const ja = {
         "お気に入りのエピソードがまだありません。エピソードにあるハートマークにタップして、お気に入りに追加しましょう！",
     },
   },
-}
+} satisfies TranslationResource
 
 export default ja

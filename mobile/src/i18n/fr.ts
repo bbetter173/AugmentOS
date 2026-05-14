@@ -1,4 +1,4 @@
-import en from "./en"
+import en, {type TranslationResource} from "./en"
 
 const fr = {
   ...en,
@@ -127,6 +127,6 @@ const fr = {
         "Aucun favori n'a été ajouté pour le moment. Appuyez sur le cœur d'un épisode pour l'ajouter à vos favoris !",
     },
   },
-}
+} satisfies TranslationResource
 
 export default fr

@@ -1044,3 +1044,8 @@ const en = {
 
 export default en
 export type Translations = typeof en
+export type TranslationResource = DeepPartial<Translations> & Record<string, unknown>
+
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
+}

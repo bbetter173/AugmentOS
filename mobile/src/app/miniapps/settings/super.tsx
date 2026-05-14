@@ -8,11 +8,6 @@ import {useNavigationStore} from "@/stores/navigation"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {RouteButton} from "@/components/ui/RouteButton"
 
-const debugCoreModule = CoreModule as typeof CoreModule & {
-  dbg1(): void
-  dbg2(): void
-}
-
 export default function SuperSettingsScreen() {
   const {goBack} = useNavigationStore.getState()
   const [superMode, setSuperMode] = useSetting(SETTINGS.super_mode.key)
@@ -50,8 +45,8 @@ export default function SuperSettingsScreen() {
           </Group>
 
           <Group title="Debug">
-            <RouteButton label="dbg1()" onPress={() => debugCoreModule.dbg1()} />
-            <RouteButton label="dbg2()" onPress={() => debugCoreModule.dbg2()} />
+            <RouteButton label="dbg1()" onPress={() => CoreModule.dbg1()} />
+            <RouteButton label="dbg2()" onPress={() => CoreModule.dbg2()} />
             <RouteButton label="Stress Test (Jetsam)" onPress={() => push("/miniapps/settings/stress-test")} />
           </Group>
 

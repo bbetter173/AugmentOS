@@ -8,7 +8,7 @@ These are TypeScript errors that look like they may reflect runtime or product b
 
 ## App settings update error handling
 
-- `src/app/applet/settings.tsx` treats `restComms.updateAppSetting(...)` as a catchable Promise, but `RestComms.updateAppSetting` returns `AsyncResult<void, Error>`. I used a type cast to preserve the current `.then(...).catch(...)` chain. If `AsyncResult.then()` does not return a real Promise at runtime, setting-update errors may not be handled as intended.
+- `src/app/applet/settings.tsx` previously treated `restComms.updateAppSetting(...)` as a catchable Promise, but `RestComms.updateAppSetting` returns `AsyncResult<void, Error>`. The PR now handles the resolved `Result` directly. If setting-update errors were previously expected to reject through `.catch(...)`, that expectation was wrong for the current `typesafe-ts` API.
 
 ## Local MiniSockets
 
@@ -20,7 +20,6 @@ These are TypeScript errors that look like they may reflect runtime or product b
 
 ## Missing modules
 
-- `src/components/ui/InfoSection.tsx` was imported but missing. I added a minimal matching component so `DeviceInformation` can compile, but the intended UI details should be verified.
 - `src/utils/LogoutUtils.ts` was imported but missing. I re-exported `LogoutUtils` from `AuthContext`; verify that this is the intended public import path.
 
 ## Icons and theme tokens
@@ -32,8 +31,7 @@ These are TypeScript errors that look like they may reflect runtime or product b
 
 ## Native module type gaps
 
-- `src/app/miniapps/settings/super.tsx` calls `CoreModule.dbg1()` and `CoreModule.dbg2()`, but those methods are not in the current Bluetooth SDK type.
-- `src/components/glasses/NexDeveloperSettings.tsx` calls `CoreModule.displayImage(...)` and `CoreModule.setLc3AudioEnabled(...)`, but those methods are not in the current Bluetooth SDK type.
+- `src/components/glasses/NexDeveloperSettings.tsx` used to call `CoreModule.displayImage(...)` and `CoreModule.setLc3AudioEnabled(...)`, but those methods are not exported by the current Android/iOS Bluetooth SDK module. I restored the previous TODO no-op behavior from the old bridge path instead of typing nonexistent native methods.
 - `src/components/glasses/NexDeveloperSettings.tsx` also references `settings:screenSettings`, which is not present in the typed translation keys.
 
 ## Ignored style props

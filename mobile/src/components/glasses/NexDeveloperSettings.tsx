@@ -16,11 +16,6 @@ import showAlert from "@/utils/AlertUtils"
 import {MOCK_CONNECTION} from "@/utils/Constants"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 
-const nexCoreModule = CoreModule as typeof CoreModule & {
-  displayImage(imageType: string, imageSize: string): Promise<void>
-  setLc3AudioEnabled(enabled: boolean): Promise<void>
-}
-
 // Nex Interface Version - Single source of truth
 export const NEX_INTERFACE_VERSION = "1.0.0"
 
@@ -369,7 +364,8 @@ export default function NexDeveloperSettings() {
 
   const onSendImageClick = async () => {
     if (glassesConnected) {
-      await nexCoreModule.displayImage(selectedImageType, selectedImageSize)
+      console.warn("sendDisplayImage not yet implemented in Bluetooth SDK API")
+      console.log("Would display image:", selectedImageType, selectedImageSize)
     } else {
       showAlert("Please connect to the device", "Please connect to the device", [
         {
@@ -398,7 +394,8 @@ export default function NexDeveloperSettings() {
   const onLc3AudioToggle = async (enabled: boolean) => {
     setLc3AudioEnabled(enabled)
     if (glassesConnected) {
-      await nexCoreModule.setLc3AudioEnabled(enabled)
+      console.log("setLc3AudioEnabled", enabled)
+      console.warn("setLc3AudioEnabled not yet implemented in Bluetooth SDK API")
     }
   }
 

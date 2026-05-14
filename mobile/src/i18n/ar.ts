@@ -1,4 +1,4 @@
-import en from "./en"
+import en, {type TranslationResource} from "./en"
 
 const ar = {
   ...en,
@@ -116,6 +116,6 @@ const ar = {
       content: "لم تتم اضافة اي مفضلات حتى الان. اضغط على القلب في إحدى الحلقات لإضافته الى المفضلة.",
     },
   },
-}
+} satisfies TranslationResource
 
 export default ar

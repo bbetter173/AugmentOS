@@ -300,14 +300,13 @@ export default function AppSettings() {
       [key]: value,
     }))
 
-    // Build an array of settings to send.
-    ;(restComms.updateAppSetting(packageName, {key, value}) as unknown as Promise<void>)
-      .then((data) => {
-        console.log("Server update response:", data)
-      })
-      .catch((error: unknown) => {
-        console.error("Error updating setting on server:", error)
-      })
+    void restComms.updateAppSetting(packageName, {key, value}).then((result) => {
+      if (result.is_error()) {
+        console.error("Error updating setting on server:", result.error)
+        return
+      }
+      console.log("Server update response:", result.value)
+    })
   }
 
   // Pre-process settings into groups for proper isFirst/isLast styling

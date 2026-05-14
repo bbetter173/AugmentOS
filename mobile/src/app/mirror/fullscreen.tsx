@@ -46,7 +46,7 @@ export default function GlassesMirrorFullscreen() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
 
   const cameraRef = useRef<CameraView | null>(null)
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const recordingTimerRef = useRef<number | null>(null)
 
   // Check permissions and setup on component mount
   useEffect(() => {
@@ -115,7 +115,7 @@ export default function GlassesMirrorFullscreen() {
   useEffect(() => {
     if (isRecording) {
       // Start a timer that updates every second
-      recordingTimerRef.current = setInterval(() => {
+      recordingTimerRef.current = window.setInterval(() => {
         setRecordingTime((prev) => prev + 1)
       }, 1000)
     } else {

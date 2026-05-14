@@ -1620,6 +1620,10 @@ class G2: NSObject, SGCManager {
         // if isHeadUp {
         //     return
         // }
+        let useNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
+        if useNativeDashboard && dashboardShowing > 0 {
+            return
+        }
 
         if text.isEmpty {
             clearDisplay()
@@ -2347,7 +2351,8 @@ class G2: NSObject, SGCManager {
             sendEvenHubCommand(msg)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
-                if useEvenDashboard && dashboardShowing > 0 {
+                let usNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
+                if useNativeDashboard && dashboardShowing > 0 {
                     return
                 }
                 let msg = EvenHubProto.audioControlMessage(enable: true)
@@ -3061,9 +3066,13 @@ class G2: NSObject, SGCManager {
                 // trigger dashboard:
                 let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
                 
-                // toggle head up:
-                // GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
-                showDashboard()
+                let useNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
+                if useNativeDashboard {
+                    showDashboard()
+                } else {
+                    // toggle head up:
+                    GlassesStore.shared.apply("glasses", "headUp", !isHeadUp)
+                }
                 
                 // if isHeadUp {
                 //     // Bridge.log("G2: going back to home, clearing display")
@@ -3416,7 +3425,8 @@ class G2: NSObject, SGCManager {
         // so we need to revive it:
         if data == Data([0x08, 0x01, 0x1A, 0x00]) {
             Bridge.log("G2: gesture_ctrl response: dashboard closed or we called shutdown")
-            if !useEvenDashboard {
+            let useNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
+            if !useNativeDashboard {
                 // re-send mic on / update mic state:
                 GlassesStore.shared.apply("glasses", "micEnabled", false)
                 CoreManager.shared.updateMicState() // should set the mic back on if it should be on

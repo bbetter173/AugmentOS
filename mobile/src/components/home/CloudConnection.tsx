@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react"
-import {View, ViewStyle, TextStyle} from "react-native"
+import {ImageStyle, TextStyle, View, ViewStyle} from "react-native"
 import LinearGradient from "react-native-linear-gradient"
 import Animated, {useSharedValue, withTiming} from "react-native-reanimated"
 
@@ -180,7 +180,7 @@ const $row: ThemedStyle<ViewStyle> = () => ({
   justifyContent: "center",
 })
 
-const $icon: ThemedStyle<ViewStyle> = ({spacing}) => ({
+const $icon: ThemedStyle<ImageStyle> = ({spacing}) => ({
   marginRight: spacing.s2,
 })
 

@@ -35,7 +35,7 @@ import {storage} from "@/utils/storage"
 import {captureRef} from "react-native-view-shot"
 
 export default function AppSettings() {
-  const {packageName, appName: appNameParam} = useLocalSearchParams()
+  const {packageName, appName: appNameParam} = useLocalSearchParams<{packageName: string; appName?: string}>()
   const [isUninstalling, setIsUninstalling] = useState(false)
   const {theme, themed} = useAppTheme()
   const {goBack, replaceAll} = useNavigationStore.getState()
@@ -301,12 +301,11 @@ export default function AppSettings() {
     }))
 
     // Build an array of settings to send.
-    restComms
-      .updateAppSetting(packageName, {key, value})
+    ;(restComms.updateAppSetting(packageName, {key, value}) as unknown as Promise<void>)
       .then((data) => {
         console.log("Server update response:", data)
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.error("Error updating setting on server:", error)
       })
   }

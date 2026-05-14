@@ -18,6 +18,7 @@ const initialState: CoreStatus = {
   wifiScanResults: [],
   lastLog: [],
   otherBtConnected: false,
+  gallery_mode: false,
 }
 
 export const useCoreStore = create<CoreState>()(

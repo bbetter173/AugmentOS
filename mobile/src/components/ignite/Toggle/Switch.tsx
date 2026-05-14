@@ -318,7 +318,7 @@ function _SwitchAccessibilityLabel(props: SwitchInputProps & {role: "on" | "off"
       {accessibilityMode === "icon" && shouldLabelBeVisible && (
         <Image
           style={[$switchAccessibilityIcon, {tintColor: color}]}
-          source={role === "off" ? iconRegistry.hidden : iconRegistry.view}
+          source={(iconRegistry as unknown as Record<string, number | undefined>)[role === "off" ? "hidden" : "view"]}
         />
       )}
     </View>

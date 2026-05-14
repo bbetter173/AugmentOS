@@ -1,4 +1,4 @@
-import CoreModule, {MentraDevice} from "@mentra/bluetooth-sdk"
+import CoreModule, {type Device as MentraDevice} from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"

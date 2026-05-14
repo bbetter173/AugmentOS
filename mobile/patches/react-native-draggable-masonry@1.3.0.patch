@@ -26,6 +26,21 @@ diff --git a/src/MasonryItem.tsx b/src/MasonryItem.tsx
 index e4bbf4c488c5406be4222d7b76fae950bc2ce162..3f5a067e59cbdb1e492e55b615bbf442c0863bb4 100644
 --- a/src/MasonryItem.tsx
 +++ b/src/MasonryItem.tsx
+@@ -26,6 +26,7 @@ interface MasonryItemProps {
+     dragStartScrollY: SharedValue<number>;
+     // New props
+     sortEnabled: boolean;
++    swapMode?: boolean;
+     dragActivationDelay: number;
+     activationAnimationDuration: number;
+     dropAnimationDuration: number;
+@@ -95,5 +96,6 @@ const MasonryItemComponent = ({
+             return () => clearTimeout(timer);
+         } else {
+             isMounted.value = true;
++            return undefined;
+         }
+     }, []);
 @@ -238,6 +238,13 @@ const MasonryItemComponent = ({
              runOnJS(onDragEnd)(id);
          });

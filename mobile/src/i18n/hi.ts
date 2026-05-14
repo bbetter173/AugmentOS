@@ -1,6 +1,6 @@
-import en, {Translations} from "./en"
+import en from "./en"
 
-const hi: Translations = {
+const hi = {
   ...en,
   common: {
     ok: "ठीक है!",

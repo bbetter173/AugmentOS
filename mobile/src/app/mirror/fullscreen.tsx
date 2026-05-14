@@ -46,7 +46,7 @@ export default function GlassesMirrorFullscreen() {
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
 
   const cameraRef = useRef<CameraView | null>(null)
-  const recordingTimerRef = useRef<number | null>(null)
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Check permissions and setup on component mount
   useEffect(() => {

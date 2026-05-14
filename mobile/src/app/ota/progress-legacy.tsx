@@ -106,13 +106,13 @@ export default function OtaProgressScreen() {
   // in the same render cycle as the processing effect)
   const skipStaleProgressRef = useRef(true)
   const latestOtaProgressRef = useRef(otaProgress)
-  const retryTimeoutRef = useRef<number | null>(null)
-  const stuckTimeoutRef = useRef<number | null>(null)
-  const progressTimeoutRef = useRef<number | null>(null)
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const stuckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const progressTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // Global OTA session timeout: fail if we don't reach a terminal state within legacyGlobalOtaTimeoutMs
-  const globalTimeoutRef = useRef<number | null>(null)
+  const globalTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // Post-APK settle delay: cleared if we unmount or disconnect before it fires
-  const postReconnectDelayRef = useRef<number | null>(null)
+  const postReconnectDelayRef = useRef<NodeJS.Timeout | null>(null)
   // Gates sendOtaStartCommand between steps — set true when waiting for glasses to reconnect
   const waitingForReconnectRef = useRef(false)
   // When user remounts mid-sequence (e.g. after MTK, before BES), we need to send ota_start.
@@ -155,11 +155,11 @@ export default function OtaProgressScreen() {
   // Uses timeout-based stall detection: when no real progress for 20s in the 45-55% zone,
   // start incrementing by 1% every 15s to keep user informed (caps at 60%)
   const [simulatedProgress, setSimulatedProgress] = useState<number | null>(null)
-  const simulationTimerRef = useRef<number | null>(null)
-  const stallDetectionRef = useRef<number | null>(null)
+  const simulationTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const stallDetectionRef = useRef<NodeJS.Timeout | null>(null)
   const lastRealProgressRef = useRef<number>(0)
   const [otaStartTime, setOtaStartTime] = useState<number>(0)
-  const pingIntervalRef = useRef<number | null>(null)
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const trackOtaEvent = useCallback(
     (eventName: string, params: Record<string, string | number | boolean | null | undefined>) => {
@@ -291,7 +291,7 @@ export default function OtaProgressScreen() {
       // Set up interval to ping (legacy: PING_INTERVAL_MS + LEGACY_EXTRA_TIMEOUT_MS)
       pingIntervalRef.current = setInterval(() => {
         CoreModule.ping().catch((err) => console.log("OTA: ping failed:", err))
-      }, legacyPingIntervalMs) as unknown as number
+      }, legacyPingIntervalMs)
 
       return () => {
         if (pingIntervalRef.current) {
@@ -305,6 +305,7 @@ export default function OtaProgressScreen() {
         clearInterval(pingIntervalRef.current)
         pingIntervalRef.current = null
       }
+      return undefined
     }
   }, [progressState, glassesConnected])
 
@@ -627,7 +628,7 @@ export default function OtaProgressScreen() {
           }
           setErrorMessage("Update took too long. Please try again.")
           setProgressState("failed")
-        }, legacyGlobalOtaTimeoutMs) as unknown as number
+        }, legacyGlobalOtaTimeoutMs)
         console.log("OTA_TRACK: global_timeout_started", JSON.stringify({ms: legacyGlobalOtaTimeoutMs}))
       }
 
@@ -647,7 +648,7 @@ export default function OtaProgressScreen() {
             setProgressState("failed")
           }
         }
-      }, legacyRetryIntervalMs) as unknown as number
+      }, legacyRetryIntervalMs)
       // If after legacyDownloadStuckTimeoutMs we are still in starting/downloading at 0%, fail (stuck at 0%):
       stuckTimeoutRef.current = setTimeout(() => {
         const currentState = progressStateRef.current
@@ -668,7 +669,7 @@ export default function OtaProgressScreen() {
           setErrorMessage("Update may have failed. Ensure glasses have internet access and try again.")
           setProgressState("failed")
         }
-      }, legacyDownloadStuckTimeoutMs) as unknown as number
+      }, legacyDownloadStuckTimeoutMs)
     } catch (error) {
       console.log("OTA_TRACK: send_ota_start_error", JSON.stringify({error: String(error), retryCount}))
       if (retryCount < MAX_RETRIES - 1) {
@@ -725,7 +726,7 @@ export default function OtaProgressScreen() {
         "OTA_TRACK: post_apk_delay",
         JSON.stringify({delayMs: legacyPostApkOtaStartDelayMs, currentUpdateIndex}),
       )
-      postReconnectDelayRef.current = setTimeout(fire, legacyPostApkOtaStartDelayMs) as unknown as number
+      postReconnectDelayRef.current = setTimeout(fire, legacyPostApkOtaStartDelayMs)
     } else {
       fire()
     }
@@ -1508,6 +1509,7 @@ export default function OtaProgressScreen() {
       }, legacyBesContinueCooldownMs)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [progressState])
 
   const navigateAfterContinue = () => {

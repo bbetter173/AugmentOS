@@ -12,6 +12,7 @@ type ToggleSettingProps = {
   onValueChange: (newValue: boolean) => void
   disabled?: boolean
   style?: ViewStyle
+  containerStyle?: ViewStyle
   icon?: React.ReactNode
   compact?: boolean
   isFirst?: boolean
@@ -26,6 +27,7 @@ const ToggleSetting: React.FC<ToggleSettingProps> = ({
   onValueChange,
   disabled = false,
   style,
+  containerStyle: _containerStyle,
   icon,
   compact = false,
   isFirst,

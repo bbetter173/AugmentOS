@@ -8,13 +8,18 @@ import ToggleSetting from "@/components/settings/ToggleSetting"
 import {RouteButton} from "@/components/ui/RouteButton"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
-import {translate} from "@/i18n/translate"
+import {translate, TxKeyPath} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
 import {MOCK_CONNECTION} from "@/utils/Constants"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
+
+const nexCoreModule = CoreModule as typeof CoreModule & {
+  displayImage(imageType: string, imageSize: string): Promise<void>
+  setLc3AudioEnabled(enabled: boolean): Promise<void>
+}
 
 // Nex Interface Version - Single source of truth
 export const NEX_INTERFACE_VERSION = "1.0.0"
@@ -364,7 +369,7 @@ export default function NexDeveloperSettings() {
 
   const onSendImageClick = async () => {
     if (glassesConnected) {
-      await CoreModule.displayImage(selectedImageType, selectedImageSize)
+      await nexCoreModule.displayImage(selectedImageType, selectedImageSize)
     } else {
       showAlert("Please connect to the device", "Please connect to the device", [
         {
@@ -393,7 +398,7 @@ export default function NexDeveloperSettings() {
   const onLc3AudioToggle = async (enabled: boolean) => {
     setLc3AudioEnabled(enabled)
     if (glassesConnected) {
-      await CoreModule.setLc3AudioEnabled(enabled)
+      await nexCoreModule.setLc3AudioEnabled(enabled)
     }
   }
 
@@ -427,7 +432,7 @@ export default function NexDeveloperSettings() {
           <View style={themed($settingsGroup)}>
             <Text style={themed($sectionTitle)}>Display Settings</Text>
             <RouteButton
-              label={translate("settings:screenSettings")}
+              label={translate("settings:screenSettings" as TxKeyPath)}
               subtitle={translate("settings:screenDescription")}
               onPress={() => push("/miniapps/settings/position")}
             />

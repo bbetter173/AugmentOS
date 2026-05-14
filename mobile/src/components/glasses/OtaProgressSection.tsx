@@ -3,18 +3,34 @@ import {View} from "react-native"
 import {Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {ThemedStyle} from "@/theme"
-import {OtaProgress} from "@/utils/CoreStatusParser"
+
+type LegacyOtaStep = {
+  status: string
+  error_message?: string
+}
+
+type LegacyOtaDownloadStep = LegacyOtaStep & {
+  bytes_downloaded: number
+  progress: number
+  total_bytes: number
+}
+
+type LegacyOtaProgress = {
+  download?: LegacyOtaDownloadStep
+  installation?: LegacyOtaStep
+}
 
 interface OtaProgressSectionProps {
-  otaProgress?: OtaProgress
+  otaProgress?: unknown
 }
 
 export default function OtaProgressSection({otaProgress}: OtaProgressSectionProps) {
   const {theme, themed} = useAppTheme()
 
   // Show the component only if there's meaningful OTA progress data
-  const download = otaProgress?.download
-  const installation = otaProgress?.installation
+  const legacyProgress = otaProgress as LegacyOtaProgress | undefined
+  const download = legacyProgress?.download
+  const installation = legacyProgress?.installation
   if (!otaProgress || (!download && !installation)) {
     return null
   }

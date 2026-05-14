@@ -62,7 +62,7 @@ function RadioInput(props: RadioInputProps) {
   ].filter(Boolean)[0]
 
   const onBackgroundColor = [
-    disabled && colors.transparent,
+    disabled && (colors as {transparent?: string}).transparent,
     status === "error" && colors.errorBackground,
     colors.palette.neutral100,
   ].filter(Boolean)[0]

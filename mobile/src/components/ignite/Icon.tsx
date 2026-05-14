@@ -1,4 +1,5 @@
 import {createIconSet} from "@expo/vector-icons"
+import type {ComponentType} from "react"
 import {
   Bell,
   CircleUser,
@@ -39,13 +40,18 @@ import {
 import {ShoppingBagIcon, HomeIcon, GridIcon} from "@/components/icons"
 import {useAppTheme} from "@/contexts/ThemeContext"
 
-export type IconTypes = keyof typeof iconRegistry
+export type IconTypes = keyof typeof iconRegistry | (string & {})
 
 type BaseIconProps = {
   /**
    * The name of the icon
    */
-  name: IconTypes
+  name?: IconTypes
+
+  /**
+   * Legacy prop accepted by older call sites.
+   */
+  icon?: IconTypes
 
   /**
    * An optional tint color for the icon
@@ -75,6 +81,12 @@ type BaseIconProps = {
 
 type PressableIconProps = Omit<TouchableOpacityProps, "style"> & BaseIconProps
 type IconProps = Omit<ViewProps, "style"> & BaseIconProps
+type RenderableIconComponent = ComponentType<{
+  style?: StyleProp<ImageStyle>
+  size?: number
+  color?: string
+  fill?: string
+}>
 
 /**
  * A component to render a registered icon.
@@ -86,6 +98,7 @@ type IconProps = Omit<ViewProps, "style"> & BaseIconProps
 export function PressableIcon(props: PressableIconProps) {
   const {
     name,
+    icon: _icon,
     color,
     // backgroundColor,
     size,
@@ -212,10 +225,8 @@ export function Icon(props: IconProps) {
     size !== undefined && {fontSize: size, lineHeight: size, width: size, height: size},
   ]
 
-  // @ts-ignore
-  if (lucideIcons[name]) {
-    // @ts-ignore
-    const IconComponent = lucideIcons[name] as any
+  if (name && lucideIcons[name as keyof typeof lucideIcons]) {
+    const IconComponent = lucideIcons[name as keyof typeof lucideIcons] as RenderableIconComponent
 
     return (
       <View {...viewProps} style={[$containerStyleOverride, $iconCenterStyle]}>
@@ -224,7 +235,7 @@ export function Icon(props: IconProps) {
     )
   }
 
-  if (TablerIcon.glyphMap[name]) {
+  if (name && TablerIcon.glyphMap[name]) {
     return (
       <View {...viewProps} style={[$containerStyleOverride, $iconCenterStyle]}>
         <TablerIcon style={$textStyle} name={name} size={size} color={color} />
@@ -234,7 +245,7 @@ export function Icon(props: IconProps) {
 
   return (
     <View {...viewProps} style={[$containerStyleOverride, $iconCenterStyle]}>
-      <Image style={$imageStyle} source={iconRegistry[name] as any} />
+      <Image style={$imageStyle} source={(name ? iconRegistry[name as keyof typeof iconRegistry] : undefined) as any} />
     </View>
   )
 }

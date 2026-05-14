@@ -16,6 +16,12 @@ import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/Onboardin
 import {useAppStatusStore} from "@mentra/island"
 import CoreModule from "@mentra/bluetooth-sdk"
 
+const androidPermissions = PermissionsAndroid.PERMISSIONS as typeof PermissionsAndroid.PERMISSIONS & {
+  BLUETOOTH?: string
+  BLUETOOTH_ADMIN?: string
+  NEARBY_DEVICES?: string
+}
+
 export default function PairingPrepScreen() {
   const route = useRoute()
   const {deviceModel} = route.params as {deviceModel: string}
@@ -55,10 +61,8 @@ export default function PairingPrepScreen() {
           // Bluetooth permissions based on Android version
           if (typeof Platform.Version === "number" && Platform.Version < 31) {
             // For Android 9, 10, and 11 (API 28-30), use legacy Bluetooth permissions
-            bluetoothPermissions.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH || "android.permission.BLUETOOTH")
-            bluetoothPermissions.push(
-              PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADMIN || "android.permission.BLUETOOTH_ADMIN",
-            )
+            bluetoothPermissions.push(androidPermissions.BLUETOOTH || "android.permission.BLUETOOTH")
+            bluetoothPermissions.push(androidPermissions.BLUETOOTH_ADMIN || "android.permission.BLUETOOTH_ADMIN")
           }
           if (typeof Platform.Version === "number" && Platform.Version >= 31) {
             bluetoothPermissions.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN)
@@ -67,8 +71,8 @@ export default function PairingPrepScreen() {
 
             // Add NEARBY_DEVICES permission for Android 12+ (API 31+)
             // Only add if the permission is defined and not null
-            if (PermissionsAndroid.PERMISSIONS.NEARBY_DEVICES != null) {
-              bluetoothPermissions.push(PermissionsAndroid.PERMISSIONS.NEARBY_DEVICES)
+            if (androidPermissions.NEARBY_DEVICES != null) {
+              bluetoothPermissions.push(androidPermissions.NEARBY_DEVICES)
             }
           }
 

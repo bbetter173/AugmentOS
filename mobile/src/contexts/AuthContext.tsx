@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthContextProps>({
   logout: () => {},
 })
 
-class LogoutUtils {
+export class LogoutUtils {
   private static readonly TAG = "LogoutUtils"
 
   /**

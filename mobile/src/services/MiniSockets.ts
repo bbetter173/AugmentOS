@@ -452,3 +452,13 @@
 
 // const miniSockets = MiniSockets.getInstance()
 // export default miniSockets
+
+export type MiniSocketTextHandler = (clientId: number, text: string) => void
+
+const miniSockets = {
+  start(): void {},
+  onTextMessage(_handler: MiniSocketTextHandler): void {},
+  stop(): void {},
+}
+
+export default miniSockets

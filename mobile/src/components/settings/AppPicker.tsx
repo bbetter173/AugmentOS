@@ -159,7 +159,7 @@ export const AppPicker: FC<AppPickerProps> = ({
                 filteredApps.map((app) => {
                   const isSelected = app.packageName === selectedPackageName
                   const isCompatible = app.compatibility?.isCompatible !== false
-                  const compatibilityMessage = app.compatibility?.message || ""
+                  const compatibilityMessage = (app.compatibility as {message?: string} | undefined)?.message || ""
                   const isOffline = app.offline
 
                   return (

@@ -8,7 +8,7 @@ import ToggleSetting from "@/components/settings/ToggleSetting"
 import {RouteButton} from "@/components/ui/RouteButton"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
-import {translate, TxKeyPath} from "@/i18n"
+import {translate} from "@/i18n"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
@@ -429,7 +429,7 @@ export default function NexDeveloperSettings() {
           <View style={themed($settingsGroup)}>
             <Text style={themed($sectionTitle)}>Display Settings</Text>
             <RouteButton
-              label={translate("settings:screenSettings" as TxKeyPath)}
+              label={translate("settings:screenSettings")}
               subtitle={translate("settings:screenDescription")}
               onPress={() => push("/miniapps/settings/position")}
             />

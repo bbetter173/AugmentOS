@@ -3,7 +3,7 @@ import {ImageStyle, TextStyle, View, ViewStyle} from "react-native"
 import LinearGradient from "react-native-linear-gradient"
 import Animated, {useSharedValue, withTiming} from "react-native-reanimated"
 
-import {Icon, Text} from "@/components/ignite"
+import {Icon, Text, type IconTypes} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
 import {WebSocketStatus} from "@/services/WebSocketManager"
@@ -45,7 +45,7 @@ export default function CloudConnection() {
   /**
    * Return icon name and color based on connection status
    */
-  const getIcon = (connectionStatus: WebSocketStatus): {name: string; color: string; label: string} => {
+  const getIcon = (connectionStatus: WebSocketStatus): {name: IconTypes; color: string; label: string} => {
     switch (connectionStatus) {
       case WebSocketStatus.CONNECTED:
         return {

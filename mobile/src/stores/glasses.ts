@@ -9,7 +9,6 @@ export function isGlassesLinkLayerBusy(connectionState: string | undefined): boo
 }
 
 interface GlassesState extends GlassesStatus {
-  wifiConnected?: boolean
   wifiStatusKnown: boolean
   setGlassesInfo: (info: GlassesInfoUpdate) => void
   setBatteryInfo: (batteryLevel: number, charging: boolean, caseBatteryLevel: number, caseCharging: boolean) => void

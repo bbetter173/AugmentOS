@@ -516,6 +516,7 @@ const en = {
     postProcessing: "Post Processing",
     postProcessingSubtitle: "Improves photo and video quality. Sync may take longer.",
     positionSettings: "Display position",
+    screenSettings: "Screen settings",
     screenDescription: "Adjust depth and height of the display content.",
     glassesWifiSettings: "Wi-Fi Networks",
     glassesWifiDescription: "Configure WiFi settings for your smart glasses.",

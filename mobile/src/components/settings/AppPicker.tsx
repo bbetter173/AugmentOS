@@ -7,7 +7,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Group} from "@/components/ui/Group"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import type {ClientApp} from "@mentra/island"
+import {HardwareCompatibility, type ClientApp} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 
 interface AppPickerProps {
@@ -159,7 +159,7 @@ export const AppPicker: FC<AppPickerProps> = ({
                 filteredApps.map((app) => {
                   const isSelected = app.packageName === selectedPackageName
                   const isCompatible = app.compatibility?.isCompatible !== false
-                  const compatibilityMessage = (app.compatibility as {message?: string} | undefined)?.message || ""
+                  const compatibilityMessage = getCompatibilityMessage(app.compatibility)
                   const isOffline = app.offline
 
                   return (
@@ -200,6 +200,10 @@ export const AppPicker: FC<AppPickerProps> = ({
       </View>
     </Modal>
   )
+}
+
+function getCompatibilityMessage(compatibility: ClientApp["compatibility"]): string {
+  return compatibility ? HardwareCompatibility.getCompatibilityMessage(compatibility) : ""
 }
 
 // Styles

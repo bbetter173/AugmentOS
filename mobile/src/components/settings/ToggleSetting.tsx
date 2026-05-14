@@ -27,7 +27,7 @@ const ToggleSetting: React.FC<ToggleSettingProps> = ({
   onValueChange,
   disabled = false,
   style,
-  containerStyle: _containerStyle,
+  containerStyle,
   icon,
   compact = false,
   isFirst,
@@ -54,6 +54,7 @@ const ToggleSetting: React.FC<ToggleSettingProps> = ({
       style={[
         themed($container),
         groupedStyle,
+        containerStyle,
         style,
         disabled && {opacity: 0.5},
         compact && {paddingVertical: theme.spacing.s3},

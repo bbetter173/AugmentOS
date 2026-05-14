@@ -203,7 +203,7 @@ const $primaryButton: ThemedStyle<ViewStyle> = () => ({
 })
 
 const $pressedButton: ThemedStyle<ViewStyle> = ({colors}) => ({
-  backgroundColor: (colors as {buttonPressed?: string}).buttonPressed,
+  backgroundColor: colors.buttonPressed,
   opacity: 0.9,
 })
 

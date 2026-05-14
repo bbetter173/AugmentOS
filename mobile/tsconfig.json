@@ -21,7 +21,6 @@
       "@cloud/*": ["../cloud/packages/types/*"],
       "@assets/*": ["./assets/*"],
       "@plugins/*": ["./plugins/*"],
-      "@mentra/display-utils": ["../cloud/packages/display-utils/src"]
     },
     "types": ["node", "react", "jest"]
   },

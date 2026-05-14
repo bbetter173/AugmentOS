@@ -19,7 +19,6 @@
         "@mentra/bluetooth-sdk": "workspace:*",
         "@mentra/display-utils": "file:../cloud/packages/display-utils",
         "@mentra/island": "workspace:*",
-        "@mentra/jsc": "workspace:*",
         "@mentra/miniapp": "workspace:*",
         "@react-native-community/netinfo": "11.5.2",
         "@react-native-community/slider": "5.1.2",
@@ -197,18 +196,6 @@
         "react-native-zip-archive": "*",
         "semver": "*",
         "zustand": "*",
-      },
-    },
-    "modules/jsc": {
-      "name": "@mentra/jsc",
-      "version": "0.1.0",
-      "devDependencies": {
-        "expo-module-scripts": "^55.0.2",
-      },
-      "peerDependencies": {
-        "expo": "*",
-        "react": "*",
-        "react-native": "*",
       },
     },
     "modules/miniapp": {
@@ -827,8 +814,6 @@
     "@mentra/display-utils": ["@mentra/display-utils@file:../cloud/packages/display-utils", { "devDependencies": { "opentype.js": "^1.3.4", "typescript": "^5.0.0" } }],
 
     "@mentra/island": ["@mentra/island@workspace:modules/island"],
-
-    "@mentra/jsc": ["@mentra/jsc@workspace:modules/jsc"],
 
     "@mentra/miniapp": ["@mentra/miniapp@workspace:modules/miniapp"],
 

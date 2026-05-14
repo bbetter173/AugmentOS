@@ -62,7 +62,6 @@
     "@livekit/react-native-expo-plugin": "^1.0.1",
     "@livekit/react-native-webrtc": "^137.0.2",
     "@mentra/bluetooth-sdk": "workspace:*",
-    "@mentra/display-utils": "file:../cloud/packages/display-utils",
     "@mentra/miniapp": "workspace:*",
     "@react-native-community/netinfo": "11.5.2",
     "@react-native-community/slider": "5.1.2",

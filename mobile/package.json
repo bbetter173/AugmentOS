@@ -79,7 +79,6 @@
     "babel-plugin-module-resolver": "5.0.0",
     "crust": "workspace:*",
     "@mentra/island": "workspace:*",
-    "@mentra/jsc": "workspace:*",
     "date-fns": "^4.1.0",
     "dotenv": "^17.3.1",
     "expo": "^55.0.5",

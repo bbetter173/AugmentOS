@@ -10,13 +10,6 @@ export function isGlassesLinkLayerBusy(connectionState: string | undefined): boo
 
 interface GlassesState extends GlassesStatus {
   wifiStatusKnown: boolean
-  wifiConnected: boolean
-  wifiSsid: string
-  wifiLocalIp: string
-  hotspotEnabled: boolean
-  hotspotSsid: string
-  hotspotPassword: string
-  hotspotGatewayIp: string
   setGlassesInfo: (info: GlassesInfoUpdate) => void
   setBatteryInfo: (batteryLevel: number, charging: boolean, caseBatteryLevel: number, caseCharging: boolean) => void
   setWifiInfo: (connected: boolean, ssid: string) => void
@@ -61,21 +54,6 @@ function wifiFromLegacyFields(info: LegacyWifiFields): WifiStatus | null {
   return null
 }
 
-function derivedWifiFields(wifi: WifiStatus): LegacyWifiFields {
-  if (wifi.state === "connected") {
-    return {
-      wifiConnected: true,
-      wifiSsid: wifi.ssid,
-      wifiLocalIp: wifi.localIp ?? "",
-    }
-  }
-  return {
-    wifiConnected: false,
-    wifiSsid: "",
-    wifiLocalIp: "",
-  }
-}
-
 function hotspotFromLegacyFields(info: LegacyHotspotFields): HotspotStatus | null {
   if (info.hotspotEnabled === true) {
     const ssid = info.hotspotSsid?.trim()
@@ -89,24 +67,7 @@ function hotspotFromLegacyFields(info: LegacyHotspotFields): HotspotStatus | nul
   return null
 }
 
-function derivedHotspotFields(hotspot: HotspotStatus): LegacyHotspotFields {
-  if (hotspot.state === "enabled") {
-    return {
-      hotspotEnabled: true,
-      hotspotSsid: hotspot.ssid,
-      hotspotPassword: hotspot.password,
-      hotspotGatewayIp: hotspot.localIp,
-    }
-  }
-  return {
-    hotspotEnabled: false,
-    hotspotSsid: "",
-    hotspotPassword: "",
-    hotspotGatewayIp: "",
-  }
-}
-
-export const getGlasesInfoPartial = (state: GlassesStatus | GlassesStore) => {
+export const getGlasesInfoPartial = (state: GlassesStatus) => {
   const wifi = state.wifi
   return {
     batteryLevel: state.batteryLevel,
@@ -126,13 +87,6 @@ export const getGlasesInfoPartial = (state: GlassesStatus | GlassesStore) => {
 interface GlassesStore extends GlassesStatus {
   mtkUpdatedThisSession: boolean
   wifiStatusKnown: boolean
-  wifiConnected: boolean
-  wifiSsid: string
-  wifiLocalIp: string
-  hotspotEnabled: boolean
-  hotspotSsid: string
-  hotspotPassword: string
-  hotspotGatewayIp: string
   otaStatus: OtaStatus | null
 }
 
@@ -163,9 +117,6 @@ const initialState: GlassesStore = {
   besFwVersion: "",
   // wifi info
   wifi: {state: "disconnected"},
-  wifiConnected: false,
-  wifiSsid: "",
-  wifiLocalIp: "",
   wifiStatusKnown: false,
   // battery info
   batteryLevel: -1,
@@ -176,10 +127,6 @@ const initialState: GlassesStore = {
   caseRemoved: true,
   // hotspot info
   hotspot: {state: "disabled"},
-  hotspotEnabled: false,
-  hotspotSsid: "",
-  hotspotPassword: "",
-  hotspotGatewayIp: "",
   // OTA update info
   otaStatus: null,
   otaUpdateAvailable: null,
@@ -209,11 +156,13 @@ export const useGlassesStore = create<GlassesState>()(
           hotspotPassword,
           hotspotGatewayIp,
           hotspotLocalIp,
+          wifi,
+          hotspot,
           ...sdkInfo
         } = info
-        const wifiUpdate = info.wifi ?? wifiFromLegacyFields({wifiConnected, wifiSsid, wifiLocalIp})
+        const wifiUpdate = wifi ?? wifiFromLegacyFields({wifiConnected, wifiSsid, wifiLocalIp})
         const hotspotUpdate =
-          info.hotspot ??
+          hotspot ??
           hotspotFromLegacyFields({hotspotEnabled, hotspotSsid, hotspotPassword, hotspotGatewayIp, hotspotLocalIp})
         const hasWifiInfoUpdate =
           Object.prototype.hasOwnProperty.call(info, "wifi") ||
@@ -223,8 +172,8 @@ export const useGlassesStore = create<GlassesState>()(
         const next = {
           ...state,
           ...sdkInfo,
-          ...(wifiUpdate ? {wifi: wifiUpdate, ...derivedWifiFields(wifiUpdate)} : {}),
-          ...(hotspotUpdate ? {hotspot: hotspotUpdate, ...derivedHotspotFields(hotspotUpdate)} : {}),
+          ...(wifiUpdate ? {wifi: wifiUpdate} : {}),
+          ...(hotspotUpdate ? {hotspot: hotspotUpdate} : {}),
           ...(hasWifiInfoUpdate ? {wifiStatusKnown: true} : {}),
         }
         if (next.connected === false) {
@@ -250,7 +199,6 @@ export const useGlassesStore = create<GlassesState>()(
         const wifi: WifiStatus = connected ? {state: "connected", ssid: trimmedSsid} : {state: "disconnected"}
         return {
           wifi,
-          ...derivedWifiFields(wifi),
           wifiStatusKnown: true,
         }
       }),
@@ -263,7 +211,7 @@ export const useGlassesStore = create<GlassesState>()(
           hotspotPassword: password,
           hotspotGatewayIp: ip,
         })
-        return hotspot ? {hotspot, ...derivedHotspotFields(hotspot)} : {}
+        return hotspot ? {hotspot} : {}
       }),
 
     // OTA methods

@@ -1119,6 +1119,9 @@ class G2: NSObject, SGCManager {
     private var heartbeatCounter: Int = 0
     private var evenHubQueueTask: Task<Void, Never>?
     private var pendingTextMsg: Data?
+    private var lastEvenHubMsg: Data?
+    private var lastEvenHubResendsRemaining: Int = 0
+    private let EVEN_HUB_RESEND_COUNT: Int = 1
     private let evenHubQueueLock = NSLock()
     private var authStarted: Bool = false
 
@@ -1546,6 +1549,8 @@ class G2: NSObject, SGCManager {
         evenHubQueueTask = nil
         evenHubQueueLock.lock()
         pendingTextMsg = nil
+        lastEvenHubMsg = nil
+        lastEvenHubResendsRemaining = 0
         evenHubQueueLock.unlock()
     }
 
@@ -2281,17 +2286,41 @@ class G2: NSObject, SGCManager {
         evenHubQueueLock.lock()
         let msg = pendingTextMsg
         pendingTextMsg = nil
+        let toSend: Data?
+        if let msg = msg {
+            lastEvenHubMsg = msg
+            lastEvenHubResendsRemaining = EVEN_HUB_RESEND_COUNT
+            toSend = msg
+        } else if lastEvenHubResendsRemaining > 0, let last = lastEvenHubMsg {
+            lastEvenHubResendsRemaining -= 1
+            toSend = last
+        } else {
+            toSend = nil
+        }
         evenHubQueueLock.unlock()
-        guard let msg = msg else { return }
-        sendEvenHubCommand(msg)
+        guard let toSend = toSend else { return }
+        sendEvenHubCommand(toSend)
     }
 
     // MARK: - SGCManager: Audio Control
 
     func setMicEnabled(_ enabled: Bool) {
         Bridge.log("G2: setMicEnabled(\(enabled))")
-        GlassesStore.shared.apply("glasses", "micEnabled", enabled)
+        let currentEnabled = GlassesStore.shared.get("glasses", "micEnabled") as? Bool ?? false
+        if currentEnabled && enabled {
+            // if already enabled, set to disabled, then send enabled after 500ms:
+            GlassesStore.shared.apply("glasses", "micEnabled", true)
+            let msg = EvenHubProto.audioControlMessage(enable: false)
+            sendEvenHubCommand(msg)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self else { return }
+                let msg = EvenHubProto.audioControlMessage(enable: true)
+                self.sendEvenHubCommand(msg)
+            }
+            return
+        }
 
+        GlassesStore.shared.apply("glasses", "micEnabled", enabled)
         let msg = EvenHubProto.audioControlMessage(enable: enabled)
         sendEvenHubCommand(msg)
     }
@@ -3375,6 +3404,8 @@ class G2: NSObject, SGCManager {
         }
     }
 
+    private var lastAudioFrame: Data?
+
     private func handleAudioData(_ data: Data) {
         // G2 audio arrives on AUDIO_NOTIFY characteristic
         // Format: ~200+ byte chunks, use first 200 bytes, split into 40-byte LC3 frames
@@ -3383,11 +3414,16 @@ class G2: NSObject, SGCManager {
         let usableLength = min(data.count, 200)
         guard usableLength >= 40 else { return }
 
-        let audioData = data.prefix(usableLength)
+        let audioData = Data(data.prefix(usableLength))
+        if lastAudioFrame == audioData {
+            // Bridge.log("G2: audio dup")
+            return
+        }
+        lastAudioFrame = audioData
 
         // Forward LC3 data to CoreManager for decoding
         // G2 uses 40-byte frames (vs G1's 20-byte frames)
-        CoreManager.shared.handleGlassesMicData(Data(audioData), 40)
+        CoreManager.shared.handleGlassesMicData(audioData, 40)
     }
 }
 

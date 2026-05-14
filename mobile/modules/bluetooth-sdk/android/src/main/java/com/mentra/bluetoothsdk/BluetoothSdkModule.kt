@@ -9,19 +9,19 @@ class CoreModule : Module() {
     private var deviceManager: CoreManager? = null
     private val sdkListener =
             object : MentraBluetoothSdkListener {
-                override fun onGlassesStatusChanged(status: MentraGlassesStatusUpdate) {
+                override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
                     sendEvent("glasses_status", status.toMap())
                 }
 
-                override fun onBluetoothStatusChanged(status: MentraBluetoothStatusUpdate) {
+                override fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {
                     sendEvent("core_status", status.toMap())
                 }
 
-                override fun onDeviceDiscovered(device: MentraDevice) {
+                override fun onDeviceDiscovered(device: Device) {
                     sendEvent("device_discovered", device.toMap())
                 }
 
-                override fun onDefaultDeviceChanged(device: MentraDevice?) {
+                override fun onDefaultDeviceChanged(device: Device?) {
                     val event =
                             buildMap<String, Any> {
                                 device?.let { put("device", it.toMap()) }
@@ -29,8 +29,8 @@ class CoreModule : Module() {
                     sendEvent("default_device_changed", event)
                 }
 
-                override fun onScanStopped(reason: MentraScanStopReason) {
-                    if (reason == MentraScanStopReason.COMPLETED) {
+                override fun onScanStopped(reason: ScanStopReason) {
+                    if (reason == ScanStopReason.COMPLETED) {
                         val status = sdk?.getBluetoothStatus()
                         val deviceModel =
                                 status?.pendingWearable?.takeIf { it.isNotBlank() }
@@ -46,7 +46,7 @@ class CoreModule : Module() {
                     }
                 }
 
-                override fun onButtonPress(event: MentraButtonPressEvent) {
+                override fun onButtonPress(event: ButtonPressEvent) {
                     sendEvent(
                             "button_press",
                             mapOf(
@@ -57,7 +57,7 @@ class CoreModule : Module() {
                     )
                 }
 
-                override fun onTouch(event: MentraTouchEvent) {
+                override fun onTouch(event: TouchEvent) {
                     sendEvent("touch_event", event.values)
                 }
 
@@ -65,35 +65,35 @@ class CoreModule : Module() {
                     sendEvent("head_up", mapOf("up" to headUp))
                 }
 
-                override fun onBatteryStatus(event: MentraBatteryStatusEvent) {
+                override fun onBatteryStatus(event: BatteryStatusEvent) {
                     sendEvent("battery_status", event.values)
                 }
 
-                override fun onWifiStatusChanged(event: MentraWifiStatusEvent) {
+                override fun onWifiStatusChanged(event: WifiStatusEvent) {
                     sendEvent("wifi_status_change", event.values)
                 }
 
-                override fun onHotspotStatusChanged(event: MentraHotspotStatusEvent) {
+                override fun onHotspotStatusChanged(event: HotspotStatusEvent) {
                     sendEvent("hotspot_status_change", event.values)
                 }
 
-                override fun onHotspotError(event: MentraHotspotErrorEvent) {
+                override fun onHotspotError(event: HotspotErrorEvent) {
                     sendEvent("hotspot_error", event.values)
                 }
 
-                override fun onGalleryStatus(event: MentraGalleryStatusEvent) {
+                override fun onGalleryStatus(event: GalleryStatusEvent) {
                     sendEvent("gallery_status", event.values)
                 }
 
-                override fun onPhotoResponse(event: MentraPhotoResponseEvent) {
+                override fun onPhotoResponse(event: PhotoResponseEvent) {
                     sendEvent("photo_response", event.values)
                 }
 
-                override fun onStreamStatus(event: MentraStreamStatusEvent) {
+                override fun onStreamStatus(event: StreamStatusEvent) {
                     sendEvent("stream_status", event.values)
                 }
 
-                override fun onKeepAliveAck(event: MentraKeepAliveAckEvent) {
+                override fun onKeepAliveAck(event: KeepAliveAckEvent) {
                     sendEvent("keep_alive_ack", event.values)
                 }
 
@@ -105,7 +105,7 @@ class CoreModule : Module() {
                     sendEvent("mic_lc3", mapOf("lc3" to frame))
                 }
 
-                override fun onLocalTranscription(event: MentraLocalTranscriptionEvent) {
+                override fun onLocalTranscription(event: LocalTranscriptionEvent) {
                     sendEvent("local_transcription", event.values)
                 }
 
@@ -113,7 +113,7 @@ class CoreModule : Module() {
                     sendEvent("log", mapOf("message" to message))
                 }
 
-                override fun onError(error: MentraBluetoothError) {
+                override fun onError(error: BluetoothError) {
                     sendEvent("pair_failure", mapOf("error" to error.message))
                 }
 
@@ -197,7 +197,7 @@ class CoreModule : Module() {
 
         Function("getGlassesStatus") {
             sdk?.getGlassesStatus()?.toMap()
-                    ?: MentraGlassesStatus.fromMap(GlassesStore.store.getCategory("glasses")).toMap()
+                    ?: GlassesStatus.fromMap(GlassesStore.store.getCategory("glasses")).toMap()
         }
 
         Function("getCoreStatus") {
@@ -206,24 +206,49 @@ class CoreModule : Module() {
 
         Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }
 
-        Function("set") { category: String, key: String, value: Any ->
-            GlassesStore.apply(category, key, value)
+        Function("set") { category: String, key: String, value: Any? ->
+            if (value != null) {
+                GlassesStore.apply(category, key, value)
+            }
         }
 
-        Function("update") { category: String, values: Map<String, Any> ->
+        Function("update") { category: String, values: Map<String, Any?> ->
             val normalizedCategory = ObservableStore.normalizeCategory(category)
-            values.forEach { (key, value) -> GlassesStore.apply(normalizedCategory, key, value) }
+            values.forEach { (key, value) ->
+                if (value != null) {
+                    GlassesStore.apply(normalizedCategory, key, value)
+                }
+            }
+            // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
+            // (bridge may run this after glasses_ready; prefs survive retries and next connection)
+            // TODO: move this to the mantle:
+            // if (category == "core") {
+            //     values["core_token"]?.let { token ->
+            //         val len = (token as? String)?.length ?: 0
+            //         android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
+            //         if (token is String && token.isNotEmpty()) {
+            //             val ctx = appContext.reactContext ?: appContext.currentActivity
+            //             ctx?.let {
+            //                 it.getSharedPreferences("augmentos_auth_prefs", android.content.Context.MODE_PRIVATE)
+            //                     .edit()
+            //                     .putString("core_token", token)
+            //                     .apply()
+            //                 android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         // MARK: - Display Commands
 
         AsyncFunction("displayEvent") { params: Map<String, Any> ->
-            sdk?.displayEvent(MentraDisplayEventRequest(params))
+            sdk?.displayEvent(DisplayEventRequest(params))
         }
 
         AsyncFunction("displayText") { params: Map<String, Any> ->
             sdk?.displayText(
-                    MentraDisplayTextRequest(
+                    DisplayTextRequest(
                             text = params["text"] as? String ?: "",
                             x = (params["x"] as? Number)?.toInt() ?: 0,
                             y = (params["y"] as? Number)?.toInt() ?: 0,
@@ -250,7 +275,7 @@ class CoreModule : Module() {
 
         AsyncFunction("connectWithOptions") { device: Map<String, Any>, options: Map<String, Any> ->
             sdk?.connect(
-                    device.toMentraDevice() ?: throw IllegalArgumentException("connect requires a MentraDevice with model and name."),
+                    device.toMentraDevice() ?: throw IllegalArgumentException("connect requires a Device with model and name."),
                     options.toMentraConnectOptions(),
             )
         }
@@ -269,7 +294,7 @@ class CoreModule : Module() {
 
         AsyncFunction("startScan") { params: Map<String, Any> ->
             val model = params["model"] as? String ?: DeviceTypes.LIVE
-            sdk?.startScan(MentraDeviceModel.fromDeviceType(model))
+            sdk?.startScan(DeviceModel.fromDeviceType(model))
         }
 
         AsyncFunction("cancelConnectionAttempt") { sdk?.cancelConnectionAttempt() }
@@ -315,8 +340,8 @@ class CoreModule : Module() {
         AsyncFunction("setGalleryMode") { mode: String ->
             val galleryMode =
                     when (mode.lowercase()) {
-                        "auto" -> MentraGalleryMode.AUTO
-                        "manual" -> MentraGalleryMode.MANUAL
+                        "auto" -> GalleryMode.AUTO
+                        "manual" -> GalleryMode.MANUAL
                         else -> throw IllegalArgumentException("setGalleryMode mode must be \"auto\" or \"manual\".")
                     }
             sdk?.setGalleryMode(galleryMode)
@@ -334,13 +359,13 @@ class CoreModule : Module() {
                 flash: Boolean,
                 sound: Boolean ->
             sdk?.requestPhoto(
-                    MentraPhotoRequest(
+                    PhotoRequest(
                             requestId = requestId,
                             appId = appId,
-                            size = MentraPhotoSize.fromValue(size),
+                            size = PhotoSize.fromValue(size),
                             webhookUrl = webhookUrl,
                             authToken = authToken,
-                            compress = MentraPhotoCompression.fromValue(compress),
+                            compress = PhotoCompression.fromValue(compress),
                             flash = flash,
                             sound = sound,
                     )
@@ -366,7 +391,7 @@ class CoreModule : Module() {
         // MARK: - Video Recording Commands
 
         AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
-            sdk?.startVideoRecording(MentraVideoRecordingRequest(requestId, save, flash, sound))
+            sdk?.startVideoRecording(VideoRecordingRequest(requestId, save, flash, sound))
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->
@@ -376,13 +401,13 @@ class CoreModule : Module() {
         // MARK: - Stream Commands
 
         AsyncFunction("startStream") { params: Map<String, Any> ->
-            sdk?.startStream(MentraStreamRequest.fromMap(params))
+            sdk?.startStream(StreamRequest.fromMap(params))
         }
 
         AsyncFunction("stopStream") { sdk?.stopStream() }
 
         AsyncFunction("keepStreamAlive") { params: Map<String, Any> ->
-            sdk?.keepStreamAlive(MentraStreamKeepAliveRequest.fromMap(params))
+            sdk?.keepStreamAlive(StreamKeepAliveRequest.fromMap(params))
         }
 
         // MARK: - Microphone Commands
@@ -392,7 +417,7 @@ class CoreModule : Module() {
                 sendTranscript: Boolean,
                 bypassVad: Boolean ->
             sdk?.setMicState(
-                    MentraMicConfig(
+                    MicConfig(
                             sendPcmData = sendPcmData,
                             sendTranscript = sendTranscript,
                             bypassVad = bypassVad,
@@ -429,11 +454,11 @@ class CoreModule : Module() {
                 offtime: Int,
                 count: Int ->
             sdk?.rgbLedControl(
-                    MentraRgbLedRequest(
+                    RgbLedRequest(
                             requestId = requestId,
                             packageName = packageName,
-                            action = MentraRgbLedAction.fromValue(action),
-                            color = MentraRgbLedColor.fromValue(color),
+                            action = RgbLedAction.fromValue(action),
+                            color = RgbLedColor.fromValue(color),
                             ontime = ontime,
                             offtime = offtime,
                             count = count,
@@ -475,150 +500,18 @@ class CoreModule : Module() {
             com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
 
-        // MARK: - Settings Navigation
-
-        AsyncFunction("openBluetoothSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        // Check if location services are enabled (required for WiFi operations on Android)
-        AsyncFunction("isLocationServicesEnabled") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val locationManager =
-                    context.getSystemService(android.content.Context.LOCATION_SERVICE) as
-                            android.location.LocationManager
-            // Check if either GPS or Network location provider is enabled
-            val providerEnabled = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
-                    locationManager.isProviderEnabled(
-                            android.location.LocationManager.NETWORK_PROVIDER
-                    )
-            if (!providerEnabled) {
-                // Fallback: check the system-level location toggle directly.
-                // GPS_PROVIDER/NETWORK_PROVIDER can report disabled on devices without
-                // Google Play Services or without a GPS chip, even when location is toggled on.
-                // isLocationEnabled requires API 28+; on older devices just trust the provider check.
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    val systemEnabled = locationManager.isLocationEnabled
-                    if (systemEnabled) {
-                        android.util.Log.w("CoreModule", "Location providers (GPS/Network) report disabled but system location toggle is ON. Device may lack GMS or GPS hardware.")
-                    }
-                    systemEnabled
-                } else {
-                    false
-                }
-            } else {
-                true
-            }
-        }
-
-        AsyncFunction("openLocationSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                    )
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
-        AsyncFunction("showLocationServicesDialog") {
-            val activity = appContext.currentActivity
-            if (activity == null) {
-                val context =
-                        appContext.reactContext
-                                ?: throw IllegalStateException("No context available")
-                val intent =
-                        android.content.Intent(
-                                android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                        )
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                return@AsyncFunction true
-            }
-
-            val locationRequest =
-                    com.google.android.gms.location.LocationRequest.Builder(
-                                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
-                                    10000
-                            )
-                            .build()
-
-            val builder =
-                    com.google.android.gms.location.LocationSettingsRequest.Builder()
-                            .addLocationRequest(locationRequest)
-                            .setAlwaysShow(true)
-
-            val client =
-                    com.google.android.gms.location.LocationServices.getSettingsClient(activity)
-            val task = client.checkLocationSettings(builder.build())
-
-            task.addOnSuccessListener { true }
-            task.addOnFailureListener { exception ->
-                if (exception is com.google.android.gms.common.api.ResolvableApiException) {
-                    try {
-                        exception.startResolutionForResult(activity, 1001)
-                    } catch (sendEx: android.content.IntentSender.SendIntentException) {
-                        // Fallback
-                        val intent =
-                                android.content.Intent(
-                                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                                )
-                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        activity.startActivity(intent)
-                    }
-                } else {
-                    val intent =
-                            android.content.Intent(
-                                    android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS
-                            )
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    activity.startActivity(intent)
-                }
-            }
-            true
-        }
-
-        AsyncFunction("openAppSettings") {
-            val context =
-                    appContext.reactContext
-                            ?: appContext.currentActivity
-                                    ?: throw IllegalStateException("No context available")
-            val intent =
-                    android.content.Intent(
-                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
-                    )
-            intent.data = android.net.Uri.parse("package:${context.packageName}")
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }
-
     }
 }
 
-private fun Map<String, Any>?.toMentraDevice(): MentraDevice? {
+private fun Map<String, Any>?.toMentraDevice(): Device? {
     val values = this ?: return null
     val model = values["model"] as? String ?: values["deviceModel"] as? String ?: return null
     val name = values["name"] as? String ?: values["deviceName"] as? String ?: return null
     val address = values["address"] as? String ?: values["deviceAddress"] as? String
     val rssi = (values["rssi"] as? Number)?.toInt()
     val id = values["id"] as? String
-    return MentraDevice(
-            model = MentraDeviceModel.fromDeviceType(model),
+    return Device(
+            model = DeviceModel.fromDeviceType(model),
             name = name,
             address = address?.takeIf { it.isNotBlank() },
             rssi = rssi,
@@ -626,9 +519,9 @@ private fun Map<String, Any>?.toMentraDevice(): MentraDevice? {
     )
 }
 
-private fun Map<String, Any>?.toMentraConnectOptions(): MentraConnectOptions {
-    val values = this ?: return MentraConnectOptions()
-    return MentraConnectOptions(
+private fun Map<String, Any>?.toMentraConnectOptions(): ConnectOptions {
+    val values = this ?: return ConnectOptions()
+    return ConnectOptions(
             saveAsDefault = values["saveAsDefault"] as? Boolean ?: true,
             cancelExistingConnectionAttempt = values["cancelExistingConnectionAttempt"] as? Boolean ?: true,
     )

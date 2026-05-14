@@ -200,7 +200,7 @@ public class Bridge private constructor() {
                                         ?.toMap()
                             }
                             ?: emptyList()
-            val id = if (deviceAddress.isNotBlank()) deviceAddress else "$deviceModel:$deviceName"
+            val id = "$deviceModel:$deviceName"
             val newResult =
                     buildMap<String, Any> {
                         put("id", id)
@@ -212,7 +212,15 @@ public class Bridge private constructor() {
                         rssi?.let { put("rssi", it) }
                     }
             val allResults = searchResults + newResult
-            val uniqueResults = allResults.associateBy { it["id"] ?: it["name"] }.values.toList()
+            val uniqueResults =
+                    allResults
+                            .asReversed()
+                            .distinctBy {
+                                val model = it["model"] ?: it["deviceModel"] ?: deviceModel
+                                val name = it["name"] ?: it["deviceName"] ?: return@distinctBy null
+                                "$model:$name"
+                            }
+                            .asReversed()
             GlassesStore.set("core", "searchResults", uniqueResults)
         }
 
@@ -364,7 +372,7 @@ public class Bridge private constructor() {
         /** Send WiFi status change */
         @JvmStatic
         fun sendWifiStatusChange(connected: Boolean, ssid: String?, localIp: String?) {
-            val status = MentraWifiStatus.fromStoreFields(connected, ssid, localIp) ?: return
+            val status = WifiStatus.fromStoreFields(connected, ssid, localIp) ?: return
             sendTypedMessage("wifi_status_change", status.toMap())
         }
 
@@ -411,7 +419,7 @@ public class Bridge private constructor() {
                 password: String,
                 gatewayIp: String
         ) {
-            val status = MentraHotspotStatus.fromStoreFields(enabled, ssid, password, gatewayIp) ?: return
+            val status = HotspotStatus.fromStoreFields(enabled, ssid, password, gatewayIp) ?: return
             sendTypedMessage("hotspot_status_change", status.toMap())
         }
 

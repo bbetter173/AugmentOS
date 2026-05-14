@@ -98,6 +98,7 @@ export const coreModuleMock = {
   queryGalleryStatus: jest.fn(() => Promise.resolve()),
   photoRequest: jest.fn(() => Promise.resolve()),
   sendOtaStart: jest.fn(() => Promise.resolve()),
+  sendOtaQueryStatus: jest.fn(() => Promise.resolve()),
   requestVersionInfo: jest.fn(() => Promise.resolve()),
   startVideoRecording: jest.fn(() => Promise.resolve()),
   stopVideoRecording: jest.fn(() => Promise.resolve()),

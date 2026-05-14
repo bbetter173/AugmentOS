@@ -96,7 +96,7 @@ public struct MentraBluetoothSDKConfiguration {
     public init() {}
 }
 
-public enum MentraDeviceModel: String {
+public enum DeviceModel: String {
     case g1
     case g2
     case mentraLive
@@ -130,7 +130,7 @@ public enum MentraDeviceModel: String {
         }
     }
 
-    public static func fromDeviceType(_ deviceType: String?) -> MentraDeviceModel {
+    public static func fromDeviceType(_ deviceType: String?) -> DeviceModel {
         switch deviceType {
         case DeviceTypes.G1:
             .g1
@@ -156,15 +156,15 @@ public enum MentraDeviceModel: String {
     }
 }
 
-public struct MentraDevice: Identifiable, Equatable, CustomStringConvertible {
-    public let model: MentraDeviceModel
+public struct Device: Identifiable, Equatable, CustomStringConvertible {
+    public let model: DeviceModel
     public let name: String
     public let identifier: String?
     public let rssi: Int?
     public let id: String
 
     public init(
-        model: MentraDeviceModel,
+        model: DeviceModel,
         name: String,
         identifier: String? = nil,
         rssi: Int? = nil,
@@ -178,7 +178,7 @@ public struct MentraDevice: Identifiable, Equatable, CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraDevice(model: \(model), name: \(name))"
+        "Device(model: \(model), name: \(name))"
     }
 
     var dictionary: [String: Any] {
@@ -202,7 +202,7 @@ public struct MentraDevice: Identifiable, Equatable, CustomStringConvertible {
         let identifier = stringValue(values, "address", "deviceAddress", "device_address").flatMap { $0.isEmpty ? nil : $0 }
         let rssi = intValue(values["rssi"]) ?? intValue(values["signalStrength"]) ?? intValue(values["signal_strength"])
         self.init(
-            model: MentraDeviceModel.fromDeviceType(model),
+            model: DeviceModel.fromDeviceType(model),
             name: name,
             identifier: identifier,
             rssi: rssi,
@@ -211,7 +211,7 @@ public struct MentraDevice: Identifiable, Equatable, CustomStringConvertible {
     }
 }
 
-public struct MentraConnectOptions {
+public struct ConnectOptions {
     public let saveAsDefault: Bool
     public let cancelExistingConnectionAttempt: Bool
 
@@ -221,7 +221,7 @@ public struct MentraConnectOptions {
     }
 }
 
-public struct MentraWifiScanResult: CustomStringConvertible {
+public struct WifiScanResult: CustomStringConvertible {
     public let ssid: String
     public let requiresPassword: Bool
     public let signalStrength: Int
@@ -254,35 +254,35 @@ public struct MentraWifiScanResult: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraWifiScanResult(ssid: \(ssid), signalStrength: \(signalStrength))"
+        "WifiScanResult(ssid: \(ssid), signalStrength: \(signalStrength))"
     }
 }
 
-public struct MentraGlassesStatus: CustomStringConvertible {
+public struct GlassesStatus: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
         self.values = values
     }
 
-    public func applying(_ update: MentraGlassesStatusUpdate) -> MentraGlassesStatus {
-        MentraGlassesStatus(values: values.merging(update.values) { _, new in new })
+    public func applying(_ update: GlassesStatusUpdate) -> GlassesStatus {
+        GlassesStatus(values: values.merging(update.values) { _, new in new })
     }
 
-    public func withBattery(level: Int, charging: Bool) -> MentraGlassesStatus {
-        applying(MentraGlassesStatusUpdate(values: ["batteryLevel": level, "charging": charging]))
+    public func withBattery(level: Int, charging: Bool) -> GlassesStatus {
+        applying(GlassesStatusUpdate(values: ["batteryLevel": level, "charging": charging]))
     }
 
-    public func withWifi(_ wifi: MentraWifiStatus) -> MentraGlassesStatus {
-        applying(MentraGlassesStatusUpdate(values: wifi.storeValues))
+    public func withWifi(_ wifi: WifiStatus) -> GlassesStatus {
+        applying(GlassesStatusUpdate(values: wifi.storeValues))
     }
 
-    public func withHotspot(_ hotspot: MentraHotspotStatus) -> MentraGlassesStatus {
-        applying(MentraGlassesStatusUpdate(values: hotspot.storeValues))
+    public func withHotspot(_ hotspot: HotspotStatus) -> GlassesStatus {
+        applying(GlassesStatusUpdate(values: hotspot.storeValues))
     }
 
-    public func disconnected() -> MentraGlassesStatus {
-        applying(MentraGlassesStatusUpdate(values: [
+    public func disconnected() -> GlassesStatus {
+        applying(GlassesStatusUpdate(values: [
             "connected": false,
             "connectionState": "DISCONNECTED",
             "fullyBooted": false,
@@ -323,8 +323,8 @@ public struct MentraGlassesStatus: CustomStringConvertible {
     public var serialNumber: String { stringValue(values, "serialNumber") ?? "" }
     public var style: String { stringValue(values, "style") ?? "" }
     public var color: String { stringValue(values, "color") ?? "" }
-    public var wifi: MentraWifiStatus { MentraWifiStatus.fromStoreValues(values) ?? .disconnected }
-    public var hotspot: MentraHotspotStatus { MentraHotspotStatus.fromStoreValues(values) ?? .disabled }
+    public var wifi: WifiStatus { WifiStatus.fromStoreValues(values) ?? .disconnected }
+    public var hotspot: HotspotStatus { HotspotStatus.fromStoreValues(values) ?? .disabled }
     public var dictionary: [String: Any] { Self.dictionary(from: values) }
     public var batteryLevel: Int { intValue(values["batteryLevel"]) ?? -1 }
     public var charging: Bool { boolValue(values, "charging") ?? false }
@@ -346,8 +346,8 @@ public struct MentraGlassesStatus: CustomStringConvertible {
 
     static func dictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
-        dictionary["wifi"] = (MentraWifiStatus.fromStoreValues(values) ?? .disconnected).values
-        dictionary["hotspot"] = (MentraHotspotStatus.fromStoreValues(values) ?? .disabled).values
+        dictionary["wifi"] = (WifiStatus.fromStoreValues(values) ?? .disconnected).values
+        dictionary["hotspot"] = (HotspotStatus.fromStoreValues(values) ?? .disabled).values
         dictionary.removeValue(forKey: "wifiConnected")
         dictionary.removeValue(forKey: "wifiSsid")
         dictionary.removeValue(forKey: "wifiLocalIp")
@@ -362,8 +362,8 @@ public struct MentraGlassesStatus: CustomStringConvertible {
     static func updateDictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
         if hasAnyKey(values, "wifi", "wifiConnected", "wifiSsid", "wifiLocalIp") {
-            let wifi = (values["wifi"] as? [String: Any]).flatMap(MentraWifiStatus.init(values:))
-                ?? MentraWifiStatus.fromStoreValues(values)
+            let wifi = (values["wifi"] as? [String: Any]).flatMap(WifiStatus.init(values:))
+                ?? WifiStatus.fromStoreValues(values)
             if let wifi {
                 dictionary["wifi"] = wifi.values
             }
@@ -372,11 +372,11 @@ public struct MentraGlassesStatus: CustomStringConvertible {
             dictionary.removeValue(forKey: "wifiLocalIp")
         }
         if hasAnyKey(values, "hotspot") {
-            if let hotspot = (values["hotspot"] as? [String: Any]).flatMap(MentraHotspotStatus.init(values:)) {
+            if let hotspot = (values["hotspot"] as? [String: Any]).flatMap(HotspotStatus.init(values:)) {
                 dictionary["hotspot"] = hotspot.values
             }
         } else if hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp", "hotspotLocalIp") {
-            if let hotspot = MentraHotspotStatus.fromStoreValues(values) {
+            if let hotspot = HotspotStatus.fromStoreValues(values) {
                 dictionary["hotspot"] = hotspot.values
             }
             dictionary.removeValue(forKey: "hotspotEnabled")
@@ -389,7 +389,7 @@ public struct MentraGlassesStatus: CustomStringConvertible {
     }
 }
 
-public struct MentraBluetoothStatus: CustomStringConvertible {
+public struct BluetoothStatus: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
@@ -399,17 +399,17 @@ public struct MentraBluetoothStatus: CustomStringConvertible {
     private static func normalized(_ values: [String: Any]) -> [String: Any] {
         var normalizedValues = values
         if let searchResults = values["searchResults"] as? [[String: Any]] {
-            normalizedValues["searchResults"] = searchResults.compactMap { MentraDevice(values: $0)?.dictionary }
+            normalizedValues["searchResults"] = searchResults.compactMap { Device(values: $0)?.dictionary }
         }
         return normalizedValues
     }
 
-    public func applying(_ update: MentraBluetoothStatusUpdate) -> MentraBluetoothStatus {
-        MentraBluetoothStatus(values: values.merging(update.values) { _, new in new })
+    public func applying(_ update: BluetoothStatusUpdate) -> BluetoothStatus {
+        BluetoothStatus(values: values.merging(update.values) { _, new in new })
     }
 
-    public func withDefaultDevice(_ device: MentraDevice?) -> MentraBluetoothStatus {
-        applying(MentraBluetoothStatusUpdate(values: [
+    public func withDefaultDevice(_ device: Device?) -> BluetoothStatus {
+        applying(BluetoothStatusUpdate(values: [
             "default_wearable": device?.model.deviceType ?? "",
             "device_name": device?.name ?? "",
             "device_address": device?.identifier ?? "",
@@ -422,11 +422,11 @@ public struct MentraBluetoothStatus: CustomStringConvertible {
     public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
     public var currentMic: String { stringValue(values, "currentMic") ?? "" }
     public var micRanking: [String] { stringListValue(values, "micRanking") }
-    public var searchResults: [MentraDevice] {
-        dictionaryListValue(values, "searchResults").compactMap(MentraDevice.init(values:))
+    public var searchResults: [Device] {
+        dictionaryListValue(values, "searchResults").compactMap(Device.init(values:))
     }
-    public var wifiScanResults: [MentraWifiScanResult] {
-        dictionaryListValue(values, "wifiScanResults").map(MentraWifiScanResult.init(values:))
+    public var wifiScanResults: [WifiScanResult] {
+        dictionaryListValue(values, "wifiScanResults").map(WifiScanResult.init(values:))
     }
     public var lastLog: [String] { stringListValue(values, "lastLog") }
     public var otherBtConnected: Bool { boolValue(values, "otherBtConnected") ?? false }
@@ -448,8 +448,8 @@ public struct MentraBluetoothStatus: CustomStringConvertible {
     public var headUpAngle: Int { intValue(values["head_up_angle"]) ?? 30 }
     public var contextualDashboard: Bool { boolValue(values, "contextual_dashboard") ?? true }
     public var galleryModeAuto: Bool { boolValue(values, "gallery_mode") ?? false }
-    public var buttonPhotoSize: MentraButtonPhotoSize {
-        MentraButtonPhotoSize(rawValue: stringValue(values, "button_photo_size") ?? "") ?? .medium
+    public var buttonPhotoSize: ButtonPhotoSize {
+        ButtonPhotoSize(rawValue: stringValue(values, "button_photo_size") ?? "") ?? .medium
     }
     public var buttonCameraLed: Bool { boolValue(values, "button_camera_led") ?? true }
     public var buttonMaxRecordingTime: Int { intValue(values["button_max_recording_time"]) ?? 10 }
@@ -464,10 +464,10 @@ public struct MentraBluetoothStatus: CustomStringConvertible {
     public var localSttFallbackActive: Bool { boolValue(values, "local_stt_fallback_active") ?? false }
     public var shouldSendBootingMessage: Bool { boolValue(values, "shouldSendBootingMessage") ?? true }
 
-    public var defaultDevice: MentraDevice? {
+    public var defaultDevice: Device? {
         guard !defaultWearable.isEmpty else { return nil }
-        return MentraDevice(
-            model: MentraDeviceModel.fromDeviceType(defaultWearable),
+        return Device(
+            model: DeviceModel.fromDeviceType(defaultWearable),
             name: deviceName,
             identifier: deviceAddress.isEmpty ? nil : deviceAddress
         )
@@ -478,7 +478,7 @@ public struct MentraBluetoothStatus: CustomStringConvertible {
     }
 }
 
-public struct MentraGlassesStatusUpdate: CustomStringConvertible {
+public struct GlassesStatusUpdate: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
@@ -508,25 +508,25 @@ public struct MentraGlassesStatusUpdate: CustomStringConvertible {
     public var serialNumber: String? { optionalStringValue(values, "serialNumber") }
     public var style: String? { optionalStringValue(values, "style") }
     public var color: String? { optionalStringValue(values, "color") }
-    public var wifi: MentraWifiStatus? {
+    public var wifi: WifiStatus? {
         if let wifi = values["wifi"] as? [String: Any] {
-            return MentraWifiStatus(values: wifi)
+            return WifiStatus(values: wifi)
         }
         if hasAnyKey(values, "wifiConnected", "wifiSsid", "wifiLocalIp") {
-            return MentraWifiStatus.fromStoreValues(values)
+            return WifiStatus.fromStoreValues(values)
         }
         return nil
     }
-    public var hotspot: MentraHotspotStatus? {
+    public var hotspot: HotspotStatus? {
         if let hotspot = values["hotspot"] as? [String: Any] {
-            return MentraHotspotStatus(values: hotspot)
+            return HotspotStatus(values: hotspot)
         }
         if hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp", "hotspotLocalIp") {
-            return MentraHotspotStatus.fromStoreValues(values)
+            return HotspotStatus.fromStoreValues(values)
         }
         return nil
     }
-    public var dictionary: [String: Any] { MentraGlassesStatus.updateDictionary(from: values) }
+    public var dictionary: [String: Any] { GlassesStatus.updateDictionary(from: values) }
     public var batteryLevel: Int? { optionalIntValue(values, "batteryLevel") }
     public var charging: Bool? { optionalBoolValue(values, "charging") }
     public var caseBatteryLevel: Int? { optionalIntValue(values, "caseBatteryLevel") }
@@ -546,13 +546,13 @@ public struct MentraGlassesStatusUpdate: CustomStringConvertible {
     }
 }
 
-public struct MentraBluetoothStatusUpdate: CustomStringConvertible {
+public struct BluetoothStatusUpdate: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
         var normalizedValues = values
         if let searchResults = values["searchResults"] as? [[String: Any]] {
-            normalizedValues["searchResults"] = searchResults.compactMap { MentraDevice(values: $0)?.dictionary }
+            normalizedValues["searchResults"] = searchResults.compactMap { Device(values: $0)?.dictionary }
         }
         self.values = normalizedValues
     }
@@ -563,11 +563,11 @@ public struct MentraBluetoothStatusUpdate: CustomStringConvertible {
     public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
     public var currentMic: String? { optionalStringValue(values, "currentMic") }
     public var micRanking: [String]? { optionalStringListValue(values, "micRanking") }
-    public var searchResults: [MentraDevice]? {
-        optionalDictionaryListValue(values, "searchResults")?.compactMap(MentraDevice.init(values:))
+    public var searchResults: [Device]? {
+        optionalDictionaryListValue(values, "searchResults")?.compactMap(Device.init(values:))
     }
-    public var wifiScanResults: [MentraWifiScanResult]? {
-        optionalDictionaryListValue(values, "wifiScanResults")?.map(MentraWifiScanResult.init(values:))
+    public var wifiScanResults: [WifiScanResult]? {
+        optionalDictionaryListValue(values, "wifiScanResults")?.map(WifiScanResult.init(values:))
     }
     public var lastLog: [String]? { optionalStringListValue(values, "lastLog") }
     public var otherBtConnected: Bool? { optionalBoolValue(values, "otherBtConnected") }
@@ -589,8 +589,8 @@ public struct MentraBluetoothStatusUpdate: CustomStringConvertible {
     public var headUpAngle: Int? { optionalIntValue(values, "head_up_angle") }
     public var contextualDashboard: Bool? { optionalBoolValue(values, "contextual_dashboard") }
     public var galleryModeAuto: Bool? { optionalBoolValue(values, "gallery_mode") }
-    public var buttonPhotoSize: MentraButtonPhotoSize? {
-        optionalStringValue(values, "button_photo_size").flatMap(MentraButtonPhotoSize.init(rawValue:))
+    public var buttonPhotoSize: ButtonPhotoSize? {
+        optionalStringValue(values, "button_photo_size").flatMap(ButtonPhotoSize.init(rawValue:))
     }
     public var buttonCameraLed: Bool? { optionalBoolValue(values, "button_camera_led") }
     public var buttonMaxRecordingTime: Int? { optionalIntValue(values, "button_max_recording_time") }
@@ -610,7 +610,7 @@ public struct MentraBluetoothStatusUpdate: CustomStringConvertible {
     }
 }
 
-public struct MentraDisplayTextRequest {
+public struct DisplayTextRequest {
     public let text: String
     public let x: Int
     public let y: Int
@@ -633,7 +633,7 @@ public struct MentraDisplayTextRequest {
     }
 }
 
-public struct MentraDisplayEventRequest {
+public struct DisplayEventRequest {
     public let values: [String: Any]
 
     public init(values: [String: Any]) {
@@ -641,7 +641,7 @@ public struct MentraDisplayEventRequest {
     }
 }
 
-public struct MentraDashboardPositionRequest {
+public struct DashboardPositionRequest {
     public let height: Int
     public let depth: Int
 
@@ -651,7 +651,7 @@ public struct MentraDashboardPositionRequest {
     }
 }
 
-public struct MentraDashboardMenuItem {
+public struct DashboardMenuItem {
     public let title: String
     public let packageName: String
     public let values: [String: Any]
@@ -667,39 +667,39 @@ public struct MentraDashboardMenuItem {
     }
 }
 
-public enum MentraGalleryMode {
+public enum GalleryMode {
     case auto
     case manual
 }
 
-public enum MentraPhotoSize: String {
+public enum PhotoSize: String {
     case small
     case medium
     case large
     case full
 }
 
-public enum MentraButtonPhotoSize: String {
+public enum ButtonPhotoSize: String {
     case small
     case medium
     case large
 }
 
-public enum MentraPhotoCompression: String {
+public enum PhotoCompression: String {
     case none
     case medium
     case heavy
 }
 
-public struct MentraButtonPhotoSettings {
-    public let size: MentraButtonPhotoSize
+public struct ButtonPhotoSettings {
+    public let size: ButtonPhotoSize
 
-    public init(size: MentraButtonPhotoSize) {
+    public init(size: ButtonPhotoSize) {
         self.size = size
     }
 }
 
-public struct MentraButtonVideoRecordingSettings {
+public struct ButtonVideoRecordingSettings {
     public let width: Int
     public let height: Int
     public let fps: Int
@@ -711,7 +711,7 @@ public struct MentraButtonVideoRecordingSettings {
     }
 }
 
-public enum MentraCameraFov {
+public enum CameraFov {
     case standard
     case wide
 
@@ -725,7 +725,7 @@ public enum MentraCameraFov {
     }
 }
 
-public struct MentraMicConfiguration {
+public struct MicConfiguration {
     public let sendPcmData: Bool
     public let sendTranscript: Bool
     public let bypassVad: Bool
@@ -744,30 +744,30 @@ public struct MentraMicConfiguration {
     }
 }
 
-public enum MentraMicPreference: String {
+public enum MicPreference: String {
     case auto
     case phone
     case glasses
     case bluetooth
 }
 
-public struct MentraPhotoRequest {
+public struct PhotoRequest {
     public let requestId: String
     public let appId: String
-    public let size: MentraPhotoSize
+    public let size: PhotoSize
     public let webhookUrl: String?
     public let authToken: String?
-    public let compress: MentraPhotoCompression?
+    public let compress: PhotoCompression?
     public let flash: Bool
     public let sound: Bool
 
     public init(
         requestId: String,
         appId: String,
-        size: MentraPhotoSize,
+        size: PhotoSize,
         webhookUrl: String? = nil,
         authToken: String? = nil,
-        compress: MentraPhotoCompression? = nil,
+        compress: PhotoCompression? = nil,
         flash: Bool,
         sound: Bool
     ) {
@@ -782,7 +782,7 @@ public struct MentraPhotoRequest {
     }
 }
 
-public struct MentraStreamVideoConfig {
+public struct StreamVideoConfig {
     public let width: Int?
     public let height: Int?
     public let bitrate: Int?
@@ -820,7 +820,7 @@ public struct MentraStreamVideoConfig {
     }
 }
 
-public struct MentraStreamAudioConfig {
+public struct StreamAudioConfig {
     public let bitrate: Int?
     public let sampleRate: Int?
     public let echoCancellation: Bool?
@@ -858,15 +858,15 @@ public struct MentraStreamAudioConfig {
     }
 }
 
-public struct MentraStreamRequest {
+public struct StreamRequest {
     public let streamUrl: String
     public let streamId: String
     public let keepAlive: Bool
     public let keepAliveIntervalSeconds: Int
     public let flash: Bool
     public let sound: Bool
-    public let video: MentraStreamVideoConfig?
-    public let audio: MentraStreamAudioConfig?
+    public let video: StreamVideoConfig?
+    public let audio: StreamAudioConfig?
     public let extraValues: [String: Any]
 
     public init(
@@ -876,8 +876,8 @@ public struct MentraStreamRequest {
         keepAliveIntervalSeconds: Int = 15,
         flash: Bool = true,
         sound: Bool = true,
-        video: MentraStreamVideoConfig? = nil,
-        audio: MentraStreamAudioConfig? = nil,
+        video: StreamVideoConfig? = nil,
+        audio: StreamAudioConfig? = nil,
         extraValues: [String: Any] = [:]
     ) {
         self.streamUrl = streamUrl
@@ -903,8 +903,8 @@ public struct MentraStreamRequest {
             keepAliveIntervalSeconds: intValue(values["keepAliveIntervalSeconds"]) ?? 15,
             flash: values["flash"] as? Bool ?? true,
             sound: values["sound"] as? Bool ?? true,
-            video: MentraStreamVideoConfig(values: (values["video"] ?? values["v"]) as? [String: Any]),
-            audio: MentraStreamAudioConfig(values: (values["audio"] ?? values["a"]) as? [String: Any]),
+            video: StreamVideoConfig(values: (values["video"] ?? values["v"]) as? [String: Any]),
+            audio: StreamAudioConfig(values: (values["audio"] ?? values["a"]) as? [String: Any]),
             extraValues: values
         )
     }
@@ -928,7 +928,7 @@ public struct MentraStreamRequest {
     }
 }
 
-public struct MentraStreamKeepAliveRequest {
+public struct StreamKeepAliveRequest {
     public let streamId: String
     public let ackId: String
     public let extraValues: [String: Any]
@@ -956,12 +956,12 @@ public struct MentraStreamKeepAliveRequest {
     }
 }
 
-public enum MentraRgbLedAction: String {
+public enum RgbLedAction: String {
     case on
     case off
 }
 
-public enum MentraRgbLedColor: String {
+public enum RgbLedColor: String {
     case red
     case green
     case blue
@@ -969,11 +969,11 @@ public enum MentraRgbLedColor: String {
     case white
 }
 
-public struct MentraRgbLedRequest {
+public struct RgbLedRequest {
     public let requestId: String
     public let packageName: String?
-    public let action: MentraRgbLedAction
-    public let color: MentraRgbLedColor?
+    public let action: RgbLedAction
+    public let color: RgbLedColor?
     public let ontime: Int
     public let offtime: Int
     public let count: Int
@@ -981,8 +981,8 @@ public struct MentraRgbLedRequest {
     public init(
         requestId: String,
         packageName: String?,
-        action: MentraRgbLedAction,
-        color: MentraRgbLedColor?,
+        action: RgbLedAction,
+        color: RgbLedColor?,
         ontime: Int,
         offtime: Int,
         count: Int
@@ -997,7 +997,7 @@ public struct MentraRgbLedRequest {
     }
 }
 
-public struct MentraVideoRecordingRequest {
+public struct VideoRecordingRequest {
     public let requestId: String
     public let save: Bool
     public let flash: Bool
@@ -1011,7 +1011,7 @@ public struct MentraVideoRecordingRequest {
     }
 }
 
-public struct MentraButtonPressEvent: CustomStringConvertible {
+public struct ButtonPressEvent: CustomStringConvertible {
     public let buttonId: String
     public let pressType: String
     public let timestamp: Int?
@@ -1023,11 +1023,11 @@ public struct MentraButtonPressEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraButtonPressEvent(buttonId: \(buttonId), pressType: \(pressType))"
+        "ButtonPressEvent(buttonId: \(buttonId), pressType: \(pressType))"
     }
 }
 
-public struct MentraTouchEvent: CustomStringConvertible {
+public struct TouchEvent: CustomStringConvertible {
     public let values: [String: Any]
 
     public init(values: [String: Any]) {
@@ -1051,11 +1051,11 @@ public struct MentraTouchEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraTouchEvent(gestureName: \(gestureName ?? "unknown"))"
+        "TouchEvent(gestureName: \(gestureName ?? "unknown"))"
     }
 }
 
-public enum MentraWifiStatus: CustomStringConvertible, Equatable {
+public enum WifiStatus: CustomStringConvertible, Equatable {
     public enum State: String {
         case disconnected
         case connected
@@ -1084,7 +1084,7 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
 
     init?(values: [String: Any]) {
         if let nested = values["wifi"] as? [String: Any] {
-            guard let wifi = MentraWifiStatus(values: nested) else {
+            guard let wifi = WifiStatus(values: nested) else {
                 return nil
             }
             self = wifi
@@ -1094,7 +1094,7 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
         if let state = stringValue(values, "state")?.lowercased() {
             switch state {
             case State.connected.rawValue:
-                guard let wifi = MentraWifiStatus(
+                guard let wifi = WifiStatus(
                     connected: true,
                     ssid: nonEmptyStringValue(values, "ssid"),
                     localIp: nonEmptyStringValue(values, "localIp")
@@ -1113,7 +1113,7 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
         return nil
     }
 
-    static func fromStoreValues(_ values: [String: Any]) -> MentraWifiStatus? {
+    static func fromStoreValues(_ values: [String: Any]) -> WifiStatus? {
         guard let connected = boolValue(values, "wifiConnected") else { return nil }
         return fromStoreFields(
             connected: connected,
@@ -1122,8 +1122,8 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
         )
     }
 
-    static func fromStoreFields(connected: Bool, ssid: String?, localIp: String?) -> MentraWifiStatus? {
-        MentraWifiStatus(connected: connected, ssid: ssid, localIp: localIp)
+    static func fromStoreFields(connected: Bool, ssid: String?, localIp: String?) -> WifiStatus? {
+        WifiStatus(connected: connected, ssid: ssid, localIp: localIp)
     }
 
     public var state: State {
@@ -1178,26 +1178,26 @@ public enum MentraWifiStatus: CustomStringConvertible, Equatable {
     public var description: String {
         switch self {
         case .disconnected:
-            "MentraWifiStatus(disconnected)"
+            "WifiStatus(disconnected)"
         case let .connected(ssid, localIp):
-            "MentraWifiStatus(connected: \(ssid), localIp: \(localIp ?? "unknown"))"
+            "WifiStatus(connected: \(ssid), localIp: \(localIp ?? "unknown"))"
         }
     }
 }
 
-public struct MentraWifiStatusEvent: CustomStringConvertible {
-    public let status: MentraWifiStatus
+public struct WifiStatusEvent: CustomStringConvertible {
+    public let status: WifiStatus
 
-    public init(status: MentraWifiStatus) {
+    public init(status: WifiStatus) {
         self.status = status
     }
 
     init(connected: Bool, ssid: String?, localIp: String?) {
-        self.status = MentraWifiStatus.fromStoreFields(connected: connected, ssid: ssid, localIp: localIp) ?? .disconnected
+        self.status = WifiStatus.fromStoreFields(connected: connected, ssid: ssid, localIp: localIp) ?? .disconnected
     }
 
     init(values: [String: Any]) {
-        self.status = MentraWifiStatus(values: values) ?? .disconnected
+        self.status = WifiStatus(values: values) ?? .disconnected
     }
 
     public var values: [String: Any] {
@@ -1205,11 +1205,11 @@ public struct MentraWifiStatusEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraWifiStatusEvent(\(status))"
+        "WifiStatusEvent(\(status))"
     }
 }
 
-public enum MentraHotspotStatus: CustomStringConvertible, Equatable {
+public enum HotspotStatus: CustomStringConvertible, Equatable {
     public enum State: String {
         case disabled
         case enabled
@@ -1261,7 +1261,7 @@ public enum MentraHotspotStatus: CustomStringConvertible, Equatable {
         }
     }
 
-    static func fromStoreValues(_ values: [String: Any]) -> MentraHotspotStatus? {
+    static func fromStoreValues(_ values: [String: Any]) -> HotspotStatus? {
         guard let enabled = boolValue(values, "hotspotEnabled") else {
             return nil
         }
@@ -1273,8 +1273,8 @@ public enum MentraHotspotStatus: CustomStringConvertible, Equatable {
         )
     }
 
-    static func fromStoreFields(enabled: Bool, ssid: String?, password: String?, localIp: String?) -> MentraHotspotStatus? {
-        MentraHotspotStatus(enabled: enabled, ssid: ssid, password: password, localIp: localIp)
+    static func fromStoreFields(enabled: Bool, ssid: String?, password: String?, localIp: String?) -> HotspotStatus? {
+        HotspotStatus(enabled: enabled, ssid: ssid, password: password, localIp: localIp)
     }
 
     var storeValues: [String: Any] {
@@ -1329,26 +1329,26 @@ public enum MentraHotspotStatus: CustomStringConvertible, Equatable {
     public var description: String {
         switch self {
         case .disabled:
-            "MentraHotspotStatus(disabled)"
+            "HotspotStatus(disabled)"
         case let .enabled(ssid, _, localIp):
-            "MentraHotspotStatus(enabled: \(ssid), localIp: \(localIp))"
+            "HotspotStatus(enabled: \(ssid), localIp: \(localIp))"
         }
     }
 }
 
-public struct MentraHotspotStatusEvent: CustomStringConvertible {
-    public let status: MentraHotspotStatus
+public struct HotspotStatusEvent: CustomStringConvertible {
+    public let status: HotspotStatus
 
-    public init(status: MentraHotspotStatus) {
+    public init(status: HotspotStatus) {
         self.status = status
     }
 
     init(enabled: Bool, ssid: String?, password: String?, localIp: String?) {
-        self.status = MentraHotspotStatus.fromStoreFields(enabled: enabled, ssid: ssid, password: password, localIp: localIp) ?? .disabled
+        self.status = HotspotStatus.fromStoreFields(enabled: enabled, ssid: ssid, password: password, localIp: localIp) ?? .disabled
     }
 
     init(values: [String: Any]) {
-        self.status = MentraHotspotStatus(values: values) ?? .disabled
+        self.status = HotspotStatus(values: values) ?? .disabled
     }
 
     public var values: [String: Any] {
@@ -1356,11 +1356,11 @@ public struct MentraHotspotStatusEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraHotspotStatusEvent(\(status))"
+        "HotspotStatusEvent(\(status))"
     }
 }
 
-public struct MentraHotspotErrorEvent: CustomStringConvertible {
+public struct HotspotErrorEvent: CustomStringConvertible {
     public let values: [String: Any]
 
     public init(values: [String: Any]) {
@@ -1376,11 +1376,11 @@ public struct MentraHotspotErrorEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraHotspotErrorEvent(message: \(message ?? "unknown"))"
+        "HotspotErrorEvent(message: \(message ?? "unknown"))"
     }
 }
 
-public enum MentraPhotoResponse: CustomStringConvertible, Equatable {
+public enum PhotoResponse: CustomStringConvertible, Equatable {
     public enum State: String {
         case success
         case error
@@ -1456,19 +1456,19 @@ public enum MentraPhotoResponse: CustomStringConvertible, Equatable {
     }
 
     public var description: String {
-        "MentraPhotoResponse(requestId: \(requestId), state: \(state.rawValue))"
+        "PhotoResponse(requestId: \(requestId), state: \(state.rawValue))"
     }
 }
 
-public struct MentraPhotoResponseEvent: CustomStringConvertible {
-    public let response: MentraPhotoResponse
+public struct PhotoResponseEvent: CustomStringConvertible {
+    public let response: PhotoResponse
 
-    public init(response: MentraPhotoResponse) {
+    public init(response: PhotoResponse) {
         self.response = response
     }
 
     public init(values: [String: Any]) {
-        self.response = MentraPhotoResponse(values: values)
+        self.response = PhotoResponse(values: values)
     }
 
     public var requestId: String {
@@ -1482,11 +1482,11 @@ public struct MentraPhotoResponseEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraPhotoResponseEvent(requestId: \(requestId), state: \(response.state.rawValue))"
+        "PhotoResponseEvent(requestId: \(requestId), state: \(response.state.rawValue))"
     }
 }
 
-public enum MentraStreamState: String, Equatable {
+public enum StreamState: String, Equatable {
     case initializing
     case streaming
     case stopping
@@ -1496,7 +1496,7 @@ public enum MentraStreamState: String, Equatable {
     case reconnectFailed = "reconnect_failed"
     case error
 
-    fileprivate static func from(_ value: String?) -> MentraStreamState? {
+    fileprivate static func from(_ value: String?) -> StreamState? {
         switch value?.lowercased() {
         case "initializing", "starting", "connecting":
             return .initializing
@@ -1520,20 +1520,20 @@ public enum MentraStreamState: String, Equatable {
     }
 }
 
-public enum MentraStreamStatusKind: String, Equatable {
+public enum StreamStatusKind: String, Equatable {
     case lifecycle
     case reconnect
     case error
     case snapshot
 }
 
-public enum MentraStreamStatus: CustomStringConvertible, Equatable {
-    case lifecycle(state: MentraStreamState, streamId: String?, timestamp: Int?)
+public enum StreamStatus: CustomStringConvertible, Equatable {
+    case lifecycle(state: StreamState, streamId: String?, timestamp: Int?)
     case reconnecting(streamId: String?, attempt: Int, maxAttempts: Int, reason: String, timestamp: Int?)
     case reconnected(streamId: String?, attempt: Int, timestamp: Int?)
     case reconnectFailed(streamId: String?, maxAttempts: Int, timestamp: Int?)
     case error(streamId: String?, errorDetails: String, timestamp: Int?)
-    case snapshot(state: MentraStreamState, streaming: Bool, reconnecting: Bool, streamId: String?, attempt: Int?, timestamp: Int?)
+    case snapshot(state: StreamState, streaming: Bool, reconnecting: Bool, streamId: String?, attempt: Int?, timestamp: Int?)
 
     public init(values: [String: Any]) {
         let rawState = stringValue(values, "status")
@@ -1545,7 +1545,7 @@ public enum MentraStreamStatus: CustomStringConvertible, Equatable {
         if hasAnyKey(values, "streaming") || hasAnyKey(values, "reconnecting") {
             let streaming = boolValue(values, "streaming") == true
             let reconnecting = boolValue(values, "reconnecting") == true
-            let snapshotState: MentraStreamState = reconnecting ? .reconnecting : (streaming ? .streaming : .stopped)
+            let snapshotState: StreamState = reconnecting ? .reconnecting : (streaming ? .streaming : .stopped)
             self = .snapshot(
                 state: snapshotState,
                 streaming: streaming,
@@ -1557,7 +1557,7 @@ public enum MentraStreamStatus: CustomStringConvertible, Equatable {
             return
         }
 
-        guard let state = MentraStreamState.from(rawState) else {
+        guard let state = StreamState.from(rawState) else {
             self = .error(
                 streamId: streamId,
                 errorDetails: rawState.map { "Unknown stream status: \($0)" } ?? "Missing stream status",
@@ -1591,7 +1591,7 @@ public enum MentraStreamStatus: CustomStringConvertible, Equatable {
         }
     }
 
-    public var kind: MentraStreamStatusKind {
+    public var kind: StreamStatusKind {
         switch self {
         case .lifecycle:
             .lifecycle
@@ -1604,7 +1604,7 @@ public enum MentraStreamStatus: CustomStringConvertible, Equatable {
         }
     }
 
-    public var state: MentraStreamState {
+    public var state: StreamState {
         switch self {
         case let .lifecycle(state, _, _):
             state
@@ -1682,22 +1682,22 @@ public enum MentraStreamStatus: CustomStringConvertible, Equatable {
     }
 
     public var description: String {
-        "MentraStreamStatus(kind: \(kind.rawValue), status: \(state.rawValue), streamId: \(streamId ?? "none"))"
+        "StreamStatus(kind: \(kind.rawValue), status: \(state.rawValue), streamId: \(streamId ?? "none"))"
     }
 }
 
-public struct MentraStreamStatusEvent: CustomStringConvertible {
-    public let status: MentraStreamStatus
+public struct StreamStatusEvent: CustomStringConvertible {
+    public let status: StreamStatus
 
-    public init(status: MentraStreamStatus) {
+    public init(status: StreamStatus) {
         self.status = status
     }
 
     public init(values: [String: Any]) {
-        self.status = MentraStreamStatus(values: values)
+        self.status = StreamStatus(values: values)
     }
 
-    public var state: MentraStreamState {
+    public var state: StreamState {
         status.state
     }
 
@@ -1712,11 +1712,11 @@ public struct MentraStreamStatusEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraStreamStatusEvent(kind: \(status.kind.rawValue), status: \(state.rawValue), streamId: \(streamId ?? "none"))"
+        "StreamStatusEvent(kind: \(status.kind.rawValue), status: \(state.rawValue), streamId: \(streamId ?? "none"))"
     }
 }
 
-public struct MentraKeepAliveAckEvent: CustomStringConvertible, Equatable {
+public struct KeepAliveAckEvent: CustomStringConvertible, Equatable {
     public let streamId: String
     public let ackId: String
     public let timestamp: Int?
@@ -1746,11 +1746,11 @@ public struct MentraKeepAliveAckEvent: CustomStringConvertible, Equatable {
     }
 
     public var description: String {
-        "MentraKeepAliveAckEvent(streamId: \(streamId), ackId: \(ackId))"
+        "KeepAliveAckEvent(streamId: \(streamId), ackId: \(ackId))"
     }
 }
 
-public struct MentraBluetoothError: Error, LocalizedError, CustomStringConvertible {
+public struct BluetoothError: Error, LocalizedError, CustomStringConvertible {
     public let code: String
     public let message: String
 
@@ -1796,27 +1796,27 @@ private final class BluetoothAvailability: NSObject, CBCentralManagerDelegate {
         case .poweredOn:
             return
         case .poweredOff:
-            throw MentraBluetoothError(
+            throw BluetoothError(
                 code: "bluetooth_powered_off",
                 message: "Turn on phone Bluetooth to \(operation)."
             )
         case .unauthorized:
-            throw MentraBluetoothError(
+            throw BluetoothError(
                 code: "bluetooth_unauthorized",
                 message: "Allow Bluetooth access to \(operation)."
             )
         case .unsupported:
-            throw MentraBluetoothError(
+            throw BluetoothError(
                 code: "bluetooth_unsupported",
                 message: "This phone does not support Bluetooth."
             )
         case .resetting, .unknown:
-            throw MentraBluetoothError(
+            throw BluetoothError(
                 code: "bluetooth_not_ready",
                 message: "Bluetooth is not ready yet. Try again."
             )
         @unknown default:
-            throw MentraBluetoothError(
+            throw BluetoothError(
                 code: "bluetooth_unavailable",
                 message: "Bluetooth is unavailable. Try again."
             )
@@ -1824,13 +1824,13 @@ private final class BluetoothAvailability: NSObject, CBCentralManagerDelegate {
     }
 }
 
-public enum MentraScanStopReason {
+public enum ScanStopReason {
     case completed
     case cancelled
     case error
 }
 
-public struct MentraLocalTranscriptionEvent: CustomStringConvertible {
+public struct LocalTranscriptionEvent: CustomStringConvertible {
     public let text: String
     public let isFinal: Bool
     public let values: [String: Any]
@@ -1842,20 +1842,20 @@ public struct MentraLocalTranscriptionEvent: CustomStringConvertible {
     }
 
     public var description: String {
-        "MentraLocalTranscriptionEvent(text: \(text), isFinal: \(isFinal))"
+        "LocalTranscriptionEvent(text: \(text), isFinal: \(isFinal))"
     }
 }
 
-public enum MentraBluetoothEvent: CustomStringConvertible {
-    case buttonPress(MentraButtonPressEvent)
-    case touch(MentraTouchEvent)
-    case wifiStatus(MentraWifiStatusEvent)
-    case hotspotStatus(MentraHotspotStatusEvent)
-    case hotspotError(MentraHotspotErrorEvent)
-    case photoResponse(MentraPhotoResponseEvent)
-    case streamStatus(MentraStreamStatusEvent)
-    case keepAliveAck(MentraKeepAliveAckEvent)
-    case localTranscription(MentraLocalTranscriptionEvent)
+public enum BluetoothEvent: CustomStringConvertible {
+    case buttonPress(ButtonPressEvent)
+    case touch(TouchEvent)
+    case wifiStatus(WifiStatusEvent)
+    case hotspotStatus(HotspotStatusEvent)
+    case hotspotError(HotspotErrorEvent)
+    case photoResponse(PhotoResponseEvent)
+    case streamStatus(StreamStatusEvent)
+    case keepAliveAck(KeepAliveAckEvent)
+    case localTranscription(LocalTranscriptionEvent)
     case raw(name: String, values: [String: Any])
 
     public var description: String {
@@ -1886,30 +1886,30 @@ public enum MentraBluetoothEvent: CustomStringConvertible {
 
 @MainActor
 public protocol MentraBluetoothSDKDelegate: AnyObject {
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: MentraGlassesStatusUpdate)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateBluetoothStatus status: MentraBluetoothStatusUpdate)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: MentraDevice)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didStopScan reason: MentraScanStopReason)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: MentraBluetoothEvent)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didStopScan reason: ScanStopReason)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEvent)
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceiveMicPcm frame: Data)
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceiveMicLc3 frame: Data)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didChangeDefaultDevice device: MentraDevice?)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didChangeDefaultDevice device: Device?)
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didLog message: String)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didFail error: MentraBluetoothError)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didFail error: BluetoothError)
 }
 
 @MainActor
 public extension MentraBluetoothSDKDelegate {
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus _: MentraGlassesStatusUpdate) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus _: MentraBluetoothStatusUpdate) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didDiscover _: MentraDevice) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan _: MentraScanStopReason) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive _: MentraBluetoothEvent) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus _: GlassesStatusUpdate) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus _: BluetoothStatusUpdate) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didDiscover _: Device) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan _: ScanStopReason) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive _: BluetoothEvent) {}
     func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicPcm _: Data) {}
     func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicLc3 _: Data) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didChangeDefaultDevice _: MentraDevice?) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didChangeDefaultDevice _: Device?) {}
     func mentraBluetoothSDK(_: MentraBluetoothSDK, didLog _: String) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail _: MentraBluetoothError) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didFail _: BluetoothError) {}
 }
 
 @MainActor
@@ -1939,23 +1939,23 @@ public final class MentraBluetoothSDK {
         }
     }
 
-    public var glassesStatus: MentraGlassesStatus {
-        MentraGlassesStatus(values: GlassesStore.shared.store.getCategory("glasses"))
+    public var glassesStatus: GlassesStatus {
+        GlassesStatus(values: GlassesStore.shared.store.getCategory("glasses"))
     }
 
-    public var bluetoothStatus: MentraBluetoothStatus {
-        MentraBluetoothStatus(values: GlassesStore.shared.store.getCategory(ObservableStore.coreCategory))
+    public var bluetoothStatus: BluetoothStatus {
+        BluetoothStatus(values: GlassesStore.shared.store.getCategory(ObservableStore.coreCategory))
     }
 
-    public var defaultDevice: MentraDevice? {
+    public var defaultDevice: Device? {
         currentDefaultDevice()
     }
 
-    public func getDefaultDevice() -> MentraDevice? {
+    public func getDefaultDevice() -> Device? {
         currentDefaultDevice()
     }
 
-    public func setDefaultDevice(_ device: MentraDevice?) {
+    public func setDefaultDevice(_ device: Device?) {
         guard let device else {
             clearDefaultDevice()
             return
@@ -1979,7 +1979,7 @@ public final class MentraBluetoothSDK {
         finishDefaultDeviceApply(generation: generation)
     }
 
-    public func startScan(model: MentraDeviceModel) throws {
+    public func startScan(model: DeviceModel) throws {
         if model != .simulated {
             try BluetoothAvailability.shared.requirePoweredOn(operation: "scan for glasses")
         }
@@ -1994,7 +1994,7 @@ public final class MentraBluetoothSDK {
         delegate?.mentraBluetoothSDK(self, didStopScan: .cancelled)
     }
 
-    public func connect(to device: MentraDevice, options: MentraConnectOptions = MentraConnectOptions()) throws {
+    public func connect(to device: Device, options: ConnectOptions = ConnectOptions()) throws {
         if device.model != .simulated {
             try BluetoothAvailability.shared.requirePoweredOn(operation: "connect to glasses")
         }
@@ -2013,9 +2013,9 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.connectByName(device.name)
     }
 
-    public func connectDefault(options: MentraConnectOptions = MentraConnectOptions()) throws {
+    public func connectDefault(options: ConnectOptions = ConnectOptions()) throws {
         guard let device = currentDefaultDevice() else {
-            throw MentraBluetoothError(
+            throw BluetoothError(
                 code: "default_device_missing",
                 message: "Set a default glasses device before calling connectDefault."
             )
@@ -2045,11 +2045,11 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.forget()
     }
 
-    public func displayText(_ request: MentraDisplayTextRequest) async throws {
+    public func displayText(_ request: DisplayTextRequest) async throws {
         CoreManager.shared.displayText(request.dictionary)
     }
 
-    public func displayEvent(_ request: MentraDisplayEventRequest) async throws {
+    public func displayEvent(_ request: DisplayEventRequest) async throws {
         CoreManager.shared.displayEvent(request.values)
     }
 
@@ -2072,12 +2072,12 @@ public final class MentraBluetoothSDK {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "auto_brightness", enabled)
     }
 
-    public func setDashboardPosition(_ request: MentraDashboardPositionRequest) async throws {
+    public func setDashboardPosition(_ request: DashboardPositionRequest) async throws {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "dashboard_height", request.height)
         GlassesStore.shared.apply(ObservableStore.coreCategory, "dashboard_depth", request.depth)
     }
 
-    public func setDashboardMenu(_ items: [MentraDashboardMenuItem]) async throws {
+    public func setDashboardMenu(_ items: [DashboardMenuItem]) async throws {
         GlassesStore.shared.apply(
             ObservableStore.coreCategory,
             "menu_apps",
@@ -2093,15 +2093,15 @@ public final class MentraBluetoothSDK {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "screen_disabled", disabled)
     }
 
-    public func setGalleryMode(_ mode: MentraGalleryMode) async throws {
+    public func setGalleryMode(_ mode: GalleryMode) async throws {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "gallery_mode", mode == .auto)
     }
 
-    public func setButtonPhotoSettings(_ settings: MentraButtonPhotoSettings) async throws {
+    public func setButtonPhotoSettings(_ settings: ButtonPhotoSettings) async throws {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "button_photo_size", settings.size.rawValue)
     }
 
-    public func setButtonVideoRecordingSettings(_ settings: MentraButtonVideoRecordingSettings) async throws {
+    public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "button_video_width", settings.width)
         GlassesStore.shared.apply(ObservableStore.coreCategory, "button_video_height", settings.height)
         GlassesStore.shared.apply(ObservableStore.coreCategory, "button_video_fps", settings.fps)
@@ -2115,11 +2115,11 @@ public final class MentraBluetoothSDK {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "button_max_recording_time", minutes)
     }
 
-    public func setCameraFov(_ fov: MentraCameraFov) async throws {
+    public func setCameraFov(_ fov: CameraFov) async throws {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "camera_fov", fov.value)
     }
 
-    public func setMicState(_ config: MentraMicConfiguration) {
+    public func setMicState(_ config: MicConfiguration) {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "should_send_pcm", config.sendPcmData)
         GlassesStore.shared.apply(ObservableStore.coreCategory, "should_send_lc3", config.sendLc3Data)
         GlassesStore.shared.apply(ObservableStore.coreCategory, "should_send_transcript", config.sendTranscript)
@@ -2127,7 +2127,7 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.setMicState()
     }
 
-    public func setPreferredMic(_ preferredMic: MentraMicPreference) {
+    public func setPreferredMic(_ preferredMic: MicPreference) {
         GlassesStore.shared.apply(ObservableStore.coreCategory, "preferred_mic", preferredMic.rawValue)
     }
 
@@ -2151,7 +2151,7 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.setHotspotState(enabled)
     }
 
-    public func requestPhoto(_ request: MentraPhotoRequest) {
+    public func requestPhoto(_ request: PhotoRequest) {
         CoreManager.shared.photoRequest(
             request.requestId,
             request.appId,
@@ -2168,15 +2168,15 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.queryGalleryStatus()
     }
 
-    public func startStream(_ request: MentraStreamRequest) {
+    public func startStream(_ request: StreamRequest) {
         CoreManager.shared.startStream(request.values)
     }
 
-    public func keepStreamAlive(_ request: MentraStreamKeepAliveRequest) {
+    public func keepStreamAlive(_ request: StreamKeepAliveRequest) {
         CoreManager.shared.keepStreamAlive(request.values)
     }
 
-    public func rgbLedControl(_ request: MentraRgbLedRequest) {
+    public func rgbLedControl(_ request: RgbLedRequest) {
         CoreManager.shared.rgbLedControl(
             requestId: request.requestId,
             packageName: request.packageName,
@@ -2192,7 +2192,7 @@ public final class MentraBluetoothSDK {
         CoreManager.shared.stopStream()
     }
 
-    public func startVideoRecording(_ request: MentraVideoRecordingRequest) {
+    public func startVideoRecording(_ request: VideoRecordingRequest) {
         CoreManager.shared.startVideoRecording(
             request.requestId,
             request.save,
@@ -2244,9 +2244,9 @@ public final class MentraBluetoothSDK {
     private func dispatchStoreUpdate(_ category: String, _ changes: [String: Any]) {
         switch ObservableStore.normalizeCategory(category) {
         case "glasses":
-            delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: MentraGlassesStatusUpdate(values: glassesStatusChanges(changes)))
+            delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: GlassesStatusUpdate(values: glassesStatusChanges(changes)))
         case ObservableStore.coreCategory:
-            delegate?.mentraBluetoothSDK(self, didUpdateBluetoothStatus: MentraBluetoothStatusUpdate(values: changes))
+            delegate?.mentraBluetoothSDK(self, didUpdateBluetoothStatus: BluetoothStatusUpdate(values: changes))
             if !suppressDefaultDeviceEvents && changes.keys.contains(where: { defaultDeviceKeys.contains($0) }) {
                 dispatchDefaultDeviceChanged()
             }
@@ -2284,13 +2284,13 @@ public final class MentraBluetoothSDK {
         }
     }
 
-    private func currentDefaultDevice() -> MentraDevice? {
+    private func currentDefaultDevice() -> Device? {
         let core = GlassesStore.shared.store.getCategory(ObservableStore.coreCategory)
         guard let model = core["default_wearable"] as? String, !model.isEmpty else { return nil }
         guard let name = core["device_name"] as? String, !name.isEmpty else { return nil }
         let identifier = (core["device_address"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        return MentraDevice(
-            model: MentraDeviceModel.fromDeviceType(model),
+        return Device(
+            model: DeviceModel.fromDeviceType(model),
             name: name,
             identifier: identifier
         )
@@ -2301,7 +2301,7 @@ public final class MentraBluetoothSDK {
         for result in results {
             guard let name = result["deviceName"] as? String ?? result["name"] as? String else { continue }
             guard discoveredDeviceNames.insert(name).inserted else { continue }
-            guard let device = MentraDevice(values: result) else { continue }
+            guard let device = Device(values: result) else { continue }
             delegate?.mentraBluetoothSDK(self, didDiscover: device)
         }
     }
@@ -2311,14 +2311,14 @@ public final class MentraBluetoothSDK {
         case "log":
             delegate?.mentraBluetoothSDK(self, didLog: data["message"] as? String ?? data.description)
         case "button_press":
-            let event = MentraButtonPressEvent(
+            let event = ButtonPressEvent(
                 buttonId: data["buttonId"] as? String ?? "",
                 pressType: data["pressType"] as? String ?? "",
                 timestamp: intValue(data["timestamp"])
             )
             delegate?.mentraBluetoothSDK(self, didReceive: .buttonPress(event))
         case "touch_event":
-            delegate?.mentraBluetoothSDK(self, didReceive: .touch(MentraTouchEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .touch(TouchEvent(values: data)))
         case "mic_pcm":
             if let frame = data["pcm"] as? Data {
                 delegate?.mentraBluetoothSDK(self, didReceiveMicPcm: frame)
@@ -2328,30 +2328,30 @@ public final class MentraBluetoothSDK {
                 delegate?.mentraBluetoothSDK(self, didReceiveMicLc3: frame)
             }
         case "local_transcription":
-            let event = MentraLocalTranscriptionEvent(
+            let event = LocalTranscriptionEvent(
                 text: data["text"] as? String ?? "",
                 isFinal: data["isFinal"] as? Bool ?? false,
                 values: data
             )
             delegate?.mentraBluetoothSDK(self, didReceive: .localTranscription(event))
         case "hotspot_status_change":
-            delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(MentraHotspotStatusEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(HotspotStatusEvent(values: data)))
         case "wifi_status_change":
-            delegate?.mentraBluetoothSDK(self, didReceive: .wifiStatus(MentraWifiStatusEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .wifiStatus(WifiStatusEvent(values: data)))
         case "hotspot_error":
-            delegate?.mentraBluetoothSDK(self, didReceive: .hotspotError(MentraHotspotErrorEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .hotspotError(HotspotErrorEvent(values: data)))
         case "photo_response":
-            delegate?.mentraBluetoothSDK(self, didReceive: .photoResponse(MentraPhotoResponseEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .photoResponse(PhotoResponseEvent(values: data)))
         case "stream_status":
-            delegate?.mentraBluetoothSDK(self, didReceive: .streamStatus(MentraStreamStatusEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .streamStatus(StreamStatusEvent(values: data)))
         case "keep_alive_ack":
-            delegate?.mentraBluetoothSDK(self, didReceive: .keepAliveAck(MentraKeepAliveAckEvent(values: data)))
+            delegate?.mentraBluetoothSDK(self, didReceive: .keepAliveAck(KeepAliveAckEvent(values: data)))
         case "compatible_glasses_search_stop":
             delegate?.mentraBluetoothSDK(self, didStopScan: .completed)
         case "pair_failure":
             delegate?.mentraBluetoothSDK(
                 self,
-                didFail: MentraBluetoothError(
+                didFail: BluetoothError(
                     code: "pair_failure",
                     message: data["error"] as? String ?? data.description
                 )

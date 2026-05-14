@@ -280,6 +280,8 @@ struct ViewState {
     var lc3Converter: PcmConverter?
     /// Audio output format - defaults to LC3 for bandwidth savings
     private var audioOutputFormat: AudioOutputFormat = .lc3
+    /// Last time we received an LC3 frame from the glasses (used by the mic
+    /// inactivity watchdog).
     private var lastLc3Event: Date?
     private var micReinitTimer: Timer?
 
@@ -414,6 +416,7 @@ struct ViewState {
      * This matches Android behavior - glasses forward raw LC3, CoreManager handles encoding.
      */
     func handleGlassesMicData(_ lc3Data: Data, _ frameSize: Int = 20) {
+        lastLc3Event = Date()
         guard let lc3Converter = lc3Converter else {
             Bridge.log("MAN: LC3 converter not initialized")
             return
@@ -429,9 +432,6 @@ struct ViewState {
             Bridge.log("MAN: Failed to decode glasses LC3 audio")
             return
         }
-
-        lastLc3Event = Date()
-
         // Forward to handlePcm which handles VAD and encoding
         handlePcm(pcmData)
     }

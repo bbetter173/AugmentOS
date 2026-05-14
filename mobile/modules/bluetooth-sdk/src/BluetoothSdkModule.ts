@@ -9,7 +9,7 @@ import {
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
-  MentraDevice,
+  Device,
   PhotoCompression,
   PhotoSize,
   RgbLedAction,
@@ -26,7 +26,7 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): Promise<GlassesStatus>
   getCoreStatus(): Promise<CoreStatus>
-  getDefaultDevice(): Promise<MentraDevice | null>
+  getDefaultDevice(): Promise<Device | null>
   update(category: string, values: Record<string, any>): Promise<void>
 
   // Display Commands
@@ -38,11 +38,11 @@ declare class CoreModule extends NativeModule<CoreModuleEvents> {
   requestStatus(): Promise<void>
   connectDefault(options?: ConnectOptions): Promise<void>
   connectDefaultWithOptions(options: Required<ConnectOptions>): Promise<void>
-  setDefaultDevice(device: MentraDevice | null): Promise<void>
+  setDefaultDevice(device: Device | null): Promise<void>
   clearDefaultDevice(): Promise<void>
   startScan(params: DeviceScanRequest): Promise<void>
-  connect(device: MentraDevice, options?: ConnectOptions): Promise<void>
-  connectWithOptions(device: MentraDevice, options: Required<ConnectOptions>): Promise<void>
+  connect(device: Device, options?: ConnectOptions): Promise<void>
+  connectWithOptions(device: Device, options: Required<ConnectOptions>): Promise<void>
   cancelConnectionAttempt(): Promise<void>
   connectDefaultController(): Promise<void>
   disconnectController(): Promise<void>
@@ -198,7 +198,7 @@ NativeCoreModule.getCoreStatus = function () {
 
 const nativeGetDefaultDevice = NativeCoreModule.getDefaultDevice.bind(
   NativeCoreModule,
-) as () => MaybePromise<MentraDevice | null>
+) as () => MaybePromise<Device | null>
 NativeCoreModule.getDefaultDevice = function () {
   return Promise.resolve(nativeGetDefaultDevice())
 }
@@ -229,7 +229,7 @@ NativeCoreModule.connectDefault = function (options?: ConnectOptions) {
   return this.connectDefaultWithOptions({...DEFAULT_CONNECT_OPTIONS, ...options})
 }
 
-NativeCoreModule.connect = function (device: MentraDevice, options?: ConnectOptions) {
+NativeCoreModule.connect = function (device: Device, options?: ConnectOptions) {
   return this.connectWithOptions(device, {...DEFAULT_CONNECT_OPTIONS, ...options})
 }
 

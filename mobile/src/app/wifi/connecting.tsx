@@ -28,8 +28,7 @@ export default function WifiConnectingScreen() {
 
   const {goBack, push} = useNavigationStore.getState()
   const pushPrevious = usePushPrevious()
-  const wifiConnected = useGlassesStore((state) => state.wifiConnected)
-  const wifiSsid = useGlassesStore((state) => state.wifiSsid)
+  const connectedWifiSsid = useGlassesStore((state) => (state.wifi.state === "connected" ? state.wifi.ssid : undefined))
 
   useEffect(() => {
     // Start connection attempt
@@ -48,9 +47,9 @@ export default function WifiConnectingScreen() {
   }, [ssid])
 
   useEffect(() => {
-    console.log("WiFi connection status changed:", wifiConnected, wifiSsid)
+    console.log("WiFi connection status changed:", connectedWifiSsid)
 
-    if (wifiConnected && wifiSsid === ssid) {
+    if (connectedWifiSsid === ssid) {
       if (connectionTimeoutRef.current) {
         clearTimeout(connectionTimeoutRef.current)
         connectionTimeoutRef.current = null
@@ -80,7 +79,7 @@ export default function WifiConnectingScreen() {
         failureGracePeriodRef.current = null
       }, 10000)
     }
-  }, [connectionStatus, password, rememberPassword, ssid, wifiConnected, wifiSsid])
+  }, [connectedWifiSsid, connectionStatus, password, rememberPassword, ssid])
 
   const attemptConnection = async () => {
     try {

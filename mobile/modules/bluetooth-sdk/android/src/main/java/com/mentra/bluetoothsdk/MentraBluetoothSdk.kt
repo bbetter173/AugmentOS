@@ -56,15 +56,15 @@ class MentraBluetoothSdk private constructor(
         listeners.remove(listener)
     }
 
-    fun getGlassesStatus(): MentraGlassesStatus =
-        MentraGlassesStatus.fromMap(GlassesStore.store.getCategory("glasses"))
+    fun getGlassesStatus(): GlassesStatus =
+        GlassesStatus.fromMap(GlassesStore.store.getCategory("glasses"))
 
-    fun getBluetoothStatus(): MentraBluetoothStatus =
-        MentraBluetoothStatus.fromMap(GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY))
+    fun getBluetoothStatus(): BluetoothStatus =
+        BluetoothStatus.fromMap(GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY))
 
-    fun getDefaultDevice(): MentraDevice? = currentDefaultDevice()
+    fun getDefaultDevice(): Device? = currentDefaultDevice()
 
-    fun setDefaultDevice(device: MentraDevice?) {
+    fun setDefaultDevice(device: Device?) {
         if (device == null) {
             clearDefaultDevice()
             return
@@ -92,8 +92,8 @@ class MentraBluetoothSdk private constructor(
         dispatchDefaultDeviceChanged()
     }
 
-    fun startScan(model: MentraDeviceModel) {
-        if (model != MentraDeviceModel.SIMULATED) {
+    fun startScan(model: DeviceModel) {
+        if (model != DeviceModel.SIMULATED) {
             requireBluetoothReady("scan for glasses")
         }
         discoveredDeviceNames.clear()
@@ -104,12 +104,12 @@ class MentraBluetoothSdk private constructor(
     fun stopScan() {
         deviceManager.stopScan()
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "searching", false)
-        dispatchToListeners { it.onScanStopped(MentraScanStopReason.CANCELLED) }
+        dispatchToListeners { it.onScanStopped(ScanStopReason.CANCELLED) }
     }
 
     @JvmOverloads
-    fun connect(device: MentraDevice, options: MentraConnectOptions = MentraConnectOptions()) {
-        if (device.model != MentraDeviceModel.SIMULATED) {
+    fun connect(device: Device, options: ConnectOptions = ConnectOptions()) {
+        if (device.model != DeviceModel.SIMULATED) {
             requireBluetoothReady("connect to glasses")
         }
         val isController = ControllerTypes.ALL.contains(device.model.deviceType)
@@ -128,14 +128,14 @@ class MentraBluetoothSdk private constructor(
     }
 
     @JvmOverloads
-    fun connectDefault(options: MentraConnectOptions = MentraConnectOptions()) {
+    fun connectDefault(options: ConnectOptions = ConnectOptions()) {
         val defaultDevice =
             currentDefaultDevice()
-                ?: throw MentraBluetoothException(
+                ?: throw BluetoothException(
                     "default_device_missing",
                     "Set a default glasses device before calling connectDefault.",
                 )
-        if (defaultDevice.model != MentraDeviceModel.SIMULATED) {
+        if (defaultDevice.model != DeviceModel.SIMULATED) {
             requireBluetoothReady("connect to glasses")
         }
         if (options.cancelExistingConnectionAttempt) {
@@ -160,11 +160,11 @@ class MentraBluetoothSdk private constructor(
         deviceManager.forget()
     }
 
-    fun displayText(request: MentraDisplayTextRequest) {
+    fun displayText(request: DisplayTextRequest) {
         deviceManager.displayText(request.toMap())
     }
 
-    fun displayEvent(request: MentraDisplayEventRequest) {
+    fun displayEvent(request: DisplayEventRequest) {
         deviceManager.displayEvent(request.toMap())
     }
 
@@ -186,12 +186,12 @@ class MentraBluetoothSdk private constructor(
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "auto_brightness", enabled)
     }
 
-    fun setDashboardPosition(request: MentraDashboardPositionRequest) {
+    fun setDashboardPosition(request: DashboardPositionRequest) {
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "dashboard_height", request.height)
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "dashboard_depth", request.depth)
     }
 
-    fun setDashboardMenu(items: List<MentraDashboardMenuItem>) {
+    fun setDashboardMenu(items: List<DashboardMenuItem>) {
         GlassesStore.apply(
             ObservableStore.CORE_CATEGORY,
             "menu_apps",
@@ -207,15 +207,15 @@ class MentraBluetoothSdk private constructor(
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "screen_disabled", disabled)
     }
 
-    fun setGalleryMode(mode: MentraGalleryMode) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "gallery_mode", mode == MentraGalleryMode.AUTO)
+    fun setGalleryMode(mode: GalleryMode) {
+        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "gallery_mode", mode == GalleryMode.AUTO)
     }
 
-    fun setButtonPhotoSettings(settings: MentraButtonPhotoSettings) {
+    fun setButtonPhotoSettings(settings: ButtonPhotoSettings) {
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_photo_size", settings.size.value)
     }
 
-    fun setButtonVideoRecordingSettings(settings: MentraButtonVideoRecordingSettings) {
+    fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings) {
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_width", settings.width)
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_height", settings.height)
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_fps", settings.fps)
@@ -229,7 +229,7 @@ class MentraBluetoothSdk private constructor(
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_max_recording_time", minutes)
     }
 
-    fun setCameraFov(fov: MentraCameraFov) {
+    fun setCameraFov(fov: CameraFov) {
         GlassesStore.apply(
             ObservableStore.CORE_CATEGORY,
             "camera_fov",
@@ -237,7 +237,7 @@ class MentraBluetoothSdk private constructor(
         )
     }
 
-    fun setMicState(config: MentraMicConfig) {
+    fun setMicState(config: MicConfig) {
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_pcm", config.sendPcmData)
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_lc3", config.sendLc3Data)
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_transcript", config.sendTranscript)
@@ -245,7 +245,7 @@ class MentraBluetoothSdk private constructor(
         deviceManager.setMicState()
     }
 
-    fun setPreferredMic(preferredMic: MentraMicPreference) {
+    fun setPreferredMic(preferredMic: MicPreference) {
         GlassesStore.apply(ObservableStore.CORE_CATEGORY, "preferred_mic", preferredMic.value)
     }
 
@@ -253,12 +253,12 @@ class MentraBluetoothSdk private constructor(
         PhoneAudioMonitor.getInstance(appContext).setOwnAppAudioPlaying(playing)
     }
 
-    fun getGlassesMediaVolume(): MentraGlassesMediaVolumeGetResult =
-        MentraGlassesMediaVolumeGetResult.fromMap(deviceManager.getGlassesMediaVolumeBlocking())
+    fun getGlassesMediaVolume(): GlassesMediaVolumeGetResult =
+        GlassesMediaVolumeGetResult.fromMap(deviceManager.getGlassesMediaVolumeBlocking())
 
-    fun setGlassesMediaVolume(level: Int): MentraGlassesMediaVolumeSetResult {
+    fun setGlassesMediaVolume(level: Int): GlassesMediaVolumeSetResult {
         require(level in 0..15) { "Glasses media volume must be between 0 and 15." }
-        return MentraGlassesMediaVolumeSetResult.fromMap(deviceManager.setGlassesMediaVolumeBlocking(level))
+        return GlassesMediaVolumeSetResult.fromMap(deviceManager.setGlassesMediaVolumeBlocking(level))
     }
 
     fun requestWifiScan() {
@@ -277,7 +277,7 @@ class MentraBluetoothSdk private constructor(
         deviceManager.setHotspotState(enabled)
     }
 
-    fun requestPhoto(request: MentraPhotoRequest) {
+    fun requestPhoto(request: PhotoRequest) {
         deviceManager.photoRequest(
             request.requestId,
             request.appId,
@@ -294,15 +294,15 @@ class MentraBluetoothSdk private constructor(
         deviceManager.queryGalleryStatus()
     }
 
-    fun startStream(request: MentraStreamRequest) {
+    fun startStream(request: StreamRequest) {
         deviceManager.startStream(request.toMap().toMutableMap())
     }
 
-    fun keepStreamAlive(request: MentraStreamKeepAliveRequest) {
+    fun keepStreamAlive(request: StreamKeepAliveRequest) {
         deviceManager.keepStreamAlive(request.toMap().toMutableMap())
     }
 
-    fun rgbLedControl(request: MentraRgbLedRequest) {
+    fun rgbLedControl(request: RgbLedRequest) {
         deviceManager.rgbLedControl(
             request.requestId,
             request.packageName,
@@ -318,7 +318,7 @@ class MentraBluetoothSdk private constructor(
         deviceManager.stopStream()
     }
 
-    fun startVideoRecording(request: MentraVideoRecordingRequest) {
+    fun startVideoRecording(request: VideoRecordingRequest) {
         deviceManager.startVideoRecording(request.requestId, request.save, request.flash, request.sound)
     }
 
@@ -360,11 +360,11 @@ class MentraBluetoothSdk private constructor(
         when (ObservableStore.normalizeCategory(category)) {
             "glasses" ->
                 dispatchToListeners {
-                    it.onGlassesStatusChanged(MentraGlassesStatusUpdate.fromMap(glassesStatusChanges(changes)))
+                    it.onGlassesStatusChanged(GlassesStatusUpdate.fromMap(glassesStatusChanges(changes)))
                 }
             ObservableStore.CORE_CATEGORY -> {
                 dispatchToListeners {
-                    it.onBluetoothStatusChanged(MentraBluetoothStatusUpdate.fromMap(changes))
+                    it.onBluetoothStatusChanged(BluetoothStatusUpdate.fromMap(changes))
                 }
                 if (!suppressDefaultDeviceEvents && changes.keys.any { it in DEFAULT_DEVICE_KEYS }) {
                     dispatchDefaultDeviceChanged()
@@ -400,14 +400,14 @@ class MentraBluetoothSdk private constructor(
         dispatchToListeners { it.onDefaultDeviceChanged(defaultDevice) }
     }
 
-    private fun currentDefaultDevice(): MentraDevice? {
+    private fun currentDefaultDevice(): Device? {
         val core = GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
         val model = core["default_wearable"] as? String ?: return null
         val name = core["device_name"] as? String ?: return null
         if (model.isBlank() || name.isBlank()) return null
         val address = (core["device_address"] as? String)?.takeIf { it.isNotBlank() }
-        return MentraDevice(
-            model = MentraDeviceModel.fromDeviceType(model),
+        return Device(
+            model = DeviceModel.fromDeviceType(model),
             name = name,
             address = address,
         )
@@ -417,7 +417,7 @@ class MentraBluetoothSdk private constructor(
         val bluetoothManager = appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val adapter =
             bluetoothManager?.adapter
-                ?: throw MentraBluetoothException(
+                ?: throw BluetoothException(
                     "bluetooth_unsupported",
                     "This phone does not support Bluetooth.",
                 )
@@ -425,14 +425,14 @@ class MentraBluetoothSdk private constructor(
             try {
                 adapter.isEnabled
             } catch (error: SecurityException) {
-                throw MentraBluetoothException(
+                throw BluetoothException(
                     "bluetooth_permission_denied",
                     "Allow Bluetooth permission to $operation.",
                     error,
                 )
             }
         if (!enabled) {
-            throw MentraBluetoothException(
+            throw BluetoothException(
                 "bluetooth_powered_off",
                 "Turn on phone Bluetooth to $operation.",
             )
@@ -449,7 +449,7 @@ class MentraBluetoothSdk private constructor(
                 result.entries.mapNotNull { (key, value) ->
                     if (key is String && value != null) key to value else null
                 }.toMap()
-            val device = MentraDevice.fromMap(values) ?: return@forEach
+            val device = Device.fromMap(values) ?: return@forEach
             dispatchToListeners { it.onDeviceDiscovered(device) }
         }
     }
@@ -460,7 +460,7 @@ class MentraBluetoothSdk private constructor(
             "button_press" ->
                 dispatchToListeners {
                     it.onButtonPress(
-                        MentraButtonPressEvent(
+                        ButtonPressEvent(
                             buttonId = data["buttonId"] as? String ?: "",
                             pressType = data["pressType"] as? String ?: "",
                             timestamp = (data["timestamp"] as? Number)?.toLong(),
@@ -468,30 +468,30 @@ class MentraBluetoothSdk private constructor(
                     )
                 }
             "touch_event" -> {
-                val event = MentraTouchEvent(data)
+                val event = TouchEvent(data)
                 dispatchToListeners { it.onTouch(event) }
                 if (event.isSwipe) {
-                    dispatchToListeners { it.onSwipe(MentraSwipeEvent(data)) }
+                    dispatchToListeners { it.onSwipe(SwipeEvent(data)) }
                 }
             }
             "head_up" -> dispatchToListeners { it.onHeadUpChanged(data["up"] as? Boolean ?: false) }
             "battery_status" ->
                 dispatchToListeners {
                     it.onBatteryStatus(
-                        MentraBatteryStatusEvent(
+                        BatteryStatusEvent(
                             level = (data["level"] as? Number)?.toInt(),
                             charging = data["charging"] as? Boolean,
                             values = data,
                         )
                     )
                 }
-            "wifi_status_change" -> dispatchToListeners { it.onWifiStatusChanged(MentraWifiStatusEvent(data)) }
-            "hotspot_status_change" -> dispatchToListeners { it.onHotspotStatusChanged(MentraHotspotStatusEvent(data)) }
-            "hotspot_error" -> dispatchToListeners { it.onHotspotError(MentraHotspotErrorEvent(data)) }
-            "gallery_status" -> dispatchToListeners { it.onGalleryStatus(MentraGalleryStatusEvent(data)) }
-            "photo_response" -> dispatchToListeners { it.onPhotoResponse(MentraPhotoResponseEvent(data)) }
-            "stream_status" -> dispatchToListeners { it.onStreamStatus(MentraStreamStatusEvent(data)) }
-            "keep_alive_ack" -> dispatchToListeners { it.onKeepAliveAck(MentraKeepAliveAckEvent(data)) }
+            "wifi_status_change" -> dispatchToListeners { it.onWifiStatusChanged(WifiStatusEvent(data)) }
+            "hotspot_status_change" -> dispatchToListeners { it.onHotspotStatusChanged(HotspotStatusEvent(data)) }
+            "hotspot_error" -> dispatchToListeners { it.onHotspotError(HotspotErrorEvent(data)) }
+            "gallery_status" -> dispatchToListeners { it.onGalleryStatus(GalleryStatusEvent(data)) }
+            "photo_response" -> dispatchToListeners { it.onPhotoResponse(PhotoResponseEvent(data)) }
+            "stream_status" -> dispatchToListeners { it.onStreamStatus(StreamStatusEvent(data)) }
+            "keep_alive_ack" -> dispatchToListeners { it.onKeepAliveAck(KeepAliveAckEvent(data)) }
             "mic_pcm" -> (data["pcm"] as? ByteArray)?.let { frame ->
                 dispatchToListeners { it.onMicPcm(frame) }
             }
@@ -501,7 +501,7 @@ class MentraBluetoothSdk private constructor(
             "local_transcription" ->
                 dispatchToListeners {
                     it.onLocalTranscription(
-                        MentraLocalTranscriptionEvent(
+                        LocalTranscriptionEvent(
                             text = data["text"] as? String ?: "",
                             isFinal = data["isFinal"] as? Boolean ?: false,
                             values = data,
@@ -509,11 +509,11 @@ class MentraBluetoothSdk private constructor(
                     )
                 }
             "compatible_glasses_search_stop" ->
-                dispatchToListeners { it.onScanStopped(MentraScanStopReason.COMPLETED) }
+                dispatchToListeners { it.onScanStopped(ScanStopReason.COMPLETED) }
             "pair_failure" ->
                 dispatchToListeners {
                     it.onError(
-                        MentraBluetoothError(
+                        BluetoothError(
                             code = "pair_failure",
                             message = data["error"] as? String ?: data.toString(),
                         )

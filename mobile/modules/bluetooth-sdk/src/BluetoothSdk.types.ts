@@ -375,8 +375,8 @@ export type CoreModuleEvents = {
   glasses_status: (changed: Partial<GlassesStatus>) => void
   core_status: (changed: Partial<CoreStatus>) => void
   log: (event: LogEvent) => void
-  device_discovered: (device: MentraDevice) => void
-  default_device_changed: (event: {device?: MentraDevice}) => void
+  device_discovered: (device: Device) => void
+  default_device_changed: (event: {device?: Device}) => void
   // Individual event handlers
   glasses_not_ready: (event: GlassesNotReadyEvent) => void
   button_press: (event: ButtonPressEvent) => void
@@ -514,7 +514,7 @@ export interface CoreSettings {
 
 export type MicRanking = "auto" | "phone" | "glasses" | "bluetooth"
 
-export interface MentraDevice {
+export interface Device {
   id: string
   model: string
   name: string
@@ -549,7 +549,7 @@ export interface CoreStatus {
   systemMicUnavailable: boolean
   micRanking: MicRanking[]
   currentMic: MicRanking | null
-  searchResults: MentraDevice[]
+  searchResults: Device[]
   wifiScanResults: WifiSearchResult[]
   lastLog: string[]
   otherBtConnected: boolean

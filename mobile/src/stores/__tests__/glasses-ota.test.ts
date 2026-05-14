@@ -61,7 +61,7 @@ describe("otaStatus store field", () => {
 
 describe("wifiStatusKnown reset on disconnect", () => {
   it("resets wifiStatusKnown when connected becomes false", () => {
-    useGlassesStore.getState().setGlassesInfo({connected: true, wifiConnected: true})
+    useGlassesStore.getState().setGlassesInfo({connected: true, wifi: {state: "connected", ssid: "TestNetwork"}})
     expect(useGlassesStore.getState().wifiStatusKnown).toBe(true)
 
     useGlassesStore.getState().setGlassesInfo({connected: false})
@@ -72,7 +72,6 @@ describe("wifiStatusKnown reset on disconnect", () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     useGlassesStore.getState().setGlassesInfo({wifiConnected: true, wifiSsid: "TestNetwork"})
     expect(useGlassesStore.getState().wifiStatusKnown).toBe(true)
-    expect(useGlassesStore.getState().wifiConnected).toBe(true)
     expect(useGlassesStore.getState().wifi).toEqual({state: "connected", ssid: "TestNetwork"})
   })
 
@@ -89,9 +88,6 @@ describe("wifiStatusKnown reset on disconnect", () => {
     })
 
     expect(useGlassesStore.getState().wifi).toEqual({state: "connected", ssid: "Mentra"})
-    expect(useGlassesStore.getState().wifiConnected).toBe(true)
-    expect(useGlassesStore.getState().wifiSsid).toBe("Mentra")
-    expect(useGlassesStore.getState().wifiLocalIp).toBe("")
   })
 })
 
@@ -110,15 +106,12 @@ describe("hotspot status store shape", () => {
       password: "password",
       localIp: "192.168.43.1",
     })
-    expect(useGlassesStore.getState().hotspotEnabled).toBe(true)
-    expect(useGlassesStore.getState().hotspotGatewayIp).toBe("192.168.43.1")
   })
 
   it("does not manufacture an unknown hotspot state from incomplete enabled fields", () => {
     useGlassesStore.getState().setGlassesInfo({hotspotEnabled: true})
 
     expect(useGlassesStore.getState().hotspot).toEqual({state: "disabled"})
-    expect(useGlassesStore.getState().hotspotEnabled).toBe(false)
   })
 })
 

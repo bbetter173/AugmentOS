@@ -389,6 +389,7 @@ export const SETTINGS: Record<string, Setting> = {
     persist: true,
   },
   // button settings
+  // Legacy persisted/cloud key; hardware behavior is now controlled by gallery_mode plus capture settings.
   button_mode: {key: "button_mode", defaultValue: () => "photo", writable: true, saveOnServer: true, persist: true},
   button_photo_size: {
     key: "button_photo_size",
@@ -596,7 +597,6 @@ const CORE_SETTINGS_KEYS: string[] = [
   SETTINGS.menu_apps.key,
   SETTINGS.use_native_dashboard.key,
   // button:
-  SETTINGS.button_mode.key,
   SETTINGS.button_photo_size.key,
   // Legacy MentraLive native code reads the object form when syncing video settings.
   SETTINGS.button_video_settings.key,

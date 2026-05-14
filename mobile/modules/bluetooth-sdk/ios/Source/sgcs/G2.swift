@@ -2347,6 +2347,9 @@ class G2: NSObject, SGCManager {
             sendEvenHubCommand(msg)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
+                if useEvenDashboard && dashboardShowing > 0 {
+                    return
+                }
                 let msg = EvenHubProto.audioControlMessage(enable: true)
                 self.sendEvenHubCommand(msg)
             }

@@ -1615,11 +1615,7 @@ class G2: NSObject, SGCManager {
     func sendTextWall(_ text: String) {
         // Bridge.log("G2: sendTextWall(\(text.prefix(50))...)")
 
-        // ignore events while the dashboard is open:
-        // let isHeadUp = GlassesStore.shared.get("glasses", "headUp") as? Bool ?? false
-        // if isHeadUp {
-        //     return
-        // }
+        // ignore events while the ER dashboard is open:
         let useNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
         if useNativeDashboard && dashboardShowing > 0 {
             return
@@ -2217,7 +2213,7 @@ class G2: NSObject, SGCManager {
     /// The glasses fall back to the dashboard automatically when no page is up.
     func showDashboard() {
         Bridge.log("G2: showDashboard")
-        dashboardShowing += 1
+        dashboardShowing += 2
         let msg = EvenHubProto.shutdownMessage()
         sendEvenHubCommand(msg)
         pageCreated = false
@@ -2339,25 +2335,33 @@ class G2: NSObject, SGCManager {
         sendEvenHubCommand(toSend)
     }
 
+    func restartMic() {
+        // if already enabled, set to disabled, then send enabled after 500ms:
+        GlassesStore.shared.apply("glasses", "micEnabled", true)
+        let msg = EvenHubProto.audioControlMessage(enable: false)
+        sendEvenHubCommand(msg)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            let useNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
+            Bridge.log("G2: setMicEnabled - useNativeDashboard=\(useNativeDashboard), dashboardShowing=\(dashboardShowing)")
+            if useNativeDashboard && dashboardShowing > 0 {
+                return
+            }
+            if (!pageCreated || !pageHasTextContainer) {
+                CoreManager.shared.sendCurrentState()// should re-create the page if needed
+            }
+            let msg = EvenHubProto.audioControlMessage(enable: true)
+            self.sendEvenHubCommand(msg)
+        }
+    }
+
     // MARK: - SGCManager: Audio Control
 
     func setMicEnabled(_ enabled: Bool) {
         Bridge.log("G2: setMicEnabled(\(enabled))")
         let currentEnabled = GlassesStore.shared.get("glasses", "micEnabled") as? Bool ?? false
         if currentEnabled && enabled {
-            // if already enabled, set to disabled, then send enabled after 500ms:
-            GlassesStore.shared.apply("glasses", "micEnabled", true)
-            let msg = EvenHubProto.audioControlMessage(enable: false)
-            sendEvenHubCommand(msg)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                guard let self = self else { return }
-                let usNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
-                if useNativeDashboard && dashboardShowing > 0 {
-                    return
-                }
-                let msg = EvenHubProto.audioControlMessage(enable: true)
-                self.sendEvenHubCommand(msg)
-            }
+            restartMic()
             return
         }
 
@@ -3424,23 +3428,38 @@ class G2: NSObject, SGCManager {
         // if we got 08011A00 that means we closed the dashboard, which means the mic is probably dead,
         // so we need to revive it:
         if data == Data([0x08, 0x01, 0x1A, 0x00]) {
-            Bridge.log("G2: gesture_ctrl response: dashboard closed or we called shutdown")
+            Bridge.log("G2: dashboard closed / shutdown - dashboardShowing=\(dashboardShowing)")
             let useNativeDashboard = GlassesStore.shared.get("core", "use_native_dashboard") as? Bool ?? false
             if !useNativeDashboard {
-                // re-send mic on / update mic state:
-                GlassesStore.shared.apply("glasses", "micEnabled", false)
-                CoreManager.shared.updateMicState() // should set the mic back on if it should be on
+                // make sure the container exists:
+                CoreManager.shared.sendCurrentState()
+                // re-send mic on / if it's enabled:
+                let micEnabled = GlassesStore.shared.get("glasses", "micEnabled") as? Bool ?? false
+                if micEnabled {
+                    restartMic()
+                }
                 // reset the text container (different from clearDisplay())
                 // sendTextWall(" ")
                 // createPageWithText(" ")
-                CoreManager.shared.sendCurrentState()
             } else {
-                if dashboardShowing <= 0 {
+                // if we aren't trying to show the dashboard
+                // then we need to turn the mic back on and display the mentra main page:
+                if dashboardShowing <= 1 {
                     dashboardShowing = 0
+                    // make sure the container exists:
                     CoreManager.shared.sendCurrentState()
+                    // set the mic back on if it should be on
+                    let micEnabled = GlassesStore.shared.get("glasses", "micEnabled") as? Bool ?? false
+                    if micEnabled {
+                        restartMic()
+                    }
+                    return
                 }
                 // do nothing this time since we just closed the dashboard
                 dashboardShowing -= 1
+                if (dashboardShowing < 0) {
+                    dashboardShowing = 0
+                }
             }
         }
 

@@ -1,11 +1,19 @@
-import {GlassesStatus, HotspotStatus, OtaProgress, OtaStatus, OtaUpdateInfo, WifiStatus} from "@mentra/bluetooth-sdk"
+import {
+  GlassesConnectionState,
+  GlassesStatus,
+  HotspotStatus,
+  OtaProgress,
+  OtaStatus,
+  OtaUpdateInfo,
+  WifiStatus,
+  glassesConnectionStateFromValue,
+  isBusyGlassesConnectionState,
+} from "@mentra/bluetooth-sdk"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 
-/** Native Bluetooth SDK ConnTypes (uppercase); RN default may be lowercase. */
-export function isGlassesLinkLayerBusy(connectionState: string | undefined): boolean {
-  const u = (connectionState ?? "").toUpperCase()
-  return u === "CONNECTING" || u === "SCANNING" || u === "BONDING"
+export function isGlassesLinkLayerBusy(connectionState: GlassesConnectionState | undefined): boolean {
+  return isBusyGlassesConnectionState(connectionState)
 }
 
 interface GlassesState extends GlassesStatus {
@@ -95,7 +103,7 @@ const initialState: GlassesStore = {
   fullyBooted: false,
   connected: false,
   micEnabled: false,
-  connectionState: "disconnected",
+  connectionState: "DISCONNECTED",
   btcConnected: false,
   signalStrength: -1,
   signalStrengthUpdatedAt: 0,
@@ -156,10 +164,12 @@ export const useGlassesStore = create<GlassesState>()(
           hotspotPassword,
           hotspotGatewayIp,
           hotspotLocalIp,
+          connectionState,
           wifi,
           hotspot,
           ...sdkInfo
         } = info
+        const connectionStateUpdate = glassesConnectionStateFromValue(connectionState)
         const wifiUpdate = wifi ?? wifiFromLegacyFields({wifiConnected, wifiSsid, wifiLocalIp})
         const hotspotUpdate =
           hotspot ??
@@ -172,6 +182,7 @@ export const useGlassesStore = create<GlassesState>()(
         const next = {
           ...state,
           ...sdkInfo,
+          ...(connectionStateUpdate ? {connectionState: connectionStateUpdate} : {}),
           ...(wifiUpdate ? {wifi: wifiUpdate} : {}),
           ...(hotspotUpdate ? {hotspot: hotspotUpdate} : {}),
           ...(hasWifiInfoUpdate ? {wifiStatusKnown: true} : {}),

@@ -38,6 +38,8 @@ struct ConnTypes {
     static let CONNECTING = "CONNECTING"
     static let CONNECTED = "CONNECTED"
     static let DISCONNECTED = "DISCONNECTED"
+    static let SCANNING = "SCANNING"
+    static let BONDING = "BONDING"
 
     /// Private init to prevent instantiation
     private init() {}

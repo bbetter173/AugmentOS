@@ -1,6 +1,7 @@
 package com.mentra.bluetoothsdk
 
 import com.mentra.bluetoothsdk.utils.ControllerTypes
+import com.mentra.bluetoothsdk.utils.ConnTypes
 import com.mentra.bluetoothsdk.utils.DeviceTypes
 
 data class MentraBluetoothSdkConfig(
@@ -105,7 +106,7 @@ data class GlassesStatus(
     val fullyBooted: Boolean,
     val connected: Boolean,
     val micEnabled: Boolean,
-    val connectionState: String,
+    val connectionState: GlassesConnectionState,
     val btcConnected: Boolean,
     val signalStrength: Int,
     val signalStrengthUpdatedAt: Long,
@@ -146,7 +147,7 @@ data class GlassesStatus(
             "fullyBooted" to fullyBooted,
             "connected" to connected,
             "micEnabled" to micEnabled,
-            "connectionState" to connectionState,
+            "connectionState" to connectionState.value,
             "btcConnected" to btcConnected,
             "signalStrength" to signalStrength,
             "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
@@ -189,7 +190,7 @@ data class GlassesStatus(
                 fullyBooted = boolValue(values, "fullyBooted") ?: false,
                 connected = boolValue(values, "connected") ?: false,
                 micEnabled = boolValue(values, "micEnabled") ?: false,
-                connectionState = stringValue(values, "connectionState") ?: "disconnected",
+                connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")),
                 btcConnected = boolValue(values, "btcConnected") ?: false,
                 signalStrength = numberValue(values, "signalStrength") ?: -1,
                 signalStrengthUpdatedAt = longValue(values, "signalStrengthUpdatedAt") ?: 0L,
@@ -380,7 +381,7 @@ data class GlassesStatusUpdate(
     val fullyBooted: Boolean? = null,
     val connected: Boolean? = null,
     val micEnabled: Boolean? = null,
-    val connectionState: String? = null,
+    val connectionState: GlassesConnectionState? = null,
     val btcConnected: Boolean? = null,
     val signalStrength: Int? = null,
     val signalStrengthUpdatedAt: Long? = null,
@@ -421,7 +422,7 @@ data class GlassesStatusUpdate(
             putIfNotNull("fullyBooted", fullyBooted)
             putIfNotNull("connected", connected)
             putIfNotNull("micEnabled", micEnabled)
-            putIfNotNull("connectionState", connectionState)
+            connectionState?.let { put("connectionState", it.value) }
             putIfNotNull("btcConnected", btcConnected)
             putIfNotNull("signalStrength", signalStrength)
             putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
@@ -468,7 +469,7 @@ data class GlassesStatusUpdate(
                 fullyBooted = optionalBoolValue(values, "fullyBooted"),
                 connected = optionalBoolValue(values, "connected"),
                 micEnabled = optionalBoolValue(values, "micEnabled"),
-                connectionState = optionalStringValue(values, "connectionState"),
+                connectionState = GlassesConnectionState.optionalFromValue(optionalStringValue(values, "connectionState")),
                 btcConnected = optionalBoolValue(values, "btcConnected"),
                 signalStrength = optionalNumberValue(values, "signalStrength"),
                 signalStrengthUpdatedAt = optionalLongValue(values, "signalStrengthUpdatedAt"),
@@ -1485,6 +1486,31 @@ data class GlassesMediaVolumeSetResult(
                 statusCode = (values["statusCode"] as? Number)?.toInt(),
                 values = values,
             )
+    }
+}
+
+enum class GlassesConnectionState(val value: String) {
+    DISCONNECTED(ConnTypes.DISCONNECTED),
+    SCANNING(ConnTypes.SCANNING),
+    CONNECTING(ConnTypes.CONNECTING),
+    BONDING(ConnTypes.BONDING),
+    CONNECTED(ConnTypes.CONNECTED);
+
+    val isConnected: Boolean
+        get() = this == CONNECTED
+
+    val isBusy: Boolean
+        get() = this == SCANNING || this == CONNECTING || this == BONDING
+
+    companion object {
+        @JvmStatic
+        fun fromValue(value: String?): GlassesConnectionState =
+            optionalFromValue(value) ?: DISCONNECTED
+
+        internal fun optionalFromValue(value: String?): GlassesConnectionState? {
+            val normalized = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            return values().firstOrNull { it.value.equals(normalized, ignoreCase = true) }
+        }
     }
 }
 

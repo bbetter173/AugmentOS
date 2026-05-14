@@ -258,6 +258,39 @@ public struct WifiScanResult: CustomStringConvertible {
     }
 }
 
+public enum GlassesConnectionState: String, CustomStringConvertible, Equatable {
+    case disconnected = "DISCONNECTED"
+    case scanning = "SCANNING"
+    case connecting = "CONNECTING"
+    case bonding = "BONDING"
+    case connected = "CONNECTED"
+
+    public init(_ value: String?) {
+        self = Self.fromValue(value) ?? .disconnected
+    }
+
+    public static func fromValue(_ value: String?) -> GlassesConnectionState? {
+        guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+              !normalized.isEmpty
+        else {
+            return nil
+        }
+        return Self(rawValue: normalized)
+    }
+
+    public var isConnected: Bool {
+        self == .connected
+    }
+
+    public var isBusy: Bool {
+        self == .scanning || self == .connecting || self == .bonding
+    }
+
+    public var description: String {
+        rawValue
+    }
+}
+
 public struct GlassesStatus: CustomStringConvertible {
     let values: [String: Any]
 
@@ -303,7 +336,7 @@ public struct GlassesStatus: CustomStringConvertible {
     public var fullyBooted: Bool { boolValue(values, "fullyBooted") ?? false }
     public var connected: Bool { boolValue(values, "connected") ?? false }
     public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
-    public var connectionState: String { stringValue(values, "connectionState") ?? "disconnected" }
+    public var connectionState: GlassesConnectionState { GlassesConnectionState(stringValue(values, "connectionState")) }
     public var btcConnected: Bool { boolValue(values, "btcConnected") ?? false }
     public var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
     public var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
@@ -346,6 +379,9 @@ public struct GlassesStatus: CustomStringConvertible {
 
     static func dictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
+        if let connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")) {
+            dictionary["connectionState"] = connectionState.rawValue
+        }
         dictionary["wifi"] = (WifiStatus.fromStoreValues(values) ?? .disconnected).values
         dictionary["hotspot"] = (HotspotStatus.fromStoreValues(values) ?? .disabled).values
         dictionary.removeValue(forKey: "wifiConnected")
@@ -361,6 +397,9 @@ public struct GlassesStatus: CustomStringConvertible {
 
     static func updateDictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
+        if let connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")) {
+            dictionary["connectionState"] = connectionState.rawValue
+        }
         if hasAnyKey(values, "wifi", "wifiConnected", "wifiSsid", "wifiLocalIp") {
             let wifi = (values["wifi"] as? [String: Any]).flatMap(WifiStatus.init(values:))
                 ?? WifiStatus.fromStoreValues(values)
@@ -488,7 +527,9 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
     public var fullyBooted: Bool? { optionalBoolValue(values, "fullyBooted") }
     public var connected: Bool? { optionalBoolValue(values, "connected") }
     public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
-    public var connectionState: String? { optionalStringValue(values, "connectionState") }
+    public var connectionState: GlassesConnectionState? {
+        GlassesConnectionState.fromValue(optionalStringValue(values, "connectionState"))
+    }
     public var btcConnected: Bool? { optionalBoolValue(values, "btcConnected") }
     public var signalStrength: Int? { optionalIntValue(values, "signalStrength") }
     public var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }

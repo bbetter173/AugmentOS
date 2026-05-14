@@ -36,7 +36,7 @@ export const coreModuleMock = {
       fullyBooted: false,
       connected: false,
       micEnabled: false,
-      connectionState: "disconnected",
+      connectionState: "DISCONNECTED",
       btcConnected: false,
       signalStrength: -1,
       deviceModel: "",

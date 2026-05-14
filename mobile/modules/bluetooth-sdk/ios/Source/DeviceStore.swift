@@ -24,7 +24,7 @@ class DeviceStore {
         store.set("glasses", "batteryLevel", -1)
         store.set("glasses", "charging", false)
         store.set("glasses", "connected", false)
-        store.set("glasses", "connectionState", "disconnected")
+        store.set("glasses", "connectionState", ConnTypes.DISCONNECTED)
         store.set("glasses", "deviceModel", "")
         store.set("glasses", "firmwareVersion", "")
         store.set("glasses", "micEnabled", false)

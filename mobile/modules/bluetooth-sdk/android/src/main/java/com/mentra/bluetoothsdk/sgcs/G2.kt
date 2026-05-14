@@ -22,6 +22,7 @@ import android.util.Base64
 import com.mentra.bluetoothsdk.Bridge
 import com.mentra.bluetoothsdk.DeviceManager
 import com.mentra.bluetoothsdk.DeviceStore
+import com.mentra.bluetoothsdk.utils.ConnTypes
 import com.mentra.bluetoothsdk.utils.DeviceTypes
 import java.io.ByteArrayOutputStream
 import java.util.TimeZone
@@ -2423,12 +2424,14 @@ class G2 : SGCManager() {
     override fun findCompatibleDevices() {
         Bridge.log("G2: findCompatibleDevices()")
         DEVICE_SEARCH_ID = "NOT_SET"
+        DeviceStore.apply("glasses", "connectionState", ConnTypes.SCANNING)
         startScan()
     }
 
     override fun connectById(id: String) {
         Bridge.log("G2: connectById($id)")
         DEVICE_SEARCH_ID = id
+        DeviceStore.apply("glasses", "connectionState", ConnTypes.CONNECTING)
         startScan()
         startPairingTimeout()
     }
@@ -2479,6 +2482,7 @@ class G2 : SGCManager() {
         lastMenuSelectTimestamp = null
         DeviceStore.apply("glasses", "connected", false)
         DeviceStore.apply("glasses", "fullyBooted", false)
+        DeviceStore.apply("glasses", "connectionState", ConnTypes.DISCONNECTED)
     }
 
     override fun forget() {
@@ -2949,6 +2953,7 @@ class G2 : SGCManager() {
                         pageHasTextContainer = false
                         DeviceStore.apply("glasses", "connected", false)
                         DeviceStore.apply("glasses", "fullyBooted", false)
+                        DeviceStore.apply("glasses", "connectionState", ConnTypes.DISCONNECTED)
 
                         startReconnectionTimer()
                     }
@@ -3213,11 +3218,15 @@ class G2 : SGCManager() {
     private fun setFullyConnected() {
         val isFullyConnected = DeviceStore.get("glasses", "connected") as? Boolean ?: false
         val isFullyBooted = DeviceStore.get("glasses", "fullyBooted") as? Boolean ?: false
+        val connectionState = DeviceStore.get("glasses", "connectionState") as? String
         if (!isFullyConnected) {
             DeviceStore.apply("glasses", "connected", true)
         }
         if (!isFullyBooted) {
             DeviceStore.apply("glasses", "fullyBooted", true)
+        }
+        if (connectionState != ConnTypes.CONNECTED) {
+            DeviceStore.apply("glasses", "connectionState", ConnTypes.CONNECTED)
         }
     }
 

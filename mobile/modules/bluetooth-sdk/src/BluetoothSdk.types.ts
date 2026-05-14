@@ -34,6 +34,35 @@ export type BatteryStatusEvent = {
   timestamp: number
 }
 
+export type GlassesConnectionState =
+  | "DISCONNECTED"
+  | "SCANNING"
+  | "CONNECTING"
+  | "BONDING"
+  | "CONNECTED"
+
+export function isGlassesConnectionState(value: unknown): value is GlassesConnectionState {
+  return (
+    value === "DISCONNECTED" ||
+    value === "SCANNING" ||
+    value === "CONNECTING" ||
+    value === "BONDING" ||
+    value === "CONNECTED"
+  )
+}
+
+export function glassesConnectionStateFromValue(value: unknown): GlassesConnectionState | null {
+  if (typeof value !== "string") {
+    return null
+  }
+  const normalized = value.trim().toUpperCase()
+  return isGlassesConnectionState(normalized) ? normalized : null
+}
+
+export function isBusyGlassesConnectionState(state: GlassesConnectionState | undefined): boolean {
+  return state === "SCANNING" || state === "CONNECTING" || state === "BONDING"
+}
+
 /** K900 `sr_getvol` response (Mentra Live glasses media step volume 0–15). */
 export type GlassesMediaVolumeGetResult = {
   vol: number
@@ -416,8 +445,6 @@ export type BluetoothSdkModuleEvents = {
   miniapp_selected: (event: MiniappSelectedEvent) => void
 }
 
-export type GlassesConnectionState = "disconnected" | "connected" | "connecting"
-
 // OTA update status types
 export type OtaStage = "download" | "install"
 export type OtaProgressStatus = "STARTED" | "PROGRESS" | "FINISHED" | "FAILED"
@@ -458,7 +485,7 @@ export interface GlassesStatus {
   fullyBooted: boolean
   connected: boolean
   micEnabled: boolean
-  connectionState: string
+  connectionState: GlassesConnectionState
   btcConnected: boolean
   signalStrength: number
   /** Milliseconds since epoch when signalStrength was last refreshed by the phone BLE stack. */

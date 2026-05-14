@@ -3,6 +3,7 @@ package com.mentra.bluetoothsdk
 import android.os.Handler
 import android.os.Looper
 import com.mentra.bluetoothsdk.utils.DeviceTypes
+import com.mentra.bluetoothsdk.utils.ConnTypes
 import com.mentra.bluetoothsdk.utils.MicMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +62,7 @@ object DeviceStore {
         store.set("glasses", "charging", false)
         store.set("glasses", "fullyBooted", false)
         store.set("glasses", "connected", false)
-        store.set("glasses", "connectionState", "disconnected")
+        store.set("glasses", "connectionState", ConnTypes.DISCONNECTED)
         store.set("glasses", "deviceModel", "")
         store.set("glasses", "firmwareVersion", "")
         store.set("glasses", "micEnabled", false)

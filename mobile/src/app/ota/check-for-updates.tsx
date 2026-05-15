@@ -1,7 +1,7 @@
 import {useFocusEffect} from "expo-router"
 import {useEffect, useState, useCallback, useRef} from "react"
 import {View, ActivityIndicator} from "react-native"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 import {MINIMUM_OTA_STATUS_BUILD} from "@/app/ota/otaProgressTimeouts"
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
@@ -100,7 +100,7 @@ export default function OtaCheckForUpdatesScreen() {
 
           // Request version info since we don't have it yet
           console.log("OTA: Requesting version_info from glasses")
-          CoreModule.requestVersionInfo()
+          BluetoothSdk.requestVersionInfo()
 
           versionInfoTimeoutRef.current = BgTimer.setTimeout(() => {
             if (checkCompletedRef.current) {
@@ -119,7 +119,7 @@ export default function OtaCheckForUpdatesScreen() {
       }
 
       // Match OtaUpdateChecker home path: BES often arrives late in version_info_3 (chip init after reflash).
-      void CoreModule.requestVersionInfo()
+      void BluetoothSdk.requestVersionInfo()
 
       let latestBesFwVersion = useGlassesStore.getState().besFwVersion
       if (!latestBesFwVersion) {
@@ -170,7 +170,7 @@ export default function OtaCheckForUpdatesScreen() {
         // Refresh version_info (build / fw) in case the store still held values from a prior session
         // before the native clear-on-connect + glasses_ready re-query completed.
         console.log("OTA: Requesting fresh version_info from glasses before HTTP compare")
-        void CoreModule.requestVersionInfo()
+        void BluetoothSdk.requestVersionInfo()
 
         const result = await checkForOtaUpdate(
           OTA_VERSION_URL_PROD,

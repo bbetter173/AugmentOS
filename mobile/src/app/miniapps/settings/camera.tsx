@@ -12,7 +12,7 @@ import Toast from "react-native-toast-message"
 import {useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {spacing, ThemedStyle} from "@/theme"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 type PhotoSize = "small" | "medium" | "large"
 type VideoResolution = "720p" | "1080p" | "1440p" | "4K"
@@ -91,7 +91,7 @@ export default function CameraSettingsScreen() {
       return
     }
     setPhotoSize(size)
-    CoreModule.updateBluetoothSettings({button_photo_size: size})
+    BluetoothSdk.updateBluetoothSettings({button_photo_size: size})
   }
 
   const handleVideoResolutionChange = (resolution: VideoResolution) => {
@@ -103,7 +103,7 @@ export default function CameraSettingsScreen() {
     const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
     const fps = resolution === "4K" ? 15 : 30
     setVideoSettings({width, height, fps})
-    CoreModule.updateBluetoothSettings({button_video_width: width, button_video_height: height, button_video_fps: fps})
+    BluetoothSdk.updateBluetoothSettings({button_video_width: width, button_video_height: height, button_video_fps: fps})
   }
 
   const _handleLedToggle = (enabled: boolean) => {
@@ -121,7 +121,7 @@ export default function CameraSettingsScreen() {
     }
     const minutes = parseInt(time.replace("m", ""))
     setMaxRecordingTime(minutes)
-    CoreModule.updateBluetoothSettings({button_max_recording_time: minutes})
+    BluetoothSdk.updateBluetoothSettings({button_max_recording_time: minutes})
   }
 
   const handleCameraFovChange = (fov: number, roi_position: CameraRoiPosition) => {

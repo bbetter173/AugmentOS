@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {View, ActivityIndicator} from "react-native"
@@ -308,7 +308,7 @@ export default function OtaProgressScreen() {
         console.log(
           `[OTA_PROGRESS] watchdog: no ack in ${RETRY_INTERVAL_MS}ms, retrying ota_start (attempt ${retryCountRef.current})`,
         )
-        void CoreModule.sendOtaStart()
+        void BluetoothSdk.sendOtaStart()
           .then(() => {
             armAckAndStuckWatchdogsOnly()
           })
@@ -339,7 +339,7 @@ export default function OtaProgressScreen() {
     hasReceivedAckRef.current = false
     armAckAndStuckWatchdogsOnly()
     try {
-      await CoreModule.sendOtaStart()
+      await BluetoothSdk.sendOtaStart()
     } catch (err) {
       console.warn("[OTA_PROGRESS] sendOtaStart threw", err)
       clearRetryTimeout()
@@ -447,7 +447,7 @@ export default function OtaProgressScreen() {
 
     if (becameConnected) {
       console.log("[OTA_PROGRESS] connect-edge: reconnected, sending ota_query_status")
-      void CoreModule.sendOtaQueryStatus()
+      void BluetoothSdk.sendOtaQueryStatus()
       armQueryReplyFallback("reconnect")
       return
     }
@@ -470,7 +470,7 @@ export default function OtaProgressScreen() {
       void sendOtaStartWithWatchdogs()
     } else {
       console.log("[OTA_PROGRESS] initial mount, session exists, sending ota_query_status")
-      void CoreModule.sendOtaQueryStatus()
+      void BluetoothSdk.sendOtaQueryStatus()
       armQueryReplyFallback("initial-mount")
     }
   }, [connected, sendOtaStartWithWatchdogs, clearPostApkDelay, armQueryReplyFallback])
@@ -493,7 +493,7 @@ export default function OtaProgressScreen() {
       clearProgressTimeout()
       onFirstActivity()
       onFirstNonZeroProgress()
-      void CoreModule.sendOtaQueryStatus()
+      void BluetoothSdk.sendOtaQueryStatus()
       useGlassesStore.getState().setMtkUpdatedThisSession(true)
     }
     GlobalEventEmitter.on("ota_start_ack", handleAck)
@@ -508,9 +508,9 @@ export default function OtaProgressScreen() {
   useEffect(() => {
     const active = connected && (displayState === "starting" || displayState === "updating")
     if (active) {
-      void CoreModule.ping().catch(() => {})
+      void BluetoothSdk.ping().catch(() => {})
       pingIntervalRef.current = setInterval(() => {
-        void CoreModule.ping().catch(() => {})
+        void BluetoothSdk.ping().catch(() => {})
       }, PING_INTERVAL_MS)
       return () => {
         clearPingInterval()

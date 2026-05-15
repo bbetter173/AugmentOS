@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {displayProcessor as MockDisplayProcessor} from "@mentra/island"
 
 import {useDisplayStore} from "@/stores/display"
@@ -74,7 +74,7 @@ describe("SocketComms display events", () => {
         view: "main",
       }),
     )
-    expect(CoreModule.displayEvent).toHaveBeenCalledWith(
+    expect(BluetoothSdk.displayEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         _processed: true,
         view: "main",
@@ -105,7 +105,7 @@ describe("SocketComms display events", () => {
 
     socketComms.handle_display_event(rawEvent)
 
-    expect(CoreModule.displayEvent).toHaveBeenCalledWith(rawEvent)
+    expect(BluetoothSdk.displayEvent).toHaveBeenCalledWith(rawEvent)
     expect(useDisplayStore.getState().dashboardEvent).toEqual(rawEvent)
     expect(consoleErrorSpy).toHaveBeenCalledWith("SOCKET: DisplayProcessor error, using raw event:", expect.any(Error))
     consoleErrorSpy.mockRestore()

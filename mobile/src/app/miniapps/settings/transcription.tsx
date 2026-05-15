@@ -1,5 +1,5 @@
 import {useFocusEffect} from "@react-navigation/native"
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useState} from "react"
 import {ActivityIndicator, BackHandler, Platform, ScrollView, View} from "react-native"
 
@@ -141,7 +141,7 @@ export default function TranscriptionSettingsScreen() {
     const now = Date.now()
     setLastRestartTime(now)
     await STTModelManager.activateModel(modelId)
-    await CoreModule.restartTranscriber()
+    await BluetoothSdk.restartTranscriber()
   }
 
   const handleModelChange = async (modelId: string) => {

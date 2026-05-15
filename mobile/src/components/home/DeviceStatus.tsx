@@ -1,5 +1,5 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
 import {useState, useEffect} from "react"
 import {ActivityIndicator, Image, ImageSourcePropType, TouchableOpacity, View, ViewStyle} from "react-native"
 import type {ReactNode} from "react"
@@ -79,7 +79,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
 
   // Listen for glasses_not_ready event to know when glasses are actually booting
   useEffect(() => {
-    const sub = CoreModule.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
+    const sub = BluetoothSdk.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
       setShowGlassesBooting(true)
     })
     return () => {
@@ -130,7 +130,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
       if (!requirementsCheck) {
         return
       }
-      await CoreModule.connectDefault()
+      await BluetoothSdk.connectDefault()
     } catch (error) {
       console.error("connect to glasses error:", error)
       showAlert("Connection Error", "Failed to connect to glasses. Please try again.", [{text: "OK"}])
@@ -139,7 +139,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
 
   const handleConnectOrDisconnect = async () => {
     if (searching || nativeLinkBusy) {
-      await CoreModule.disconnect()
+      await BluetoothSdk.disconnect()
       setIsCheckingConnectivity(false)
       resetSearching()
     } else {
@@ -259,9 +259,9 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await CoreModule.disconnectController()
+      await BluetoothSdk.disconnectController()
     } else {
-      await CoreModule.connectDefaultController()
+      await BluetoothSdk.connectDefaultController()
     }
   }
 

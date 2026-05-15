@@ -1,4 +1,4 @@
-import CoreModule, {type Device} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {type Device} from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"
@@ -44,8 +44,8 @@ export default function SelectGlassesBluetoothScreen() {
     if (event && event.actionType !== "GO_BACK" && event.actionType !== "POP") {
       return
     }
-    CoreModule.disconnect()
-    CoreModule.forget()
+    BluetoothSdk.disconnect()
+    BluetoothSdk.forget()
     goBack()
   }, true)
 
@@ -60,7 +60,7 @@ export default function SelectGlassesBluetoothScreen() {
   useEffect(() => {
     const initializeAndSearchForDevices = async () => {
       try {
-        await CoreModule.startScan({model: deviceModel})
+        await BluetoothSdk.startScan({model: deviceModel})
       } catch (error) {
         console.error("Failed to start glasses scan:", error)
       }
@@ -101,7 +101,7 @@ export default function SelectGlassesBluetoothScreen() {
     const deviceTypesWithBtClassic = [DeviceTypes.LIVE]
     if (Platform.OS === "android" || btcConnected || !deviceTypesWithBtClassic.includes(device.model as DeviceTypes)) {
       setTimeout(() => {
-        CoreModule.connect(device).catch((error) => {
+        BluetoothSdk.connect(device).catch((error) => {
           console.error("Failed to connect to glasses:", error)
         })
       }, 2000)
@@ -110,7 +110,7 @@ export default function SelectGlassesBluetoothScreen() {
       return
     }
 
-    await CoreModule.setDefaultDevice(device)
+    await BluetoothSdk.setDefaultDevice(device)
     setDeviceName(device.name)
     // pair bt classic first:
     replace("/pairing/btclassic")

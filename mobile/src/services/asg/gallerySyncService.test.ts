@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 import {gallerySyncNotifications} from "@/services/asg/gallerySyncNotifications"
 import {gallerySyncService} from "./gallerySyncService"
@@ -142,6 +142,6 @@ describe("GallerySyncService", () => {
 
     expect(useGallerySyncStore.getState().syncState).toBe("requesting_hotspot")
     expect(useGallerySyncStore.getState().syncServiceOpenedHotspot).toBe(true)
-    expect(CoreModule.setHotspotState).toHaveBeenCalledWith(true)
+    expect(BluetoothSdk.setHotspotState).toHaveBeenCalledWith(true)
   })
 })

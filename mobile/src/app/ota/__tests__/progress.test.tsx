@@ -54,15 +54,15 @@ import {MINIMUM_OTA_STATUS_BUILD, OtaProgressMessages} from "@/app/ota/otaProgre
 
 const sb = (n: number) => String(n)
 
-const CoreModule = require("@mentra/bluetooth-sdk").default
+const BluetoothSdk = require("@mentra/bluetooth-sdk").default
 
 beforeEach(() => {
   jest.useFakeTimers()
   useGlassesStore.getState().reset()
   useConnectionOverlayConfig.getState().clearConfig()
   mockReplace.mockClear()
-  CoreModule.sendOtaQueryStatus.mockClear()
-  CoreModule.sendOtaStart.mockClear()
+  BluetoothSdk.sendOtaQueryStatus.mockClear()
+  BluetoothSdk.sendOtaStart.mockClear()
 })
 
 afterEach(() => {
@@ -337,7 +337,7 @@ describe("progress.tsx watchdog timers", () => {
   it("delays sendOtaStart after reconnect when multi-step APK completed", async () => {
     useGlassesStore.getState().setGlassesInfo({buildNumber: sb(MINIMUM_OTA_STATUS_BUILD + 3), connected: true})
     render(<OtaProgressScreen />)
-    CoreModule.sendOtaStart.mockClear()
+    BluetoothSdk.sendOtaStart.mockClear()
 
     act(() => {
       useGlassesStore.getState().setOtaStatus({
@@ -359,19 +359,19 @@ describe("progress.tsx watchdog timers", () => {
       useGlassesStore.getState().setGlassesInfo({connected: true})
     })
 
-    expect(CoreModule.sendOtaStart).not.toHaveBeenCalled()
+    expect(BluetoothSdk.sendOtaStart).not.toHaveBeenCalled()
 
     await act(async () => {
       await jest.advanceTimersByTimeAsync(6000)
     })
 
-    expect(CoreModule.sendOtaStart).toHaveBeenCalled()
+    expect(BluetoothSdk.sendOtaStart).toHaveBeenCalled()
   })
 
   it("pings periodically while updating", async () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     render(<OtaProgressScreen />)
-    CoreModule.ping.mockClear()
+    BluetoothSdk.ping.mockClear()
 
     act(() => {
       useGlassesStore.getState().setOtaStatus({
@@ -386,12 +386,12 @@ describe("progress.tsx watchdog timers", () => {
       })
     })
 
-    expect(CoreModule.ping).toHaveBeenCalled()
-    CoreModule.ping.mockClear()
+    expect(BluetoothSdk.ping).toHaveBeenCalled()
+    BluetoothSdk.ping.mockClear()
     await act(async () => {
       await jest.advanceTimersByTimeAsync(10_000)
     })
-    expect(CoreModule.ping).toHaveBeenCalled()
+    expect(BluetoothSdk.ping).toHaveBeenCalled()
   })
 })
 
@@ -440,7 +440,7 @@ describe("progress.tsx reconnect", () => {
   it("sends sendOtaStart on mount when connected (no session yet)", () => {
     useGlassesStore.getState().setGlassesInfo({connected: true})
     render(<OtaProgressScreen />)
-    expect(CoreModule.sendOtaStart).toHaveBeenCalled()
+    expect(BluetoothSdk.sendOtaStart).toHaveBeenCalled()
   })
 
   it("retry button calls sendOtaStart", () => {
@@ -462,7 +462,7 @@ describe("progress.tsx reconnect", () => {
     })
 
     fireEvent.press(getByTestId("button-Retry"))
-    expect(CoreModule.sendOtaStart).toHaveBeenCalled()
+    expect(BluetoothSdk.sendOtaStart).toHaveBeenCalled()
   })
 })
 

@@ -1,5 +1,5 @@
 import {useRoute} from "@react-navigation/native"
-import CoreModule, {PairFailureEvent, GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {PairFailureEvent, GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {View} from "react-native"
 
@@ -34,7 +34,7 @@ export default function GlassesPairingLoadingScreen() {
   }, [])
 
   useEffect(() => {
-    let sub = CoreModule.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
+    let sub = BluetoothSdk.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
       setShowGlassesBooting(true)
     })
     return () => {
@@ -52,7 +52,7 @@ export default function GlassesPairingLoadingScreen() {
   const handlePairFailure = useCallback(
     (error: string) => {
       clearPairingTimeout()
-      CoreModule.forget()
+      BluetoothSdk.forget()
       if (error === "errors:pairNeedDisconnect") {
         replace("/pairing/unpair-even", {deviceModel: deviceModel})
         return
@@ -63,7 +63,7 @@ export default function GlassesPairingLoadingScreen() {
   )
 
   useEffect(() => {
-    let sub = CoreModule.addListener("pair_failure", (event: PairFailureEvent) => {
+    let sub = BluetoothSdk.addListener("pair_failure", (event: PairFailureEvent) => {
       handlePairFailure(event.error)
     })
     return () => {

@@ -19,7 +19,7 @@ npx expo install expo-build-properties
 
 ## Configure The Expo Plugin
 
-Add the SDK plugin and Android native-library packaging rules:
+Add the SDK plugin and Android native-library packaging rules to your Expo app config. In most Expo apps this is the root `app.json`; in TypeScript-configured apps it is usually the root `app.config.ts`. Merge these keys into the existing top-level `expo` object instead of creating a second config file or replacing unrelated settings:
 
 ```json
 {
@@ -66,7 +66,7 @@ Use a physical phone for Bluetooth, camera, microphone, direct phone photo, and 
 
 ## Permissions
 
-Configure permissions in your Expo app config:
+Configure permissions in the same root Expo app config. If your app already has `android.permissions` or `ios.infoPlist`, append or merge these values:
 
 ```json
 {

@@ -20,7 +20,7 @@ npm install @mentra/bluetooth-sdk
 npx expo install expo-build-properties
 ```
 
-Add the config plugin to `app.json` or `app.config.ts`:
+Add the config plugin to your Expo app config. In most Expo apps this is the root `app.json`; in TypeScript-configured apps it is usually the root `app.config.ts`. Merge these keys into the existing top-level `expo` object instead of creating a second config file or replacing unrelated settings:
 
 ```json
 {
@@ -127,7 +127,7 @@ pod install
 <Tabs>
   <Tab title="React Native / Expo">
 
-Configure permissions in `app.json` or `app.config.ts`:
+Configure permissions in the same root Expo app config. If your app already has `android.permissions` or `ios.infoPlist`, append or merge these values:
 
 ```json
 {

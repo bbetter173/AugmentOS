@@ -96,7 +96,6 @@ Configure permissions in your Expo app config:
 ```ts
 import BluetoothSdk, {
   createDisconnectedGlassesStatus,
-  isReadyGlassesConnectionStatus,
   type Device,
   type GlassesStatus,
 } from '@mentra/bluetooth-sdk';
@@ -121,10 +120,13 @@ const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
 await BluetoothSdk.startScan({model: 'Mentra Live'});
 await BluetoothSdk.connect(await firstDevice);
 
+await BluetoothSdk.requestVersionInfo();
 glassesStatus = await BluetoothSdk.getGlassesStatus();
-if (glassesStatus.connection && isReadyGlassesConnectionStatus(glassesStatus.connection)) {
-  await BluetoothSdk.displayText({text: 'Hello from React Native', x: 0, y: 0, size: 24});
-}
+console.log('Connected glasses:', {
+  model: glassesStatus.deviceModel,
+  batteryLevel: glassesStatus.batteryLevel,
+  appVersion: glassesStatus.appVersion,
+});
 
 removeGlasses();
 ```
@@ -168,4 +170,3 @@ MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk
 ```
 
 Keep `MENTRA_BLUETOOTH_SDK_PACKAGE_PATH` in your shell or CI environment, not in committed app config.
-

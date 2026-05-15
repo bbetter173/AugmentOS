@@ -198,6 +198,8 @@ Status snapshots are safe to read at any time. Treat command success as "command
 | LEDs | `rgbLedControl` on supported glasses |
 | System | Version info, OTA status, shutdown, restart, diagnostic events |
 
+Mentra Live has camera, microphone, and speaker hardware, but no display. G2 has display and microphone hardware, but no camera or speaker. Gate UI for display, camera, and speaker features by the connected model.
+
 ## Events
 
 React Native uses event listeners:
@@ -240,4 +242,3 @@ Call `requestVersionInfo()` after connection when your app wants the glasses to 
 | `androidVersion` | Android OS version on Android-based glasses. This is not firmware. |
 
 Different glasses models expose different version fields, so apps should prefer the generic firmware field when present, then fall back to model-specific firmware fields. Keep app and OS versions visibly labeled as app/OS versions.
-

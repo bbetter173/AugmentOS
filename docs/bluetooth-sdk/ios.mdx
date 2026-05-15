@@ -68,8 +68,10 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
         try sdk.connect(to: discoveredDevice)
     }
 
-    func showHello() async throws {
-        try await sdk.displayText(DisplayTextRequest(text: "Hello from iOS"))
+    func refreshStatus() {
+        sdk.requestVersionInfo()
+        let status = sdk.glassesStatus
+        print("Connected to \(status.deviceModel), battery=\(status.batteryLevel)%")
     }
 
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device) {
@@ -78,6 +80,7 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
 
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
         // Keep app UI derived from SDK status.
+        print("Glasses status changed: \(status)")
     }
 
     deinit {
@@ -96,4 +99,3 @@ pod install
 ```
 
 Keep `MENTRA_BLUETOOTH_SDK_LOCAL_PATH` in your shell or CI environment, not in committed project settings.
-

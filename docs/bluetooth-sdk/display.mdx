@@ -6,6 +6,10 @@ icon: "display"
 
 The display API sends glanceable, user-visible information to supported smart glasses.
 
+<Info>
+Mentra Live does not have a display. Use display APIs only on display-equipped models such as G2.
+</Info>
+
 ## Basic Text
 
 <Tabs>
@@ -147,4 +151,3 @@ React Native exposes the display command path through `displayText`, `clearDispl
 - Avoid rapid display churn. Debounce frequent updates.
 - Clear the display when information is no longer relevant.
 - Handle disconnected, not-ready, and unsupported-capability states gracefully.
-

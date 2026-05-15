@@ -7,7 +7,7 @@ icon: "microphone"
 The Bluetooth SDK exposes microphone state, raw audio callbacks, local transcription, and glasses media-volume behavior where supported by the connected model.
 
 <Info>
-Your app owns user-facing microphone permission copy. Ask for microphone access only when the feature needs it, and provide a visible way to disable microphone streaming.
+Mentra Live and G2 both have microphones. Mentra Live has a speaker; G2 does not. Your app owns user-facing microphone permission copy, should ask for microphone access only when the feature needs it, and should provide a visible way to disable microphone streaming.
 </Info>
 
 ## Enable Microphone Features
@@ -91,4 +91,3 @@ Native Android and iOS apps receive equivalent audio callbacks through the SDK l
 - Expect model availability to differ by platform, locale, and app configuration.
 - Keep cloud upload and retention policies explicit in your privacy disclosures.
 - Disable raw audio callbacks when the app no longer needs them.
-

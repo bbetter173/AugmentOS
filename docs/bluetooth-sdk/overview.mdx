@@ -4,7 +4,7 @@ description: "Build mobile apps that connect directly to smart glasses over Blue
 icon: "bluetooth"
 ---
 
-The Mentra Bluetooth SDK is the base SDK for building mobile apps that control smart glasses directly over Bluetooth. It gives Android, iOS, and React Native apps access to scanning, pairing, display commands, microphone audio, camera capture, streaming, Wi-Fi, device status, and hardware events.
+The Mentra Bluetooth SDK is the base SDK for building mobile apps that control smart glasses directly over Bluetooth. It gives Android, iOS, and React Native apps access to scanning, pairing, device status, microphone audio, camera capture on camera-equipped models, speaker playback on speaker-equipped models, streaming, Wi-Fi, hardware events, and display commands on display-equipped models.
 
 Use this SDK when your app owns the mobile experience and needs a direct phone-to-glasses connection.
 
@@ -23,9 +23,9 @@ If you are building a cloud Mini App that runs through MentraOS, start with the 
 ## What You Can Build
 
 - Native Android, iOS, or React Native apps that scan for and connect to MentraOS-compatible glasses.
-- Apps that display text, clear the display, and open the dashboard on supported glasses.
+- Apps that display text, clear the display, and open the dashboard on display-equipped glasses such as G2.
 - Apps that receive button, touch, swipe, head-up, battery, Wi-Fi, hotspot, stream, photo, audio, and diagnostic events.
-- Apps that control brightness, dashboard position, head-up angle, gallery-button behavior, camera settings, RGB LEDs, Wi-Fi, hotspot, microphone, camera, and streaming.
+- Apps that control model-supported features such as brightness, dashboard position, head-up angle, gallery-button behavior, camera settings, speaker playback, RGB LEDs, Wi-Fi, hotspot, microphone, camera, and streaming.
 - Local photo upload and RTMP, SRT, or WebRTC streaming workflows from a phone app.
 
 ## Bluetooth SDK vs App SDK
@@ -47,7 +47,7 @@ If you are building a cloud Mini App that runs through MentraOS, start with the 
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/bluetooth-sdk/quickstart">
-    Install the SDK, connect to glasses, and send your first display command.
+    Install the SDK, connect to Mentra Live, and read glasses status.
   </Card>
   <Card title="Example Apps" icon="mobile" href="/bluetooth-sdk/examples">
     Run the Android, iOS, and React Native starter apps from a fresh clone.

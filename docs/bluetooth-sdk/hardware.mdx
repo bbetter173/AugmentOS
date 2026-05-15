@@ -68,6 +68,11 @@ func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device) {
 
 Treat each advanced feature as optional. Your app should degrade gracefully if a model does not support camera, Wi-Fi, display batching, local transcription, streaming, RGB LEDs, or controller pairing.
 
+| Model | Display | Camera | Microphone | Speaker | Primary strengths |
+| --- | --- | --- | --- | --- | --- |
+| Mentra Live | No | Yes | Yes | Yes | Camera, microphone, speaker, Wi-Fi, streaming, phone-connected workflows |
+| G2 | Yes | No | Yes | No | Display and glanceable UI workflows |
+
 Unsupported operations are recoverable SDK errors. Reconcile command failures with the latest status snapshot before showing destructive UI.
 
 ## Connection Resilience
@@ -77,4 +82,3 @@ Unsupported operations are recoverable SDK errors. Reconcile command failures wi
 - On mobile OS background transitions, expect Bluetooth behavior to vary by platform.
 - Provide a visible "forget device" path that clears both the SDK default device and any app-persisted default-device record.
 - If your app persists a default device, restore it with `setDefaultDevice()` before calling `connectDefault()`.
-

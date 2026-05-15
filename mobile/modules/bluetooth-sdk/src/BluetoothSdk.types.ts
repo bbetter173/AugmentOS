@@ -211,32 +211,10 @@ export const DeviceModels = {
 export type DeviceModel = (typeof DeviceModels)[keyof typeof DeviceModels]
 export type ObservableStoreCategory = "glasses" | "bluetooth" | "core"
 
-export type DisplayTextRequest = {
-  text: string
-  x?: number
-  y?: number
-  size?: number
-}
-
-export type DashboardPositionRequest = {
-  height: number
-  depth: number
-}
-
 export type DashboardMenuItem = {
   title: string
   packageName: string
   values?: Record<string, unknown>
-}
-
-export type ButtonPhotoSettings = {
-  size: ButtonPhotoSize
-}
-
-export type ButtonVideoRecordingSettings = {
-  width: number
-  height: number
-  fps: number
 }
 
 export type CameraFov = "standard" | "wide"
@@ -250,13 +228,6 @@ export type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
 export type MicMode = "phone" | "glasses" | "btclassic" | "bt"
 /** @deprecated Use {@link MicMode} for active/ranked mic modes or {@link MicPreference} for preferences. */
 export type MicRanking = MicMode
-
-export type MicConfig = {
-  sendPcmData: boolean
-  sendTranscript: boolean
-  bypassVad: boolean
-  sendLc3Data?: boolean
-}
 
 export type StreamVideoConfig = {
   width?: number
@@ -604,10 +575,6 @@ export interface Device {
   rssi?: number
 }
 
-export interface DeviceScanRequest {
-  model: DeviceModel
-}
-
 export interface ConnectOptions {
   saveAsDefault?: boolean
   cancelExistingConnectionAttempt?: boolean
@@ -661,7 +628,7 @@ export type BluetoothSettingsUpdate = Partial<{
   menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
   gallery_mode: boolean
   button_photo_size: ButtonPhotoSize
-  button_video_settings: ButtonVideoRecordingSettings
+  button_video_settings: {width: number; height: number; fps: number}
   button_video_width: number
   button_video_height: number
   button_video_fps: number

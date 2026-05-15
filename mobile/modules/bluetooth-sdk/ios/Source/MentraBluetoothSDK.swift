@@ -2115,6 +2115,10 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.forget()
     }
 
+    public func displayText(_ text: String, x: Int = 0, y: Int = 0, size: Int = 24) async throws {
+        try await displayText(DisplayTextRequest(text: text, x: x, y: y, size: size))
+    }
+
     public func displayText(_ request: DisplayTextRequest) async throws {
         DeviceManager.shared.displayText(request.dictionary)
     }
@@ -2142,9 +2146,13 @@ public final class MentraBluetoothSDK {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "auto_brightness", enabled)
     }
 
+    public func setDashboardPosition(height: Int, depth: Int) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "dashboard_height", height)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "dashboard_depth", depth)
+    }
+
     public func setDashboardPosition(_ request: DashboardPositionRequest) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "dashboard_height", request.height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "dashboard_depth", request.depth)
+        try await setDashboardPosition(height: request.height, depth: request.depth)
     }
 
     public func setDashboardMenu(_ items: [DashboardMenuItem]) async throws {
@@ -2167,14 +2175,22 @@ public final class MentraBluetoothSDK {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", mode == .auto)
     }
 
+    public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_photo_size", size.rawValue)
+    }
+
     public func setButtonPhotoSettings(_ settings: ButtonPhotoSettings) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_photo_size", settings.size.rawValue)
+        try await setButtonPhotoSettings(size: settings.size)
+    }
+
+    public func setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_width", width)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_height", height)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", fps)
     }
 
     public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_width", settings.width)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_height", settings.height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", settings.fps)
+        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, fps: settings.fps)
     }
 
     public func setButtonCameraLed(enabled: Bool) async throws {
@@ -2189,11 +2205,48 @@ public final class MentraBluetoothSDK {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "camera_fov", fov.value)
     }
 
+    public func setMicState(
+        enabled: Bool,
+        useGlassesMic: Bool = true,
+        bypassVad: Bool = false,
+        sendTranscript: Bool = false,
+        sendLc3Data: Bool = false
+    ) {
+        if enabled {
+            DeviceStore.shared.apply(
+                ObservableStore.bluetoothCategory,
+                "preferred_mic",
+                useGlassesMic ? MicPreference.glasses.rawValue : MicPreference.phone.rawValue
+            )
+        }
+        applyMicState(
+            sendPcmData: enabled,
+            sendTranscript: enabled && sendTranscript,
+            bypassVad: bypassVad,
+            sendLc3Data: enabled && sendLc3Data
+        )
+    }
+
+    @available(*, deprecated, message: "Use setMicState(enabled:useGlassesMic:bypassVad:) instead.")
     public func setMicState(_ config: MicConfiguration) {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_pcm", config.sendPcmData)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_lc3", config.sendLc3Data)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_transcript", config.sendTranscript)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "bypass_vad", config.bypassVad)
+        applyMicState(
+            sendPcmData: config.sendPcmData,
+            sendTranscript: config.sendTranscript,
+            bypassVad: config.bypassVad,
+            sendLc3Data: config.sendLc3Data
+        )
+    }
+
+    private func applyMicState(
+        sendPcmData: Bool,
+        sendTranscript: Bool,
+        bypassVad: Bool,
+        sendLc3Data: Bool
+    ) {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_pcm", sendPcmData)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_lc3", sendLc3Data)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_transcript", sendTranscript)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "bypass_vad", bypassVad)
         DeviceManager.shared.setMicState()
     }
 

@@ -74,7 +74,7 @@ Keep one SDK instance per active app session. The SDK owns Bluetooth connection 
   <Tab title="React Native">
 
 ```ts
-await BluetoothSdk.startScan({model: DeviceModels.MentraLive});
+await BluetoothSdk.startScan(DeviceModels.MentraLive);
 
 await BluetoothSdk.connect(device);
 await BluetoothSdk.setDefaultDevice({

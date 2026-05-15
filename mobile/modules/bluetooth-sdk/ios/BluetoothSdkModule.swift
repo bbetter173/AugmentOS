@@ -108,15 +108,9 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             try? await sdk.displayEvent(DisplayEventRequest(values: params))
         }
 
-        AsyncFunction("displayText") { (params: [String: Any]) in
-            let request = DisplayTextRequest(
-                text: params["text"] as? String ?? "",
-                x: intValue(params["x"], defaultValue: 0),
-                y: intValue(params["y"], defaultValue: 0),
-                size: intValue(params["size"], defaultValue: 24)
-            )
+        AsyncFunction("displayText") { (text: String, x: Int?, y: Int?, size: Int?) in
             let sdk = await MainActor.run { self.bluetoothSdk() }
-            try? await sdk.displayText(request)
+            try? await sdk.displayText(text, x: x ?? 0, y: y ?? 0, size: size ?? 24)
         }
 
         // MARK: - Connection Commands
@@ -193,9 +187,8 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
-        AsyncFunction("startScan") { (params: [String: Any]) in
+        AsyncFunction("startScan") { (model: String) in
             try await MainActor.run {
-                let model = params["model"] as? String ?? DeviceTypes.LIVE
                 try self.bluetoothSdk().startScan(model: DeviceModel.fromDeviceType(model))
             }
         }
@@ -448,15 +441,20 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         // MARK: - Microphone Commands
 
-        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool, sendLc3Data: Bool?) in
+        AsyncFunction("setMicState") { (
+            enabled: Bool,
+            useGlassesMic: Bool?,
+            bypassVad: Bool?,
+            sendTranscript: Bool?,
+            sendLc3Data: Bool?
+        ) in
             await MainActor.run {
                 self.bluetoothSdk().setMicState(
-                    MicConfiguration(
-                        sendPcmData: sendPcmData,
-                        sendTranscript: sendTranscript,
-                        bypassVad: bypassVad,
-                        sendLc3Data: sendLc3Data ?? false
-                    )
+                    enabled: enabled,
+                    useGlassesMic: useGlassesMic ?? true,
+                    bypassVad: bypassVad ?? false,
+                    sendTranscript: sendTranscript ?? false,
+                    sendLc3Data: sendLc3Data ?? false
                 )
             }
         }
@@ -520,19 +518,6 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             MainActor.assumeIsolated {
                 body()
             }
-        }
-    }
-
-    private func intValue(_ value: Any?, defaultValue: Int) -> Int {
-        switch value {
-        case let value as Int:
-            return value
-        case let value as Double:
-            return Int(value)
-        case let value as NSNumber:
-            return value.intValue
-        default:
-            return defaultValue
         }
     }
 

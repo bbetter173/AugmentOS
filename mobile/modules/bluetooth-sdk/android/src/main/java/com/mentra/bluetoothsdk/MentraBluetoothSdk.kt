@@ -161,6 +161,11 @@ class MentraBluetoothSdk private constructor(
         deviceManager.forget()
     }
 
+    @JvmOverloads
+    fun displayText(text: String, x: Int = 0, y: Int = 0, size: Int = 24) {
+        displayText(DisplayTextRequest(text = text, x = x, y = y, size = size))
+    }
+
     fun displayText(request: DisplayTextRequest) {
         deviceManager.displayText(request.toMap())
     }
@@ -187,9 +192,13 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "auto_brightness", enabled)
     }
 
+    fun setDashboardPosition(height: Int, depth: Int) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "dashboard_height", height)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "dashboard_depth", depth)
+    }
+
     fun setDashboardPosition(request: DashboardPositionRequest) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "dashboard_height", request.height)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "dashboard_depth", request.depth)
+        setDashboardPosition(height = request.height, depth = request.depth)
     }
 
     fun setDashboardMenu(items: List<DashboardMenuItem>) {
@@ -212,14 +221,22 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", mode == GalleryMode.AUTO)
     }
 
+    fun setButtonPhotoSettings(size: ButtonPhotoSize) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_photo_size", size.value)
+    }
+
     fun setButtonPhotoSettings(settings: ButtonPhotoSettings) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_photo_size", settings.size.value)
+        setButtonPhotoSettings(size = settings.size)
+    }
+
+    fun setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_width", width)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_height", height)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", fps)
     }
 
     fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_width", settings.width)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_height", settings.height)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", settings.fps)
+        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, fps = settings.fps)
     }
 
     fun setButtonCameraLed(enabled: Boolean) {
@@ -238,11 +255,53 @@ class MentraBluetoothSdk private constructor(
         )
     }
 
+    fun setMicState(
+        enabled: Boolean,
+        useGlassesMic: Boolean = true,
+        bypassVad: Boolean = false,
+        sendTranscript: Boolean = false,
+        sendLc3Data: Boolean = false,
+    ) {
+        if (enabled) {
+            DeviceStore.apply(
+                ObservableStore.BLUETOOTH_CATEGORY,
+                "preferred_mic",
+                if (useGlassesMic) MicPreference.GLASSES.value else MicPreference.PHONE.value,
+            )
+        }
+        applyMicState(
+            sendPcmData = enabled,
+            sendTranscript = enabled && sendTranscript,
+            bypassVad = bypassVad,
+            sendLc3Data = enabled && sendLc3Data,
+        )
+    }
+
+    @Deprecated(
+        "Use setMicState(enabled = ..., useGlassesMic = ..., bypassVad = ...) instead.",
+        ReplaceWith(
+            "setMicState(enabled = config.sendPcmData, bypassVad = config.bypassVad, sendTranscript = config.sendTranscript, sendLc3Data = config.sendLc3Data)"
+        ),
+    )
     fun setMicState(config: MicConfig) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_pcm", config.sendPcmData)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_lc3", config.sendLc3Data)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_transcript", config.sendTranscript)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "bypass_vad", config.bypassVad)
+        applyMicState(
+            sendPcmData = config.sendPcmData,
+            sendTranscript = config.sendTranscript,
+            bypassVad = config.bypassVad,
+            sendLc3Data = config.sendLc3Data,
+        )
+    }
+
+    private fun applyMicState(
+        sendPcmData: Boolean,
+        sendTranscript: Boolean,
+        bypassVad: Boolean,
+        sendLc3Data: Boolean,
+    ) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_pcm", sendPcmData)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_lc3", sendLc3Data)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_transcript", sendTranscript)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "bypass_vad", bypassVad)
         deviceManager.setMicState()
     }
 

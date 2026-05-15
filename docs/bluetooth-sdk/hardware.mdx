@@ -29,7 +29,7 @@ const removeBluetooth = BluetoothSdk.onBluetoothStatus((status) => {
   }
 });
 
-await BluetoothSdk.startScan({model: DeviceModels.MentraLive});
+await BluetoothSdk.startScan(DeviceModels.MentraLive);
 ```
 
   </Tab>

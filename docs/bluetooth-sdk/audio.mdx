@@ -16,40 +16,21 @@ Mentra Live and G2 both have microphones. Mentra Live has a speaker; G2 does not
   <Tab title="React Native">
 
 ```ts
-await BluetoothSdk.setMicState({
-  sendPcmData: true,
-  sendTranscript: true,
-  bypassVad: false,
-  sendLc3Data: false,
-});
+await BluetoothSdk.setMicState(true, true, false);
 ```
 
   </Tab>
   <Tab title="Android">
 
 ```kotlin
-sdk.setMicState(
-    MicConfig(
-        sendPcmData = true,
-        sendTranscript = true,
-        bypassVad = false,
-        sendLc3Data = false,
-    )
-)
+sdk.setMicState(enabled = true, useGlassesMic = true, bypassVad = false)
 ```
 
   </Tab>
   <Tab title="iOS">
 
 ```swift
-sdk.setMicState(
-    MicConfiguration(
-        sendPcmData: true,
-        sendTranscript: true,
-        bypassVad: false,
-        sendLc3Data: false
-    )
-)
+sdk.setMicState(enabled: true, useGlassesMic: true, bypassVad: false)
 ```
 
   </Tab>

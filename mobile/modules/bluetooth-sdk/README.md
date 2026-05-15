@@ -131,18 +131,13 @@ const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
   console.log('Glasses status changed', status)
 })
 
-await BluetoothSdk.startScan({model: DeviceModels.MentraLive})
+await BluetoothSdk.startScan(DeviceModels.MentraLive)
 
 await BluetoothSdk.connect(await firstDevice)
 
 const glasses = await BluetoothSdk.getGlassesStatus()
 if (isReadyGlassesConnectionStatus(glasses.connection)) {
-  await BluetoothSdk.displayText({
-    text: 'Hello from Mentra',
-    x: 0,
-    y: 0,
-    size: 24,
-  })
+  await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
 }
 
 removeGlassesListener()
@@ -186,7 +181,7 @@ await saveDeviceToYourAppStorage(null)
 await BluetoothSdk.clearDisplay()
 await BluetoothSdk.showDashboard()
 await BluetoothSdk.setBrightness(60, false)
-await BluetoothSdk.setDashboardPosition({height: 4, depth: 2})
+await BluetoothSdk.setDashboardPosition(4, 2)
 
 await BluetoothSdk.requestWifiScan()
 await BluetoothSdk.sendWifiCredentials('Office WiFi', 'secret')
@@ -197,12 +192,7 @@ await BluetoothSdk.setGalleryMode('auto')
 await BluetoothSdk.setGalleryMode('manual')
 
 await BluetoothSdk.setPreferredMic('auto')
-await BluetoothSdk.setMicState({
-  sendPcmData: true,
-  sendTranscript: true,
-  bypassVad: false,
-  sendLc3Data: false,
-})
+await BluetoothSdk.setMicState(true, true, false)
 await BluetoothSdk.setOwnAppAudioPlaying(false)
 
 await BluetoothSdk.rgbLedControl(

@@ -246,14 +246,12 @@ class BluetoothSdkModule : Module() {
             sdk?.displayEvent(DisplayEventRequest(params))
         }
 
-        AsyncFunction("displayText") { params: Map<String, Any> ->
+        AsyncFunction("displayText") { text: String, x: Int?, y: Int?, size: Int? ->
             sdk?.displayText(
-                    DisplayTextRequest(
-                            text = params["text"] as? String ?: "",
-                            x = (params["x"] as? Number)?.toInt() ?: 0,
-                            y = (params["y"] as? Number)?.toInt() ?: 0,
-                            size = (params["size"] as? Number)?.toInt() ?: 24,
-                    )
+                    text = text,
+                    x = x ?: 0,
+                    y = y ?: 0,
+                    size = size ?: 24,
             )
         }
 
@@ -292,8 +290,7 @@ class BluetoothSdkModule : Module() {
 
         AsyncFunction("forgetController") { deviceManager?.forgetController() }
 
-        AsyncFunction("startScan") { params: Map<String, Any> ->
-            val model = params["model"] as? String ?: DeviceTypes.LIVE
+        AsyncFunction("startScan") { model: String ->
             sdk?.startScan(DeviceModel.fromDeviceType(model))
         }
 
@@ -413,17 +410,17 @@ class BluetoothSdkModule : Module() {
         // MARK: - Microphone Commands
 
         AsyncFunction("setMicState") {
-                sendPcmData: Boolean,
-                sendTranscript: Boolean,
-                bypassVad: Boolean,
+                enabled: Boolean,
+                useGlassesMic: Boolean?,
+                bypassVad: Boolean?,
+                sendTranscript: Boolean?,
                 sendLc3Data: Boolean? ->
             sdk?.setMicState(
-                    MicConfig(
-                            sendPcmData = sendPcmData,
-                            sendTranscript = sendTranscript,
-                            bypassVad = bypassVad,
-                            sendLc3Data = sendLc3Data ?: false,
-                    )
+                    enabled = enabled,
+                    useGlassesMic = useGlassesMic ?: true,
+                    bypassVad = bypassVad ?: false,
+                    sendTranscript = sendTranscript ?: false,
+                    sendLc3Data = sendLc3Data ?: false,
             )
         }
 

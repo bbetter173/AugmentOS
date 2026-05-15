@@ -110,7 +110,10 @@ iOS apps should include usage descriptions:
 `startScan()` starts the scan. Discovered devices arrive asynchronously through `onBluetoothStatus()` updates and `device_discovered` events.
 
 ```ts
-import BluetoothSdk, {type Device} from '@mentra/bluetooth-sdk'
+import BluetoothSdk, {
+  isReadyGlassesConnectionStatus,
+  type Device,
+} from '@mentra/bluetooth-sdk'
 
 const firstDevice = new Promise<Device>((resolve) => {
   let removeBluetoothListener = () => {}
@@ -130,15 +133,32 @@ const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
 await BluetoothSdk.startScan({model: 'Mentra Live'})
 
 await BluetoothSdk.connect(await firstDevice)
-await BluetoothSdk.displayText({
-  text: 'Hello from Mentra',
-  x: 0,
-  y: 0,
-  size: 24,
-})
+
+const glasses = await BluetoothSdk.getGlassesStatus()
+if (isReadyGlassesConnectionStatus(glasses.connection)) {
+  await BluetoothSdk.displayText({
+    text: 'Hello from Mentra',
+    x: 0,
+    y: 0,
+    size: 24,
+  })
+}
 
 removeGlassesListener()
 ```
+
+React Native status exposes `GlassesStatus.connection` as a discriminated union:
+
+```ts
+type GlassesConnectionStatus =
+  | {state: 'disconnected'}
+  | {state: 'scanning'}
+  | {state: 'connecting'}
+  | {state: 'bonding'}
+  | {state: 'connected'; fullyBooted: boolean}
+```
+
+Use `connection.state` for link progress. `fullyBooted` only exists when `state === 'connected'`. Android and iOS native APIs also keep `connectionState`, `connected`, and `fullyBooted` as native status properties for Kotlin and Swift callers.
 
 ## Default Device
 

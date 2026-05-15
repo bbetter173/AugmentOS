@@ -1,0 +1,330 @@
+---
+title: "Quickstart"
+description: "Install the Mentra Bluetooth SDK and connect a mobile app to smart glasses."
+icon: "rocket"
+---
+
+This quickstart shows the shortest path from package install to displaying text on connected smart glasses.
+
+<Warning>
+Use a physical phone for Bluetooth testing. Simulators and emulators are useful for UI and compile checks, but they do not provide the real Bluetooth path.
+</Warning>
+
+## Step 1: Install The SDK
+
+<Tabs>
+  <Tab title="React Native / Expo">
+
+```bash
+npm install @mentra/bluetooth-sdk
+npx expo install expo-build-properties
+```
+
+Add the config plugin to `app.json` or `app.config.ts`:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      [
+        "@mentra/bluetooth-sdk",
+        {
+          "node": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 28,
+            "packagingOptions": {
+              "pickFirst": [
+                "**/libc++_shared.so",
+                "**/libonnxruntime.so",
+                "**/libonnxruntime4j_jni.so"
+              ]
+            }
+          }
+        }
+      ]
+    ]
+  }
+}
+```
+
+Then generate and run a native build:
+
+```bash
+npx expo prebuild
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+  </Tab>
+  <Tab title="Android">
+
+Add the Android package:
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://www.jitpack.io")
+    }
+}
+```
+
+```kotlin
+// app/build.gradle.kts
+android {
+    defaultConfig {
+        minSdk = 28
+    }
+    packaging {
+        jniLibs {
+            pickFirsts += "**/libc++_shared.so"
+            pickFirsts += "**/libonnxruntime.so"
+            pickFirsts += "**/libonnxruntime4j_jni.so"
+        }
+    }
+}
+
+dependencies {
+    implementation("com.mentra:bluetooth-sdk:0.1.0")
+}
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+Add the CocoaPod:
+
+```ruby
+platform :ios, '15.1'
+
+target 'YourApp' do
+  use_frameworks!
+
+  pod 'MentraBluetoothSDK', '0.1.0'
+end
+```
+
+Install pods:
+
+```bash
+pod install
+```
+
+  </Tab>
+</Tabs>
+
+## Step 2: Add Permissions
+
+<Tabs>
+  <Tab title="React Native / Expo">
+
+Configure permissions in `app.json` or `app.config.ts`:
+
+```json
+{
+  "expo": {
+    "android": {
+      "permissions": [
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "ios": {
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "This app connects to your smart glasses over Bluetooth.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone when you enable audio features.",
+        "NSLocalNetworkUsageDescription": "This app connects to local photo and streaming helpers during development."
+      }
+    }
+  }
+}
+```
+
+  </Tab>
+  <Tab title="Android">
+
+Declare the platform permissions your app uses:
+
+```xml
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+```
+
+Some Android 12+ devices still require runtime location permission and Location services before BLE scan callbacks arrive.
+
+  </Tab>
+  <Tab title="iOS">
+
+Add usage descriptions to `Info.plist`:
+
+```xml
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>This app connects to your smart glasses over Bluetooth.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>This app uses the microphone when you enable audio features.</string>
+<key>NSLocalNetworkUsageDescription</key>
+<string>This app connects to local photo and streaming helpers during development.</string>
+```
+
+  </Tab>
+</Tabs>
+
+## Step 3: Connect And Display Text
+
+<Tabs>
+  <Tab title="React Native / Expo">
+
+```ts
+import BluetoothSdk, {
+  isReadyGlassesConnectionStatus,
+  type Device,
+} from '@mentra/bluetooth-sdk';
+
+const firstDevice = new Promise<Device>((resolve) => {
+  let removeBluetooth = () => {};
+  removeBluetooth = BluetoothSdk.onBluetoothStatus((status) => {
+    const device = status.searchResults?.[0];
+    if (device) {
+      removeBluetooth();
+      resolve(device);
+    }
+  });
+});
+
+const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
+  console.log('Glasses status changed', status);
+});
+
+await BluetoothSdk.startScan({model: 'Mentra Live'});
+await BluetoothSdk.connect(await firstDevice);
+
+const glasses = await BluetoothSdk.getGlassesStatus();
+if (isReadyGlassesConnectionStatus(glasses.connection)) {
+  await BluetoothSdk.displayText({
+    text: 'Hello from Mentra',
+    x: 0,
+    y: 0,
+    size: 24,
+  });
+}
+
+removeGlasses();
+```
+
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+import android.content.Context
+import com.mentra.bluetoothsdk.Device
+import com.mentra.bluetoothsdk.DeviceModel
+import com.mentra.bluetoothsdk.DisplayTextRequest
+import com.mentra.bluetoothsdk.GlassesStatusUpdate
+import com.mentra.bluetoothsdk.MentraBluetoothSdk
+import com.mentra.bluetoothsdk.MentraBluetoothSdkCallback
+
+class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
+    private val sdk = MentraBluetoothSdk.create(
+        context = context.applicationContext,
+        listener = this,
+    )
+    private var discoveredDevice: Device? = null
+
+    fun scan() {
+        sdk.startScan(DeviceModel.MENTRA_LIVE)
+    }
+
+    fun connect() {
+        discoveredDevice?.let { sdk.connect(it) }
+    }
+
+    fun showHello() {
+        sdk.displayText(DisplayTextRequest(text = "Hello from Android"))
+    }
+
+    override fun onDeviceDiscovered(device: Device) {
+        discoveredDevice = device
+    }
+
+    override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
+        // Keep app UI derived from SDK status.
+    }
+
+    fun close() {
+        sdk.close()
+    }
+}
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+import MentraBluetoothSDK
+
+@MainActor
+final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
+    private let sdk = MentraBluetoothSDK()
+    private var discoveredDevice: Device?
+
+    override init() {
+        super.init()
+        sdk.delegate = self
+    }
+
+    func scan() throws {
+        try sdk.startScan(model: .mentraLive)
+    }
+
+    func connect() throws {
+        guard let discoveredDevice else { return }
+        try sdk.connect(to: discoveredDevice)
+    }
+
+    func showHello() async throws {
+        try await sdk.displayText(DisplayTextRequest(text: "Hello from iOS"))
+    }
+
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device) {
+        discoveredDevice = device
+    }
+
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
+        // Keep app UI derived from SDK status.
+    }
+
+    deinit {
+        sdk.invalidate()
+    }
+}
+```
+
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Run Example Apps" icon="mobile" href="/bluetooth-sdk/examples">
+    Start from complete Android, iOS, and React Native examples.
+  </Card>
+  <Card title="API Reference" icon="book" href="/bluetooth-sdk/api-reference">
+    Learn the lifecycle, commands, status fields, and events.
+  </Card>
+</CardGroup>
+

@@ -1,0 +1,94 @@
+---
+title: "Audio"
+description: "Use microphone audio, local transcription, LC3/PCM callbacks, and audio-related device state."
+icon: "microphone"
+---
+
+The Bluetooth SDK exposes microphone state, raw audio callbacks, local transcription, and glasses media-volume behavior where supported by the connected model.
+
+<Info>
+Your app owns user-facing microphone permission copy. Ask for microphone access only when the feature needs it, and provide a visible way to disable microphone streaming.
+</Info>
+
+## Enable Microphone Features
+
+<Tabs>
+  <Tab title="React Native">
+
+```ts
+await BluetoothSdk.setMicState(true, true, false);
+```
+
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+sdk.setMicState(enabled = true, useGlassesMic = true, bypassVad = false)
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+try await sdk.setMicState(enabled: true, useGlassesMic: true, bypassVad: false)
+```
+
+  </Tab>
+</Tabs>
+
+## Local Transcription
+
+<Tabs>
+  <Tab title="React Native">
+
+```ts
+const sub = BluetoothSdk.addListener('local_transcription', (event) => {
+  console.log(`${event.text} final=${event.isFinal}`);
+});
+
+sub.remove();
+```
+
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+override fun onLocalTranscription(event: LocalTranscriptionEvent) {
+    Log.d("Mentra", "${event.text} final=${event.isFinal}")
+}
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEvent) {
+    if case let .localTranscription(transcription) = event {
+        print("\(transcription.text) final=\(transcription.isFinal)")
+    }
+}
+```
+
+  </Tab>
+</Tabs>
+
+## Raw Audio Callbacks
+
+React Native can listen for microphone PCM events:
+
+```ts
+const sub = BluetoothSdk.addListener('mic_pcm', (event) => {
+  console.log(event.pcm);
+});
+```
+
+Native Android and iOS apps receive equivalent audio callbacks through the SDK listener/delegate surfaces. Disable raw callbacks when the app no longer needs them.
+
+## Production Notes
+
+- Always provide a user-visible microphone permission explanation.
+- Let users disable microphone streaming.
+- Expect model availability to differ by platform, locale, and app configuration.
+- Keep cloud upload and retention policies explicit in your privacy disclosures.
+- Disable raw audio callbacks when the app no longer needs them.
+

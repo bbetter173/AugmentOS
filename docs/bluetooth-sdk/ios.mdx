@@ -1,0 +1,99 @@
+---
+title: "iOS"
+description: "Use the Mentra Bluetooth SDK from a native iOS app."
+icon: "apple"
+---
+
+Native iOS apps use the CocoaPod `MentraBluetoothSDK`.
+
+## Requirements
+
+- iOS deployment target `15.1` or newer.
+- Xcode 15 or newer.
+- CocoaPods.
+- A physical iPhone for Bluetooth, camera, microphone, direct phone photo, and direct phone WebRTC testing.
+
+## Podfile
+
+```ruby
+platform :ios, '15.1'
+
+target 'YourApp' do
+  use_frameworks!
+
+  pod 'MentraBluetoothSDK', '0.1.0'
+end
+```
+
+Install pods:
+
+```bash
+pod install
+```
+
+## Permissions
+
+Add usage descriptions to `Info.plist`:
+
+```xml
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>This app connects to your smart glasses over Bluetooth.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>This app uses the microphone when you enable audio features.</string>
+<key>NSLocalNetworkUsageDescription</key>
+<string>This app connects to local photo and streaming helpers during development.</string>
+```
+
+## Basic Flow
+
+```swift
+import MentraBluetoothSDK
+
+@MainActor
+final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
+    private let sdk = MentraBluetoothSDK()
+    private var discoveredDevice: Device?
+
+    override init() {
+        super.init()
+        sdk.delegate = self
+    }
+
+    func scan() throws {
+        try sdk.startScan(model: .mentraLive)
+    }
+
+    func connect() throws {
+        guard let discoveredDevice else { return }
+        try sdk.connect(to: discoveredDevice)
+    }
+
+    func showHello() async throws {
+        try await sdk.displayText(DisplayTextRequest(text: "Hello from iOS"))
+    }
+
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device) {
+        discoveredDevice = device
+    }
+
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
+        // Keep app UI derived from SDK status.
+    }
+
+    deinit {
+        sdk.invalidate()
+    }
+}
+```
+
+## Local SDK Override
+
+Use this only when developing the SDK itself before publishing a new CocoaPods version:
+
+```bash
+export MENTRA_BLUETOOTH_SDK_LOCAL_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk/ios
+pod install
+```
+
+Keep `MENTRA_BLUETOOTH_SDK_LOCAL_PATH` in your shell or CI environment, not in committed project settings.
+

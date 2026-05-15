@@ -9,7 +9,7 @@ import {LoadingCoverVideo} from "@/components/ota/LoadingCoverVideo"
 import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {checkBesUpdate, findMatchingMtkPatch, fetchVersionInfo, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecker"
-import {useGlassesStore} from "@/stores/glasses"
+import {selectGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {logEvent} from "@/utils/analytics"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
@@ -24,7 +24,7 @@ import {
   PROGRESS_TIMEOUT_MS,
   RETRY_INTERVAL_MS,
 } from "@/app/ota/otaProgressTimeouts"
-import { useNavigationStore } from "@/stores/navigation"
+import {useNavigationStore} from "@/stores/navigation"
 
 /** Legacy OTA: +20s on every watchdog / timer duration (shared defaults stay unchanged for progress.tsx). */
 const LEGACY_EXTRA_TIMEOUT_MS = 20_000
@@ -66,7 +66,7 @@ export default function OtaProgressScreen() {
   const [superMode] = useSetting(SETTINGS.super_mode.key)
   const otaProgress = useGlassesStore((state) => state.otaProgress)
   const otaUpdateAvailable = useGlassesStore((state) => state.otaUpdateAvailable)
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
   const wifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const wifiStatusKnown = useGlassesStore((state) => state.wifiStatusKnown)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
@@ -337,10 +337,7 @@ export default function OtaProgressScreen() {
     // already in the store. If a background prefetch (or a re-mount during an active
     // OTA — e.g. user navigated away and back) has already populated otaProgress,
     // wiping it here resets the visible progress bar to 0% and confuses the watchdog.
-    const inFlight =
-      otaProgress &&
-      otaProgress.status !== "FINISHED" &&
-      otaProgress.status !== "FAILED"
+    const inFlight = otaProgress && otaProgress.status !== "FINISHED" && otaProgress.status !== "FAILED"
     console.log(
       "OTA_TRACK: screen_mounted",
       JSON.stringify({

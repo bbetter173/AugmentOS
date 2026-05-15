@@ -144,10 +144,8 @@ data class GlassesStatus(
 ) {
     internal fun toMap(): Map<String, Any> =
         mapOf(
-            "fullyBooted" to fullyBooted,
-            "connected" to connected,
+            "connection" to connectionState.toStatusMap(connected, fullyBooted),
             "micEnabled" to micEnabled,
-            "connectionState" to connectionState.value,
             "btcConnected" to btcConnected,
             "signalStrength" to signalStrength,
             "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
@@ -419,10 +417,17 @@ data class GlassesStatusUpdate(
 ) {
     internal fun toMap(): Map<String, Any> =
         buildMap {
-            putIfNotNull("fullyBooted", fullyBooted)
-            putIfNotNull("connected", connected)
+            if (fullyBooted != null || connected != null || connectionState != null) {
+                val state =
+                    connectionState
+                        ?: if (connected == true || fullyBooted == true) {
+                            GlassesConnectionState.CONNECTED
+                        } else {
+                            GlassesConnectionState.DISCONNECTED
+                        }
+                put("connection", state.toStatusMap(connected == true, fullyBooted == true))
+            }
             putIfNotNull("micEnabled", micEnabled)
-            connectionState?.let { put("connectionState", it.value) }
             putIfNotNull("btcConnected", btcConnected)
             putIfNotNull("signalStrength", signalStrength)
             putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
@@ -1501,6 +1506,19 @@ enum class GlassesConnectionState(val value: String) {
 
     val isBusy: Boolean
         get() = this == SCANNING || this == CONNECTING || this == BONDING
+
+    internal fun toStatusMap(
+        connected: Boolean,
+        fullyBooted: Boolean,
+    ): Map<String, Any> =
+        when {
+            this == CONNECTED || connected || fullyBooted ->
+                mapOf("state" to "connected", "fullyBooted" to fullyBooted)
+            this == SCANNING -> mapOf("state" to "scanning")
+            this == CONNECTING -> mapOf("state" to "connecting")
+            this == BONDING -> mapOf("state" to "bonding")
+            else -> mapOf("state" to "disconnected")
+        }
 
     companion object {
         @JvmStatic

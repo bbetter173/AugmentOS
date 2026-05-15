@@ -11,7 +11,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
 import {checkForOtaUpdate, OTA_VERSION_URL_PROD} from "@/effects/OtaUpdateChecker"
 import {translate} from "@/i18n/translate"
-import {useGlassesStore, waitForGlassesState} from "@/stores/glasses"
+import {isGlassesConnected, selectGlassesConnected, useGlassesStore, waitForGlassesState} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {BgTimer} from "@mentra/island"
 
@@ -26,7 +26,7 @@ export default function OtaCheckForUpdatesScreen() {
   const glassesWifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const deviceName = defaultWearable || "Glasses"
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
   const [onboardingLiveCompleted] = useSetting(SETTINGS.onboarding_live_completed.key)
 
   const [checkState, setCheckState] = useState<CheckState>("checking")
@@ -136,7 +136,7 @@ export default function OtaCheckForUpdatesScreen() {
       if (cancelled || myGen !== performCheckGenerationRef.current) {
         return
       }
-      if (!useGlassesStore.getState().connected) {
+      if (!isGlassesConnected(useGlassesStore.getState().connection)) {
         console.log("OTA: Glasses disconnected while waiting for firmware info")
         return
       }
@@ -150,7 +150,7 @@ export default function OtaCheckForUpdatesScreen() {
       if (cancelled || myGen !== performCheckGenerationRef.current) {
         return
       }
-      if (!useGlassesStore.getState().connected) {
+      if (!isGlassesConnected(useGlassesStore.getState().connection)) {
         return
       }
 

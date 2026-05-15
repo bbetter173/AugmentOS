@@ -6,7 +6,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {useConnectionStore} from "@/stores/connection"
 import {useCoreStore} from "@/stores/core"
 import {useDebugStore} from "@/stores/debug"
-import {useGlassesStore} from "@/stores/glasses"
+import {selectGlassesConnected, selectGlassesReady, useGlassesStore} from "@/stores/glasses"
 import {useSaferAreaInsets} from "@/contexts/SaferAreaContext"
 import BluetoothSdk, {TouchEvent} from "@mentra/bluetooth-sdk"
 import {BgTimer} from "@mentra/island"
@@ -30,8 +30,8 @@ export default function CoreStatusBar() {
   const systemMicUnavailable = useCoreStore((state) => state.systemMicUnavailable)
   const micDataRecvd = useDebugStore((state) => state.micDataRecvd)
   const btcConnected = useGlassesStore((state) => state.btcConnected)
-  const glassesConnected = useGlassesStore((state) => state.connected)
-  const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
+  const glassesFullyBooted = useGlassesStore(selectGlassesReady)
   const cloudStatus = useConnectionStore((state) => state.status)
   const insets = useSaferAreaInsets()
   const [touchEvent, setTouchEvent] = useState<TouchEvent | null>(null)

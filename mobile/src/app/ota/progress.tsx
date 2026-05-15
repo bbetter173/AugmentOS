@@ -21,10 +21,10 @@ import {Screen, Header, Button, Text, Icon} from "@/components/ignite"
 import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useConnectionOverlayConfig} from "@/contexts/ConnectionOverlayContext"
-import {useGlassesStore} from "@/stores/glasses"
+import {isGlassesConnected, selectGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {getOtaErrorMessage, shouldShowChangeWifiForOtaDownloadFailure} from "@/utils/otaErrorMapping"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
-import { useNavigationStore } from "@/stores/navigation"
+import {useNavigationStore} from "@/stores/navigation"
 
 function isTerminalForWatchdog(d: DisplayState): boolean {
   return d === "complete" || d === "failed" || d === "restarting"
@@ -74,7 +74,7 @@ function hasRecoveringOtaReply(otaStatus: OtaStatus | null, otaProgress: OtaProg
 export default function OtaProgressScreen() {
   const {theme} = useAppTheme()
   const {replace, push} = useNavigationStore.getState()
-  const connected = useGlassesStore((s) => s.connected)
+  const connected = useGlassesStore(selectGlassesConnected)
   const otaStatus = useGlassesStore((s) => s.otaStatus)
   const otaProgress = useGlassesStore((s) => s.otaProgress)
 
@@ -249,7 +249,7 @@ export default function OtaProgressScreen() {
     return deriveDisplayState({
       otaStatus: s.otaStatus,
       otaProgress: s.otaProgress,
-      connected: s.connected,
+      connected: isGlassesConnected(s.connection),
       errorMsg: errorMsgRef.current,
       sawReconnectEdge: sawReconnectEdgeRef.current,
     })

@@ -8,8 +8,8 @@ import ToggleSetting from "@/components/settings/ToggleSetting"
 import {RouteButton} from "@/components/ui/RouteButton"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
-import {translate} from "@/i18n"
-import {useGlassesStore} from "@/stores/glasses"
+import {translate} from "@/i18n/translate"
+import {selectGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {ThemedStyle} from "@/theme"
 import showAlert from "@/utils/AlertUtils"
@@ -256,7 +256,7 @@ export default function NexDeveloperSettings() {
   const {theme, themed} = useAppTheme()
   const {push} = useNavigationStore.getState()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
   const deviceModel = useGlassesStore((state) => state.deviceModel)
   const features: Capabilities = getModelCapabilities(defaultWearable)
 
@@ -364,8 +364,7 @@ export default function NexDeveloperSettings() {
 
   const onSendImageClick = async () => {
     if (glassesConnected) {
-      console.warn("sendDisplayImage not yet implemented in Bluetooth SDK API")
-      console.log("Would display image:", selectedImageType, selectedImageSize)
+      await BluetoothSdk.displayImage(selectedImageType, selectedImageSize)
     } else {
       showAlert("Please connect to the device", "Please connect to the device", [
         {
@@ -394,8 +393,7 @@ export default function NexDeveloperSettings() {
   const onLc3AudioToggle = async (enabled: boolean) => {
     setLc3AudioEnabled(enabled)
     if (glassesConnected) {
-      console.log("setLc3AudioEnabled", enabled)
-      console.warn("setLc3AudioEnabled not yet implemented in Bluetooth SDK API")
+      await BluetoothSdk.setLc3AudioEnabled(enabled)
     }
   }
 
@@ -673,6 +671,7 @@ export default function NexDeveloperSettings() {
                 subtitle="Play audio received from glasses through LC3 codec"
                 value={lc3AudioEnabled}
                 onValueChange={onLc3AudioToggle}
+                containerStyle={$toggleContainer}
               />
             </View>
 

@@ -6,7 +6,7 @@ import socketComms from "@/services/SocketComms"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
 import {useCoreStore} from "@/stores/core"
 import {useDisplayStore} from "@/stores/display"
-import {useGlassesStore} from "@/stores/glasses"
+import {isGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {crustModuleMock, emitCrustEvent, resetCrustModuleMock} from "@/test-utils/mockCrustModule"
 import {coreModuleMock, emitCoreModuleEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
@@ -221,11 +221,15 @@ describe("MantleManager", () => {
     expect(crustModuleMock.setNotificationConfig).toHaveBeenCalledWith(true, [])
 
     emitCoreModuleEvent("bluetooth_status", {searching: true, otherBtConnected: true})
-    emitCoreModuleEvent("glasses_status", {connected: true, deviceModel: "Mentra Live", batteryLevel: 77})
+    emitCoreModuleEvent("glasses_status", {
+      connection: {state: "connected", fullyBooted: true},
+      deviceModel: "Mentra Live",
+      batteryLevel: 77,
+    })
 
     expect(useCoreStore.getState().searching).toBe(true)
     expect(useCoreStore.getState().otherBtConnected).toBe(true)
-    expect(useGlassesStore.getState().connected).toBe(true)
+    expect(isGlassesConnected(useGlassesStore.getState().connection)).toBe(true)
     expect(useGlassesStore.getState().deviceModel).toBe("Mentra Live")
     expect(useGlassesStore.getState().batteryLevel).toBe(77)
 
@@ -464,7 +468,7 @@ describe("MantleManager", () => {
   })
 
   it("tracks OTA events without accepting disconnected update availability", async () => {
-    useGlassesStore.getState().setGlassesInfo({connected: false})
+    useGlassesStore.getState().setGlassesInfo({connection: {state: "disconnected"}})
     useGlassesStore.getState().setOtaUpdateAvailable(null)
 
     emitCoreModuleEvent("ota_update_available", {
@@ -475,7 +479,7 @@ describe("MantleManager", () => {
     })
     expect(useGlassesStore.getState().otaUpdateAvailable).toBeNull()
 
-    useGlassesStore.getState().setGlassesInfo({connected: true})
+    useGlassesStore.getState().setGlassesInfo({connection: {state: "connected", fullyBooted: true}})
     emitCoreModuleEvent("ota_update_available", {
       version_code: 101,
       version_name: "1.0.1",

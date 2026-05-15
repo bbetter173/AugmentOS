@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import com.mentra.bluetoothsdk.utils.ConnTypes
 import com.mentra.bluetoothsdk.utils.ControllerTypes
 import com.mentra.bluetoothsdk.utils.PhoneAudioMonitor
 import java.util.Collections
@@ -384,6 +385,16 @@ class MentraBluetoothSdk private constructor(
                         "wifiConnected" to ((DeviceStore.get("glasses", "wifiConnected") as? Boolean) ?: false),
                         "wifiSsid" to ((DeviceStore.get("glasses", "wifiSsid") as? String) ?: ""),
                         "wifiLocalIp" to ((DeviceStore.get("glasses", "wifiLocalIp") as? String) ?: ""),
+                    )
+        }
+
+        if (changes.keys.any { it in setOf("connected", "fullyBooted", "connectionState") }) {
+            merged =
+                merged +
+                    mapOf(
+                        "connected" to ((DeviceStore.get("glasses", "connected") as? Boolean) ?: false),
+                        "fullyBooted" to ((DeviceStore.get("glasses", "fullyBooted") as? Boolean) ?: false),
+                        "connectionState" to ((DeviceStore.get("glasses", "connectionState") as? String) ?: ConnTypes.DISCONNECTED),
                     )
         }
 

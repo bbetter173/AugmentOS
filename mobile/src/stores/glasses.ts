@@ -1,20 +1,31 @@
-import {
-  GlassesConnectionState,
+import type {
+  GlassesConnectionStatus,
   GlassesStatus,
   HotspotStatus,
   OtaProgress,
   OtaStatus,
   OtaUpdateInfo,
   WifiStatus,
-  glassesConnectionStateFromValue,
-  isBusyGlassesConnectionState,
 } from "@mentra/bluetooth-sdk"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 
-export function isGlassesLinkLayerBusy(connectionState: GlassesConnectionState | undefined): boolean {
-  return isBusyGlassesConnectionState(connectionState)
+export function isGlassesConnected(connection: GlassesConnectionStatus): boolean {
+  return connection.state === "connected"
 }
+
+export function isGlassesReady(connection: GlassesConnectionStatus): boolean {
+  return connection.state === "connected" && connection.fullyBooted
+}
+
+export function isGlassesLinkLayerBusy(connection: GlassesConnectionStatus): boolean {
+  return connection.state === "scanning" || connection.state === "connecting" || connection.state === "bonding"
+}
+
+export const selectGlassesConnected = (state: {connection: GlassesConnectionStatus}) =>
+  isGlassesConnected(state.connection)
+
+export const selectGlassesReady = (state: {connection: GlassesConnectionStatus}) => isGlassesReady(state.connection)
 
 interface GlassesState extends GlassesStatus {
   wifiStatusKnown: boolean
@@ -77,12 +88,13 @@ function hotspotFromLegacyFields(info: LegacyHotspotFields): HotspotStatus | nul
 
 export const getGlasesInfoPartial = (state: GlassesStatus) => {
   const wifi = state.wifi
+  const connected = isGlassesConnected(state.connection)
   return {
     batteryLevel: state.batteryLevel,
     charging: state.charging,
     caseBatteryLevel: state.caseBatteryLevel,
     caseCharging: state.caseCharging,
-    connected: state.connected,
+    connected,
     wifiConnected: wifi.state === "connected",
     wifiSsid: wifi.state === "connected" ? wifi.ssid : "",
     deviceModel: state.deviceModel,
@@ -100,10 +112,8 @@ interface GlassesStore extends GlassesStatus {
 
 const initialState: GlassesStore = {
   // state:
-  fullyBooted: false,
-  connected: false,
+  connection: {state: "disconnected"},
   micEnabled: false,
-  connectionState: "DISCONNECTED",
   btcConnected: false,
   signalStrength: -1,
   signalStrengthUpdatedAt: 0,
@@ -164,12 +174,10 @@ export const useGlassesStore = create<GlassesState>()(
           hotspotPassword,
           hotspotGatewayIp,
           hotspotLocalIp,
-          connectionState,
           wifi,
           hotspot,
           ...sdkInfo
         } = info
-        const connectionStateUpdate = glassesConnectionStateFromValue(connectionState)
         const wifiUpdate = wifi ?? wifiFromLegacyFields({wifiConnected, wifiSsid, wifiLocalIp})
         const hotspotUpdate =
           hotspot ??
@@ -182,12 +190,11 @@ export const useGlassesStore = create<GlassesState>()(
         const next = {
           ...state,
           ...sdkInfo,
-          ...(connectionStateUpdate ? {connectionState: connectionStateUpdate} : {}),
           ...(wifiUpdate ? {wifi: wifiUpdate} : {}),
           ...(hotspotUpdate ? {hotspot: hotspotUpdate} : {}),
           ...(hasWifiInfoUpdate ? {wifiStatusKnown: true} : {}),
         }
-        if (next.connected === false) {
+        if (!isGlassesConnected(next.connection)) {
           next.wifiStatusKnown = false
         }
         return next

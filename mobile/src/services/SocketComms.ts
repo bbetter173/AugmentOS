@@ -20,7 +20,7 @@ import udp from "@/services/UdpManager"
 import ws from "@/services/WebSocketManager"
 import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {useDisplayStore} from "@/stores/display"
-import {useGlassesStore} from "@/stores/glasses"
+import {isGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {useNavigationStore} from "@/stores/navigation"
 import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
@@ -123,7 +123,7 @@ class SocketComms {
       ssid: wifi.state === "connected" ? wifi.ssid : null,
     }
 
-    const connected = glassesInfo.connected
+    const connected = isGlassesConnected(glassesInfo.connection)
 
     ws.sendText(
       JSON.stringify({

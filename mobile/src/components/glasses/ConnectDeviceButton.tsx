@@ -5,7 +5,7 @@ import {ActivityIndicator, View} from "react-native"
 import {Button} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
-import {useGlassesStore} from "@/stores/glasses"
+import {selectGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
 import {checkConnectivityRequirementsUI} from "@/utils/PermissionsUtils"
@@ -15,7 +15,7 @@ export const ConnectDeviceButton = () => {
   const {theme} = useAppTheme()
   const {push} = useNavigationStore.getState()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
   const isSearching = useCoreStore((state) => state.searching)
 
   if (glassesConnected) {

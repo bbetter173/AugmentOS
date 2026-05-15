@@ -9,7 +9,7 @@ import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import Toast from "react-native-toast-message"
-import {useGlassesStore} from "@/stores/glasses"
+import {selectGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {spacing, ThemedStyle} from "@/theme"
 import BluetoothSdk from "@mentra/bluetooth-sdk"
@@ -58,7 +58,7 @@ export default function CameraSettingsScreen() {
   const [cameraFovSetting, setCameraFovSetting] = useSetting(SETTINGS.camera_fov.key)
   const [postProcessing, setPostProcessing] = useSetting(SETTINGS.media_post_processing.key)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
 
   const currentFov: number =
     typeof cameraFovSetting?.fov === "number" &&

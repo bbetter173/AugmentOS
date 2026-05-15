@@ -34,33 +34,27 @@ export type BatteryStatusEvent = {
   timestamp: number
 }
 
-export type GlassesConnectionState =
-  | "DISCONNECTED"
-  | "SCANNING"
-  | "CONNECTING"
-  | "BONDING"
-  | "CONNECTED"
+export type GlassesConnectionStatus =
+  | {state: 'disconnected'}
+  | {state: 'scanning'}
+  | {state: 'connecting'}
+  | {state: 'bonding'}
+  | {state: 'connected'; fullyBooted: boolean}
 
-export function isGlassesConnectionState(value: unknown): value is GlassesConnectionState {
-  return (
-    value === "DISCONNECTED" ||
-    value === "SCANNING" ||
-    value === "CONNECTING" ||
-    value === "BONDING" ||
-    value === "CONNECTED"
-  )
+export type ConnectedGlassesConnectionStatus = Extract<GlassesConnectionStatus, {state: 'connected'}>
+
+export function isConnectedGlassesConnectionStatus(
+  status: GlassesConnectionStatus,
+): status is ConnectedGlassesConnectionStatus {
+  return status.state === 'connected'
 }
 
-export function glassesConnectionStateFromValue(value: unknown): GlassesConnectionState | null {
-  if (typeof value !== "string") {
-    return null
-  }
-  const normalized = value.trim().toUpperCase()
-  return isGlassesConnectionState(normalized) ? normalized : null
+export function isReadyGlassesConnectionStatus(status: GlassesConnectionStatus): boolean {
+  return status.state === 'connected' && status.fullyBooted
 }
 
-export function isBusyGlassesConnectionState(state: GlassesConnectionState | undefined): boolean {
-  return state === "SCANNING" || state === "CONNECTING" || state === "BONDING"
+export function isBusyGlassesConnectionStatus(status: GlassesConnectionStatus): boolean {
+  return status.state === 'scanning' || status.state === 'connecting' || status.state === 'bonding'
 }
 
 /** K900 `sr_getvol` response (Mentra Live glasses media step volume 0–15). */
@@ -84,28 +78,24 @@ export type LogEvent = {
   message: string
 }
 
-export type WifiStatus =
-  | {state: "disconnected"}
-  | {state: "connected"; ssid: string; localIp?: string}
+export type WifiStatus = {state: 'disconnected'} | {state: 'connected'; ssid: string; localIp?: string}
 
-export type ConnectedWifiStatus = Extract<WifiStatus, {state: "connected"}>
+export type ConnectedWifiStatus = Extract<WifiStatus, {state: 'connected'}>
 
 export function isConnectedWifiStatus(status: WifiStatus): status is ConnectedWifiStatus {
-  return status.state === "connected"
+  return status.state === 'connected'
 }
 
 export type WifiStatusChangeEvent = WifiStatus & {
   type: "wifi_status_change"
 }
 
-export type HotspotStatus =
-  | {state: "disabled"}
-  | {state: "enabled"; ssid: string; password: string; localIp: string}
+export type HotspotStatus = {state: 'disabled'} | {state: 'enabled'; ssid: string; password: string; localIp: string}
 
-export type EnabledHotspotStatus = Extract<HotspotStatus, {state: "enabled"}>
+export type EnabledHotspotStatus = Extract<HotspotStatus, {state: 'enabled'}>
 
 export function isEnabledHotspotStatus(status: HotspotStatus): status is EnabledHotspotStatus {
-  return status.state === "enabled"
+  return status.state === 'enabled'
 }
 
 export type HotspotStatusChangeEvent = HotspotStatus & {
@@ -482,10 +472,8 @@ export interface OtaProgress {
 
 export interface GlassesStatus {
   // state:
-  fullyBooted: boolean
-  connected: boolean
+  connection: GlassesConnectionStatus
   micEnabled: boolean
-  connectionState: GlassesConnectionState
   btcConnected: boolean
   signalStrength: number
   /** Milliseconds since epoch when signalStrength was last refreshed by the phone BLE stack. */

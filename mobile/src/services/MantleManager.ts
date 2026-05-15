@@ -2,8 +2,8 @@ import BluetoothSdk, {
   ButtonPressEvent,
   BluetoothStatus,
   GlassesStatus,
-  OtaProgress,
   OtaStatus,
+  OtaProgress,
   OtaUpdateInfo,
 } from "@mentra/bluetooth-sdk"
 import CrustModule from "crust"
@@ -13,6 +13,7 @@ import * as TaskManager from "expo-task-manager"
 import {shallow} from "zustand/shallow"
 
 import audioPlaybackService from "@/services/AudioPlaybackService"
+import miniSockets from "@/services/MiniSockets"
 import {requestMiniappSdkPhoto} from "@/services/miniapp/MiniappSdkPhotoHandler"
 import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {migrate} from "@/services/Migrations"
@@ -26,15 +27,16 @@ import {
   localMiniappRuntime,
   localSttFallbackCoordinator,
   micStateCoordinator,
+  BgTimer,
+  useAppStatusStore,
 } from "@mentra/island"
 import {useDisplayStore} from "@/stores/display"
-import {useGlassesStore, getGlasesInfoPartial} from "@/stores/glasses"
+import {getGlasesInfoPartial, isGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {useSettingsStore, SETTINGS} from "@/stores/settings"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
 import TranscriptProcessor from "@/utils/TranscriptProcessor"
 import {useCoreStore} from "@/stores/core"
 import udp from "@/services/UdpManager"
-import {BgTimer} from "@mentra/island"
 import {
   legacyOtaProgressFromOtaStatusEvent,
   normalizeOtaStatusEvent,
@@ -43,7 +45,6 @@ import {
 import {useDebugStore} from "@/stores/debug"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
 import {logE2EMetric} from "@/utils/e2eMetrics"
-import {useAppStatusStore} from "@mentra/island"
 import {attemptReconnectToDefaultWearable} from "@/effects/Reconnect"
 
 const LOCATION_TASK_NAME = "handleLocationUpdates"
@@ -146,7 +147,7 @@ class MantleManager {
           // — so the canonical names always win over anything in the host store.
           return {
             ...s,
-            connected: s.connected,
+            connected: isGlassesConnected(s.connection),
             deviceModel: s.deviceModel,
             batteryLevel: s.batteryLevel,
             charging: s.charging,
@@ -232,6 +233,7 @@ class MantleManager {
 
     localMiniappRuntime.cleanup()
     micStateCoordinator.cleanup()
+    miniSockets.stop()
 
     await socketComms.cleanup()
     restComms.goodbye()
@@ -243,11 +245,23 @@ class MantleManager {
 
     // Warm the local miniapp registry by reading lmas/ off disk. Cheap call —
     // it populates AppRegistry's cache so the first refreshApplets() doesn't
-    // pay the disk-walk cost in the UI thread.
-    await appRegistry.getInstalledMiniapps()
+    // pay the disk-walk cost in the UI thread. The result is also used below
+    // to gate MiniSockets startup.
+    const localApps = await appRegistry.getInstalledMiniapps()
 
     // Initialize local miniapp runtime
     localMiniappRuntime.initialize()
+
+    // Start MiniSockets conditionally (only if user has local miniapps)
+    if (localApps.length > 0) {
+      miniSockets.start()
+      miniSockets.onTextMessage((clientId, text) => {
+        // For MiniSocket clients, we need to identify the packageName from the CONNECT message.
+        // For now, route through LocalMiniappRuntime with a placeholder.
+        // The actual packageName binding happens in the CONNECT handler.
+        localMiniappRuntime.handleRawMessage(`__minisocket_${clientId}`, text)
+      })
+    }
   }
 
   private async syncNotificationSettingsToCrust() {
@@ -263,9 +277,12 @@ class MantleManager {
   private async setupPeriodicTasks() {
     this.sendCalendarEvents()
     // Calendar sync every hour
-    this.calendarSyncTimer = BgTimer.setInterval(() => {
-      this.sendCalendarEvents()
-    }, 60 * 60 * 1000) // 1 hour
+    this.calendarSyncTimer = BgTimer.setInterval(
+      () => {
+        this.sendCalendarEvents()
+      },
+      60 * 60 * 1000,
+    ) // 1 hour
 
     try {
       // only start location updates if we have the location permission:
@@ -363,7 +380,7 @@ class MantleManager {
         useGlassesStore.getState().setGlassesInfo(changed)
         localMiniappRuntime.forwardEvent("glasses_connection_state", changed)
         // TODO: this should be moved to the bluetooth sdk:
-        if (changed.connected === false) {
+        if (changed.connection?.state === "disconnected") {
           useGlassesStore.getState().setOtaUpdateAvailable(null)
         }
       }),
@@ -483,8 +500,8 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("switch_status", (event) => {
-          const switchType = typeof event.switch_type === "number" ? event.switch_type : event.switchType ?? -1
-          const switchValue = typeof event.switch_value === "number" ? event.switch_value : event.switchValue ?? -1
+          const switchType = typeof event.switch_type === "number" ? event.switch_type : (event.switchType ?? -1)
+          const switchValue = typeof event.switch_value === "number" ? event.switch_value : (event.switchValue ?? -1)
           const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now()
           socketComms.sendSwitchStatus(switchType, switchValue, timestamp)
           // TODO: remove
@@ -850,7 +867,7 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("ota_update_available", (event) => {
-          if (!useGlassesStore.getState().connected) {
+          if (!isGlassesConnected(useGlassesStore.getState().connection)) {
             console.log("📱 MANTLE: Ignoring ota_update_available - glasses not connected")
             return
           }
@@ -911,9 +928,9 @@ class MantleManager {
     }
 
     // one time get all:
-    const bluetoothStatus = await BluetoothSdk.getBluetoothStatus()
-    // console.log("MANTLE: Bluetooth status:", bluetoothStatus)
-    useCoreStore.getState().setCoreInfo(bluetoothStatus)
+    const coreStatus = await BluetoothSdk.getBluetoothStatus()
+    // console.log("MANTLE: core status:", coreStatus)
+    useCoreStore.getState().setCoreInfo(coreStatus)
 
     const glassesStatus = await BluetoothSdk.getGlassesStatus()
     // console.log("MANTLE: glasses status:", glassesStatus)

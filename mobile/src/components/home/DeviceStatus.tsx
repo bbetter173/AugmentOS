@@ -1,14 +1,13 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
 import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
-import {useState, useEffect} from "react"
-import {ActivityIndicator, Image, ImageSourcePropType, TouchableOpacity, View, ViewStyle} from "react-native"
-import type {ReactNode} from "react"
+import {useState, useEffect, type ReactNode} from "react"
+import {ActivityIndicator, Image, TouchableOpacity, View, type ImageSourcePropType, type ViewStyle} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
-import {useGlassesStore} from "@/stores/glasses"
+import {isGlassesConnected, isGlassesReady, useGlassesStore} from "@/stores/glasses"
 import {useSearchingState} from "@/hooks/useSearchingState"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
@@ -63,9 +62,9 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   const {push} = useNavigationStore.getState()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false)
-  const glassesConnected = useGlassesStore((state) => state.connected)
-  const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
-  const glassesConnectionState = useGlassesStore((state) => state.connectionState)
+  const glassesConnection = useGlassesStore((state) => state.connection)
+  const glassesConnected = isGlassesConnected(glassesConnection)
+  const glassesFullyBooted = isGlassesReady(glassesConnection)
   const glassesStyle = useGlassesStore((state) => state.style)
   const color = useGlassesStore((state) => state.color)
   const caseRemoved = useGlassesStore((state) => state.caseRemoved)
@@ -94,7 +93,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
     }
   }, [glassesFullyBooted, glassesConnected])
 
-  const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnectionState)
+  const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnection)
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
     return (

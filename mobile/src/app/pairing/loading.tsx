@@ -10,7 +10,7 @@ import GlassesPairingLoader from "@/components/glasses/GlassesPairingLoader"
 import GlassesTroubleshootingModal from "@/components/glasses/GlassesTroubleshootingModal"
 import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {submitAutomaticBugIncident} from "@/services/bugReport/automaticBugReport"
-import {useGlassesStore} from "@/stores/glasses"
+import {selectGlassesReady, useGlassesStore} from "@/stores/glasses"
 import {useNavigationStore} from "@/stores/navigation"
 
 export default function GlassesPairingLoadingScreen() {
@@ -23,7 +23,7 @@ export default function GlassesPairingLoadingScreen() {
   const showGlassesBootingRef = useRef(false)
   const hasSubmittedTimeoutIncidentRef = useRef(false)
   const hasNavigatedRef = useRef(false)
-  const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
+  const glassesFullyBooted = useGlassesStore(selectGlassesReady)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
   const clearPairingTimeout = useCallback(() => {

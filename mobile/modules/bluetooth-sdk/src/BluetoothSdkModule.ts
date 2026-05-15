@@ -6,10 +6,10 @@ import {
   BluetoothStatus,
   DeviceScanRequest,
   GalleryMode,
+  Device,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
-  Device,
   PhotoCompression,
   PhotoSize,
   RgbLedAction,
@@ -147,9 +147,30 @@ const DEFAULT_CONNECT_OPTIONS: Required<ConnectOptions> = {
   cancelExistingConnectionAttempt: true,
 }
 
+function adaptConnectionStatusToNative(connection: GlassesStatus["connection"]): Record<string, any> {
+  switch (connection.state) {
+    case "connected":
+      return {connectionState: "CONNECTED", connected: true, fullyBooted: connection.fullyBooted}
+    case "scanning":
+      return {connectionState: "SCANNING", connected: false, fullyBooted: false}
+    case "connecting":
+      return {connectionState: "CONNECTING", connected: false, fullyBooted: false}
+    case "bonding":
+      return {connectionState: "BONDING", connected: false, fullyBooted: false}
+    case "disconnected":
+      return {connectionState: "DISCONNECTED", connected: false, fullyBooted: false}
+  }
+}
+
 function adaptGlassesUpdateToNative(values: Partial<GlassesStatus>): Record<string, any> {
-  const {wifi, hotspot, ...rest} = values
+  const {wifi, hotspot, connection, ...rest} = values
   let update: Record<string, any> = {...rest}
+  if (connection) {
+    update = {
+      ...update,
+      ...adaptConnectionStatusToNative(connection),
+    }
+  }
   if (wifi?.state === "connected") {
     update = {
       ...update,

@@ -33,10 +33,8 @@ export const coreModuleMock = {
   ),
   getGlassesStatus: jest.fn(() =>
     Promise.resolve({
-      fullyBooted: false,
-      connected: false,
+      connection: {state: "disconnected"},
       micEnabled: false,
-      connectionState: "DISCONNECTED",
       btcConnected: false,
       signalStrength: -1,
       deviceModel: "",

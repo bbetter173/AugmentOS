@@ -286,6 +286,24 @@ public enum GlassesConnectionState: String, CustomStringConvertible, Equatable {
         self == .scanning || self == .connecting || self == .bonding
     }
 
+    func statusValues(connected: Bool, fullyBooted: Bool) -> [String: Any] {
+        if self == .connected || connected || fullyBooted {
+            return ["state": "connected", "fullyBooted": fullyBooted]
+        }
+        switch self {
+        case .scanning:
+            return ["state": "scanning"]
+        case .connecting:
+            return ["state": "connecting"]
+        case .bonding:
+            return ["state": "bonding"]
+        case .connected:
+            return ["state": "connected", "fullyBooted": fullyBooted]
+        case .disconnected:
+            return ["state": "disconnected"]
+        }
+    }
+
     public var description: String {
         rawValue
     }
@@ -379,9 +397,13 @@ public struct GlassesStatus: CustomStringConvertible {
 
     static func dictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
-        if let connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")) {
-            dictionary["connectionState"] = connectionState.rawValue
-        }
+        dictionary["connection"] = GlassesConnectionState(stringValue(values, "connectionState")).statusValues(
+            connected: boolValue(values, "connected") ?? false,
+            fullyBooted: boolValue(values, "fullyBooted") ?? false
+        )
+        dictionary.removeValue(forKey: "connected")
+        dictionary.removeValue(forKey: "fullyBooted")
+        dictionary.removeValue(forKey: "connectionState")
         dictionary["wifi"] = (WifiStatus.fromStoreValues(values) ?? .disconnected).values
         dictionary["hotspot"] = (HotspotStatus.fromStoreValues(values) ?? .disabled).values
         dictionary.removeValue(forKey: "wifiConnected")
@@ -397,8 +419,15 @@ public struct GlassesStatus: CustomStringConvertible {
 
     static func updateDictionary(from values: [String: Any]) -> [String: Any] {
         var dictionary = values
-        if let connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")) {
-            dictionary["connectionState"] = connectionState.rawValue
+        if hasAnyKey(values, "connection", "connected", "fullyBooted", "connectionState") {
+            dictionary["connection"] = (values["connection"] as? [String: Any])
+                ?? GlassesConnectionState(stringValue(values, "connectionState")).statusValues(
+                    connected: boolValue(values, "connected") ?? false,
+                    fullyBooted: boolValue(values, "fullyBooted") ?? false
+                )
+            dictionary.removeValue(forKey: "connected")
+            dictionary.removeValue(forKey: "fullyBooted")
+            dictionary.removeValue(forKey: "connectionState")
         }
         if hasAnyKey(values, "wifi", "wifiConnected", "wifiSsid", "wifiLocalIp") {
             let wifi = (values["wifi"] as? [String: Any]).flatMap(WifiStatus.init(values:))
@@ -2304,6 +2333,12 @@ public final class MentraBluetoothSDK {
             merged["wifiConnected"] = DeviceStore.shared.get("glasses", "wifiConnected") as? Bool ?? false
             merged["wifiSsid"] = DeviceStore.shared.get("glasses", "wifiSsid") as? String ?? ""
             merged["wifiLocalIp"] = DeviceStore.shared.get("glasses", "wifiLocalIp") as? String ?? ""
+        }
+
+        if changes.keys.contains(where: { ["connected", "fullyBooted", "connectionState"].contains($0) }) {
+            merged["connected"] = GlassesStore.shared.get("glasses", "connected") as? Bool ?? false
+            merged["fullyBooted"] = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+            merged["connectionState"] = GlassesStore.shared.get("glasses", "connectionState") as? String ?? "DISCONNECTED"
         }
 
         if changes["signalStrengthUpdatedAt"] != nil, changes["signalStrength"] == nil {

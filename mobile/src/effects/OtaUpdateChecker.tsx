@@ -4,7 +4,7 @@ import type {OtaUpdateInfo} from "@mentra/bluetooth-sdk"
 import {useEffect, useRef} from "react"
 
 import {useNavigationStore} from "@/stores/navigation"
-import {useGlassesStore, waitForGlassesState} from "@/stores/glasses"
+import {isGlassesConnected, selectGlassesConnected, useGlassesStore, waitForGlassesState} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
 import {translate} from "@/i18n/translate"
@@ -49,6 +49,10 @@ interface VersionJson {
 
 // OTA version URL constant
 export const OTA_VERSION_URL_PROD = "https://ota.mentraglass.com/prod_live_version.json"
+
+function areGlassesConnectedNow(): boolean {
+  return isGlassesConnected(useGlassesStore.getState().connection)
+}
 
 export async function fetchVersionInfo(url: string): Promise<VersionJson | null> {
   try {
@@ -387,7 +391,7 @@ export function OtaUpdateChecker() {
   // OTA check state from glasses store
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [superMode] = useSetting(SETTINGS.super_mode.key)
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
   const glassesWifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
@@ -497,7 +501,7 @@ export function OtaUpdateChecker() {
 
     // Last-moment imperative check: reactive glassesConnected can be stale if
     // disconnect and navigation happen in the same render cycle.
-    if (!useGlassesStore.getState().connected) return
+    if (!areGlassesConnectedNow()) return
 
     console.log("OTA: User returned to home with pending update - showing alert")
     const deviceName = defaultWearable || "Glasses"
@@ -521,7 +525,7 @@ export function OtaUpdateChecker() {
   useEffect(() => {
     if (!shouldShowCacheReadyPrompt({pathname, glassesConnected, glassesWifiConnected, otaUpdateAvailable})) return
     // Last-moment check: never show Mentra Live update alert when disconnected
-    if (!useGlassesStore.getState().connected) return
+    if (!areGlassesConnectedNow()) return
 
     const deviceName = defaultWearable || "Glasses"
     // shouldShowCacheReadyPrompt has already narrowed these — use optional chaining to satisfy TS.
@@ -591,7 +595,7 @@ export function OtaUpdateChecker() {
     // (version_info_1, version_info_2, version_info_3 arrive sequentially with ~100ms gaps)
     console.log("OTA: check scheduled - waiting 500ms for firmware version info...")
     otaCheckTimeoutRef.current = BgTimer.setTimeout(async () => {
-      let connected = useGlassesStore.getState().connected
+      let connected = areGlassesConnectedNow()
       // Re-check conditions after delay (glasses might have disconnected)
       if (!connected) {
         console.log("OTA: check cancelled - glasses disconnected during delay")
@@ -618,7 +622,7 @@ export function OtaUpdateChecker() {
         } else {
           console.log("OTA: BES version still unknown after extended wait - proceeding without it")
         }
-        connected = useGlassesStore.getState().connected
+        connected = areGlassesConnectedNow()
         if (!connected) {
           console.log("OTA: check cancelled - glasses disconnected while waiting for BES version")
           return
@@ -650,7 +654,7 @@ export function OtaUpdateChecker() {
           }
 
           // Verify glasses are still connected before showing alert
-          const currentlyConnected = useGlassesStore.getState().connected
+          const currentlyConnected = areGlassesConnectedNow()
           if (!currentlyConnected) {
             console.log("OTA: update found but glasses disconnected - skipping alert")
             return
@@ -673,7 +677,7 @@ export function OtaUpdateChecker() {
               const pending = pendingUpdate.current
               if (!pending) return // prefetch succeeded and was already handled
               if (pathnameRef.current !== "/home") return // user not on home - leave for later visit
-              if (!useGlassesStore.getState().connected) return // stale, glasses gone
+              if (!areGlassesConnectedNow()) return // stale, glasses gone
               console.log("OTA: cache-ready signal not received within timeout - showing fallback alert")
               const deviceName = defaultWearable || "Glasses"
               const updateCount = pending.updates.length

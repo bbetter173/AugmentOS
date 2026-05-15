@@ -57,6 +57,14 @@ export function isBusyGlassesConnectionStatus(status: GlassesConnectionStatus): 
   return status.state === 'scanning' || status.state === 'connecting' || status.state === 'bonding'
 }
 
+export function createDisconnectedGlassesStatus(): Partial<GlassesStatus> {
+  return {
+    connection: {state: 'disconnected'},
+    hotspot: {state: 'disabled'},
+    wifi: {state: 'disconnected'},
+  }
+}
+
 /** K900 `sr_getvol` response (Mentra Live glasses media step volume 0–15). */
 export type GlassesMediaVolumeGetResult = {
   vol: number

@@ -1,5 +1,5 @@
 import {useFocusEffect} from "@react-navigation/native"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
 import {useCallback, useEffect, useState} from "react"
 import {ActivityIndicator, BackHandler, Platform, ScrollView, View} from "react-native"
 

@@ -58,7 +58,7 @@ jest.mock("@/components/ignite", () => {
 
 const sb = (n: number) => String(n)
 
-const BluetoothSdk = require("@mentra/bluetooth-sdk").default
+const BluetoothSdk = require("@mentra/bluetooth-sdk/_internal").default
 
 function connectedGlassesInfo(values = {}) {
   return {connection: {state: "connected", fullyBooted: true} as const, ...values}

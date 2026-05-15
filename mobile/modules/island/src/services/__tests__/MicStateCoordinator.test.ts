@@ -1,6 +1,6 @@
 // Override the global Bluetooth SDK mock so we can capture `update` calls.
 const mockUpdate = jest.fn()
-jest.doMock("@mentra/bluetooth-sdk", () => ({
+jest.doMock("@mentra/bluetooth-sdk/_internal", () => ({
   __esModule: true,
   default: {
     update: mockUpdate,

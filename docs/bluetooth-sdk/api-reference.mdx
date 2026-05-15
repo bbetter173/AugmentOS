@@ -10,7 +10,7 @@ The Mentra Bluetooth SDK exposes the same core glasses lifecycle across Android,
 - Connect to a discovered `Device` or an app-restored default device.
 - Read typed glasses and Bluetooth status.
 - Subscribe to typed status and hardware events.
-- Send display, camera, stream, audio, Wi-Fi, LED, settings, OTA, and diagnostic commands where supported by the connected model.
+- Send display, camera, stream, audio, Wi-Fi, hotspot, LED, and settings commands where supported by the connected model.
 
 ## Packages And Imports
 
@@ -19,6 +19,8 @@ The Mentra Bluetooth SDK exposes the same core glasses lifecycle across Android,
 | Android | `com.mentra:bluetooth-sdk` | `import com.mentra.bluetoothsdk.*` |
 | iOS | `MentraBluetoothSDK` CocoaPod | `import MentraBluetoothSDK` |
 | React Native / Expo | `@mentra/bluetooth-sdk` | `import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk'` |
+
+Only documented root imports are part of the supported partner API. Package subpaths or symbols with a leading underscore are private implementation details and can change without notice.
 
 ## Lifecycle
 
@@ -85,7 +87,6 @@ await BluetoothSdk.clearDefaultDevice();
 await BluetoothSdk.cancelConnectionAttempt();
 await BluetoothSdk.disconnect();
 await BluetoothSdk.forget();
-await BluetoothSdk.connectSimulated();
 ```
 
   </Tab>
@@ -104,7 +105,6 @@ sdk.clearDefaultDevice()
 sdk.cancelConnectionAttempt()
 sdk.disconnect()
 sdk.forget()
-sdk.connectSimulated()
 ```
 
   </Tab>
@@ -123,7 +123,6 @@ sdk.clearDefaultDevice()
 sdk.cancelConnectionAttempt()
 sdk.disconnect()
 sdk.forget()
-sdk.connectSimulated()
 ```
 
   </Tab>
@@ -181,6 +180,59 @@ iOS exposes `GlassesStatus.connectionState` as the native `GlassesConnectionStat
 
 Status snapshots are safe to read at any time. Treat command success as "command accepted"; keep UI state derived from status callbacks.
 
+Public `GlassesStatus` fields:
+
+| Field | Meaning |
+| --- | --- |
+| `connection` | Discriminated connection state. `fullyBooted` exists only when connected. |
+| `micEnabled`, `btcConnected` | Microphone and Bluetooth-classic/audio state reported by the connected model. |
+| `signalStrength`, `signalStrengthUpdatedAt` | BLE RSSI and last phone-side refresh time. |
+| `deviceModel`, `bluetoothName`, `serialNumber`, `style`, `color` | Device identity fields when the model reports them. |
+| `androidVersion`, `appVersion`, `buildNumber`, `fwVersion`, `besFwVersion`, `mtkFwVersion` | Version fields. See Version Fields below for how to display them. |
+| `btMacAddress`, `leftMacAddress`, `rightMacAddress` | Model-specific Bluetooth addresses when available. |
+| `wifi`, `hotspot` | Typed Wi-Fi and hotspot status unions. |
+| `batteryLevel`, `charging`, `caseBatteryLevel`, `caseCharging`, `caseOpen`, `caseRemoved` | Device and case battery state where supported. Unknown battery levels are reported as `-1`. |
+| `controllerConnected`, `controllerFullyBooted`, `controllerMacAddress`, `controllerBatteryLevel`, `controllerSignalStrength` | Controller/ring status for models with a companion controller. |
+
+Public `BluetoothStatus` fields:
+
+| Field | Meaning |
+| --- | --- |
+| `searching`, `searchingController` | Phone-side scan activity. |
+| `searchResults` | Discovered glasses `Device[]` for the active model scan. |
+| `wifiScanResults` | Wi-Fi networks returned by glasses-side Wi-Fi scan. |
+| `systemMicUnavailable`, `micRanking`, `currentMic`, `otherBtConnected` | Phone/glasses microphone and audio-route status. |
+| `lastLog` | Recent SDK log lines for developer visibility. |
+| `gallery_mode` | Current gallery-button behavior setting known to the SDK. |
+
+## React Native Public Surface
+
+The React Native root export intentionally exposes a narrower surface than the MentraOS internal adapter. These methods are the supported partner entrypoints:
+
+| Area | Methods |
+| --- | --- |
+| Status and subscriptions | `getGlassesStatus`, `getBluetoothStatus`, `onGlassesStatus`, `onBluetoothStatus`, `addListener` |
+| Default device | `getDefaultDevice`, `setDefaultDevice`, `clearDefaultDevice` |
+| Connection | `startScan`, `stopScan`, `connectFirst`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
+| Display | `displayText`, `clearDisplay`, `showDashboard`, `setBrightness`, `setAutoBrightness`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
+| Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
+| Camera and gallery | `photoRequest`, `queryGalleryStatus`, `setGalleryMode`, `setButtonPhotoSettings`, `setButtonVideoRecordingSettings`, `setButtonCameraLed`, `setButtonMaxRecordingTime`, `setCameraFov`, `startVideoRecording`, `stopVideoRecording` |
+| Streaming | `startStream`, `keepStreamAlive`, `stopStream` |
+| Audio | `setMicState`, `setPreferredMic`, `setOwnAppAudioPlaying`, `getGlassesMediaVolume`, `setGlassesMediaVolume` |
+| LED and version | `rgbLedControl`, `requestVersionInfo` |
+
+React Native helper exports include `DeviceModels`, `createDisconnectedGlassesStatus`, `isConnectedGlassesConnectionStatus`, `isReadyGlassesConnectionStatus`, `isBusyGlassesConnectionStatus`, `isConnectedWifiStatus`, and `isEnabledHotspotStatus`.
+
+Important defaults:
+
+- `connectFirst(model, options)` scans until the first matching device is found, connects to it, and times out after 15 seconds unless `options.timeoutMs` is set.
+- `connect`, `connectDefault`, and `connectFirst` default `saveAsDefault` and `cancelExistingConnectionAttempt` to `true`.
+- `displayText(text, x, y, size)` defaults to `x = 0`, `y = 0`, and `size = 24`.
+- `setBrightness(level)` leaves auto-brightness unchanged; pass `setBrightness(level, false)` or call `setAutoBrightness(false)` when you need manual brightness.
+- `setMicState(enabled)` defaults to glasses microphone on, VAD bypass off, transcript events off, and LC3 events off.
+- `photoRequest(..., authToken, ...)` omits the `Authorization` header when `authToken` is `null` or empty.
+- `startStream` optional `video` and `audio` configs are omitted unless supplied, so the connected glasses use their model defaults.
+
 ## Common Commands
 
 | Area | Commands |
@@ -193,7 +245,7 @@ Status snapshots are safe to read at any time. Treat command success as "command
 | Audio | `setMicState`, audio callbacks, local transcription, media volume |
 | Settings | Brightness, dashboard position, head-up angle, screen disabled, gallery mode |
 | LEDs | `rgbLedControl` on supported glasses |
-| System | Version info, OTA status, shutdown, restart, diagnostic events |
+| System | `requestVersionInfo` |
 
 Mentra Live has camera, microphone, and speaker hardware, but no display. G2 has display and microphone hardware, but no camera or speaker. Gate UI for display, camera, and speaker features by the connected model.
 
@@ -222,7 +274,7 @@ Android and iOS receive the same event families through their SDK callback and d
 | Camera | Photo request result, gallery state, camera settings |
 | Streaming | Stream initializing, active, stopped, error |
 | Audio | Microphone PCM, LC3, local transcription, audio route state |
-| Diagnostics | BLE, TX, STORE, and raw SDK diagnostics |
+| Diagnostics | SDK log events |
 
 ## Version Fields
 

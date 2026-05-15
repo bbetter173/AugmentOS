@@ -1,5 +1,5 @@
 import {ScrollView, View} from "react-native"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
 
 import {Header, Screen} from "@/components/ignite"
 import ToggleSetting from "@/components/settings/ToggleSetting"

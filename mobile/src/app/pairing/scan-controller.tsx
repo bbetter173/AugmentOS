@@ -1,4 +1,4 @@
-import BluetoothSdk, {type Device, type DeviceModel} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {type Device, type DeviceModel} from "@mentra/bluetooth-sdk/_internal"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"
@@ -53,7 +53,7 @@ export default function SelectGlassesBluetoothScreen() {
   useEffect(() => {
     const initializeAndSearchForDevices = async () => {
       try {
-        await BluetoothSdk.startScan({model: deviceModel})
+        await BluetoothSdk.startScan(deviceModel)
       } catch (error) {
         console.error("Failed to start controller scan:", error)
       }

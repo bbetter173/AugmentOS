@@ -294,6 +294,8 @@ class BluetoothSdkModule : Module() {
             sdk?.startScan(DeviceModel.fromDeviceType(model))
         }
 
+        AsyncFunction("stopScan") { sdk?.stopScan() }
+
         AsyncFunction("cancelConnectionAttempt") { sdk?.cancelConnectionAttempt() }
 
         AsyncFunction("showDashboard") { sdk?.showDashboard() }

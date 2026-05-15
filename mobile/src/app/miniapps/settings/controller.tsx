@@ -13,7 +13,7 @@ import {Group} from "@/components/ui"
 import {RouteButton} from "@/components/ui/RouteButton"
 
 import {DeviceTypes} from "@/../../cloud/packages/types/src"
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
 
 import {EmptyState} from "@/components/glasses/info/EmptyState"
 import {showAlert} from "@/contexts/ModalContext"

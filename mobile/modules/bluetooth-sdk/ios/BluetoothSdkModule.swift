@@ -193,6 +193,12 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
+        AsyncFunction("stopScan") {
+            await MainActor.run {
+                self.bluetoothSdk().stopScan()
+            }
+        }
+
         AsyncFunction("cancelConnectionAttempt") {
             await MainActor.run {
                 self.bluetoothSdk().cancelConnectionAttempt()

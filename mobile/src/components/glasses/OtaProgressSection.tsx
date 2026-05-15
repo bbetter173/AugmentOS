@@ -1,4 +1,4 @@
-import type {OtaProgress, OtaProgressStatus} from "@mentra/bluetooth-sdk"
+import type {OtaProgress, OtaProgressStatus} from "@mentra/bluetooth-sdk/_internal"
 import {View, ViewStyle, TextStyle} from "react-native"
 
 import {Text} from "@/components/ignite"

@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {DeviceModels} from "@mentra/bluetooth-sdk"
 import type {ReactNode} from "react"
 // The SDK example intentionally uses plain React Native primitives outside the mobile app shell.
 // eslint-disable-next-line no-restricted-imports
@@ -11,9 +11,9 @@ export default function App() {
         <Text style={styles.header}>Mentra Bluetooth SDK Example</Text>
         <Group name="Connection">
           <Button
-            title="Connect simulated glasses"
+            title="Connect first Mentra Live"
             onPress={async () => {
-              await BluetoothSdk.connectSimulated()
+              await BluetoothSdk.connectFirst(DeviceModels.MentraLive)
             }}
           />
           <Button

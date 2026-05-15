@@ -1,5 +1,5 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
-import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
+import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk/_internal"
 import {useCallback, useEffect, useRef, useState} from "react"
 import {View, ActivityIndicator} from "react-native"
 

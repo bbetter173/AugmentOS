@@ -1,6 +1,6 @@
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
-import {BluetoothStatus} from "@mentra/bluetooth-sdk"
+import {BluetoothStatus} from "@mentra/bluetooth-sdk/_internal"
 
 interface CoreState extends BluetoothStatus {
   setCoreInfo: (info: Partial<BluetoothStatus>) => void

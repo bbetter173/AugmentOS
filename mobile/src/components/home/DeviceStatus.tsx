@@ -1,5 +1,5 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk/_internal"
 import {useState, useEffect, type ReactNode} from "react"
 import {ActivityIndicator, Image, TouchableOpacity, View, type ImageSourcePropType, type ViewStyle} from "react-native"
 import GlassView from "@/components/ui/GlassView"

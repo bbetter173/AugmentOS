@@ -11,7 +11,7 @@ import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {crustModuleMock, emitCrustEvent, resetCrustModuleMock} from "@/test-utils/mockCrustModule"
 import {coreModuleMock, emitCoreModuleEvent, resetCoreModuleMock} from "@/test-utils/mockCoreModule"
 
-jest.mock("@mentra/bluetooth-sdk", () => {
+jest.mock("@mentra/bluetooth-sdk/_internal", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,

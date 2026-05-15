@@ -2,6 +2,7 @@ import {NativeModule, requireNativeModule} from "expo"
 
 import {
   BluetoothSettingsUpdate,
+  BluetoothSdkPublicModule,
   BluetoothSdkModuleEvents,
   BluetoothStatus,
   ButtonPhotoSize,
@@ -49,6 +50,7 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   setDefaultDevice(device: Device | null): Promise<void>
   clearDefaultDevice(): Promise<void>
   startScan(model: DeviceModel): Promise<void>
+  stopScan(): Promise<void>
   connectFirst(model: DeviceModel, options?: ConnectFirstOptions): Promise<Device>
   connect(device: Device, options?: ConnectOptions): Promise<void>
   connectWithOptions(device: Device, options: Required<ConnectOptions>): Promise<void>
@@ -164,6 +166,8 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   // Process resident-set-size in MB. iOS-only; Android stub returns 0.
   getMemoryMB(): number
 }
+
+export type BluetoothSdkInternalModule = BluetoothSdkModule
 
 // This call loads the native module object from the JSI.
 // NativeModule<BluetoothSdkModuleEvents> already extends EventEmitter<BluetoothSdkModuleEvents>
@@ -451,3 +455,4 @@ NativeBluetoothSdkModule.connectFirst = async function (model: DeviceModel, opti
 }
 
 export default NativeBluetoothSdkModule
+export const PublicBluetoothSdkModule = NativeBluetoothSdkModule as BluetoothSdkPublicModule

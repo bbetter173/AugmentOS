@@ -149,7 +149,7 @@ class MentraBluetoothSdk private constructor(
         deviceManager.disconnect()
     }
 
-    fun connectSimulated() {
+    internal fun connectSimulated() {
         deviceManager.connectSimulated()
     }
 
@@ -170,7 +170,7 @@ class MentraBluetoothSdk private constructor(
         deviceManager.displayText(request.toMap())
     }
 
-    fun displayEvent(request: DisplayEventRequest) {
+    internal fun displayEvent(request: DisplayEventRequest) {
         deviceManager.displayEvent(request.toMap())
     }
 
@@ -201,7 +201,7 @@ class MentraBluetoothSdk private constructor(
         setDashboardPosition(height = request.height, depth = request.depth)
     }
 
-    fun setDashboardMenu(items: List<DashboardMenuItem>) {
+    internal fun setDashboardMenu(items: List<DashboardMenuItem>) {
         DeviceStore.apply(
             ObservableStore.BLUETOOTH_CATEGORY,
             "menu_apps",
@@ -390,23 +390,23 @@ class MentraBluetoothSdk private constructor(
         deviceManager.requestVersionInfo()
     }
 
-    fun sendOtaStart() {
+    internal fun sendOtaStart() {
         deviceManager.sendOtaStart()
     }
 
-    fun sendOtaQueryStatus() {
+    internal fun sendOtaQueryStatus() {
         deviceManager.sendOtaQueryStatus()
     }
 
-    fun sendShutdown() {
+    internal fun sendShutdown() {
         deviceManager.sendShutdown()
     }
 
-    fun sendReboot() {
+    internal fun sendReboot() {
         deviceManager.sendReboot()
     }
 
-    fun sendIncidentId(incidentId: String, apiBaseUrl: String? = null) {
+    internal fun sendIncidentId(incidentId: String, apiBaseUrl: String? = null) {
         deviceManager.sendIncidentId(incidentId, apiBaseUrl)
     }
 

@@ -1,4 +1,4 @@
-import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk"
+import type {OtaProgress, OtaStatus} from "@mentra/bluetooth-sdk/_internal"
 
 import {OtaProgressMessages} from "@/app/ota/otaProgressTimeouts"
 

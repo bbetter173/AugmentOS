@@ -475,6 +475,158 @@ export type BluetoothSdkModuleEvents = {
   miniapp_selected: (event: MiniappSelectedEvent) => void
 }
 
+export type PublicGlassesStatus = Omit<
+  GlassesStatus,
+  "otaUpdateAvailable" | "otaProgress" | "otaInProgress" | "otaVersionUrl"
+>
+
+export type PublicBluetoothStatus = Pick<
+  BluetoothStatus,
+  | "searching"
+  | "searchingController"
+  | "systemMicUnavailable"
+  | "micRanking"
+  | "currentMic"
+  | "searchResults"
+  | "wifiScanResults"
+  | "lastLog"
+  | "otherBtConnected"
+  | "gallery_mode"
+>
+
+export type PublicBluetoothSdkModuleEvents = Omit<
+  Pick<
+    BluetoothSdkModuleEvents,
+    | "glasses_status"
+    | "bluetooth_status"
+    | "log"
+    | "device_discovered"
+    | "default_device_changed"
+    | "glasses_not_ready"
+    | "button_press"
+    | "touch_event"
+    | "head_up"
+    | "vad_status"
+    | "battery_status"
+    | "local_transcription"
+    | "wifi_status_change"
+    | "hotspot_status_change"
+    | "hotspot_error"
+    | "photo_response"
+    | "gallery_status"
+    | "compatible_glasses_search_stop"
+    | "swipe_volume_status"
+    | "switch_status"
+    | "rgb_led_control_response"
+    | "pair_failure"
+    | "audio_pairing_needed"
+    | "audio_connected"
+    | "audio_disconnected"
+    | "mic_pcm"
+    | "mic_lc3"
+    | "stream_status"
+    | "keep_alive_ack"
+  >,
+  | "glasses_status"
+  | "bluetooth_status"
+> & {
+  glasses_status: (changed: Partial<PublicGlassesStatus>) => void
+  bluetooth_status: (changed: Partial<PublicBluetoothStatus>) => void
+}
+
+export type BluetoothSdkSubscription = {
+  remove(): void
+}
+
+export type PublicBluetoothSdkEvent =
+  Parameters<PublicBluetoothSdkModuleEvents[keyof PublicBluetoothSdkModuleEvents]>[0]
+
+export interface BluetoothSdkPublicModule {
+  addListener<EventName extends keyof PublicBluetoothSdkModuleEvents>(
+    eventName: EventName,
+    listener: PublicBluetoothSdkModuleEvents[EventName],
+  ): BluetoothSdkSubscription
+
+  getGlassesStatus(): Promise<PublicGlassesStatus>
+  getBluetoothStatus(): Promise<PublicBluetoothStatus>
+  getDefaultDevice(): Promise<Device | null>
+  setDefaultDevice(device: Device | null): Promise<void>
+  clearDefaultDevice(): Promise<void>
+
+  startScan(model: DeviceModel): Promise<void>
+  stopScan(): Promise<void>
+  connectFirst(model: DeviceModel, options?: ConnectFirstOptions): Promise<Device>
+  connect(device: Device, options?: ConnectOptions): Promise<void>
+  connectDefault(options?: ConnectOptions): Promise<void>
+  cancelConnectionAttempt(): Promise<void>
+  disconnect(): Promise<void>
+  forget(): Promise<void>
+
+  displayText(text: string, x?: number, y?: number, size?: number): Promise<void>
+  clearDisplay(): Promise<void>
+  showDashboard(): Promise<void>
+  setBrightness(level: number, autoMode?: boolean | null): Promise<void>
+  setAutoBrightness(enabled: boolean): Promise<void>
+  setDashboardPosition(height: number, depth: number): Promise<void>
+  setHeadUpAngle(angleDegrees: number): Promise<void>
+  setScreenDisabled(disabled: boolean): Promise<void>
+
+  requestWifiScan(): Promise<void>
+  sendWifiCredentials(ssid: string, password: string): Promise<void>
+  forgetWifiNetwork(ssid: string): Promise<void>
+  setHotspotState(enabled: boolean): Promise<void>
+
+  setGalleryMode(mode: GalleryMode): Promise<void>
+  setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
+  setButtonCameraLed(enabled: boolean): Promise<void>
+  setButtonMaxRecordingTime(minutes: number): Promise<void>
+  setCameraFov(fov: CameraFov): Promise<void>
+  queryGalleryStatus(): Promise<void>
+  photoRequest(
+    requestId: string,
+    appId: string,
+    size: PhotoSize,
+    webhookUrl: string | null,
+    authToken: string | null,
+    compress: PhotoCompression,
+    flash: boolean,
+    sound: boolean,
+  ): Promise<void>
+  startVideoRecording(requestId: string, save: boolean, flash: boolean, sound: boolean): Promise<void>
+  stopVideoRecording(requestId: string): Promise<void>
+
+  startStream(params: StreamStartRequest): Promise<void>
+  stopStream(): Promise<void>
+  keepStreamAlive(params: StreamKeepAliveRequest): Promise<void>
+
+  setMicState(
+    enabled: boolean,
+    useGlassesMic?: boolean,
+    bypassVad?: boolean,
+    sendTranscript?: boolean,
+    sendLc3Data?: boolean,
+  ): Promise<void>
+  setPreferredMic(preferredMic: MicPreference): Promise<void>
+  setOwnAppAudioPlaying(playing: boolean): Promise<void>
+  getGlassesMediaVolume(): Promise<GlassesMediaVolumeGetResult>
+  setGlassesMediaVolume(level: number): Promise<GlassesMediaVolumeSetResult>
+
+  rgbLedControl(
+    requestId: string,
+    packageName: string | null,
+    action: RgbLedAction,
+    color: RgbLedColor | null,
+    ontime: number,
+    offtime: number,
+    count: number,
+  ): Promise<void>
+
+  requestVersionInfo(): Promise<void>
+  onGlassesStatus(callback: (changed: Partial<PublicGlassesStatus>) => void): () => void
+  onBluetoothStatus(callback: (changed: Partial<PublicBluetoothStatus>) => void): () => void
+}
+
 // OTA update status types
 export type OtaStage = "download" | "install"
 export type OtaProgressStatus = "STARTED" | "PROGRESS" | "FINISHED" | "FAILED"

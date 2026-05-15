@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
 
 import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 

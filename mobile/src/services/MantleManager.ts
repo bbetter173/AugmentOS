@@ -5,7 +5,7 @@ import BluetoothSdk, {
   OtaStatus,
   OtaProgress,
   OtaUpdateInfo,
-} from "@mentra/bluetooth-sdk"
+} from "@mentra/bluetooth-sdk/_internal"
 import CrustModule from "crust"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"

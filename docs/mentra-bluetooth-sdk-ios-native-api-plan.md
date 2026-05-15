@@ -12,7 +12,7 @@ The current iOS entrypoint is `BluetoothSdkModule.swift`, which imports `ExpoMod
 
 - Calls `Bridge.initialize { eventName, data in sendEvent(eventName, data) }`.
 - Configures `DeviceStore.shared.store.configure` so `"glasses"` updates become `glasses_status` events and `"bluetooth"` updates become `bluetooth_status` events.
-- Exposes Expo `AsyncFunction`s such as `update`, `findCompatibleDevices`, `connectByName`, `connectDefault`, `disconnect`, `displayText`, media commands, Wi-Fi commands, OTA commands, and microphone/STT commands.
+- Exposes Expo `AsyncFunction`s such as `update`, scan/connect helpers, `connectDefault`, `disconnect`, `displayText`, media commands, Wi-Fi commands, version commands, and microphone/STT commands.
 
 The real hardware lifecycle lives under the Expo module adapter:
 
@@ -43,19 +43,16 @@ public final class MentraBluetoothSDK {
     public func connect(to device: MentraDiscoveredDevice)
     public func connect(model: MentraDeviceModel, name: String)
     public func connectDefault()
-    public func connectSimulated()
     public func disconnect()
     public func forget()
 
     public func displayText(_ request: MentraDisplayTextRequest) async throws
-    public func displayEvent(_ request: MentraDisplayEventRequest) async throws
     public func clearDisplay() async throws
     public func showDashboard()
 
     public func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws
     public func setAutoBrightness(enabled: Bool) async throws
     public func setDashboardPosition(_ request: MentraDashboardPositionRequest) async throws
-    public func setDashboardMenu(_ items: [MentraDashboardMenuItem]) async throws
     public func setHeadUpAngle(_ angleDegrees: Int) async throws
     public func setScreenDisabled(_ disabled: Bool) async throws
     public func setGalleryMode(_ mode: MentraGalleryMode) async throws
@@ -83,10 +80,6 @@ public final class MentraBluetoothSDK {
     public func stopVideoRecording(requestId: String)
 
     public func requestVersionInfo()
-    public func sendOtaStart()
-    public func sendShutdown()
-    public func sendReboot()
-    public func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil)
 
     public func invalidate()
 }
@@ -101,15 +94,15 @@ The facade can be implemented as one class initially, but the customer-facing do
 Base v1 should include:
 
 - Initialization, invalidation, permission/capability helpers, scan, connect, disconnect, forget, default-device handling, and status snapshots.
-- Display primitives: display text, display events/images as supported, clear display, and show dashboard.
-- Core hardware settings: brightness, auto brightness, dashboard height/depth/menu, head-up angle, screen disable, gallery mode, button/camera settings, preferred mic, mic routing, and own-app-audio state.
+- Display primitives: display text, clear display, and show dashboard.
+- Core hardware settings: brightness, auto brightness, dashboard height/depth, head-up angle, screen disable, gallery mode, button/camera settings, preferred mic, mic routing, and own-app-audio state.
 - Common device events: status, discovered devices, button/touch/head-up, battery, Wi-Fi status, logs, and errors.
 
 Advanced or capability-gated APIs should include:
 
 - Camera/gallery commands and media transfer state.
 - RTMP/video streaming and saved video recording.
-- OTA, shutdown, reboot, and version/diagnostic commands.
+- Version info commands. MentraOS-only OTA, shutdown, reboot, incident, and diagnostic commands stay behind the adapter boundary.
 - Local STT, VAD/model management, and raw mic frame delivery.
 - Controller pairing and RGB LED controls.
 
@@ -270,6 +263,6 @@ Current implementation status:
 ## Open Questions
 
 - Whether the adapter should be a separate pod, a CocoaPods subspec, or only an internal Expo module target.
-- Whether media, streaming, OTA, and local transcription should ship in the base SDK facade or be grouped behind capability protocols.
+- Whether media, streaming, and local transcription should ship in the base SDK facade or be grouped behind capability protocols.
 - Whether the first version needs Objective-C compatibility.
 - Whether Swift Package Manager is worth supporting before the dependency graph is simplified.

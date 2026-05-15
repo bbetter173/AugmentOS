@@ -338,12 +338,7 @@ export default function NexDeveloperSettings() {
         ])
         return
       }
-      await BluetoothSdk.displayText({
-        text,
-        x: parseInt(positionX, 0),
-        y: parseInt(positionY, 0),
-        size: parseInt(size, 10),
-      })
+      await BluetoothSdk.displayText(text, parseInt(positionX, 10), parseInt(positionY, 10), parseInt(size, 10))
     } else {
       showAlert("Please connect to the device", "Please connect to the device", [
         {

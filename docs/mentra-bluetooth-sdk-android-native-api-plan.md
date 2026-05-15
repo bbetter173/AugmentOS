@@ -13,7 +13,7 @@ The current Android entrypoint is `BluetoothSdkModule.kt`, which is an Expo modu
 - Calls `Bridge.initialize(context) { eventName, data -> sendEvent(eventName, data) }`.
 - Creates `DeviceManager.getInstance()` after `Bridge` has a context.
 - Configures `DeviceStore.store.configure` so `"glasses"` updates become `glasses_status` events and `"bluetooth"` updates become `bluetooth_status` events.
-- Exposes Expo functions such as `update`, `findCompatibleDevices`, `connectByName`, `connectDefault`, `disconnect`, `displayText`, media commands, Wi-Fi commands, OTA commands, and microphone/STT commands.
+- Exposes Expo functions such as `update`, scan/connect helpers, `connectDefault`, `disconnect`, `displayText`, media commands, Wi-Fi commands, version commands, and microphone/STT commands.
 
 The real hardware lifecycle lives under the Expo module:
 
@@ -54,19 +54,16 @@ class MentraBluetoothSdk private constructor(
     fun connect(device: MentraDiscoveredDevice)
     fun connectByName(model: MentraDeviceModel, deviceName: String)
     fun connectDefault()
-    fun connectSimulated()
     fun disconnect()
     fun forget()
 
     fun displayText(request: MentraDisplayTextRequest)
-    fun displayEvent(request: MentraDisplayEventRequest)
     fun clearDisplay()
     fun showDashboard()
 
     @JvmOverloads fun setBrightness(level: Int, autoMode: Boolean? = null)
     fun setAutoBrightness(enabled: Boolean)
     fun setDashboardPosition(request: MentraDashboardPositionRequest)
-    fun setDashboardMenu(items: List<MentraDashboardMenuItem>)
     fun setHeadUpAngle(angleDegrees: Int)
     fun setScreenDisabled(disabled: Boolean)
     fun setGalleryMode(mode: MentraGalleryMode)
@@ -96,10 +93,6 @@ class MentraBluetoothSdk private constructor(
     fun stopVideoRecording(requestId: String)
 
     fun requestVersionInfo()
-    fun sendOtaStart()
-    fun sendShutdown()
-    fun sendReboot()
-    fun sendIncidentId(incidentId: String, apiBaseUrl: String? = null)
 
     override fun close()
 }
@@ -114,15 +107,15 @@ The facade can be implemented as one class initially, but the customer-facing do
 Base v1 should include:
 
 - Initialization, cleanup, permission helpers, scan, connect, disconnect, forget, default-device handling, and status snapshots.
-- Display primitives: display text, display events/images as supported, clear display, and show dashboard.
-- Core hardware settings: brightness, auto brightness, dashboard height/depth/menu, head-up angle, screen disable, gallery mode, button/camera settings, preferred mic, mic routing, and own-app-audio state.
+- Display primitives: display text, clear display, and show dashboard.
+- Core hardware settings: brightness, auto brightness, dashboard height/depth, head-up angle, screen disable, gallery mode, button/camera settings, preferred mic, mic routing, and own-app-audio state.
 - Common device events: status, discovered devices, button/touch/head-up, battery, Wi-Fi status, logs, and errors.
 
 Advanced or capability-gated APIs should include:
 
 - Camera/gallery commands and media transfer state.
 - RTMP/video streaming and saved video recording.
-- OTA, shutdown, reboot, and version/diagnostic commands.
+- Version info commands. MentraOS-only OTA, shutdown, reboot, incident, and diagnostic commands stay behind the adapter boundary.
 - Local STT, VAD/model management, and raw mic frame delivery.
 - Controller pairing and RGB LED controls.
 
@@ -278,6 +271,6 @@ Current implementation status:
 ## Open Questions
 
 - Whether the first version should expose controller pairing publicly or keep it as an advanced/internal API.
-- Whether media, streaming, OTA, and local transcription should ship in the base SDK facade or be grouped behind capability interfaces.
+- Whether media, streaming, and local transcription should ship in the base SDK facade or be grouped behind capability interfaces.
 - Whether callbacks should always be main-thread or configurable through `Executor`.
 - Whether we want a Kotlin `Flow` wrapper in v1 or as a later `-ktx` package.

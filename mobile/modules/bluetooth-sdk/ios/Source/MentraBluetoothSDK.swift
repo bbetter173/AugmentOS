@@ -2103,7 +2103,7 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.disconnect()
     }
 
-    public func connectSimulated() {
+    func connectSimulated() {
         DeviceManager.shared.connectSimulated()
     }
 
@@ -2123,7 +2123,7 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.displayText(request.dictionary)
     }
 
-    public func displayEvent(_ request: DisplayEventRequest) async throws {
+    func displayEvent(_ request: DisplayEventRequest) async throws {
         DeviceManager.shared.displayEvent(request.values)
     }
 
@@ -2155,7 +2155,7 @@ public final class MentraBluetoothSDK {
         try await setDashboardPosition(height: request.height, depth: request.depth)
     }
 
-    public func setDashboardMenu(_ items: [DashboardMenuItem]) async throws {
+    func setDashboardMenu(_ items: [DashboardMenuItem]) async throws {
         DeviceStore.shared.apply(
             ObservableStore.bluetoothCategory,
             "menu_apps",
@@ -2332,23 +2332,23 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.requestVersionInfo()
     }
 
-    public func sendOtaStart() {
+    func sendOtaStart() {
         DeviceManager.shared.sendOtaStart()
     }
 
-    public func sendOtaQueryStatus() {
+    func sendOtaQueryStatus() {
         DeviceManager.shared.sendOtaQueryStatus()
     }
 
-    public func sendShutdown() {
+    func sendShutdown() {
         DeviceManager.shared.sendShutdown()
     }
 
-    public func sendReboot() {
+    func sendReboot() {
         DeviceManager.shared.sendReboot()
     }
 
-    public func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil) {
+    func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil) {
         DeviceManager.shared.sendIncidentId(incidentId, apiBaseUrl: apiBaseUrl)
     }
 

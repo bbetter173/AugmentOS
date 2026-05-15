@@ -60,7 +60,7 @@ export default function SelectGlassesBluetoothScreen() {
   useEffect(() => {
     const initializeAndSearchForDevices = async () => {
       try {
-        await BluetoothSdk.startScan({model: deviceModel})
+        await BluetoothSdk.startScan(deviceModel)
       } catch (error) {
         console.error("Failed to start glasses scan:", error)
       }

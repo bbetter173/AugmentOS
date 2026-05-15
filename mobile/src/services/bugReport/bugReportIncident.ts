@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
 import NetInfo from "@react-native-community/netinfo"
 import Constants from "expo-constants"
 import * as ImagePicker from "expo-image-picker"

@@ -74,14 +74,9 @@ Keep one SDK instance per active app session. The SDK owns Bluetooth connection 
   <Tab title="React Native">
 
 ```ts
-await BluetoothSdk.startScan(DeviceModels.MentraLive);
+const device = await BluetoothSdk.connectFirst(DeviceModels.MentraLive, {saveAsDefault: false});
 
-await BluetoothSdk.connect(device);
-await BluetoothSdk.setDefaultDevice({
-  id: 'Mentra Live:Mentra_Live_E7FA',
-  model: DeviceModels.MentraLive,
-  name: 'Mentra_Live_E7FA',
-});
+await BluetoothSdk.setDefaultDevice(device);
 
 const defaultDevice = await BluetoothSdk.getDefaultDevice();
 await BluetoothSdk.connectDefault();
@@ -136,6 +131,8 @@ sdk.connectSimulated()
 
 Prefer connecting to a `Device` returned by SDK scan callbacks. If your app wants `connectDefault()` to work after restart, persist a small default-device record in app storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
+React Native `connectFirst(model, options)` is a convenience helper for the common case. It scans for the first matching device, connects to it, returns the connected `Device`, and times out after 15 seconds unless `timeoutMs` is provided.
+
 ## Status
 
 <Tabs>
@@ -189,7 +186,7 @@ Status snapshots are safe to read at any time. Treat command success as "command
 | Area | Commands |
 | --- | --- |
 | Display | `displayText`, `clearDisplay`, `showDashboard` |
-| Connection | `startScan`, `stopScan`, `connect`, `connectDefault`, `disconnect`, `forget` |
+| Connection | `connectFirst`, `startScan`, `stopScan`, `connect`, `connectDefault`, `disconnect`, `forget` |
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
 | Camera | `photoRequest`, button photo settings, button video settings, camera field of view |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |

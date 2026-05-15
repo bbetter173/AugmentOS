@@ -21,15 +21,7 @@ The SDK presents a common native API over multiple glasses models. Capabilities 
 ```ts
 import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk';
 
-const removeBluetooth = BluetoothSdk.onBluetoothStatus((status) => {
-  const device = status.searchResults?.[0];
-  if (device) {
-    removeBluetooth();
-    void BluetoothSdk.connect(device);
-  }
-});
-
-await BluetoothSdk.startScan(DeviceModels.MentraLive);
+await BluetoothSdk.connectFirst(DeviceModels.MentraLive);
 ```
 
   </Tab>

@@ -580,6 +580,10 @@ export interface ConnectOptions {
   cancelExistingConnectionAttempt?: boolean
 }
 
+export interface ConnectFirstOptions extends ConnectOptions {
+  timeoutMs?: number
+}
+
 export interface WifiSearchResult {
   ssid: string
   requiresPassword: boolean

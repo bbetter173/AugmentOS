@@ -107,33 +107,19 @@ iOS apps should include usage descriptions:
 
 ## Minimal Usage
 
-`startScan()` starts the scan. Discovered devices arrive asynchronously through `onBluetoothStatus()` updates and `device_discovered` events.
+`connectFirst()` scans for the first matching glasses and connects to them. It times out after 15 seconds by default. Use `startScan()` plus `onBluetoothStatus()` only when your app needs to present a custom device picker.
 
 ```ts
 import BluetoothSdk, {
   DeviceModels,
   isReadyGlassesConnectionStatus,
-  type Device,
 } from '@mentra/bluetooth-sdk'
-
-const firstDevice = new Promise<Device>((resolve) => {
-  let removeBluetoothListener = () => {}
-  removeBluetoothListener = BluetoothSdk.onBluetoothStatus((status) => {
-    const device = status.searchResults?.[0]
-    if (device) {
-      removeBluetoothListener()
-      resolve(device)
-    }
-  })
-})
 
 const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
   console.log('Glasses status changed', status)
 })
 
-await BluetoothSdk.startScan(DeviceModels.MentraLive)
-
-await BluetoothSdk.connect(await firstDevice)
+await BluetoothSdk.connectFirst(DeviceModels.MentraLive)
 
 const glasses = await BluetoothSdk.getGlassesStatus()
 if (isReadyGlassesConnectionStatus(glasses.connection)) {

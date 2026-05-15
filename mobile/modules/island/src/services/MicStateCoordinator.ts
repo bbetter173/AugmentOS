@@ -6,10 +6,10 @@
  * The cloud sends mic state changes via SocketComms (e.g., "pcm", "transcription").
  * Local miniapps subscribe to audio_chunk / transcription streams.
  * This coordinator merges both sets of requirements and pushes the union to
- * CoreModule so the mic runs whenever at least one consumer needs it.
+ * BluetoothSdk so the mic runs whenever at least one consumer needs it.
  */
 
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 const LOG_TAG = "MIC_COORDINATOR"
 
@@ -62,7 +62,7 @@ class MicStateCoordinator {
   }
 
   /**
-   * Compute the union of cloud and local requirements and push to CoreModule.
+   * Compute the union of cloud and local requirements and push to BluetoothSdk.
    *
    * Wire-format note: the cloud only ever receives LC3 over the binary
    * WebSocket. Its `requiredData=["pcm"]` is a logical "I need audio"
@@ -81,7 +81,7 @@ class MicStateCoordinator {
     //   `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`,
     // )
 
-    CoreModule.update("core", {
+    BluetoothSdk.update("core", {
       should_send_pcm: shouldSendPcm,
       should_send_lc3: shouldSendLc3,
       should_send_transcript: shouldSendTranscript,

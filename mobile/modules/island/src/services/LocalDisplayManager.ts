@@ -19,7 +19,7 @@
  * is off.
  */
 
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk"
 
 import displayProcessor from "./DisplayProcessor"
 import {getRuntimeHooks} from "../runtime/config"
@@ -373,7 +373,7 @@ class LocalDisplayManager {
     }
 
     try {
-      CoreModule.displayEvent(processedEvent)
+      BluetoothSdk.displayEvent(processedEvent)
       getRuntimeHooks().setDisplayEvent?.(JSON.stringify(processedEvent))
     } catch (err) {
       console.error(`${LOG_TAG}: native display failed:`, err)

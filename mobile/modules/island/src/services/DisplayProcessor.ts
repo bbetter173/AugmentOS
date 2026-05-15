@@ -27,7 +27,7 @@ import {
   type BreakMode,
 } from "../utils/display"
 
-import CoreModule, {GlassesStatus} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {GlassesStatus} from "@mentra/bluetooth-sdk"
 
 import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 
@@ -289,7 +289,7 @@ export class DisplayProcessor {
     }
 
     // subscribe to glasses status changes:
-    CoreModule.onGlassesStatus((changed: Partial<GlassesStatus>) => {
+    BluetoothSdk.onGlassesStatus((changed: Partial<GlassesStatus>) => {
       if (changed.deviceModel) {
         this.setDeviceModel(changed.deviceModel)
       }

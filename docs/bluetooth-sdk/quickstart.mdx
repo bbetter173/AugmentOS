@@ -16,8 +16,8 @@ Use a physical phone for Bluetooth testing. Simulators and emulators are useful 
   <Tab title="React Native / Expo">
 
 ```bash
-npm install @mentra/bluetooth-sdk
-npx expo install expo-build-properties
+bun add @mentra/bluetooth-sdk
+bunx expo install expo-build-properties
 ```
 
 Add the config plugin to your Expo app config. In most Expo apps this is the root `app.json`; in TypeScript-configured apps it is usually the root `app.config.ts`. Merge these keys into the existing top-level `expo` object instead of creating a second config file or replacing unrelated settings:
@@ -55,10 +55,10 @@ Add the config plugin to your Expo app config. In most Expo apps this is the roo
 Then generate and run a native build:
 
 ```bash
-npx expo prebuild
-npx expo run:ios
+bunx expo prebuild
+bunx expo run:ios
 # or
-npx expo run:android
+bunx expo run:android
 ```
 
   </Tab>

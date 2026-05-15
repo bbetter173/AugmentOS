@@ -23,8 +23,8 @@ Use a development build or production native build. Expo Go cannot load this pac
 ## Install
 
 ```sh
-npm install @mentra/bluetooth-sdk
-npx expo install expo-build-properties
+bun add @mentra/bluetooth-sdk
+bunx expo install expo-build-properties
 ```
 
 For Expo apps, add the plugin to `app.json` or `app.config.ts`:
@@ -62,10 +62,10 @@ For Expo apps, add the plugin to `app.json` or `app.config.ts`:
 Then regenerate native projects and run a development build:
 
 ```sh
-npx expo prebuild
-npx expo run:ios
+bunx expo prebuild
+bunx expo run:ios
 # or
-npx expo run:android
+bunx expo run:android
 ```
 
 ## Permissions
@@ -251,14 +251,14 @@ Only the documented root import is supported for partner apps. Package subpaths 
 
 ## Local SDK Development
 
-For normal app development, install the published npm package. For SDK development before a package release, install a local checkout and point Metro/native resolution at the same path:
+For normal app development, install the published JavaScript package. For SDK development before a package release, install a local checkout and point Metro/native resolution at the same path:
 
 ```sh
-npm install --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk
-MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk npx expo run:ios
+bun add --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk
+MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk bunx expo run:ios
 ```
 
-Use `npx expo run:android` for Android. Keep local paths in your shell or CI environment, not in committed app config.
+Use `bunx expo run:android` for Android. Keep local paths in your shell or CI environment, not in committed app config.
 
 ## Starter Example App
 

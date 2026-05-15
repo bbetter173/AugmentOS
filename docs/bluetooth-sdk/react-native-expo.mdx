@@ -4,7 +4,7 @@ description: "Use @mentra/bluetooth-sdk from a React Native or Expo development 
 icon: "mobile-screen-button"
 ---
 
-React Native apps use the npm package `@mentra/bluetooth-sdk`. The package contains native Android and iOS code, so it must run in a development build or production native build.
+React Native apps use the JavaScript package `@mentra/bluetooth-sdk`. The package contains native Android and iOS code, so it must run in a development build or production native build.
 
 <Warning>
 Expo Go cannot load `@mentra/bluetooth-sdk` because Expo Go does not include the SDK's native modules.
@@ -13,8 +13,8 @@ Expo Go cannot load `@mentra/bluetooth-sdk` because Expo Go does not include the
 ## Install
 
 ```bash
-npm install @mentra/bluetooth-sdk
-npx expo install expo-build-properties
+bun add @mentra/bluetooth-sdk
+bunx expo install expo-build-properties
 ```
 
 ## Configure The Expo Plugin
@@ -56,10 +56,10 @@ The plugin configures native module registration and the companion Android `lc3L
 ## Run
 
 ```bash
-npx expo prebuild
-npx expo run:ios
+bunx expo prebuild
+bunx expo run:ios
 # or
-npx expo run:android
+bunx expo run:android
 ```
 
 Use a physical phone for Bluetooth, camera, microphone, direct phone photo, and direct phone WebRTC testing.
@@ -148,13 +148,13 @@ if (savedDevice) {
 
 ## Local SDK Override
 
-Use this only when developing the SDK itself before publishing a new npm version:
+Use this only when developing the SDK itself before publishing a new package version:
 
 ```bash
-npm install --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk
-MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk npx expo run:ios
+bun add --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk
+MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk bunx expo run:ios
 # or
-MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk npx expo run:android
+MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk bunx expo run:android
 ```
 
 Keep `MENTRA_BLUETOOTH_SDK_PACKAGE_PATH` in your shell or CI environment, not in committed app config.

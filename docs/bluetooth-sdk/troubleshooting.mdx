@@ -64,9 +64,9 @@ If your app also uses Firebase with static frameworks, Firebase modular header c
 - Confirm the hardware feature is available on the connected model.
 - Watch SDK log callbacks for native diagnostics.
 
-## Local Stream Preview Does Not Show Video
+## Optional Local Stream Preview Does Not Show Video
 
-- Confirm the local demo cloud or MediaMTX helper is still running.
+- The local demo cloud is only needed when the starter app's Stream screen has **Use cloud server** enabled. If you are using that optional local stream preview, confirm the local demo cloud or MediaMTX helper is still running.
 - Use the printed LAN URL, not `localhost`, in the example app's RTMP or WebRTC field.
 - Confirm the glasses, phone, and computer are on a network where local device-to-device traffic is allowed.
 - Confirm Mentra Live is connected to Wi-Fi before starting the stream.
@@ -81,4 +81,3 @@ React Native and Expo apps use the `@mentra/bluetooth-sdk` package and must run 
 If Android prebuild succeeds but native linking fails, confirm the generated project includes `:lc3Lib` in `android/settings.gradle`. The SDK plugin adds this module automatically during prebuild.
 
 If iOS builds fail with missing Expo adapter symbols, rerun `npx expo prebuild` so the SDK plugin can configure the Podfile for Expo module registration.
-

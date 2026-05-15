@@ -258,6 +258,6 @@ MENTRA_BLUETOOTH_SDK_PACKAGE_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk
 
 Use `npx expo run:android` for Android. Keep local paths in your shell or CI environment, not in committed app config.
 
-## Example App
+## Starter Example App
 
-The partner example app lives in `Mentra-Bluetooth-SDK-Partner-Kit/examples/react-native`. It demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery-button mode, and console event inspection.
+The [Mentra Bluetooth SDK Starter Kit](https://github.com/Mentra-Community/Mentra-Bluetooth-SDK-Starter-Kit) includes starter example apps for Android, iOS, and React Native / Expo. The React Native starter demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery-button mode, and console event inspection.

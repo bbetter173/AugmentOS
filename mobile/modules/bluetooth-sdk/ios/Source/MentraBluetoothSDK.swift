@@ -2389,9 +2389,9 @@ public final class MentraBluetoothSDK {
         }
 
         if changes.keys.contains(where: { ["connected", "fullyBooted", "connectionState"].contains($0) }) {
-            merged["connected"] = GlassesStore.shared.get("glasses", "connected") as? Bool ?? false
-            merged["fullyBooted"] = GlassesStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
-            merged["connectionState"] = GlassesStore.shared.get("glasses", "connectionState") as? String ?? "DISCONNECTED"
+            merged["connected"] = DeviceStore.shared.get("glasses", "connected") as? Bool ?? false
+            merged["fullyBooted"] = DeviceStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
+            merged["connectionState"] = DeviceStore.shared.get("glasses", "connectionState") as? String ?? "DISCONNECTED"
         }
 
         if changes["signalStrengthUpdatedAt"] != nil, changes["signalStrength"] == nil {

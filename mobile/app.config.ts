@@ -284,6 +284,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
         },
       ],
       "expo-web-browser",
+      "expo-image",
     ],
     experiments: {
       tsconfigPaths: true,

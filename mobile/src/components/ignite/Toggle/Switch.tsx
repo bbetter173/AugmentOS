@@ -4,7 +4,6 @@ import {Animated, Platform, StyleProp, TextStyle, View, ViewStyle} from "react-n
 import {Icon} from "@/components/ignite/Icon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {isRTL} from "@/i18n"
-import {$styles} from "@/theme"
 import type {ThemedStyle} from "@/theme"
 
 import {$inputOuterBase, BaseToggleInputProps, Toggle, ToggleProps} from "./Toggle"
@@ -116,10 +115,7 @@ function _SwitchInput(props: SwitchInputProps) {
   })()
 
   const rtlAdjustment = isRTL ? -1 : 1
-  const $themedSwitchInner = useMemo(
-    () => themed([($styles as {toggleInner?: ViewStyle}).toggleInner, $switchInner]),
-    [themed],
-  )
+  const $themedSwitchInner = useMemo(() => themed($switchInner), [themed])
 
   const offsetLeft = ($innerStyleOverride?.paddingStart ||
     $innerStyleOverride?.paddingLeft ||

@@ -1,11 +1,11 @@
-package com.mentra.core
+package com.mentra.bluetoothsdk
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import com.mentra.core.utils.ControllerTypes
-import com.mentra.core.utils.PhoneAudioMonitor
+import com.mentra.bluetoothsdk.utils.ControllerTypes
+import com.mentra.bluetoothsdk.utils.PhoneAudioMonitor
 import java.util.Collections
 
 class MentraBluetoothSdk private constructor(
@@ -15,7 +15,7 @@ class MentraBluetoothSdk private constructor(
 ) : AutoCloseable {
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val deviceManager: CoreManager
+    private val deviceManager: DeviceManager
     private val listeners =
         Collections.synchronizedSet(mutableSetOf<MentraBluetoothSdkListener>())
     private val discoveredDeviceNames = mutableSetOf<String>()
@@ -26,9 +26,9 @@ class MentraBluetoothSdk private constructor(
     init {
         listeners.add(listener)
         Bridge.initialize(appContext)
-        deviceManager = CoreManager.getInstance()
+        deviceManager = DeviceManager.getInstance()
         bridgeEventSinkId = Bridge.addEventSink { eventName, data -> dispatchBridgeEvent(eventName, data) }
-        storeListenerId = GlassesStore.store.addListener { category, changes -> dispatchStoreUpdate(category, changes) }
+        storeListenerId = DeviceStore.store.addListener { category, changes -> dispatchStoreUpdate(category, changes) }
     }
 
     companion object {
@@ -57,10 +57,10 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun getGlassesStatus(): GlassesStatus =
-        GlassesStatus.fromMap(GlassesStore.store.getCategory("glasses"))
+        GlassesStatus.fromMap(DeviceStore.store.getCategory("glasses"))
 
     fun getBluetoothStatus(): BluetoothStatus =
-        BluetoothStatus.fromMap(GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY))
+        BluetoothStatus.fromMap(DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY))
 
     fun getDefaultDevice(): Device? = currentDefaultDevice()
 
@@ -71,9 +71,9 @@ class MentraBluetoothSdk private constructor(
         }
         suppressDefaultDeviceEvents = true
         try {
-            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "default_wearable", device.model.deviceType)
-            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_name", device.name)
-            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_address", device.address ?: "")
+            DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "default_wearable", device.model.deviceType)
+            DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "device_name", device.name)
+            DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "device_address", device.address ?: "")
         } finally {
             suppressDefaultDeviceEvents = false
         }
@@ -83,9 +83,9 @@ class MentraBluetoothSdk private constructor(
     fun clearDefaultDevice() {
         suppressDefaultDeviceEvents = true
         try {
-            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "default_wearable", "")
-            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_name", "")
-            GlassesStore.apply(ObservableStore.CORE_CATEGORY, "device_address", "")
+            DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "default_wearable", "")
+            DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "device_name", "")
+            DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "device_address", "")
         } finally {
             suppressDefaultDeviceEvents = false
         }
@@ -97,13 +97,13 @@ class MentraBluetoothSdk private constructor(
             requireBluetoothReady("scan for glasses")
         }
         discoveredDeviceNames.clear()
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "searching", true)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "searching", true)
         deviceManager.findCompatibleDevices(model.deviceType)
     }
 
     fun stopScan() {
         deviceManager.stopScan()
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "searching", false)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "searching", false)
         dispatchToListeners { it.onScanStopped(ScanStopReason.CANCELLED) }
     }
 
@@ -123,7 +123,7 @@ class MentraBluetoothSdk private constructor(
         if (options.saveAsDefault && !isController) {
             setDefaultDevice(device)
         }
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "pending_wearable", device.model.deviceType)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "pending_wearable", device.model.deviceType)
         deviceManager.connectByName(device.name)
     }
 
@@ -178,75 +178,75 @@ class MentraBluetoothSdk private constructor(
 
     @JvmOverloads
     fun setBrightness(level: Int, autoMode: Boolean? = null) {
-        autoMode?.let { GlassesStore.apply(ObservableStore.CORE_CATEGORY, "auto_brightness", it) }
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "brightness", level)
+        autoMode?.let { DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "auto_brightness", it) }
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "brightness", level)
     }
 
     fun setAutoBrightness(enabled: Boolean) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "auto_brightness", enabled)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "auto_brightness", enabled)
     }
 
     fun setDashboardPosition(request: DashboardPositionRequest) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "dashboard_height", request.height)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "dashboard_depth", request.depth)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "dashboard_height", request.height)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "dashboard_depth", request.depth)
     }
 
     fun setDashboardMenu(items: List<DashboardMenuItem>) {
-        GlassesStore.apply(
-            ObservableStore.CORE_CATEGORY,
+        DeviceStore.apply(
+            ObservableStore.BLUETOOTH_CATEGORY,
             "menu_apps",
             items.map { it.toMap() },
         )
     }
 
     fun setHeadUpAngle(angleDegrees: Int) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "head_up_angle", angleDegrees)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "head_up_angle", angleDegrees)
     }
 
     fun setScreenDisabled(disabled: Boolean) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "screen_disabled", disabled)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "screen_disabled", disabled)
     }
 
     fun setGalleryMode(mode: GalleryMode) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "gallery_mode", mode == GalleryMode.AUTO)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", mode == GalleryMode.AUTO)
     }
 
     fun setButtonPhotoSettings(settings: ButtonPhotoSettings) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_photo_size", settings.size.value)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_photo_size", settings.size.value)
     }
 
     fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_width", settings.width)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_height", settings.height)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_video_fps", settings.fps)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_width", settings.width)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_height", settings.height)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", settings.fps)
     }
 
     fun setButtonCameraLed(enabled: Boolean) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_camera_led", enabled)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_camera_led", enabled)
     }
 
     fun setButtonMaxRecordingTime(minutes: Int) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "button_max_recording_time", minutes)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_max_recording_time", minutes)
     }
 
     fun setCameraFov(fov: CameraFov) {
-        GlassesStore.apply(
-            ObservableStore.CORE_CATEGORY,
+        DeviceStore.apply(
+            ObservableStore.BLUETOOTH_CATEGORY,
             "camera_fov",
             mapOf("fov" to fov.fov, "roi_position" to fov.roiPosition),
         )
     }
 
     fun setMicState(config: MicConfig) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_pcm", config.sendPcmData)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_lc3", config.sendLc3Data)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "should_send_transcript", config.sendTranscript)
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "bypass_vad", config.bypassVad)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_pcm", config.sendPcmData)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_lc3", config.sendLc3Data)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_transcript", config.sendTranscript)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "bypass_vad", config.bypassVad)
         deviceManager.setMicState()
     }
 
     fun setPreferredMic(preferredMic: MicPreference) {
-        GlassesStore.apply(ObservableStore.CORE_CATEGORY, "preferred_mic", preferredMic.value)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "preferred_mic", preferredMic.value)
     }
 
     fun setOwnAppAudioPlaying(playing: Boolean) {
@@ -352,7 +352,7 @@ class MentraBluetoothSdk private constructor(
 
     override fun close() {
         Bridge.removeEventSink(bridgeEventSinkId)
-        GlassesStore.store.removeListener(storeListenerId)
+        DeviceStore.store.removeListener(storeListenerId)
         listeners.clear()
     }
 
@@ -362,7 +362,7 @@ class MentraBluetoothSdk private constructor(
                 dispatchToListeners {
                     it.onGlassesStatusChanged(GlassesStatusUpdate.fromMap(glassesStatusChanges(changes)))
                 }
-            ObservableStore.CORE_CATEGORY -> {
+            ObservableStore.BLUETOOTH_CATEGORY -> {
                 dispatchToListeners {
                     it.onBluetoothStatusChanged(BluetoothStatusUpdate.fromMap(changes))
                 }
@@ -381,14 +381,14 @@ class MentraBluetoothSdk private constructor(
             merged =
                 merged +
                     mapOf(
-                        "wifiConnected" to ((GlassesStore.get("glasses", "wifiConnected") as? Boolean) ?: false),
-                        "wifiSsid" to ((GlassesStore.get("glasses", "wifiSsid") as? String) ?: ""),
-                        "wifiLocalIp" to ((GlassesStore.get("glasses", "wifiLocalIp") as? String) ?: ""),
+                        "wifiConnected" to ((DeviceStore.get("glasses", "wifiConnected") as? Boolean) ?: false),
+                        "wifiSsid" to ((DeviceStore.get("glasses", "wifiSsid") as? String) ?: ""),
+                        "wifiLocalIp" to ((DeviceStore.get("glasses", "wifiLocalIp") as? String) ?: ""),
                     )
         }
 
         if (changes.containsKey("signalStrengthUpdatedAt") && !changes.containsKey("signalStrength")) {
-            val signalStrength = (GlassesStore.get("glasses", "signalStrength") as? Number)?.toInt() ?: -1
+            val signalStrength = (DeviceStore.get("glasses", "signalStrength") as? Number)?.toInt() ?: -1
             merged = merged + ("signalStrength" to signalStrength)
         }
 
@@ -401,7 +401,7 @@ class MentraBluetoothSdk private constructor(
     }
 
     private fun currentDefaultDevice(): Device? {
-        val core = GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
+        val core = DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
         val model = core["default_wearable"] as? String ?: return null
         val name = core["device_name"] as? String ?: return null
         if (model.isBlank() || name.isBlank()) return null

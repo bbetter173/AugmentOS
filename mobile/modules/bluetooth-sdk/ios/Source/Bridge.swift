@@ -113,7 +113,7 @@ class Bridge {
     ) {
         Task {
             await MainActor.run {
-                let searchResults = GlassesStore.shared.get("core", "searchResults") as? [[String: Any]] ?? []
+                let searchResults = DeviceStore.shared.get("bluetooth", "searchResults") as? [[String: Any]] ?? []
                 let id = "\(deviceModel):\(deviceName)"
                 var newResult: [String: Any] = [
                     "id": id,
@@ -133,7 +133,7 @@ class Bridge {
                     guard let name = $0["name"] as? String ?? $0["deviceName"] as? String else { return false }
                     return seen.insert("\(model):\(name)").inserted
                 }.reversed()
-                GlassesStore.shared.set("core", "searchResults", Array(uniqueResults))
+                DeviceStore.shared.set("bluetooth", "searchResults", Array(uniqueResults))
             }
         }
     }
@@ -257,7 +257,7 @@ class Bridge {
         Task {
             await MainActor.run {
                 var storedNetworks: [[String: Any]] =
-                    GlassesStore.shared.get("core", "wifiScanResults") as? [[String: Any]] ?? []
+                    DeviceStore.shared.get("bluetooth", "wifiScanResults") as? [[String: Any]] ?? []
                 // add the networks to the storedNetworks array, removing duplicates by ssid
                 for network in networks {
                     if !storedNetworks.contains(where: {
@@ -266,7 +266,7 @@ class Bridge {
                         storedNetworks.append(network)
                     }
                 }
-                GlassesStore.shared.apply("core", "wifiScanResults", storedNetworks)
+                DeviceStore.shared.apply("bluetooth", "wifiScanResults", storedNetworks)
             }
         }
     }

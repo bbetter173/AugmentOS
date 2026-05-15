@@ -1,16 +1,16 @@
 import ExpoModulesCore
 import Foundation
 
-public class CoreModule: Module, MentraBluetoothSDKDelegate {
+public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
     private var sdk: MentraBluetoothSDK?
 
     public func definition() -> ModuleDefinition {
-        Name("Core")
+        Name("BluetoothSdk")
 
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "core_status",
+            "bluetooth_status",
             "log",
             "device_discovered",
             "default_device_changed",
@@ -79,7 +79,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
-        Function("getCoreStatus") { () -> [String: Any] in
+        Function("getBluetoothStatus") { () -> [String: Any] in
             self.readOnMainActor {
                 self.bluetoothSdk().bluetoothStatus.values
             }
@@ -96,7 +96,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
                 let normalizedCategory = ObservableStore.normalizeCategory(category)
                 for (key, value) in values {
                     if value is NSNull { continue }
-                    GlassesStore.shared.apply(normalizedCategory, key, value)
+                    DeviceStore.shared.apply(normalizedCategory, key, value)
                 }
             }
         }
@@ -159,7 +159,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("connectDefaultController") {
             await MainActor.run {
-                CoreManager.shared.connectDefaultController()
+                DeviceManager.shared.connectDefaultController()
             }
         }
 
@@ -177,7 +177,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("disconnectController") {
             await MainActor.run {
-                CoreManager.shared.disconnectController()
+                DeviceManager.shared.disconnectController()
             }
         }
 
@@ -189,7 +189,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("forgetController") {
             await MainActor.run {
-                CoreManager.shared.forgetController()
+                DeviceManager.shared.forgetController()
             }
         }
 
@@ -214,21 +214,21 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("ping") {
             await MainActor.run {
-                CoreManager.shared.ping()
+                DeviceManager.shared.ping()
             }
         }
 
         AsyncFunction("dbg1") {
             await MainActor.run {
-                CoreManager.shared.dbg1()
-                CoreManager.shared.sgc?.dbg1()
+                DeviceManager.shared.dbg1()
+                DeviceManager.shared.sgc?.dbg1()
             }
         }
 
         AsyncFunction("dbg2") {
             await MainActor.run {
-                CoreManager.shared.dbg2()
-                CoreManager.shared.sgc?.dbg2()
+                DeviceManager.shared.dbg2()
+                DeviceManager.shared.sgc?.dbg2()
             }
         }
 
@@ -417,11 +417,11 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
         }
 
         AsyncFunction("getGlassesMediaVolume") { () async throws -> [String: Any] in
-            try await CoreManager.shared.getGlassesMediaVolume()
+            try await DeviceManager.shared.getGlassesMediaVolume()
         }
 
         AsyncFunction("setGlassesMediaVolume") { (level: Int) async throws -> [String: Any] in
-            try await CoreManager.shared.setGlassesMediaVolume(level: level)
+            try await DeviceManager.shared.setGlassesMediaVolume(level: level)
         }
 
         // MARK: - RGB LED Control
@@ -462,7 +462,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
         AsyncFunction("restartTranscriber") {
             await MainActor.run {
-                CoreManager.shared.restartTranscriber()
+                DeviceManager.shared.restartTranscriber()
             }
         }
 
@@ -542,7 +542,7 @@ public class CoreModule: Module, MentraBluetoothSDKDelegate {
 
     @MainActor
     public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate) {
-        sendEvent("core_status", status.values)
+        sendEvent("bluetooth_status", status.values)
     }
 
     @MainActor

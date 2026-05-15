@@ -18,7 +18,7 @@ const addListener = jest.fn((eventName: string, listener: Listener) => {
 export const coreModuleMock = {
   addListener,
   requestBluetoothPermissions: jest.fn(() => Promise.resolve(true)),
-  getCoreStatus: jest.fn(() =>
+  getBluetoothStatus: jest.fn(() =>
     Promise.resolve({
       searching: false,
       micRanking: ["glasses", "phone", "bluetooth"],
@@ -68,9 +68,9 @@ export const coreModuleMock = {
     }),
   ),
   update: jest.fn(() => Promise.resolve()),
-  updateCore: jest.fn(() => Promise.resolve()),
+  updateBluetoothSettings: jest.fn(() => Promise.resolve()),
   updateGlasses: jest.fn(() => Promise.resolve()),
-  onCoreStatus: jest.fn((listener: Listener) => addListener("core_status", listener).remove),
+  onBluetoothStatus: jest.fn((listener: Listener) => addListener("bluetooth_status", listener).remove),
   onGlassesStatus: jest.fn((listener: Listener) => addListener("glasses_status", listener).remove),
   displayEvent: jest.fn(() => Promise.resolve()),
   displayText: jest.fn(() => Promise.resolve()),

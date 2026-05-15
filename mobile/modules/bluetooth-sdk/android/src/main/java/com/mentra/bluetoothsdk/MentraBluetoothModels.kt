@@ -1,7 +1,7 @@
-package com.mentra.core
+package com.mentra.bluetoothsdk
 
-import com.mentra.core.utils.ControllerTypes
-import com.mentra.core.utils.DeviceTypes
+import com.mentra.bluetoothsdk.utils.ControllerTypes
+import com.mentra.bluetoothsdk.utils.DeviceTypes
 
 data class MentraBluetoothSdkConfig(
     val deliverCallbacksOnMainThread: Boolean = true,

@@ -1,4 +1,11 @@
-import CoreModule, {ButtonPressEvent, CoreStatus, GlassesStatus, OtaStatus, OtaProgress, OtaUpdateInfo} from "@mentra/bluetooth-sdk"
+import CoreModule, {
+  ButtonPressEvent,
+  BluetoothStatus as CoreStatus,
+  GlassesStatus,
+  OtaProgress,
+  OtaStatus,
+  OtaUpdateInfo,
+} from "@mentra/bluetooth-sdk"
 import CrustModule from "crust"
 import * as Calendar from "expo-calendar"
 import * as Location from "expo-location"
@@ -188,7 +195,7 @@ class MantleManager {
     // give the core some time to boot before sending all the initial settings:
     BgTimer.setTimeout(() => {
       const initialCoreSettings = useSettingsStore.getState().getCoreSettings()
-      CoreModule.updateCore(initialCoreSettings) // send settings to core
+      CoreModule.updateBluetoothSettings(initialCoreSettings) // send settings to core
       console.log("MANTLE: Settings sent to core")
       // settings are now in native; safe to attempt auto-connect
       attemptReconnectToDefaultWearable()
@@ -323,7 +330,7 @@ class MantleManager {
           }
         }
         // console.log("MANTLE: core settings changed", coreSettingsObj)
-        CoreModule.updateCore(coreSettingsObj)
+        CoreModule.updateBluetoothSettings(coreSettingsObj)
       },
       {equalityFn: shallow},
     )
@@ -345,7 +352,7 @@ class MantleManager {
 
     // Forward core status changes to the zustand core store.
     this.subs.push(
-      CoreModule.onCoreStatus((changed: Partial<CoreStatus>) => {
+      CoreModule.onBluetoothStatus((changed: Partial<CoreStatus>) => {
         // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
@@ -904,7 +911,7 @@ class MantleManager {
     }
 
     // one time get all:
-    const coreStatus = await CoreModule.getCoreStatus()
+    const coreStatus = await CoreModule.getBluetoothStatus()
     // console.log("MANTLE: core status:", coreStatus)
     useCoreStore.getState().setCoreInfo(coreStatus)
 

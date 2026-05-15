@@ -18,7 +18,7 @@ npx pod-install
 
 ## Minimal Usage
 
-`startScan()` starts the scan. Discovered devices arrive asynchronously through `onCoreStatus()` updates.
+`startScan()` starts the scan. Discovered devices arrive asynchronously through `onBluetoothStatus()` updates.
 
 ```ts
 import BluetoothSdk, {type Device} from "@mentra/bluetooth-sdk"
@@ -28,11 +28,11 @@ const removeStatusListener = BluetoothSdk.onGlassesStatus((status) => {
 })
 
 const firstDevice = new Promise<Device>((resolve) => {
-  let removeCoreListener = () => {}
-  removeCoreListener = BluetoothSdk.onCoreStatus((status) => {
+  let removeBluetoothListener = () => {}
+  removeBluetoothListener = BluetoothSdk.onBluetoothStatus((status) => {
     const device = status.searchResults?.[0]
     if (device) {
-      removeCoreListener()
+      removeBluetoothListener()
       resolve(device)
     }
   })

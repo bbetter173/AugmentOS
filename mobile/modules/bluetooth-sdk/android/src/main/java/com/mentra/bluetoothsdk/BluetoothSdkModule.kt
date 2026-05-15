@@ -1,12 +1,12 @@
-package com.mentra.core
+package com.mentra.bluetoothsdk
 
-import com.mentra.core.utils.DeviceTypes
+import com.mentra.bluetoothsdk.utils.DeviceTypes
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
-class CoreModule : Module() {
+class BluetoothSdkModule : Module() {
     private var sdk: MentraBluetoothSdk? = null
-    private var deviceManager: CoreManager? = null
+    private var deviceManager: DeviceManager? = null
     private val sdkListener =
             object : MentraBluetoothSdkListener {
                 override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
@@ -14,7 +14,7 @@ class CoreModule : Module() {
                 }
 
                 override fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {
-                    sendEvent("core_status", status.toMap())
+                    sendEvent("bluetooth_status", status.toMap())
                 }
 
                 override fun onDeviceDiscovered(device: Device) {
@@ -123,12 +123,12 @@ class CoreModule : Module() {
             }
 
     override fun definition() = ModuleDefinition {
-        Name("Core")
+        Name("BluetoothSdk")
 
         // Define events that can be sent to JavaScript
         Events(
             "glasses_status",
-            "core_status",
+            "bluetooth_status",
             "log",
             "device_discovered",
             "default_device_changed",
@@ -184,7 +184,7 @@ class CoreModule : Module() {
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
             sdk = MentraBluetoothSdk.create(context, sdkListener)
-            deviceManager = CoreManager.getInstance()
+            deviceManager = DeviceManager.getInstance()
         }
 
         OnDestroy {
@@ -197,18 +197,18 @@ class CoreModule : Module() {
 
         Function("getGlassesStatus") {
             sdk?.getGlassesStatus()?.toMap()
-                    ?: GlassesStatus.fromMap(GlassesStore.store.getCategory("glasses")).toMap()
+                    ?: GlassesStatus.fromMap(DeviceStore.store.getCategory("glasses")).toMap()
         }
 
-        Function("getCoreStatus") {
-            sdk?.getBluetoothStatus()?.toMap() ?: GlassesStore.store.getCategory(ObservableStore.CORE_CATEGORY)
+        Function("getBluetoothStatus") {
+            sdk?.getBluetoothStatus()?.toMap() ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
         }
 
         Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }
 
         Function("set") { category: String, key: String, value: Any? ->
             if (value != null) {
-                GlassesStore.apply(category, key, value)
+                DeviceStore.apply(category, key, value)
             }
         }
 
@@ -216,16 +216,16 @@ class CoreModule : Module() {
             val normalizedCategory = ObservableStore.normalizeCategory(category)
             values.forEach { (key, value) ->
                 if (value != null) {
-                    GlassesStore.apply(normalizedCategory, key, value)
+                    DeviceStore.apply(normalizedCategory, key, value)
                 }
             }
             // Persist core_token to SharedPreferences so MentraLive.getCoreToken() finds it
             // (bridge may run this after glasses_ready; prefs survive retries and next connection)
             // TODO: move this to the mantle:
-            // if (category == "core") {
+            // if (category == "bluetooth") {
             //     values["core_token"]?.let { token ->
             //         val len = (token as? String)?.length ?: 0
-            //         android.util.Log.d("CoreModule", "update(core) core_token received, len=$len")
+            //         android.util.Log.d("BluetoothSdkModule", "update(core) core_token received, len=$len")
             //         if (token is String && token.isNotEmpty()) {
             //             val ctx = appContext.reactContext ?: appContext.currentActivity
             //             ctx?.let {
@@ -233,7 +233,7 @@ class CoreModule : Module() {
             //                     .edit()
             //                     .putString("core_token", token)
             //                     .apply()
-            //                 android.util.Log.d("CoreModule", "Persisted core_token to SharedPreferences, len=${token.length}")
+            //                 android.util.Log.d("BluetoothSdkModule", "Persisted core_token to SharedPreferences, len=${token.length}")
             //             }
             //         }
             //     }
@@ -473,7 +473,7 @@ class CoreModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.core.stt.STTTools.setSttModelDetails(context, path, languageCode)
+            com.mentra.bluetoothsdk.stt.STTTools.setSttModelDetails(context, path, languageCode)
         }
 
         AsyncFunction("getSttModelPath") { ->
@@ -481,7 +481,7 @@ class CoreModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.core.stt.STTTools.getSttModelPath(context)
+            com.mentra.bluetoothsdk.stt.STTTools.getSttModelPath(context)
         }
 
         AsyncFunction("checkSttModelAvailable") { ->
@@ -489,15 +489,15 @@ class CoreModule : Module() {
                     appContext.reactContext
                             ?: appContext.currentActivity
                                     ?: throw IllegalStateException("No context available")
-            com.mentra.core.stt.STTTools.checkSTTModelAvailable(context)
+            com.mentra.bluetoothsdk.stt.STTTools.checkSTTModelAvailable(context)
         }
 
         AsyncFunction("validateSttModel") { path: String ->
-            com.mentra.core.stt.STTTools.validateSTTModel(path)
+            com.mentra.bluetoothsdk.stt.STTTools.validateSTTModel(path)
         }
 
         AsyncFunction("extractTarBz2") { sourcePath: String, destinationPath: String ->
-            com.mentra.core.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
+            com.mentra.bluetoothsdk.stt.STTTools.extractTarBz2(sourcePath, destinationPath)
         }
 
     }

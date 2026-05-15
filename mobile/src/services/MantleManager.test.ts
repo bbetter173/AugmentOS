@@ -198,7 +198,7 @@ describe("MantleManager", () => {
   it("syncs native status, routes events, and forwards Bluetooth SDK setting changes", async () => {
     jest.advanceTimersByTime(1000)
 
-    expect(coreModuleMock.updateCore).toHaveBeenCalledWith(
+    expect(coreModuleMock.updateBluetoothSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         contextual_dashboard: true,
         core_token: "server-token",
@@ -206,13 +206,13 @@ describe("MantleManager", () => {
         power_saving_mode: false,
       }),
     )
-    expect(coreModuleMock.updateCore).not.toHaveBeenCalledWith(
+    expect(coreModuleMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
       expect.objectContaining({
         notifications_enabled: expect.anything(),
       }),
     )
     for (const nonSdkKey of ["always_on_status_bar", "metric_system"]) {
-      expect(coreModuleMock.updateCore).not.toHaveBeenCalledWith(
+      expect(coreModuleMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
         expect.objectContaining({
           [nonSdkKey]: expect.anything(),
         }),
@@ -220,7 +220,7 @@ describe("MantleManager", () => {
     }
     expect(crustModuleMock.setNotificationConfig).toHaveBeenCalledWith(true, [])
 
-    emitCoreModuleEvent("core_status", {searching: true, otherBtConnected: true})
+    emitCoreModuleEvent("bluetooth_status", {searching: true, otherBtConnected: true})
     emitCoreModuleEvent("glasses_status", {connected: true, deviceModel: "Mentra Live", batteryLevel: 77})
 
     expect(useCoreStore.getState().searching).toBe(true)
@@ -283,9 +283,9 @@ describe("MantleManager", () => {
       timestamp: 123456,
     })
     expect(socketComms.sendBatteryStatus).toHaveBeenCalledWith(88, true, 123456)
-    ;(coreModuleMock.updateCore as jest.Mock).mockClear()
+    ;(coreModuleMock.updateBluetoothSettings as jest.Mock).mockClear()
     await useSettingsStore.getState().setSetting(SETTINGS.core_token.key, "new-token", false)
-    expect(coreModuleMock.updateCore).toHaveBeenCalledWith(
+    expect(coreModuleMock.updateBluetoothSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         core_token: "new-token",
       }),
@@ -293,7 +293,7 @@ describe("MantleManager", () => {
   })
 
   it("syncs notification enablement and blocklist settings to Crust only", async () => {
-    ;(coreModuleMock.updateCore as jest.Mock).mockClear()
+    ;(coreModuleMock.updateBluetoothSettings as jest.Mock).mockClear()
     ;(crustModuleMock.setNotificationConfig as jest.Mock).mockClear()
 
     await useSettingsStore.getState().setSetting(SETTINGS.notifications_enabled.key, false, false)
@@ -302,12 +302,12 @@ describe("MantleManager", () => {
     await waitFor(() => {
       expect(crustModuleMock.setNotificationConfig).toHaveBeenLastCalledWith(false, ["com.blocked"])
     })
-    expect(coreModuleMock.updateCore).not.toHaveBeenCalledWith(
+    expect(coreModuleMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
       expect.objectContaining({
         notifications_enabled: expect.anything(),
       }),
     )
-    expect(coreModuleMock.updateCore).not.toHaveBeenCalledWith(
+    expect(coreModuleMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
       expect.objectContaining({
         notifications_blocklist: expect.anything(),
       }),
@@ -329,7 +329,7 @@ describe("MantleManager", () => {
     for (const key of Object.keys(nonSdkSettings)) {
       expect(useSettingsStore.getState().getCoreSettings()).not.toHaveProperty(key)
     }
-    ;(coreModuleMock.updateCore as jest.Mock).mockClear()
+    ;(coreModuleMock.updateBluetoothSettings as jest.Mock).mockClear()
     for (const [key, value] of Object.entries(nonSdkSettings)) {
       await useSettingsStore.getState().setSetting(key, value, false)
     }
@@ -337,11 +337,11 @@ describe("MantleManager", () => {
     for (const key of Object.keys(nonSdkSettings)) {
       expect(useSettingsStore.getState().getCoreSettings()).not.toHaveProperty(key)
     }
-    expect(coreModuleMock.updateCore).not.toHaveBeenCalled()
+    expect(coreModuleMock.updateBluetoothSettings).not.toHaveBeenCalled()
 
     expect(useSettingsStore.getState().getCoreSettings()).toHaveProperty("power_saving_mode")
     await useSettingsStore.getState().setSetting(SETTINGS.power_saving_mode.key, true, false)
-    expect(coreModuleMock.updateCore).toHaveBeenCalledWith(
+    expect(coreModuleMock.updateBluetoothSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         power_saving_mode: true,
       }),

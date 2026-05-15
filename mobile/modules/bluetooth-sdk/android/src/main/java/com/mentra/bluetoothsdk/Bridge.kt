@@ -5,7 +5,7 @@
 //  Created by Matthew Fosse on 3/4/25.
 //
 
-package com.mentra.core
+package com.mentra.bluetoothsdk
 
 import android.util.Base64
 import android.util.Log
@@ -20,7 +20,7 @@ import kotlin.jvm.Volatile
  * Android equivalent of the iOS Bridge.swift
  */
 public class Bridge private constructor() {
-    private var deviceManager: CoreManager? = null
+    private var deviceManager: DeviceManager? = null
 
     companion object {
         private const val TAG = "Bridge"
@@ -46,7 +46,7 @@ public class Bridge private constructor() {
 
         /**
          * Initialize the Bridge with event callback and context This should be called from
-         * CoreModule
+         * BluetoothSdkModule
          */
         @JvmStatic
         fun initialize(
@@ -191,7 +191,7 @@ public class Bridge private constructor() {
                 rssi: Int? = null
         ) {
             val searchResults =
-                    (GlassesStore.store.getCategory("core")["searchResults"] as? List<*>)
+                    (DeviceStore.store.getCategory("bluetooth")["searchResults"] as? List<*>)
                             ?.mapNotNull { result ->
                                 (result as? Map<*, *>)?.entries
                                         ?.mapNotNull { (key, value) ->
@@ -221,7 +221,7 @@ public class Bridge private constructor() {
                                 "$model:$name"
                             }
                             .asReversed()
-            GlassesStore.set("core", "searchResults", uniqueResults)
+            DeviceStore.set("bluetooth", "searchResults", uniqueResults)
         }
 
         // MARK: - Hardware Events
@@ -352,8 +352,8 @@ public class Bridge private constructor() {
         @JvmStatic
         fun sendStatus(statusObj: Map<String, Any>) {
             val body = HashMap<String, Any>()
-            body["core_status"] = statusObj
-            sendTypedMessage("core_status_update", body as Map<String, Any>)
+            body["bluetooth_status"] = statusObj
+            sendTypedMessage("bluetooth_status_update", body as Map<String, Any>)
         }
 
         /** Send glasses serial number */
@@ -380,7 +380,7 @@ public class Bridge private constructor() {
         @JvmStatic
         fun updateWifiScanResults(networks: List<Map<String, Any>>) {
             var storedNetworks: List<Map<String, Any>> =
-                    GlassesStore.get("core", "wifiScanResults") as? List<Map<String, Any>>
+                    DeviceStore.get("bluetooth", "wifiScanResults") as? List<Map<String, Any>>
                             ?: emptyList()
             // add the networks to the storedNetworks array, removing duplicates by ssid
             val updatedNetworks = storedNetworks.toMutableList()
@@ -389,7 +389,7 @@ public class Bridge private constructor() {
                     updatedNetworks.add(network)
                 }
             }
-            GlassesStore.apply("core", "wifiScanResults", updatedNetworks)
+            DeviceStore.apply("bluetooth", "wifiScanResults", updatedNetworks)
         }
 
         /** Send gallery status - matches iOS MentraLive.swift handleGalleryStatus pattern */
@@ -602,9 +602,9 @@ public class Bridge private constructor() {
     }
 
     init {
-        deviceManager = CoreManager.Companion.getInstance()
+        deviceManager = DeviceManager.Companion.getInstance()
         if (deviceManager == null) {
-            Log.e(TAG, "Failed to initialize CoreManager in Bridge constructor")
+            Log.e(TAG, "Failed to initialize DeviceManager in Bridge constructor")
         }
     }
 }

@@ -95,6 +95,7 @@ Configure permissions in your Expo app config:
 
 ```ts
 import BluetoothSdk, {
+  DeviceModels,
   createDisconnectedGlassesStatus,
   type Device,
   type GlassesStatus,
@@ -117,7 +118,7 @@ const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
   glassesStatus = {...glassesStatus, ...status};
 });
 
-await BluetoothSdk.startScan({model: 'Mentra Live'});
+await BluetoothSdk.startScan({model: DeviceModels.MentraLive});
 await BluetoothSdk.connect(await firstDevice);
 
 await BluetoothSdk.requestVersionInfo();

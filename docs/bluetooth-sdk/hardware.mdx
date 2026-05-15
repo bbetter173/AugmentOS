@@ -19,6 +19,8 @@ The SDK presents a common native API over multiple glasses models. Capabilities 
   <Tab title="React Native">
 
 ```ts
+import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk';
+
 const removeBluetooth = BluetoothSdk.onBluetoothStatus((status) => {
   const device = status.searchResults?.[0];
   if (device) {
@@ -27,7 +29,7 @@ const removeBluetooth = BluetoothSdk.onBluetoothStatus((status) => {
   }
 });
 
-await BluetoothSdk.startScan({model: 'Mentra Live'});
+await BluetoothSdk.startScan({model: DeviceModels.MentraLive});
 ```
 
   </Tab>

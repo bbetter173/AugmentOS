@@ -448,13 +448,14 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         // MARK: - Microphone Commands
 
-        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool) in
+        AsyncFunction("setMicState") { (sendPcmData: Bool, sendTranscript: Bool, bypassVad: Bool, sendLc3Data: Bool?) in
             await MainActor.run {
                 self.bluetoothSdk().setMicState(
                     MicConfiguration(
                         sendPcmData: sendPcmData,
                         sendTranscript: sendTranscript,
-                        bypassVad: bypassVad
+                        bypassVad: bypassVad,
+                        sendLc3Data: sendLc3Data ?? false
                     )
                 )
             }

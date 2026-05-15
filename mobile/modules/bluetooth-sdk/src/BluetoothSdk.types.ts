@@ -144,7 +144,7 @@ export type GalleryStatusEvent = {
 
 export type CompatibleGlassesSearchStopEvent = {
   type: "compatible_glasses_search_stop"
-  device_model: string
+  device_model: DeviceModel
 }
 
 export type HeartbeatSentEvent = {
@@ -196,6 +196,67 @@ export type GalleryMode = "auto" | "manual"
 export type PhotoSize = "small" | "medium" | "large" | "full"
 export type ButtonPhotoSize = "small" | "medium" | "large"
 export type PhotoCompression = "none" | "medium" | "heavy"
+export const DeviceModels = {
+  Simulated: "Simulated Glasses",
+  G1: "Even Realities G1",
+  G2: "Even Realities G2",
+  MentraLive: "Mentra Live",
+  MentraNex: "Mentra Display",
+  Mach1: "Mentra Mach1",
+  Z100: "Vuzix Z100",
+  Frame: "Brilliant Frame",
+  R1: "Even Realities R1",
+} as const
+
+export type DeviceModel = (typeof DeviceModels)[keyof typeof DeviceModels]
+export type ObservableStoreCategory = "glasses" | "bluetooth" | "core"
+
+export type DisplayTextRequest = {
+  text: string
+  x?: number
+  y?: number
+  size?: number
+}
+
+export type DashboardPositionRequest = {
+  height: number
+  depth: number
+}
+
+export type DashboardMenuItem = {
+  title: string
+  packageName: string
+  values?: Record<string, unknown>
+}
+
+export type ButtonPhotoSettings = {
+  size: ButtonPhotoSize
+}
+
+export type ButtonVideoRecordingSettings = {
+  width: number
+  height: number
+  fps: number
+}
+
+export type CameraFov = "standard" | "wide"
+
+export type CameraFovSetting = {
+  fov: number
+  roi_position: number
+}
+
+export type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
+export type MicMode = "phone" | "glasses" | "btclassic" | "bt"
+/** @deprecated Use {@link MicMode} for active/ranked mic modes or {@link MicPreference} for preferences. */
+export type MicRanking = MicMode
+
+export type MicConfig = {
+  sendPcmData: boolean
+  sendTranscript: boolean
+  bypassVad: boolean
+  sendLc3Data?: boolean
+}
 
 export type StreamVideoConfig = {
   width?: number
@@ -525,28 +586,26 @@ export interface GlassesStatus {
   controllerSignalStrength: number
 }
 
-interface DashboardMenuItem {
+export interface CoreDashboardMenuItem {
   name: string
   packageName: string
   running: boolean
 }
 
 export interface CoreSettings {
-  menu_apps: DashboardMenuItem[]
+  menu_apps: CoreDashboardMenuItem[]
 }
-
-export type MicRanking = "auto" | "phone" | "glasses" | "bluetooth"
 
 export interface Device {
   id: string
-  model: string
+  model: DeviceModel
   name: string
   address?: string
   rssi?: number
 }
 
 export interface DeviceScanRequest {
-  model: string
+  model: DeviceModel
 }
 
 export interface ConnectOptions {
@@ -566,12 +625,17 @@ export interface BluetoothStatus {
   // state:
   searching: boolean
   searchingController: boolean
-  default_wearable?: string
+  default_wearable?: DeviceModel | ""
+  pending_wearable?: DeviceModel | ""
   device_name?: string
   device_address?: string
+  default_controller?: DeviceModel | ""
+  pending_controller?: DeviceModel | ""
+  controller_device_name?: string
+  controller_address?: string
   systemMicUnavailable: boolean
-  micRanking: MicRanking[]
-  currentMic: MicRanking | null
+  micRanking: MicMode[]
+  currentMic: MicMode | "" | null
   searchResults: Device[]
   wifiScanResults: WifiSearchResult[]
   lastLog: string[]
@@ -579,3 +643,44 @@ export interface BluetoothStatus {
   // desired settings the SDK sends to compatible connected glasses:
   gallery_mode: boolean
 }
+
+export type BluetoothSettingsUpdate = Partial<{
+  auth_email: string
+  core_token: string
+  sensing_enabled: boolean
+  power_saving_mode: boolean
+  lc3_frame_size: number
+  preferred_mic: MicPreference
+  screen_disabled: boolean
+  contextual_dashboard: boolean
+  head_up_angle: number
+  brightness: number
+  auto_brightness: boolean
+  dashboard_height: number
+  dashboard_depth: number
+  menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
+  gallery_mode: boolean
+  button_photo_size: ButtonPhotoSize
+  button_video_settings: ButtonVideoRecordingSettings
+  button_video_width: number
+  button_video_height: number
+  button_video_fps: number
+  button_camera_led: boolean
+  button_max_recording_time: number
+  camera_fov: CameraFovSetting
+  should_send_pcm: boolean
+  should_send_lc3: boolean
+  should_send_transcript: boolean
+  bypass_vad: boolean
+  offline_mode: boolean
+  offline_captions_running: boolean
+  local_stt_fallback_active: boolean
+  pending_wearable: DeviceModel | ""
+  default_wearable: DeviceModel | ""
+  device_name: string
+  device_address: string
+  default_controller: DeviceModel | ""
+  pending_controller: DeviceModel | ""
+  controller_device_name: string
+  controller_address: string
+}>

@@ -111,6 +111,7 @@ iOS apps should include usage descriptions:
 
 ```ts
 import BluetoothSdk, {
+  DeviceModels,
   isReadyGlassesConnectionStatus,
   type Device,
 } from '@mentra/bluetooth-sdk'
@@ -130,7 +131,7 @@ const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
   console.log('Glasses status changed', status)
 })
 
-await BluetoothSdk.startScan({model: 'Mentra Live'})
+await BluetoothSdk.startScan({model: DeviceModels.MentraLive})
 
 await BluetoothSdk.connect(await firstDevice)
 
@@ -184,6 +185,8 @@ await saveDeviceToYourAppStorage(null)
 ```ts
 await BluetoothSdk.clearDisplay()
 await BluetoothSdk.showDashboard()
+await BluetoothSdk.setBrightness(60, false)
+await BluetoothSdk.setDashboardPosition({height: 4, depth: 2})
 
 await BluetoothSdk.requestWifiScan()
 await BluetoothSdk.sendWifiCredentials('Office WiFi', 'secret')
@@ -193,7 +196,13 @@ await BluetoothSdk.setHotspotState(true)
 await BluetoothSdk.setGalleryMode('auto')
 await BluetoothSdk.setGalleryMode('manual')
 
-await BluetoothSdk.setMicState(true, true, false)
+await BluetoothSdk.setPreferredMic('auto')
+await BluetoothSdk.setMicState({
+  sendPcmData: true,
+  sendTranscript: true,
+  bypassVad: false,
+  sendLc3Data: false,
+})
 await BluetoothSdk.setOwnAppAudioPlaying(false)
 
 await BluetoothSdk.rgbLedControl(

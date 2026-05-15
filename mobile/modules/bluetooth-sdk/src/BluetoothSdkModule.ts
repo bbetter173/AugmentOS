@@ -1,15 +1,26 @@
 import {NativeModule, requireNativeModule} from "expo"
 
 import {
-  ConnectOptions,
+  BluetoothSettingsUpdate,
   BluetoothSdkModuleEvents,
   BluetoothStatus,
-  DeviceScanRequest,
-  GalleryMode,
+  ButtonPhotoSettings,
+  ButtonVideoRecordingSettings,
+  CameraFov,
+  CameraFovSetting,
+  ConnectOptions,
+  DashboardMenuItem,
+  DashboardPositionRequest,
   Device,
+  DeviceScanRequest,
+  DisplayTextRequest,
+  GalleryMode,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
+  MicConfig,
+  MicPreference,
+  ObservableStoreCategory,
   PhotoCompression,
   PhotoSize,
   RgbLedAction,
@@ -21,17 +32,20 @@ import {
 type GlassesListener = (changed: Partial<GlassesStatus>) => void
 type BluetoothStatusListener = (changed: Partial<BluetoothStatus>) => void
 type MaybePromise<T> = T | Promise<T>
+type SetMicStateArgs =
+  | [config: MicConfig]
+  | [sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean, sendLc3Data?: boolean]
 
 declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): Promise<GlassesStatus>
   getBluetoothStatus(): Promise<BluetoothStatus>
   getDefaultDevice(): Promise<Device | null>
-  update(category: string, values: Record<string, any>): Promise<void>
+  update(category: ObservableStoreCategory, values: object): Promise<void>
 
   // Display Commands
-  displayEvent(params: Record<string, any>): Promise<void>
-  displayText(params: Record<string, any>): Promise<void>
+  displayEvent(params: Record<string, unknown>): Promise<void>
+  displayText(params: DisplayTextRequest): Promise<void>
   clearDisplay(): Promise<void>
 
   // Connection Commands
@@ -51,6 +65,12 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   forget(): Promise<void>
   forgetController(): Promise<void>
   showDashboard(): Promise<void>
+  setBrightness(level: number, autoMode?: boolean | null): Promise<void>
+  setAutoBrightness(enabled: boolean): Promise<void>
+  setDashboardPosition(request: DashboardPositionRequest): Promise<void>
+  setDashboardMenu(items: DashboardMenuItem[]): Promise<void>
+  setHeadUpAngle(angleDegrees: number): Promise<void>
+  setScreenDisabled(disabled: boolean): Promise<void>
   ping(): Promise<void>
   dbg1(): Promise<void>
   dbg2(): Promise<void>
@@ -68,6 +88,11 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
 
   // Gallery Commands
   setGalleryMode(mode: GalleryMode): Promise<void>
+  setButtonPhotoSettings(settings: ButtonPhotoSettings): Promise<void>
+  setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings): Promise<void>
+  setButtonCameraLed(enabled: boolean): Promise<void>
+  setButtonMaxRecordingTime(minutes: number): Promise<void>
+  setCameraFov(fov: CameraFov): Promise<void>
   queryGalleryStatus(): Promise<void>
   photoRequest(
     requestId: string,
@@ -97,7 +122,8 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   keepStreamAlive(params: StreamKeepAliveRequest): Promise<void>
 
   // Microphone Commands
-  setMicState(sendPcmData: boolean, sendTranscript: boolean, bypassVad: boolean): Promise<void>
+  setMicState(...args: SetMicStateArgs): Promise<void>
+  setPreferredMic(preferredMic: MicPreference): Promise<void>
   restartTranscriber(): Promise<void>
 
   // Audio Playback Monitoring
@@ -130,7 +156,7 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
 
   // Helper methods for type-safe observable store access
   updateGlasses(values: Partial<GlassesStatus>): Promise<void>
-  updateBluetoothSettings(values: Record<string, any>): Promise<void>
+  updateBluetoothSettings(values: BluetoothSettingsUpdate): Promise<void>
   onGlassesStatus(callback: GlassesListener): () => void
   onBluetoothStatus(callback: BluetoothStatusListener): () => void
 
@@ -147,7 +173,20 @@ const DEFAULT_CONNECT_OPTIONS: Required<ConnectOptions> = {
   cancelExistingConnectionAttempt: true,
 }
 
-function adaptConnectionStatusToNative(connection: GlassesStatus["connection"]): Record<string, any> {
+const CAMERA_FOV_SETTINGS: Record<CameraFov, CameraFovSetting> = {
+  standard: {fov: 118, roi_position: 0},
+  wide: {fov: 118, roi_position: 0},
+}
+
+function dashboardMenuItemToNative(item: DashboardMenuItem): Record<string, unknown> {
+  return {
+    ...(item.values ?? {}),
+    title: item.title,
+    packageName: item.packageName,
+  }
+}
+
+function adaptConnectionStatusToNative(connection: GlassesStatus["connection"]): Record<string, unknown> {
   switch (connection.state) {
     case "connected":
       return {connectionState: "CONNECTED", connected: true, fullyBooted: connection.fullyBooted}
@@ -162,9 +201,9 @@ function adaptConnectionStatusToNative(connection: GlassesStatus["connection"]):
   }
 }
 
-function adaptGlassesUpdateToNative(values: Partial<GlassesStatus>): Record<string, any> {
+function adaptGlassesUpdateToNative(values: Partial<GlassesStatus>): Record<string, unknown> {
   const {wifi, hotspot, connection, ...rest} = values
-  let update: Record<string, any> = {...rest}
+  let update: Record<string, unknown> = {...rest}
   if (connection) {
     update = {
       ...update,
@@ -226,12 +265,97 @@ NativeBluetoothSdkModule.getDefaultDevice = function () {
   return Promise.resolve(nativeGetDefaultDevice())
 }
 
+const nativeSetMicState = NativeBluetoothSdkModule.setMicState.bind(NativeBluetoothSdkModule) as (
+  sendPcmData: boolean,
+  sendTranscript: boolean,
+  bypassVad: boolean,
+  sendLc3Data: boolean,
+) => MaybePromise<void>
+
 NativeBluetoothSdkModule.updateGlasses = function (values: Partial<GlassesStatus>) {
   return this.update("glasses", adaptGlassesUpdateToNative(values))
 }
 
-NativeBluetoothSdkModule.updateBluetoothSettings = function (values: Record<string, any>) {
+NativeBluetoothSdkModule.updateBluetoothSettings = function (values: BluetoothSettingsUpdate) {
   return this.update("bluetooth", values)
+}
+
+NativeBluetoothSdkModule.setBrightness = function (level: number, autoMode?: boolean | null) {
+  return this.updateBluetoothSettings({
+    ...(autoMode == null ? {} : {auto_brightness: autoMode}),
+    brightness: level,
+  })
+}
+
+NativeBluetoothSdkModule.setAutoBrightness = function (enabled: boolean) {
+  return this.updateBluetoothSettings({auto_brightness: enabled})
+}
+
+NativeBluetoothSdkModule.setDashboardPosition = function (request: DashboardPositionRequest) {
+  return this.updateBluetoothSettings({
+    dashboard_height: request.height,
+    dashboard_depth: request.depth,
+  })
+}
+
+NativeBluetoothSdkModule.setDashboardMenu = function (items: DashboardMenuItem[]) {
+  return this.updateBluetoothSettings({menu_apps: items.map(dashboardMenuItemToNative)})
+}
+
+NativeBluetoothSdkModule.setHeadUpAngle = function (angleDegrees: number) {
+  return this.updateBluetoothSettings({head_up_angle: angleDegrees})
+}
+
+NativeBluetoothSdkModule.setScreenDisabled = function (disabled: boolean) {
+  return this.updateBluetoothSettings({screen_disabled: disabled})
+}
+
+NativeBluetoothSdkModule.setButtonPhotoSettings = function (settings: ButtonPhotoSettings) {
+  return this.updateBluetoothSettings({button_photo_size: settings.size})
+}
+
+NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (settings: ButtonVideoRecordingSettings) {
+  return this.updateBluetoothSettings({
+    button_video_width: settings.width,
+    button_video_height: settings.height,
+    button_video_fps: settings.fps,
+  })
+}
+
+NativeBluetoothSdkModule.setButtonCameraLed = function (enabled: boolean) {
+  return this.updateBluetoothSettings({button_camera_led: enabled})
+}
+
+NativeBluetoothSdkModule.setButtonMaxRecordingTime = function (minutes: number) {
+  return this.updateBluetoothSettings({button_max_recording_time: minutes})
+}
+
+NativeBluetoothSdkModule.setCameraFov = function (fov: CameraFov) {
+  return this.updateBluetoothSettings({camera_fov: CAMERA_FOV_SETTINGS[fov]})
+}
+
+NativeBluetoothSdkModule.setMicState = function (...args: SetMicStateArgs) {
+  const config =
+    typeof args[0] === "object"
+      ? args[0]
+      : {
+          sendPcmData: args[0],
+          sendTranscript: args[1],
+          bypassVad: args[2],
+          sendLc3Data: args[3],
+        }
+  return Promise.resolve(
+    nativeSetMicState(
+      config.sendPcmData,
+      config.sendTranscript,
+      config.bypassVad,
+      config.sendLc3Data ?? false,
+    ),
+  )
+}
+
+NativeBluetoothSdkModule.setPreferredMic = function (preferredMic: MicPreference) {
+  return this.updateBluetoothSettings({preferred_mic: preferredMic})
 }
 
 NativeBluetoothSdkModule.onGlassesStatus = function (callback: GlassesListener) {

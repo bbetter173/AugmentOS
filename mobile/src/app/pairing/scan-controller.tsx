@@ -1,4 +1,4 @@
-import BluetoothSdk, {type Device} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {type Device, type DeviceModel} from "@mentra/bluetooth-sdk"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"
@@ -19,7 +19,7 @@ import GlassView from "@/components/ui/GlassView"
 import {useNavigationStore} from "@/stores/navigation"
 
 export default function SelectGlassesBluetoothScreen() {
-  const {deviceModel}: {deviceModel: string} = useLocalSearchParams()
+  const {deviceModel} = useLocalSearchParams() as {deviceModel: DeviceModel}
   const {theme} = useAppTheme()
   const {goBack, replace} = useNavigationStore.getState()
   const [showTroubleshootingModal, setShowTroubleshootingModal] = useState(false)

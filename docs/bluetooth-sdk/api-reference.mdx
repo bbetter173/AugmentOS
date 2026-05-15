@@ -18,7 +18,7 @@ The Mentra Bluetooth SDK exposes the same core glasses lifecycle across Android,
 | --- | --- | --- |
 | Android | `com.mentra:bluetooth-sdk` | `import com.mentra.bluetoothsdk.*` |
 | iOS | `MentraBluetoothSDK` CocoaPod | `import MentraBluetoothSDK` |
-| React Native / Expo | `@mentra/bluetooth-sdk` | `import BluetoothSdk from '@mentra/bluetooth-sdk'` |
+| React Native / Expo | `@mentra/bluetooth-sdk` | `import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk'` |
 
 ## Lifecycle
 
@@ -74,12 +74,12 @@ Keep one SDK instance per active app session. The SDK owns Bluetooth connection 
   <Tab title="React Native">
 
 ```ts
-await BluetoothSdk.startScan({model: 'Mentra Live'});
+await BluetoothSdk.startScan({model: DeviceModels.MentraLive});
 
 await BluetoothSdk.connect(device);
 await BluetoothSdk.setDefaultDevice({
   id: 'Mentra Live:Mentra_Live_E7FA',
-  model: 'Mentra Live',
+  model: DeviceModels.MentraLive,
   name: 'Mentra_Live_E7FA',
 });
 

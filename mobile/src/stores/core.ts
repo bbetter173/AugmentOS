@@ -11,7 +11,7 @@ const initialState: BluetoothStatus = {
   // state:
   searching: false,
   searchingController: false,
-  micRanking: ["glasses", "phone", "bluetooth"],
+  micRanking: ["glasses", "phone", "bt", "btclassic"],
   systemMicUnavailable: false,
   currentMic: null,
   searchResults: [],

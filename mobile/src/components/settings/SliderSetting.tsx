@@ -14,7 +14,6 @@ type SliderSettingProps = {
   onValueChange: (value: number) => void // For immediate feedback, e.g., UI updates
   onValueSet: (value: number) => void // For BLE requests or final actions
   style?: ViewStyle
-  containerStyle?: ViewStyle
   disableBorder?: boolean
   isFirst?: boolean
   isLast?: boolean
@@ -29,7 +28,6 @@ const SliderSetting: React.FC<SliderSettingProps> = ({
   onValueChange,
   onValueSet,
   style,
-  containerStyle,
   disableBorder = false,
   isFirst,
   isLast,
@@ -58,7 +56,7 @@ const SliderSetting: React.FC<SliderSettingProps> = ({
       : undefined
 
   return (
-    <View style={[themed($container), groupedStyle, containerStyle, disableBorder && {borderWidth: 0}, style]}>
+    <View style={[themed($container), groupedStyle, disableBorder && {borderWidth: 0}, style]}>
       <View style={themed($textContainer)}>
         <View style={themed($labelRow)}>
           <Text text={label} style={themed($label)} />

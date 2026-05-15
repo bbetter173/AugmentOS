@@ -673,7 +673,6 @@ export default function NexDeveloperSettings() {
                 subtitle="Play audio received from glasses through LC3 codec"
                 value={lc3AudioEnabled}
                 onValueChange={onLc3AudioToggle}
-                containerStyle={$toggleContainer}
               />
             </View>
 

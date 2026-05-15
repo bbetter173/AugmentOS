@@ -151,7 +151,6 @@ const $sizeStyles = {
   lg: {fontSize: 20, lineHeight: 32} satisfies TextStyle,
   // md: {fontSize: 18, lineHeight: 26} satisfies TextStyle,
   md: {fontSize: 16, lineHeight: 24} satisfies TextStyle,
-  sm: {fontSize: 16, lineHeight: 24} satisfies TextStyle,
   xs: {fontSize: 14, lineHeight: 21} satisfies TextStyle,
   xxs: {fontSize: 12, lineHeight: 18} satisfies TextStyle,
 }
@@ -161,7 +160,6 @@ const $fontWeightStyles = Object.entries(typography.primary).reduce((acc, [weigh
 }, {}) as Record<Weights, TextStyle>
 
 const $baseStyle: ThemedStyle<TextStyle> = (theme) => ({
-  ...$sizeStyles.sm,
   ...$fontWeightStyles.normal,
   color: theme.colors.secondary_foreground,
 })
@@ -178,6 +176,6 @@ const $presets: Record<Presets, ThemedStyleArray<TextStyle>> = {
   ],
   subheading: [$baseStyle, {...$sizeStyles.lg, ...$fontWeightStyles.medium}],
   formLabel: [$baseStyle, {...$fontWeightStyles.medium}],
-  formHelper: [$baseStyle, {...$sizeStyles.sm, ...$fontWeightStyles.normal}],
+  formHelper: [$baseStyle, {...$fontWeightStyles.normal}],
 }
 const $rtlStyle: TextStyle = isRTL ? {writingDirection: "rtl"} : {}

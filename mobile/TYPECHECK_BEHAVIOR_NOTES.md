@@ -9,3 +9,7 @@ These are TypeScript errors that still point at possible runtime or product issu
 ## Missing modules
 
 - `src/utils/LogoutUtils.ts` was imported but missing. The PR re-exports `LogoutUtils` from `AuthContext`; verify whether that should remain the public import path or whether `LogoutUtils` should move into its own utility module later.
+
+## Icon props
+
+- Some call sites pass an `icon` prop to `Icon` / `PressableIcon`, but the legacy implementation renders from `name`. This PR keeps `icon` typed but ignored to avoid changing visible UI; verify separately whether those call sites should be migrated to `name`.

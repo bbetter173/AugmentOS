@@ -12,7 +12,6 @@ type ToggleSettingProps = {
   onValueChange: (newValue: boolean) => void
   disabled?: boolean
   style?: ViewStyle
-  containerStyle?: ViewStyle
   icon?: React.ReactNode
   compact?: boolean
   isFirst?: boolean
@@ -27,7 +26,6 @@ const ToggleSetting: React.FC<ToggleSettingProps> = ({
   onValueChange,
   disabled = false,
   style,
-  containerStyle,
   icon,
   compact = false,
   isFirst,
@@ -54,7 +52,6 @@ const ToggleSetting: React.FC<ToggleSettingProps> = ({
       style={[
         themed($container),
         groupedStyle,
-        containerStyle,
         style,
         disabled && {opacity: 0.5},
         compact && {paddingVertical: theme.spacing.s3},

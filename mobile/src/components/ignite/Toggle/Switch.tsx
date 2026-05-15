@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useRef, useCallback, useState} from "react"
-import {Animated, Platform, StyleProp, TextStyle, View, ViewStyle} from "react-native"
+import {Animated, Image, ImageSourcePropType, ImageStyle, Platform, StyleProp, TextStyle, View, ViewStyle} from "react-native"
 
-import {Icon} from "@/components/ignite/Icon"
+import {iconRegistry} from "@/components/ignite/Icon"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {isRTL} from "@/i18n"
 import type {ThemedStyle} from "@/theme"
@@ -314,11 +314,20 @@ function _SwitchAccessibilityLabel(props: SwitchInputProps & {role: "on" | "off"
         />
       )}
 
-      {accessibilityMode === "icon" && shouldLabelBeVisible && (
-        <Icon name={role === "off" ? "hidden" : "view"} size={14} color={color} />
-      )}
+      {accessibilityMode === "icon" &&
+        shouldLabelBeVisible &&
+        getSwitchAccessibilityIcon(role) != null && (
+          <Image style={[$switchAccessibilityIcon, {tintColor: color}]} source={getSwitchAccessibilityIcon(role)!} />
+        )}
     </View>
   )
+}
+
+function getSwitchAccessibilityIcon(role: "on" | "off"): ImageSourcePropType | undefined {
+  const source = (iconRegistry as Record<string, unknown>)[role === "off" ? "hidden" : "view"]
+  return typeof source === "number" || (source != null && typeof source === "object")
+    ? (source as ImageSourcePropType)
+    : undefined
 }
 
 const $inputOuter: StyleProp<ViewStyle> = [$inputOuterBase, {height: 16, width: 32, borderRadius: 16}]
@@ -341,6 +350,12 @@ const $switchAccessibility: TextStyle = {
   width: "40%",
   justifyContent: "center",
   alignItems: "center",
+}
+
+const $switchAccessibilityIcon: ImageStyle = {
+  width: 14,
+  height: 14,
+  resizeMode: "contain",
 }
 
 const $switchAccessibilityLine: ViewStyle = {

@@ -7,7 +7,7 @@ import AppIcon from "@/components/home/AppIcon"
 import {Group} from "@/components/ui/Group"
 import {useAppTheme} from "@/contexts/ThemeContext"
 import {translate} from "@/i18n"
-import {HardwareCompatibility, type ClientApp} from "@mentra/island"
+import type {ClientApp} from "@mentra/island"
 import {ThemedStyle} from "@/theme"
 
 interface AppPickerProps {
@@ -203,7 +203,7 @@ export const AppPicker: FC<AppPickerProps> = ({
 }
 
 function getCompatibilityMessage(compatibility: ClientApp["compatibility"]): string {
-  return compatibility ? HardwareCompatibility.getCompatibilityMessage(compatibility) : ""
+  return (compatibility as {message?: string} | undefined)?.message || ""
 }
 
 // Styles

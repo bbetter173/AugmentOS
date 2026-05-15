@@ -211,17 +211,39 @@ public class Bridge private constructor() {
                         }
                         rssi?.let { put("rssi", it) }
                     }
-            val allResults = searchResults + newResult
-            val uniqueResults =
-                    allResults
-                            .asReversed()
-                            .distinctBy {
-                                val model = it["model"] ?: it["deviceModel"] ?: deviceModel
-                                val name = it["name"] ?: it["deviceName"] ?: return@distinctBy null
-                                "$model:$name"
-                            }
-                            .asReversed()
+            // Keep the public searchResults array stable as glasses are added or removed.
+            // Duplicate discoveries refresh their existing row; only new glasses append.
+            val uniqueResults = mergeStableSearchResults(searchResults, newResult, deviceModel)
             DeviceStore.set("bluetooth", "searchResults", uniqueResults)
+        }
+
+        private fun mergeStableSearchResults(
+                currentResults: List<Map<String, Any>>,
+                newResult: Map<String, Any>,
+                fallbackModel: String
+        ): List<Map<String, Any>> {
+            val newKey = searchResultKey(newResult, fallbackModel) ?: return currentResults
+            val nextResults = currentResults.toMutableList()
+            val existingIndex =
+                    nextResults.indexOfFirst { result ->
+                        searchResultKey(result, fallbackModel) == newKey
+                    }
+            if (existingIndex >= 0) {
+                nextResults[existingIndex] = newResult
+            } else {
+                nextResults += newResult
+            }
+            return nextResults
+        }
+
+        private fun searchResultKey(result: Map<String, Any>, fallbackModel: String): String? {
+            val id = result["id"] as? String
+            if (!id.isNullOrBlank()) {
+                return id
+            }
+            val model = result["model"] as? String ?: result["deviceModel"] as? String ?: fallbackModel
+            val name = result["name"] as? String ?: result["deviceName"] as? String ?: return null
+            return "$model:$name"
         }
 
         // MARK: - Hardware Events

@@ -490,6 +490,8 @@ public struct BluetoothStatus: CustomStringConvertible {
     public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
     public var currentMic: String { stringValue(values, "currentMic") ?? "" }
     public var micRanking: [String] { stringListValue(values, "micRanking") }
+    /// Nearby glasses in stable discovery order. Existing entries keep their array position as
+    /// details refresh; new glasses append at the end, and removals should not reorder remaining entries.
     public var searchResults: [Device] {
         dictionaryListValue(values, "searchResults").compactMap(Device.init(values:))
     }
@@ -633,6 +635,9 @@ public struct BluetoothStatusUpdate: CustomStringConvertible {
     public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
     public var currentMic: String? { optionalStringValue(values, "currentMic") }
     public var micRanking: [String]? { optionalStringListValue(values, "micRanking") }
+    /// Nearby glasses in stable discovery order when included in an update. Existing entries keep their
+    /// array position as details refresh; new glasses append at the end, and removals should not reorder
+    /// remaining entries.
     public var searchResults: [Device]? {
         optionalDictionaryListValue(values, "searchResults")?.compactMap(Device.init(values:))
     }

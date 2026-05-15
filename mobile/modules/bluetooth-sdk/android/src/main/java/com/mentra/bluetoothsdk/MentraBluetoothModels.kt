@@ -234,6 +234,11 @@ data class BluetoothStatus(
     val micEnabled: Boolean,
     val currentMic: String,
     val micRanking: List<String>,
+    /**
+     * Nearby glasses in stable discovery order. Existing entries keep their array position as
+     * details refresh; new glasses append at the end, and removals should not reorder remaining
+     * entries.
+     */
     val searchResults: List<Device>,
     val wifiScanResults: List<WifiScanResult>,
     val lastLog: List<String>,
@@ -534,6 +539,11 @@ data class BluetoothStatusUpdate(
     val micEnabled: Boolean? = null,
     val currentMic: String? = null,
     val micRanking: List<String>? = null,
+    /**
+     * Nearby glasses in stable discovery order when included in an update. Existing entries keep
+     * their array position as details refresh; new glasses append at the end, and removals should
+     * not reorder remaining entries.
+     */
     val searchResults: List<Device>? = null,
     val wifiScanResults: List<WifiScanResult>? = null,
     val lastLog: List<String>? = null,

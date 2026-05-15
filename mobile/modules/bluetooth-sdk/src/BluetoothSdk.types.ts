@@ -759,6 +759,11 @@ export interface BluetoothStatus {
   systemMicUnavailable: boolean
   micRanking: MicMode[]
   currentMic: MicMode | "" | null
+  /**
+   * Nearby glasses in stable discovery order.
+   * Existing entries keep their array position as details refresh; new glasses append at the end,
+   * and removals should not reorder remaining entries.
+   */
   searchResults: Device[]
   wifiScanResults: WifiSearchResult[]
   lastLog: string[]

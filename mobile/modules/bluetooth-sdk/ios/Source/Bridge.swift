@@ -126,16 +126,46 @@ class Bridge {
                 if let rssi {
                     newResult["rssi"] = rssi
                 }
-                let allResults = searchResults + [newResult]
-                var seen = Set<String>()
-                let uniqueResults = allResults.reversed().filter {
-                    let model = $0["model"] as? String ?? $0["deviceModel"] as? String ?? deviceModel
-                    guard let name = $0["name"] as? String ?? $0["deviceName"] as? String else { return false }
-                    return seen.insert("\(model):\(name)").inserted
-                }.reversed()
-                DeviceStore.shared.set("bluetooth", "searchResults", Array(uniqueResults))
+                // Keep the public searchResults array stable as glasses are added or removed.
+                // Duplicate discoveries refresh their existing row; only new glasses append.
+                let uniqueResults = mergeStableSearchResults(
+                    searchResults,
+                    newResult: newResult,
+                    fallbackModel: deviceModel
+                )
+                DeviceStore.shared.set("bluetooth", "searchResults", uniqueResults)
             }
         }
+    }
+
+    private static func mergeStableSearchResults(
+        _ currentResults: [[String: Any]],
+        newResult: [String: Any],
+        fallbackModel: String
+    ) -> [[String: Any]] {
+        guard let newKey = searchResultKey(newResult, fallbackModel: fallbackModel) else {
+            return currentResults
+        }
+        var nextResults = currentResults
+        if let existingIndex = nextResults.firstIndex(where: {
+            searchResultKey($0, fallbackModel: fallbackModel) == newKey
+        }) {
+            nextResults[existingIndex] = newResult
+        } else {
+            nextResults.append(newResult)
+        }
+        return nextResults
+    }
+
+    private static func searchResultKey(_ result: [String: Any], fallbackModel: String) -> String? {
+        if let id = result["id"] as? String, !id.isEmpty {
+            return id
+        }
+        let model = result["model"] as? String ?? result["deviceModel"] as? String ?? fallbackModel
+        guard let name = result["name"] as? String ?? result["deviceName"] as? String else {
+            return nil
+        }
+        return "\(model):\(name)"
     }
 
     // MARK: - Hardware Events

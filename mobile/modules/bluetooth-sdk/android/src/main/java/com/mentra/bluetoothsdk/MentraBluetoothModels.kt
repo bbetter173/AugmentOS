@@ -795,7 +795,6 @@ data class PhotoRequest @JvmOverloads constructor(
     val webhookUrl: String,
     val authToken: String? = null,
     val compress: PhotoCompression = PhotoCompression.MEDIUM,
-    val flash: Boolean = false,
     val sound: Boolean = true,
 )
 
@@ -860,7 +859,6 @@ data class StreamRequest @JvmOverloads constructor(
     val streamId: String = "",
     val keepAlive: Boolean = true,
     val keepAliveIntervalSeconds: Int = 15,
-    val flash: Boolean = true,
     val sound: Boolean = true,
     val video: StreamVideoConfig? = null,
     val audio: StreamAudioConfig? = null,
@@ -873,7 +871,8 @@ data class StreamRequest @JvmOverloads constructor(
         values["streamId"] = streamId
         values["keepAlive"] = keepAlive
         values["keepAliveIntervalSeconds"] = keepAliveIntervalSeconds
-        values["flash"] = flash
+        // The camera light is a privacy indicator and cannot be disabled by SDK callers.
+        values["flash"] = true
         values["sound"] = sound
         video?.toMap()?.takeIf { it.isNotEmpty() }?.let { values["video"] = it }
         audio?.toMap()?.takeIf { it.isNotEmpty() }?.let { values["audio"] = it }
@@ -890,7 +889,6 @@ data class StreamRequest @JvmOverloads constructor(
                 streamId = values["streamId"] as? String ?: "",
                 keepAlive = values["keepAlive"] as? Boolean ?: true,
                 keepAliveIntervalSeconds = (values["keepAliveIntervalSeconds"] as? Number)?.toInt() ?: 15,
-                flash = values["flash"] as? Boolean ?: true,
                 sound = values["sound"] as? Boolean ?: true,
                 video = StreamVideoConfig.fromMap((values["video"] ?: values["v"]) as? Map<*, *>),
                 audio = StreamAudioConfig.fromMap((values["audio"] ?: values["a"]) as? Map<*, *>),
@@ -961,7 +959,6 @@ data class RgbLedRequest @JvmOverloads constructor(
 data class VideoRecordingRequest(
     val requestId: String,
     val save: Boolean,
-    val flash: Boolean,
     val sound: Boolean,
 )
 

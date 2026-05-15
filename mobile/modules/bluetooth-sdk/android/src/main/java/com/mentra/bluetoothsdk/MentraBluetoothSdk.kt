@@ -345,7 +345,6 @@ class MentraBluetoothSdk private constructor(
             request.webhookUrl,
             request.authToken,
             request.compress.value,
-            request.flash,
             request.sound,
         )
     }
@@ -379,7 +378,7 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun startVideoRecording(request: VideoRecordingRequest) {
-        deviceManager.startVideoRecording(request.requestId, request.save, request.flash, request.sound)
+        deviceManager.startVideoRecording(request.requestId, request.save, request.sound)
     }
 
     fun stopVideoRecording(requestId: String) {

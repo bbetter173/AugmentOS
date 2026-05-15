@@ -317,7 +317,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("photoRequest") {
             (
                 requestId: String, appId: String, size: String, webhookUrl: String?,
-                authToken: String?, compress: String?, flash: Bool, sound: Bool
+                authToken: String?, compress: String?, sound: Bool
             ) in
             await MainActor.run {
                 self.bluetoothSdk().requestPhoto(
@@ -328,7 +328,6 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                         webhookUrl: webhookUrl,
                         authToken: authToken,
                         compress: compress.flatMap(PhotoCompression.init(rawValue:)),
-                        flash: flash,
                         sound: sound
                     )
                 )
@@ -373,10 +372,10 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         // MARK: - Video Recording Commands
 
-        AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, flash: Bool, sound: Bool) in
+        AsyncFunction("startVideoRecording") { (requestId: String, save: Bool, sound: Bool) in
             await MainActor.run {
                 self.bluetoothSdk().startVideoRecording(
-                    VideoRecordingRequest(requestId: requestId, save: save, flash: flash, sound: sound)
+                    VideoRecordingRequest(requestId: requestId, save: save, sound: sound)
                 )
             }
         }

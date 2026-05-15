@@ -249,7 +249,6 @@ export type StreamStartRequest = {
   streamId?: string
   keepAlive?: boolean
   keepAliveIntervalSeconds?: number
-  flash?: boolean
   sound?: boolean
   video?: StreamVideoConfig
   audio?: StreamAudioConfig
@@ -590,10 +589,9 @@ export interface BluetoothSdkPublicModule {
     webhookUrl: string | null,
     authToken: string | null,
     compress: PhotoCompression,
-    flash: boolean,
     sound: boolean,
   ): Promise<void>
-  startVideoRecording(requestId: string, save: boolean, flash: boolean, sound: boolean): Promise<void>
+  startVideoRecording(requestId: string, save: boolean, sound: boolean): Promise<void>
   stopVideoRecording(requestId: string): Promise<void>
 
   startStream(params: StreamStartRequest): Promise<void>

@@ -202,12 +202,11 @@ await BluetoothSdk.photoRequest(
   'https://api.example.com/mentra/photo',
   'optional-token',
   'medium',
-  false,
   true,
 )
 ```
 
-The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`.
+The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`. The camera light is always enabled for photo capture.
 
 ## Streaming
 
@@ -229,7 +228,7 @@ await BluetoothSdk.keepStreamAlive({
 await BluetoothSdk.stopStream()
 ```
 
-Use `rtmp://` or `rtmps://` for RTMP, `srt://` for SRT, and `http://` or `https://` for WHIP/WebRTC ingest. Send keep-alives about every 15 seconds while streaming.
+Use `rtmp://` or `rtmps://` for RTMP, `srt://` for SRT, and `http://` or `https://` for WHIP/WebRTC ingest. Send keep-alives about every 15 seconds while streaming. The camera light is always enabled while streaming.
 
 ## Events
 

@@ -355,7 +355,6 @@ class BluetoothSdkModule : Module() {
                 webhookUrl: String,
                 authToken: String?,
                 compress: String,
-                flash: Boolean,
                 sound: Boolean ->
             sdk?.requestPhoto(
                     PhotoRequest(
@@ -365,7 +364,6 @@ class BluetoothSdkModule : Module() {
                             webhookUrl = webhookUrl,
                             authToken = authToken,
                             compress = PhotoCompression.fromValue(compress),
-                            flash = flash,
                             sound = sound,
                     )
             )
@@ -389,8 +387,8 @@ class BluetoothSdkModule : Module() {
 
         // MARK: - Video Recording Commands
 
-        AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, flash: Boolean, sound: Boolean ->
-            sdk?.startVideoRecording(VideoRecordingRequest(requestId, save, flash, sound))
+        AsyncFunction("startVideoRecording") { requestId: String, save: Boolean, sound: Boolean ->
+            sdk?.startVideoRecording(VideoRecordingRequest(requestId, save, sound))
         }
 
         AsyncFunction("stopVideoRecording") { requestId: String ->

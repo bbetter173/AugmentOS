@@ -232,6 +232,7 @@ Important defaults:
 - `setMicState(enabled)` defaults to glasses microphone on, VAD bypass off, transcript events off, and LC3 events off.
 - `photoRequest(..., authToken, ...)` omits the `Authorization` header when `authToken` is `null` or empty.
 - `startStream` optional `video` and `audio` configs are omitted unless supplied, so the connected glasses use their model defaults.
+- Photo capture, video recording, and streaming always enable the camera light as a privacy indicator.
 
 ## Common Commands
 

@@ -98,7 +98,6 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
     webhookUrl: string | null,
     authToken: string | null,
     compress: PhotoCompression,
-    flash: boolean,
     sound: boolean,
   ): Promise<void>
 
@@ -110,7 +109,7 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   requestVersionInfo(): Promise<void>
 
   // Video Recording Commands
-  startVideoRecording(requestId: string, save: boolean, flash: boolean, sound: boolean): Promise<void>
+  startVideoRecording(requestId: string, save: boolean, sound: boolean): Promise<void>
   stopVideoRecording(requestId: string): Promise<void>
 
   // Stream Commands

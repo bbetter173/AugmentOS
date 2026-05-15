@@ -833,7 +833,6 @@ public struct PhotoRequest {
     public let webhookUrl: String?
     public let authToken: String?
     public let compress: PhotoCompression?
-    public let flash: Bool
     public let sound: Bool
 
     public init(
@@ -843,7 +842,6 @@ public struct PhotoRequest {
         webhookUrl: String? = nil,
         authToken: String? = nil,
         compress: PhotoCompression? = nil,
-        flash: Bool,
         sound: Bool
     ) {
         self.requestId = requestId
@@ -852,7 +850,6 @@ public struct PhotoRequest {
         self.webhookUrl = webhookUrl
         self.authToken = authToken
         self.compress = compress
-        self.flash = flash
         self.sound = sound
     }
 }
@@ -938,7 +935,6 @@ public struct StreamRequest {
     public let streamId: String
     public let keepAlive: Bool
     public let keepAliveIntervalSeconds: Int
-    public let flash: Bool
     public let sound: Bool
     public let video: StreamVideoConfig?
     public let audio: StreamAudioConfig?
@@ -949,7 +945,6 @@ public struct StreamRequest {
         streamId: String = "",
         keepAlive: Bool = true,
         keepAliveIntervalSeconds: Int = 15,
-        flash: Bool = true,
         sound: Bool = true,
         video: StreamVideoConfig? = nil,
         audio: StreamAudioConfig? = nil,
@@ -959,7 +954,6 @@ public struct StreamRequest {
         self.streamId = streamId
         self.keepAlive = keepAlive
         self.keepAliveIntervalSeconds = keepAliveIntervalSeconds
-        self.flash = flash
         self.sound = sound
         self.video = video
         self.audio = audio
@@ -976,7 +970,6 @@ public struct StreamRequest {
             streamId: values["streamId"] as? String ?? "",
             keepAlive: values["keepAlive"] as? Bool ?? true,
             keepAliveIntervalSeconds: intValue(values["keepAliveIntervalSeconds"]) ?? 15,
-            flash: values["flash"] as? Bool ?? true,
             sound: values["sound"] as? Bool ?? true,
             video: StreamVideoConfig(values: (values["video"] ?? values["v"]) as? [String: Any]),
             audio: StreamAudioConfig(values: (values["audio"] ?? values["a"]) as? [String: Any]),
@@ -991,7 +984,8 @@ public struct StreamRequest {
         values["streamId"] = streamId
         values["keepAlive"] = keepAlive
         values["keepAliveIntervalSeconds"] = keepAliveIntervalSeconds
-        values["flash"] = flash
+        // The camera light is a privacy indicator and cannot be disabled by SDK callers.
+        values["flash"] = true
         values["sound"] = sound
         if let videoValues = video?.dictionary, !videoValues.isEmpty {
             values["video"] = videoValues
@@ -1075,13 +1069,11 @@ public struct RgbLedRequest {
 public struct VideoRecordingRequest {
     public let requestId: String
     public let save: Bool
-    public let flash: Bool
     public let sound: Bool
 
-    public init(requestId: String, save: Bool, flash: Bool, sound: Bool) {
+    public init(requestId: String, save: Bool, sound: Bool) {
         self.requestId = requestId
         self.save = save
-        self.flash = flash
         self.sound = sound
     }
 }
@@ -2287,7 +2279,6 @@ public final class MentraBluetoothSDK {
             request.webhookUrl,
             request.authToken,
             request.compress?.rawValue,
-            request.flash,
             request.sound
         )
     }
@@ -2324,7 +2315,6 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.startVideoRecording(
             request.requestId,
             request.save,
-            request.flash,
             request.sound
         )
     }

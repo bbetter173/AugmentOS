@@ -1221,6 +1221,7 @@ class DeviceManager {
 
     fun startStream(message: MutableMap<String, Any>) {
         Bridge.log("MAN: startStream")
+        message["flash"] = true
         sgc?.startStream(message)
     }
 
@@ -1352,11 +1353,11 @@ class DeviceManager {
         sgc?.sendReboot()
     }
 
-    fun startVideoRecording(requestId: String, save: Boolean, flash: Boolean, sound: Boolean) {
+    fun startVideoRecording(requestId: String, save: Boolean, sound: Boolean) {
         Bridge.log(
-                "MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=$flash, sound=$sound"
+                "MAN: onStartVideoRecording: requestId=$requestId, save=$save, flash=true, sound=$sound"
         )
-        sgc?.startVideoRecording(requestId, save, flash, sound)
+        sgc?.startVideoRecording(requestId, save, true, sound)
     }
 
     fun stopVideoRecording(requestId: String) {
@@ -1379,13 +1380,12 @@ class DeviceManager {
             webhookUrl: String,
             authToken: String?,
             compress: String,
-            flash: Boolean,
             sound: Boolean
     ) {
         Bridge.log(
-                "MAN: onPhotoRequest: $requestId, $appId, $size, compress=$compress, flash=$flash, sound=$sound"
+                "MAN: onPhotoRequest: $requestId, $appId, $size, compress=$compress, flash=true, sound=$sound"
         )
-        sgc?.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
+        sgc?.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, true, sound)
     }
 
     fun rgbLedControl(

@@ -1,6 +1,6 @@
 import CoreModule, {
   ButtonPressEvent,
-  BluetoothStatus as CoreStatus,
+  BluetoothStatus,
   GlassesStatus,
   OtaProgress,
   OtaStatus,
@@ -352,7 +352,7 @@ class MantleManager {
 
     // Forward core status changes to the zustand core store.
     this.subs.push(
-      CoreModule.onBluetoothStatus((changed: Partial<CoreStatus>) => {
+      CoreModule.onBluetoothStatus((changed: Partial<BluetoothStatus>) => {
         // console.log("MANTLE: Core status changed", changed)
         useCoreStore.getState().setCoreInfo(changed)
       }),
@@ -911,9 +911,9 @@ class MantleManager {
     }
 
     // one time get all:
-    const coreStatus = await CoreModule.getBluetoothStatus()
-    // console.log("MANTLE: core status:", coreStatus)
-    useCoreStore.getState().setCoreInfo(coreStatus)
+    const bluetoothStatus = await CoreModule.getBluetoothStatus()
+    // console.log("MANTLE: Bluetooth status:", bluetoothStatus)
+    useCoreStore.getState().setCoreInfo(bluetoothStatus)
 
     const glassesStatus = await CoreModule.getGlassesStatus()
     // console.log("MANTLE: glasses status:", glassesStatus)

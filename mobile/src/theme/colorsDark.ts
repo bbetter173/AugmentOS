@@ -117,7 +117,6 @@ export const colors = {
   // Backgrounds
   // background: palette.neutral100,
   modalOverlay: "rgba(0, 0, 0, 0.7)",
-  transparent: palette.transparent,
 
   // Borders
   // border: palette.primary200,
@@ -127,7 +126,6 @@ export const colors = {
   tint: palette.primary400,
   // tintInactive: palette.neutral300,
   buttonIconBackground: palette.darkPurple1, // Icon pill buttons - matches main branch
-  buttonPressed: "rgba(255, 255, 255, 0.08)",
 
   // Error states
   error: palette.angry600,

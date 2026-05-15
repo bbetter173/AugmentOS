@@ -116,7 +116,10 @@ function _SwitchInput(props: SwitchInputProps) {
   })()
 
   const rtlAdjustment = isRTL ? -1 : 1
-  const $themedSwitchInner = useMemo(() => themed([$styles.toggleInner, $switchInner]), [themed])
+  const $themedSwitchInner = useMemo(
+    () => themed([($styles as {toggleInner?: ViewStyle}).toggleInner, $switchInner]),
+    [themed],
+  )
 
   const offsetLeft = ($innerStyleOverride?.paddingStart ||
     $innerStyleOverride?.paddingLeft ||

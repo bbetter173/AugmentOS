@@ -41,7 +41,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       // icon: "./assets/app-icons/ic_launcher.png",
       package: androidPackage,
       googleServicesFile: "./google-services.json",
-      versionCode: 244,
+      versionCode: 248,
       adaptiveIcon: {
         foregroundImage: "./assets/app-icons/ic_launcher_foreground.png",
         // backgroundImage: "./assets/app-icons/ic_launcher.png",
@@ -79,7 +79,7 @@ module.exports = ({config}: ConfigContext): Partial<ExpoConfig> => {
       icon: "./assets/app-icons/ic_launcher.png",
       supportsTablet: false,
       requireFullScreen: true,
-      buildNumber: "244",
+      buildNumber: "248",
       bundleIdentifier: iosBundleId,
       appleTeamId: "T5XXXL6N36",
       googleServicesFile: "./GoogleService-Info.plist",

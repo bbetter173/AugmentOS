@@ -764,27 +764,12 @@ private enum MenuProto {
         }
 
         var wireItems: [WireItem] = []
-        // SID=4 = notification
-        // SID=5 = translate
-        // SID=6 = teleprompt
-        // SID=7 = evenai
-        // SID=8 = navigation
 
         // Always first: built-in Notification (SID=4)
-        // wireItems.append(WireItem(displayName: nil, appId: 1, isBuiltIn: true))
-        // wireItems.append(WireItem(displayName: nil, appId: 2, isBuiltIn: true))
-        // wireItems.append(WireItem(displayName: nil, appId: 3, isBuiltIn: true))
         wireItems.append(WireItem(displayName: nil, appId: 4, isBuiltIn: true))
-        wireItems.append(WireItem(displayName: nil, appId: 8, isBuiltIn: true))
-        // wireItems.append(WireItem(displayName: nil, appId: 5, isBuiltIn: true))
-        // wireItems.append(WireItem(displayName: nil, appId: 6, isBuiltIn: true))
-        // wireItems.append(WireItem(displayName: nil, appId: 9, isBuiltIn: true))
-        // wireItems.append(WireItem(displayName: nil, appId: 10, isBuiltIn: true))
-
-
 
         // Third-party items — leave room for the built-in
-        for item in items.prefix(MAX_MENU_SIZE - 2) {
+        for item in items.prefix(MAX_MENU_SIZE - 1) {
             let appId = packageNameToAppId(item.packageName)
             appIdMap[appId] = item.packageName
 

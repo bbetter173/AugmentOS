@@ -20,8 +20,6 @@ export interface CapsuleRegistration {
   visibleOnRoutes?: string[]
   /** Called when the user taps the house/minus button. Captures screenshot + navigates back. */
   handleExit: (shouldGoBack?: boolean) => Promise<void> | void
-  /** Called when the user taps the ellipsis button. Opens the more actions sheet. */
-  handleEllipsis?: () => void
   offsetTop?: number
   offsetRight?: number
 }

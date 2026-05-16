@@ -220,7 +220,6 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     const internalRef = useRef<BottomSheetModal>(null)
     const insets = useSaferAreaInsets()
     const [app, setApp] = useState<ClientApp | null>(null)
-    const {clearHistoryAndGoHome} = useNavigationStore.getState()
     const [superMode] = useSetting(SETTINGS.super_mode.key)
 
     useEffect(() => {
@@ -254,15 +253,10 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
     )
 
     const handleAddRemoveFromHome = useCallback(() => {
-      if (app && app.hidden) {
-        useAppStatusStore.getState().setHiddenStatus(packageName, false)
-      } else {
-        useAppStatusStore.getState().setHiddenStatus(packageName, true)
-      }
+      useAppStatusStore.getState().setHiddenStatus(packageName, !app?.hidden)
       internalRef.current?.dismiss()
-      // useAppStatusStore.getState().refreshApplets()
-      clearHistoryAndGoHome()
-    }, [packageName])
+      useNavigationStore.getState().clearHistoryAndGoHome()
+    }, [packageName, app?.hidden])
 
     const handleShare = useCallback(() => {
       const storeUrl = `https://apps.mentraglass.com/package/${packageName}`
@@ -291,7 +285,7 @@ export const MiniAppMoreActionsSheet = forwardRef<BottomSheetModal, MiniAppMoreA
         packageName: packageName,
         appName: app?.name,
       })
-    }, [packageName])
+    }, [packageName, app?.name])
 
     const isSystemApp = SYSTEM_APPS.includes(packageName)
     const size = 28

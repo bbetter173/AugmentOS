@@ -4,7 +4,7 @@ import {Host as AndroidHost, Slider as AndroidSlider} from "@expo/ui/jetpack-com
 
 import {Text} from "@/components/ignite"
 import {useAppTheme} from "@/contexts/ThemeContext"
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 type SliderSettingProps = {
   label: string
@@ -36,6 +36,12 @@ const SliderSetting: React.FC<SliderSettingProps> = ({
   const {theme} = useAppTheme()
   const safeValue = value || 0
   const [localValue, setLocalValue] = useState<number>(safeValue)
+
+  // Keep the displayed readout + slider position in sync with external prop
+  // updates (e.g. settings synced from cloud after mount).
+  useEffect(() => {
+    setLocalValue(safeValue)
+  }, [safeValue])
 
   const handleValueChange = (val: number) => {
     setLocalValue(Math.round(val))
@@ -79,7 +85,7 @@ const SliderSetting: React.FC<SliderSettingProps> = ({
       {Platform.OS === "ios" ? (
         <IosHost style={{width: "100%", height: sliderHeight}}>
           <IosSlider
-            value={safeValue}
+            value={localValue}
             min={min}
             max={max}
             step={1}
@@ -90,7 +96,7 @@ const SliderSetting: React.FC<SliderSettingProps> = ({
       ) : (
         <AndroidHost style={{width: "100%", height: sliderHeight}}>
           <AndroidSlider
-            value={safeValue}
+            value={localValue}
             min={min}
             max={max}
             steps={Math.max(0, max - min - 1)}

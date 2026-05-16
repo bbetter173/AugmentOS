@@ -144,7 +144,7 @@ export default function SelectGlassesBluetoothScreen() {
                 {visibleResults.map((res: MentraDevice) => {
                   let deviceName = filterDeviceName(res.name)
                   return (
-                    <View key={res.id} className="flex-row items-center justify-between px-4 py-3 bg-background">
+                    <View key={res.id} className="flex-row items-center justify-between px-4 py-3 bg-primary-foreground">
                       <TouchableOpacity
                         className="flex-1"
                         onPress={() => triggerGlassesPairingGuide(res)}>

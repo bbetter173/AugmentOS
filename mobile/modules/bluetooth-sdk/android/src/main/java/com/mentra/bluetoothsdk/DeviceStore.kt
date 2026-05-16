@@ -137,6 +137,7 @@ object GlassesStore {
         store.set("core", "should_send_lc3", false)
         store.set("core", "should_send_transcript", false)
         store.set("core", "bypass_vad", false)
+        store.set("core", "use_native_dashboard", false)
     }
 
     fun get(category: String, key: String): Any? {

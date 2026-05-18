@@ -21,7 +21,7 @@ platform :ios, '15.1'
 target 'YourApp' do
   use_frameworks!
 
-  pod 'MentraBluetoothSDK', '0.1.1'
+  pod 'MentraBluetoothSDK', '0.1.2'
 end
 ```
 
@@ -60,7 +60,9 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
     }
 
     func scan() throws {
-        try sdk.startScan(model: .mentraLive)
+        try sdk.scan(model: .mentraLive, timeout: 10) { [weak self] devices in
+            self?.discoveredDevice = devices.first
+        }
     }
 
     func connect() throws {
@@ -72,10 +74,6 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
         sdk.requestVersionInfo()
         let status = sdk.glassesStatus
         print("Connected to \(status.deviceModel), battery=\(status.batteryLevel)%")
-    }
-
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device) {
-        discoveredDevice = device
     }
 
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {

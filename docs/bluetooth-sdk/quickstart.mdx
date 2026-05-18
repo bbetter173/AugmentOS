@@ -94,7 +94,7 @@ android {
 }
 
 dependencies {
-    implementation("com.mentra:bluetooth-sdk:0.1.1")
+    implementation("com.mentra:bluetooth-sdk:0.1.2")
 }
 ```
 
@@ -109,7 +109,7 @@ platform :ios, '15.1'
 target 'YourApp' do
   use_frameworks!
 
-  pod 'MentraBluetoothSDK', '0.1.1'
+  pod 'MentraBluetoothSDK', '0.1.2'
 end
 ```
 
@@ -211,9 +211,11 @@ if (!device) {
 }
 
 await BluetoothSdk.connect(device);
+```
 
 `onResults` is the live UI path while scanning is in progress. The returned `devices` array is the final list after the scan timeout/completion, which is the right place for final selection, fallback behavior, or "connect to this device" logic.
 
+```ts
 await BluetoothSdk.requestVersionInfo();
 const glasses = await BluetoothSdk.getGlassesStatus();
 console.log('Connected glasses:', {

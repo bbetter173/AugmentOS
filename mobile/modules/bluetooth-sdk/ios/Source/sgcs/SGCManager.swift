@@ -89,6 +89,7 @@ protocol SGCManager {
     func sendHotspotState(_ enabled: Bool)
     func sendOtaStart()
     func sendOtaQueryStatus()
+    func sendOtaRetryVersionCheck()
 
     // MARK: - User Context (for crash reporting)
 
@@ -134,6 +135,15 @@ extension SGCManager {
     // MARK: - Voice Activity Detection (default no-op — Mentra Live supports this)
 
     func sendVoiceActivityDetectionSetting() {}
+
+    /// Default no-op; Mentra Live overrides when phone detects clock skew during gallery sync.
+    func sendSetSystemTime(_: Int64) {
+        Bridge.log("SGC: sendSetSystemTime not supported")
+    }
+
+    func sendOtaRetryVersionCheck() {
+        Bridge.log("SGC: sendOtaRetryVersionCheck not supported")
+    }
 
     // MARK: - Default DeviceStore-backed property implementations
 

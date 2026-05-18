@@ -21,6 +21,8 @@ import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissio
 
 import {translate} from "@/i18n"
 import {asgCameraApi} from "./asgCameraApi"
+import {fixGlassesClockIfSkewed} from "./glassesClockSync"
+import {detectClockSkew, isSyncManifestEmpty} from "./gallerySyncClock"
 import {gallerySettingsService} from "./gallerySettingsService"
 import {gallerySyncNotifications} from "./gallerySyncNotifications"
 import {localStorageService} from "./localStorageService"
@@ -51,6 +53,17 @@ const TIMING = {
 /** True when /api/sync has nothing to download (api_version=2 captures and legacy changed_files both empty). */
 function isSyncResponseEmpty(data: {captures?: CaptureGroup[]; changed_files?: PhotoInfo[]}): boolean {
   return (!data.captures || data.captures.length === 0) && (!data.changed_files || data.changed_files.length === 0)
+}
+
+type SyncManifestData = {
+  api_version?: number
+  client_id: string
+  captures?: CaptureGroup[]
+  changed_files: PhotoInfo[]
+  deleted_files?: string[]
+  server_time: number
+  total_changed?: number
+  total_size?: number
 }
 
 class GallerySyncService {
@@ -1163,6 +1176,63 @@ class GallerySyncService {
     }
   }
 
+  private async fetchSyncManifest(clientId: string, lastSyncTime: number): Promise<SyncManifestData> {
+    const syncResponse = await asgCameraApi.syncWithServer(clientId, lastSyncTime, true)
+    return (syncResponse.data || syncResponse) as SyncManifestData
+  }
+
+  /**
+   * Resolve sync manifest: detect skew, optionally fix clock, retry full sync when needed.
+   */
+  private async resolveSyncManifest(
+    clientId: string,
+    lastSyncTime: number,
+  ): Promise<{syncData: SyncManifestData; usedFullSync: boolean} | null> {
+    const store = useGallerySyncStore.getState()
+    let syncData = await this.fetchSyncManifest(clientId, lastSyncTime)
+    let clockFixed = false
+
+    const skewOnFirst = detectClockSkew(Date.now(), syncData.server_time, lastSyncTime)
+    if (skewOnFirst.skewed) {
+      clockFixed = await fixGlassesClockIfSkewed(syncData.server_time, lastSyncTime)
+      if (clockFixed) {
+        console.log("[GallerySyncService]   🔄 Retrying /api/sync with last_sync_time=0 after clock fix")
+        syncData = await this.fetchSyncManifest(clientId, 0)
+      }
+    }
+
+    if (!isSyncManifestEmpty(syncData)) {
+      return {syncData, usedFullSync: clockFixed || lastSyncTime === 0}
+    }
+
+    // Guard against re-firing the full-sync retry every sync when glasses retain leftover files
+    // from a failed delete-from-glasses: at most one retry per (client_id, last_sync_time) pair
+    // per process lifetime. Without this, we'd re-download the entire gallery on every sync.
+    const retryKey = `${clientId}:${lastSyncTime}`
+    const alreadyRetriedForThisWatermark = this.lastFullSyncRetryKey === retryKey
+    if (!clockFixed && store.glassesHasContent && lastSyncTime !== 0 && !alreadyRetriedForThisWatermark) {
+      this.lastFullSyncRetryKey = retryKey
+      console.log(
+        "[GallerySyncService]   🔄 Empty sync but glasses report content — retrying with last_sync_time=0",
+      )
+      syncData = await this.fetchSyncManifest(clientId, 0)
+      if (!isSyncManifestEmpty(syncData)) {
+        return {syncData, usedFullSync: true}
+      }
+    } else if (!clockFixed && store.glassesHasContent && lastSyncTime !== 0 && alreadyRetriedForThisWatermark) {
+      console.warn(
+        "[GallerySyncService]   ⚠️ Glasses still report content but /api/sync empty — already retried this watermark, skipping to avoid re-download loop",
+      )
+    }
+
+    if (store.glassesHasContent) {
+      console.warn("[GallerySyncService]   ⚠️ Empty sync while glasses still report gallery content")
+      return null
+    }
+
+    return {syncData, usedFullSync: false}
+  }
+
   /**
    * Start downloading files
    */
@@ -1195,52 +1265,33 @@ class GallerySyncService {
 
       console.log("[GallerySyncService]   📡 Calling /api/sync endpoint...")
       const syncStartTime = Date.now()
-      let syncResponse = await asgCameraApi.syncWithServer(syncState.client_id, syncState.last_sync_time, true)
-      let _syncDuration = Date.now() - syncStartTime
+      const resolved = await this.resolveSyncManifest(syncState.client_id, syncState.last_sync_time)
+      const _syncDuration = Date.now() - syncStartTime
       console.log(`[GallerySyncService]   ✅ /api/sync completed in ${_syncDuration}ms`)
 
-      let syncData = syncResponse.data || syncResponse
-
-      // BLE gallery_status counts all files on glasses; /api/sync is incremental by last_sync_time.
-      // If the phone watermark is ahead of file mtimes (clock skew, deleted locals, etc.), retry once as full sync.
-      // Guard against re-firing every sync when glasses retain leftover files from a failed delete:
-      // only one retry per (client_id, last_sync_time) pair per process lifetime.
-      const retryKey = `${syncState.client_id}:${syncState.last_sync_time}`
-      if (
-        isSyncResponseEmpty(syncData) &&
-        syncState.last_sync_time > 0 &&
-        useGallerySyncStore.getState().glassesHasContent &&
-        this.lastFullSyncRetryKey !== retryKey
-      ) {
-        this.lastFullSyncRetryKey = retryKey
-        console.warn(
-          "[GallerySyncService] Desync detected: glasses report content but /api/sync returned empty. " +
-            `Retrying with last_sync_time=0 (was ${syncState.last_sync_time}).`,
-        )
-        const retryStartTime = Date.now()
-        syncResponse = await asgCameraApi.syncWithServer(syncState.client_id, 0, true)
-        _syncDuration = Date.now() - retryStartTime
-        console.log(`[GallerySyncService]   ✅ /api/sync full-sync retry completed in ${_syncDuration}ms`)
-        syncData = syncResponse.data || syncResponse
-        if (isSyncResponseEmpty(syncData)) {
-          console.warn("[GallerySyncService] Full-sync retry also returned empty — falling through to up-to-date path.")
-        } else {
-          console.log("[GallerySyncService] Full-sync retry succeeded — proceeding with download.")
+      if (!resolved) {
+        const syncErrorMessage = "Could not sync gallery — try again"
+        store.setSyncError(syncErrorMessage)
+        await gallerySyncNotifications.showSyncError(syncErrorMessage)
+        if (store.syncServiceOpenedHotspot) {
+          await this.closeHotspot()
         }
-      } else if (
-        isSyncResponseEmpty(syncData) &&
-        syncState.last_sync_time > 0 &&
-        useGallerySyncStore.getState().glassesHasContent &&
-        this.lastFullSyncRetryKey === retryKey
-      ) {
-        console.warn(
-          "[GallerySyncService] Glasses still report content but /api/sync empty — already retried this watermark, skipping to avoid re-download loop.",
-        )
+        return
       }
+
+      const {syncData} = resolved
 
       console.log("[GallerySyncService]   📋 Sync response received:")
       console.log(`[GallerySyncService]      - Server time: ${syncData.server_time}`)
       console.log(`[GallerySyncService]      - Changed files: ${syncData.changed_files?.length || 0}`)
+      console.log(`[GallerySyncService]      - Captures: ${syncData.captures?.length || 0}`)
+
+      if (isSyncManifestEmpty(syncData)) {
+        console.log("[GallerySyncService]   ✅ No new files to sync - already up to date!")
+        store.setSyncComplete()
+        await this.onSyncComplete(0, 0)
+        return
+      }
 
       // Detect API version and route to appropriate download path
       const useCaptures = syncData.api_version === 2 && syncData.captures && syncData.captures.length > 0
@@ -1289,11 +1340,6 @@ class GallerySyncService {
 
         console.log("[GallerySyncService]   🚀 Beginning capture download execution...")
         await this.executeCaptureDownload(captures, syncData.server_time)
-      } else if (!syncData.changed_files || syncData.changed_files.length === 0) {
-        console.log("[GallerySyncService]   ✅ No new files to sync - already up to date!")
-        store.setSyncComplete()
-        await this.onSyncComplete(0, 0)
-        return
       } else {
         // Legacy flat file sync path
         const filesToSync = syncData.changed_files
@@ -1543,10 +1589,14 @@ class GallerySyncService {
       await mediaProcessingQueue.waitUntilDrained()
       console.log("[GallerySyncService]   ✅ Processing queue drained")
 
-      // Update sync state — only advance watermark if all files succeeded.
+      // Update sync state — only advance watermark if files were downloaded.
       // If any failed, set it before the oldest failure so they get retried.
       let syncWatermark = serverTime
-      if (downloadResult.failed.length > 0) {
+      if (downloadedCount === 0) {
+        const currentSyncState = await localStorageService.getSyncState()
+        syncWatermark = currentSyncState.last_sync_time
+        console.log("[GallerySyncService]   ℹ️ No files downloaded — last_sync_time unchanged")
+      } else if (downloadResult.failed.length > 0) {
         const failedSet = new Set(downloadResult.failed)
         let oldestFailed = Infinity
         for (const f of files) {
@@ -1561,14 +1611,27 @@ class GallerySyncService {
             `[GallerySyncService]   ⚠️ ${downloadResult.failed.length} files failed — sync watermark set to ${syncWatermark} instead of ${serverTime}`,
           )
         }
+      } else {
+        let maxModified = 0
+        const failedSet = new Set(downloadResult.failed)
+        for (const f of files) {
+          if (failedSet.has(f.name)) continue
+          const ts = typeof f.modified === "number" ? f.modified : parseInt(String(f.modified), 10)
+          if (!isNaN(ts)) maxModified = Math.max(maxModified, ts)
+        }
+        if (maxModified > 0) {
+          syncWatermark = maxModified
+        }
       }
       console.log("[GallerySyncService]   💾 Updating sync state in local storage...")
       const currentSyncState = await localStorageService.getSyncState()
-      await localStorageService.updateSyncState({
-        last_sync_time: syncWatermark,
-        total_downloaded: currentSyncState.total_downloaded + downloadedCount,
-        total_size: currentSyncState.total_size + downloadResult.total_size,
-      })
+      if (downloadedCount > 0) {
+        await localStorageService.updateSyncState({
+          last_sync_time: syncWatermark,
+          total_downloaded: currentSyncState.total_downloaded + downloadedCount,
+          total_size: currentSyncState.total_size + downloadResult.total_size,
+        })
+      }
       console.log("[GallerySyncService]   ✅ Sync state updated:")
       console.log(
         `[GallerySyncService]      - New last_sync_time: ${syncWatermark} (${new Date(syncWatermark).toISOString()})`,
@@ -1626,6 +1689,7 @@ class GallerySyncService {
     let failedCount = 0
     let totalSizeDownloaded = 0
     let oldestFailedTimestamp = Infinity // Track for sync watermark
+    let maxSuccessfulTimestamp = 0
 
     const shouldAutoSave = await gallerySettingsService.getAutoSaveToCameraRoll()
     const shouldProcessImages = useSettingsStore.getState().getSetting(SETTINGS.media_post_processing.key)
@@ -1675,6 +1739,9 @@ class GallerySyncService {
 
           totalSizeDownloaded += capture.total_size
           downloadedCount++
+          if (capture.timestamp > maxSuccessfulTimestamp) {
+            maxSuccessfulTimestamp = capture.timestamp
+          }
 
           // Enqueue for processing (runs concurrently with next download)
           // Delete from glasses happens after processing completes to avoid data loss on crash
@@ -1755,21 +1822,26 @@ class GallerySyncService {
         failedCount = failedFromThisBatch
       }
 
-      // Update sync state — only advance the watermark to serverTime if all
-      // captures succeeded. If any failed, set it just before the oldest failure
-      // so those captures are retried on the next sync.
-      const syncWatermark =
-        failedCount > 0 && oldestFailedTimestamp < Infinity ? Math.max(0, oldestFailedTimestamp - 1) : serverTime
+      // Update sync state — only advance watermark when captures were downloaded.
+      let syncWatermark = serverTime
       const currentSyncState = await localStorageService.getSyncState()
-      await localStorageService.updateSyncState({
-        last_sync_time: syncWatermark,
-        total_downloaded: currentSyncState.total_downloaded + downloadedCount,
-        total_size: currentSyncState.total_size + totalSizeDownloaded,
-      })
-      if (failedCount > 0) {
+      if (downloadedCount === 0) {
+        syncWatermark = currentSyncState.last_sync_time
+        console.log("[GallerySyncService]   ℹ️ No captures downloaded — last_sync_time unchanged")
+      } else if (failedCount > 0 && oldestFailedTimestamp < Infinity) {
+        syncWatermark = Math.max(0, oldestFailedTimestamp - 1)
         console.log(
           `[GallerySyncService]   ⚠️ ${failedCount} captures failed — sync watermark set to ${syncWatermark} instead of ${serverTime} so they will be retried`,
         )
+      } else if (maxSuccessfulTimestamp > 0) {
+        syncWatermark = maxSuccessfulTimestamp
+      }
+      if (downloadedCount > 0) {
+        await localStorageService.updateSyncState({
+          last_sync_time: syncWatermark,
+          total_downloaded: currentSyncState.total_downloaded + downloadedCount,
+          total_size: currentSyncState.total_size + totalSizeDownloaded,
+        })
       }
 
       store.setSyncComplete()

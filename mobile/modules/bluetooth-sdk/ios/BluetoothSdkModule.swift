@@ -290,6 +290,12 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
+        AsyncFunction("setSystemTime") { (timestampMs: Double) in
+            await MainActor.run {
+                self.bluetoothSdk().setSystemTime(timestampMs: Int64(timestampMs))
+            }
+        }
+
         // MARK: - Gallery Commands
 
         AsyncFunction("setGalleryModeEnabled") { (enabled: Bool) in
@@ -360,6 +366,12 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("sendOtaQueryStatus") {
             await MainActor.run {
                 self.bluetoothSdk().sendOtaQueryStatus()
+            }
+        }
+
+        AsyncFunction("retryOtaVersionCheck") {
+            await MainActor.run {
+                self.bluetoothSdk().retryOtaVersionCheck()
             }
         }
 

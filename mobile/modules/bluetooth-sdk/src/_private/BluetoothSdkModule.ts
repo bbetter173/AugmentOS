@@ -90,6 +90,8 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   sendWifiCredentials(ssid: string, password: string): Promise<void>
   forgetWifiNetwork(ssid: string): Promise<void>
   setHotspotState(enabled: boolean): Promise<void>
+  /** Set glasses system clock (Mentra Live only) when phone detects clock skew. */
+  setSystemTime(timestampMs: number): Promise<void>
   /** Logs current WiFi frequency (MHz) and 5 GHz band to Android logcat. */
   logCurrentWifiFrequency(): Promise<void>
 
@@ -107,6 +109,8 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   // OTA Commands
   sendOtaStart(): Promise<void>
   sendOtaQueryStatus(): Promise<void>
+  /** Re-run glasses-side OTA version check (called after a clock fix invalidates a TLS failure). */
+  retryOtaVersionCheck(): Promise<void>
 
   // Version Info Commands
   requestVersionInfo(): Promise<void>

@@ -97,6 +97,7 @@ class GlassesStore {
         store.set("core", "should_send_lc3", false)
         store.set("core", "should_send_transcript", false)
         store.set("core", "bypass_vad", false)
+        store.set("core", "use_native_dashboard", false)
     }
 
     func get(_ category: String, _ key: String) -> Any? {

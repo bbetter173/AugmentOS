@@ -120,7 +120,7 @@ export default function MentraLiveOnboarding() {
       waitFn: (): Promise<void> => {
         return new Promise<void>((resolve) => {
           const unsub = BluetoothSdk.addListener("touch_event", (data: TouchEvent) => {
-            if (data?.gesture_name === "double_tap") {
+            if (data?.gestureName === "double_tap") {
               unsub.remove()
               resolve()
             }
@@ -142,7 +142,7 @@ export default function MentraLiveOnboarding() {
       waitFn: (): Promise<void> => {
         return new Promise<void>((resolve) => {
           const unsub = BluetoothSdk.addListener("touch_event", (data: TouchEvent) => {
-            if (data?.gesture_name === "forward_swipe" || data?.gesture_name === "backward_swipe") {
+            if (data?.gestureName === "forward_swipe" || data?.gestureName === "backward_swipe") {
               unsub.remove()
               resolve()
             }
@@ -163,7 +163,7 @@ export default function MentraLiveOnboarding() {
       waitFn: (): Promise<void> => {
         return new Promise<void>((resolve) => {
           const unsub = BluetoothSdk.addListener("touch_event", (data: TouchEvent) => {
-            if (data?.gesture_name === "double_tap") {
+            if (data?.gestureName === "double_tap") {
               unsub.remove()
               resolve()
             }

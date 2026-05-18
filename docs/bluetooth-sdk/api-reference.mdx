@@ -274,6 +274,10 @@ const subscriptions = [
 subscriptions.forEach((subscription) => subscription.remove());
 ```
 
+The React Native event surface is typed through `BluetoothSdkEventMap`. For example, `BluetoothSdk.addListener('photo_response', ...)` receives a `PhotoResponseEvent`, while `BluetoothSdk.addListener('mic_pcm', ...)` receives a `MicPcmEvent`.
+
+Public React Native event payload fields use camelCase. For example, touch events expose `deviceModel` and `gestureName`, successful photo responses expose `uploadUrl`, hotspot errors expose `errorMessage`, and gallery status exposes `hasContent` and `cameraBusy`.
+
 Android and iOS receive the same event families through their SDK callback and delegate surfaces.
 
 | Event area | Examples |

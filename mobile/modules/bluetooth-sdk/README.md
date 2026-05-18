@@ -258,6 +258,8 @@ subscriptions.forEach((subscription) => subscription.remove())
 
 Common event names include `button_press`, `touch_event`, `head_up`, `battery_status`, `wifi_status_change`, `hotspot_status_change`, `photo_response`, `gallery_status`, `stream_status`, `keep_alive_ack`, `mic_pcm`, `mic_lc3`, `local_transcription`, `rgb_led_control_response`, `audio_connected`, `audio_disconnected`, and `log`.
 
+React Native event payload fields use camelCase. For example, `touch_event` includes `gestureName`, `photo_response` success includes `uploadUrl`, and `gallery_status` includes `hasContent` and `cameraBusy`.
+
 Only the documented root import is supported for partner apps. Package subpaths or symbols with a leading underscore are private implementation details and can change without notice.
 
 ## Local SDK Development

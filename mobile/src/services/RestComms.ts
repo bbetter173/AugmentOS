@@ -671,7 +671,7 @@ class RestComms {
         ? {
             type: data.type,
             requestId: data.requestId,
-            photoUrl: data.photoUrl,
+            photoUrl: data.uploadUrl,
             timestamp: data.timestamp,
             success: true,
           }

@@ -40,7 +40,7 @@ class BluetoothSdkModule : Module() {
                                 "compatible_glasses_search_stop",
                                 mapOf(
                                         "type" to "compatible_glasses_search_stop",
-                                        "device_model" to deviceModel,
+                                        "deviceModel" to deviceModel,
                                 )
                         )
                     }

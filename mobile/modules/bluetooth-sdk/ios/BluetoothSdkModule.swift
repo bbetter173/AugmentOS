@@ -550,7 +550,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             "compatible_glasses_search_stop",
             [
                 "type": "compatible_glasses_search_stop",
-                "device_model": deviceModel,
+                "deviceModel": deviceModel,
             ]
         )
     }

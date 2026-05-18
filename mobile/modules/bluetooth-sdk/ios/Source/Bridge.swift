@@ -183,8 +183,8 @@ class Bridge {
 
     static func sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Int64, source: Int32? = nil) {
         var body: [String: Any] = [
-            "device_model": deviceModel,
-            "gesture_name": gestureName,
+            "deviceModel": deviceModel,
+            "gestureName": gestureName,
             "timestamp": timestamp,
         ]
         if let source {
@@ -203,8 +203,8 @@ class Bridge {
 
     static func sendSwitchStatus(switchType: Int, value: Int, timestamp: Int64) {
         let body: [String: Any] = [
-            "switch_type": switchType,
-            "switch_value": value,
+            "switchType": switchType,
+            "switchValue": value,
             "timestamp": timestamp,
         ]
         Bridge.sendTypedMessage("switch_status", body: body)

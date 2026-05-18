@@ -32,7 +32,7 @@ type GlassesListener = (changed: Partial<GlassesStatus>) => void
 type BluetoothStatusListener = (changed: Partial<BluetoothStatus>) => void
 type MaybePromise<T> = T | Promise<T>
 
-declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> {
+declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): Promise<GlassesStatus>
   getBluetoothStatus(): Promise<BluetoothStatus>
@@ -168,11 +168,11 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   getMemoryMB(): number
 }
 
-export type BluetoothSdkInternalModule = BluetoothSdkModule
+export type BluetoothSdkInternalModule = BluetoothSdkNativeModule
 
 // This call loads the native module object from the JSI.
 // NativeModule<BluetoothSdkModuleEvents> already extends EventEmitter<BluetoothSdkModuleEvents>
-const NativeBluetoothSdkModule = requireNativeModule<BluetoothSdkModule>("BluetoothSdk")
+const NativeBluetoothSdkModule = requireNativeModule<BluetoothSdkNativeModule>("BluetoothSdk")
 
 const DEFAULT_CONNECT_OPTIONS: Required<ConnectOptions> = {
   saveAsDefault: true,
@@ -475,4 +475,4 @@ NativeBluetoothSdkModule.scan = async function (
 }
 
 export default NativeBluetoothSdkModule
-export const PublicBluetoothSdkModule = NativeBluetoothSdkModule as BluetoothSdkPublicModule
+export const BluetoothSdk = NativeBluetoothSdkModule as BluetoothSdkPublicModule

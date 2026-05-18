@@ -1,6 +1,6 @@
-import {PublicBluetoothSdkModule} from "./BluetoothSdkModule"
+import {BluetoothSdk} from "./BluetoothSdkModule"
 
-export default PublicBluetoothSdkModule
+export default BluetoothSdk
 
 export {
   DeviceModels,
@@ -17,7 +17,11 @@ export type {
   AudioDisconnectedEvent,
   AudioPairingNeededEvent,
   BatteryStatusEvent,
-  BluetoothSdkPublicModule,
+  BluetoothSdkEvent,
+  BluetoothSdkEventListener,
+  BluetoothSdkEventMap,
+  BluetoothSdkEventName,
+  BluetoothSdkPublicModule as BluetoothSdkModule,
   BluetoothSdkSubscription,
   ButtonPhotoSize,
   ButtonPressEvent,
@@ -50,11 +54,7 @@ export type {
   PhotoCompression,
   PhotoResponseEvent,
   PhotoSize,
-  PublicBluetoothSdkEvent,
-  PublicBluetoothSdkModuleEvents,
-  PublicBluetoothStatus,
   PublicBluetoothStatus as BluetoothStatus,
-  PublicGlassesStatus,
   PublicGlassesStatus as GlassesStatus,
   RgbLedAction,
   RgbLedColor,

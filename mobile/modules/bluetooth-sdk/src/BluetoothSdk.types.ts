@@ -13,8 +13,8 @@ export type ButtonPressEvent = {
 
 export type TouchEvent = {
   type: "touch_event"
-  device_model?: string
-  gesture_name?: string
+  deviceModel?: string
+  gestureName?: string
   timestamp: number
 }
 
@@ -112,7 +112,7 @@ export type HotspotStatusChangeEvent = HotspotStatus & {
 
 export type HotspotErrorEvent = {
   type: "hotspot_error"
-  error_message: string
+  errorMessage: string
   timestamp: number
 }
 
@@ -121,7 +121,7 @@ export type PhotoResponseEvent =
       type: "photo_response"
       state: "success"
       requestId: string
-      photoUrl: string
+      uploadUrl: string
       timestamp: number
     }
   | {
@@ -138,13 +138,14 @@ export type GalleryStatusEvent = {
   photos: number
   videos: number
   total: number
-  has_content: boolean
-  camera_busy: boolean
+  totalSize?: number
+  hasContent: boolean
+  cameraBusy: boolean
 }
 
 export type CompatibleGlassesSearchStopEvent = {
   type: "compatible_glasses_search_stop"
-  device_model: DeviceModel
+  deviceModel: DeviceModel
 }
 
 export type HeartbeatSentEvent = {
@@ -169,9 +170,7 @@ export type SwipeVolumeStatusEvent = {
 
 export type SwitchStatusEvent = {
   type: "switch_status"
-  switch_type?: number
   switchType?: number
-  switch_value?: number
   switchValue?: number
   timestamp: number
 }
@@ -267,12 +266,12 @@ export type PairFailureEvent = {
 
 export type AudioPairingNeededEvent = {
   type: "audio_pairing_needed"
-  device_name: string
+  deviceName: string
 }
 
 export type AudioConnectedEvent = {
   type: "audio_connected"
-  device_name: string
+  deviceName: string
 }
 
 export type AudioDisconnectedEvent = {
@@ -426,8 +425,8 @@ export type MiniappSelectedEvent = {
   packageName: string
 }
 
-// Union type of all Bluetooth SDK events
-export type BluetoothSdkEvent = Parameters<BluetoothSdkModuleEvents[keyof BluetoothSdkModuleEvents]>[0]
+// Union type of all native/internal Bluetooth SDK events.
+export type BluetoothSdkInternalEvent = Parameters<BluetoothSdkModuleEvents[keyof BluetoothSdkModuleEvents]>[0]
 
 export type BluetoothSdkModuleEvents = {
   glasses_status: (changed: Partial<GlassesStatus>) => void
@@ -493,57 +492,54 @@ export type PublicBluetoothStatus = Pick<
   | "gallery_mode"
 >
 
-export type PublicBluetoothSdkModuleEvents = Omit<
-  Pick<
-    BluetoothSdkModuleEvents,
-    | "glasses_status"
-    | "bluetooth_status"
-    | "log"
-    | "device_discovered"
-    | "default_device_changed"
-    | "glasses_not_ready"
-    | "button_press"
-    | "touch_event"
-    | "head_up"
-    | "vad_status"
-    | "battery_status"
-    | "local_transcription"
-    | "wifi_status_change"
-    | "hotspot_status_change"
-    | "hotspot_error"
-    | "photo_response"
-    | "gallery_status"
-    | "compatible_glasses_search_stop"
-    | "swipe_volume_status"
-    | "switch_status"
-    | "rgb_led_control_response"
-    | "pair_failure"
-    | "audio_pairing_needed"
-    | "audio_connected"
-    | "audio_disconnected"
-    | "mic_pcm"
-    | "mic_lc3"
-    | "stream_status"
-    | "keep_alive_ack"
-  >,
-  | "glasses_status"
-  | "bluetooth_status"
-> & {
-  glasses_status: (changed: Partial<PublicGlassesStatus>) => void
-  bluetooth_status: (changed: Partial<PublicBluetoothStatus>) => void
+export type BluetoothSdkEventMap = {
+  glasses_status: Partial<PublicGlassesStatus>
+  bluetooth_status: Partial<PublicBluetoothStatus>
+  log: LogEvent
+  device_discovered: Device
+  default_device_changed: {device?: Device}
+  glasses_not_ready: GlassesNotReadyEvent
+  button_press: ButtonPressEvent
+  touch_event: TouchEvent
+  head_up: HeadUpEvent
+  vad_status: VadStatusEvent
+  battery_status: BatteryStatusEvent
+  local_transcription: LocalTranscriptionEvent
+  wifi_status_change: WifiStatusChangeEvent
+  hotspot_status_change: HotspotStatusChangeEvent
+  hotspot_error: HotspotErrorEvent
+  photo_response: PhotoResponseEvent
+  gallery_status: GalleryStatusEvent
+  compatible_glasses_search_stop: CompatibleGlassesSearchStopEvent
+  swipe_volume_status: SwipeVolumeStatusEvent
+  switch_status: SwitchStatusEvent
+  rgb_led_control_response: RgbLedControlResponseEvent
+  pair_failure: PairFailureEvent
+  audio_pairing_needed: AudioPairingNeededEvent
+  audio_connected: AudioConnectedEvent
+  audio_disconnected: AudioDisconnectedEvent
+  mic_pcm: MicPcmEvent
+  mic_lc3: MicLc3Event
+  stream_status: StreamStatusEvent
+  keep_alive_ack: KeepAliveAckEvent
 }
+
+export type BluetoothSdkEventName = keyof BluetoothSdkEventMap
+
+export type BluetoothSdkEventListener<EventName extends BluetoothSdkEventName> = (
+  event: BluetoothSdkEventMap[EventName],
+) => void
 
 export type BluetoothSdkSubscription = {
   remove(): void
 }
 
-export type PublicBluetoothSdkEvent =
-  Parameters<PublicBluetoothSdkModuleEvents[keyof PublicBluetoothSdkModuleEvents]>[0]
+export type BluetoothSdkEvent = BluetoothSdkEventMap[BluetoothSdkEventName]
 
 export interface BluetoothSdkPublicModule {
-  addListener<EventName extends keyof PublicBluetoothSdkModuleEvents>(
+  addListener<EventName extends BluetoothSdkEventName>(
     eventName: EventName,
-    listener: PublicBluetoothSdkModuleEvents[EventName],
+    listener: BluetoothSdkEventListener<EventName>,
   ): BluetoothSdkSubscription
 
   getGlassesStatus(): Promise<PublicGlassesStatus>

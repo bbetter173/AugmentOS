@@ -3532,7 +3532,7 @@ class MentraLive: NSObject, SGCManager {
 
     private func emitHotspotError(errorMessage: String, timestamp: Int64) {
         let eventBody: [String: Any] = [
-            "error_message": errorMessage,
+            "errorMessage": errorMessage,
             "timestamp": timestamp,
         ]
         Bridge.sendTypedMessage("hotspot_error", body: eventBody)
@@ -3552,8 +3552,8 @@ class MentraLive: NSObject, SGCManager {
                 "photos": photoCount,
                 "videos": videoCount,
                 "total": totalCount,
-                "total_size": totalSize,
-                "has_content": hasContent,
+                "totalSize": totalSize,
+                "hasContent": hasContent,
             ] as [String: Any]
         Bridge.sendTypedMessage("gallery_status", body: eventBody)
     }
@@ -3763,9 +3763,7 @@ class MentraLive: NSObject, SGCManager {
     private func emitStopScanEvent() {
         // Use the standardized typed message function
         let body = [
-            "compatible_glasses_search_stop": [
-                "device_model": "Mentra Live",
-            ],
+            "deviceModel": "Mentra Live",
         ]
         Bridge.sendTypedMessage("compatible_glasses_search_stop", body: body)
     }

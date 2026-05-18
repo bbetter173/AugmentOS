@@ -553,17 +553,15 @@ class SocketComms {
     const size = normalizePhotoSize(msg.size)
     const authToken = typeof msg.authToken === "string" && msg.authToken.length > 0 ? msg.authToken : null
     const compress = normalizePhotoCompression(msg.compress)
-    const flash = msg.flash ?? true
     const sound = msg.sound ?? true
     console.log(
-      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} flash: ${flash} sound: ${sound}`,
+      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} sound: ${sound}`,
     )
     if (!requestId || !appId) {
       console.log("Invalid photo request: missing requestId or appId")
       return
     }
-    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, flash, sound
-    BluetoothSdk.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
+    BluetoothSdk.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, sound)
   }
 
   private handle_start_stream(msg: any) {
@@ -588,9 +586,8 @@ class SocketComms {
     console.log(`SOCKET: Received START_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const videoRequestId = msg.requestId || `video_${Date.now()}`
     const save = msg.save !== false
-    const flash = msg.flash ?? true
     const sound = msg.sound ?? true
-    BluetoothSdk.startVideoRecording(videoRequestId, save, flash, sound)
+    BluetoothSdk.startVideoRecording(videoRequestId, save, sound)
   }
 
   private handle_stop_video_recording(msg: any) {

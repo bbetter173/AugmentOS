@@ -971,8 +971,8 @@ data class ButtonPressEvent(
 data class TouchEvent(
     val values: Map<String, Any>,
 ) {
-    val deviceModel: String? get() = stringValue(values, "device_model", "deviceModel")
-    val gestureName: String? get() = stringValue(values, "gesture_name", "gestureName")
+    val deviceModel: String? get() = stringValue(values, "deviceModel", "device_model")
+    val gestureName: String? get() = stringValue(values, "gestureName", "gesture_name")
     val timestamp: Long? get() = longValue(values, "timestamp")
     val isSwipe: Boolean get() = gestureName?.contains("swipe", ignoreCase = true) == true
 }
@@ -980,8 +980,8 @@ data class TouchEvent(
 data class SwipeEvent(
     val values: Map<String, Any>,
 ) {
-    val deviceModel: String? get() = stringValue(values, "device_model", "deviceModel")
-    val gestureName: String? get() = stringValue(values, "gesture_name", "gestureName")
+    val deviceModel: String? get() = stringValue(values, "deviceModel", "device_model")
+    val gestureName: String? get() = stringValue(values, "gestureName", "gesture_name")
     val timestamp: Long? get() = longValue(values, "timestamp")
 }
 
@@ -1159,7 +1159,7 @@ data class HotspotStatusEvent(
 data class HotspotErrorEvent(
     val values: Map<String, Any>,
 ) {
-    val message: String? get() = stringValue(values, "error_message", "message", "error")
+    val message: String? get() = stringValue(values, "errorMessage", "error_message", "message", "error")
     val timestamp: Long? get() = longValue(values, "timestamp")
 }
 
@@ -1177,7 +1177,7 @@ sealed interface PhotoResponse {
             is Success -> mapOf(
                 "state" to state,
                 "requestId" to requestId,
-                "photoUrl" to photoUrl,
+                "uploadUrl" to uploadUrl,
                 "timestamp" to timestamp,
             )
 
@@ -1197,7 +1197,7 @@ sealed interface PhotoResponse {
 
     data class Success(
         override val requestId: String,
-        val photoUrl: String,
+        val uploadUrl: String,
         override val timestamp: Long,
     ) : PhotoResponse {
         override val state: String = "success"
@@ -1219,8 +1219,8 @@ sealed interface PhotoResponse {
             val state = stringValue(values, "state", "status")?.lowercase()
             val success = boolValue(values, "success")
             return if (state == "success" || success == true) {
-                val photoUrl = stringValue(values, "photoUrl", "photo_url").orEmpty()
-                Success(requestId = requestId, photoUrl = photoUrl, timestamp = timestamp)
+                val uploadUrl = stringValue(values, "uploadUrl", "mediaUrl").orEmpty()
+                Success(requestId = requestId, uploadUrl = uploadUrl, timestamp = timestamp)
             } else {
                 Error(
                     requestId = requestId,

@@ -408,7 +408,7 @@ class MantleManager {
       this.subs.push(
         BluetoothSdk.addListener("hotspot_error", (event) => {
           GlobalEventEmitter.emit("hotspot_error", {
-            error_message: event.error_message,
+            error_message: event.errorMessage,
             timestamp: event.timestamp,
           })
         }),
@@ -420,8 +420,8 @@ class MantleManager {
             photos: event.photos,
             videos: event.videos,
             total: event.total,
-            has_content: event.has_content,
-            camera_busy: event.camera_busy,
+            has_content: event.hasContent,
+            camera_busy: event.cameraBusy,
           })
         }),
       )
@@ -462,8 +462,8 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("touch_event", (event) => {
-          const deviceModel = event.device_model ?? "Mentra Live"
-          const gestureName = event.gesture_name ?? "unknown"
+          const deviceModel = event.deviceModel ?? "Mentra Live"
+          const gestureName = event.gestureName ?? "unknown"
           const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now()
           socketComms.sendTouchEvent({
             device_model: deviceModel,
@@ -486,8 +486,8 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("switch_status", (event) => {
-          const switchType = typeof event.switch_type === "number" ? event.switch_type : (event.switchType ?? -1)
-          const switchValue = typeof event.switch_value === "number" ? event.switch_value : (event.switchValue ?? -1)
+          const switchType = event.switchType ?? -1
+          const switchValue = event.switchValue ?? -1
           const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now()
           socketComms.sendSwitchStatus(switchType, switchValue, timestamp)
           // TODO: remove
@@ -515,7 +515,7 @@ class MantleManager {
       this.subs.push(
         BluetoothSdk.addListener("audio_pairing_needed", (event) => {
           GlobalEventEmitter.emit("audio_pairing_needed", {
-            deviceName: event.device_name,
+            deviceName: event.deviceName,
           })
         }),
       )
@@ -523,7 +523,7 @@ class MantleManager {
       this.subs.push(
         BluetoothSdk.addListener("audio_connected", (event) => {
           GlobalEventEmitter.emit("audio_connected", {
-            deviceName: event.device_name,
+            deviceName: event.deviceName,
           })
         }),
       )
@@ -674,7 +674,7 @@ class MantleManager {
       this.subs.push(
         BluetoothSdk.addListener("audio_pairing_needed", (event) => {
           GlobalEventEmitter.emit("audio_pairing_needed", {
-            deviceName: event.device_name,
+            deviceName: event.deviceName,
           })
         }),
       )
@@ -682,7 +682,7 @@ class MantleManager {
       this.subs.push(
         BluetoothSdk.addListener("audio_connected", (event) => {
           GlobalEventEmitter.emit("audio_connected", {
-            deviceName: event.device_name,
+            deviceName: event.deviceName,
           })
         }),
       )

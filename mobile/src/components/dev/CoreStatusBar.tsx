@@ -90,7 +90,7 @@ export default function CoreStatusBar() {
             {systemMicUnavailable && <Tag icon="unplug" label="SMIC unavailable!" bg="bg-destructive" />}
           </View>
           <View className="flex-row flex-wrap items-center justify-center justify-end">
-            <Tag icon="pointer" label={touchEvent ? (touchEvent.gesture_name ?? "None") : "None"} bg="bg-primary" />
+            <Tag icon="pointer" label={touchEvent ? (touchEvent.gestureName ?? "None") : "None"} bg="bg-primary" />
             <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
             <Tag
               icon="bluetooth"

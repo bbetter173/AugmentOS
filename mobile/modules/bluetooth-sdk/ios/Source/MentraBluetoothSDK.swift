@@ -1102,11 +1102,11 @@ public struct TouchEvent: CustomStringConvertible {
     }
 
     public var deviceModel: String? {
-        stringValue(values, "device_model", "deviceModel")
+        stringValue(values, "deviceModel", "device_model")
     }
 
     public var gestureName: String? {
-        stringValue(values, "gesture_name", "gestureName")
+        stringValue(values, "gestureName", "gesture_name")
     }
 
     public var timestamp: Int? {
@@ -1435,7 +1435,7 @@ public struct HotspotErrorEvent: CustomStringConvertible {
     }
 
     public var message: String? {
-        stringValue(values, "error_message", "message", "error")
+        stringValue(values, "errorMessage", "error_message", "message", "error")
     }
 
     public var timestamp: Int? {
@@ -1453,7 +1453,7 @@ public enum PhotoResponse: CustomStringConvertible, Equatable {
         case error
     }
 
-    case success(requestId: String, photoUrl: String, timestamp: Int)
+    case success(requestId: String, uploadUrl: String, timestamp: Int)
     case error(requestId: String, errorCode: String?, errorMessage: String, timestamp: Int)
 
     public init(values: [String: Any]) {
@@ -1463,7 +1463,7 @@ public enum PhotoResponse: CustomStringConvertible, Equatable {
         if state == State.success.rawValue || boolValue(values, "success") == true {
             self = .success(
                 requestId: requestId,
-                photoUrl: stringValue(values, "photoUrl", "photo_url") ?? "",
+                uploadUrl: stringValue(values, "uploadUrl", "mediaUrl") ?? "",
                 timestamp: timestamp
             )
         } else {
@@ -1501,11 +1501,11 @@ public enum PhotoResponse: CustomStringConvertible, Equatable {
 
     public var values: [String: Any] {
         switch self {
-        case let .success(requestId, photoUrl, timestamp):
+        case let .success(requestId, uploadUrl, timestamp):
             return [
                 "state": State.success.rawValue,
                 "requestId": requestId,
-                "photoUrl": photoUrl,
+                "uploadUrl": uploadUrl,
                 "timestamp": timestamp,
             ]
         case let .error(requestId, errorCode, errorMessage, timestamp):

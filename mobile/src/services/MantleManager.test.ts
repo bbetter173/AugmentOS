@@ -237,18 +237,18 @@ describe("MantleManager", () => {
       type: "photo_response",
       state: "success",
       requestId: "req-1",
-      photoUrl: "https://example.com/photo.jpg",
+      uploadUrl: "https://example.com/photo.jpg",
       timestamp: 123,
     })
     expect(restComms.sendPhotoResponse).toHaveBeenCalledWith(
       expect.objectContaining({
         requestId: "req-1",
-        photoUrl: "https://example.com/photo.jpg",
+        uploadUrl: "https://example.com/photo.jpg",
       }),
     )
 
     emitCoreModuleEvent("touch_event", {
-      gesture_name: "tap",
+      gestureName: "tap",
       timestamp: 999,
     })
     expect(socketComms.sendTouchEvent).toHaveBeenCalledWith({

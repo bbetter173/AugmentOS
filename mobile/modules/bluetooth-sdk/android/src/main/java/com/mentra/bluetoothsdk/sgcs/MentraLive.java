@@ -841,7 +841,7 @@ public class MentraLive extends SGCManager {
 
     private void emitStopScanEvent() {
         Map<String, Object> body = new HashMap<>();
-        body.put("device_model", DeviceTypes.LIVE);
+        body.put("deviceModel", DeviceTypes.LIVE);
         Bridge.sendTypedMessage("compatible_glasses_search_stop", body);
     }
 

@@ -121,7 +121,7 @@ public class Bridge private constructor() {
         @JvmStatic
         fun sendAudioConnected(deviceName: String) {
             val data = HashMap<String, Any>()
-            data["device_name"] = deviceName
+            data["deviceName"] = deviceName
             sendTypedMessage("audio_connected", data as Map<String, Any>)
         }
 
@@ -277,8 +277,8 @@ public class Bridge private constructor() {
                 source: Int? = null
         ) {
             val body = HashMap<String, Any>()
-            body["device_model"] = deviceModel
-            body["gesture_name"] = gestureName
+            body["deviceModel"] = deviceModel
+            body["gestureName"] = gestureName
             body["timestamp"] = timestamp
             if (source != null) {
                 body["source"] = source
@@ -299,8 +299,8 @@ public class Bridge private constructor() {
         @JvmStatic
         fun sendSwitchStatus(switchType: Int, value: Int, timestamp: Long) {
             val body = HashMap<String, Any>()
-            body["switch_type"] = switchType
-            body["switch_value"] = value
+            body["switchType"] = switchType
+            body["switchValue"] = value
             body["timestamp"] = timestamp
             sendTypedMessage("switch_status", body)
         }
@@ -427,8 +427,8 @@ public class Bridge private constructor() {
             galleryData["photos"] = photoCount
             galleryData["videos"] = videoCount
             galleryData["total"] = totalCount
-            galleryData["total_size"] = totalSize
-            galleryData["has_content"] = hasContent
+            galleryData["totalSize"] = totalSize
+            galleryData["hasContent"] = hasContent
 
             sendTypedMessage("gallery_status", galleryData as Map<String, Any>)
         }
@@ -449,7 +449,7 @@ public class Bridge private constructor() {
         @JvmStatic
         fun sendHotspotError(errorMessage: String, timestamp: Long) {
             val eventBody = HashMap<String, Any>()
-            eventBody["error_message"] = errorMessage
+            eventBody["errorMessage"] = errorMessage
             eventBody["timestamp"] = timestamp
 
             sendTypedMessage("hotspot_error", eventBody as Map<String, Any>)

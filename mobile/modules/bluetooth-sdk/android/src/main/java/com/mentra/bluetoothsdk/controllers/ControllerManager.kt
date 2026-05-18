@@ -115,7 +115,7 @@ abstract class ControllerManager {
         get() = DeviceStore.get("glasses", "otaVersionUrl") as? String ?: ""
 
     val firmwareVersion: String
-        get() = DeviceStore.get("glasses", "firmwareVersion") as? String ?: ""
+        get() = DeviceStore.get("glasses", "fwVersion") as? String ?: ""
 
     val btMacAddress: String
         get() = DeviceStore.get("glasses", "btMacAddress") as? String ?: ""

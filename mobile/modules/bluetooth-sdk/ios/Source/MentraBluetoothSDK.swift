@@ -197,10 +197,10 @@ public struct Device: Identifiable, Equatable, CustomStringConvertible {
     }
 
     init?(values: [String: Any]) {
-        guard let model = stringValue(values, "model", "deviceModel", "device_model") else { return nil }
-        guard let name = stringValue(values, "name", "deviceName", "device_name") else { return nil }
-        let identifier = stringValue(values, "address", "deviceAddress", "device_address").flatMap { $0.isEmpty ? nil : $0 }
-        let rssi = intValue(values["rssi"]) ?? intValue(values["signalStrength"]) ?? intValue(values["signal_strength"])
+        guard let model = stringValue(values, "model") else { return nil }
+        guard let name = stringValue(values, "name") else { return nil }
+        let identifier = stringValue(values, "address").flatMap { $0.isEmpty ? nil : $0 }
+        let rssi = intValue(values["rssi"])
         self.init(
             model: DeviceModel.fromDeviceType(model),
             name: name,
@@ -236,8 +236,8 @@ public struct WifiScanResult: CustomStringConvertible {
 
     init(values: [String: Any]) {
         ssid = stringValue(values, "ssid") ?? ""
-        requiresPassword = boolValue(values, "requiresPassword", "requires_password", "auth_required") ?? false
-        signalStrength = intValue(values["signalStrength"] ?? values["signal_strength"] ?? values["rssi"]) ?? -1
+        requiresPassword = boolValue(values, "requiresPassword") ?? false
+        signalStrength = intValue(values["signalStrength"]) ?? -1
         frequency = intValue(values["frequency"])
     }
 
@@ -360,9 +360,9 @@ public struct GlassesStatus: CustomStringConvertible {
     public var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
     public var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
     public var androidVersion: String { stringValue(values, "androidVersion") ?? "" }
-    public var firmwareVersion: String { stringValue(values, "firmwareVersion", "fwVersion") ?? "" }
-    public var besFirmwareVersion: String { stringValue(values, "besFwVersion", "besFirmwareVersion") ?? "" }
-    public var mtkFirmwareVersion: String { stringValue(values, "mtkFwVersion", "mtkFirmwareVersion") ?? "" }
+    public var firmwareVersion: String { stringValue(values, "fwVersion") ?? "" }
+    public var besFirmwareVersion: String { stringValue(values, "besFwVersion") ?? "" }
+    public var mtkFirmwareVersion: String { stringValue(values, "mtkFwVersion") ?? "" }
     public var btMacAddress: String { stringValue(values, "btMacAddress") ?? "" }
     public var leftMacAddress: String { stringValue(values, "leftMacAddress") ?? "" }
     public var rightMacAddress: String { stringValue(values, "rightMacAddress") ?? "" }
@@ -413,7 +413,6 @@ public struct GlassesStatus: CustomStringConvertible {
         dictionary.removeValue(forKey: "hotspotSsid")
         dictionary.removeValue(forKey: "hotspotPassword")
         dictionary.removeValue(forKey: "hotspotGatewayIp")
-        dictionary.removeValue(forKey: "hotspotLocalIp")
         return dictionary
     }
 
@@ -443,7 +442,7 @@ public struct GlassesStatus: CustomStringConvertible {
             if let hotspot = (values["hotspot"] as? [String: Any]).flatMap(HotspotStatus.init(values:)) {
                 dictionary["hotspot"] = hotspot.values
             }
-        } else if hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp", "hotspotLocalIp") {
+        } else if hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp") {
             if let hotspot = HotspotStatus.fromStoreValues(values) {
                 dictionary["hotspot"] = hotspot.values
             }
@@ -451,7 +450,6 @@ public struct GlassesStatus: CustomStringConvertible {
             dictionary.removeValue(forKey: "hotspotSsid")
             dictionary.removeValue(forKey: "hotspotPassword")
             dictionary.removeValue(forKey: "hotspotGatewayIp")
-            dictionary.removeValue(forKey: "hotspotLocalIp")
         }
         return dictionary
     }
@@ -566,9 +564,9 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
     public var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }
     public var deviceModel: String? { optionalStringValue(values, "deviceModel") }
     public var androidVersion: String? { optionalStringValue(values, "androidVersion") }
-    public var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion", "fwVersion") }
-    public var besFirmwareVersion: String? { optionalStringValue(values, "besFwVersion", "besFirmwareVersion") }
-    public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFwVersion", "mtkFirmwareVersion") }
+    public var firmwareVersion: String? { optionalStringValue(values, "fwVersion") }
+    public var besFirmwareVersion: String? { optionalStringValue(values, "besFwVersion") }
+    public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFwVersion") }
     public var btMacAddress: String? { optionalStringValue(values, "btMacAddress") }
     public var leftMacAddress: String? { optionalStringValue(values, "leftMacAddress") }
     public var rightMacAddress: String? { optionalStringValue(values, "rightMacAddress") }
@@ -593,7 +591,7 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
         if let hotspot = values["hotspot"] as? [String: Any] {
             return HotspotStatus(values: hotspot)
         }
-        if hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp", "hotspotLocalIp") {
+        if hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp") {
             return HotspotStatus.fromStoreValues(values)
         }
         return nil
@@ -884,10 +882,10 @@ public struct StreamVideoConfig {
     init?(values: [String: Any]?) {
         guard let values else { return nil }
         self.init(
-            width: intValue(values["width"] ?? values["w"]),
-            height: intValue(values["height"] ?? values["h"]),
-            bitrate: intValue(values["bitrate"] ?? values["br"]),
-            frameRate: intValue(values["frameRate"] ?? values["fr"])
+            width: intValue(values["width"]),
+            height: intValue(values["height"]),
+            bitrate: intValue(values["bitrate"]),
+            frameRate: intValue(values["frameRate"])
         )
     }
 }
@@ -922,10 +920,10 @@ public struct StreamAudioConfig {
     init?(values: [String: Any]?) {
         guard let values else { return nil }
         self.init(
-            bitrate: intValue(values["bitrate"] ?? values["br"]),
-            sampleRate: intValue(values["sampleRate"] ?? values["sr"]),
-            echoCancellation: values["echoCancellation"] as? Bool ?? values["ec"] as? Bool,
-            noiseSuppression: values["noiseSuppression"] as? Bool ?? values["ns"] as? Bool
+            bitrate: intValue(values["bitrate"]),
+            sampleRate: intValue(values["sampleRate"]),
+            echoCancellation: values["echoCancellation"] as? Bool,
+            noiseSuppression: values["noiseSuppression"] as? Bool
         )
     }
 }
@@ -971,8 +969,8 @@ public struct StreamRequest {
             keepAlive: values["keepAlive"] as? Bool ?? true,
             keepAliveIntervalSeconds: intValue(values["keepAliveIntervalSeconds"]) ?? 15,
             sound: values["sound"] as? Bool ?? true,
-            video: StreamVideoConfig(values: (values["video"] ?? values["v"]) as? [String: Any]),
-            audio: StreamAudioConfig(values: (values["audio"] ?? values["a"]) as? [String: Any]),
+            video: StreamVideoConfig(values: values["video"] as? [String: Any]),
+            audio: StreamAudioConfig(values: values["audio"] as? [String: Any]),
             extraValues: values
         )
     }
@@ -1336,7 +1334,7 @@ public enum HotspotStatus: CustomStringConvertible, Equatable {
             enabled: enabled,
             ssid: nonEmptyStringValue(values, "hotspotSsid"),
             password: nonEmptyStringValue(values, "hotspotPassword"),
-            localIp: nonEmptyStringValue(values, "hotspotGatewayIp", "hotspotLocalIp")
+            localIp: nonEmptyStringValue(values, "hotspotGatewayIp")
         )
     }
 
@@ -1435,7 +1433,7 @@ public struct HotspotErrorEvent: CustomStringConvertible {
     }
 
     public var message: String? {
-        stringValue(values, "errorMessage", "error_message", "message", "error")
+        stringValue(values, "errorMessage")
     }
 
     public var timestamp: Int? {
@@ -1457,20 +1455,20 @@ public enum PhotoResponse: CustomStringConvertible, Equatable {
     case error(requestId: String, errorCode: String?, errorMessage: String, timestamp: Int)
 
     public init(values: [String: Any]) {
-        let requestId = stringValue(values, "requestId", "request_id") ?? ""
+        let requestId = stringValue(values, "requestId") ?? ""
         let timestamp = intValue(values["timestamp"]) ?? Int(Date().timeIntervalSince1970 * 1000)
-        let state = stringValue(values, "state", "status")?.lowercased()
-        if state == State.success.rawValue || boolValue(values, "success") == true {
+        let state = stringValue(values, "state")?.lowercased()
+        if state == State.success.rawValue {
             self = .success(
                 requestId: requestId,
-                uploadUrl: stringValue(values, "uploadUrl", "mediaUrl") ?? "",
+                uploadUrl: stringValue(values, "uploadUrl") ?? "",
                 timestamp: timestamp
             )
         } else {
             self = .error(
                 requestId: requestId,
-                errorCode: stringValue(values, "errorCode", "error_code"),
-                errorMessage: stringValue(values, "errorMessage", "error_message", "error") ?? "Unknown photo error",
+                errorCode: stringValue(values, "errorCode"),
+                errorMessage: stringValue(values, "errorMessage") ?? "Unknown photo error",
                 timestamp: timestamp
             )
         }
@@ -1604,10 +1602,10 @@ public enum StreamStatus: CustomStringConvertible, Equatable {
 
     public init(values: [String: Any]) {
         let rawState = stringValue(values, "status")
-        let streamId = stringValue(values, "streamId", "stream_id")
+        let streamId = stringValue(values, "streamId")
         let timestamp = intValue(values["timestamp"])
         let attempt = optionalIntValue(values, "attempt")
-        let maxAttempts = optionalIntValue(values, "maxAttempts", "max_attempts") ?? 0
+        let maxAttempts = optionalIntValue(values, "maxAttempts") ?? 0
 
         if hasAnyKey(values, "streaming") || hasAnyKey(values, "reconnecting") {
             let streaming = boolValue(values, "streaming") == true
@@ -1649,7 +1647,7 @@ public enum StreamStatus: CustomStringConvertible, Equatable {
         case .error:
             self = .error(
                 streamId: streamId,
-                errorDetails: stringValue(values, "errorDetails", "error_details", "details", "error", "errorMessage")
+                errorDetails: stringValue(values, "errorDetails")
                     ?? (rawState == "error_not_streaming" ? "not_streaming" : "Unknown stream error"),
                 timestamp: timestamp
             )
@@ -1795,8 +1793,8 @@ public struct KeepAliveAckEvent: CustomStringConvertible, Equatable {
     }
 
     public init(values: [String: Any]) {
-        self.streamId = stringValue(values, "streamId", "stream_id") ?? ""
-        self.ackId = stringValue(values, "ackId", "ack_id") ?? ""
+        self.streamId = stringValue(values, "streamId") ?? ""
+        self.ackId = stringValue(values, "ackId") ?? ""
         self.timestamp = intValue(values["timestamp"])
     }
 
@@ -2506,7 +2504,7 @@ public final class MentraBluetoothSDK {
     private func dispatchDiscoveredDevices(_ rawSearchResults: Any?) {
         guard let results = rawSearchResults as? [[String: Any]] else { return }
         for result in results {
-            guard let name = result["deviceName"] as? String ?? result["name"] as? String else { continue }
+            guard let name = result["name"] as? String else { continue }
             guard discoveredDeviceNames.insert(name).inserted else { continue }
             guard let device = Device(values: result) else { continue }
             delegate?.mentraBluetoothSDK(self, didDiscover: device)

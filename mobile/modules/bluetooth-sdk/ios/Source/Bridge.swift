@@ -161,8 +161,8 @@ class Bridge {
         if let id = result["id"] as? String, !id.isEmpty {
             return id
         }
-        let model = result["model"] as? String ?? result["deviceModel"] as? String ?? fallbackModel
-        guard let name = result["name"] as? String ?? result["deviceName"] as? String else {
+        let model = result["model"] as? String ?? fallbackModel
+        guard let name = result["name"] as? String else {
             return nil
         }
         return "\(model):\(name)"

@@ -52,10 +52,10 @@ data class Device(
 
     companion object {
         internal fun fromMap(values: Map<String, Any>): Device? {
-            val model = stringValue(values, "model", "deviceModel", "device_model") ?: return null
-            val name = stringValue(values, "name", "deviceName", "device_name") ?: return null
-            val address = stringValue(values, "address", "deviceAddress", "device_address")?.takeIf { it.isNotBlank() }
-            val rssi = numberValue(values, "rssi", "signalStrength", "signal_strength")
+            val model = stringValue(values, "model") ?: return null
+            val name = stringValue(values, "name") ?: return null
+            val address = stringValue(values, "address")?.takeIf { it.isNotBlank() }
+            val rssi = numberValue(values, "rssi")
             val id = stringValue(values, "id")?.takeIf { it.isNotBlank() } ?: address ?: "${model}:$name"
             return Device(
                 model = DeviceModel.fromDeviceType(model),
@@ -94,9 +94,8 @@ data class WifiScanResult(
         internal fun fromMap(values: Map<String, Any>): WifiScanResult =
             WifiScanResult(
                 ssid = stringValue(values, "ssid") ?: "",
-                requiresPassword =
-                    boolValue(values, "requiresPassword", "requires_password", "auth_required") ?: false,
-                signalStrength = numberValue(values, "signalStrength", "signal_strength", "rssi") ?: -1,
+                requiresPassword = boolValue(values, "requiresPassword") ?: false,
+                signalStrength = numberValue(values, "signalStrength") ?: -1,
                 frequency = numberValue(values, "frequency"),
             )
     }
@@ -194,9 +193,9 @@ data class GlassesStatus(
                 signalStrengthUpdatedAt = longValue(values, "signalStrengthUpdatedAt") ?: 0L,
                 deviceModel = stringValue(values, "deviceModel") ?: "",
                 androidVersion = stringValue(values, "androidVersion") ?: "",
-                firmwareVersion = stringValue(values, "firmwareVersion", "fwVersion") ?: "",
-                besFirmwareVersion = stringValue(values, "besFwVersion", "besFirmwareVersion") ?: "",
-                mtkFirmwareVersion = stringValue(values, "mtkFwVersion", "mtkFirmwareVersion") ?: "",
+                firmwareVersion = stringValue(values, "fwVersion") ?: "",
+                besFirmwareVersion = stringValue(values, "besFwVersion") ?: "",
+                mtkFirmwareVersion = stringValue(values, "mtkFwVersion") ?: "",
                 btMacAddress = stringValue(values, "btMacAddress") ?: "",
                 leftMacAddress = stringValue(values, "leftMacAddress") ?: "",
                 rightMacAddress = stringValue(values, "rightMacAddress") ?: "",
@@ -485,9 +484,9 @@ data class GlassesStatusUpdate(
                 signalStrengthUpdatedAt = optionalLongValue(values, "signalStrengthUpdatedAt"),
                 deviceModel = optionalStringValue(values, "deviceModel"),
                 androidVersion = optionalStringValue(values, "androidVersion"),
-                firmwareVersion = optionalStringValue(values, "firmwareVersion", "fwVersion"),
-                besFirmwareVersion = optionalStringValue(values, "besFwVersion", "besFirmwareVersion"),
-                mtkFirmwareVersion = optionalStringValue(values, "mtkFwVersion", "mtkFirmwareVersion"),
+                firmwareVersion = optionalStringValue(values, "fwVersion"),
+                besFirmwareVersion = optionalStringValue(values, "besFwVersion"),
+                mtkFirmwareVersion = optionalStringValue(values, "mtkFwVersion"),
                 btMacAddress = optionalStringValue(values, "btMacAddress"),
                 leftMacAddress = optionalStringValue(values, "leftMacAddress"),
                 rightMacAddress = optionalStringValue(values, "rightMacAddress"),
@@ -516,7 +515,7 @@ data class GlassesStatusUpdate(
                 hotspot =
                     if (hasAnyKey(values, "hotspot")) {
                         HotspotStatus.fromMap(values)
-                    } else if (hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp", "hotspotLocalIp")) {
+                    } else if (hasAnyKey(values, "hotspotEnabled", "hotspotSsid", "hotspotPassword", "hotspotGatewayIp")) {
                         HotspotStatus.fromStoreMap(values)
                     } else {
                         null
@@ -814,13 +813,13 @@ data class StreamVideoConfig @JvmOverloads constructor(
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<*, *>?): StreamVideoConfig? {
+        fun fromMap(values: Map<String, Any>?): StreamVideoConfig? {
             values ?: return null
             return StreamVideoConfig(
-                width = numberValue(values, "width", "w"),
-                height = numberValue(values, "height", "h"),
-                bitrate = numberValue(values, "bitrate", "br"),
-                frameRate = numberValue(values, "frameRate", "fr"),
+                width = numberValue(values, "width"),
+                height = numberValue(values, "height"),
+                bitrate = numberValue(values, "bitrate"),
+                frameRate = numberValue(values, "frameRate"),
             )
         }
     }
@@ -842,13 +841,13 @@ data class StreamAudioConfig @JvmOverloads constructor(
 
     companion object {
         @JvmStatic
-        fun fromMap(values: Map<*, *>?): StreamAudioConfig? {
+        fun fromMap(values: Map<String, Any>?): StreamAudioConfig? {
             values ?: return null
             return StreamAudioConfig(
-                bitrate = numberValue(values, "bitrate", "br"),
-                sampleRate = numberValue(values, "sampleRate", "sr"),
-                echoCancellation = values["echoCancellation"] as? Boolean ?: values["ec"] as? Boolean,
-                noiseSuppression = values["noiseSuppression"] as? Boolean ?: values["ns"] as? Boolean,
+                bitrate = numberValue(values, "bitrate"),
+                sampleRate = numberValue(values, "sampleRate"),
+                echoCancellation = values["echoCancellation"] as? Boolean,
+                noiseSuppression = values["noiseSuppression"] as? Boolean,
             )
         }
     }
@@ -890,8 +889,8 @@ data class StreamRequest @JvmOverloads constructor(
                 keepAlive = values["keepAlive"] as? Boolean ?: true,
                 keepAliveIntervalSeconds = (values["keepAliveIntervalSeconds"] as? Number)?.toInt() ?: 15,
                 sound = values["sound"] as? Boolean ?: true,
-                video = StreamVideoConfig.fromMap((values["video"] ?: values["v"]) as? Map<*, *>),
-                audio = StreamAudioConfig.fromMap((values["audio"] ?: values["a"]) as? Map<*, *>),
+                video = StreamVideoConfig.fromMap(stringMapValue(values["video"])),
+                audio = StreamAudioConfig.fromMap(stringMapValue(values["audio"])),
                 extraValues = values,
             )
     }
@@ -1114,7 +1113,7 @@ sealed interface HotspotStatus {
                 enabled = enabled,
                 ssid = stringValue(values, "hotspotSsid"),
                 password = stringValue(values, "hotspotPassword"),
-                localIp = stringValue(values, "hotspotGatewayIp", "hotspotLocalIp"),
+                localIp = stringValue(values, "hotspotGatewayIp"),
             )
         }
 
@@ -1159,7 +1158,7 @@ data class HotspotStatusEvent(
 data class HotspotErrorEvent(
     val values: Map<String, Any>,
 ) {
-    val message: String? get() = stringValue(values, "errorMessage", "error_message", "message", "error")
+    val message: String? get() = stringValue(values, "errorMessage")
     val timestamp: Long? get() = longValue(values, "timestamp")
 }
 
@@ -1214,19 +1213,17 @@ sealed interface PhotoResponse {
 
     companion object {
         fun fromMap(values: Map<String, Any>): PhotoResponse {
-            val requestId = stringValue(values, "requestId", "request_id").orEmpty()
+            val requestId = stringValue(values, "requestId").orEmpty()
             val timestamp = longValue(values, "timestamp") ?: System.currentTimeMillis()
-            val state = stringValue(values, "state", "status")?.lowercase()
-            val success = boolValue(values, "success")
-            return if (state == "success" || success == true) {
-                val uploadUrl = stringValue(values, "uploadUrl", "mediaUrl").orEmpty()
+            val state = stringValue(values, "state")?.lowercase()
+            return if (state == "success") {
+                val uploadUrl = stringValue(values, "uploadUrl").orEmpty()
                 Success(requestId = requestId, uploadUrl = uploadUrl, timestamp = timestamp)
             } else {
                 Error(
                     requestId = requestId,
-                    errorCode = stringValue(values, "errorCode", "error_code"),
-                    errorMessage = stringValue(values, "errorMessage", "error_message", "error")
-                        ?: "Unknown photo error",
+                    errorCode = stringValue(values, "errorCode"),
+                    errorMessage = stringValue(values, "errorMessage") ?: "Unknown photo error",
                     timestamp = timestamp,
                 )
             }
@@ -1376,10 +1373,10 @@ sealed interface StreamStatus {
             val rawState = stringValue(values, "status")
             val streaming = boolValue(values, "streaming")
             val reconnecting = boolValue(values, "reconnecting") ?: false
-            val streamId = stringValue(values, "streamId", "stream_id")
+            val streamId = stringValue(values, "streamId")
             val timestamp = longValue(values, "timestamp")
             val attempt = numberValue(values, "attempt")
-            val maxAttempts = numberValue(values, "maxAttempts", "max_attempts") ?: 0
+            val maxAttempts = numberValue(values, "maxAttempts") ?: 0
 
             if (streaming != null || hasAnyKey(values, "reconnecting")) {
                 return Snapshot(
@@ -1423,7 +1420,7 @@ sealed interface StreamStatus {
                 )
                 StreamState.ERROR -> Error(
                     streamId = streamId,
-                    errorDetails = stringValue(values, "errorDetails", "error_details", "details", "error", "errorMessage")
+                    errorDetails = stringValue(values, "errorDetails")
                         ?: if (rawState == "error_not_streaming") "not_streaming" else "Unknown stream error",
                     timestamp = timestamp,
                 )
@@ -1453,8 +1450,8 @@ data class KeepAliveAckEvent(
     val timestamp: Long?,
 ) {
     constructor(values: Map<String, Any>) : this(
-        streamId = stringValue(values, "streamId", "stream_id").orEmpty(),
-        ackId = stringValue(values, "ackId", "ack_id").orEmpty(),
+        streamId = stringValue(values, "streamId").orEmpty(),
+        ackId = stringValue(values, "ackId").orEmpty(),
         timestamp = longValue(values, "timestamp"),
     )
 
@@ -1481,7 +1478,7 @@ data class GlassesMediaVolumeGetResult(
     companion object {
         fun fromMap(values: Map<String, Any>): GlassesMediaVolumeGetResult =
             GlassesMediaVolumeGetResult(
-                volume = numberValue(values, "vol", "volume"),
+                volume = numberValue(values, "vol"),
                 statusCode = (values["statusCode"] as? Number)?.toInt(),
                 values = values,
             )
@@ -1603,12 +1600,6 @@ interface MentraBluetoothSdkListener {
 }
 
 abstract class MentraBluetoothSdkCallback : MentraBluetoothSdkListener
-
-private fun numberValue(
-    values: Map<*, *>,
-    fullKey: String,
-    compactKey: String,
-): Int? = ((values[fullKey] ?: values[compactKey]) as? Number)?.toInt()
 
 private fun numberValue(
     values: Map<String, Any>,

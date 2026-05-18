@@ -504,9 +504,9 @@ class BluetoothSdkModule : Module() {
 
 private fun Map<String, Any>?.toMentraDevice(): Device? {
     val values = this ?: return null
-    val model = values["model"] as? String ?: values["deviceModel"] as? String ?: return null
-    val name = values["name"] as? String ?: values["deviceName"] as? String ?: return null
-    val address = values["address"] as? String ?: values["deviceAddress"] as? String
+    val model = values["model"] as? String ?: return null
+    val name = values["name"] as? String ?: return null
+    val address = values["address"] as? String
     val rssi = (values["rssi"] as? Number)?.toInt()
     val id = values["id"] as? String
     return Device(

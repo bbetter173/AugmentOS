@@ -241,8 +241,8 @@ public class Bridge private constructor() {
             if (!id.isNullOrBlank()) {
                 return id
             }
-            val model = result["model"] as? String ?: result["deviceModel"] as? String ?: fallbackModel
-            val name = result["name"] as? String ?: result["deviceName"] as? String ?: return null
+            val model = result["model"] as? String ?: fallbackModel
+            val name = result["name"] as? String ?: return null
             return "$model:$name"
         }
 

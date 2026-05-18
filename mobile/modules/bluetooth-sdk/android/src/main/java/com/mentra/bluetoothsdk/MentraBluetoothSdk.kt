@@ -601,7 +601,7 @@ class MentraBluetoothSdk private constructor(
         val results = rawSearchResults as? List<*> ?: return
         results.forEach { rawResult ->
             val result = rawResult as? Map<*, *> ?: return@forEach
-            val name = result["deviceName"] as? String ?: result["name"] as? String ?: return@forEach
+            val name = result["name"] as? String ?: return@forEach
             if (!discoveredDeviceNames.add(name)) return@forEach
             val values =
                 result.entries.mapNotNull { (key, value) ->

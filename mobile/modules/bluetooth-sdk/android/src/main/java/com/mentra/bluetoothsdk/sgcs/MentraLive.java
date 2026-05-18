@@ -2775,7 +2775,7 @@ public class MentraLive extends SGCManager {
                 DeviceStore.INSTANCE.apply("glasses", "deviceModel", deviceModelLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "androidVersion", androidVersionLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "otaVersionUrl", otaVersionUrlLegacy != null ? otaVersionUrlLegacy : "");
-                DeviceStore.INSTANCE.apply("glasses", "firmwareVersion", firmwareVersionLegacy);
+                DeviceStore.INSTANCE.apply("glasses", "fwVersion", firmwareVersionLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "btMacAddress", btMacAddressLegacy);
 
                 // Parse build number as integer for version checks (local field)

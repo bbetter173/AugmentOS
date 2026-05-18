@@ -3502,7 +3502,7 @@ class G2 : SGCManager() {
             val rightVersion = String(rightVer, Charsets.UTF_8)
             Bridge.log("G2: Right firmware: $rightVersion")
             DeviceStore.apply("glasses", "rightFirmwareVersion", rightVersion)
-            DeviceStore.apply("glasses", "firmwareVersion", rightVersion)
+            DeviceStore.apply("glasses", "fwVersion", rightVersion)
         }
     }
 

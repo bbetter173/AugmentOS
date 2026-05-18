@@ -248,12 +248,15 @@ describe("MantleManager", () => {
     )
 
     emitCoreModuleEvent("touch_event", {
+      type: "touch_event",
+      deviceModel: "Mentra Live",
       gestureName: "tap",
       timestamp: 999,
     })
     expect(socketComms.sendTouchEvent).toHaveBeenCalledWith({
-      device_model: "Mentra Live",
-      gesture_name: "tap",
+      type: "touch_event",
+      deviceModel: "Mentra Live",
+      gestureName: "tap",
       timestamp: 999,
     })
 

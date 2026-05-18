@@ -183,6 +183,7 @@ class Bridge {
 
     static func sendTouchEvent(deviceModel: String, gestureName: String, timestamp: Int64, source: Int32? = nil) {
         var body: [String: Any] = [
+            "type": "touch_event",
             "deviceModel": deviceModel,
             "gestureName": gestureName,
             "timestamp": timestamp,
@@ -213,6 +214,7 @@ class Bridge {
     static func sendRgbLedControlResponse(requestId: String, success: Bool, error: String?) {
         guard !requestId.isEmpty else { return }
         var body: [String: Any] = [
+            "type": "rgb_led_control_response",
             "requestId": requestId,
             "state": success ? "success" : "error",
         ]

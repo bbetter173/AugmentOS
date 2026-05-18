@@ -1,3 +1,4 @@
+import {type RgbLedControlResponseEvent, type TouchEvent} from "@mentra/bluetooth-sdk"
 import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {
   displayProcessor,
@@ -204,18 +205,6 @@ class SocketComms {
     ws.sendText(jsonString)
   }
 
-  public sendPhotoResponse(requestId: string, photoUrl: string) {
-    const event = {
-      type: "photo_response",
-      requestId: requestId,
-      photoUrl: photoUrl,
-      timestamp: Date.now(),
-    }
-
-    const jsonString = JSON.stringify(event)
-    ws.sendText(jsonString)
-  }
-
   public sendVideoStreamResponse(appId: string, streamUrl: string) {
     const event = {
       type: "video_stream_response",
@@ -228,11 +217,11 @@ class SocketComms {
     ws.sendText(jsonString)
   }
 
-  public sendTouchEvent(event: {device_model: string; gesture_name: string; timestamp: number}) {
+  public sendTouchEvent(event: TouchEvent) {
     const payload = {
       type: "touch_event",
-      device_model: event.device_model,
-      gesture_name: event.gesture_name,
+      device_model: event.deviceModel,
+      gesture_name: event.gestureName,
       timestamp: event.timestamp,
     }
     ws.sendText(JSON.stringify(payload))
@@ -271,18 +260,18 @@ class SocketComms {
     ws.sendText(JSON.stringify(payload))
   }
 
-  public sendRgbLedControlResponse(requestId: string, success: boolean, errorMessage?: string | null) {
-    if (!requestId) {
+  public sendRgbLedControlResponse(event: RgbLedControlResponseEvent) {
+    if (!event.requestId) {
       console.log("SOCKET: Skipping RGB LED control response - missing requestId")
       return
     }
-    const payload: any = {
+    const payload: {type: string; requestId: string; success: boolean; error?: string} = {
       type: "rgb_led_control_response",
-      requestId,
-      success,
+      requestId: event.requestId,
+      success: event.state === "success",
     }
-    if (errorMessage) {
-      payload.error = errorMessage
+    if (event.state === "error") {
+      payload.error = event.errorCode
     }
     ws.sendText(JSON.stringify(payload))
   }

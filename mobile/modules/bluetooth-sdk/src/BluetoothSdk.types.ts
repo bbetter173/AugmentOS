@@ -13,8 +13,8 @@ export type ButtonPressEvent = {
 
 export type TouchEvent = {
   type: "touch_event"
-  deviceModel?: string
-  gestureName?: string
+  deviceModel: DeviceModel
+  gestureName: string
   timestamp: number
 }
 

@@ -971,8 +971,8 @@ data class ButtonPressEvent(
 data class TouchEvent(
     val values: Map<String, Any>,
 ) {
-    val deviceModel: String? get() = stringValue(values, "deviceModel", "device_model")
-    val gestureName: String? get() = stringValue(values, "gestureName", "gesture_name")
+    val deviceModel: String? get() = stringValue(values, "deviceModel")
+    val gestureName: String? get() = stringValue(values, "gestureName")
     val timestamp: Long? get() = longValue(values, "timestamp")
     val isSwipe: Boolean get() = gestureName?.contains("swipe", ignoreCase = true) == true
 }
@@ -980,8 +980,8 @@ data class TouchEvent(
 data class SwipeEvent(
     val values: Map<String, Any>,
 ) {
-    val deviceModel: String? get() = stringValue(values, "deviceModel", "device_model")
-    val gestureName: String? get() = stringValue(values, "gestureName", "gesture_name")
+    val deviceModel: String? get() = stringValue(values, "deviceModel")
+    val gestureName: String? get() = stringValue(values, "gestureName")
     val timestamp: Long? get() = longValue(values, "timestamp")
 }
 

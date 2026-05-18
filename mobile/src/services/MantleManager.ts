@@ -462,14 +462,7 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("touch_event", (event) => {
-          const deviceModel = event.deviceModel ?? "Mentra Live"
-          const gestureName = event.gestureName ?? "unknown"
-          const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now()
-          socketComms.sendTouchEvent({
-            device_model: deviceModel,
-            gesture_name: gestureName,
-            timestamp,
-          })
+          socketComms.sendTouchEvent(event)
           localMiniappRuntime.forwardEvent("touch_event", event)
         }),
       )
@@ -497,12 +490,13 @@ class MantleManager {
 
       this.subs.push(
         BluetoothSdk.addListener("rgb_led_control_response", (event) => {
-          const requestId = event.requestId ?? ""
-          const success = event.state === "success"
-          const errorMessage = event.state === "error" ? event.errorCode : null
-          socketComms.sendRgbLedControlResponse(requestId, success, errorMessage)
+          socketComms.sendRgbLedControlResponse(event)
           // TODO: remove
-          GlobalEventEmitter.emit("rgb_led_control_response", {requestId, success, error: errorMessage})
+          GlobalEventEmitter.emit("rgb_led_control_response", {
+            requestId: event.requestId,
+            success: event.state === "success",
+            error: event.state === "error" ? event.errorCode : null,
+          })
         }),
       )
 

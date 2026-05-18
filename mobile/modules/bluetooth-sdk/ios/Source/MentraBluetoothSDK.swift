@@ -1102,11 +1102,11 @@ public struct TouchEvent: CustomStringConvertible {
     }
 
     public var deviceModel: String? {
-        stringValue(values, "deviceModel", "device_model")
+        stringValue(values, "deviceModel")
     }
 
     public var gestureName: String? {
-        stringValue(values, "gestureName", "gesture_name")
+        stringValue(values, "gestureName")
     }
 
     public var timestamp: Int? {

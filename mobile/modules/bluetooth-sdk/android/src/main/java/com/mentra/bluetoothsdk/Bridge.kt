@@ -277,6 +277,7 @@ public class Bridge private constructor() {
                 source: Int? = null
         ) {
             val body = HashMap<String, Any>()
+            body["type"] = "touch_event"
             body["deviceModel"] = deviceModel
             body["gestureName"] = gestureName
             body["timestamp"] = timestamp
@@ -323,6 +324,7 @@ public class Bridge private constructor() {
             if (requestId.isEmpty()) return
             try {
                 val body = HashMap<String, Any>()
+                body["type"] = "rgb_led_control_response"
                 body["requestId"] = requestId
                 body["state"] = if (success) "success" else "error"
                 if (!success) {

@@ -8,7 +8,6 @@ import {
   ButtonPhotoSize,
   CameraFov,
   CameraFovSetting,
-  ConnectFirstOptions,
   ConnectOptions,
   DashboardMenuItem,
   Device,
@@ -55,7 +54,6 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   stopScan(): Promise<void>
   scan(options: ScanOptions): Promise<Device[]>
   scan(model: DeviceModel, options?: ScanModelOptions): Promise<Device[]>
-  connectFirst(model: DeviceModel, options?: ConnectFirstOptions): Promise<Device>
   connect(device: Device, options?: ConnectOptions): Promise<void>
   connectWithOptions(device: Device, options: Required<ConnectOptions>): Promise<void>
   cancelConnectionAttempt(): Promise<void>
@@ -181,16 +179,11 @@ const DEFAULT_CONNECT_OPTIONS: Required<ConnectOptions> = {
   cancelExistingConnectionAttempt: true,
 }
 
-const DEFAULT_CONNECT_FIRST_TIMEOUT_MS = 15_000
 const DEFAULT_SCAN_TIMEOUT_MS = 15_000
 
 const CAMERA_FOV_SETTINGS: Record<CameraFov, CameraFovSetting> = {
   standard: {fov: 118, roi_position: 0},
   wide: {fov: 118, roi_position: 0},
-}
-
-function findSearchResult(status: Partial<BluetoothStatus>, model: DeviceModel): Device | null {
-  return status.searchResults?.find((device) => device.model === model) ?? null
 }
 
 function searchResultsForModel(status: Partial<BluetoothStatus>, model: DeviceModel): Device[] {
@@ -479,59 +472,6 @@ NativeBluetoothSdkModule.scan = async function (
       .then(handleBluetoothStatus)
       .catch((error) => settle(error instanceof Error ? error : new Error(String(error))))
   })
-}
-
-NativeBluetoothSdkModule.connectFirst = async function (model: DeviceModel, options?: ConnectFirstOptions) {
-  const {timeoutMs = DEFAULT_CONNECT_FIRST_TIMEOUT_MS, ...connectOptions} = options ?? {}
-
-  const device = await new Promise<Device>((resolve, reject) => {
-    let timeout: ReturnType<typeof setTimeout> | null = null
-    let removeBluetoothListener = () => {}
-    let settled = false
-
-    const cleanup = () => {
-      if (timeout) {
-        clearTimeout(timeout)
-      }
-      removeBluetoothListener()
-    }
-
-    const settle = (error: Error | null, result?: Device) => {
-      if (settled) {
-        return
-      }
-      settled = true
-      cleanup()
-      if (error) {
-        reject(error)
-      } else if (result) {
-        resolve(result)
-      }
-    }
-
-    const handleBluetoothStatus = (status: Partial<BluetoothStatus>) => {
-      const result = findSearchResult(status, model)
-      if (result) {
-        settle(null, result)
-      }
-    }
-
-    removeBluetoothListener = this.onBluetoothStatus(handleBluetoothStatus)
-
-    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
-      timeout = setTimeout(() => {
-        settle(new Error(`Timed out after ${timeoutMs}ms while scanning for ${model}.`))
-      }, timeoutMs)
-    }
-
-    Promise.resolve(this.startScan(model))
-      .then(() => this.getBluetoothStatus())
-      .then(handleBluetoothStatus)
-      .catch((error) => settle(error instanceof Error ? error : new Error(String(error))))
-  })
-
-  await this.connect(device, connectOptions)
-  return device
 }
 
 export default NativeBluetoothSdkModule

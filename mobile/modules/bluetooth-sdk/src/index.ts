@@ -23,7 +23,6 @@ export type {
   ButtonPressEvent,
   CameraFov,
   CompatibleGlassesSearchStopEvent,
-  ConnectFirstOptions,
   ConnectOptions,
   ConnectedGlassesConnectionStatus,
   ConnectedWifiStatus,

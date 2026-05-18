@@ -11,9 +11,12 @@ export default function App() {
         <Text style={styles.header}>Mentra Bluetooth SDK Example</Text>
         <Group name="Connection">
           <Button
-            title="Connect first Mentra Live"
+            title="Scan and connect Mentra Live"
             onPress={async () => {
-              await BluetoothSdk.connectFirst(DeviceModels.MentraLive)
+              const devices = await BluetoothSdk.scan(DeviceModels.MentraLive)
+              if (devices[0]) {
+                await BluetoothSdk.connect(devices[0])
+              }
             }}
           />
           <Button

@@ -556,7 +556,6 @@ export interface BluetoothSdkPublicModule {
   stopScan(): Promise<void>
   scan(options: ScanOptions): Promise<Device[]>
   scan(model: DeviceModel, options?: ScanModelOptions): Promise<Device[]>
-  connectFirst(model: DeviceModel, options?: ConnectFirstOptions): Promise<Device>
   connect(device: Device, options?: ConnectOptions): Promise<void>
   connectDefault(options?: ConnectOptions): Promise<void>
   cancelConnectionAttempt(): Promise<void>
@@ -730,10 +729,6 @@ export interface Device {
 export interface ConnectOptions {
   saveAsDefault?: boolean
   cancelExistingConnectionAttempt?: boolean
-}
-
-export interface ConnectFirstOptions extends ConnectOptions {
-  timeoutMs?: number
 }
 
 export type ScanResultsCallback = (devices: Device[]) => void

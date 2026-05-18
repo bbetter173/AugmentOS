@@ -445,9 +445,7 @@ MentraOS compatibility methods live behind the underscored `@mentra/bluetooth-sd
 ```ts
 await BluetoothSdk.getBluetoothStatus()
 await BluetoothSdk.getGlassesStatus()
-await BluetoothSdk.startScan(model)
-await BluetoothSdk.stopScan()
-await BluetoothSdk.connectFirst(model, options)
+const devices = await BluetoothSdk.scan(model, options)
 await BluetoothSdk.connect(device, options)
 await BluetoothSdk.connectDefault()
 await BluetoothSdk.cancelConnectionAttempt()

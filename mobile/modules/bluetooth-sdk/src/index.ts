@@ -1,4 +1,4 @@
-import {BluetoothSdk} from "./BluetoothSdkModule"
+import {BluetoothSdk} from "./_private/BluetoothSdkModule"
 
 export default BluetoothSdk
 

@@ -16,7 +16,7 @@ This document reflects the current source on this branch, not only the commit sn
 
 - React Native package root: `mobile/modules/bluetooth-sdk/src/index.ts`
 - React Native public/internal type boundary: `mobile/modules/bluetooth-sdk/src/BluetoothSdk.types.ts`
-- React Native raw module facade: `mobile/modules/bluetooth-sdk/src/BluetoothSdkModule.ts`
+- React Native raw module facade: `mobile/modules/bluetooth-sdk/src/_private/BluetoothSdkModule.ts`
 - React Native internal entrypoint: `mobile/modules/bluetooth-sdk/src/_internal.ts`
 - Android native facade: `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothSdk.kt`
 - Android native models/callbacks: `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothModels.kt`

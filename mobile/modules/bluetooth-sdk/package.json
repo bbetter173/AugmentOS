@@ -17,6 +17,9 @@
       "react-native": "./src/_internal.ts",
       "default": "./build/_internal.js"
     },
+    "./_private/*": null,
+    "./build/*": null,
+    "./src/*": null,
     "./app.plugin": "./app.plugin.js",
     "./package.json": "./package.json"
   },

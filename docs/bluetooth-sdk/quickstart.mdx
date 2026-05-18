@@ -198,7 +198,21 @@ const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
   console.log('Glasses status changed', status);
 });
 
-await BluetoothSdk.connectFirst(DeviceModels.MentraLive);
+const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
+  timeoutMs: 10_000,
+  onResults: (nextDevices) => {
+    console.log('Nearby glasses:', nextDevices);
+  },
+});
+
+const device = devices[0];
+if (!device) {
+  throw new Error('No Mentra Live glasses found');
+}
+
+await BluetoothSdk.connect(device);
+
+`onResults` is the live UI path while scanning is in progress. The returned `devices` array is the final list after the scan timeout/completion, which is the right place for final selection, fallback behavior, or "connect to this device" logic.
 
 await BluetoothSdk.requestVersionInfo();
 const glasses = await BluetoothSdk.getGlassesStatus();
@@ -230,7 +244,9 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
     private var discoveredDevice: Device? = null
 
     fun scan() {
-        sdk.startScan(DeviceModel.MENTRA_LIVE)
+        sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { devices ->
+            discoveredDevice = devices.firstOrNull()
+        }
     }
 
     fun connect() {
@@ -241,10 +257,6 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
         sdk.requestVersionInfo()
         val status = sdk.getGlassesStatus()
         println("Connected to ${status.deviceModel}, battery=${status.batteryLevel}%")
-    }
-
-    override fun onDeviceDiscovered(device: Device) {
-        discoveredDevice = device
     }
 
     override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
@@ -275,7 +287,9 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
     }
 
     func scan() throws {
-        try sdk.startScan(model: .mentraLive)
+        try sdk.scan(model: .mentraLive, timeout: 10) { [weak self] devices in
+            self?.discoveredDevice = devices.first
+        }
     }
 
     func connect() throws {
@@ -287,10 +301,6 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
         sdk.requestVersionInfo()
         let status = sdk.glassesStatus
         print("Connected to \(status.deviceModel), battery=\(status.batteryLevel)%")
-    }
-
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device) {
-        discoveredDevice = device
     }
 
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {

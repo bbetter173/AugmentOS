@@ -106,7 +106,19 @@ const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
   glassesStatus = {...glassesStatus, ...status};
 });
 
-await BluetoothSdk.connectFirst(DeviceModels.MentraLive);
+const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
+  timeoutMs: 10_000,
+  onResults: (nextDevices) => {
+    console.log('Nearby glasses:', nextDevices);
+  },
+});
+
+const device = devices[0];
+if (!device) {
+  throw new Error('No Mentra Live glasses found');
+}
+
+await BluetoothSdk.connect(device);
 
 await BluetoothSdk.requestVersionInfo();
 glassesStatus = await BluetoothSdk.getGlassesStatus();

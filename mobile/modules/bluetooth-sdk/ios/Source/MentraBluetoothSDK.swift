@@ -1897,6 +1897,26 @@ public enum ScanStopReason {
     case error
 }
 
+@MainActor
+public final class ScanSession {
+    private let stopAction: () -> Void
+    private var stopped = false
+
+    init(stopAction: @escaping () -> Void) {
+        self.stopAction = stopAction
+    }
+
+    public func stop() {
+        guard !stopped else { return }
+        stopped = true
+        stopAction()
+    }
+
+    fileprivate func markStopped() {
+        stopped = true
+    }
+}
+
 public struct LocalTranscriptionEvent: CustomStringConvertible {
     public let text: String
     public let isFinal: Bool
@@ -1980,6 +2000,26 @@ public extension MentraBluetoothSDKDelegate {
 }
 
 @MainActor
+private final class ActiveScanSession {
+    let model: DeviceModel
+    let onResults: ([Device]) -> Void
+    let onComplete: ([Device]) -> Void
+    var latestResults: [Device] = []
+    var timeoutTask: Task<Void, Never>?
+    weak var publicSession: ScanSession?
+
+    init(
+        model: DeviceModel,
+        onResults: @escaping ([Device]) -> Void,
+        onComplete: @escaping ([Device]) -> Void
+    ) {
+        self.model = model
+        self.onResults = onResults
+        self.onComplete = onComplete
+    }
+}
+
+@MainActor
 public final class MentraBluetoothSDK {
     public weak var delegate: MentraBluetoothSDKDelegate?
 
@@ -1990,6 +2030,7 @@ public final class MentraBluetoothSDK {
     private let defaultDeviceKeys: Set<String> = ["default_wearable", "device_name", "device_address"]
     private var suppressDefaultDeviceEvents = false
     private var defaultDeviceApplyGeneration = 0
+    private var activeScanSessions: [UUID: ActiveScanSession] = [:]
 
     public init(configuration: MentraBluetoothSDKConfiguration = .default) {
         self.configuration = configuration
@@ -2056,9 +2097,50 @@ public final class MentraBluetoothSDK {
     }
 
     public func stopScan() {
+        stopScan(reason: .cancelled)
+    }
+
+    private func stopScan(reason: ScanStopReason) {
         DeviceManager.shared.stopScan()
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "searching", false)
-        delegate?.mentraBluetoothSDK(self, didStopScan: .cancelled)
+        delegate?.mentraBluetoothSDK(self, didStopScan: reason)
+    }
+
+    @discardableResult
+    public func scan(
+        model: DeviceModel,
+        timeout: TimeInterval = 15,
+        onResults: @escaping ([Device]) -> Void,
+        onComplete: @escaping ([Device]) -> Void = { _ in }
+    ) throws -> ScanSession {
+        let normalizedTimeout = timeout > 0 && timeout.isFinite ? timeout : 15
+        let id = UUID()
+        let activeSession = ActiveScanSession(
+            model: model,
+            onResults: onResults,
+            onComplete: onComplete
+        )
+        let publicSession = ScanSession { [weak self] in
+            self?.finishScanSession(id, reason: .cancelled, shouldStopScan: true)
+        }
+        activeSession.publicSession = publicSession
+        activeScanSessions[id] = activeSession
+
+        do {
+            emitScanResults([], forSession: id)
+            try startScan(model: model)
+            emitScanResults(bluetoothStatus.searchResults.filter { $0.model == model }, forSession: id)
+            activeSession.timeoutTask = Task { [weak self] in
+                let nanoseconds = UInt64(normalizedTimeout * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                await self?.finishScanSession(id, reason: .completed, shouldStopScan: true)
+            }
+            return publicSession
+        } catch {
+            activeScanSessions[id] = nil
+            publicSession.markStopped()
+            throw error
+        }
     }
 
     public func connect(to device: Device, options: ConnectOptions = ConnectOptions()) throws {
@@ -2369,6 +2451,7 @@ public final class MentraBluetoothSDK {
                 dispatchDefaultDeviceChanged()
             }
             dispatchDiscoveredDevices(changes["searchResults"])
+            dispatchScanResults(changes["searchResults"])
         default:
             break
         }
@@ -2428,6 +2511,31 @@ public final class MentraBluetoothSDK {
             guard let device = Device(values: result) else { continue }
             delegate?.mentraBluetoothSDK(self, didDiscover: device)
         }
+    }
+
+    private func dispatchScanResults(_ rawSearchResults: Any?) {
+        guard let results = rawSearchResults as? [[String: Any]] else { return }
+        let devices = results.compactMap(Device.init(values:))
+        for id in Array(activeScanSessions.keys) {
+            guard let activeSession = activeScanSessions[id] else { continue }
+            emitScanResults(devices.filter { $0.model == activeSession.model }, forSession: id)
+        }
+    }
+
+    private func emitScanResults(_ devices: [Device], forSession id: UUID) {
+        guard let activeSession = activeScanSessions[id] else { return }
+        activeSession.latestResults = devices
+        activeSession.onResults(devices)
+    }
+
+    private func finishScanSession(_ id: UUID, reason: ScanStopReason, shouldStopScan: Bool) {
+        guard let activeSession = activeScanSessions.removeValue(forKey: id) else { return }
+        activeSession.timeoutTask?.cancel()
+        activeSession.publicSession?.markStopped()
+        if shouldStopScan {
+            stopScan(reason: reason)
+        }
+        activeSession.onComplete(activeSession.latestResults)
     }
 
     private func dispatchBridgeEvent(_ eventName: String, _ data: [String: Any]) {

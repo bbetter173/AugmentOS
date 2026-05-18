@@ -34,6 +34,7 @@ class MentraBluetoothSdk private constructor(
 
     companion object {
         private val DEFAULT_DEVICE_KEYS = setOf("default_wearable", "device_name", "device_address")
+        private const val DEFAULT_SCAN_TIMEOUT_MS = 15_000L
 
         @JvmStatic
         fun create(
@@ -103,9 +104,90 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun stopScan() {
+        stopScan(ScanStopReason.CANCELLED)
+    }
+
+    private fun stopScan(reason: ScanStopReason) {
         deviceManager.stopScan()
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "searching", false)
-        dispatchToListeners { it.onScanStopped(ScanStopReason.CANCELLED) }
+        dispatchToListeners { it.onScanStopped(reason) }
+    }
+
+    fun scan(
+        model: DeviceModel,
+        onResults: (List<Device>) -> Unit,
+    ): ScanSession = scan(model, DEFAULT_SCAN_TIMEOUT_MS, onResults)
+
+    fun scan(
+        model: DeviceModel,
+        timeoutMs: Long,
+        onResults: (List<Device>) -> Unit,
+    ): ScanSession =
+        scan(
+            model = model,
+            callback =
+                object : MentraBluetoothScanCallback() {
+                    override fun onResults(devices: List<Device>) {
+                        onResults(devices)
+                    }
+                },
+            timeoutMs = timeoutMs,
+        )
+
+    @JvmOverloads
+    fun scan(
+        model: DeviceModel,
+        callback: ScanCallback,
+        timeoutMs: Long = DEFAULT_SCAN_TIMEOUT_MS,
+    ): ScanSession {
+        val normalizedTimeoutMs = if (timeoutMs > 0) timeoutMs else DEFAULT_SCAN_TIMEOUT_MS
+        val latestResults = mutableListOf<Device>()
+        lateinit var timeoutRunnable: Runnable
+        lateinit var session: ScanSession
+        var finished = false
+
+        fun emitResults(devices: List<Device>) {
+            latestResults.clear()
+            latestResults.addAll(devices)
+            callback.onResults(latestResults.toList())
+        }
+
+        val scanListener =
+            object : MentraBluetoothSdkCallback() {
+                override fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {
+                    status.searchResults?.let { results ->
+                        emitResults(results.filter { it.model == model })
+                    }
+                }
+        }
+
+        fun finish(reason: ScanStopReason) {
+            if (finished) return
+            finished = true
+            removeListener(scanListener)
+            mainHandler.removeCallbacks(timeoutRunnable)
+            session.markStopped()
+            stopScan(reason)
+            callback.onComplete(latestResults.toList())
+        }
+
+        timeoutRunnable = Runnable { finish(ScanStopReason.COMPLETED) }
+        session = ScanSession { finish(ScanStopReason.CANCELLED) }
+        addListener(scanListener)
+
+        try {
+            emitResults(emptyList())
+            startScan(model)
+            emitResults(getBluetoothStatus().searchResults.filter { it.model == model })
+            mainHandler.postDelayed(timeoutRunnable, normalizedTimeoutMs)
+            return session
+        } catch (error: Throwable) {
+            removeListener(scanListener)
+            mainHandler.removeCallbacks(timeoutRunnable)
+            session.markStopped()
+            callback.onError(error.toBluetoothError("scan_failed"))
+            throw error
+        }
     }
 
     @JvmOverloads
@@ -507,6 +589,13 @@ class MentraBluetoothSdk private constructor(
             )
         }
     }
+
+    private fun Throwable.toBluetoothError(defaultCode: String): BluetoothError =
+        if (this is BluetoothException) {
+            BluetoothError(code, message ?: code, this)
+        } else {
+            BluetoothError(defaultCode, message ?: toString(), this)
+        }
 
     private fun dispatchDiscoveredDevices(rawSearchResults: Any?) {
         val results = rawSearchResults as? List<*> ?: return

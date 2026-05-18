@@ -107,7 +107,7 @@ iOS apps should include usage descriptions:
 
 ## Minimal Usage
 
-`connectFirst()` scans for the first matching glasses and connects to them. It times out after 15 seconds by default. Use `startScan()` plus `onBluetoothStatus()` only when your app needs to present a custom device picker.
+Use `scan()` when your app needs to show a picker. It calls `onResults` every time the discovered list changes, then resolves with the final list after the timeout.
 
 ```ts
 import BluetoothSdk, {
@@ -119,7 +119,19 @@ const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
   console.log('Glasses status changed', status)
 })
 
-await BluetoothSdk.connectFirst(DeviceModels.MentraLive)
+const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
+  timeoutMs: 10_000,
+  onResults: (nextDevices) => {
+    console.log('Nearby glasses:', nextDevices)
+  },
+})
+
+const device = devices[0]
+if (!device) {
+  throw new Error('No Mentra Live glasses found')
+}
+
+await BluetoothSdk.connect(device)
 
 const glasses = await BluetoothSdk.getGlassesStatus()
 if (isReadyGlassesConnectionStatus(glasses.connection)) {

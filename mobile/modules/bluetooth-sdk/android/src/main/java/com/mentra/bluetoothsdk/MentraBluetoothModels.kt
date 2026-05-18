@@ -1551,6 +1551,31 @@ enum class ScanStopReason {
     ERROR,
 }
 
+interface ScanCallback {
+    fun onResults(devices: List<Device>) {}
+    fun onComplete(devices: List<Device>) {}
+    fun onError(error: BluetoothError) {}
+}
+
+abstract class MentraBluetoothScanCallback : ScanCallback
+
+class ScanSession internal constructor(
+    private val stopAction: () -> Unit,
+) {
+    @Volatile
+    private var stopped = false
+
+    fun stop() {
+        if (stopped) return
+        stopped = true
+        stopAction()
+    }
+
+    internal fun markStopped() {
+        stopped = true
+    }
+}
+
 interface MentraBluetoothSdkListener {
     fun onGlassesStatusChanged(status: GlassesStatusUpdate) {}
     fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {}

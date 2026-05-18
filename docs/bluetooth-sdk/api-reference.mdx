@@ -76,7 +76,13 @@ Keep one SDK instance per active app session. The SDK owns Bluetooth connection 
   <Tab title="React Native">
 
 ```ts
-const device = await BluetoothSdk.connectFirst(DeviceModels.MentraLive, {saveAsDefault: false});
+const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
+  timeoutMs: 10_000,
+  onResults: (nextDevices) => renderDevicePicker(nextDevices),
+});
+
+const device = await chooseDevice(devices);
+await BluetoothSdk.connect(device, {saveAsDefault: false});
 
 await BluetoothSdk.setDefaultDevice(device);
 
@@ -93,8 +99,9 @@ await BluetoothSdk.forget();
   <Tab title="Android">
 
 ```kotlin
-sdk.startScan(DeviceModel.MENTRA_LIVE)
-sdk.stopScan()
+val scanSession = sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { devices ->
+    renderDevicePicker(devices)
+}
 
 sdk.connect(device)
 sdk.setDefaultDevice(Device(model = DeviceModel.MENTRA_LIVE, name = "Mentra_Live_E7FA"))
@@ -111,8 +118,9 @@ sdk.forget()
   <Tab title="iOS">
 
 ```swift
-try sdk.startScan(model: .mentraLive)
-sdk.stopScan()
+let scanSession = try sdk.scan(model: .mentraLive, timeout: 10) { devices in
+    renderDevicePicker(devices)
+}
 
 try sdk.connect(to: device)
 sdk.setDefaultDevice(Device(model: .mentraLive, name: "Mentra_Live_E7FA"))
@@ -130,7 +138,7 @@ sdk.forget()
 
 Prefer connecting to a `Device` returned by SDK scan callbacks. If your app wants `connectDefault()` to work after restart, persist a small default-device record in app storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
-React Native `connectFirst(model, options)` is a convenience helper for the common case. It scans for the first matching device, connects to it, returns the connected `Device`, and times out after 15 seconds unless `timeoutMs` is provided.
+Use `scan()` for user-facing device pickers. The progressive result callback is for UI: render the current nearby-device list every time it changes while Bluetooth is still scanning. The returned final result is for control flow: after the timeout/completion, choose a device from the last list and connect. React Native `connectFirst(model, options)` is still available for kiosk-style flows where the app can safely connect to the first matching device.
 
 ## Status
 
@@ -213,7 +221,7 @@ The React Native root export intentionally exposes a narrower surface than the M
 | --- | --- |
 | Status and subscriptions | `getGlassesStatus`, `getBluetoothStatus`, `onGlassesStatus`, `onBluetoothStatus`, `addListener` |
 | Default device | `getDefaultDevice`, `setDefaultDevice`, `clearDefaultDevice` |
-| Connection | `startScan`, `stopScan`, `connectFirst`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
+| Connection | `scan`, `startScan`, `stopScan`, `connectFirst`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
 | Display | `displayText`, `clearDisplay`, `showDashboard`, `setBrightness`, `setAutoBrightness`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
 | Camera and gallery | `photoRequest`, `queryGalleryStatus`, `setGalleryMode`, `setButtonPhotoSettings`, `setButtonVideoRecordingSettings`, `setButtonCameraLed`, `setButtonMaxRecordingTime`, `setCameraFov`, `startVideoRecording`, `stopVideoRecording` |
@@ -225,6 +233,7 @@ React Native helper exports include `DeviceModels`, `createDisconnectedGlassesSt
 
 Important defaults:
 
+- `scan(model, options)` reports progressive results through `options.onResults`, resolves with the final matching `Device[]`, and times out after 15 seconds unless `options.timeoutMs` is set.
 - `connectFirst(model, options)` scans until the first matching device is found, connects to it, and times out after 15 seconds unless `options.timeoutMs` is set.
 - `connect`, `connectDefault`, and `connectFirst` default `saveAsDefault` and `cancelExistingConnectionAttempt` to `true`.
 - `displayText(text, x, y, size)` defaults to `x = 0`, `y = 0`, and `size = 24`.
@@ -239,7 +248,7 @@ Important defaults:
 | Area | Commands |
 | --- | --- |
 | Display | `displayText`, `clearDisplay`, `showDashboard` |
-| Connection | `connectFirst`, `startScan`, `stopScan`, `connect`, `connectDefault`, `disconnect`, `forget` |
+| Connection | `scan`, `connectFirst`, `startScan`, `stopScan`, `connect`, `connectDefault`, `disconnect`, `forget` |
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
 | Camera | `photoRequest`, button photo settings, button video settings, camera field of view |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |

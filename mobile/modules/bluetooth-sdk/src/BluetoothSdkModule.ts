@@ -23,6 +23,8 @@ import {
   PhotoSize,
   RgbLedAction,
   RgbLedColor,
+  ScanModelOptions,
+  ScanOptions,
   StreamKeepAliveRequest,
   StreamStartRequest,
 } from "./BluetoothSdk.types"
@@ -51,6 +53,8 @@ declare class BluetoothSdkModule extends NativeModule<BluetoothSdkModuleEvents> 
   clearDefaultDevice(): Promise<void>
   startScan(model: DeviceModel): Promise<void>
   stopScan(): Promise<void>
+  scan(options: ScanOptions): Promise<Device[]>
+  scan(model: DeviceModel, options?: ScanModelOptions): Promise<Device[]>
   connectFirst(model: DeviceModel, options?: ConnectFirstOptions): Promise<Device>
   connect(device: Device, options?: ConnectOptions): Promise<void>
   connectWithOptions(device: Device, options: Required<ConnectOptions>): Promise<void>
@@ -178,6 +182,7 @@ const DEFAULT_CONNECT_OPTIONS: Required<ConnectOptions> = {
 }
 
 const DEFAULT_CONNECT_FIRST_TIMEOUT_MS = 15_000
+const DEFAULT_SCAN_TIMEOUT_MS = 15_000
 
 const CAMERA_FOV_SETTINGS: Record<CameraFov, CameraFovSetting> = {
   standard: {fov: 118, roi_position: 0},
@@ -186,6 +191,21 @@ const CAMERA_FOV_SETTINGS: Record<CameraFov, CameraFovSetting> = {
 
 function findSearchResult(status: Partial<BluetoothStatus>, model: DeviceModel): Device | null {
   return status.searchResults?.find((device) => device.model === model) ?? null
+}
+
+function searchResultsForModel(status: Partial<BluetoothStatus>, model: DeviceModel): Device[] {
+  return status.searchResults?.filter((device) => device.model === model) ?? []
+}
+
+function normalizeScanArgs(modelOrOptions: DeviceModel | ScanOptions, options?: ScanModelOptions): ScanOptions {
+  if (typeof modelOrOptions === "string") {
+    return {model: modelOrOptions, ...options}
+  }
+  return modelOrOptions
+}
+
+function normalizeTimeoutMs(timeoutMs: number | undefined, defaultTimeoutMs: number): number {
+  return typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : defaultTimeoutMs
 }
 
 function dashboardMenuItemToNative(item: DashboardMenuItem): Record<string, unknown> {
@@ -398,6 +418,67 @@ NativeBluetoothSdkModule.connectDefault = function (options?: ConnectOptions) {
 
 NativeBluetoothSdkModule.connect = function (device: Device, options?: ConnectOptions) {
   return this.connectWithOptions(device, {...DEFAULT_CONNECT_OPTIONS, ...options})
+}
+
+NativeBluetoothSdkModule.scan = async function (
+  modelOrOptions: DeviceModel | ScanOptions,
+  options?: ScanModelOptions,
+) {
+  const scanOptions = normalizeScanArgs(modelOrOptions, options)
+  const timeoutMs = normalizeTimeoutMs(scanOptions.timeoutMs ?? scanOptions.timeout, DEFAULT_SCAN_TIMEOUT_MS)
+  let latestResults: Device[] = []
+
+  return new Promise<Device[]>((resolve, reject) => {
+    let timeout: ReturnType<typeof setTimeout> | null = null
+    let removeBluetoothListener = () => {}
+    let settled = false
+    let scanStarted = false
+
+    const emitResults = (devices: Device[]) => {
+      latestResults = devices
+      scanOptions.onResults?.([...devices])
+    }
+
+    const cleanup = () => {
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+      removeBluetoothListener()
+      if (scanStarted) {
+        void Promise.resolve(this.stopScan()).catch(() => undefined)
+      }
+    }
+
+    const settle = (error?: Error) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanup()
+      if (error) {
+        reject(error)
+      } else {
+        resolve([...latestResults])
+      }
+    }
+
+    const handleBluetoothStatus = (status: Partial<BluetoothStatus>) => {
+      emitResults(searchResultsForModel(status, scanOptions.model))
+    }
+
+    removeBluetoothListener = this.onBluetoothStatus(handleBluetoothStatus)
+    emitResults([])
+
+    timeout = setTimeout(() => settle(), timeoutMs)
+
+    Promise.resolve(this.startScan(scanOptions.model))
+      .then(() => {
+        scanStarted = true
+        return this.getBluetoothStatus()
+      })
+      .then(handleBluetoothStatus)
+      .catch((error) => settle(error instanceof Error ? error : new Error(String(error))))
+  })
 }
 
 NativeBluetoothSdkModule.connectFirst = async function (model: DeviceModel, options?: ConnectFirstOptions) {

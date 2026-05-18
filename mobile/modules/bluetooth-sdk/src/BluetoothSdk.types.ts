@@ -554,6 +554,8 @@ export interface BluetoothSdkPublicModule {
 
   startScan(model: DeviceModel): Promise<void>
   stopScan(): Promise<void>
+  scan(options: ScanOptions): Promise<Device[]>
+  scan(model: DeviceModel, options?: ScanModelOptions): Promise<Device[]>
   connectFirst(model: DeviceModel, options?: ConnectFirstOptions): Promise<Device>
   connect(device: Device, options?: ConnectOptions): Promise<void>
   connectDefault(options?: ConnectOptions): Promise<void>
@@ -733,6 +735,20 @@ export interface ConnectOptions {
 export interface ConnectFirstOptions extends ConnectOptions {
   timeoutMs?: number
 }
+
+export type ScanResultsCallback = (devices: Device[]) => void
+
+export interface ScanOptions {
+  model: DeviceModel
+  /** Defaults to 15000. */
+  timeoutMs?: number
+  /** Alias for `timeoutMs`, useful when mirroring native examples. */
+  timeout?: number
+  /** Called every time the discovered device list changes during the scan. */
+  onResults?: ScanResultsCallback
+}
+
+export type ScanModelOptions = Omit<ScanOptions, "model">
 
 export interface WifiSearchResult {
   ssid: string

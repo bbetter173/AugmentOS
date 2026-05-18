@@ -9,7 +9,7 @@
  * BluetoothSdk so the mic runs whenever at least one consumer needs it.
  */
 
-import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 
 const LOG_TAG = "MIC_COORDINATOR"
 

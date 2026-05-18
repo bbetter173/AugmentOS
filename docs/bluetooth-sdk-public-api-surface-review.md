@@ -597,10 +597,10 @@ These are the main operations hidden by the API-boundary work or kept behind int
 Internal import path:
 
 ```ts
-import BluetoothSdkInternal from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdkInternal from "@mentra/bluetooth-sdk-internal"
 ```
 
-The `_internal` subpath still exposes the raw native module and all type definitions for MentraOS app compatibility. The package root no longer exposes these operations:
+The MentraOS app resolves `@mentra/bluetooth-sdk-internal` to the raw native module and all type definitions for MentraOS app compatibility. The published package no longer exports this as a customer-accessible subpath, and the package root no longer exposes these operations:
 
 ```ts
 update(category: ObservableStoreCategory, values: object): Promise<void>

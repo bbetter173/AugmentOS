@@ -1,4 +1,4 @@
-import BluetoothSdk, {type Device, type DeviceModel} from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdk, {type Device, type DeviceModel} from "@mentra/bluetooth-sdk-internal"
 import {useLocalSearchParams} from "expo-router"
 import {useEffect, useState} from "react"
 import {ActivityIndicator, Image, Platform, ScrollView, TouchableOpacity, View} from "react-native"

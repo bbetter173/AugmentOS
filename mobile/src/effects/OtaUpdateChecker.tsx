@@ -1,5 +1,5 @@
 import {Capabilities, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import type {OtaUpdateInfo} from "@mentra/bluetooth-sdk/_internal"
+import type {OtaUpdateInfo} from "@mentra/bluetooth-sdk-internal"
 
 import {useEffect, useRef} from "react"
 

@@ -7,7 +7,7 @@
 
 // Override the global Bluetooth SDK mock so we can capture displayEvent calls.
 const displayEventMock = jest.fn()
-jest.doMock("@mentra/bluetooth-sdk/_internal", () => ({
+jest.doMock("@mentra/bluetooth-sdk-internal", () => ({
   __esModule: true,
   default: {
     displayEvent: displayEventMock,

@@ -1,7 +1,7 @@
 import {Platform} from "react-native"
 import * as Sentry from "@sentry/react-native"
 
-import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {
   appRegistry,
   BgTimer,

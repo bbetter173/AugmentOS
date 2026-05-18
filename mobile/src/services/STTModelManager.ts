@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {Platform} from "react-native"
 import * as RNFS from "@dr.pogodin/react-native-fs"
 

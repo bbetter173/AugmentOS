@@ -12,11 +12,6 @@
       "react-native": "./src/index.ts",
       "default": "./build/index.js"
     },
-    "./_internal": {
-      "types": "./build/_internal.d.ts",
-      "react-native": "./src/_internal.ts",
-      "default": "./build/_internal.js"
-    },
     "./_private/*": null,
     "./build/*": null,
     "./src/*": null,

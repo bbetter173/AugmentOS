@@ -32,8 +32,8 @@ import {
  * Private React Native native-module facade.
  *
  * This file intentionally lives under `_private` so the package root can expose
- * a small SDK surface while MentraOS keeps using `@mentra/bluetooth-sdk/_internal`
- * during its migration.
+ * a small SDK surface while MentraOS uses its monorepo-only internal alias
+ * during migration.
  */
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void

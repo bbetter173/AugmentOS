@@ -6,7 +6,7 @@ import type {
   OtaStatus,
   OtaUpdateInfo,
   WifiStatus,
-} from "@mentra/bluetooth-sdk/_internal"
+} from "@mentra/bluetooth-sdk-internal"
 import {create} from "zustand"
 import {subscribeWithSelector} from "zustand/middleware"
 

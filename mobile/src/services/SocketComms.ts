@@ -1,4 +1,4 @@
-import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {
   displayProcessor,
   localMiniappRuntime,

@@ -438,7 +438,7 @@ fun sendWSBinary(data: ByteArray)
 
 The Bluetooth SDK React Native/Expo partner surface is the root module exported by `@mentra/bluetooth-sdk`. App code using that adapter should interact with typed async methods and typed event subscriptions, not native `Bridge.kt` / `Bridge.swift` helpers or raw store categories.
 
-MentraOS compatibility methods live behind the underscored `@mentra/bluetooth-sdk/_internal` entrypoint. That entrypoint is for this monorepo's MentraOS adapter only and is not part of the customer SDK contract.
+MentraOS compatibility methods live behind the monorepo-only `@mentra/bluetooth-sdk-internal` alias. That alias resolves to SDK source from the MentraOS app config only; it is not exported by the published customer SDK package.
 
 **Connection and status methods:**
 
@@ -493,7 +493,7 @@ await BluetoothSdk.rgbLedControl(...)
 **MentraOS-internal compatibility helpers:**
 
 ```ts
-import BluetoothSdk from "@mentra/bluetooth-sdk/_internal"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 
 await BluetoothSdk.displayEvent(params)
 await BluetoothSdk.sendIncidentId(incidentId, apiBaseUrl)
@@ -557,7 +557,7 @@ BluetoothSdk.addListener("battery_status", (event) =>
 BluetoothSdk.addListener("photo_response", (event) => restComms.sendPhotoResponse(event))
 ```
 
-Internal adapter-only events such as `save_setting`, OTA events, `ws_text`, `ws_bin`, and raw BLE command traces remain available through `@mentra/bluetooth-sdk/_internal` while MentraOS migrates. New customer-facing features should prefer dedicated typed events.
+Internal adapter-only events such as `save_setting`, OTA events, `ws_text`, `ws_bin`, and raw BLE command traces remain available through the MentraOS-only `@mentra/bluetooth-sdk-internal` alias while MentraOS migrates. New customer-facing features should prefer dedicated typed events.
 
 ---
 

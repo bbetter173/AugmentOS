@@ -88,30 +88,30 @@ public enum GlassesConnectionState: String, CustomStringConvertible, Equatable {
     }
 }
 
-public struct GlassesStatus: CustomStringConvertible {
+struct GlassesStatus: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
         self.values = values
     }
 
-    public func applying(_ update: GlassesStatusUpdate) -> GlassesStatus {
+    func applying(_ update: GlassesStatusUpdate) -> GlassesStatus {
         GlassesStatus(values: values.merging(update.values) { _, new in new })
     }
 
-    public func withBattery(level: Int, charging: Bool) -> GlassesStatus {
+    func withBattery(level: Int, charging: Bool) -> GlassesStatus {
         applying(GlassesStatusUpdate(values: ["batteryLevel": level, "charging": charging]))
     }
 
-    public func withWifi(_ wifi: WifiStatus) -> GlassesStatus {
+    func withWifi(_ wifi: WifiStatus) -> GlassesStatus {
         applying(GlassesStatusUpdate(values: wifi.storeValues))
     }
 
-    public func withHotspot(_ hotspot: HotspotStatus) -> GlassesStatus {
+    func withHotspot(_ hotspot: HotspotStatus) -> GlassesStatus {
         applying(GlassesStatusUpdate(values: hotspot.storeValues))
     }
 
-    public func disconnected() -> GlassesStatus {
+    func disconnected() -> GlassesStatus {
         applying(GlassesStatusUpdate(values: [
             "connected": false,
             "connectionState": "DISCONNECTED",
@@ -130,47 +130,47 @@ public struct GlassesStatus: CustomStringConvertible {
         ]))
     }
 
-    public var fullyBooted: Bool { boolValue(values, "fullyBooted") ?? false }
-    public var connected: Bool { boolValue(values, "connected") ?? false }
-    public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
-    public var connectionState: GlassesConnectionState { GlassesConnectionState(stringValue(values, "connectionState")) }
-    public var bluetoothClassicConnected: Bool { boolValue(values, "bluetoothClassicConnected") ?? false }
-    public var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
-    public var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
-    public var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
-    public var androidVersion: String { stringValue(values, "androidVersion") ?? "" }
-    public var firmwareVersion: String { stringValue(values, "firmwareVersion") ?? "" }
-    public var besFirmwareVersion: String { stringValue(values, "besFirmwareVersion") ?? "" }
-    public var mtkFirmwareVersion: String { stringValue(values, "mtkFirmwareVersion") ?? "" }
-    public var bluetoothMacAddress: String { stringValue(values, "bluetoothMacAddress") ?? "" }
-    public var leftMacAddress: String { stringValue(values, "leftMacAddress") ?? "" }
-    public var rightMacAddress: String { stringValue(values, "rightMacAddress") ?? "" }
-    public var macAddress: String { stringValue(values, "macAddress") ?? "" }
-    public var buildNumber: String { stringValue(values, "buildNumber") ?? "" }
-    public var otaVersionUrl: String { stringValue(values, "otaVersionUrl") ?? "" }
-    public var appVersion: String { stringValue(values, "appVersion") ?? "" }
-    public var bluetoothName: String { stringValue(values, "bluetoothName") ?? "" }
-    public var serialNumber: String { stringValue(values, "serialNumber") ?? "" }
-    public var style: String { stringValue(values, "style") ?? "" }
-    public var color: String { stringValue(values, "color") ?? "" }
-    public var wifi: WifiStatus { WifiStatus.fromStoreValues(values) ?? .disconnected }
-    public var hotspot: HotspotStatus { HotspotStatus.fromStoreValues(values) ?? .disabled }
-    public var dictionary: [String: Any] { Self.dictionary(from: values) }
-    public var batteryLevel: Int { intValue(values["batteryLevel"]) ?? -1 }
-    public var charging: Bool { boolValue(values, "charging") ?? false }
-    public var caseBatteryLevel: Int { intValue(values["caseBatteryLevel"]) ?? -1 }
-    public var caseCharging: Bool { boolValue(values, "caseCharging") ?? false }
-    public var caseOpen: Bool { boolValue(values, "caseOpen") ?? true }
-    public var caseRemoved: Bool { boolValue(values, "caseRemoved") ?? true }
-    public var headUp: Bool { boolValue(values, "headUp") ?? false }
-    public var controllerConnected: Bool { boolValue(values, "controllerConnected") ?? false }
-    public var controllerFullyBooted: Bool { boolValue(values, "controllerFullyBooted") ?? false }
-    public var controllerMacAddress: String { stringValue(values, "controllerMacAddress") ?? "" }
-    public var controllerBatteryLevel: Int { intValue(values["controllerBatteryLevel"]) ?? -1 }
-    public var controllerSignalStrength: Int { intValue(values["controllerSignalStrength"]) ?? -1 }
-    public var ringSignalStrength: Int { intValue(values["ringSignalStrength"]) ?? -1 }
+    var fullyBooted: Bool { boolValue(values, "fullyBooted") ?? false }
+    var connected: Bool { boolValue(values, "connected") ?? false }
+    var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
+    var connectionState: GlassesConnectionState { GlassesConnectionState(stringValue(values, "connectionState")) }
+    var bluetoothClassicConnected: Bool { boolValue(values, "bluetoothClassicConnected") ?? false }
+    var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
+    var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
+    var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
+    var androidVersion: String { stringValue(values, "androidVersion") ?? "" }
+    var firmwareVersion: String { stringValue(values, "firmwareVersion") ?? "" }
+    var besFirmwareVersion: String { stringValue(values, "besFirmwareVersion") ?? "" }
+    var mtkFirmwareVersion: String { stringValue(values, "mtkFirmwareVersion") ?? "" }
+    var bluetoothMacAddress: String { stringValue(values, "bluetoothMacAddress") ?? "" }
+    var leftMacAddress: String { stringValue(values, "leftMacAddress") ?? "" }
+    var rightMacAddress: String { stringValue(values, "rightMacAddress") ?? "" }
+    var macAddress: String { stringValue(values, "macAddress") ?? "" }
+    var buildNumber: String { stringValue(values, "buildNumber") ?? "" }
+    var otaVersionUrl: String { stringValue(values, "otaVersionUrl") ?? "" }
+    var appVersion: String { stringValue(values, "appVersion") ?? "" }
+    var bluetoothName: String { stringValue(values, "bluetoothName") ?? "" }
+    var serialNumber: String { stringValue(values, "serialNumber") ?? "" }
+    var style: String { stringValue(values, "style") ?? "" }
+    var color: String { stringValue(values, "color") ?? "" }
+    var wifi: WifiStatus { WifiStatus.fromStoreValues(values) ?? .disconnected }
+    var hotspot: HotspotStatus { HotspotStatus.fromStoreValues(values) ?? .disabled }
+    var dictionary: [String: Any] { Self.dictionary(from: values) }
+    var batteryLevel: Int { intValue(values["batteryLevel"]) ?? -1 }
+    var charging: Bool { boolValue(values, "charging") ?? false }
+    var caseBatteryLevel: Int { intValue(values["caseBatteryLevel"]) ?? -1 }
+    var caseCharging: Bool { boolValue(values, "caseCharging") ?? false }
+    var caseOpen: Bool { boolValue(values, "caseOpen") ?? true }
+    var caseRemoved: Bool { boolValue(values, "caseRemoved") ?? true }
+    var headUp: Bool { boolValue(values, "headUp") ?? false }
+    var controllerConnected: Bool { boolValue(values, "controllerConnected") ?? false }
+    var controllerFullyBooted: Bool { boolValue(values, "controllerFullyBooted") ?? false }
+    var controllerMacAddress: String { stringValue(values, "controllerMacAddress") ?? "" }
+    var controllerBatteryLevel: Int { intValue(values["controllerBatteryLevel"]) ?? -1 }
+    var controllerSignalStrength: Int { intValue(values["controllerSignalStrength"]) ?? -1 }
+    var ringSignalStrength: Int { intValue(values["ringSignalStrength"]) ?? -1 }
 
-    public var description: String {
+    var description: String {
         values.description
     }
 
@@ -234,7 +234,7 @@ public struct GlassesStatus: CustomStringConvertible {
     }
 }
 
-public struct BluetoothStatus: CustomStringConvertible {
+struct BluetoothStatus: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
@@ -249,11 +249,11 @@ public struct BluetoothStatus: CustomStringConvertible {
         return normalizedValues
     }
 
-    public func applying(_ update: BluetoothStatusUpdate) -> BluetoothStatus {
+    func applying(_ update: BluetoothStatusUpdate) -> BluetoothStatus {
         BluetoothStatus(values: values.merging(update.values) { _, new in new })
     }
 
-    public func withDefaultDevice(_ device: Device?) -> BluetoothStatus {
+    func withDefaultDevice(_ device: Device?) -> BluetoothStatus {
         applying(BluetoothStatusUpdate(values: [
             "default_wearable": device?.model.deviceType ?? "",
             "device_name": device?.name ?? "",
@@ -261,57 +261,57 @@ public struct BluetoothStatus: CustomStringConvertible {
         ]))
     }
 
-    public var searching: Bool { boolValue(values, "searching") ?? false }
-    public var searchingController: Bool { boolValue(values, "searchingController") ?? false }
-    public var systemMicUnavailable: Bool { boolValue(values, "systemMicUnavailable") ?? false }
-    public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
-    public var currentMic: String { stringValue(values, "currentMic") ?? "" }
-    public var micRanking: [String] { stringListValue(values, "micRanking") }
+    var searching: Bool { boolValue(values, "searching") ?? false }
+    var searchingController: Bool { boolValue(values, "searchingController") ?? false }
+    var systemMicUnavailable: Bool { boolValue(values, "systemMicUnavailable") ?? false }
+    var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
+    var currentMic: String { stringValue(values, "currentMic") ?? "" }
+    var micRanking: [String] { stringListValue(values, "micRanking") }
     /// Nearby glasses in stable discovery order. Existing entries keep their array position as
     /// details refresh; new glasses append at the end, and removals should not reorder remaining entries.
-    public var searchResults: [Device] {
+    var searchResults: [Device] {
         dictionaryListValue(values, "searchResults").compactMap(Device.init(values:))
     }
-    public var wifiScanResults: [WifiScanResult] {
+    var wifiScanResults: [WifiScanResult] {
         dictionaryListValue(values, "wifiScanResults").map(WifiScanResult.init(values:))
     }
-    public var lastLog: [String] { stringListValue(values, "lastLog") }
-    public var otherBtConnected: Bool { boolValue(values, "otherBtConnected") ?? false }
-    public var defaultWearable: String { stringValue(values, "default_wearable") ?? "" }
-    public var pendingWearable: String { stringValue(values, "pending_wearable") ?? "" }
-    public var deviceName: String { stringValue(values, "device_name") ?? "" }
-    public var deviceAddress: String { stringValue(values, "device_address") ?? "" }
-    public var defaultController: String { stringValue(values, "default_controller") ?? "" }
-    public var pendingController: String { stringValue(values, "pending_controller") ?? "" }
-    public var controllerDeviceName: String { stringValue(values, "controller_device_name") ?? "" }
-    public var screenDisabled: Bool { boolValue(values, "screen_disabled") ?? false }
-    public var preferredMic: String { stringValue(values, "preferred_mic") ?? "auto" }
-    public var sensingEnabled: Bool { boolValue(values, "sensing_enabled") ?? true }
-    public var powerSavingMode: Bool { boolValue(values, "power_saving_mode") ?? false }
-    public var brightness: Int { intValue(values["brightness"]) ?? 50 }
-    public var autoBrightness: Bool { boolValue(values, "auto_brightness") ?? true }
-    public var dashboardHeight: Int { intValue(values["dashboard_height"]) ?? 4 }
-    public var dashboardDepth: Int { intValue(values["dashboard_depth"]) ?? 2 }
-    public var headUpAngle: Int { intValue(values["head_up_angle"]) ?? 30 }
-    public var contextualDashboard: Bool { boolValue(values, "contextual_dashboard") ?? true }
-    public var galleryModeAuto: Bool { boolValue(values, "galleryModeAuto") ?? true }
-    public var buttonPhotoSize: ButtonPhotoSize {
+    var lastLog: [String] { stringListValue(values, "lastLog") }
+    var otherBtConnected: Bool { boolValue(values, "otherBtConnected") ?? false }
+    var defaultWearable: String { stringValue(values, "default_wearable") ?? "" }
+    var pendingWearable: String { stringValue(values, "pending_wearable") ?? "" }
+    var deviceName: String { stringValue(values, "device_name") ?? "" }
+    var deviceAddress: String { stringValue(values, "device_address") ?? "" }
+    var defaultController: String { stringValue(values, "default_controller") ?? "" }
+    var pendingController: String { stringValue(values, "pending_controller") ?? "" }
+    var controllerDeviceName: String { stringValue(values, "controller_device_name") ?? "" }
+    var screenDisabled: Bool { boolValue(values, "screen_disabled") ?? false }
+    var preferredMic: String { stringValue(values, "preferred_mic") ?? "auto" }
+    var sensingEnabled: Bool { boolValue(values, "sensing_enabled") ?? true }
+    var powerSavingMode: Bool { boolValue(values, "power_saving_mode") ?? false }
+    var brightness: Int { intValue(values["brightness"]) ?? 50 }
+    var autoBrightness: Bool { boolValue(values, "auto_brightness") ?? true }
+    var dashboardHeight: Int { intValue(values["dashboard_height"]) ?? 4 }
+    var dashboardDepth: Int { intValue(values["dashboard_depth"]) ?? 2 }
+    var headUpAngle: Int { intValue(values["head_up_angle"]) ?? 30 }
+    var contextualDashboard: Bool { boolValue(values, "contextual_dashboard") ?? true }
+    var galleryModeAuto: Bool { boolValue(values, "galleryModeAuto") ?? true }
+    var buttonPhotoSize: ButtonPhotoSize {
         ButtonPhotoSize(rawValue: stringValue(values, "button_photo_size") ?? "") ?? .medium
     }
-    public var buttonCameraLed: Bool { boolValue(values, "button_camera_led") ?? true }
-    public var buttonMaxRecordingTime: Int { intValue(values["button_max_recording_time"]) ?? 10 }
-    public var buttonVideoWidth: Int { intValue(values["button_video_width"]) ?? 1280 }
-    public var buttonVideoHeight: Int { intValue(values["button_video_height"]) ?? 720 }
-    public var buttonVideoFrameRate: Int { intValue(values["button_video_fps"]) ?? 30 }
-    public var shouldSendPcm: Bool { boolValue(values, "should_send_pcm") ?? false }
-    public var shouldSendLc3: Bool { boolValue(values, "should_send_lc3") ?? false }
-    public var shouldSendTranscript: Bool { boolValue(values, "should_send_transcript") ?? false }
-    public var bypassVad: Bool { boolValue(values, "bypass_vad") ?? true }
-    public var offlineCaptionsRunning: Bool { boolValue(values, "offline_captions_running") ?? false }
-    public var localSttFallbackActive: Bool { boolValue(values, "local_stt_fallback_active") ?? false }
-    public var shouldSendBootingMessage: Bool { boolValue(values, "shouldSendBootingMessage") ?? true }
+    var buttonCameraLed: Bool { boolValue(values, "button_camera_led") ?? true }
+    var buttonMaxRecordingTime: Int { intValue(values["button_max_recording_time"]) ?? 10 }
+    var buttonVideoWidth: Int { intValue(values["button_video_width"]) ?? 1280 }
+    var buttonVideoHeight: Int { intValue(values["button_video_height"]) ?? 720 }
+    var buttonVideoFrameRate: Int { intValue(values["button_video_fps"]) ?? 30 }
+    var shouldSendPcm: Bool { boolValue(values, "should_send_pcm") ?? false }
+    var shouldSendLc3: Bool { boolValue(values, "should_send_lc3") ?? false }
+    var shouldSendTranscript: Bool { boolValue(values, "should_send_transcript") ?? false }
+    var bypassVad: Bool { boolValue(values, "bypass_vad") ?? true }
+    var offlineCaptionsRunning: Bool { boolValue(values, "offline_captions_running") ?? false }
+    var localSttFallbackActive: Bool { boolValue(values, "local_stt_fallback_active") ?? false }
+    var shouldSendBootingMessage: Bool { boolValue(values, "shouldSendBootingMessage") ?? true }
 
-    public var defaultDevice: Device? {
+    var defaultDevice: Device? {
         guard !defaultWearable.isEmpty else { return nil }
         return Device(
             model: DeviceModel.fromDeviceType(defaultWearable),
@@ -320,44 +320,44 @@ public struct BluetoothStatus: CustomStringConvertible {
         )
     }
 
-    public var description: String {
+    var description: String {
         values.description
     }
 }
 
-public struct GlassesStatusUpdate: CustomStringConvertible {
+struct GlassesStatusUpdate: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
         self.values = values
     }
 
-    public var fullyBooted: Bool? { optionalBoolValue(values, "fullyBooted") }
-    public var connected: Bool? { optionalBoolValue(values, "connected") }
-    public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
-    public var connectionState: GlassesConnectionState? {
+    var fullyBooted: Bool? { optionalBoolValue(values, "fullyBooted") }
+    var connected: Bool? { optionalBoolValue(values, "connected") }
+    var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
+    var connectionState: GlassesConnectionState? {
         GlassesConnectionState.fromValue(optionalStringValue(values, "connectionState"))
     }
-    public var bluetoothClassicConnected: Bool? { optionalBoolValue(values, "bluetoothClassicConnected") }
-    public var signalStrength: Int? { optionalIntValue(values, "signalStrength") }
-    public var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }
-    public var deviceModel: String? { optionalStringValue(values, "deviceModel") }
-    public var androidVersion: String? { optionalStringValue(values, "androidVersion") }
-    public var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion") }
-    public var besFirmwareVersion: String? { optionalStringValue(values, "besFirmwareVersion") }
-    public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFirmwareVersion") }
-    public var bluetoothMacAddress: String? { optionalStringValue(values, "bluetoothMacAddress") }
-    public var leftMacAddress: String? { optionalStringValue(values, "leftMacAddress") }
-    public var rightMacAddress: String? { optionalStringValue(values, "rightMacAddress") }
-    public var macAddress: String? { optionalStringValue(values, "macAddress") }
-    public var buildNumber: String? { optionalStringValue(values, "buildNumber") }
-    public var otaVersionUrl: String? { optionalStringValue(values, "otaVersionUrl") }
-    public var appVersion: String? { optionalStringValue(values, "appVersion") }
-    public var bluetoothName: String? { optionalStringValue(values, "bluetoothName") }
-    public var serialNumber: String? { optionalStringValue(values, "serialNumber") }
-    public var style: String? { optionalStringValue(values, "style") }
-    public var color: String? { optionalStringValue(values, "color") }
-    public var wifi: WifiStatus? {
+    var bluetoothClassicConnected: Bool? { optionalBoolValue(values, "bluetoothClassicConnected") }
+    var signalStrength: Int? { optionalIntValue(values, "signalStrength") }
+    var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }
+    var deviceModel: String? { optionalStringValue(values, "deviceModel") }
+    var androidVersion: String? { optionalStringValue(values, "androidVersion") }
+    var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion") }
+    var besFirmwareVersion: String? { optionalStringValue(values, "besFirmwareVersion") }
+    var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFirmwareVersion") }
+    var bluetoothMacAddress: String? { optionalStringValue(values, "bluetoothMacAddress") }
+    var leftMacAddress: String? { optionalStringValue(values, "leftMacAddress") }
+    var rightMacAddress: String? { optionalStringValue(values, "rightMacAddress") }
+    var macAddress: String? { optionalStringValue(values, "macAddress") }
+    var buildNumber: String? { optionalStringValue(values, "buildNumber") }
+    var otaVersionUrl: String? { optionalStringValue(values, "otaVersionUrl") }
+    var appVersion: String? { optionalStringValue(values, "appVersion") }
+    var bluetoothName: String? { optionalStringValue(values, "bluetoothName") }
+    var serialNumber: String? { optionalStringValue(values, "serialNumber") }
+    var style: String? { optionalStringValue(values, "style") }
+    var color: String? { optionalStringValue(values, "color") }
+    var wifi: WifiStatus? {
         if let wifi = values["wifi"] as? [String: Any] {
             return WifiStatus(values: wifi)
         }
@@ -366,7 +366,7 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
         }
         return nil
     }
-    public var hotspot: HotspotStatus? {
+    var hotspot: HotspotStatus? {
         if let hotspot = values["hotspot"] as? [String: Any] {
             return HotspotStatus(values: hotspot)
         }
@@ -375,27 +375,27 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
         }
         return nil
     }
-    public var dictionary: [String: Any] { GlassesStatus.updateDictionary(from: values) }
-    public var batteryLevel: Int? { optionalIntValue(values, "batteryLevel") }
-    public var charging: Bool? { optionalBoolValue(values, "charging") }
-    public var caseBatteryLevel: Int? { optionalIntValue(values, "caseBatteryLevel") }
-    public var caseCharging: Bool? { optionalBoolValue(values, "caseCharging") }
-    public var caseOpen: Bool? { optionalBoolValue(values, "caseOpen") }
-    public var caseRemoved: Bool? { optionalBoolValue(values, "caseRemoved") }
-    public var headUp: Bool? { optionalBoolValue(values, "headUp") }
-    public var controllerConnected: Bool? { optionalBoolValue(values, "controllerConnected") }
-    public var controllerFullyBooted: Bool? { optionalBoolValue(values, "controllerFullyBooted") }
-    public var controllerMacAddress: String? { optionalStringValue(values, "controllerMacAddress") }
-    public var controllerBatteryLevel: Int? { optionalIntValue(values, "controllerBatteryLevel") }
-    public var controllerSignalStrength: Int? { optionalIntValue(values, "controllerSignalStrength") }
-    public var ringSignalStrength: Int? { optionalIntValue(values, "ringSignalStrength") }
+    var dictionary: [String: Any] { GlassesStatus.updateDictionary(from: values) }
+    var batteryLevel: Int? { optionalIntValue(values, "batteryLevel") }
+    var charging: Bool? { optionalBoolValue(values, "charging") }
+    var caseBatteryLevel: Int? { optionalIntValue(values, "caseBatteryLevel") }
+    var caseCharging: Bool? { optionalBoolValue(values, "caseCharging") }
+    var caseOpen: Bool? { optionalBoolValue(values, "caseOpen") }
+    var caseRemoved: Bool? { optionalBoolValue(values, "caseRemoved") }
+    var headUp: Bool? { optionalBoolValue(values, "headUp") }
+    var controllerConnected: Bool? { optionalBoolValue(values, "controllerConnected") }
+    var controllerFullyBooted: Bool? { optionalBoolValue(values, "controllerFullyBooted") }
+    var controllerMacAddress: String? { optionalStringValue(values, "controllerMacAddress") }
+    var controllerBatteryLevel: Int? { optionalIntValue(values, "controllerBatteryLevel") }
+    var controllerSignalStrength: Int? { optionalIntValue(values, "controllerSignalStrength") }
+    var ringSignalStrength: Int? { optionalIntValue(values, "ringSignalStrength") }
 
-    public var description: String {
+    var description: String {
         values.description
     }
 }
 
-public struct BluetoothStatusUpdate: CustomStringConvertible {
+struct BluetoothStatusUpdate: CustomStringConvertible {
     let values: [String: Any]
 
     init(values: [String: Any]) {
@@ -406,58 +406,58 @@ public struct BluetoothStatusUpdate: CustomStringConvertible {
         self.values = normalizedValues
     }
 
-    public var searching: Bool? { optionalBoolValue(values, "searching") }
-    public var searchingController: Bool? { optionalBoolValue(values, "searchingController") }
-    public var systemMicUnavailable: Bool? { optionalBoolValue(values, "systemMicUnavailable") }
-    public var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
-    public var currentMic: String? { optionalStringValue(values, "currentMic") }
-    public var micRanking: [String]? { optionalStringListValue(values, "micRanking") }
+    var searching: Bool? { optionalBoolValue(values, "searching") }
+    var searchingController: Bool? { optionalBoolValue(values, "searchingController") }
+    var systemMicUnavailable: Bool? { optionalBoolValue(values, "systemMicUnavailable") }
+    var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
+    var currentMic: String? { optionalStringValue(values, "currentMic") }
+    var micRanking: [String]? { optionalStringListValue(values, "micRanking") }
     /// Nearby glasses in stable discovery order when included in an update. Existing entries keep their
     /// array position as details refresh; new glasses append at the end, and removals should not reorder
     /// remaining entries.
-    public var searchResults: [Device]? {
+    var searchResults: [Device]? {
         optionalDictionaryListValue(values, "searchResults")?.compactMap(Device.init(values:))
     }
-    public var wifiScanResults: [WifiScanResult]? {
+    var wifiScanResults: [WifiScanResult]? {
         optionalDictionaryListValue(values, "wifiScanResults")?.map(WifiScanResult.init(values:))
     }
-    public var lastLog: [String]? { optionalStringListValue(values, "lastLog") }
-    public var otherBtConnected: Bool? { optionalBoolValue(values, "otherBtConnected") }
-    public var defaultWearable: String? { optionalStringValue(values, "default_wearable") }
-    public var pendingWearable: String? { optionalStringValue(values, "pending_wearable") }
-    public var deviceName: String? { optionalStringValue(values, "device_name") }
-    public var deviceAddress: String? { optionalStringValue(values, "device_address") }
-    public var defaultController: String? { optionalStringValue(values, "default_controller") }
-    public var pendingController: String? { optionalStringValue(values, "pending_controller") }
-    public var controllerDeviceName: String? { optionalStringValue(values, "controller_device_name") }
-    public var screenDisabled: Bool? { optionalBoolValue(values, "screen_disabled") }
-    public var preferredMic: String? { optionalStringValue(values, "preferred_mic") }
-    public var sensingEnabled: Bool? { optionalBoolValue(values, "sensing_enabled") }
-    public var powerSavingMode: Bool? { optionalBoolValue(values, "power_saving_mode") }
-    public var brightness: Int? { optionalIntValue(values, "brightness") }
-    public var autoBrightness: Bool? { optionalBoolValue(values, "auto_brightness") }
-    public var dashboardHeight: Int? { optionalIntValue(values, "dashboard_height") }
-    public var dashboardDepth: Int? { optionalIntValue(values, "dashboard_depth") }
-    public var headUpAngle: Int? { optionalIntValue(values, "head_up_angle") }
-    public var contextualDashboard: Bool? { optionalBoolValue(values, "contextual_dashboard") }
-    public var galleryModeAuto: Bool? { optionalBoolValue(values, "galleryModeAuto") }
-    public var buttonPhotoSize: ButtonPhotoSize? {
+    var lastLog: [String]? { optionalStringListValue(values, "lastLog") }
+    var otherBtConnected: Bool? { optionalBoolValue(values, "otherBtConnected") }
+    var defaultWearable: String? { optionalStringValue(values, "default_wearable") }
+    var pendingWearable: String? { optionalStringValue(values, "pending_wearable") }
+    var deviceName: String? { optionalStringValue(values, "device_name") }
+    var deviceAddress: String? { optionalStringValue(values, "device_address") }
+    var defaultController: String? { optionalStringValue(values, "default_controller") }
+    var pendingController: String? { optionalStringValue(values, "pending_controller") }
+    var controllerDeviceName: String? { optionalStringValue(values, "controller_device_name") }
+    var screenDisabled: Bool? { optionalBoolValue(values, "screen_disabled") }
+    var preferredMic: String? { optionalStringValue(values, "preferred_mic") }
+    var sensingEnabled: Bool? { optionalBoolValue(values, "sensing_enabled") }
+    var powerSavingMode: Bool? { optionalBoolValue(values, "power_saving_mode") }
+    var brightness: Int? { optionalIntValue(values, "brightness") }
+    var autoBrightness: Bool? { optionalBoolValue(values, "auto_brightness") }
+    var dashboardHeight: Int? { optionalIntValue(values, "dashboard_height") }
+    var dashboardDepth: Int? { optionalIntValue(values, "dashboard_depth") }
+    var headUpAngle: Int? { optionalIntValue(values, "head_up_angle") }
+    var contextualDashboard: Bool? { optionalBoolValue(values, "contextual_dashboard") }
+    var galleryModeAuto: Bool? { optionalBoolValue(values, "galleryModeAuto") }
+    var buttonPhotoSize: ButtonPhotoSize? {
         optionalStringValue(values, "button_photo_size").flatMap(ButtonPhotoSize.init(rawValue:))
     }
-    public var buttonCameraLed: Bool? { optionalBoolValue(values, "button_camera_led") }
-    public var buttonMaxRecordingTime: Int? { optionalIntValue(values, "button_max_recording_time") }
-    public var buttonVideoWidth: Int? { optionalIntValue(values, "button_video_width") }
-    public var buttonVideoHeight: Int? { optionalIntValue(values, "button_video_height") }
-    public var buttonVideoFrameRate: Int? { optionalIntValue(values, "button_video_fps") }
-    public var shouldSendPcm: Bool? { optionalBoolValue(values, "should_send_pcm") }
-    public var shouldSendLc3: Bool? { optionalBoolValue(values, "should_send_lc3") }
-    public var shouldSendTranscript: Bool? { optionalBoolValue(values, "should_send_transcript") }
-    public var bypassVad: Bool? { optionalBoolValue(values, "bypass_vad") }
-    public var offlineCaptionsRunning: Bool? { optionalBoolValue(values, "offline_captions_running") }
-    public var localSttFallbackActive: Bool? { optionalBoolValue(values, "local_stt_fallback_active") }
-    public var shouldSendBootingMessage: Bool? { optionalBoolValue(values, "shouldSendBootingMessage") }
+    var buttonCameraLed: Bool? { optionalBoolValue(values, "button_camera_led") }
+    var buttonMaxRecordingTime: Int? { optionalIntValue(values, "button_max_recording_time") }
+    var buttonVideoWidth: Int? { optionalIntValue(values, "button_video_width") }
+    var buttonVideoHeight: Int? { optionalIntValue(values, "button_video_height") }
+    var buttonVideoFrameRate: Int? { optionalIntValue(values, "button_video_fps") }
+    var shouldSendPcm: Bool? { optionalBoolValue(values, "should_send_pcm") }
+    var shouldSendLc3: Bool? { optionalBoolValue(values, "should_send_lc3") }
+    var shouldSendTranscript: Bool? { optionalBoolValue(values, "should_send_transcript") }
+    var bypassVad: Bool? { optionalBoolValue(values, "bypass_vad") }
+    var offlineCaptionsRunning: Bool? { optionalBoolValue(values, "offline_captions_running") }
+    var localSttFallbackActive: Bool? { optionalBoolValue(values, "local_stt_fallback_active") }
+    var shouldSendBootingMessage: Bool? { optionalBoolValue(values, "shouldSendBootingMessage") }
 
-    public var description: String {
+    var description: String {
         values.description
     }
 }

@@ -28,7 +28,7 @@ data class WifiScanResult(
     }
 }
 
-data class GlassesStatus(
+internal data class GlassesStatus(
     val fullyBooted: Boolean,
     val connected: Boolean,
     val micEnabled: Boolean,
@@ -153,7 +153,7 @@ data class GlassesStatus(
     }
 }
 
-data class BluetoothStatus(
+internal data class BluetoothStatus(
     val searching: Boolean,
     val searchingController: Boolean,
     val systemMicUnavailable: Boolean,
@@ -306,7 +306,7 @@ data class BluetoothStatus(
     }
 }
 
-data class GlassesStatusUpdate(
+internal data class GlassesStatusUpdate(
     val fullyBooted: Boolean? = null,
     val connected: Boolean? = null,
     val micEnabled: Boolean? = null,
@@ -458,7 +458,7 @@ data class GlassesStatusUpdate(
     }
 }
 
-data class BluetoothStatusUpdate(
+internal data class BluetoothStatusUpdate(
     val searching: Boolean? = null,
     val searchingController: Boolean? = null,
     val systemMicUnavailable: Boolean? = null,

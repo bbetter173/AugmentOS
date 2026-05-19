@@ -84,8 +84,10 @@ public enum BluetoothEvent: CustomStringConvertible {
 
 @MainActor
 public protocol MentraBluetoothSDKDelegate: AnyObject {
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate)
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdate state: MentraBluetoothState)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlasses glasses: GlassesRuntimeState)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateSdkState sdkState: PhoneSdkRuntimeState)
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateScan scan: BluetoothScanState)
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didDiscover device: Device)
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didStopScan reason: ScanStopReason)
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEvent)
@@ -98,8 +100,10 @@ public protocol MentraBluetoothSDKDelegate: AnyObject {
 
 @MainActor
 public extension MentraBluetoothSDKDelegate {
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus _: GlassesStatusUpdate) {}
-    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus _: BluetoothStatusUpdate) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdate _: MentraBluetoothState) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlasses _: GlassesRuntimeState) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateSdkState _: PhoneSdkRuntimeState) {}
+    func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateScan _: BluetoothScanState) {}
     func mentraBluetoothSDK(_: MentraBluetoothSDK, didDiscover _: Device) {}
     func mentraBluetoothSDK(_: MentraBluetoothSDK, didStopScan _: ScanStopReason) {}
     func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceive _: BluetoothEvent) {}

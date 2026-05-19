@@ -4,7 +4,6 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import com.mentra.bluetoothsdk.utils.ConnTypes
 import com.mentra.bluetoothsdk.utils.ControllerTypes
 import com.mentra.bluetoothsdk.utils.PhoneAudioMonitor
 import java.util.Collections
@@ -58,10 +57,22 @@ class MentraBluetoothSdk private constructor(
         listeners.remove(listener)
     }
 
-    fun getGlassesStatus(): GlassesStatus =
+    fun getState(): MentraBluetoothState =
+        MentraBluetoothState.from(getRawGlassesStatus(), getRawBluetoothStatus())
+
+    fun getGlasses(): GlassesRuntimeState =
+        getState().glasses
+
+    fun getSdkState(): PhoneSdkRuntimeState =
+        getState().sdk
+
+    fun getScanState(): BluetoothScanState =
+        getState().scan
+
+    internal fun getRawGlassesStatus(): GlassesStatus =
         GlassesStatus.fromMap(DeviceStore.store.getCategory("glasses"))
 
-    fun getBluetoothStatus(): BluetoothStatus =
+    internal fun getRawBluetoothStatus(): BluetoothStatus =
         BluetoothStatus.fromMap(DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY))
 
     fun getDefaultDevice(): Device? = currentDefaultDevice()
@@ -154,12 +165,10 @@ class MentraBluetoothSdk private constructor(
 
         val scanListener =
             object : MentraBluetoothSdkCallback() {
-                override fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {
-                    status.searchResults?.let { results ->
-                        emitResults(results.filter { it.model == model })
-                    }
+                override fun onScanChanged(scan: BluetoothScanState) {
+                    emitResults(scan.devices.filter { it.model == model })
                 }
-        }
+            }
 
         fun finish(reason: ScanStopReason) {
             if (finished) return
@@ -178,7 +187,7 @@ class MentraBluetoothSdk private constructor(
         try {
             emitResults(emptyList())
             startScan(model)
-            emitResults(getBluetoothStatus().searchResults.filter { it.model == model })
+            emitResults(getRawBluetoothStatus().searchResults.filter { it.model == model })
             mainHandler.postDelayed(timeoutRunnable, normalizedTimeoutMs)
             return session
         } catch (error: Throwable) {
@@ -483,13 +492,19 @@ class MentraBluetoothSdk private constructor(
 
     private fun dispatchStoreUpdate(category: String, changes: Map<String, Any>) {
         when (ObservableStore.normalizeCategory(category)) {
-            "glasses" ->
+            "glasses" -> {
+                val state = getState()
                 dispatchToListeners {
-                    it.onGlassesStatusChanged(GlassesStatusUpdate.fromMap(glassesStatusChanges(changes)))
+                    it.onStateChanged(state)
+                    it.onGlassesChanged(state.glasses)
                 }
+            }
             ObservableStore.BLUETOOTH_CATEGORY -> {
+                val state = getState()
                 dispatchToListeners {
-                    it.onBluetoothStatusChanged(BluetoothStatusUpdate.fromMap(changes))
+                    it.onStateChanged(state)
+                    it.onSdkStateChanged(state.sdk)
+                    it.onScanChanged(state.scan)
                 }
                 if (!suppressDefaultDeviceEvents && changes.keys.any { it in DEFAULT_DEVICE_KEYS }) {
                     dispatchDefaultDeviceChanged()
@@ -497,37 +512,6 @@ class MentraBluetoothSdk private constructor(
                 dispatchDiscoveredDevices(changes["searchResults"])
             }
         }
-    }
-
-    private fun glassesStatusChanges(changes: Map<String, Any>): Map<String, Any> {
-        var merged = changes
-
-        if (changes.keys.any { it in setOf("wifiConnected", "wifiSsid", "wifiLocalIp") }) {
-            merged =
-                merged +
-                    mapOf(
-                        "wifiConnected" to ((DeviceStore.get("glasses", "wifiConnected") as? Boolean) ?: false),
-                        "wifiSsid" to ((DeviceStore.get("glasses", "wifiSsid") as? String) ?: ""),
-                        "wifiLocalIp" to ((DeviceStore.get("glasses", "wifiLocalIp") as? String) ?: ""),
-                    )
-        }
-
-        if (changes.keys.any { it in setOf("connected", "fullyBooted", "connectionState") }) {
-            merged =
-                merged +
-                    mapOf(
-                        "connected" to ((DeviceStore.get("glasses", "connected") as? Boolean) ?: false),
-                        "fullyBooted" to ((DeviceStore.get("glasses", "fullyBooted") as? Boolean) ?: false),
-                        "connectionState" to ((DeviceStore.get("glasses", "connectionState") as? String) ?: ConnTypes.DISCONNECTED),
-                    )
-        }
-
-        if (changes.containsKey("signalStrengthUpdatedAt") && !changes.containsKey("signalStrength")) {
-            val signalStrength = (DeviceStore.get("glasses", "signalStrength") as? Number)?.toInt() ?: -1
-            merged = merged + ("signalStrength" to signalStrength)
-        }
-
-        return merged
     }
 
     private fun dispatchDefaultDeviceChanged() {

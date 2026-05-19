@@ -70,7 +70,7 @@ Request runtime permissions before scanning. Some Android 12+ devices require Lo
 import android.content.Context
 import com.mentra.bluetoothsdk.Device
 import com.mentra.bluetoothsdk.DeviceModel
-import com.mentra.bluetoothsdk.GlassesStatusUpdate
+import com.mentra.bluetoothsdk.GlassesRuntimeState
 import com.mentra.bluetoothsdk.MentraBluetoothSdk
 import com.mentra.bluetoothsdk.MentraBluetoothSdkCallback
 
@@ -93,13 +93,15 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
 
     fun refreshStatus() {
         sdk.requestVersionInfo()
-        val status = sdk.getGlassesStatus()
-        println("Connected to ${status.deviceModel}, battery=${status.batteryLevel}%")
+        val glasses = sdk.getGlasses()
+        if (glasses is GlassesRuntimeState.Connected) {
+            println("Connected to ${glasses.device.deviceModel}, battery=${glasses.battery.level}%")
+        }
     }
 
-    override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
+    override fun onGlassesChanged(glasses: GlassesRuntimeState) {
         // Keep app UI derived from SDK status.
-        println("Glasses status changed: $status")
+        println("Glasses changed: $glasses")
     }
 
     private fun renderDevicePicker(devices: List<Device>, onSelect: (Device) -> Unit) {

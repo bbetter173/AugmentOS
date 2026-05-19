@@ -109,13 +109,16 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
 
     func refreshStatus() {
         sdk.requestVersionInfo()
-        let status = sdk.glassesStatus
-        print("Connected to \(status.deviceModel), battery=\(status.batteryLevel)%")
+        let glasses = sdk.glasses
+        if let device = glasses.device {
+            let battery = glasses.battery?.level.map(String.init) ?? "unknown"
+            print("Connected to \(device.deviceModel?.deviceType ?? "glasses"), battery=\(battery)%")
+        }
     }
 
-    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlasses glasses: GlassesRuntimeState) {
         // Keep app UI derived from SDK status.
-        print("Glasses status changed: \(status)")
+        print("Glasses changed: \(glasses)")
     }
 
     private func renderDevicePicker(_ devices: [Device], onSelect: @escaping (Device) -> Void) {

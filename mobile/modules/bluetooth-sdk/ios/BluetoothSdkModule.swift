@@ -527,13 +527,13 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
-        sendEvent("glasses_status", status.dictionary)
+    public func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlasses _: GlassesRuntimeState) {
+        sendEvent("glasses_status", sdk.glassesStatus.dictionary)
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didUpdateBluetoothStatus status: BluetoothStatusUpdate) {
-        sendEvent("bluetooth_status", status.values)
+    public func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateSdkState _: PhoneSdkRuntimeState) {
+        sendEvent("bluetooth_status", sdk.bluetoothStatus.values)
     }
 
     @MainActor

@@ -49,11 +49,27 @@ public final class MentraBluetoothSDK {
         }
     }
 
-    public var glassesStatus: GlassesStatus {
+    public var state: MentraBluetoothState {
+        MentraBluetoothState(glassesStatus: glassesStatus, bluetoothStatus: bluetoothStatus)
+    }
+
+    public var glasses: GlassesRuntimeState {
+        state.glasses
+    }
+
+    public var sdkState: PhoneSdkRuntimeState {
+        state.sdk
+    }
+
+    public var scanState: BluetoothScanState {
+        state.scan
+    }
+
+    var glassesStatus: GlassesStatus {
         GlassesStatus(values: DeviceStore.shared.store.getCategory("glasses"))
     }
 
-    public var bluetoothStatus: BluetoothStatus {
+    var bluetoothStatus: BluetoothStatus {
         BluetoothStatus(values: DeviceStore.shared.store.getCategory(ObservableStore.bluetoothCategory))
     }
 
@@ -450,9 +466,14 @@ public final class MentraBluetoothSDK {
     private func dispatchStoreUpdate(_ category: String, _ changes: [String: Any]) {
         switch ObservableStore.normalizeCategory(category) {
         case "glasses":
-            delegate?.mentraBluetoothSDK(self, didUpdateGlassesStatus: GlassesStatusUpdate(values: glassesStatusChanges(changes)))
+            let nextState = state
+            delegate?.mentraBluetoothSDK(self, didUpdate: nextState)
+            delegate?.mentraBluetoothSDK(self, didUpdateGlasses: nextState.glasses)
         case ObservableStore.bluetoothCategory:
-            delegate?.mentraBluetoothSDK(self, didUpdateBluetoothStatus: BluetoothStatusUpdate(values: changes))
+            let nextState = state
+            delegate?.mentraBluetoothSDK(self, didUpdate: nextState)
+            delegate?.mentraBluetoothSDK(self, didUpdateSdkState: nextState.sdk)
+            delegate?.mentraBluetoothSDK(self, didUpdateScan: nextState.scan)
             if !suppressDefaultDeviceEvents && changes.keys.contains(where: { defaultDeviceKeys.contains($0) }) {
                 dispatchDefaultDeviceChanged()
             }
@@ -461,28 +482,6 @@ public final class MentraBluetoothSDK {
         default:
             break
         }
-    }
-
-    private func glassesStatusChanges(_ changes: [String: Any]) -> [String: Any] {
-        var merged = changes
-
-        if changes.keys.contains(where: { ["wifiConnected", "wifiSsid", "wifiLocalIp"].contains($0) }) {
-            merged["wifiConnected"] = DeviceStore.shared.get("glasses", "wifiConnected") as? Bool ?? false
-            merged["wifiSsid"] = DeviceStore.shared.get("glasses", "wifiSsid") as? String ?? ""
-            merged["wifiLocalIp"] = DeviceStore.shared.get("glasses", "wifiLocalIp") as? String ?? ""
-        }
-
-        if changes.keys.contains(where: { ["connected", "fullyBooted", "connectionState"].contains($0) }) {
-            merged["connected"] = DeviceStore.shared.get("glasses", "connected") as? Bool ?? false
-            merged["fullyBooted"] = DeviceStore.shared.get("glasses", "fullyBooted") as? Bool ?? false
-            merged["connectionState"] = DeviceStore.shared.get("glasses", "connectionState") as? String ?? "DISCONNECTED"
-        }
-
-        if changes["signalStrengthUpdatedAt"] != nil, changes["signalStrength"] == nil {
-            merged["signalStrength"] = DeviceStore.shared.get("glasses", "signalStrength") as? Int ?? -1
-        }
-
-        return merged
     }
 
     private func dispatchDefaultDeviceChanged() {

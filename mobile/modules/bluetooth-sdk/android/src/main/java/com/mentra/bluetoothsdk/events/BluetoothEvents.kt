@@ -30,8 +30,10 @@ data class BatteryStatusEvent(
 )
 
 interface MentraBluetoothSdkListener {
-    fun onGlassesStatusChanged(status: GlassesStatusUpdate) {}
-    fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {}
+    fun onStateChanged(state: MentraBluetoothState) {}
+    fun onGlassesChanged(glasses: GlassesRuntimeState) {}
+    fun onSdkStateChanged(sdk: PhoneSdkRuntimeState) {}
+    fun onScanChanged(scan: BluetoothScanState) {}
     fun onDeviceDiscovered(device: Device) {}
     fun onScanStopped(reason: ScanStopReason) {}
     fun onButtonPress(event: ButtonPressEvent) {}

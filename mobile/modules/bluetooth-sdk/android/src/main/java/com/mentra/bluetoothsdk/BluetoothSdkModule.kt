@@ -9,12 +9,20 @@ class BluetoothSdkModule : Module() {
     private var deviceManager: DeviceManager? = null
     private val sdkListener =
             object : MentraBluetoothSdkListener {
-                override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
-                    sendEvent("glasses_status", status.toMap())
+                override fun onGlassesChanged(glasses: GlassesRuntimeState) {
+                    sendEvent(
+                            "glasses_status",
+                            sdk?.getRawGlassesStatus()?.toMap()
+                                    ?: GlassesStatus.fromMap(DeviceStore.store.getCategory("glasses")).toMap()
+                    )
                 }
 
-                override fun onBluetoothStatusChanged(status: BluetoothStatusUpdate) {
-                    sendEvent("bluetooth_status", status.toMap())
+                override fun onSdkStateChanged(sdkState: PhoneSdkRuntimeState) {
+                    sendEvent(
+                            "bluetooth_status",
+                            sdk?.getRawBluetoothStatus()?.toMap()
+                                    ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+                    )
                 }
 
                 override fun onDeviceDiscovered(device: Device) {
@@ -31,7 +39,7 @@ class BluetoothSdkModule : Module() {
 
                 override fun onScanStopped(reason: ScanStopReason) {
                     if (reason == ScanStopReason.COMPLETED) {
-                        val status = sdk?.getBluetoothStatus()
+                        val status = sdk?.getRawBluetoothStatus()
                         val deviceModel =
                                 status?.pendingWearable?.takeIf { it.isNotBlank() }
                                         ?: status?.defaultWearable
@@ -196,12 +204,12 @@ class BluetoothSdkModule : Module() {
         // MARK: - Observable Store Functions
 
         Function("getGlassesStatus") {
-            sdk?.getGlassesStatus()?.toMap()
+            sdk?.getRawGlassesStatus()?.toMap()
                     ?: GlassesStatus.fromMap(DeviceStore.store.getCategory("glasses")).toMap()
         }
 
         Function("getBluetoothStatus") {
-            sdk?.getBluetoothStatus()?.toMap() ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+            sdk?.getRawBluetoothStatus()?.toMap() ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
         }
 
         Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }

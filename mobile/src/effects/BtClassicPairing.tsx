@@ -10,7 +10,7 @@ import {translate} from "@/i18n"
 import {useNavigationStore} from "@/stores/navigation"
 
 export function BtClassicPairing() {
-  const btcConnected = useGlassesStore((state) => state.btcConnected)
+  const bluetoothClassicConnected = useGlassesStore((state) => state.bluetoothClassicConnected)
   const glassesConnected = useGlassesStore(selectGlassesConnected)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [deviceName] = useSetting(SETTINGS.device_name.key)
@@ -25,13 +25,13 @@ export function BtClassicPairing() {
     if (ignoreRef.current) return
     if (pathname !== "/home") return // only run on the home screen
     if (defaultWearable !== DeviceTypes.LIVE) return
-    if (!glassesConnected || btcConnected) return
+    if (!glassesConnected || bluetoothClassicConnected) return
 
     const timeout = setTimeout(() => {
       // re-check the glasses state after 2 seconds to see if it's still in this state:
       const glassesState = useGlassesStore.getState()
       const connected = isGlassesConnected(glassesState.connection)
-      if (ignoreRef.current || !connected || glassesState.btcConnected) return
+      if (ignoreRef.current || !connected || glassesState.bluetoothClassicConnected) return
 
       showAlert(translate("pairing:btClassicDisconnected"), translate("pairing:btClassicDisconnectedMessage"), [
         {
@@ -50,7 +50,7 @@ export function BtClassicPairing() {
     }, 2000)
 
     return () => clearTimeout(timeout)
-  }, [pathname, defaultWearable, glassesConnected, btcConnected])
+  }, [pathname, defaultWearable, glassesConnected, bluetoothClassicConnected])
 
   return null
 }

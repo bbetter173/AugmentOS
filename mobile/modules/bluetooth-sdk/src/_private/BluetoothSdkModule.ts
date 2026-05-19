@@ -96,7 +96,7 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   // Gallery Commands
   setGalleryMode(mode: GalleryMode): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
@@ -154,8 +154,8 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
     packageName: string | null,
     action: RgbLedAction,
     color: RgbLedColor | null,
-    ontime: number,
-    offtime: number,
+    onDurationMs: number,
+    offDurationMs: number,
     count: number,
   ): Promise<void>
 
@@ -190,8 +190,8 @@ const DEFAULT_CONNECT_OPTIONS: Required<ConnectOptions> = {
 const DEFAULT_SCAN_TIMEOUT_MS = 15_000
 
 const CAMERA_FOV_SETTINGS: Record<CameraFov, CameraFovSetting> = {
-  standard: {fov: 118, roi_position: 0},
-  wide: {fov: 118, roi_position: 0},
+  standard: {fov: 118, roiPosition: 0},
+  wide: {fov: 118, roiPosition: 0},
 }
 
 function searchResultsForModel(status: Partial<BluetoothStatus>, model: DeviceModel): Device[] {
@@ -357,11 +357,11 @@ NativeBluetoothSdkModule.setButtonPhotoSettings = function (size: ButtonPhotoSiz
   return this.updateBluetoothSettings({button_photo_size: size})
 }
 
-NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (width: number, height: number, fps: number) {
+NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (width: number, height: number, frameRate: number) {
   return this.updateBluetoothSettings({
     button_video_width: width,
     button_video_height: height,
-    button_video_fps: fps,
+    button_video_fps: frameRate,
   })
 }
 

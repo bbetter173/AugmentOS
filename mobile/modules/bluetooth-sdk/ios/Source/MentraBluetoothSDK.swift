@@ -355,7 +355,7 @@ public struct GlassesStatus: CustomStringConvertible {
     public var connected: Bool { boolValue(values, "connected") ?? false }
     public var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
     public var connectionState: GlassesConnectionState { GlassesConnectionState(stringValue(values, "connectionState")) }
-    public var btcConnected: Bool { boolValue(values, "btcConnected") ?? false }
+    public var bluetoothClassicConnected: Bool { boolValue(values, "bluetoothClassicConnected") ?? false }
     public var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
     public var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
     public var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
@@ -363,7 +363,7 @@ public struct GlassesStatus: CustomStringConvertible {
     public var firmwareVersion: String { stringValue(values, "firmwareVersion") ?? "" }
     public var besFirmwareVersion: String { stringValue(values, "besFirmwareVersion") ?? "" }
     public var mtkFirmwareVersion: String { stringValue(values, "mtkFirmwareVersion") ?? "" }
-    public var btMacAddress: String { stringValue(values, "btMacAddress") ?? "" }
+    public var bluetoothMacAddress: String { stringValue(values, "bluetoothMacAddress") ?? "" }
     public var leftMacAddress: String { stringValue(values, "leftMacAddress") ?? "" }
     public var rightMacAddress: String { stringValue(values, "rightMacAddress") ?? "" }
     public var macAddress: String { stringValue(values, "macAddress") ?? "" }
@@ -515,7 +515,7 @@ public struct BluetoothStatus: CustomStringConvertible {
     public var dashboardDepth: Int { intValue(values["dashboard_depth"]) ?? 2 }
     public var headUpAngle: Int { intValue(values["head_up_angle"]) ?? 30 }
     public var contextualDashboard: Bool { boolValue(values, "contextual_dashboard") ?? true }
-    public var galleryModeAuto: Bool { boolValue(values, "gallery_mode") ?? true }
+    public var galleryModeAuto: Bool { boolValue(values, "galleryModeAuto") ?? true }
     public var buttonPhotoSize: ButtonPhotoSize {
         ButtonPhotoSize(rawValue: stringValue(values, "button_photo_size") ?? "") ?? .medium
     }
@@ -523,7 +523,7 @@ public struct BluetoothStatus: CustomStringConvertible {
     public var buttonMaxRecordingTime: Int { intValue(values["button_max_recording_time"]) ?? 10 }
     public var buttonVideoWidth: Int { intValue(values["button_video_width"]) ?? 1280 }
     public var buttonVideoHeight: Int { intValue(values["button_video_height"]) ?? 720 }
-    public var buttonVideoFps: Int { intValue(values["button_video_fps"]) ?? 30 }
+    public var buttonVideoFrameRate: Int { intValue(values["button_video_fps"]) ?? 30 }
     public var shouldSendPcm: Bool { boolValue(values, "should_send_pcm") ?? false }
     public var shouldSendLc3: Bool { boolValue(values, "should_send_lc3") ?? false }
     public var shouldSendTranscript: Bool { boolValue(values, "should_send_transcript") ?? false }
@@ -559,7 +559,7 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
     public var connectionState: GlassesConnectionState? {
         GlassesConnectionState.fromValue(optionalStringValue(values, "connectionState"))
     }
-    public var btcConnected: Bool? { optionalBoolValue(values, "btcConnected") }
+    public var bluetoothClassicConnected: Bool? { optionalBoolValue(values, "bluetoothClassicConnected") }
     public var signalStrength: Int? { optionalIntValue(values, "signalStrength") }
     public var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }
     public var deviceModel: String? { optionalStringValue(values, "deviceModel") }
@@ -567,7 +567,7 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
     public var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion") }
     public var besFirmwareVersion: String? { optionalStringValue(values, "besFirmwareVersion") }
     public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFirmwareVersion") }
-    public var btMacAddress: String? { optionalStringValue(values, "btMacAddress") }
+    public var bluetoothMacAddress: String? { optionalStringValue(values, "bluetoothMacAddress") }
     public var leftMacAddress: String? { optionalStringValue(values, "leftMacAddress") }
     public var rightMacAddress: String? { optionalStringValue(values, "rightMacAddress") }
     public var macAddress: String? { optionalStringValue(values, "macAddress") }
@@ -661,7 +661,7 @@ public struct BluetoothStatusUpdate: CustomStringConvertible {
     public var dashboardDepth: Int? { optionalIntValue(values, "dashboard_depth") }
     public var headUpAngle: Int? { optionalIntValue(values, "head_up_angle") }
     public var contextualDashboard: Bool? { optionalBoolValue(values, "contextual_dashboard") }
-    public var galleryModeAuto: Bool? { optionalBoolValue(values, "gallery_mode") }
+    public var galleryModeAuto: Bool? { optionalBoolValue(values, "galleryModeAuto") }
     public var buttonPhotoSize: ButtonPhotoSize? {
         optionalStringValue(values, "button_photo_size").flatMap(ButtonPhotoSize.init(rawValue:))
     }
@@ -669,7 +669,7 @@ public struct BluetoothStatusUpdate: CustomStringConvertible {
     public var buttonMaxRecordingTime: Int? { optionalIntValue(values, "button_max_recording_time") }
     public var buttonVideoWidth: Int? { optionalIntValue(values, "button_video_width") }
     public var buttonVideoHeight: Int? { optionalIntValue(values, "button_video_height") }
-    public var buttonVideoFps: Int? { optionalIntValue(values, "button_video_fps") }
+    public var buttonVideoFrameRate: Int? { optionalIntValue(values, "button_video_fps") }
     public var shouldSendPcm: Bool? { optionalBoolValue(values, "should_send_pcm") }
     public var shouldSendLc3: Bool? { optionalBoolValue(values, "should_send_lc3") }
     public var shouldSendTranscript: Bool? { optionalBoolValue(values, "should_send_transcript") }
@@ -775,12 +775,12 @@ public struct ButtonPhotoSettings {
 public struct ButtonVideoRecordingSettings {
     public let width: Int
     public let height: Int
-    public let fps: Int
+    public let frameRate: Int
 
-    public init(width: Int, height: Int, fps: Int) {
+    public init(width: Int, height: Int, frameRate: Int) {
         self.width = width
         self.height = height
-        self.fps = fps
+        self.frameRate = frameRate
     }
 }
 
@@ -791,9 +791,9 @@ public enum CameraFov {
     var value: [String: Int] {
         switch self {
         case .standard:
-            ["fov": 118, "roi_position": 0]
+            ["fov": 118, "roiPosition": 0]
         case .wide:
-            ["fov": 118, "roi_position": 0]
+            ["fov": 118, "roiPosition": 0]
         }
     }
 }
@@ -1041,8 +1041,8 @@ public struct RgbLedRequest {
     public let packageName: String?
     public let action: RgbLedAction
     public let color: RgbLedColor?
-    public let ontime: Int
-    public let offtime: Int
+    public let onDurationMs: Int
+    public let offDurationMs: Int
     public let count: Int
 
     public init(
@@ -1050,16 +1050,16 @@ public struct RgbLedRequest {
         packageName: String?,
         action: RgbLedAction,
         color: RgbLedColor?,
-        ontime: Int,
-        offtime: Int,
+        onDurationMs: Int,
+        offDurationMs: Int,
         count: Int
     ) {
         self.requestId = requestId
         self.packageName = packageName
         self.action = action
         self.color = color
-        self.ontime = ontime
-        self.offtime = offtime
+        self.onDurationMs = onDurationMs
+        self.offDurationMs = offDurationMs
         self.count = count
     }
 }
@@ -2249,7 +2249,7 @@ public final class MentraBluetoothSDK {
     }
 
     public func setGalleryMode(_ mode: GalleryMode) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", mode == .auto)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "galleryModeAuto", mode == .auto)
     }
 
     public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws {
@@ -2260,14 +2260,14 @@ public final class MentraBluetoothSDK {
         try await setButtonPhotoSettings(size: settings.size)
     }
 
-    public func setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) async throws {
+    public func setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) async throws {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_width", width)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_height", height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", fps)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", frameRate)
     }
 
     public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws {
-        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, fps: settings.fps)
+        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, frameRate: settings.frameRate)
     }
 
     public func setButtonCameraLed(enabled: Bool) async throws {
@@ -2381,8 +2381,8 @@ public final class MentraBluetoothSDK {
             packageName: request.packageName,
             action: request.action.rawValue,
             color: request.color?.rawValue,
-            ontime: request.ontime,
-            offtime: request.offtime,
+            onDurationMs: request.onDurationMs,
+            offDurationMs: request.offDurationMs,
             count: request.count
         )
     }

@@ -57,8 +57,8 @@ abstract class ControllerManager {
         packageName: String?,
         action: String,
         color: String?,
-        ontime: Int,
-        offtime: Int,
+        onDurationMs: Int,
+        offDurationMs: Int,
         count: Int
     )
 
@@ -117,8 +117,8 @@ abstract class ControllerManager {
     val firmwareVersion: String
         get() = DeviceStore.get("glasses", "firmwareVersion") as? String ?: ""
 
-    val btMacAddress: String
-        get() = DeviceStore.get("glasses", "btMacAddress") as? String ?: ""
+    val bluetoothMacAddress: String
+        get() = DeviceStore.get("glasses", "bluetoothMacAddress") as? String ?: ""
 
     val serialNumber: String
         get() = DeviceStore.get("glasses", "serialNumber") as? String ?: ""

@@ -44,7 +44,7 @@ describe("AudioPlaybackService", () => {
     jest.clearAllMocks()
     resetCoreModuleMock()
     mockPlayer.volume = 1
-    ;(BluetoothSdk.getGlassesMediaVolume as jest.Mock).mockResolvedValue({vol: 1, statusCode: 0})
+    ;(BluetoothSdk.getGlassesMediaVolume as jest.Mock).mockResolvedValue({level: 1, statusCode: 0})
   })
 
   afterEach(() => {

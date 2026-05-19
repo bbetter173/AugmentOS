@@ -2600,7 +2600,7 @@ class G2: NSObject, SGCManager {
 
     func sendRgbLedControl(
         requestId _: String, packageName _: String?, action _: String, color _: String?,
-        ontime _: Int, offtime _: Int, count _: Int
+        onDurationMs _: Int, offDurationMs _: Int, count _: Int
     ) {
         // G2 doesn't have RGB LEDs
     }
@@ -3497,7 +3497,7 @@ extension G2: CBCentralManagerDelegate {
             if let mac = extractMac(from: mfgData) {
                 if name.contains("_L_") {
                     DeviceStore.shared.apply("glasses", "leftMacAddress", mac)
-                    DeviceStore.shared.apply("glasses", "btMacAddress", mac)
+                    DeviceStore.shared.apply("glasses", "bluetoothMacAddress", mac)
                 } else if name.contains("_R_") {
                     DeviceStore.shared.apply("glasses", "rightMacAddress", mac)
                 }

@@ -29,7 +29,7 @@ export default function CoreStatusBar() {
   const currentMic = useCoreStore((state) => state.currentMic)
   const systemMicUnavailable = useCoreStore((state) => state.systemMicUnavailable)
   const micDataRecvd = useDebugStore((state) => state.micDataRecvd)
-  const btcConnected = useGlassesStore((state) => state.btcConnected)
+  const bluetoothClassicConnected = useGlassesStore((state) => state.bluetoothClassicConnected)
   const glassesConnected = useGlassesStore(selectGlassesConnected)
   const glassesFullyBooted = useGlassesStore(selectGlassesReady)
   const cloudStatus = useConnectionStore((state) => state.status)
@@ -67,8 +67,8 @@ export default function CoreStatusBar() {
             <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
             <Tag
               icon="bluetooth"
-              label={btcConnected ? "BTC" : "BTC Off"}
-              bg={btcConnected ? "bg-primary" : "bg-destructive"}
+              label={bluetoothClassicConnected ? "BTC" : "BTC Off"}
+              bg={bluetoothClassicConnected ? "bg-primary" : "bg-destructive"}
             />
             <Tag icon="bluetooth" label={glassesConnected ? "Connected" : "Disconnected"} bg="bg-primary" />
             <Tag
@@ -94,8 +94,8 @@ export default function CoreStatusBar() {
             <Tag icon="bluetooth" label={glassesFullyBooted ? "Booted" : "Not booted"} bg="bg-primary" />
             <Tag
               icon="bluetooth"
-              label={btcConnected ? "BTC" : "BTC Off"}
-              bg={btcConnected ? "bg-primary" : "bg-destructive"}
+              label={bluetoothClassicConnected ? "BTC" : "BTC Off"}
+              bg={bluetoothClassicConnected ? "bg-primary" : "bg-destructive"}
             />
             <Tag icon="bluetooth" label={glassesConnected ? "Connected" : "Disconnected"} bg="bg-primary" />
             <Tag

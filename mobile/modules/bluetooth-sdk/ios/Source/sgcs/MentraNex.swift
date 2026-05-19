@@ -106,8 +106,8 @@ class MentraNexSGC: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, SG
     func sendReboot() {}
 
     func sendRgbLedControl(
-        requestId _: String, packageName _: String?, action _: String, color _: String?, ontime _: Int,
-        offtime _: Int, count _: Int
+        requestId _: String, packageName _: String?, action _: String, color _: String?, onDurationMs _: Int,
+        offDurationMs _: Int, count _: Int
     ) {}
 
     func forget() {}

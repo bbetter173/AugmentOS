@@ -140,8 +140,8 @@ class Simulated : SGCManager() {
             packageName: String?,
             action: String,
             color: String?,
-            ontime: Int,
-            offtime: Int,
+            onDurationMs: Int,
+            offDurationMs: Int,
             count: Int
     ) {
         Bridge.log("sendRgbLedControl - not supported on Simulated")

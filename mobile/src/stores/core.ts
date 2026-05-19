@@ -11,14 +11,14 @@ const initialState: BluetoothStatus = {
   // state:
   searching: false,
   searchingController: false,
-  micRanking: ["glasses", "phone", "bt", "btclassic"],
+  micRanking: ["glasses", "phone", "bluetooth", "bluetoothClassic"],
   systemMicUnavailable: false,
   currentMic: null,
   searchResults: [],
   wifiScanResults: [],
   lastLog: [],
   otherBtConnected: false,
-  gallery_mode: true,
+  galleryModeAuto: true,
 }
 
 export const useCoreStore = create<CoreState>()(

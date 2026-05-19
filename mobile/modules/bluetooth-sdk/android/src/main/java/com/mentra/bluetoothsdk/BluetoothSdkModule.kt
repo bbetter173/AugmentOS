@@ -449,8 +449,8 @@ class BluetoothSdkModule : Module() {
                 packageName: String?,
                 action: String,
                 color: String?,
-                ontime: Int,
-                offtime: Int,
+                onDurationMs: Int,
+                offDurationMs: Int,
                 count: Int ->
             sdk?.rgbLedControl(
                     RgbLedRequest(
@@ -458,8 +458,8 @@ class BluetoothSdkModule : Module() {
                             packageName = packageName,
                             action = RgbLedAction.fromValue(action),
                             color = RgbLedColor.fromValue(color),
-                            ontime = ontime,
-                            offtime = offtime,
+                            onDurationMs = onDurationMs,
+                            offDurationMs = offDurationMs,
                             count = count,
                     )
             )

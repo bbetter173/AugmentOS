@@ -119,7 +119,7 @@ class PhoneMic {
     }
 
     /// Start recording with a specific microphone mode
-    /// - Parameter mode: One of MicTypes constants (PHONE_INTERNAL, BT_CLASSIC, BT)
+    /// - Parameter mode: One of MicTypes constants (PHONE_INTERNAL, BLUETOOTH_CLASSIC, BLUETOOTH)
     /// - Returns: true if successfully started recording, false otherwise
     func startMode(_ mode: String) -> Bool {
         // Check if already recording with this mode
@@ -150,7 +150,7 @@ class PhoneMic {
             Bridge.log("MIC: Starting phone internal mic")
             return startRecordingPhoneInternal()
 
-        // case MicTypes.BT_CLASSIC:
+        // case MicTypes.BLUETOOTH_CLASSIC:
         // Bridge.log("MIC: Starting Bluetooth Classic (SCO)")
         // guard isBluetoothScoAvailable() else {
         //     Bridge.log("MIC: Bluetooth SCO not available")
@@ -158,7 +158,7 @@ class PhoneMic {
         // }
         // return startRecordingBtClassic()
 
-        case MicTypes.BT:
+        case MicTypes.BLUETOOTH:
             Bridge.log("MIC: Starting high-quality Bluetooth mic")
             guard isHighQualityBluetoothAvailable() else {
                 Bridge.log("MIC: High-quality Bluetooth not available")
@@ -248,7 +248,7 @@ class PhoneMic {
 
             let success = startRecordingInternal()
             if success {
-                currentMicMode = MicTypes.BT_CLASSIC
+                currentMicMode = MicTypes.BLUETOOTH_CLASSIC
             }
             return success
 
@@ -284,7 +284,7 @@ class PhoneMic {
 
             let success = startRecordingInternal()
             if success {
-                currentMicMode = MicTypes.BT
+                currentMicMode = MicTypes.BLUETOOTH
             }
             return success
 

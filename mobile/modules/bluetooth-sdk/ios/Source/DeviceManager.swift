@@ -66,9 +66,9 @@ struct ViewState {
         if isPaired {
             // Device is paired! Don't activate it - let PhoneMic.swift activate when recording starts
             Bridge.log("Audio: ✅ Mentra Live is paired (preserving A2DP for music)")
-            glassesBtcConnected = true
+            glassesBluetoothClassicConnected = true
         } else {
-            glassesBtcConnected = false
+            glassesBluetoothClassicConnected = false
             // Not found in availableInputs - not paired yet
 
             // Start monitoring for when user pairs manually
@@ -79,10 +79,10 @@ struct ViewState {
                 if connected {
                     Bridge.log("Audio: ✅ Device paired and connected")
                     // Don't activate - let PhoneMic.swift handle that when recording starts
-                    self.glassesBtcConnected = true
+                    self.glassesBluetoothClassicConnected = true
                 } else {
                     Bridge.log("Audio: Device disconnected")
-                    self.glassesBtcConnected = false
+                    self.glassesBluetoothClassicConnected = false
                 }
             }
         }
@@ -214,9 +214,9 @@ struct ViewState {
         set { DeviceStore.shared.apply("bluetooth", "searchingController", newValue) }
     }
 
-    private var glassesBtcConnected: Bool {
-        get { DeviceStore.shared.get("glasses", "btcConnected") as? Bool ?? false }
-        set { DeviceStore.shared.apply("glasses", "btcConnected", newValue) }
+    private var glassesBluetoothClassicConnected: Bool {
+        get { DeviceStore.shared.get("glasses", "bluetoothClassicConnected") as? Bool ?? false }
+        set { DeviceStore.shared.apply("glasses", "bluetoothClassicConnected", newValue) }
     }
 
     private var micRanking: [String] {
@@ -506,8 +506,8 @@ struct ViewState {
 
         if micEnabled {
             for micMode in micRanking {
-                if micMode == MicTypes.PHONE_INTERNAL || micMode == MicTypes.BT_CLASSIC
-                    || micMode == MicTypes.BT
+                if micMode == MicTypes.PHONE_INTERNAL || micMode == MicTypes.BLUETOOTH_CLASSIC
+                    || micMode == MicTypes.BLUETOOTH
                 {
                     if PhoneMic.shared.isRecordingWithMode(micMode) {
                         micUsed = micMode
@@ -572,8 +572,8 @@ struct ViewState {
                 continue
             }
 
-            if micMode == MicTypes.PHONE_INTERNAL || micMode == MicTypes.BT_CLASSIC
-                || micMode == MicTypes.BT
+            if micMode == MicTypes.PHONE_INTERNAL || micMode == MicTypes.BLUETOOTH_CLASSIC
+                || micMode == MicTypes.BLUETOOTH
             {
                 PhoneMic.shared.stopMode(micMode)
             }
@@ -849,7 +849,7 @@ struct ViewState {
         Bridge.log("MAN: checkCurrentAudioDevice: audioDevicePattern: \(audioDevicePattern)")
 
         if audioDevicePattern.isEmpty || audioDevicePattern == DeviceTypes.SIMULATED {
-            glassesBtcConnected = false
+            glassesBluetoothClassicConnected = false
             Bridge.log("MAN: Audio device pattern is empty or simulated, returning")
             return
         }
@@ -861,7 +861,7 @@ struct ViewState {
 
         if !isConnected {
             Bridge.log("MAN: Device '\(deviceName)' disconnected")
-            glassesBtcConnected = false
+            glassesBluetoothClassicConnected = false
 
             let isOtherDeviceConnected = AudioSessionMonitor.isOtherAudioDeviceConnected(
                 devicePattern: audioDevicePattern
@@ -880,9 +880,9 @@ struct ViewState {
                 $0.portName.localizedCaseInsensitiveContains(audioDevicePattern)
             })?.portName
             Bridge.log("MAN: ✅ Successfully detected newly paired device '\(deviceName)'")
-            glassesBtcConnected = true
+            glassesBluetoothClassicConnected = true
         } else {
-            glassesBtcConnected = false
+            glassesBluetoothClassicConnected = false
         }
     }
 
@@ -1225,8 +1225,8 @@ struct ViewState {
         packageName: String?,
         action: String,
         color: String?,
-        ontime: Int,
-        offtime: Int,
+        onDurationMs: Int,
+        offDurationMs: Int,
         count: Int
     ) {
         sgc?.sendRgbLedControl(
@@ -1234,8 +1234,8 @@ struct ViewState {
             packageName: packageName,
             action: action,
             color: color,
-            ontime: ontime,
-            offtime: offtime,
+            onDurationMs: onDurationMs,
+            offDurationMs: offDurationMs,
             count: count
         )
     }

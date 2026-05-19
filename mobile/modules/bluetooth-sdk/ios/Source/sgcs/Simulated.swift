@@ -13,7 +13,7 @@ class Simulated: SGCManager {
         DeviceStore.shared.apply("glasses", "connectionState", ConnTypes.CONNECTED)
         DeviceStore.shared.apply("glasses", "micEnabled", false)
         DeviceStore.shared.apply("glasses", "vadEnabled", false)
-        DeviceStore.shared.apply("glasses", "btcConnected", false)
+        DeviceStore.shared.apply("glasses", "bluetoothClassicConnected", false)
     }
 
     // MARK: - Device Information
@@ -28,7 +28,7 @@ class Simulated: SGCManager {
     var androidVersion: String = ""
     var otaVersionUrl: String = ""
     var firmwareVersion: String = ""
-    var btMacAddress: String = ""
+    var bluetoothMacAddress: String = ""
     var serialNumber: String = ""
     var style: String = ""
     var color: String = ""
@@ -176,7 +176,7 @@ class Simulated: SGCManager {
         Bridge.log("sendReboot - not supported on Simulated")
     }
 
-    func sendRgbLedControl(requestId: String, packageName _: String?, action _: String, color _: String?, ontime _: Int, offtime _: Int, count _: Int) {
+    func sendRgbLedControl(requestId: String, packageName _: String?, action _: String, color _: String?, onDurationMs _: Int, offDurationMs _: Int, count _: Int) {
         Bridge.log("sendRgbLedControl - not supported on Simulated")
         Bridge.sendRgbLedControlResponse(requestId: requestId, success: false, error: "device_not_supported")
     }

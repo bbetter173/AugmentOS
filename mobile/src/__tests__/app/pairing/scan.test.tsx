@@ -213,7 +213,7 @@ describe("pairing scan screen", () => {
 
   it("auto-skips directly into pairing when NOTREQUIREDSKIP is discovered", async () => {
     setPlatformOS("android")
-    useGlassesStore.getState().setGlassesInfo({btcConnected: false})
+    useGlassesStore.getState().setGlassesInfo({bluetoothClassicConnected: false})
     useCoreStore.setState({
       searchResults: [{id: "skip", model: "Mentra Live", name: "NOTREQUIREDSKIP", address: "skip"}],
     })

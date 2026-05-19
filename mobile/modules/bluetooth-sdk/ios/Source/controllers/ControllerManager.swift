@@ -54,8 +54,8 @@ protocol ControllerManager {
     func sendShutdown()
     func sendReboot()
     func sendRgbLedControl(
-        requestId: String, packageName: String?, action: String, color: String?, ontime: Int,
-        offtime: Int, count: Int
+        requestId: String, packageName: String?, action: String, color: String?, onDurationMs: Int,
+        offDurationMs: Int, count: Int
     )
 
     // MARK: - Connection Management
@@ -133,8 +133,8 @@ extension ControllerManager {
         DeviceStore.shared.get("glasses", "firmwareVersion") as? String ?? ""
     }
 
-    var btMacAddress: String {
-        DeviceStore.shared.get("glasses", "btMacAddress") as? String ?? ""
+    var bluetoothMacAddress: String {
+        DeviceStore.shared.get("glasses", "bluetoothMacAddress") as? String ?? ""
     }
 
     var serialNumber: String {

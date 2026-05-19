@@ -106,7 +106,7 @@ data class GlassesStatus(
     val connected: Boolean,
     val micEnabled: Boolean,
     val connectionState: GlassesConnectionState,
-    val btcConnected: Boolean,
+    val bluetoothClassicConnected: Boolean,
     val signalStrength: Int,
     val signalStrengthUpdatedAt: Long,
     val deviceModel: String,
@@ -114,7 +114,7 @@ data class GlassesStatus(
     val firmwareVersion: String,
     val besFirmwareVersion: String,
     val mtkFirmwareVersion: String,
-    val btMacAddress: String,
+    val bluetoothMacAddress: String,
     val leftMacAddress: String,
     val rightMacAddress: String,
     val macAddress: String,
@@ -145,7 +145,7 @@ data class GlassesStatus(
         mapOf(
             "connection" to connectionState.toStatusMap(connected, fullyBooted),
             "micEnabled" to micEnabled,
-            "btcConnected" to btcConnected,
+            "bluetoothClassicConnected" to bluetoothClassicConnected,
             "signalStrength" to signalStrength,
             "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
             "deviceModel" to deviceModel,
@@ -153,7 +153,7 @@ data class GlassesStatus(
             "firmwareVersion" to firmwareVersion,
             "besFirmwareVersion" to besFirmwareVersion,
             "mtkFirmwareVersion" to mtkFirmwareVersion,
-            "btMacAddress" to btMacAddress,
+            "bluetoothMacAddress" to bluetoothMacAddress,
             "leftMacAddress" to leftMacAddress,
             "rightMacAddress" to rightMacAddress,
             "macAddress" to macAddress,
@@ -188,7 +188,7 @@ data class GlassesStatus(
                 connected = boolValue(values, "connected") ?: false,
                 micEnabled = boolValue(values, "micEnabled") ?: false,
                 connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")),
-                btcConnected = boolValue(values, "btcConnected") ?: false,
+                bluetoothClassicConnected = boolValue(values, "bluetoothClassicConnected") ?: false,
                 signalStrength = numberValue(values, "signalStrength") ?: -1,
                 signalStrengthUpdatedAt = longValue(values, "signalStrengthUpdatedAt") ?: 0L,
                 deviceModel = stringValue(values, "deviceModel") ?: "",
@@ -196,7 +196,7 @@ data class GlassesStatus(
                 firmwareVersion = stringValue(values, "firmwareVersion") ?: "",
                 besFirmwareVersion = stringValue(values, "besFirmwareVersion") ?: "",
                 mtkFirmwareVersion = stringValue(values, "mtkFirmwareVersion") ?: "",
-                btMacAddress = stringValue(values, "btMacAddress") ?: "",
+                bluetoothMacAddress = stringValue(values, "bluetoothMacAddress") ?: "",
                 leftMacAddress = stringValue(values, "leftMacAddress") ?: "",
                 rightMacAddress = stringValue(values, "rightMacAddress") ?: "",
                 macAddress = stringValue(values, "macAddress") ?: "",
@@ -265,7 +265,7 @@ data class BluetoothStatus(
     val buttonMaxRecordingTime: Int,
     val buttonVideoWidth: Int,
     val buttonVideoHeight: Int,
-    val buttonVideoFps: Int,
+    val buttonVideoFrameRate: Int,
     val shouldSendPcm: Boolean,
     val shouldSendLc3: Boolean,
     val shouldSendTranscript: Boolean,
@@ -313,13 +313,13 @@ data class BluetoothStatus(
             "dashboard_depth" to dashboardDepth,
             "head_up_angle" to headUpAngle,
             "contextual_dashboard" to contextualDashboard,
-            "gallery_mode" to galleryModeAuto,
+            "galleryModeAuto" to galleryModeAuto,
             "button_photo_size" to buttonPhotoSize.value,
             "button_camera_led" to buttonCameraLed,
             "button_max_recording_time" to buttonMaxRecordingTime,
             "button_video_width" to buttonVideoWidth,
             "button_video_height" to buttonVideoHeight,
-            "button_video_fps" to buttonVideoFps,
+            "button_video_fps" to buttonVideoFrameRate,
             "should_send_pcm" to shouldSendPcm,
             "should_send_lc3" to shouldSendLc3,
             "should_send_transcript" to shouldSendTranscript,
@@ -361,13 +361,13 @@ data class BluetoothStatus(
                 dashboardDepth = numberValue(values, "dashboard_depth") ?: 2,
                 headUpAngle = numberValue(values, "head_up_angle") ?: 30,
                 contextualDashboard = boolValue(values, "contextual_dashboard") ?: true,
-                galleryModeAuto = boolValue(values, "gallery_mode") ?: true,
+                galleryModeAuto = boolValue(values, "galleryModeAuto") ?: true,
                 buttonPhotoSize = ButtonPhotoSize.fromValue(stringValue(values, "button_photo_size")),
                 buttonCameraLed = boolValue(values, "button_camera_led") ?: true,
                 buttonMaxRecordingTime = numberValue(values, "button_max_recording_time") ?: 10,
                 buttonVideoWidth = numberValue(values, "button_video_width") ?: 1280,
                 buttonVideoHeight = numberValue(values, "button_video_height") ?: 720,
-                buttonVideoFps = numberValue(values, "button_video_fps") ?: 30,
+                buttonVideoFrameRate = numberValue(values, "button_video_fps") ?: 30,
                 shouldSendPcm = boolValue(values, "should_send_pcm") ?: false,
                 shouldSendLc3 = boolValue(values, "should_send_lc3") ?: false,
                 shouldSendTranscript = boolValue(values, "should_send_transcript") ?: false,
@@ -384,7 +384,7 @@ data class GlassesStatusUpdate(
     val connected: Boolean? = null,
     val micEnabled: Boolean? = null,
     val connectionState: GlassesConnectionState? = null,
-    val btcConnected: Boolean? = null,
+    val bluetoothClassicConnected: Boolean? = null,
     val signalStrength: Int? = null,
     val signalStrengthUpdatedAt: Long? = null,
     val deviceModel: String? = null,
@@ -392,7 +392,7 @@ data class GlassesStatusUpdate(
     val firmwareVersion: String? = null,
     val besFirmwareVersion: String? = null,
     val mtkFirmwareVersion: String? = null,
-    val btMacAddress: String? = null,
+    val bluetoothMacAddress: String? = null,
     val leftMacAddress: String? = null,
     val rightMacAddress: String? = null,
     val macAddress: String? = null,
@@ -432,7 +432,7 @@ data class GlassesStatusUpdate(
                 put("connection", state.toStatusMap(connected == true, fullyBooted == true))
             }
             putIfNotNull("micEnabled", micEnabled)
-            putIfNotNull("btcConnected", btcConnected)
+            putIfNotNull("bluetoothClassicConnected", bluetoothClassicConnected)
             putIfNotNull("signalStrength", signalStrength)
             putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
             putIfNotNull("deviceModel", deviceModel)
@@ -440,7 +440,7 @@ data class GlassesStatusUpdate(
             putIfNotNull("firmwareVersion", firmwareVersion)
             putIfNotNull("besFirmwareVersion", besFirmwareVersion)
             putIfNotNull("mtkFirmwareVersion", mtkFirmwareVersion)
-            putIfNotNull("btMacAddress", btMacAddress)
+            putIfNotNull("bluetoothMacAddress", bluetoothMacAddress)
             putIfNotNull("leftMacAddress", leftMacAddress)
             putIfNotNull("rightMacAddress", rightMacAddress)
             putIfNotNull("macAddress", macAddress)
@@ -479,7 +479,7 @@ data class GlassesStatusUpdate(
                 connected = optionalBoolValue(values, "connected"),
                 micEnabled = optionalBoolValue(values, "micEnabled"),
                 connectionState = GlassesConnectionState.optionalFromValue(optionalStringValue(values, "connectionState")),
-                btcConnected = optionalBoolValue(values, "btcConnected"),
+                bluetoothClassicConnected = optionalBoolValue(values, "bluetoothClassicConnected"),
                 signalStrength = optionalNumberValue(values, "signalStrength"),
                 signalStrengthUpdatedAt = optionalLongValue(values, "signalStrengthUpdatedAt"),
                 deviceModel = optionalStringValue(values, "deviceModel"),
@@ -487,7 +487,7 @@ data class GlassesStatusUpdate(
                 firmwareVersion = optionalStringValue(values, "firmwareVersion"),
                 besFirmwareVersion = optionalStringValue(values, "besFirmwareVersion"),
                 mtkFirmwareVersion = optionalStringValue(values, "mtkFirmwareVersion"),
-                btMacAddress = optionalStringValue(values, "btMacAddress"),
+                bluetoothMacAddress = optionalStringValue(values, "bluetoothMacAddress"),
                 leftMacAddress = optionalStringValue(values, "leftMacAddress"),
                 rightMacAddress = optionalStringValue(values, "rightMacAddress"),
                 macAddress = optionalStringValue(values, "macAddress"),
@@ -570,7 +570,7 @@ data class BluetoothStatusUpdate(
     val buttonMaxRecordingTime: Int? = null,
     val buttonVideoWidth: Int? = null,
     val buttonVideoHeight: Int? = null,
-    val buttonVideoFps: Int? = null,
+    val buttonVideoFrameRate: Int? = null,
     val shouldSendPcm: Boolean? = null,
     val shouldSendLc3: Boolean? = null,
     val shouldSendTranscript: Boolean? = null,
@@ -608,13 +608,13 @@ data class BluetoothStatusUpdate(
             putIfNotNull("dashboard_depth", dashboardDepth)
             putIfNotNull("head_up_angle", headUpAngle)
             putIfNotNull("contextual_dashboard", contextualDashboard)
-            putIfNotNull("gallery_mode", galleryModeAuto)
+            putIfNotNull("galleryModeAuto", galleryModeAuto)
             buttonPhotoSize?.let { put("button_photo_size", it.value) }
             putIfNotNull("button_camera_led", buttonCameraLed)
             putIfNotNull("button_max_recording_time", buttonMaxRecordingTime)
             putIfNotNull("button_video_width", buttonVideoWidth)
             putIfNotNull("button_video_height", buttonVideoHeight)
-            putIfNotNull("button_video_fps", buttonVideoFps)
+            putIfNotNull("button_video_fps", buttonVideoFrameRate)
             putIfNotNull("should_send_pcm", shouldSendPcm)
             putIfNotNull("should_send_lc3", shouldSendLc3)
             putIfNotNull("should_send_transcript", shouldSendTranscript)
@@ -658,14 +658,14 @@ data class BluetoothStatusUpdate(
                 dashboardDepth = optionalNumberValue(values, "dashboard_depth"),
                 headUpAngle = optionalNumberValue(values, "head_up_angle"),
                 contextualDashboard = optionalBoolValue(values, "contextual_dashboard"),
-                galleryModeAuto = optionalBoolValue(values, "gallery_mode"),
+                galleryModeAuto = optionalBoolValue(values, "galleryModeAuto"),
                 buttonPhotoSize =
                     optionalStringValue(values, "button_photo_size")?.let(ButtonPhotoSize::fromValue),
                 buttonCameraLed = optionalBoolValue(values, "button_camera_led"),
                 buttonMaxRecordingTime = optionalNumberValue(values, "button_max_recording_time"),
                 buttonVideoWidth = optionalNumberValue(values, "button_video_width"),
                 buttonVideoHeight = optionalNumberValue(values, "button_video_height"),
-                buttonVideoFps = optionalNumberValue(values, "button_video_fps"),
+                buttonVideoFrameRate = optionalNumberValue(values, "button_video_fps"),
                 shouldSendPcm = optionalBoolValue(values, "should_send_pcm"),
                 shouldSendLc3 = optionalBoolValue(values, "should_send_lc3"),
                 shouldSendTranscript = optionalBoolValue(values, "should_send_transcript"),
@@ -764,7 +764,7 @@ data class ButtonPhotoSettings(
 data class ButtonVideoRecordingSettings(
     val width: Int,
     val height: Int,
-    val fps: Int,
+    val frameRate: Int,
 )
 
 enum class CameraFov(val fov: Int, val roiPosition: Int) {
@@ -783,8 +783,7 @@ enum class MicPreference(val value: String) {
     AUTO("auto"),
     PHONE("phone"),
     GLASSES("glasses"),
-    BT_CLASSIC("btclassic"),
-    BT("bt"),
+    BLUETOOTH("bluetooth"),
 }
 
 data class PhotoRequest @JvmOverloads constructor(
@@ -950,8 +949,8 @@ data class RgbLedRequest @JvmOverloads constructor(
     val packageName: String?,
     val action: RgbLedAction,
     val color: RgbLedColor?,
-    val ontime: Int,
-    val offtime: Int,
+    val onDurationMs: Int,
+    val offDurationMs: Int,
     val count: Int,
 )
 
@@ -1471,14 +1470,14 @@ data class LocalTranscriptionEvent(
 )
 
 data class GlassesMediaVolumeGetResult(
-    val volume: Int?,
+    val level: Int?,
     val statusCode: Int?,
     val values: Map<String, Any>,
 ) {
     companion object {
         fun fromMap(values: Map<String, Any>): GlassesMediaVolumeGetResult =
             GlassesMediaVolumeGetResult(
-                volume = numberValue(values, "vol"),
+                level = numberValue(values, "level"),
                 statusCode = (values["statusCode"] as? Number)?.toInt(),
                 values = values,
             )

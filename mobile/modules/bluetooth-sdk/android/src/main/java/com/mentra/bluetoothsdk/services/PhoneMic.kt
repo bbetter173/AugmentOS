@@ -190,7 +190,7 @@ class PhoneMic private constructor(private val context: Context) {
 
     /**
      * Start recording from a specific microphone type
-     * @param mode One of MicTypes constants (PHONE_INTERNAL, BT_CLASSIC, BT)
+     * @param mode One of MicTypes constants (PHONE_INTERNAL, BLUETOOTH_CLASSIC, BLUETOOTH)
      * @return true if successfully started recording, false otherwise
      */
     fun startMode(mode: String): Boolean {
@@ -253,7 +253,7 @@ class PhoneMic private constructor(private val context: Context) {
                 Bridge.log("MIC: Starting phone internal mic")
                 return startRecordingPhoneInternal()
             }
-            MicTypes.BT_CLASSIC -> {
+            MicTypes.BLUETOOTH_CLASSIC -> {
                 Bridge.log("MIC: Starting Bluetooth Classic (SCO)")
                 if (!audioManager.isBluetoothScoAvailableOffCall) {
                     Bridge.log("MIC: Bluetooth SCO not available")
@@ -262,7 +262,7 @@ class PhoneMic private constructor(private val context: Context) {
                 }
                 return startRecordingBtClassic()
             }
-            MicTypes.BT -> {
+            MicTypes.BLUETOOTH -> {
                 Bridge.log("MIC: Starting high-quality Bluetooth mic")
                 if (!isHighQualityBluetoothAvailable()) {
                     Bridge.log("MIC: High-quality Bluetooth not available")
@@ -346,7 +346,7 @@ class PhoneMic private constructor(private val context: Context) {
 
             val success = createAndStartAudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             if (success) {
-                currentMicMode = MicTypes.BT_CLASSIC
+                currentMicMode = MicTypes.BLUETOOTH_CLASSIC
             }
             return success
         } catch (e: Exception) {
@@ -383,7 +383,7 @@ class PhoneMic private constructor(private val context: Context) {
 
             val success = createAndStartAudioRecord(audioSource)
             if (success) {
-                currentMicMode = MicTypes.BT
+                currentMicMode = MicTypes.BLUETOOTH
             }
             return success
         } catch (e: Exception) {

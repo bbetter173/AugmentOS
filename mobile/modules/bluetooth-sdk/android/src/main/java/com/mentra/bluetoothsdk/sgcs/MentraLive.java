@@ -2776,7 +2776,7 @@ public class MentraLive extends SGCManager {
                 DeviceStore.INSTANCE.apply("glasses", "androidVersion", androidVersionLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "otaVersionUrl", otaVersionUrlLegacy != null ? otaVersionUrlLegacy : "");
                 DeviceStore.INSTANCE.apply("glasses", "firmwareVersion", firmwareVersionLegacy);
-                DeviceStore.INSTANCE.apply("glasses", "btMacAddress", btMacAddressLegacy);
+                DeviceStore.INSTANCE.apply("glasses", "bluetoothMacAddress", btMacAddressLegacy);
 
                 // Parse build number as integer for version checks (local field)
                 try {
@@ -2967,7 +2967,7 @@ public class MentraLive extends SGCManager {
                         DeviceStore.INSTANCE.apply("glasses", "mtkFirmwareVersion", (String) fields.get("mtk_fw_version"));
                     }
                     if (fields.containsKey("bt_mac_address")) {
-                        DeviceStore.INSTANCE.apply("glasses", "btMacAddress", (String) fields.get("bt_mac_address"));
+                        DeviceStore.INSTANCE.apply("glasses", "bluetoothMacAddress", (String) fields.get("bt_mac_address"));
                     }
 
 
@@ -3625,7 +3625,7 @@ public class MentraLive extends SGCManager {
 
     @Override
     public void sendGalleryMode() {
-        boolean active = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "gallery_mode");
+        boolean active = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "galleryModeAuto");
         Bridge.log("LIVE: 📸 Sending gallery mode active to glasses: " + active);
         try {
             JSONObject json = new JSONObject();
@@ -4759,7 +4759,7 @@ public class MentraLive extends SGCManager {
                 Map<String, Object> videoSettings = (Map<String, Object>) videoSettingsObj;
                 videoWidth = ((Number) videoSettings.getOrDefault("width", videoWidth)).intValue();
                 videoHeight = ((Number) videoSettings.getOrDefault("height", videoHeight)).intValue();
-                videoFps = ((Number) videoSettings.getOrDefault("fps", videoFps)).intValue();
+                videoFps = ((Number) videoSettings.getOrDefault("frameRate", videoFps)).intValue();
             } else {
                 Object width = DeviceStore.INSTANCE.get("bluetooth", "button_video_width");
                 Object height = DeviceStore.INSTANCE.get("bluetooth", "button_video_height");
@@ -5249,7 +5249,7 @@ public class MentraLive extends SGCManager {
         }
 
         HashMap<String, Object> map = new HashMap<>();
-        map.put("vol", vol);
+        map.put("level", vol);
         map.put("statusCode", status);
         Bridge.log("LIVE: sr_getvol received vol=" + vol + " (0-15), statusCode=" + status);
         if (ok != null) {
@@ -5823,8 +5823,8 @@ public class MentraLive extends SGCManager {
                                    String packageName,
                                    String action,
                                    String color,
-                                   int ontime,
-                                   int offtime,
+                                   int onDurationMs,
+                                   int offDurationMs,
                                    int count) {
         if (!isConnected || !glassesReady) {
             Bridge.log("LIVE: Cannot handle RGB LED control - glasses not connected");
@@ -5849,8 +5849,8 @@ public class MentraLive extends SGCManager {
                     int ledIndex = ledIndexForColor(color);
                     command.put("type", "rgb_led_control_on");
                     command.put("led", ledIndex);
-                    command.put("ontime", ontime);
-                    command.put("offtime", offtime);
+                    command.put("ontime", onDurationMs);
+                    command.put("offtime", offDurationMs);
                     command.put("count", count);
                     break;
                 case "off":
@@ -6487,7 +6487,7 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Send camera FOV setting to glasses (K900 / Mentra Live). Reads fov and roi_position from store.
+     * Send camera FOV setting to glasses (K900 / Mentra Live). Reads fov and roiPosition from store.
      */
     @Override
     public void sendCameraFovSetting() {
@@ -6499,7 +6499,7 @@ public class MentraLive extends SGCManager {
                 @SuppressWarnings("unchecked")
                 java.util.Map<String, Object> map = (java.util.Map<String, Object>) raw;
                 Object f = map.get("fov");
-                Object r = map.get("roi_position");
+                Object r = map.get("roiPosition");
                 if (f instanceof Number) fov = ((Number) f).intValue();
                 if (r instanceof Number) roiPosition = ((Number) r).intValue();
             }
@@ -6507,7 +6507,7 @@ public class MentraLive extends SGCManager {
             Log.w(TAG, "Could not read camera_fov from store, using defaults", e);
         }
 
-        Bridge.log("LIVE: Sending camera FOV setting: fov=" + fov + ", roi_position=" + roiPosition);
+        Bridge.log("LIVE: Sending camera FOV setting: fov=" + fov + ", roiPosition=" + roiPosition);
 
         if (!isConnected) {
             Log.w(TAG, "Cannot send camera FOV setting - not connected");

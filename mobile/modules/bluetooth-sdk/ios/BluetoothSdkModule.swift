@@ -427,7 +427,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("rgbLedControl") {
             (
                 requestId: String, packageName: String?, action: String, color: String?,
-                ontime: Int, offtime: Int, count: Int
+                onDurationMs: Int, offDurationMs: Int, count: Int
             ) in
             await MainActor.run {
                 self.bluetoothSdk().rgbLedControl(
@@ -436,8 +436,8 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                         packageName: packageName,
                         action: RgbLedAction(rawValue: action) ?? .off,
                         color: color.flatMap(RgbLedColor.init(rawValue:)),
-                        ontime: ontime,
-                        offtime: offtime,
+                        onDurationMs: onDurationMs,
+                        offDurationMs: offDurationMs,
                         count: count
                     )
                 )

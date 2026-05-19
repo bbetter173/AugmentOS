@@ -66,7 +66,7 @@ object DeviceStore {
         store.set("glasses", "deviceModel", "")
         store.set("glasses", "firmwareVersion", "")
         store.set("glasses", "micEnabled", false)
-        store.set("glasses", "btcConnected", false)
+        store.set("glasses", "bluetoothClassicConnected", false)
         store.set("glasses", "caseRemoved", true)
         store.set("glasses", "caseOpen", true)
         store.set("glasses", "caseCharging", false)
@@ -121,12 +121,12 @@ object DeviceStore {
         store.set("bluetooth", "dashboard_depth", 2)
         store.set("bluetooth", "head_up_angle", 30)
         store.set("bluetooth", "contextual_dashboard", true)
-        store.set("bluetooth", "gallery_mode", true)
+        store.set("bluetooth", "galleryModeAuto", true)
         store.set("bluetooth", "screen_disabled", false)
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
         store.set("bluetooth", "button_max_recording_time", 10)
-        store.set("bluetooth", "camera_fov", mapOf("fov" to 118, "roi_position" to 0))
+        store.set("bluetooth", "camera_fov", mapOf("fov" to 118, "roiPosition" to 0))
         store.set("bluetooth", "button_video_width", 1280)
         store.set("bluetooth", "button_video_height", 720)
         store.set("bluetooth", "button_video_fps", 30)
@@ -239,7 +239,7 @@ object DeviceStore {
                     DeviceManager.getInstance().sgc?.setDashboardMenu(items)
                 }
             }
-            "bluetooth" to "gallery_mode" -> {
+            "bluetooth" to "galleryModeAuto" -> {
                 DeviceManager.getInstance().sgc?.sendGalleryMode()
             }
             "bluetooth" to "screen_disabled" -> {

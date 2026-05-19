@@ -2609,8 +2609,8 @@ class G2 : SGCManager() {
             packageName: String?,
             action: String,
             color: String?,
-            ontime: Int,
-            offtime: Int,
+            onDurationMs: Int,
+            offDurationMs: Int,
             count: Int
     ) {
         // G2 doesn't have RGB LEDs
@@ -2711,7 +2711,7 @@ class G2 : SGCManager() {
                             if (mac != null) {
                                 if (name.contains("_L_")) {
                                     DeviceStore.apply("glasses", "leftMacAddress", mac)
-                                    DeviceStore.apply("glasses", "btMacAddress", mac)
+                                    DeviceStore.apply("glasses", "bluetoothMacAddress", mac)
                                 } else if (name.contains("_R_")) {
                                     DeviceStore.apply("glasses", "rightMacAddress", mac)
                                 }

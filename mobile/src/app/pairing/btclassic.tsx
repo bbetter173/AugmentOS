@@ -16,7 +16,7 @@ import CrustModule from "crust"
 export default function BtClassicPairingScreen() {
   const {goBack} = useNavigationStore.getState()
   const pushPrevious = usePushPrevious()
-  const btcConnected = useGlassesStore((state) => state.btcConnected)
+  const bluetoothClassicConnected = useGlassesStore((state) => state.bluetoothClassicConnected)
   const otherBtConnected = useCoreStore((state) => state.otherBtConnected)
   const [deviceName] = useSetting(SETTINGS.device_name.key)
   const {theme} = useAppTheme()
@@ -42,11 +42,11 @@ export default function BtClassicPairingScreen() {
   }
 
   useEffect(() => {
-    console.log("BTCLASSIC: check btcConnected", btcConnected)
-    if (btcConnected) {
+    console.log("BTCLASSIC: check bluetoothClassicConnected", bluetoothClassicConnected)
+    if (bluetoothClassicConnected) {
       handleSuccess()
     }
-  }, [btcConnected])
+  }, [bluetoothClassicConnected])
 
   useEffect(() => {
     console.log("BTCLASSIC: check deviceName", deviceName)

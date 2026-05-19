@@ -2087,8 +2087,8 @@ class MentraLive: NSObject, SGCManager {
                     // Note: Stored separately from BES version for OTA patch matching
                     DeviceStore.shared.apply("glasses", "mtkFirmwareVersion", mtkFirmwareVersion)
                 }
-                if let btMacAddress = fields["bt_mac_address"] as? String {
-                    DeviceStore.shared.apply("glasses", "btMacAddress", btMacAddress)
+                if let bluetoothMacAddress = fields["bt_mac_address"] as? String {
+                    DeviceStore.shared.apply("glasses", "bluetoothMacAddress", bluetoothMacAddress)
                 }
 
                 // Send fields immediately to RN - no waiting for other chunks
@@ -2461,7 +2461,7 @@ class MentraLive: NSObject, SGCManager {
     }
 
     func sendGalleryMode() {
-        let active = DeviceStore.shared.get("bluetooth", "gallery_mode") as! Bool
+        let active = DeviceStore.shared.get("bluetooth", "galleryModeAuto") as! Bool
         Bridge.log("LIVE: 📸 Sending gallery mode active to glasses: \(active)")
 
         let json: [String: Any] = [
@@ -2587,13 +2587,13 @@ class MentraLive: NSObject, SGCManager {
         let androidVersion = json["android_version"] as? String ?? ""
         let otaVersionUrl = json["ota_version_url"] as? String ?? ""
         let firmwareVersion = json["firmware_version"] as? String ?? ""
-        let btMacAddress = json["bt_mac_address"] as? String ?? ""
+        let bluetoothMacAddress = json["bt_mac_address"] as? String ?? ""
 
         DeviceStore.shared.apply("glasses", "appVersion", appVersion)
         DeviceStore.shared.apply("glasses", "buildNumber", buildNumber)
         DeviceStore.shared.apply("glasses", "otaVersionUrl", otaVersionUrl)
         DeviceStore.shared.apply("glasses", "firmwareVersion", firmwareVersion)
-        DeviceStore.shared.apply("glasses", "btMacAddress", btMacAddress)
+        DeviceStore.shared.apply("glasses", "bluetoothMacAddress", bluetoothMacAddress)
         isNewVersion = (Int(buildNumber) ?? 0) >= 5
         DeviceStore.shared.apply("glasses", "deviceModel", deviceModel)
         DeviceStore.shared.apply("glasses", "androidVersion", androidVersion)
@@ -2603,14 +2603,14 @@ class MentraLive: NSObject, SGCManager {
         // hasMic = supportsLC3Audio
 
         Bridge.log(
-            "Glasses Version - App: \(appVersion), Build: \(buildNumber), Device: \(deviceModel), Android: \(androidVersion), Firmware: \(firmwareVersion), BT MAC: \(btMacAddress), OTA URL: \(otaVersionUrl)"
+            "Glasses Version - App: \(appVersion), Build: \(buildNumber), Device: \(deviceModel), Android: \(androidVersion), Firmware: \(firmwareVersion), BT MAC: \(bluetoothMacAddress), OTA URL: \(otaVersionUrl)"
         )
         Bridge.log("LIVE: LC3 Audio Support: \(supportsLC3Audio), Has Mic: \(hasMic)")
         emitVersionInfo(
             appVersion: appVersion, buildNumber: buildNumber, deviceModel: deviceModel,
             androidVersion: androidVersion, otaVersionUrl: otaVersionUrl,
             firmwareVersion: firmwareVersion,
-            btMacAddress: btMacAddress
+            bluetoothMacAddress: bluetoothMacAddress
         )
     }
 
@@ -3809,7 +3809,7 @@ class MentraLive: NSObject, SGCManager {
 
     private func emitVersionInfo(
         appVersion: String, buildNumber: String, deviceModel: String, androidVersion: String,
-        otaVersionUrl: String, firmwareVersion: String, btMacAddress: String
+        otaVersionUrl: String, firmwareVersion: String, bluetoothMacAddress: String
     ) {
         let eventBody: [String: Any] = [
             "app_version": appVersion,
@@ -3818,7 +3818,7 @@ class MentraLive: NSObject, SGCManager {
             "android_version": androidVersion,
             "ota_version_url": otaVersionUrl,
             "firmware_version": firmwareVersion,
-            "bt_mac_address": btMacAddress,
+            "bt_mac_address": bluetoothMacAddress,
         ]
 
         Bridge.sendTypedMessage("version_info", body: eventBody)
@@ -4104,7 +4104,7 @@ extension MentraLive {
         glassesMediaVolumeLock.unlock()
         if let c {
             DispatchQueue.main.async {
-                c(.success(["vol": vol, "statusCode": status]))
+                c(.success(["level": vol, "statusCode": status]))
             }
         }
     }
@@ -4347,8 +4347,8 @@ extension MentraLive {
         packageName: String?,
         action: String,
         color: String?,
-        ontime: Int,
-        offtime: Int,
+        onDurationMs: Int,
+        offDurationMs: Int,
         count: Int
     ) {
         guard connectionState == ConnTypes.CONNECTED, fullyBooted else {
@@ -4376,8 +4376,8 @@ extension MentraLive {
             let ledIndex = ledIndex(for: color)
             command["type"] = "rgb_led_control_on"
             command["led"] = ledIndex
-            command["ontime"] = ontime
-            command["offtime"] = offtime
+            command["ontime"] = onDurationMs
+            command["offtime"] = offDurationMs
             command["count"] = count
         case "off":
             command["type"] = "rgb_led_control_off"
@@ -4500,11 +4500,11 @@ extension MentraLive {
             DeviceStore.shared.get("bluetooth", "button_video_settings") as? [String: Any] ?? [
                 "width": 1280,
                 "height": 720,
-                "fps": 30,
+                "frameRate": 30,
             ]
         let width = settings["width"] as? Int ?? 1280
         let height = settings["height"] as? Int ?? 720
-        let fps = settings["fps"] as? Int ?? 30
+        let fps = settings["frameRate"] as? Int ?? 30
 
         // Use defaults if not set
         let finalWidth = width > 0 ? width : 1280
@@ -4582,11 +4582,11 @@ extension MentraLive {
     }
 
     func sendCameraFovSetting() {
-        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roi_position": 0]
+        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roiPosition": 0]
         let fov = settings["fov"] as? Int ?? 118
-        let roiPosition = settings["roi_position"] as? Int ?? 0
+        let roiPosition = settings["roiPosition"] as? Int ?? 0
 
-        Bridge.log("Sending camera FOV setting: fov=\(fov), roi_position=\(roiPosition)")
+        Bridge.log("Sending camera FOV setting: fov=\(fov), roiPosition=\(roiPosition)")
 
         guard connectionState == ConnTypes.CONNECTED else {
             Bridge.log("Cannot send camera FOV setting - not connected")

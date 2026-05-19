@@ -259,7 +259,7 @@ class R1: NSObject, ControllerManager {
     /// to WRITE_CHAR_2 (BAE80012-…). Reverse-engineered from the Even Realities mobile app
     /// (BleRing1CmdProto::advStart -> BleRing1CmdPublicExt.sendCmd).
     private func connectToGlasses() {
-        let glassesMac = (DeviceStore.shared.get("glasses", "btMacAddress") as? String)
+        let glassesMac = (DeviceStore.shared.get("glasses", "bluetoothMacAddress") as? String)
             ?? UserDefaults.standard.string(forKey: "glasses_btMacAddress")
 
         guard let glassesMac else {
@@ -530,8 +530,8 @@ class R1: NSObject, ControllerManager {
 
     func sendReboot() {}
     func sendRgbLedControl(
-        requestId _: String, packageName _: String?, action _: String, color _: String?, ontime _: Int,
-        offtime _: Int, count _: Int
+        requestId _: String, packageName _: String?, action _: String, color _: String?, onDurationMs _: Int,
+        offDurationMs _: Int, count _: Int
     ) {}
     func requestWifiScan() {}
     func sendWifiCredentials(_: String, _: String) {}

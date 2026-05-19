@@ -169,17 +169,17 @@ class DeviceManager {
         set(value) = DeviceStore.apply("bluetooth", "dashboard_depth", value)
 
     private var galleryMode: Boolean
-        get() = DeviceStore.store.get("bluetooth", "gallery_mode") as? Boolean ?: true
-        set(value) = DeviceStore.apply("bluetooth", "gallery_mode", value)
+        get() = DeviceStore.store.get("bluetooth", "galleryModeAuto") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "galleryModeAuto", value)
 
     // state:
     private var searching: Boolean
         get() = DeviceStore.store.get("bluetooth", "searching") as? Boolean ?: false
         set(value) = DeviceStore.apply("bluetooth", "searching", value)
 
-    private var glassesBtcConnected: Boolean
-        get() = DeviceStore.store.get("glasses", "btcConnected") as? Boolean ?: false
-        set(value) = DeviceStore.apply("glasses", "btcConnected", value)
+    private var glassesBluetoothClassicConnected: Boolean
+        get() = DeviceStore.store.get("glasses", "bluetoothClassicConnected") as? Boolean ?: false
+        set(value) = DeviceStore.apply("glasses", "bluetoothClassicConnected", value)
 
     public var micRanking: MutableList<String>
         get() =
@@ -727,8 +727,8 @@ class DeviceManager {
 
             for (micMode in micRanking) {
                 if (micMode == MicTypes.PHONE_INTERNAL ||
-                                micMode == MicTypes.BT_CLASSIC ||
-                                micMode == MicTypes.BT
+                                micMode == MicTypes.BLUETOOTH_CLASSIC ||
+                                micMode == MicTypes.BLUETOOTH
                 ) {
 
                     if (phoneMic?.isRecordingWithMode(micMode) == true) {
@@ -790,8 +790,8 @@ class DeviceManager {
             }
 
             if (micMode == MicTypes.PHONE_INTERNAL ||
-                            micMode == MicTypes.BT_CLASSIC ||
-                            micMode == MicTypes.BT
+                            micMode == MicTypes.BLUETOOTH_CLASSIC ||
+                            micMode == MicTypes.BLUETOOTH
             ) {
                 phoneMic?.stopMode(micMode)
             }
@@ -1393,12 +1393,12 @@ class DeviceManager {
             packageName: String?,
             action: String,
             color: String?,
-            ontime: Int,
-            offtime: Int,
+            onDurationMs: Int,
+            offDurationMs: Int,
             count: Int
     ) {
         Bridge.log("MAN: RGB LED control: action=$action, color=$color, requestId=$requestId")
-        sgc?.sendRgbLedControl(requestId, packageName, action, color, ontime, offtime, count)
+        sgc?.sendRgbLedControl(requestId, packageName, action, color, onDurationMs, offDurationMs, count)
     }
 
     fun connectDefault() {

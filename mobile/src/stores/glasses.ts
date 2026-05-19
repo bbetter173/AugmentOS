@@ -114,14 +114,14 @@ const initialState: GlassesStore = {
   // state:
   connection: {state: "disconnected"},
   micEnabled: false,
-  btcConnected: false,
+  bluetoothClassicConnected: false,
   signalStrength: -1,
   signalStrengthUpdatedAt: 0,
   // device info
   deviceModel: "",
   androidVersion: "",
   firmwareVersion: "",
-  btMacAddress: "",
+  bluetoothMacAddress: "",
   leftMacAddress: "",
   rightMacAddress: "",
   buildNumber: "",

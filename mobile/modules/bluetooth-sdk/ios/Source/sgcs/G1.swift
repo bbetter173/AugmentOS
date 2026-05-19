@@ -1446,7 +1446,7 @@ extension G1 {
 
     func sendRgbLedControl(
         requestId: String, packageName _: String?, action _: String, color _: String?,
-        ontime _: Int, offtime _: Int, count _: Int
+        onDurationMs _: Int, offDurationMs _: Int, count _: Int
     ) {
         Bridge.log("sendRgbLedControl - not supported on G1")
         Bridge.sendRgbLedControlResponse(

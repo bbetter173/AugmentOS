@@ -67,7 +67,7 @@ export function createDisconnectedGlassesStatus(): Partial<GlassesStatus> {
 
 /** K900 `sr_getvol` response (Mentra Live glasses media step volume 0–15). */
 export type GlassesMediaVolumeGetResult = {
-  vol: number
+  level: number
   statusCode: number
 }
 
@@ -220,13 +220,11 @@ export type CameraFov = "standard" | "wide"
 
 export type CameraFovSetting = {
   fov: number
-  roi_position: number
+  roiPosition: number
 }
 
 export type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
-export type MicMode = "phone" | "glasses" | "btclassic" | "bt"
-/** @deprecated Use {@link MicMode} for active/ranked mic modes or {@link MicPreference} for preferences. */
-export type MicRanking = MicMode
+export type MicMode = "phone" | "glasses" | "bluetoothClassic" | "bluetooth"
 
 export type StreamVideoConfig = {
   width?: number
@@ -489,7 +487,7 @@ export type PublicBluetoothStatus = Pick<
   | "wifiScanResults"
   | "lastLog"
   | "otherBtConnected"
-  | "gallery_mode"
+  | "galleryModeAuto"
 >
 
 export type BluetoothSdkEventMap = {
@@ -574,7 +572,7 @@ export interface BluetoothSdkPublicModule {
 
   setGalleryMode(mode: GalleryMode): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
@@ -612,8 +610,8 @@ export interface BluetoothSdkPublicModule {
     packageName: string | null,
     action: RgbLedAction,
     color: RgbLedColor | null,
-    ontime: number,
-    offtime: number,
+    onDurationMs: number,
+    offDurationMs: number,
     count: number,
   ): Promise<void>
 
@@ -661,7 +659,7 @@ export interface GlassesStatus {
   // state:
   connection: GlassesConnectionStatus
   micEnabled: boolean
-  btcConnected: boolean
+  bluetoothClassicConnected: boolean
   signalStrength: number
   /** Milliseconds since epoch when signalStrength was last refreshed by the phone BLE stack. */
   signalStrengthUpdatedAt: number
@@ -671,7 +669,7 @@ export interface GlassesStatus {
   firmwareVersion: string
   besFirmwareVersion: string
   mtkFirmwareVersion: string
-  btMacAddress: string
+  bluetoothMacAddress: string
   leftMacAddress: string
   rightMacAddress: string
   buildNumber: string
@@ -774,7 +772,7 @@ export interface BluetoothStatus {
   lastLog: string[]
   otherBtConnected: boolean
   // desired settings the SDK sends to compatible connected glasses:
-  gallery_mode: boolean
+  galleryModeAuto: boolean
 }
 
 export type BluetoothSettingsUpdate = Partial<{
@@ -792,9 +790,9 @@ export type BluetoothSettingsUpdate = Partial<{
   dashboard_height: number
   dashboard_depth: number
   menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
-  gallery_mode: boolean
+  galleryModeAuto: boolean
   button_photo_size: ButtonPhotoSize
-  button_video_settings: {width: number; height: number; fps: number}
+  button_video_settings: {width: number; height: number; frameRate: number}
   button_video_width: number
   button_video_height: number
   button_video_fps: number

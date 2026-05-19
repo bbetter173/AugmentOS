@@ -300,7 +300,7 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun setGalleryMode(mode: GalleryMode) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", mode == GalleryMode.AUTO)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "galleryModeAuto", mode == GalleryMode.AUTO)
     }
 
     fun setButtonPhotoSettings(size: ButtonPhotoSize) {
@@ -311,14 +311,14 @@ class MentraBluetoothSdk private constructor(
         setButtonPhotoSettings(size = settings.size)
     }
 
-    fun setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) {
+    fun setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_width", width)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_height", height)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", fps)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", frameRate)
     }
 
     fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings) {
-        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, fps = settings.fps)
+        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, frameRate = settings.frameRate)
     }
 
     fun setButtonCameraLed(enabled: Boolean) {
@@ -333,7 +333,7 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(
             ObservableStore.BLUETOOTH_CATEGORY,
             "camera_fov",
-            mapOf("fov" to fov.fov, "roi_position" to fov.roiPosition),
+            mapOf("fov" to fov.fov, "roiPosition" to fov.roiPosition),
         )
     }
 
@@ -449,8 +449,8 @@ class MentraBluetoothSdk private constructor(
             request.packageName,
             request.action.value,
             request.color?.value,
-            request.ontime,
-            request.offtime,
+            request.onDurationMs,
+            request.offDurationMs,
             request.count,
         )
     }

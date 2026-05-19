@@ -193,11 +193,11 @@ Public `GlassesStatus` fields:
 | Field | Meaning |
 | --- | --- |
 | `connection` | Discriminated connection state. `fullyBooted` exists only when connected. |
-| `micEnabled`, `btcConnected` | Microphone and Bluetooth-classic/audio state reported by the connected model. |
+| `micEnabled`, `bluetoothClassicConnected` | Microphone and Bluetooth-classic/audio state reported by the connected model. |
 | `signalStrength`, `signalStrengthUpdatedAt` | BLE RSSI and last phone-side refresh time. |
 | `deviceModel`, `bluetoothName`, `serialNumber`, `style`, `color` | Device identity fields when the model reports them. |
 | `androidVersion`, `appVersion`, `buildNumber`, `firmwareVersion`, `besFirmwareVersion`, `mtkFirmwareVersion` | Version fields. See Version Fields below for how to display them. |
-| `btMacAddress`, `leftMacAddress`, `rightMacAddress` | Model-specific Bluetooth addresses when available. |
+| `bluetoothMacAddress`, `leftMacAddress`, `rightMacAddress` | Model-specific Bluetooth addresses when available. |
 | `wifi`, `hotspot` | Typed Wi-Fi and hotspot status unions. |
 | `batteryLevel`, `charging`, `caseBatteryLevel`, `caseCharging`, `caseOpen`, `caseRemoved` | Device and case battery state where supported. Unknown battery levels are reported as `-1`. |
 | `controllerConnected`, `controllerFullyBooted`, `controllerMacAddress`, `controllerBatteryLevel`, `controllerSignalStrength` | Controller/ring status for models with a companion controller. |
@@ -211,7 +211,7 @@ Public `BluetoothStatus` fields:
 | `wifiScanResults` | Wi-Fi networks returned by glasses-side Wi-Fi scan. |
 | `systemMicUnavailable`, `micRanking`, `currentMic`, `otherBtConnected` | Phone/glasses microphone and audio-route status. |
 | `lastLog` | Recent SDK log lines for developer visibility. |
-| `gallery_mode` | Current gallery-button behavior setting known to the SDK. |
+| `galleryModeAuto` | Current gallery-button behavior setting known to the SDK. |
 
 ## React Native Public Surface
 

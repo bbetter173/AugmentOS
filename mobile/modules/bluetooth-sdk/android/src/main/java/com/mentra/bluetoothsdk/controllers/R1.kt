@@ -454,7 +454,7 @@ class R1 : ControllerManager() {
      */
     private fun connectToGlasses() {
         // Try DeviceStore first; fall back to cached value in SharedPreferences.
-        val glassesMac = (DeviceStore.get("glasses", "btMacAddress") as? String)
+        val glassesMac = (DeviceStore.get("glasses", "bluetoothMacAddress") as? String)
             ?: prefs.getString("glasses_btMacAddress", null)
         if (glassesMac == null) {
             Bridge.log("R1: connectToGlasses: no glasses MAC")
@@ -888,7 +888,7 @@ class R1 : ControllerManager() {
     override fun sendReboot() {}
     override fun sendRgbLedControl(
         requestId: String, packageName: String?, action: String, color: String?,
-        ontime: Int, offtime: Int, count: Int
+        onDurationMs: Int, offDurationMs: Int, count: Int
     ) {}
     override fun requestWifiScan() {}
     override fun sendWifiCredentials(ssid: String, password: String) {}

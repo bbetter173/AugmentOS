@@ -173,7 +173,7 @@ Mentra Live exposes step-based media volume helpers where supported:
 
 ```ts
 const current = await BluetoothSdk.getGlassesMediaVolume();
-console.log(current.vol); // 0-15
+console.log(current.level); // 0-15
 
 await BluetoothSdk.setGlassesMediaVolume(8);
 ```

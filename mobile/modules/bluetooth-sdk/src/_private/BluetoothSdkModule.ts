@@ -466,6 +466,9 @@ NativeBluetoothSdkModule.scan = async function (
     }
 
     const handleBluetoothStatus = (status: Partial<BluetoothStatus>) => {
+      if (!Array.isArray(status.searchResults)) {
+        return
+      }
       emitResults(searchResultsForModel(status, scanOptions.model))
     }
 

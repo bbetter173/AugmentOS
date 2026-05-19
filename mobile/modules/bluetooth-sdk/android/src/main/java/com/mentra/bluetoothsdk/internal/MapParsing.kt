@@ -69,7 +69,7 @@ internal fun optionalStringValue(
     vararg keys: String,
 ): String? =
     if (hasAnyKey(values, *keys)) {
-        stringValue(values, *keys) ?: ""
+        stringValue(values, *keys)
     } else {
         null
     }
@@ -79,7 +79,7 @@ internal fun optionalBoolValue(
     vararg keys: String,
 ): Boolean? =
     if (hasAnyKey(values, *keys)) {
-        boolValue(values, *keys) ?: false
+        boolValue(values, *keys)
     } else {
         null
     }

@@ -7,6 +7,7 @@ import android.os.Looper
 import com.mentra.bluetoothsdk.utils.ControllerTypes
 import com.mentra.bluetoothsdk.utils.PhoneAudioMonitor
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MentraBluetoothSdk private constructor(
     context: Context,
@@ -33,6 +34,7 @@ class MentraBluetoothSdk private constructor(
 
     companion object {
         private val DEFAULT_DEVICE_KEYS = setOf("default_wearable", "device_name", "device_address")
+        private val SCAN_STATE_KEYS = setOf("searching", "searchingController", "searchResults")
         private const val DEFAULT_SCAN_TIMEOUT_MS = 15_000L
 
         @JvmStatic
@@ -155,7 +157,7 @@ class MentraBluetoothSdk private constructor(
         val latestResults = mutableListOf<Device>()
         lateinit var timeoutRunnable: Runnable
         lateinit var session: ScanSession
-        var finished = false
+        val finished = AtomicBoolean(false)
 
         fun emitResults(devices: List<Device>) {
             latestResults.clear()
@@ -171,8 +173,7 @@ class MentraBluetoothSdk private constructor(
             }
 
         fun finish(reason: ScanStopReason) {
-            if (finished) return
-            finished = true
+            if (!finished.compareAndSet(false, true)) return
             removeListener(scanListener)
             mainHandler.removeCallbacks(timeoutRunnable)
             session.markStopped()
@@ -501,10 +502,13 @@ class MentraBluetoothSdk private constructor(
             }
             ObservableStore.BLUETOOTH_CATEGORY -> {
                 val state = getState()
+                val scanChanged = changes.keys.any { it in SCAN_STATE_KEYS }
                 dispatchToListeners {
                     it.onStateChanged(state)
                     it.onSdkStateChanged(state.sdk)
-                    it.onScanChanged(state.scan)
+                    if (scanChanged) {
+                        it.onScanChanged(state.scan)
+                    }
                 }
                 if (!suppressDefaultDeviceEvents && changes.keys.any { it in DEFAULT_DEVICE_KEYS }) {
                     dispatchDefaultDeviceChanged()

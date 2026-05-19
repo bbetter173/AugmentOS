@@ -46,7 +46,7 @@ export const ConnectDeviceButton = () => {
   // New handler: if already connecting, pressing the button calls disconnect.
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await BluetoothSdk.disconnectController()
+      await BluetoothSdk.disconnect()
     } else {
       await connectGlasses()
     }
@@ -133,7 +133,7 @@ export const ConnectControllerButton = () => {
   // New handler: if already connecting, pressing the button calls disconnect.
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await BluetoothSdk.disconnect()
+      await BluetoothSdk.disconnectController()
     } else {
       await connectController()
     }

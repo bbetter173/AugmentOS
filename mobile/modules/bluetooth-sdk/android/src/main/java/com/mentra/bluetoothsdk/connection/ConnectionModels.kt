@@ -1,6 +1,7 @@
 package com.mentra.bluetoothsdk
 
 import com.mentra.bluetoothsdk.utils.ConnTypes
+import java.util.concurrent.atomic.AtomicBoolean
 
 enum class GlassesConnectionState(val value: String) {
     DISCONNECTED(ConnTypes.DISCONNECTED),
@@ -63,16 +64,15 @@ abstract class MentraBluetoothScanCallback : ScanCallback
 class ScanSession internal constructor(
     private val stopAction: () -> Unit,
 ) {
-    @Volatile
-    private var stopped = false
+    private val stopped = AtomicBoolean(false)
 
     fun stop() {
-        if (stopped) return
-        stopped = true
-        stopAction()
+        if (stopped.compareAndSet(false, true)) {
+            stopAction()
+        }
     }
 
     internal fun markStopped() {
-        stopped = true
+        stopped.set(true)
     }
 }

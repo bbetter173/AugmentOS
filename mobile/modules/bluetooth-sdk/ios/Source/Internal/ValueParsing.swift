@@ -41,7 +41,7 @@ func hasAnyKey(_ values: [String: Any], _ keys: [String]) -> Bool {
 }
 
 func optionalStringValue(_ values: [String: Any], _ keys: String...) -> String? {
-    hasAnyKey(values, keys) ? (stringValue(values, keys) ?? "") : nil
+    hasAnyKey(values, keys) ? stringValue(values, keys) : nil
 }
 
 func nonEmptyStringValue(_ values: [String: Any], _ keys: String...) -> String? {
@@ -64,7 +64,7 @@ func optionalIntValue(_ values: [String: Any], _ keys: String...) -> Int? {
 }
 
 func optionalBoolValue(_ values: [String: Any], _ keys: String...) -> Bool? {
-    hasAnyKey(values, keys) ? (boolValue(values, keys) ?? false) : nil
+    hasAnyKey(values, keys) ? boolValue(values, keys) : nil
 }
 
 func stringListValue(_ values: [String: Any], _ key: String) -> [String] {

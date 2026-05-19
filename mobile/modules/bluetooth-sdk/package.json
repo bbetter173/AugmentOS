@@ -21,6 +21,7 @@
     "./build/*": null,
     "./src/*": null,
     "./app.plugin": "./app.plugin.js",
+    "./app.plugin.js": "./app.plugin.js",
     "./package.json": "./package.json"
   },
   "files": [

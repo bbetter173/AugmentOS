@@ -107,7 +107,7 @@ val scanSession = sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { nextDe
 
 val device = chooseDevice(devices)
 sdk.connect(device)
-sdk.setDefaultDevice(Device(model = DeviceModel.MENTRA_LIVE, name = "Mentra_Live_E7FA"))
+sdk.setDefaultDevice(device)
 val defaultDevice = sdk.getDefaultDevice()
 sdk.connectDefault()
 sdk.clearDefaultDevice()
@@ -129,7 +129,7 @@ let scanSession = try sdk.scan(model: .mentraLive, timeout: 10) { nextDevices in
 
 let device = chooseDevice(devices)
 try sdk.connect(to: device)
-sdk.setDefaultDevice(Device(model: .mentraLive, name: "Mentra_Live_E7FA"))
+sdk.setDefaultDevice(device)
 let defaultDevice = sdk.getDefaultDevice()
 try sdk.connectDefault()
 sdk.clearDefaultDevice()
@@ -274,7 +274,10 @@ Mentra Live has camera, microphone, and speaker hardware, but no display. G2 has
 
 ## Events
 
-React Native components should use `useBluetoothEvent()` for hardware events. The hook keeps the callback typed and removes the native subscription when the component unmounts:
+React Native components should use `useBluetoothEvent()` for hardware events. The hook keeps the callback typed and removes the native subscription when the component unmounts. Native apps receive the same event categories through listener/delegate methods:
+
+<Tabs>
+  <Tab title="React Native">
 
 ```tsx
 import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
@@ -292,6 +295,50 @@ export function HardwareEventLogger() {
   return null;
 }
 ```
+
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+class GlassesEvents : MentraBluetoothSdkCallback() {
+    override fun onButtonPress(event: ButtonPressEvent) {
+        Log.d("Mentra", "${event.buttonId} ${event.pressType}")
+    }
+
+    override fun onPhotoResponse(event: PhotoResponseEvent) {
+        Log.d("Mentra", "Photo request ${event.requestId}: ${event.response.state}")
+    }
+
+    override fun onMicPcm(event: MicPcmEvent) {
+        Log.d("Mentra", "${event.sampleRate} Hz ${event.bitsPerSample}-bit PCM")
+    }
+}
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+final class GlassesEvents: MentraBluetoothSDKDelegate {
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEvent) {
+        switch event {
+        case let .buttonPress(button):
+            print("\(button.buttonId) \(button.pressType)")
+        case let .photoResponse(photo):
+            print("Photo request \(photo.requestId): \(photo.response.state.rawValue)")
+        default:
+            break
+        }
+    }
+
+    func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceiveMicPcm event: MicPcmEvent) {
+        print("\(event.sampleRate) Hz \(event.bitsPerSample)-bit PCM")
+    }
+}
+```
+
+  </Tab>
+</Tabs>
 
 For non-React modules, `BluetoothSdk.addListener(...)` is the low-level subscription API. Keep the returned subscription and call `remove()` when the listener is no longer needed.
 

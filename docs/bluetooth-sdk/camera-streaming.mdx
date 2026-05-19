@@ -10,7 +10,8 @@ Camera and streaming features depend on the connected glasses model. Mentra Live
 
 Photo upload sends a JPEG from supported glasses to a webhook URL. In the starter apps, the default Camera flow starts a receiver on the phone and sends the photo from the glasses to that phone URL. Turn on **Use cloud server** only when you want to send the upload to an external endpoint, such as your production API, a staging API, or the optional starter-kit helper.
 
-React Native:
+<Tabs>
+  <Tab title="React Native">
 
 ```ts
 await BluetoothSdk.requestPhoto(
@@ -24,15 +25,51 @@ await BluetoothSdk.requestPhoto(
 );
 ```
 
-The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`. The camera light is always enabled for photo capture.
+  </Tab>
+  <Tab title="Android">
 
-Native Android and iOS expose the same photo-request flow through their typed SDK APIs.
+```kotlin
+sdk.requestPhoto(
+    PhotoRequest(
+        requestId = "photo-${System.currentTimeMillis()}",
+        appId = "com.example.app",
+        size = PhotoSize.MEDIUM,
+        webhookUrl = "https://api.example.com/mentra/photo",
+        authToken = "optional-token",
+        compress = PhotoCompression.MEDIUM,
+        sound = true,
+    )
+)
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+sdk.requestPhoto(
+    PhotoRequest(
+        requestId: "photo-\(Date().timeIntervalSince1970)",
+        appId: "com.example.app",
+        size: .medium,
+        webhookUrl: "https://api.example.com/mentra/photo",
+        authToken: "optional-token",
+        compress: .medium,
+        sound: true
+    )
+)
+```
+
+  </Tab>
+</Tabs>
+
+The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`. The camera light is always enabled for photo capture.
 
 ## Streaming
 
 Streaming sends camera video from supported glasses to an ingest URL. In the starter apps, the default Stream flow uses the phone as the receiver where the platform example supports it. Turn on **Use cloud server** when you want the glasses to stream to an external RTMP, SRT, or WHIP/WebRTC ingest endpoint. Use your own server in production; the local helper below is only a demo convenience for testing external endpoints from the starter apps.
 
-React Native:
+<Tabs>
+  <Tab title="React Native">
 
 ```ts
 const streamId = `stream-${Date.now()}`;
@@ -51,6 +88,55 @@ await BluetoothSdk.keepStreamAlive({
 
 await BluetoothSdk.stopStream();
 ```
+
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+val streamId = "stream-${System.currentTimeMillis()}"
+
+sdk.startStream(
+    StreamRequest(
+        streamUrl = "http://192.168.1.42:8889/mentra-live/whip",
+        streamId = streamId,
+    )
+)
+
+sdk.keepStreamAlive(
+    StreamKeepAliveRequest(
+        streamId = streamId,
+        ackId = "ack-${System.currentTimeMillis()}",
+    )
+)
+
+sdk.stopStream()
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+let streamId = "stream-\(Date().timeIntervalSince1970)"
+
+sdk.startStream(
+    StreamRequest(
+        streamUrl: "http://192.168.1.42:8889/mentra-live/whip",
+        streamId: streamId
+    )
+)
+
+sdk.keepStreamAlive(
+    StreamKeepAliveRequest(
+        streamId: streamId,
+        ackId: "ack-\(Date().timeIntervalSince1970)"
+    )
+)
+
+sdk.stopStream()
+```
+
+  </Tab>
+</Tabs>
 
 Use `rtmp://` or `rtmps://` for RTMP, `srt://` for SRT, and `http://` or `https://` for WHIP/WebRTC ingest. Send keep-alives about every 15 seconds while streaming. The camera light is always enabled while streaming.
 
@@ -84,6 +170,9 @@ Use real hardware for these flows. Keep the glasses Wi-Fi active and make sure t
 
 Subscribe to stream status before starting a stream. Treat stream start as accepted, then drive UI from status events:
 
+<Tabs>
+  <Tab title="React Native">
+
 ```tsx
 import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
 
@@ -96,4 +185,27 @@ export function StreamStatusLogger() {
 }
 ```
 
-Status values include initializing, active, stopped, and error states.
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+override fun onStreamStatus(event: StreamStatusEvent) {
+    Log.d("Mentra", "Stream status: ${event.status}")
+}
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEvent) {
+    if case let .streamStatus(status) = event {
+        print("Stream status: \(status)")
+    }
+}
+```
+
+  </Tab>
+</Tabs>
+
+Status values include initializing, streaming, stopped, reconnecting, and error states.

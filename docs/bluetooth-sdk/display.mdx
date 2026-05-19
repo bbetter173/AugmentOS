@@ -95,6 +95,15 @@ Dashboard support depends on the connected glasses model and firmware.
 Display-related settings include dashboard position, head-up angle, and screen enable/disable state.
 
 <Tabs>
+  <Tab title="React Native">
+
+```ts
+await BluetoothSdk.setDashboardPosition(4, 6);
+await BluetoothSdk.setHeadUpAngle(20);
+await BluetoothSdk.setScreenDisabled(false);
+```
+
+  </Tab>
   <Tab title="Android">
 
 ```kotlin
@@ -110,15 +119,6 @@ sdk.setScreenDisabled(false)
 try await sdk.setDashboardPosition(height: 4, depth: 6)
 try await sdk.setHeadUpAngle(20)
 try await sdk.setScreenDisabled(false)
-```
-
-  </Tab>
-  <Tab title="React Native">
-
-```ts
-await BluetoothSdk.setDashboardPosition(4, 6);
-await BluetoothSdk.setHeadUpAngle(20);
-await BluetoothSdk.setScreenDisabled(false);
 ```
 
   </Tab>

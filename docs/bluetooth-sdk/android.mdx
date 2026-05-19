@@ -95,7 +95,9 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
         sdk.requestVersionInfo()
         val glasses = sdk.getGlasses()
         if (glasses is GlassesRuntimeState.Connected) {
-            println("Connected to ${glasses.device.deviceModel}, battery=${glasses.battery.level}%")
+            val model = glasses.device.deviceModel?.deviceType ?: "glasses"
+            val battery = glasses.battery.level?.toString() ?: "unknown"
+            println("Connected to $model, battery=$battery%")
         }
     }
 

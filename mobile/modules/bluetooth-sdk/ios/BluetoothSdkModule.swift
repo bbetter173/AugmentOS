@@ -314,7 +314,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
-        AsyncFunction("photoRequest") {
+        AsyncFunction("requestPhoto") {
             (
                 requestId: String, appId: String, size: String, webhookUrl: String?,
                 authToken: String?, compress: String?, sound: Bool

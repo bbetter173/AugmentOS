@@ -2369,7 +2369,7 @@ public final class MentraBluetoothSDK {
     }
 
     public func requestPhoto(_ request: PhotoRequest) {
-        DeviceManager.shared.photoRequest(
+        DeviceManager.shared.requestPhoto(
             request.requestId,
             request.appId,
             request.size.rawValue,

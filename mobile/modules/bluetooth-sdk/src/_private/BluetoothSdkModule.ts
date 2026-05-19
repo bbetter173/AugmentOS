@@ -101,15 +101,6 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
   queryGalleryStatus(): Promise<void>
-  photoRequest(
-    requestId: string,
-    appId: string,
-    size: PhotoSize,
-    webhookUrl: string | null,
-    authToken: string | null,
-    compress: PhotoCompression,
-    sound: boolean,
-  ): Promise<void>
   requestPhoto(
     requestId: string,
     appId: string,
@@ -313,16 +304,6 @@ const nativeSetMicState = NativeBluetoothSdkModule.setMicState.bind(NativeBlueto
   sendLc3Data: boolean,
 ) => MaybePromise<void>
 
-const nativePhotoRequest = NativeBluetoothSdkModule.photoRequest.bind(NativeBluetoothSdkModule) as (
-  requestId: string,
-  appId: string,
-  size: PhotoSize,
-  webhookUrl: string | null,
-  authToken: string | null,
-  compress: PhotoCompression,
-  sound: boolean,
-) => MaybePromise<void>
-
 const nativeDisplayText = NativeBluetoothSdkModule.displayText.bind(NativeBluetoothSdkModule) as (
   text: string,
   x: number,
@@ -394,18 +375,6 @@ NativeBluetoothSdkModule.setButtonMaxRecordingTime = function (minutes: number) 
 
 NativeBluetoothSdkModule.setCameraFov = function (fov: CameraFov) {
   return this.updateBluetoothSettings({camera_fov: CAMERA_FOV_SETTINGS[fov]})
-}
-
-NativeBluetoothSdkModule.requestPhoto = function (
-  requestId: string,
-  appId: string,
-  size: PhotoSize,
-  webhookUrl: string | null,
-  authToken: string | null,
-  compress: PhotoCompression,
-  sound: boolean,
-) {
-  return Promise.resolve(nativePhotoRequest(requestId, appId, size, webhookUrl, authToken, compress, sound))
 }
 
 NativeBluetoothSdkModule.setMicState = function (

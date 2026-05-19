@@ -348,7 +348,7 @@ class BluetoothSdkModule : Module() {
 
         AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
 
-        AsyncFunction("photoRequest") {
+        AsyncFunction("requestPhoto") {
                 requestId: String,
                 appId: String,
                 size: String,

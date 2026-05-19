@@ -404,7 +404,7 @@ class MentraBluetoothSdk private constructor(
     }
 
     fun requestPhoto(request: PhotoRequest) {
-        deviceManager.photoRequest(
+        deviceManager.requestPhoto(
             request.requestId,
             request.appId,
             request.size.value,

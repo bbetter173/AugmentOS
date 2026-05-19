@@ -1373,7 +1373,7 @@ class DeviceManager {
         updateMicState()
     }
 
-    fun photoRequest(
+    fun requestPhoto(
             requestId: String,
             appId: String,
             size: String,
@@ -1382,9 +1382,7 @@ class DeviceManager {
             compress: String,
             sound: Boolean
     ) {
-        Bridge.log(
-                "MAN: onPhotoRequest: $requestId, $appId, $size, compress=$compress, flash=true, sound=$sound"
-        )
+        Bridge.log("MAN: requestPhoto: $requestId, $appId, $size, compress=$compress, flash=true, sound=$sound")
         sgc?.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, true, sound)
     }
 

@@ -1274,7 +1274,7 @@ struct ViewState {
         }
     }
 
-    func photoRequest(
+    func requestPhoto(
         _ requestId: String,
         _ appId: String,
         _ size: String,
@@ -1284,7 +1284,7 @@ struct ViewState {
         _ sound: Bool
     ) {
         Bridge.log(
-            "MAN: onPhotoRequest: \(requestId), \(appId), \(webhookUrl), size=\(size), compress=\(compress ?? "none"), flash=true, sound=\(sound)"
+            "MAN: requestPhoto: \(requestId), \(appId), \(webhookUrl), size=\(size), compress=\(compress ?? "none"), flash=true, sound=\(sound)"
         )
         sgc?.requestPhoto(
             requestId, appId: appId, size: size, webhookUrl: webhookUrl, authToken: authToken,

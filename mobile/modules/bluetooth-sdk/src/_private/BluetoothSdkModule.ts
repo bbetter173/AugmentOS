@@ -20,6 +20,7 @@ import {
   ObservableStoreCategory,
   PhotoCompression,
   PhotoSize,
+  PublicBluetoothStatus,
   RgbLedAction,
   RgbLedColor,
   ScanModelOptions,
@@ -37,13 +38,13 @@ import {
  */
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void
-type BluetoothStatusListener = (changed: Partial<BluetoothStatus>) => void
+type BluetoothStatusListener = (changed: Partial<PublicBluetoothStatus>) => void
 type MaybePromise<T> = T | Promise<T>
 
 declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEvents> {
   // Observable Store Functions (native)
   getGlassesStatus(): Promise<GlassesStatus>
-  getBluetoothStatus(): Promise<BluetoothStatus>
+  getBluetoothStatus(): Promise<PublicBluetoothStatus>
   getDefaultDevice(): Promise<Device | null>
   update(category: ObservableStoreCategory, values: object): Promise<void>
 
@@ -194,7 +195,7 @@ const CAMERA_FOV_SETTINGS: Record<CameraFov, CameraFovSetting> = {
   wide: {fov: 118, roiPosition: 0},
 }
 
-function searchResultsForModel(status: Partial<BluetoothStatus>, model: DeviceModel): Device[] {
+function searchResultsForModel(status: Partial<PublicBluetoothStatus>, model: DeviceModel): Device[] {
   return status.searchResults?.filter((device) => device.model === model) ?? []
 }
 

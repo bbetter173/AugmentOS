@@ -4,7 +4,7 @@ description: "Use microphone input and route normal phone audio playback to supp
 icon: "microphone"
 ---
 
-The Bluetooth SDK exposes microphone input controls, raw audio callbacks, local transcription events, and Mentra Live media-volume helpers. Speaker playback is separate: your app plays audio with normal Android, iOS, or React Native audio APIs, and the phone OS routes that audio to Mentra Live when the glasses are connected as the Bluetooth media output.
+The Bluetooth SDK exposes microphone input controls, microphone audio callbacks, local transcription events, and Mentra Live media-volume helpers. Speaker playback is separate: your app plays audio with normal Android, iOS, or React Native audio APIs, and the phone OS routes that audio to Mentra Live when the glasses are connected as the Bluetooth media output.
 
 <Info>
 Mentra Live and G2 both have microphones. Mentra Live has a speaker; G2 does not.
@@ -78,7 +78,7 @@ func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEv
   </Tab>
 </Tabs>
 
-## Raw Audio Callbacks
+## Microphone Audio Events
 
 React Native can listen for microphone PCM events. PCM events are self-describing so apps can pass the buffer directly to STT, WAV writing, or playback code without reading native SDK sources:
 
@@ -92,9 +92,9 @@ const sub = BluetoothSdk.addListener('mic_pcm', (event) => {
 
 `mic_pcm` emits 16 kHz, 16-bit, mono, signed little-endian PCM. `vadGated` is `true` when the SDK setting allows VAD to gate emitted audio before it reaches your listener.
 
-`mic_lc3` emits SDK-encoded LC3 frames with `sampleRate`, `channels`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`. `packetizedFromGlasses` is currently `false` because the SDK decodes glasses microphone LC3 and re-encodes it to the SDK's canonical LC3 output format before emitting app-facing LC3 events.
+`mic_lc3` emits SDK-encoded LC3 frames with `sampleRate`, `channels`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`. For SDK-encoded LC3 events, `packetizedFromGlasses` is `false`: the SDK decodes glasses microphone LC3 and re-encodes it to the SDK's canonical LC3 output format before emitting app-facing LC3 events.
 
-Native Android and iOS apps receive `MicPcmEvent` and `MicLc3Event` objects with the same metadata through the SDK listener/delegate surfaces. Disable raw callbacks when the app no longer needs them.
+Native Android and iOS apps receive `MicPcmEvent` and `MicLc3Event` objects with the same metadata through the SDK listener/delegate surfaces. Disable microphone audio callbacks when the app finishes using them.
 
 ## Mentra Live Speaker Playback
 
@@ -210,4 +210,4 @@ try await sdk.setGlassesMediaVolume(8)
 - For Mentra Live speaker features, explain that users may need to pair/select the glasses as the phone's Bluetooth media output.
 - Expect model availability to differ by platform, locale, and app configuration.
 - Keep cloud upload and retention policies explicit in your privacy disclosures.
-- Disable raw audio callbacks when the app no longer needs them.
+- Disable microphone audio callbacks when the app finishes using them.

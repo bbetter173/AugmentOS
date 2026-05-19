@@ -91,7 +91,7 @@ Android apps should request the permissions required by the features they use:
 }
 ```
 
-Some Android 12+ devices still require Location permission and Location services before BLE scan callbacks are delivered.
+Some Android 12+ devices require Location permission and Location services before BLE scan callbacks are delivered.
 
 iOS apps should include usage descriptions:
 
@@ -135,9 +135,8 @@ await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
 ## React Hooks
 
 React Native apps can import optional lifecycle helpers from the `react`
-subpath. The hooks use the same SDK types and still leave commands such as
-`requestPhoto()`, `startStream()`, and `setMicState()` on the root
-`BluetoothSdk` object.
+subpath for common lifecycle plumbing. Use the root `BluetoothSdk` object for
+commands such as `requestPhoto()`, `startStream()`, and `setMicState()`.
 
 ```tsx
 import {Button, Text, View} from 'react-native'
@@ -172,9 +171,8 @@ you. Ask for permissions in your app before calling scan/connect actions, and
 pass a `defaultDeviceStorage` adapter to `useMentraBluetooth` if you want a
 default device to survive app restarts.
 
-The package root intentionally does not expose raw native status getters or raw
-`glasses_status` / `bluetooth_status` events. Use `useMentraBluetooth()` for
-shaped connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state.
+Use `useMentraBluetooth()` as the React status API for connection, battery,
+Wi-Fi, hotspot, scan, and SDK runtime state.
 
 The React hook exposes `glasses.connection` as a discriminated union:
 
@@ -191,7 +189,7 @@ Use `connection.state` for link progress. `fullyBooted` only exists when `state 
 
 ## Default Device
 
-`connectDefault()` connects to the default glasses target currently stored in the SDK. Apps that want this target to survive app restarts should persist the scanned `Device` in app storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
+`connectDefault()` connects to the default glasses target stored in SDK state. Apps that want this target to survive app restarts should persist the scanned `Device` in app storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
 ```ts
 const savedDevice = await loadSavedDeviceFromYourAppStorage()
@@ -297,11 +295,11 @@ Common event names include `button_press`, `touch_event`, `head_up`, `battery_st
 
 React Native event payload fields use camelCase. For example, `touch_event` includes `gestureName`, `photo_response` success includes `uploadUrl`, and `gallery_status` includes `hasContent` and `cameraBusy`. `mic_pcm` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `mic_lc3` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
 
-Only the documented root import is supported for app developers. Package subpaths or symbols with a leading underscore are private implementation details and can change without notice.
+Only documented imports are supported for app developers. Undocumented package subpaths or symbols with a leading underscore can change without notice.
 
 ## Local SDK Development
 
-For normal app development, install the published JavaScript package. For SDK development before a package release, install a local checkout and point Metro/native resolution at the same path:
+For normal app development, install the JavaScript package from npm. For SDK source development or release testing, install a local checkout and point Metro/native resolution at the same path:
 
 ```sh
 bun add --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk

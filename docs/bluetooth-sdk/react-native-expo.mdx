@@ -131,7 +131,7 @@ Start continuous microphone capture while the app is foregrounded; iOS backgroun
 Use `audio` background mode only when the app genuinely records or plays audio in the background. `bluetooth-central` is the BLE requirement; `audio` is the audio-session requirement for continuous mic/audio behavior.
 
 <Warning>
-The SDK does not currently use `CBCentralManagerOptionRestoreIdentifierKey` on iOS. Terminated-app Core Bluetooth state restoration is not supported yet. If iOS terminates the app, relaunch the app and reconnect from your normal startup flow.
+This SDK version does not enable terminated-app Core Bluetooth state restoration with `CBCentralManagerOptionRestoreIdentifierKey`. If iOS terminates the app, relaunch the app and reconnect from your normal startup flow.
 </Warning>
 
 ## Basic Usage
@@ -208,7 +208,7 @@ type GlassesConnectionStatus =
 
 Use `mentra.glasses.connection.state` for link-layer progress. `fullyBooted` only exists when `state === 'connected'`.
 
-The root `BluetoothSdk` export intentionally does not expose raw native status getters or raw `glasses_status` / `bluetooth_status` events. Use `useMentraBluetooth()` for connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state.
+Use `useMentraBluetooth()` as the React status API for connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state.
 
 ## Default Device
 
@@ -224,7 +224,7 @@ if (savedDevice) {
 
 ## Local SDK Override
 
-Use this only when developing the SDK itself before publishing a new package version:
+Use this when testing SDK source changes locally:
 
 ```bash
 bun add --no-save /path/to/MentraOS/mobile/modules/bluetooth-sdk

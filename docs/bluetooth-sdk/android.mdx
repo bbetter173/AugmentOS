@@ -62,7 +62,7 @@ Declare the platform permissions your app uses:
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 ```
 
-Request runtime permissions before scanning. Some Android 12+ devices still require Location permission and Location services before BLE scan callbacks are delivered.
+Request runtime permissions before scanning. Some Android 12+ devices require Location permission and Location services before BLE scan callbacks are delivered.
 
 ## Basic Flow
 
@@ -110,7 +110,7 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
 
 ## Local SDK Override
 
-Use this only when developing the SDK itself before publishing a new Maven version:
+Use this when testing SDK source changes locally:
 
 ```bash
 cd /path/to/MentraOS/mobile/android

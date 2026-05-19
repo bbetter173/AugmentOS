@@ -1,6 +1,6 @@
 # Updated Feedback on `@mentra/bluetooth-sdk` - Hackathon Follow-Up
 
-Current as of May 19, 2026. This refreshes the older internal hackathon feedback against the current SDK and starter-kit worktrees. It separates issues that are fixed or mostly addressed from items that still need product or engineering follow-up.
+Current as of May 19, 2026. This refreshes the older hackathon feedback against the current SDK and starter-kit worktrees. It separates issues that are fixed or mostly addressed from items that still need product or engineering follow-up.
 
 ## Executive Summary
 
@@ -10,7 +10,7 @@ The SDK is in a much better place than the original feedback implied:
 - The starter kit includes `setup-gstreamer-ios.sh`, and the iOS podspec attempts to install GStreamer automatically when missing from the default path.
 - `connectFirst` is no longer the relevant API shape. The SDK now exposes `scan(model, {onResults, timeoutMs})`, and the React layer exposes `useBluetoothScan` / `useMentraBluetooth` for picker-oriented flows.
 - `searchResults` now has an explicit stable-order contract in the SDK types.
-- The React Native public surface now keeps raw native status snapshots behind the private adapter and directs apps to shaped hook state.
+- The React Native public surface now directs apps to shaped hook state instead of manual status plumbing.
 
 The main remaining problems are less about "does the demo run at all?" and more about API clarity and production readiness:
 
@@ -58,7 +58,7 @@ Recommended follow-up:
 - If changing the default is too risky, document this prominently in `audio.mdx`, README, and API reference:
   - Use `bypassVad=true` when sending PCM to external STT.
   - Use `bypassVad=false` only when intentionally accepting SDK VAD-gated audio.
-- Consider a clearer API name or helper, such as `startPcmMic({continuous: true})`, so developers do not need to understand VAD internals on day one.
+- Consider a clearer API name or helper, such as `startPcmMic({continuous: true})`, so developers do not need to understand VAD behavior on day one.
 
 ### 3. `MicPcmEvent` And `MicLc3Event` Now Include Metadata
 
@@ -174,13 +174,12 @@ The current React Native direction is good: public docs are moving developers to
 - `mentra.sdk`
 - `mentra.scan`
 
-This is better than asking apps to merge raw `glasses_status` and `bluetooth_status` snapshots. It also keeps snake_case native store details out of normal React app code.
+This is better than asking apps to assemble their own status model from lower-level events.
 
 Current React Native boundary:
 
-- The root `@mentra/bluetooth-sdk` export is now an explicit public facade instead of the native module object.
-- Raw native status getters/listeners such as `getGlassesStatus()`, `getBluetoothStatus()`, `onGlassesStatus()`, and `onBluetoothStatus()` stay private to `_private` and the React hooks.
-- Raw `glasses_status` / `bluetooth_status` events are not accepted by the public root `addListener`.
+- The root `@mentra/bluetooth-sdk` export is now an explicit app-facing command and event facade.
+- React app status is documented through `useMentraBluetooth()` and its `mentra.glasses`, `mentra.sdk`, and `mentra.scan` state.
 - For native Android/iOS, grouped status docs/API cleanup can wait; the current pass intentionally does not change those SDKs.
 
 ### 10. iOS SDK Source Organization Is Still Hard To Read

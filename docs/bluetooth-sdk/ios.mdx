@@ -76,7 +76,7 @@ try session.setActive(true)
 `bluetooth-central` allows iOS to continue BLE central activity in the background, subject to iOS scheduling and power-management limits. `audio` is required only for apps that intentionally keep recording or audio playback active after backgrounding.
 
 <Warning>
-The SDK does not currently create its `CBCentralManager` instances with `CBCentralManagerOptionRestoreIdentifierKey`. Terminated-app Core Bluetooth state restoration is not supported yet. If iOS terminates the app, relaunch the app and reconnect from your normal startup flow.
+This SDK version does not enable terminated-app Core Bluetooth state restoration with `CBCentralManagerOptionRestoreIdentifierKey`. If iOS terminates the app, relaunch the app and reconnect from your normal startup flow.
 </Warning>
 
 ## Basic Flow
@@ -124,7 +124,7 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
 
 ## Local SDK Override
 
-Use this only when developing the SDK itself before publishing a new CocoaPods version:
+Use this when testing SDK source changes locally:
 
 ```bash
 export MENTRA_BLUETOOTH_SDK_LOCAL_PATH=/path/to/MentraOS/mobile/modules/bluetooth-sdk/ios

@@ -60,13 +60,13 @@ If your app also uses Firebase with static frameworks, Firebase modular header c
 ## Connected But No Events
 
 - Subscribe before connecting.
-- In React Native, render `useMentraBluetooth()` state for connection, battery, Wi-Fi, hotspot, scan, and SDK state. In native Android/iOS apps, log the native status snapshots.
+- In React Native, render `useMentraBluetooth()` state for connection, battery, Wi-Fi, hotspot, scan, and SDK state. In native Android/iOS apps, log the SDK status objects.
 - Confirm the hardware feature is available on the connected model.
 - Watch SDK log callbacks for native diagnostics.
 
 ## Optional Local Stream Preview Does Not Show Video
 
-- The local demo cloud is only needed when the starter app's Stream screen has **Use cloud server** enabled. If you are using that optional local stream preview, confirm the local demo cloud or MediaMTX helper is still running.
+- The local demo cloud is only needed when the starter app's Stream screen has **Use cloud server** enabled. If you are using that optional local stream preview, confirm the local demo cloud or MediaMTX helper is running.
 - Use the printed LAN URL, not `localhost`, in the example app's RTMP or WebRTC field.
 - Confirm the glasses, phone, and computer are on a network where local device-to-device traffic is allowed.
 - Confirm Mentra Live is connected to Wi-Fi before starting the stream.

@@ -206,7 +206,7 @@ await BluetoothSdk.rgbLedControl(
 ## Photo Upload
 
 ```ts
-await BluetoothSdk.photoRequest(
+await BluetoothSdk.requestPhoto(
   `photo-${Date.now()}`,
   'com.example.app',
   'medium',

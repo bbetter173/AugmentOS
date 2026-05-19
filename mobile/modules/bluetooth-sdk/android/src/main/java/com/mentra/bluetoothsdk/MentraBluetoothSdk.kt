@@ -358,21 +358,6 @@ class MentraBluetoothSdk private constructor(
         )
     }
 
-    @Deprecated(
-        "Use setMicState(enabled = ..., useGlassesMic = ..., bypassVad = ...) instead.",
-        ReplaceWith(
-            "setMicState(enabled = config.sendPcmData, bypassVad = config.bypassVad, sendTranscript = config.sendTranscript, sendLc3Data = config.sendLc3Data)"
-        ),
-    )
-    fun setMicState(config: MicConfig) {
-        applyMicState(
-            sendPcmData = config.sendPcmData,
-            sendTranscript = config.sendTranscript,
-            bypassVad = config.bypassVad,
-            sendLc3Data = config.sendLc3Data,
-        )
-    }
-
     private fun applyMicState(
         sendPcmData: Boolean,
         sendTranscript: Boolean,

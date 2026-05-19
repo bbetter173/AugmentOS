@@ -692,7 +692,7 @@ data class DisplayTextRequest(
         )
 }
 
-data class DisplayEventRequest(
+internal data class DisplayEventRequest(
     val values: Map<String, Any>,
 ) {
     fun toMap(): Map<String, Any> = values
@@ -703,7 +703,7 @@ data class DashboardPositionRequest(
     val depth: Int,
 )
 
-data class DashboardMenuItem(
+internal data class DashboardMenuItem(
     val title: String,
     val packageName: String,
     val values: Map<String, Any> = emptyMap(),
@@ -771,13 +771,6 @@ enum class CameraFov(val fov: Int, val roiPosition: Int) {
     STANDARD(118, 0),
     WIDE(118, 0),
 }
-
-data class MicConfig(
-    val sendPcmData: Boolean,
-    val sendTranscript: Boolean,
-    val bypassVad: Boolean,
-    val sendLc3Data: Boolean = false,
-)
 
 enum class MicPreference(val value: String) {
     AUTO("auto"),

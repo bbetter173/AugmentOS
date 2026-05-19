@@ -224,7 +224,7 @@ The React Native root export intentionally exposes a narrower surface than the M
 | Connection | `scan`, `startScan`, `stopScan`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
 | Display | `displayText`, `clearDisplay`, `showDashboard`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
-| Camera and gallery | `photoRequest`, `queryGalleryStatus`, `setGalleryMode`, `setButtonPhotoSettings`, `setButtonVideoRecordingSettings`, `setButtonCameraLed`, `setButtonMaxRecordingTime`, `setCameraFov`, `startVideoRecording`, `stopVideoRecording` |
+| Camera and gallery | `requestPhoto`, `queryGalleryStatus`, `setGalleryMode`, `setButtonPhotoSettings`, `setButtonVideoRecordingSettings`, `setButtonCameraLed`, `setButtonMaxRecordingTime`, `setCameraFov`, `startVideoRecording`, `stopVideoRecording` |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |
 | Audio | `setMicState`, `setPreferredMic`, `setOwnAppAudioPlaying`, `getGlassesMediaVolume`, `setGlassesMediaVolume` |
 | LED and version | `rgbLedControl`, `requestVersionInfo` |
@@ -237,7 +237,7 @@ Important defaults:
 - `connect` and `connectDefault` default `saveAsDefault` and `cancelExistingConnectionAttempt` to `true`.
 - `displayText(text, x, y, size)` defaults to `x = 0`, `y = 0`, and `size = 24`.
 - `setMicState(enabled)` defaults to glasses microphone on, VAD bypass off, transcript events off, and LC3 events off.
-- `photoRequest(..., authToken, ...)` omits the `Authorization` header when `authToken` is `null` or empty.
+- `requestPhoto(..., authToken, ...)` omits the `Authorization` header when `authToken` is `null` or empty.
 - `startStream` optional `video` and `audio` configs are omitted unless supplied, so the connected glasses use their model defaults.
 - Photo capture, video recording, and streaming always enable the camera light as a privacy indicator.
 
@@ -248,7 +248,7 @@ Important defaults:
 | Display | `displayText`, `clearDisplay`, `showDashboard` |
 | Connection | `scan`, `startScan`, `stopScan`, `connect`, `connectDefault`, `disconnect`, `forget` |
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
-| Camera | `photoRequest`, button photo settings, button video settings, camera field of view |
+| Camera | `requestPhoto`, button photo settings, button video settings, camera field of view |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |
 | Audio | `setMicState`, audio callbacks, local transcription, media volume |
 | Settings | Brightness, dashboard position, head-up angle, screen disabled, gallery mode |

@@ -1,6 +1,7 @@
 # Bluetooth SDK Public API Surface Review
 
-This review captures the public API boundary created by:
+This review reflects the current Bluetooth SDK public boundary on this branch.
+It supersedes the older review created around:
 
 ```text
 3a512b8357df0e472c6fb5d1352316524e97aee1
@@ -8,34 +9,58 @@ Define Bluetooth SDK public API boundary
 AuthorDate: 2026-05-15 12:27:57 -0700
 ```
 
-That commit made the package root expose only the partner-facing React Native API, moved the raw MentraOS compatibility module to the `_internal` subpath, and demoted several native Swift/Kotlin facade methods from public to internal package use.
+The goal is feature parity across the three SDK surfaces while preserving each
+language's normal shape:
 
-This document reflects the current source on this branch, not only the commit snapshot. In particular, later work added the picker-friendly `scan(...)` helper and removed `connectFirst(...)`.
+- React Native exposes Promise-based methods and typed event subscriptions.
+- Android exposes synchronous facade calls, request data classes where useful,
+  listener callbacks, and `AutoCloseable.close()`.
+- iOS exposes Swift request structs, delegate callbacks, `async throws` where
+  native work can fail asynchronously, and `invalidate()`.
+
+Brightness and auto-brightness setters are intentionally not public in any SDK.
+The settings can still exist internally because MentraOS and device-store sync
+need to preserve existing behavior, but partners should not call them directly
+until the underlying behavior is fixed.
 
 ## Source Files Reviewed
 
 - React Native package root: `mobile/modules/bluetooth-sdk/src/index.ts`
-- React Native public/internal type boundary: `mobile/modules/bluetooth-sdk/src/BluetoothSdk.types.ts`
-- React Native raw module facade: `mobile/modules/bluetooth-sdk/src/_private/BluetoothSdkModule.ts`
-- React Native internal entrypoint: `mobile/modules/bluetooth-sdk/src/_internal.ts`
-- Android native facade: `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothSdk.kt`
-- Android native models/callbacks: `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothModels.kt`
-- iOS native facade and models: `mobile/modules/bluetooth-sdk/ios/Source/MentraBluetoothSDK.swift`
+- React Native public/internal type boundary:
+  `mobile/modules/bluetooth-sdk/src/BluetoothSdk.types.ts`
+- React Native raw module facade:
+  `mobile/modules/bluetooth-sdk/src/_private/BluetoothSdkModule.ts`
+- React Native internal entrypoint:
+  `mobile/modules/bluetooth-sdk/src/_internal.ts`
+- Android native facade:
+  `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothSdk.kt`
+- Android native models/callbacks:
+  `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothModels.kt`
+- iOS native facade and models:
+  `mobile/modules/bluetooth-sdk/ios/Source/MentraBluetoothSDK.swift`
 
-## Exposed Feature Set At A Glance
+## Exposed Feature Set
 
-- Status: glasses status, Bluetooth status, default device, status change callbacks.
-- Discovery and connection: scan, stop scan, connect selected device, connect default device, cancel connection attempt, disconnect, forget.
-- Display controls: text display, clear display, dashboard display, display brightness, dashboard position, head-up angle, screen disable.
-- Wi-Fi and hotspot: request Wi-Fi scan, send credentials, forget network, toggle hotspot.
-- Camera and gallery: gallery mode, button capture settings, camera FOV, photo upload request, gallery status query, start/stop video recording.
-- Streaming: start stream, keep stream alive, stop stream.
-- Microphone and speaker-adjacent audio: microphone data mode, preferred mic, app-audio playback notification, glasses media volume on React Native and Android.
-- RGB LED: on/off with color and timing/count arguments.
+All three SDKs expose the same customer-facing feature groups:
+
+- Status: glasses status, Bluetooth status, default device, and status-change callbacks.
+- Discovery and connection: start scan, stop scan, picker-friendly scan helper,
+  connect selected device, connect default device, cancel connection attempt,
+  disconnect, and forget.
+- Display controls: text display, clear display, dashboard display, dashboard
+  position, head-up angle, and screen disable.
+- Wi-Fi and hotspot: request Wi-Fi scan, send credentials, forget network, and
+  toggle hotspot.
+- Camera and gallery: gallery mode, button capture settings, camera FOV, photo
+  upload request, gallery status query, start video recording, and stop video
+  recording.
+- Streaming: start stream, keep stream alive, and stop stream.
+- Audio: microphone data mode, preferred mic, app-audio playback notification,
+  and Mentra Live media volume helpers.
+- RGB LED: on/off with constrained color and timing/count arguments.
 - Version info: request glasses firmware/version information.
-- Lifecycle: subscription removal everywhere, `close()` on Android, `invalidate()` on iOS.
 
-## React Native / Expo Public Surface
+## React Native Public Surface
 
 Import path:
 
@@ -93,12 +118,12 @@ setHotspotState(enabled: boolean): Promise<void>
 
 setGalleryMode(mode: GalleryMode): Promise<void>
 setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
+setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
 setButtonCameraLed(enabled: boolean): Promise<void>
 setButtonMaxRecordingTime(minutes: number): Promise<void>
 setCameraFov(fov: CameraFov): Promise<void>
 queryGalleryStatus(): Promise<void>
-photoRequest(
+requestPhoto(
   requestId: string,
   appId: string,
   size: PhotoSize,
@@ -131,8 +156,8 @@ rgbLedControl(
   packageName: string | null,
   action: RgbLedAction,
   color: RgbLedColor | null,
-  ontime: number,
-  offtime: number,
+  onDurationMs: number,
+  offDurationMs: number,
   count: number,
 ): Promise<void>
 
@@ -167,69 +192,6 @@ type CameraFov = "standard" | "wide"
 type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
 type RgbLedAction = "on" | "off"
 type RgbLedColor = "red" | "green" | "blue" | "orange" | "white"
-
-type BluetoothSdkEventMap = {
-  glasses_status: Partial<GlassesStatus>
-  bluetooth_status: Partial<BluetoothStatus>
-  log: LogEvent
-  device_discovered: Device
-  default_device_changed: {device?: Device}
-  // Other entries map each public event name to its payload type.
-}
-
-type BluetoothSdkEventName = keyof BluetoothSdkEventMap
-
-type BluetoothSdkEventListener<EventName extends BluetoothSdkEventName> = (
-  event: BluetoothSdkEventMap[EventName],
-) => void
-
-// Public React Native event payloads use camelCase field names.
-type TouchEvent = {type: "touch_event"; deviceModel?: string; gestureName?: string; timestamp: number}
-type PhotoResponseEvent =
-  | {type: "photo_response"; state: "success"; requestId: string; uploadUrl: string; timestamp: number}
-  | {type: "photo_response"; state: "error"; requestId: string; timestamp: number; errorCode?: string; errorMessage: string}
-type GalleryStatusEvent = {type: "gallery_status"; photos: number; videos: number; total: number; hasContent: boolean; cameraBusy: boolean}
-
-interface ScanOptions {
-  model: DeviceModel
-  timeoutMs?: number
-  timeout?: number
-  onResults?: (devices: Device[]) => void
-}
-```
-
-Public event names:
-
-```ts
-"glasses_status"
-"bluetooth_status"
-"log"
-"device_discovered"
-"default_device_changed"
-"glasses_not_ready"
-"button_press"
-"touch_event"
-"head_up"
-"vad_status"
-"battery_status"
-"local_transcription"
-"wifi_status_change"
-"hotspot_status_change"
-"hotspot_error"
-"photo_response"
-"gallery_status"
-"compatible_glasses_search_stop"
-"swipe_volume_status"
-"switch_status"
-"rgb_led_control_response"
-"pair_failure"
-"audio_pairing_needed"
-"audio_connected"
-"audio_disconnected"
-"mic_pcm"
-"mic_lc3"
-"stream_status"
-"keep_alive_ack"
 ```
 
 ## Android Native Public Surface
@@ -294,8 +256,7 @@ fun setScreenDisabled(disabled: Boolean)
 fun setGalleryMode(mode: GalleryMode)
 fun setButtonPhotoSettings(size: ButtonPhotoSize)
 fun setButtonPhotoSettings(settings: ButtonPhotoSettings)
-fun setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int)
-fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings)
+fun setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int)
 fun setButtonCameraLed(enabled: Boolean)
 fun setButtonMaxRecordingTime(minutes: Int)
 fun setCameraFov(fov: CameraFov)
@@ -307,8 +268,6 @@ fun setMicState(
   sendTranscript: Boolean = false,
   sendLc3Data: Boolean = false,
 )
-@Deprecated(...)
-fun setMicState(config: MicConfig)
 fun setPreferredMic(preferredMic: MicPreference)
 fun setOwnAppAudioPlaying(playing: Boolean)
 fun getGlassesMediaVolume(): GlassesMediaVolumeGetResult
@@ -372,59 +331,6 @@ interface MentraBluetoothSdkListener {
 }
 ```
 
-Important Android request/model constructors:
-
-```kotlin
-data class ConnectOptions(
-  val saveAsDefault: Boolean = true,
-  val cancelExistingConnectionAttempt: Boolean = true,
-)
-
-data class DisplayTextRequest(val text: String, val x: Int = 0, val y: Int = 0, val size: Int = 24)
-data class DashboardPositionRequest(val height: Int, val depth: Int)
-data class ButtonPhotoSettings(val size: ButtonPhotoSize)
-data class ButtonVideoRecordingSettings(val width: Int, val height: Int, val fps: Int)
-
-data class PhotoRequest @JvmOverloads constructor(
-  val requestId: String,
-  val appId: String,
-  val size: PhotoSize,
-  val webhookUrl: String,
-  val authToken: String? = null,
-  val compress: PhotoCompression = PhotoCompression.MEDIUM,
-  val sound: Boolean = true,
-)
-
-data class StreamRequest @JvmOverloads constructor(
-  val streamUrl: String,
-  val streamId: String = "",
-  val keepAlive: Boolean = true,
-  val keepAliveIntervalSeconds: Int = 15,
-  val sound: Boolean = true,
-  val video: StreamVideoConfig? = null,
-  val audio: StreamAudioConfig? = null,
-  val extraValues: Map<String, Any> = emptyMap(),
-)
-
-data class StreamKeepAliveRequest @JvmOverloads constructor(
-  val streamId: String,
-  val ackId: String,
-  val extraValues: Map<String, Any> = emptyMap(),
-)
-
-data class RgbLedRequest @JvmOverloads constructor(
-  val requestId: String,
-  val packageName: String?,
-  val action: RgbLedAction,
-  val color: RgbLedColor?,
-  val ontime: Int,
-  val offtime: Int,
-  val count: Int,
-)
-
-data class VideoRecordingRequest(val requestId: String, val save: Boolean, val sound: Boolean)
-```
-
 ## iOS Swift Native Public Surface
 
 Public class/properties:
@@ -478,7 +384,7 @@ public func setScreenDisabled(_ disabled: Bool) async throws
 public func setGalleryMode(_ mode: GalleryMode) async throws
 public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws
 public func setButtonPhotoSettings(_ settings: ButtonPhotoSettings) async throws
-public func setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) async throws
+public func setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) async throws
 public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws
 public func setButtonCameraLed(enabled: Bool) async throws
 public func setButtonMaxRecordingTime(minutes: Int) async throws
@@ -491,10 +397,10 @@ public func setMicState(
   sendTranscript: Bool = false,
   sendLc3Data: Bool = false
 )
-@available(*, deprecated, message: "Use setMicState(enabled:useGlassesMic:bypassVad:) instead.")
-public func setMicState(_ config: MicConfiguration)
 public func setPreferredMic(_ preferredMic: MicPreference)
 public func setOwnAppAudioPlaying(_ playing: Bool)
+public func getGlassesMediaVolume() async throws -> GlassesMediaVolumeGetResult
+public func setGlassesMediaVolume(_ level: Int) async throws -> GlassesMediaVolumeSetResult
 
 public func requestWifiScan()
 public func sendWifiCredentials(ssid: String, password: String)
@@ -536,64 +442,18 @@ public final class ScanSession {
 }
 ```
 
-Important iOS request/model initializers:
-
-```swift
-public init(saveAsDefault: Bool = true, cancelExistingConnectionAttempt: Bool = true) // ConnectOptions
-public init(text: String, x: Int = 0, y: Int = 0, size: Int = 24) // DisplayTextRequest
-public init(height: Int, depth: Int) // DashboardPositionRequest
-public init(size: ButtonPhotoSize) // ButtonPhotoSettings
-public init(width: Int, height: Int, fps: Int) // ButtonVideoRecordingSettings
-
-public init(
-  requestId: String,
-  appId: String,
-  size: PhotoSize,
-  webhookUrl: String? = nil,
-  authToken: String? = nil,
-  compress: PhotoCompression? = nil,
-  sound: Bool
-) // PhotoRequest
-
-public init(
-  streamUrl: String,
-  streamId: String = "",
-  keepAlive: Bool = true,
-  keepAliveIntervalSeconds: Int = 15,
-  sound: Bool = true,
-  video: StreamVideoConfig? = nil,
-  audio: StreamAudioConfig? = nil,
-  extraValues: [String: Any] = [:]
-) // StreamRequest
-
-public init(streamId: String, ackId: String, extraValues: [String: Any] = [:]) // StreamKeepAliveRequest
-
-public init(
-  requestId: String,
-  packageName: String?,
-  action: RgbLedAction,
-  color: RgbLedColor?,
-  ontime: Int,
-  offtime: Int,
-  count: Int
-) // RgbLedRequest
-
-public init(requestId: String, save: Bool, sound: Bool) // VideoRecordingRequest
-```
-
 ## Functionality Made Internal Or Private
-
-These are the main operations hidden by the API-boundary work or kept behind internal entrypoints.
 
 ### React Native
 
-Internal import path:
+The public package root is `@mentra/bluetooth-sdk`. MentraOS-only compatibility
+code uses the internal import path:
 
 ```ts
 import BluetoothSdkInternal from "@mentra/bluetooth-sdk-internal"
 ```
 
-The MentraOS app resolves `@mentra/bluetooth-sdk-internal` to the raw native module and all type definitions for MentraOS app compatibility. The published package no longer exports this as a customer-accessible subpath, and the package root no longer exposes these operations:
+The package root does not expose:
 
 ```ts
 update(category: ObservableStoreCategory, values: object): Promise<void>
@@ -609,17 +469,12 @@ connectSimulated(): Promise<void>
 forgetController(): Promise<void>
 
 setDashboardMenu(items: DashboardMenuItem[]): Promise<void>
-ping(): Promise<void>
-dbg1(): Promise<void>
-dbg2(): Promise<void>
+setBrightness(level: number, autoMode?: boolean | null): Promise<void>
+setAutoBrightness(enabled: boolean): Promise<void>
 
 sendIncidentId(incidentId: string, apiBaseUrl?: string | null): Promise<void>
-
-logCurrentWifiFrequency(): Promise<void>
-
 sendOtaStart(): Promise<void>
 sendOtaQueryStatus(): Promise<void>
-
 restartTranscriber(): Promise<void>
 
 setSttModelDetails(path: string, languageCode: string): Promise<void>
@@ -631,33 +486,19 @@ extractTarBz2(sourcePath: string, destinationPath: string): Promise<boolean>
 getMemoryMB(): number
 ```
 
-The root event surface also omits these raw/internal event families:
-
-```ts
-"heartbeat_sent"
-"heartbeat_received"
-"save_setting"
-"ws_text"
-"ws_bin"
-"mtk_update_complete"
-"ota_update_available"
-"ota_start_ack"
-"ota_status"
-"send_command_to_ble"
-"receive_command_from_ble"
-"miniapp_selected"
-```
-
-Review note: hiding these from the package root was mostly inferred from what was partner-documented. The areas most likely to deserve explicit product review are `sendIncidentId`, OTA controls, STT model/file helpers, dashboard menu injection, and raw observable-store updates.
+The root event surface also omits raw/internal event families such as WebSocket
+trace events, OTA events, command-to-BLE traces, and MiniApp selection events.
 
 ### Android Native
 
-These facade methods are no longer public Android SDK methods:
+These facade methods are internal Android SDK methods:
 
 ```kotlin
 internal fun connectSimulated()
 internal fun displayEvent(request: DisplayEventRequest)
 internal fun setDashboardMenu(items: List<DashboardMenuItem>)
+internal fun setBrightness(level: Int, autoMode: Boolean? = null)
+internal fun setAutoBrightness(enabled: Boolean)
 internal fun sendOtaStart()
 internal fun sendOtaQueryStatus()
 internal fun sendShutdown()
@@ -665,16 +506,21 @@ internal fun sendReboot()
 internal fun sendIncidentId(incidentId: String, apiBaseUrl: String? = null)
 ```
 
-Review note: the operation methods are internal, but some related Kotlin data classes are still public by default, including `DisplayEventRequest` and `DashboardMenuItem`. That means the capability is not callable from the public facade, but some internal vocabulary still leaks in the Maven-facing model package unless we mark those types `internal` or move them.
+`DisplayEventRequest` and `DashboardMenuItem` are internal model types because
+their only facade methods are internal. The deprecated `MicConfig` overload was
+removed before public release; the public microphone API is the scalar
+`setMicState(...)` signature.
 
 ### iOS Native
 
-These facade methods are no longer public Swift SDK methods:
+These facade methods are internal Swift SDK methods:
 
 ```swift
 func connectSimulated()
 func displayEvent(_ request: DisplayEventRequest) async throws
 func setDashboardMenu(_ items: [DashboardMenuItem]) async throws
+func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws
+func setAutoBrightness(enabled: Bool) async throws
 func sendOtaStart()
 func sendOtaQueryStatus()
 func sendShutdown()
@@ -682,26 +528,42 @@ func sendReboot()
 func sendIncidentId(_ incidentId: String, apiBaseUrl: String? = nil)
 ```
 
-Review note: like Android, the operation methods are internal, but `DisplayEventRequest` and `DashboardMenuItem` are still declared `public`. They are not useful without the hidden methods, so this should be reviewed as either intentional future-proofing or a small public-surface leak.
+`DisplayEventRequest` and `DashboardMenuItem` are internal model types because
+their only facade methods are internal. The deprecated `MicConfiguration`
+overload was removed before public release; the public microphone API is the
+scalar `setMicState(...)` signature.
 
-## Cross-Language Differences Surfaced
+## Intentional Cross-Language Shape Differences
 
-- React Native exposes `getGlassesMediaVolume()` and `setGlassesMediaVolume(level)`. Android native also exposes these. The bare Swift facade currently does not, even though the iOS Expo bridge and underlying iOS `DeviceManager` have implementations.
-- React Native camera/video methods use scalar arguments for `photoRequest(...)`, `startVideoRecording(...)`, and `stopVideoRecording(...)`. Android and iOS native APIs use request objects for photo, stream, LED, and video recording.
-- React Native scan returns a `Promise<Device[]>` and optionally reports progressive results through `onResults`. Android and iOS scan return a `ScanSession` immediately and report progressive/final results through callbacks.
-- React Native has both generic `addListener(...)` and convenience `onGlassesStatus(...)` / `onBluetoothStatus(...)`. Android uses `MentraBluetoothSdkListener`; iOS uses `MentraBluetoothSDKDelegate`.
-- Android exposes `close()` because the facade implements `AutoCloseable`. iOS exposes `invalidate()`. React Native does not expose an equivalent module-wide teardown method.
-- Android and iOS both keep deprecated config-object overloads for `setMicState(...)`. React Native only exposes the scalar `setMicState(enabled, useGlassesMic, bypassVad, sendTranscript, sendLc3Data)` signature.
-- Android and iOS expose request-object overloads for display text, dashboard position, button photo settings, and button video settings. React Native only exposes the simpler scalar variants.
-- Android and iOS still expose some native model types for internal-only operations, especially `DisplayEventRequest` and `DashboardMenuItem`. React Native avoids this at the package root by not exporting those types.
-- The iOS native facade uses `async throws` for display/settings methods that can be async, while Android public methods are synchronous facade calls and React Native methods return `Promise`.
+- React Native scan returns a `Promise<Device[]>` and can report progressive
+  results through `onResults`. Android and iOS return a `ScanSession`
+  immediately and report progressive/final results through callbacks.
+- React Native uses scalar method arguments for many operations. Android and iOS
+  also expose request objects for operations where that reads better natively,
+  such as photo, stream, RGB LED, and video recording.
+- React Native uses typed event names through `addListener(...)`. Android uses
+  `MentraBluetoothSdkListener`; iOS uses `MentraBluetoothSDKDelegate`.
+- Android exposes `close()` because the facade implements `AutoCloseable`. iOS
+  exposes `invalidate()`. React Native does not expose a module-wide teardown.
+- Android and iOS public status snapshots currently expose a fuller native view
+  of the local store than the React Native package root. That is not a feature
+  gap, but it is a candidate for a future pass if we want status models to be as
+  tightly constrained as the operation methods.
 
-## Review Questions
+## Current Review Conclusion
 
-- Should bare Swift expose glasses media volume to match React Native and Android?
-- Should `DisplayEventRequest` and `DashboardMenuItem` be hidden in Swift/Kotlin since their operation methods are hidden?
-- Should OTA, shutdown/reboot, and incident-reporting remain internal forever, or should any become explicit partner APIs with permission/guardrail semantics?
-- Should STT model/file management stay MentraOS-internal, or is there a partner use case for local STT model management?
-- Should raw store mutation helpers remain available only to MentraOS through `_internal`, or should even MentraOS migrate away from them before release?
-- Should native SDKs remove deprecated `MicConfig` / `MicConfiguration` overloads before the first public release?
-- Should scan be the preferred public API across all three languages, with `startScan` / `stopScan` documented only for advanced custom flows?
+After this pass, there are no known missing public operation functions between
+React Native, Android, and iOS for the intended partner feature set. The one
+previous functional gap, Swift media volume, is now covered by:
+
+```swift
+public func getGlassesMediaVolume() async throws -> GlassesMediaVolumeGetResult
+public func setGlassesMediaVolume(_ level: Int) async throws -> GlassesMediaVolumeSetResult
+```
+
+The public/private split is also cleaner:
+
+- Broken brightness setters are internal only across all three SDKs.
+- Internal dashboard/display-event model types are no longer exposed by native
+  SDKs.
+- Deprecated pre-release native microphone config overloads are removed.

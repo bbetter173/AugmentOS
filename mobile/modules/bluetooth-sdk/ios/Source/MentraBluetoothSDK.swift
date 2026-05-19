@@ -706,10 +706,10 @@ public struct DisplayTextRequest {
     }
 }
 
-public struct DisplayEventRequest {
-    public let values: [String: Any]
+struct DisplayEventRequest {
+    let values: [String: Any]
 
-    public init(values: [String: Any]) {
+    init(values: [String: Any]) {
         self.values = values
     }
 }
@@ -724,12 +724,12 @@ public struct DashboardPositionRequest {
     }
 }
 
-public struct DashboardMenuItem {
-    public let title: String
-    public let packageName: String
-    public let values: [String: Any]
+struct DashboardMenuItem {
+    let title: String
+    let packageName: String
+    let values: [String: Any]
 
-    public init(title: String, packageName: String, values: [String: Any] = [:]) {
+    init(title: String, packageName: String, values: [String: Any] = [:]) {
         self.title = title
         self.packageName = packageName
         self.values = values
@@ -795,25 +795,6 @@ public enum CameraFov {
         case .wide:
             ["fov": 118, "roiPosition": 0]
         }
-    }
-}
-
-public struct MicConfiguration {
-    public let sendPcmData: Bool
-    public let sendTranscript: Bool
-    public let bypassVad: Bool
-    public let sendLc3Data: Bool
-
-    public init(
-        sendPcmData: Bool,
-        sendTranscript: Bool,
-        bypassVad: Bool,
-        sendLc3Data: Bool = false
-    ) {
-        self.sendPcmData = sendPcmData
-        self.sendTranscript = sendTranscript
-        self.bypassVad = bypassVad
-        self.sendLc3Data = sendLc3Data
     }
 }
 
@@ -1931,6 +1912,38 @@ public struct LocalTranscriptionEvent: CustomStringConvertible {
     }
 }
 
+public struct GlassesMediaVolumeGetResult: CustomStringConvertible {
+    public let level: Int?
+    public let statusCode: Int?
+    public let values: [String: Any]
+
+    public init(values: [String: Any]) {
+        self.level = intValue(values["level"])
+        self.statusCode = intValue(values["statusCode"])
+        self.values = values
+    }
+
+    public var description: String {
+        let levelText = level.map(String.init) ?? "unknown"
+        let statusCodeText = statusCode.map(String.init) ?? "unknown"
+        return "GlassesMediaVolumeGetResult(level: \(levelText), statusCode: \(statusCodeText))"
+    }
+}
+
+public struct GlassesMediaVolumeSetResult: CustomStringConvertible {
+    public let statusCode: Int?
+    public let values: [String: Any]
+
+    public init(values: [String: Any]) {
+        self.statusCode = intValue(values["statusCode"])
+        self.values = values
+    }
+
+    public var description: String {
+        "GlassesMediaVolumeSetResult(statusCode: \(statusCode.map(String.init) ?? "unknown"))"
+    }
+}
+
 public enum BluetoothEvent: CustomStringConvertible {
     case buttonPress(ButtonPressEvent)
     case touch(TouchEvent)
@@ -2304,16 +2317,6 @@ public final class MentraBluetoothSDK {
         )
     }
 
-    @available(*, deprecated, message: "Use setMicState(enabled:useGlassesMic:bypassVad:) instead.")
-    public func setMicState(_ config: MicConfiguration) {
-        applyMicState(
-            sendPcmData: config.sendPcmData,
-            sendTranscript: config.sendTranscript,
-            bypassVad: config.bypassVad,
-            sendLc3Data: config.sendLc3Data
-        )
-    }
-
     private func applyMicState(
         sendPcmData: Bool,
         sendTranscript: Bool,
@@ -2333,6 +2336,20 @@ public final class MentraBluetoothSDK {
 
     public func setOwnAppAudioPlaying(_ playing: Bool) {
         PhoneAudioMonitor.getInstance().setOwnAppAudioPlaying(playing)
+    }
+
+    public func getGlassesMediaVolume() async throws -> GlassesMediaVolumeGetResult {
+        GlassesMediaVolumeGetResult(values: try await DeviceManager.shared.getGlassesMediaVolume())
+    }
+
+    public func setGlassesMediaVolume(_ level: Int) async throws -> GlassesMediaVolumeSetResult {
+        guard (0...15).contains(level) else {
+            throw BluetoothError(
+                code: "invalid_volume_level",
+                message: "Glasses media volume must be between 0 and 15."
+            )
+        }
+        return GlassesMediaVolumeSetResult(values: try await DeviceManager.shared.setGlassesMediaVolume(level: level))
     }
 
     public func requestWifiScan() {

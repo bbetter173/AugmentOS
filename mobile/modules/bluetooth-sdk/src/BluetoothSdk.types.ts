@@ -575,7 +575,7 @@ export interface BluetoothSdkPublicModule {
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
   queryGalleryStatus(): Promise<void>
-  photoRequest(
+  requestPhoto(
     requestId: string,
     appId: string,
     size: PhotoSize,

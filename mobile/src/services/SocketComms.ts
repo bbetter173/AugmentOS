@@ -550,7 +550,7 @@ class SocketComms {
       console.log("Invalid photo request: missing requestId or appId")
       return
     }
-    BluetoothSdk.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, sound)
+    BluetoothSdk.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, sound)
   }
 
   private handle_start_stream(msg: any) {

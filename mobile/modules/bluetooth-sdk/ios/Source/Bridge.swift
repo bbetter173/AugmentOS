@@ -77,14 +77,17 @@ class Bridge {
         Bridge.sendTypedMessage("pair_failure", body: data)
     }
 
+    @MainActor
     static func sendMicPcm(_ data: Data) {
         Bridge.sendTypedMessage("mic_pcm", body: micPcmEventBody(data))
     }
 
+    @MainActor
     static func sendMicLc3(_ data: Data) {
         Bridge.sendTypedMessage("mic_lc3", body: micLc3EventBody(data))
     }
 
+    @MainActor
     private static func micPcmEventBody(_ data: Data) -> [String: Any] {
         [
             "pcm": data,
@@ -96,6 +99,7 @@ class Bridge {
         ]
     }
 
+    @MainActor
     private static func micLc3EventBody(_ data: Data) -> [String: Any] {
         let frameSizeBytes = DeviceStore.shared.get("bluetooth", "lc3_frame_size") as? Int ?? defaultLc3FrameSizeBytes
         return [
@@ -111,6 +115,7 @@ class Bridge {
         ]
     }
 
+    @MainActor
     private static func isVadGated() -> Bool {
         !(DeviceStore.shared.get("bluetooth", "bypass_vad") as? Bool ?? true)
     }

@@ -210,32 +210,37 @@ iOS exposes `GlassesStatus.connectionState` as the native `GlassesConnectionStat
   </Tab>
 </Tabs>
 
-Status snapshots are safe to read at any time in the native SDKs. In React Native, keep UI state derived from `useMentraBluetooth()` and typed `useBluetoothEvent()` handlers. Treat command success as "command accepted"; keep UI state derived from status callbacks or hook state.
+Status snapshots are safe to read at any time in the native SDKs. Android and iOS expose `GlassesStatus` and `BluetoothStatus` directly. React Native app code should use `useMentraBluetooth()` for shaped status state and `useBluetoothEvent()` for typed hardware events. Treat command success as "command accepted"; keep UI state derived from status callbacks or hook state.
 
-Native `GlassesStatus` fields:
+Native Android/iOS `GlassesStatus` fields:
 
 | Field | Meaning |
 | --- | --- |
-| `connection` | Discriminated connection state. `fullyBooted` exists only when connected. |
+| `connectionState`, `connected`, `fullyBooted` | Native connection state and readiness. React Native exposes this as `mentra.glasses.connection`. |
 | `micEnabled`, `bluetoothClassicConnected` | Microphone and Bluetooth-classic/audio state reported by the connected model. |
 | `signalStrength`, `signalStrengthUpdatedAt` | BLE RSSI and last phone-side refresh time. |
 | `deviceModel`, `bluetoothName`, `serialNumber`, `style`, `color` | Device identity fields when the model reports them. |
 | `androidVersion`, `appVersion`, `buildNumber`, `firmwareVersion`, `besFirmwareVersion`, `mtkFirmwareVersion` | Version fields. See Version Fields below for how to display them. |
-| `bluetoothMacAddress`, `leftMacAddress`, `rightMacAddress` | Model-specific Bluetooth addresses when available. |
+| `bluetoothMacAddress`, `leftMacAddress`, `rightMacAddress`, `macAddress` | Model-specific Bluetooth addresses when available. |
 | `wifi`, `hotspot` | Typed Wi-Fi and hotspot status unions. |
 | `batteryLevel`, `charging`, `caseBatteryLevel`, `caseCharging`, `caseOpen`, `caseRemoved` | Device and case battery state where supported. Unknown battery levels are reported as `-1`. |
-| `controllerConnected`, `controllerFullyBooted`, `controllerMacAddress`, `controllerBatteryLevel`, `controllerSignalStrength` | Controller/ring status for models with a companion controller. |
+| `headUp` | Whether the glasses currently report a head-up state. |
+| `controllerConnected`, `controllerFullyBooted`, `controllerMacAddress`, `controllerBatteryLevel`, `controllerSignalStrength`, `ringSignalStrength` | Controller/ring status for models with a companion controller. |
 
-Native `BluetoothStatus` fields:
+Native Android/iOS `BluetoothStatus` fields:
 
 | Field | Meaning |
 | --- | --- |
 | `searching`, `searchingController` | Phone-side scan activity. |
 | `searchResults` | Discovered glasses `Device[]` for the active model scan. |
 | `wifiScanResults` | Wi-Fi networks returned by glasses-side Wi-Fi scan. |
-| `systemMicUnavailable`, `micRanking`, `currentMic`, `otherBtConnected` | Phone/glasses microphone and audio-route status. |
+| `systemMicUnavailable`, `micEnabled`, `micRanking`, `currentMic`, `otherBtConnected` | Phone/glasses microphone and audio-route status. |
 | `lastLog` | Recent SDK log lines for developer visibility. |
-| `galleryModeAuto` | Current gallery-button behavior setting known to the SDK. |
+| `defaultWearable`, `pendingWearable`, `deviceName`, `deviceAddress`, `defaultController`, `pendingController`, `controllerDeviceName` | Default and pending device/controller records known to the SDK. |
+| `screenDisabled`, `brightness`, `autoBrightness`, `dashboardHeight`, `dashboardDepth`, `headUpAngle`, `contextualDashboard` | Display and dashboard settings known to the SDK. |
+| `galleryModeAuto`, `buttonPhotoSize`, `buttonCameraLed`, `buttonMaxRecordingTime`, `buttonVideoWidth`, `buttonVideoHeight`, `buttonVideoFrameRate` | Gallery and camera-button settings known to the SDK. |
+| `preferredMic`, `shouldSendPcm`, `shouldSendLc3`, `shouldSendTranscript`, `bypassVad`, `offlineCaptionsRunning`, `localSttFallbackActive` | Microphone routing, output, VAD, and local transcription settings known to the SDK. |
+| `sensingEnabled`, `powerSavingMode`, `shouldSendBootingMessage` | Other runtime settings known to the SDK. |
 
 ## React Native Public Surface
 
@@ -306,11 +311,43 @@ export function HardwareEventLogger() {
 
 For non-React modules, `BluetoothSdk.addListener(...)` is the low-level subscription API. Keep the returned subscription and call `remove()` when the listener is no longer needed.
 
-The React Native event surface is typed through `BluetoothSdkEventMap`. For example, `useBluetoothEvent('photo_response', ...)` receives a `PhotoResponseEvent`, while `useBluetoothEvent('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
+The React Native event surface is typed through `BluetoothSdkEventMap`. These are the public event names accepted by `useBluetoothEvent()` and `BluetoothSdk.addListener()`:
+
+| Event name | Payload type | When it fires |
+| --- | --- | --- |
+| `log` | `LogEvent` | SDK diagnostic log line. |
+| `device_discovered` | `Device` | A supported glasses device is discovered during scan. |
+| `default_device_changed` | `{device?: Device}` | The SDK default device changes. |
+| `glasses_not_ready` | `GlassesNotReadyEvent` | A command needs ready glasses but the connected device is not ready. |
+| `button_press` | `ButtonPressEvent` | Glasses button press. |
+| `touch_event` | `TouchEvent` | Glasses touch or swipe gesture. |
+| `head_up` | `HeadUpEvent` | Head-up state changes. |
+| `vad_status` | `VadStatusEvent` | Voice Activity Detection state changes. |
+| `battery_status` | `BatteryStatusEvent` | Battery update from glasses. |
+| `local_transcription` | `LocalTranscriptionEvent` | SDK local transcription text update. |
+| `wifi_status_change` | `WifiStatusChangeEvent` | Glasses Wi-Fi connection state changes. |
+| `hotspot_status_change` | `HotspotStatusChangeEvent` | Glasses hotspot state changes. |
+| `hotspot_error` | `HotspotErrorEvent` | Hotspot operation fails. |
+| `photo_response` | `PhotoResponseEvent` | Photo request succeeds or fails. |
+| `gallery_status` | `GalleryStatusEvent` | Gallery content/camera-busy status changes. |
+| `compatible_glasses_search_stop` | `CompatibleGlassesSearchStopEvent` | Compatible-glasses search stops for a model. |
+| `swipe_volume_status` | `SwipeVolumeStatusEvent` | Swipe-volume setting changes. |
+| `switch_status` | `SwitchStatusEvent` | Glasses switch status changes. |
+| `rgb_led_control_response` | `RgbLedControlResponseEvent` | RGB LED command succeeds or fails. |
+| `pair_failure` | `PairFailureEvent` | Bluetooth pairing fails. |
+| `audio_pairing_needed` | `AudioPairingNeededEvent` | The phone needs Bluetooth audio pairing for the device. |
+| `audio_connected` | `AudioConnectedEvent` | Bluetooth audio connects. |
+| `audio_disconnected` | `AudioDisconnectedEvent` | Bluetooth audio disconnects. |
+| `mic_pcm` | `MicPcmEvent` | PCM microphone frame arrives. |
+| `mic_lc3` | `MicLc3Event` | LC3 microphone frame arrives. |
+| `stream_status` | `StreamStatusEvent` | Camera stream lifecycle, reconnect, or error state changes. |
+| `keep_alive_ack` | `KeepAliveAckEvent` | Glasses acknowledge a stream keep-alive request. |
+
+For example, `useBluetoothEvent('photo_response', ...)` receives a `PhotoResponseEvent`, while `useBluetoothEvent('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
 
 Public React Native event payload fields use camelCase. For example, touch events expose `deviceModel` and `gestureName`, successful photo responses expose `uploadUrl`, hotspot errors expose `errorMessage`, and gallery status exposes `hasContent` and `cameraBusy`.
 
-Android and iOS receive the same event families through their SDK callback and delegate surfaces. Microphone audio callbacks use `MicPcmEvent` and `MicLc3Event` objects with the same metadata as React Native.
+Android and iOS expose typed callbacks/delegate methods instead of the React Native string event API. Android uses `MentraBluetoothSdkListener` methods such as `onDeviceDiscovered`, `onGlassesStatusChanged`, `onButtonPress`, `onPhotoResponse`, `onMicPcm`, and `onStreamStatus`. iOS uses `MentraBluetoothSDKDelegate` methods such as `didDiscover`, `didUpdateGlassesStatus`, `didReceive`, `didReceiveMicPcm`, and `didReceiveMicLc3`. Microphone audio callbacks use `MicPcmEvent` and `MicLc3Event` objects with the same metadata as React Native.
 
 | Event area | Examples |
 | --- | --- |

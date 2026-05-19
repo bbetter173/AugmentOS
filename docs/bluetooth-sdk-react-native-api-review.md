@@ -4,10 +4,16 @@ This note reviews the React Native-facing Bluetooth SDK API shape. It is intenti
 
 ## Current Shape
 
-The package currently exposes two layers:
+At the start of this review, the package exposed two layers:
 
 - A core imperative module, `BluetoothSdk`, with status getters, event listeners, connection commands, display commands, camera commands, streaming commands, microphone commands, Wi-Fi commands, and media-volume commands.
 - A React convenience layer under `src/react`, with `useBluetoothEvent`, `useBluetoothStatus`, `useBluetoothScan`, and `useGlassesConnection`.
+
+The current publish target narrows that React Native surface:
+
+- Root `BluetoothSdk` remains the imperative command surface plus typed hardware events.
+- `@mentra/bluetooth-sdk/react` exposes `useMentraBluetooth`, `useBluetoothScan`, and `useBluetoothEvent`.
+- Raw native/store status snapshots remain internal implementation details, not the primary partner API.
 
 The example app still has a large app-local `useMentraSdk` hook. That hook currently owns a lot more than basic SDK lifecycle:
 
@@ -349,7 +355,7 @@ Recommendation:
 
 - Keep native/internal store categories as `glasses` and `bluetooth` for now.
 - Public React APIs should frame them as `glasses` and `sdk`, not "Bluetooth status" as the primary app mental model.
-- `BluetoothStatus` can remain a low-level type for `getBluetoothStatus()` and `onBluetoothStatus()`, but docs and examples should steer customers to hook-returned state.
+- `BluetoothStatus` can remain an internal bridge/store type, but docs and examples should steer customers to hook-returned state.
 - Public hook state should be explicit and task-shaped, not a `Pick`/`Omit` projection of internal stores.
 
 Rejected alternative:
@@ -451,7 +457,7 @@ type GlassesRuntimeState =
     };
 ```
 
-This should be the hook-facing shape. The low-level `getGlassesStatus()` can still exist, but the example app should not have to manually call `createDisconnectedGlassesStatus()` or remember which fields are stale.
+This should be the hook-facing shape. Raw status snapshot loading can stay inside the SDK hook implementation, but the example app should not have to manually initialize disconnected state or remember which fields are stale.
 
 Do not expose inferred capabilities yet. For example, display support is currently inferred in the example UI from model strings. That is acceptable demo logic, but the SDK should only expose `capabilities.display` after native/glasses provide a real reported value.
 
@@ -468,7 +474,7 @@ Pattern link:
 Current lifecycle check:
 
 - Native `DeviceStore` initializes disconnected glasses state, disabled hotspot, disconnected Wi-Fi, empty scan results, and default settings such as `galleryModeAuto`.
-- React `useBluetoothStatus` loads initial snapshots with `getGlassesStatus()` and `getBluetoothStatus()`, then merges `glasses_status`, `bluetooth_status`, and typed events.
+- Internal React status plumbing loads initial snapshots and merges native status/event patches; the exported hook exposes shaped state.
 - `connect(device)` saves default-device state if requested, sets pending wearable state, and calls native `connectByName(...)`. It does not guarantee the glasses are fully booted when the promise resolves.
 - `scan(...)` is different: it is intentionally a time-bounded operation. It returns final results after timeout/cancellation and can also stream intermediate results through `onResults`.
 - `requestPhoto(...)`, `startStream(...)`, `setMicState(...)`, and `setGalleryMode(...)` request behavior. The resulting state or response arrives through events/status updates.
@@ -621,8 +627,8 @@ Pattern link:
    - Stream preview health polling.
    - PCM-to-WAV file writing and playback UI.
    - Console event formatting.
-4. Rewrite docs so the first examples use hooks and the second examples show the imperative escape hatch.
-5. Only after the example app feels simpler, decide whether `BluetoothStatus` / `GlassesStatus` need public renames or just better docs.
+4. Rewrite docs so the first examples use hooks and root imperative commands.
+5. Do not publish raw React Native `BluetoothStatus` / `GlassesStatus` snapshots as the main partner surface. They can stay inside the internal bridge used by MentraOS and by the hooks.
 
 Success criterion:
 
@@ -642,7 +648,8 @@ Implemented first:
   - Scan result state and selected device state.
   - Connect, connect-default, disconnect, and clear-default actions.
   - Gallery-mode desired setting state.
-- Kept the example app's raw status listeners only for Console tab logging.
+- Removed raw status listeners from the example app and stopped exporting raw status hooks from `@mentra/bluetooth-sdk/react`.
+- Kept native/store snapshots in the private bridge only, so the public React Native hook returns shaped `glasses`, `sdk`, and `scan` state.
 - Kept demo-specific logic in the example app: local photo receiver, direct stream receiver, stream preview polling, PCM WAV writing, playback, UI copy, and event formatting.
 
 Deferred:

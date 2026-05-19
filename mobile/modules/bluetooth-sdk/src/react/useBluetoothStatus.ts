@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
-import BluetoothSdk from "../index"
+import BluetoothSdk from "../_private/BluetoothSdkModule"
 import {
   createDisconnectedGlassesStatus,
   isConnectedGlassesConnectionStatus,

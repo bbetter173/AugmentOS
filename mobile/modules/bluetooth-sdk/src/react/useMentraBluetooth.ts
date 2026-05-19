@@ -16,6 +16,8 @@ import type {
   HotspotStatus,
   PublicBluetoothStatus,
   PublicGlassesStatus,
+  MicMode,
+  WifiSearchResult,
   WifiStatus,
 } from "../BluetoothSdk.types"
 
@@ -41,21 +43,41 @@ export type ConnectedGlassesInfo = {
   style?: string
 }
 
+export type FirmwareInfo = {
+  appVersion?: string
+  buildNumber?: string
+  source:
+    | "app"
+    | "bes"
+    | "device"
+    | "firmware"
+    | "left"
+    | "mtk"
+    | "right"
+    | "unknown"
+  version: string | null
+}
+
+export type SignalState = {
+  strengthDbm: number | null
+  updatedAt: number | null
+}
+
 export type GlassesRuntimeState =
   | {
       connected: false
       connection: Exclude<GlassesConnectionStatus, {state: "connected"}>
       ready: false
-      status: Partial<PublicGlassesStatus>
     }
   | {
       battery: BatteryState
       connected: true
       connection: Extract<GlassesConnectionStatus, {state: "connected"}>
       device: ConnectedGlassesInfo
+      firmware: FirmwareInfo
       hotspot: HotspotStatus
       ready: boolean
-      status: Partial<PublicGlassesStatus>
+      signal: SignalState
       wifi: WifiStatus
     }
 
@@ -66,9 +88,16 @@ export type GalleryModeState = {
 }
 
 export type PhoneSdkRuntimeState = {
+  currentMic: MicMode | null
   defaultDevice: Device | null
   galleryMode: GalleryModeState
-  status: Partial<PublicBluetoothStatus>
+  lastLog: string[]
+  micRanking: MicMode[]
+  otherBluetoothConnected: boolean
+  searching: boolean
+  searchingController: boolean
+  systemMicUnavailable: boolean
+  wifiScanResults: WifiSearchResult[]
 }
 
 export type ScanController = {
@@ -112,6 +141,41 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function firmwareInfo(status: Partial<PublicGlassesStatus>): FirmwareInfo {
+  const firmwareSources = [
+    ["firmwareVersion", "firmware"],
+    ["deviceFirmwareVersion", "device"],
+    ["rightFirmwareVersion", "right"],
+    ["leftFirmwareVersion", "left"],
+    ["besFirmwareVersion", "bes"],
+    ["mtkFirmwareVersion", "mtk"],
+    ["appVersion", "app"],
+  ] as const
+
+  for (const [key, source] of firmwareSources) {
+    const value = stringValue((status as Record<string, unknown>)[key])
+    if (value) {
+      return {
+        appVersion: stringValue(status.appVersion),
+        buildNumber: stringValue(status.buildNumber),
+        source,
+        version: value,
+      }
+    }
+  }
+
+  return {
+    appVersion: stringValue(status.appVersion),
+    buildNumber: stringValue(status.buildNumber),
+    source: "unknown",
+    version: null,
+  }
+}
+
 function batteryState(status: Partial<PublicGlassesStatus>): BatteryState {
   const level = typeof status.batteryLevel === "number" && status.batteryLevel >= 0 ? status.batteryLevel : null
   return {
@@ -141,7 +205,6 @@ function runtimeGlassesState(status: Partial<PublicGlassesStatus>): GlassesRunti
       connected: false,
       connection,
       ready: false,
-      status,
     }
   }
 
@@ -150,10 +213,33 @@ function runtimeGlassesState(status: Partial<PublicGlassesStatus>): GlassesRunti
     connected: true,
     connection,
     device: connectedGlassesInfo(status),
+    firmware: firmwareInfo(status),
     hotspot: status.hotspot ?? {state: "disabled"},
     ready: isReadyGlassesConnectionStatus(connection),
-    status,
+    signal: {
+      strengthDbm: numberValue((status as Record<string, unknown>).signalStrength),
+      updatedAt: numberValue((status as Record<string, unknown>).signalStrengthUpdatedAt),
+    },
     wifi: status.wifi ?? {state: "disconnected"},
+  }
+}
+
+function phoneSdkState(
+  status: Partial<PublicBluetoothStatus>,
+  defaultDevice: Device | null,
+  galleryMode: GalleryModeState,
+): PhoneSdkRuntimeState {
+  return {
+    currentMic: status.currentMic || null,
+    defaultDevice,
+    galleryMode,
+    lastLog: status.lastLog ?? [],
+    micRanking: status.micRanking ?? [],
+    otherBluetoothConnected: status.otherBtConnected ?? false,
+    searching: status.searching ?? false,
+    searchingController: status.searchingController ?? false,
+    systemMicUnavailable: status.systemMicUnavailable ?? false,
+    wifiScanResults: status.wifiScanResults ?? [],
   }
 }
 
@@ -214,11 +300,7 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
     glasses: runtimeGlassesState(connection.glassesStatus),
     refresh: connection.refresh,
     scan: scanController(connection),
-    sdk: {
-      defaultDevice: connection.defaultDevice,
-      galleryMode,
-      status: connection.bluetoothStatus,
-    },
+    sdk: phoneSdkState(connection.bluetoothStatus, connection.defaultDevice, galleryMode),
     setDefaultDevice: connection.setDefaultDevice,
     setGalleryMode,
   }

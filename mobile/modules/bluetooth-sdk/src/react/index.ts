@@ -8,26 +8,17 @@ export {
   type BluetoothScanHookResult,
   type UseBluetoothScanOptions,
 } from "./useBluetoothScan"
-export {
-  useBluetoothStatus,
-  type BluetoothStatusHookResult,
-  type UseBluetoothStatusOptions,
-} from "./useBluetoothStatus"
-export {
-  useGlassesConnection,
-  type DefaultDeviceStorage,
-  type GlassesConnectionAction,
-  type GlassesConnectionHookResult,
-  type UseGlassesConnectionOptions,
-} from "./useGlassesConnection"
+export type {DefaultDeviceStorage} from "./useGlassesConnection"
 export {
   useMentraBluetooth,
   type BatteryState,
   type ConnectedGlassesInfo,
+  type FirmwareInfo,
   type GalleryModeState,
   type GlassesRuntimeState,
   type MentraBluetoothSession,
   type PhoneSdkRuntimeState,
   type ScanController,
+  type SignalState,
   type UseMentraBluetoothOptions,
 } from "./useMentraBluetooth"

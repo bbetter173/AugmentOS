@@ -114,12 +114,7 @@ Use `scan()` when your app needs to show a picker. It calls `onResults` every ti
 ```ts
 import BluetoothSdk, {
   DeviceModels,
-  isReadyGlassesConnectionStatus,
 } from '@mentra/bluetooth-sdk'
-
-const removeGlassesListener = BluetoothSdk.onGlassesStatus((status) => {
-  console.log('Glasses status changed', status)
-})
 
 const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
   timeoutMs: 10_000,
@@ -134,13 +129,7 @@ if (!device) {
 }
 
 await BluetoothSdk.connect(device)
-
-const glasses = await BluetoothSdk.getGlassesStatus()
-if (isReadyGlassesConnectionStatus(glasses.connection)) {
-  await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
-}
-
-removeGlassesListener()
+await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
 ```
 
 ## React Hooks
@@ -153,11 +142,11 @@ subpath. The hooks use the same SDK types and still leave commands such as
 ```tsx
 import {Button, Text, View} from 'react-native'
 import {DeviceModels} from '@mentra/bluetooth-sdk'
-import {useBluetoothEvent, useGlassesConnection} from '@mentra/bluetooth-sdk/react'
+import {useBluetoothEvent, useMentraBluetooth} from '@mentra/bluetooth-sdk/react'
 
 export function DeviceScreen() {
-  const glasses = useGlassesConnection({
-    scanModel: DeviceModels.MentraLive,
+  const mentra = useMentraBluetooth({
+    defaultModel: DeviceModels.MentraLive,
     scanTimeoutMs: 10_000,
   })
 
@@ -167,12 +156,12 @@ export function DeviceScreen() {
 
   return (
     <View>
-      <Text>{glasses.connected ? 'Connected' : 'Disconnected'}</Text>
-      <Button disabled={glasses.busy} title="Scan" onPress={() => glasses.scan.startScan()} />
-      {glasses.scan.devices.map((device) => (
-        <Button key={device.id} title={device.name} onPress={() => glasses.connect(device)} />
+      <Text>{mentra.glasses.connected ? 'Connected' : 'Disconnected'}</Text>
+      <Button disabled={mentra.busy} title="Scan" onPress={() => mentra.scan.start()} />
+      {mentra.scan.devices.map((device) => (
+        <Button key={device.id} title={device.name} onPress={() => mentra.connect(device)} />
       ))}
-      <Button disabled={!glasses.connected} title="Disconnect" onPress={glasses.disconnect} />
+      <Button disabled={!mentra.glasses.connected} title="Disconnect" onPress={mentra.disconnect} />
     </View>
   )
 }
@@ -180,10 +169,10 @@ export function DeviceScreen() {
 
 The hooks do not request Android permissions or choose a persistence package for
 you. Ask for permissions in your app before calling scan/connect actions, and
-pass a `defaultDeviceStorage` adapter to `useGlassesConnection` if you want a
+pass a `defaultDeviceStorage` adapter to `useMentraBluetooth` if you want a
 default device to survive app restarts.
 
-React Native status exposes `GlassesStatus.connection` as a discriminated union:
+The React hook exposes `glasses.connection` as a discriminated union:
 
 ```ts
 type GlassesConnectionStatus =

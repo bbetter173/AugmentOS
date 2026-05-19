@@ -190,13 +190,7 @@ Add usage descriptions to `Info.plist`:
   <Tab title="React Native / Expo">
 
 ```ts
-import BluetoothSdk, {
-  DeviceModels,
-} from '@mentra/bluetooth-sdk';
-
-const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
-  console.log('Glasses status changed', status);
-});
+import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk';
 
 const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
   timeoutMs: 10_000,
@@ -216,15 +210,7 @@ await BluetoothSdk.connect(device);
 `onResults` is the live UI path while scanning is in progress. The returned `devices` array is the final list after the scan timeout/completion, which is the right place for final selection, fallback behavior, or "connect to this device" logic.
 
 ```ts
-await BluetoothSdk.requestVersionInfo();
-const glasses = await BluetoothSdk.getGlassesStatus();
-console.log('Connected glasses:', {
-  model: glasses.deviceModel,
-  batteryLevel: glasses.batteryLevel,
-  appVersion: glasses.appVersion,
-});
-
-removeGlasses();
+await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24);
 ```
 
   </Tab>

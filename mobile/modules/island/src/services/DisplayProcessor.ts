@@ -27,7 +27,7 @@ import {
   type BreakMode,
 } from "../utils/display"
 
-import BluetoothSdk, {GlassesStatus} from "@mentra/bluetooth-sdk"
+import BluetoothSdk, {GlassesStatus} from "@mentra/bluetooth-sdk-internal"
 
 import {getRuntimeHooks, ISLAND_SETTINGS_KEYS} from "../runtime/config"
 

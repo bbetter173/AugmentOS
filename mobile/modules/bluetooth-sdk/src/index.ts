@@ -4,7 +4,6 @@ export default BluetoothSdk
 
 export {
   DeviceModels,
-  createDisconnectedGlassesStatus,
   isBusyGlassesConnectionStatus,
   isConnectedGlassesConnectionStatus,
   isConnectedWifiStatus,
@@ -54,8 +53,6 @@ export type {
   PhotoCompression,
   PhotoResponseEvent,
   PhotoSize,
-  PublicBluetoothStatus as BluetoothStatus,
-  PublicGlassesStatus as GlassesStatus,
   RgbLedAction,
   RgbLedColor,
   RgbLedControlResponseEvent,

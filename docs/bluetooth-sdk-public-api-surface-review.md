@@ -43,7 +43,7 @@ until the underlying behavior is fixed.
 
 All three SDKs expose the same customer-facing feature groups:
 
-- Status: glasses status, Bluetooth status, default device, and status-change callbacks.
+- Status: typed React hook state, native status snapshots, and default device.
 - Discovery and connection: start scan, stop scan, picker-friendly scan helper,
   connect selected device, connect default device, cancel connection attempt,
   disconnect, and forget.
@@ -66,13 +66,13 @@ Import path:
 
 ```ts
 import BluetoothSdk from "@mentra/bluetooth-sdk"
+import {useBluetoothEvent, useBluetoothScan, useMentraBluetooth} from "@mentra/bluetooth-sdk/react"
 ```
 
 Public value exports:
 
 ```ts
 DeviceModels
-createDisconnectedGlassesStatus(): Partial<GlassesStatus>
 isConnectedGlassesConnectionStatus(status: GlassesConnectionStatus): status is ConnectedGlassesConnectionStatus
 isReadyGlassesConnectionStatus(status: GlassesConnectionStatus): boolean
 isBusyGlassesConnectionStatus(status: GlassesConnectionStatus): boolean
@@ -88,8 +88,6 @@ addListener<EventName extends BluetoothSdkEventName>(
   listener: BluetoothSdkEventListener<EventName>,
 ): BluetoothSdkSubscription
 
-getGlassesStatus(): Promise<GlassesStatus>
-getBluetoothStatus(): Promise<BluetoothStatus>
 getDefaultDevice(): Promise<Device | null>
 setDefaultDevice(device: Device | null): Promise<void>
 clearDefaultDevice(): Promise<void>
@@ -162,8 +160,18 @@ rgbLedControl(
 ): Promise<void>
 
 requestVersionInfo(): Promise<void>
-onGlassesStatus(callback: (changed: Partial<GlassesStatus>) => void): () => void
-onBluetoothStatus(callback: (changed: Partial<BluetoothStatus>) => void): () => void
+```
+
+React hook signatures:
+
+```ts
+useMentraBluetooth(options?: UseMentraBluetoothOptions): MentraBluetoothSession
+useBluetoothScan(options?: UseBluetoothScanOptions): BluetoothScanHookResult
+useBluetoothEvent<EventName extends BluetoothSdkEventName>(
+  eventName: EventName,
+  listener: BluetoothSdkEventListener<EventName>,
+  options?: UseBluetoothEventOptions,
+): void
 ```
 
 Important public type constraints:

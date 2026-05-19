@@ -8,8 +8,8 @@ The Mentra Bluetooth SDK exposes the same core glasses lifecycle across Android,
 
 - Scan for a supported glasses model.
 - Connect to a discovered `Device` or an app-restored default device.
-- Read typed glasses and Bluetooth status.
-- Subscribe to typed status and hardware events.
+- Read typed lifecycle state through the public surface for your platform.
+- Subscribe to typed hardware events.
 - Send display, camera, stream, audio, Wi-Fi, hotspot, LED, and settings commands where supported by the connected model.
 
 ## Packages And Imports
@@ -19,7 +19,7 @@ The Mentra Bluetooth SDK exposes the same core glasses lifecycle across Android,
 | Android | `com.mentra:bluetooth-sdk` | `import com.mentra.bluetoothsdk.*` |
 | iOS | `MentraBluetoothSDK` CocoaPod | `import MentraBluetoothSDK` |
 | React Native / Expo | `@mentra/bluetooth-sdk` | `import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk'` |
-| React Native hooks | `@mentra/bluetooth-sdk` | `import {useGlassesConnection} from '@mentra/bluetooth-sdk/react'` |
+| React Native hooks | `@mentra/bluetooth-sdk` | `import {useMentraBluetooth} from '@mentra/bluetooth-sdk/react'` |
 
 Only documented root imports are part of the supported partner API. Package subpaths or symbols with a leading underscore are private implementation details and can change without notice.
 
@@ -30,17 +30,16 @@ Only documented root imports are part of the supported partner API. Package subp
 
 ```ts
 import BluetoothSdk from '@mentra/bluetooth-sdk';
+import {useMentraBluetooth} from '@mentra/bluetooth-sdk/react';
 
-const removeGlasses = BluetoothSdk.onGlassesStatus((status) => {
-  console.log('Glasses status changed', status);
+function DeviceScreen() {
+  const mentra = useMentraBluetooth();
+  console.log(mentra.glasses.connection.state);
+}
+
+BluetoothSdk.addListener('button_press', (event) => {
+  console.log(event.buttonId, event.pressType);
 });
-
-const removeBluetooth = BluetoothSdk.onBluetoothStatus((status) => {
-  console.log('Bluetooth status changed', status);
-});
-
-removeGlasses();
-removeBluetooth();
 ```
 
   </Tab>
@@ -146,12 +145,13 @@ Use `scan()` for user-facing device pickers. The progressive result callback is 
 <Tabs>
   <Tab title="React Native">
 
-```ts
-const glasses = await BluetoothSdk.getGlassesStatus();
-const bluetooth = await BluetoothSdk.getBluetoothStatus();
+```tsx
+import {useMentraBluetooth} from '@mentra/bluetooth-sdk/react';
+
+const mentra = useMentraBluetooth();
 ```
 
-React Native exposes `GlassesStatus.connection` as a discriminated union:
+React Native exposes `mentra.glasses.connection` as a discriminated union:
 
 ```ts
 type GlassesConnectionStatus =
@@ -162,7 +162,7 @@ type GlassesConnectionStatus =
   | {state: 'connected'; fullyBooted: boolean};
 ```
 
-Use `status.connection.state` for link-layer progress. `fullyBooted` only exists when `state === 'connected'`.
+Use `mentra.glasses.connection.state` for link-layer progress. `fullyBooted` only exists when `state === 'connected'`. The hook exposes shaped `glasses`, `sdk`, and `scan` state instead of raw native store snapshots.
 
   </Tab>
   <Tab title="Android">
@@ -187,9 +187,9 @@ iOS exposes `GlassesStatus.connectionState` as the native `GlassesConnectionStat
   </Tab>
 </Tabs>
 
-Status snapshots are safe to read at any time. Treat command success as "command accepted"; keep UI state derived from status callbacks.
+Status snapshots are safe to read at any time in the native SDKs. In React Native, keep UI state derived from `useMentraBluetooth()` and typed `addListener` events. Treat command success as "command accepted"; keep UI state derived from status callbacks or hook state.
 
-Public `GlassesStatus` fields:
+Native `GlassesStatus` fields:
 
 | Field | Meaning |
 | --- | --- |
@@ -203,7 +203,7 @@ Public `GlassesStatus` fields:
 | `batteryLevel`, `charging`, `caseBatteryLevel`, `caseCharging`, `caseOpen`, `caseRemoved` | Device and case battery state where supported. Unknown battery levels are reported as `-1`. |
 | `controllerConnected`, `controllerFullyBooted`, `controllerMacAddress`, `controllerBatteryLevel`, `controllerSignalStrength` | Controller/ring status for models with a companion controller. |
 
-Public `BluetoothStatus` fields:
+Native `BluetoothStatus` fields:
 
 | Field | Meaning |
 | --- | --- |
@@ -220,7 +220,7 @@ The React Native root export intentionally exposes a narrower surface than the M
 
 | Area | Methods |
 | --- | --- |
-| Status and subscriptions | `getGlassesStatus`, `getBluetoothStatus`, `onGlassesStatus`, `onBluetoothStatus`, `addListener` |
+| Status and subscriptions | `addListener`; React apps should use `useMentraBluetooth()` for connection, battery, Wi-Fi, hotspot, scan, and SDK state |
 | Default device | `getDefaultDevice`, `setDefaultDevice`, `clearDefaultDevice` |
 | Connection | `scan`, `startScan`, `stopScan`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
 | Display | `displayText`, `clearDisplay`, `showDashboard`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
@@ -230,7 +230,7 @@ The React Native root export intentionally exposes a narrower surface than the M
 | Audio | `setMicState`, `setPreferredMic`, `setOwnAppAudioPlaying`, `getGlassesMediaVolume`, `setGlassesMediaVolume` |
 | LED and version | `rgbLedControl`, `requestVersionInfo` |
 
-React Native helper exports include `DeviceModels`, `createDisconnectedGlassesStatus`, `isConnectedGlassesConnectionStatus`, `isReadyGlassesConnectionStatus`, `isBusyGlassesConnectionStatus`, `isConnectedWifiStatus`, and `isEnabledHotspotStatus`.
+React Native helper exports include `DeviceModels`, `isConnectedGlassesConnectionStatus`, `isReadyGlassesConnectionStatus`, `isBusyGlassesConnectionStatus`, `isConnectedWifiStatus`, and `isEnabledHotspotStatus`. The React subpath exports `useMentraBluetooth`, `useBluetoothScan`, and `useBluetoothEvent`.
 
 Important defaults:
 

@@ -491,8 +491,6 @@ export type PublicBluetoothStatus = Pick<
 >
 
 export type BluetoothSdkEventMap = {
-  glasses_status: Partial<PublicGlassesStatus>
-  bluetooth_status: Partial<PublicBluetoothStatus>
   log: LogEvent
   device_discovered: Device
   default_device_changed: {device?: Device}
@@ -540,8 +538,6 @@ export interface BluetoothSdkPublicModule {
     listener: BluetoothSdkEventListener<EventName>,
   ): BluetoothSdkSubscription
 
-  getGlassesStatus(): Promise<PublicGlassesStatus>
-  getBluetoothStatus(): Promise<PublicBluetoothStatus>
   getDefaultDevice(): Promise<Device | null>
   setDefaultDevice(device: Device | null): Promise<void>
   clearDefaultDevice(): Promise<void>
@@ -614,8 +610,6 @@ export interface BluetoothSdkPublicModule {
   ): Promise<void>
 
   requestVersionInfo(): Promise<void>
-  onGlassesStatus(callback: (changed: Partial<PublicGlassesStatus>) => void): () => void
-  onBluetoothStatus(callback: (changed: Partial<PublicBluetoothStatus>) => void): () => void
 }
 
 // OTA update status types

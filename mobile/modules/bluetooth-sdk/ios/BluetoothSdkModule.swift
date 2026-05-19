@@ -589,13 +589,13 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicPcm frame: Data) {
-        sendEvent("mic_pcm", ["pcm": frame])
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicPcm event: MicPcmEvent) {
+        sendEvent("mic_pcm", event.values)
     }
 
     @MainActor
-    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicLc3 frame: Data) {
-        sendEvent("mic_lc3", ["lc3": frame])
+    public func mentraBluetoothSDK(_: MentraBluetoothSDK, didReceiveMicLc3 event: MicLc3Event) {
+        sendEvent("mic_lc3", event.values)
     }
 
     @MainActor

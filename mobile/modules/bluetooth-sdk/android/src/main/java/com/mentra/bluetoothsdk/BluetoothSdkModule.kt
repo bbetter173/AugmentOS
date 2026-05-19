@@ -97,12 +97,12 @@ class BluetoothSdkModule : Module() {
                     sendEvent("keep_alive_ack", event.values)
                 }
 
-                override fun onMicPcm(frame: ByteArray) {
-                    sendEvent("mic_pcm", mapOf("pcm" to frame))
+                override fun onMicPcm(event: MicPcmEvent) {
+                    sendEvent("mic_pcm", event.toMap())
                 }
 
-                override fun onMicLc3(frame: ByteArray) {
-                    sendEvent("mic_lc3", mapOf("lc3" to frame))
+                override fun onMicLc3(event: MicLc3Event) {
+                    sendEvent("mic_lc3", event.toMap())
                 }
 
                 override fun onLocalTranscription(event: LocalTranscriptionEvent) {

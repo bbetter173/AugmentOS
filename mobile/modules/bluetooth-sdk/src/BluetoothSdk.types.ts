@@ -295,11 +295,24 @@ export type WsBinEvent = {
 export type MicPcmEvent = {
   type: "mic_pcm"
   pcm: ArrayBuffer
+  sampleRate: 16000
+  bitsPerSample: 16
+  channels: 1
+  encoding: "pcm_s16le"
+  vadGated: boolean
 }
 
 export type MicLc3Event = {
   type: "mic_lc3"
   lc3: ArrayBuffer
+  sampleRate: 16000
+  channels: 1
+  encoding: "lc3"
+  frameDurationMs: 10
+  frameSizeBytes: number
+  bitrate: number
+  packetizedFromGlasses: boolean
+  vadGated: boolean
 }
 
 export type StreamStatusLifecycleState = "initializing" | "streaming" | "stopping" | "stopped"
@@ -381,7 +394,7 @@ export type OtaUpdateAvailableEvent = {
   cache_ready?: boolean
 }
 
-/** @deprecated Glasses no longer emit ota_progress; use {@link OtaStatusEvent} and legacy store mapping. */
+/** @deprecated Glasses no longer emit ota_progress; use {@link OtaStatusEvent} and status-store mapping. */
 export type OtaProgressEvent = {
   type: "ota_progress"
   stage?: OtaStage

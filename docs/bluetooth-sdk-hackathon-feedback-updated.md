@@ -16,7 +16,7 @@ The main remaining problems are less about "does the demo run at all?" and more 
 
 - The React Native direct receiver still makes GStreamer a default native dependency for the example app, even for developers who only want phone photo upload.
 - `setMicState(..., bypassVad=false)` remains the default across React Native, Android, and iOS, but that mode is dangerous for third-party STT because it can emit VAD-gated, discontinuous PCM.
-- `MicPcmEvent` and `MicLc3Event` still lack payload metadata.
+- `MicPcmEvent` and `MicLc3Event` now include payload metadata in the current worktree.
 - Photo request rate limiting / queue overflow still appears silent from the app-facing API.
 - iOS background BLE and audio requirements still need first-class docs.
 
@@ -60,27 +60,11 @@ Recommended follow-up:
   - Use `bypassVad=false` only when intentionally accepting SDK VAD-gated audio.
 - Consider a clearer API name or helper, such as `startPcmMic({continuous: true})`, so developers do not need to understand VAD internals on day one.
 
-### 3. `MicPcmEvent` And `MicLc3Event` Still Need Metadata
+### 3. `MicPcmEvent` And `MicLc3Event` Now Include Metadata
 
-Status: still open.
+Status: addressed in the current worktree.
 
-React Native still exposes:
-
-```ts
-export type MicPcmEvent = {
-  type: "mic_pcm"
-  pcm: ArrayBuffer
-}
-
-export type MicLc3Event = {
-  type: "mic_lc3"
-  lc3: ArrayBuffer
-}
-```
-
-The event payload does not say whether PCM is 16 kHz, 16-bit, mono, signed little-endian, or VAD-gated. Native code and docs imply the PCM path is 16 kHz PCM, but consumers should not need to read Kotlin/Swift to know how to feed the stream into STT, WAV writing, or playback.
-
-Recommended follow-up:
+The SDK now exposes:
 
 ```ts
 export type MicPcmEvent = {
@@ -92,16 +76,24 @@ export type MicPcmEvent = {
   encoding: "pcm_s16le"
   vadGated: boolean
 }
+
+export type MicLc3Event = {
+  type: "mic_lc3"
+  lc3: ArrayBuffer
+  sampleRate: 16000
+  channels: 1
+  encoding: "lc3"
+  frameDurationMs: 10
+  frameSizeBytes: number
+  bitrate: number
+  packetizedFromGlasses: boolean
+  vadGated: boolean
+}
 ```
 
-For LC3, document or emit:
+The event payload now says whether PCM is 16 kHz, 16-bit, mono, signed little-endian, and VAD-gated. Native Android and iOS callbacks now receive `MicPcmEvent` and `MicLc3Event` objects instead of raw bytes. LC3 events now include the SDK's canonical sample rate, frame duration, frame size, derived bitrate, and whether the emitted frame is packetized exactly as received from glasses.
 
-- frame duration
-- sample rate
-- channel count
-- expected frame size or size range
-- bitrate if fixed
-- whether frames are packetized exactly as received from glasses
+Remaining follow-up: verify the emitted metadata on both iOS and Android hardware while recording PCM and LC3, especially `vadGated` and the current `lc3_frame_size` value.
 
 ### 4. Scan Progress Is Much Better; Keep `connectFirst` Out Of The Happy Path
 
@@ -229,9 +221,8 @@ These should not be repeated as current blockers:
 ## Suggested Next Priority Order
 
 1. Document and/or change the `bypassVad` default for external STT.
-2. Add PCM/LC3 metadata to mic events.
-3. Add iOS background operation docs.
-4. Split or gate GStreamer in the React Native direct receiver.
-5. Add photo request timeout/rate-limit errors.
-6. Document `Device.id` and optional `rssi` semantics.
-7. Continue polishing the React Native public/private status boundary.
+2. Add iOS background operation docs.
+3. Split or gate GStreamer in the React Native direct receiver.
+4. Add photo request timeout/rate-limit errors.
+5. Document `Device.id` and optional `rssi` semantics.
+6. Continue polishing the React Native public/private status boundary.

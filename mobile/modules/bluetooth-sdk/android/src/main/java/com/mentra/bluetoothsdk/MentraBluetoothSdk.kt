@@ -634,11 +634,17 @@ class MentraBluetoothSdk private constructor(
             "photo_response" -> dispatchToListeners { it.onPhotoResponse(PhotoResponseEvent(data)) }
             "stream_status" -> dispatchToListeners { it.onStreamStatus(StreamStatusEvent(data)) }
             "keep_alive_ack" -> dispatchToListeners { it.onKeepAliveAck(KeepAliveAckEvent(data)) }
-            "mic_pcm" -> (data["pcm"] as? ByteArray)?.let { frame ->
-                dispatchToListeners { it.onMicPcm(frame) }
+            "mic_pcm" -> {
+                val event = MicPcmEvent(data)
+                if (event.pcm.isNotEmpty()) {
+                    dispatchToListeners { it.onMicPcm(event) }
+                }
             }
-            "mic_lc3" -> (data["lc3"] as? ByteArray)?.let { frame ->
-                dispatchToListeners { it.onMicLc3(frame) }
+            "mic_lc3" -> {
+                val event = MicLc3Event(data)
+                if (event.lc3.isNotEmpty()) {
+                    dispatchToListeners { it.onMicLc3(event) }
+                }
             }
             "local_transcription" ->
                 dispatchToListeners {

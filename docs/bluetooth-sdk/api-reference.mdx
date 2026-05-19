@@ -21,7 +21,7 @@ The Mentra Bluetooth SDK exposes the same core glasses lifecycle across Android,
 | React Native / Expo | `@mentra/bluetooth-sdk` | `import BluetoothSdk, {DeviceModels} from '@mentra/bluetooth-sdk'` |
 | React Native hooks | `@mentra/bluetooth-sdk` | `import {useMentraBluetooth} from '@mentra/bluetooth-sdk/react'` |
 
-Only documented root imports are part of the supported partner API. Package subpaths or symbols with a leading underscore are private implementation details and can change without notice.
+Only documented root imports are part of the supported app developer API. Package subpaths or symbols with a leading underscore are private implementation details and can change without notice.
 
 ## Lifecycle
 
@@ -216,7 +216,7 @@ Native `BluetoothStatus` fields:
 
 ## React Native Public Surface
 
-The React Native root export intentionally exposes a narrower surface than the MentraOS internal adapter. These methods are the supported partner entrypoints:
+The React Native root export intentionally exposes a narrower surface than the MentraOS internal adapter. These methods are the supported app developer entrypoints:
 
 | Area | Methods |
 | --- | --- |
@@ -268,17 +268,20 @@ const subscriptions = [
   BluetoothSdk.addListener('touch_event', (event) => console.log(event)),
   BluetoothSdk.addListener('photo_response', (event) => console.log(event)),
   BluetoothSdk.addListener('stream_status', (event) => console.log(event)),
-  BluetoothSdk.addListener('mic_pcm', (event) => console.log(event.pcm)),
+  BluetoothSdk.addListener('mic_pcm', (event) => {
+    console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding);
+    console.log(event.pcm);
+  }),
 ];
 
 subscriptions.forEach((subscription) => subscription.remove());
 ```
 
-The React Native event surface is typed through `BluetoothSdkEventMap`. For example, `BluetoothSdk.addListener('photo_response', ...)` receives a `PhotoResponseEvent`, while `BluetoothSdk.addListener('mic_pcm', ...)` receives a `MicPcmEvent`.
+The React Native event surface is typed through `BluetoothSdkEventMap`. For example, `BluetoothSdk.addListener('photo_response', ...)` receives a `PhotoResponseEvent`, while `BluetoothSdk.addListener('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
 
 Public React Native event payload fields use camelCase. For example, touch events expose `deviceModel` and `gestureName`, successful photo responses expose `uploadUrl`, hotspot errors expose `errorMessage`, and gallery status exposes `hasContent` and `cameraBusy`.
 
-Android and iOS receive the same event families through their SDK callback and delegate surfaces.
+Android and iOS receive the same event families through their SDK callback and delegate surfaces. Microphone audio callbacks use `MicPcmEvent` and `MicLc3Event` objects with the same metadata as React Native.
 
 | Event area | Examples |
 | --- | --- |

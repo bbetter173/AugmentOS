@@ -10,6 +10,11 @@ import Foundation
 /// Bridge for Bluetooth SDK communication between Expo modules and native iOS code
 /// Has commands for the Bluetooth SDK to use to send messages to JavaScript
 class Bridge {
+    private static let micSampleRate = 16_000
+    private static let pcmBitsPerSample = 16
+    private static let micChannels = 1
+    private static let lc3FrameDurationMs = 10
+    private static let defaultLc3FrameSizeBytes = 60
     private static let eventSinkLock = NSLock()
     private static let defaultEventSinkId = "default"
     private static var eventSinks: [String: (String, [String: Any]) -> Void] = [:]
@@ -73,17 +78,41 @@ class Bridge {
     }
 
     static func sendMicPcm(_ data: Data) {
-        // let base64String = data.base64EncodedString()
-        // let body = ["base64": base64String]
-        let body = ["pcm": data]
-        Bridge.sendTypedMessage("mic_pcm", body: body)
+        Bridge.sendTypedMessage("mic_pcm", body: micPcmEventBody(data))
     }
 
     static func sendMicLc3(_ data: Data) {
-        // let base64String = data.base64EncodedString()
-        // let body = ["base64": base64String]
-        let body = ["lc3": data]
-        Bridge.sendTypedMessage("mic_lc3", body: body)
+        Bridge.sendTypedMessage("mic_lc3", body: micLc3EventBody(data))
+    }
+
+    private static func micPcmEventBody(_ data: Data) -> [String: Any] {
+        [
+            "pcm": data,
+            "sampleRate": micSampleRate,
+            "bitsPerSample": pcmBitsPerSample,
+            "channels": micChannels,
+            "encoding": "pcm_s16le",
+            "vadGated": isVadGated(),
+        ]
+    }
+
+    private static func micLc3EventBody(_ data: Data) -> [String: Any] {
+        let frameSizeBytes = DeviceStore.shared.get("bluetooth", "lc3_frame_size") as? Int ?? defaultLc3FrameSizeBytes
+        return [
+            "lc3": data,
+            "sampleRate": micSampleRate,
+            "channels": micChannels,
+            "encoding": "lc3",
+            "frameDurationMs": lc3FrameDurationMs,
+            "frameSizeBytes": frameSizeBytes,
+            "bitrate": frameSizeBytes * 8 * (1000 / lc3FrameDurationMs),
+            "packetizedFromGlasses": false,
+            "vadGated": isVadGated(),
+        ]
+    }
+
+    private static func isVadGated() -> Bool {
+        !(DeviceStore.shared.get("bluetooth", "bypass_vad") as? Bool ?? true)
     }
 
     static func saveSetting(_ key: String, _ value: Any) {

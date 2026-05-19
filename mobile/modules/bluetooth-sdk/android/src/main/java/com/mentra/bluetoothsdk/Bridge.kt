@@ -24,6 +24,11 @@ public class Bridge private constructor() {
 
     companion object {
         private const val TAG = "Bridge"
+        private const val MIC_SAMPLE_RATE = 16_000
+        private const val PCM_BITS_PER_SAMPLE = 16
+        private const val MIC_CHANNELS = 1
+        private const val LC3_FRAME_DURATION_MS = 10
+        private const val DEFAULT_LC3_FRAME_SIZE_BYTES = 60
 
         @Volatile private var instance: Bridge? = null
 
@@ -134,25 +139,46 @@ public class Bridge private constructor() {
 
         @JvmStatic
         fun sendMicPcm(data: ByteArray) {
-            // val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
-            // val body = HashMap<String, Any>()
-            // body["base64"] = base64String
-            // sendTypedMessage("mic_pcm", body as Map<String, Any>)
-            val body = HashMap<String, Any>()
-            body["pcm"] = data
+            val body = micPcmEventBody(data)
             sendTypedMessage("mic_pcm", body as Map<String, Any>)
         }
         
         @JvmStatic
         fun sendMicLc3(data: ByteArray) {
-            // val base64String = Base64.encodeToString(data, Base64.NO_WRAP)
-            // val body = HashMap<String, Any>()
-            // body["base64"] = base64String
-            // sendTypedMessage("mic_lc3", body as Map<String, Any>)
-            val body = HashMap<String, Any>()
-            body["lc3"] = data
+            val body = micLc3EventBody(data)
             sendTypedMessage("mic_lc3", body as Map<String, Any>)
         }
+
+        private fun micPcmEventBody(data: ByteArray): HashMap<String, Any> {
+            val body = HashMap<String, Any>()
+            body["pcm"] = data
+            body["sampleRate"] = MIC_SAMPLE_RATE
+            body["bitsPerSample"] = PCM_BITS_PER_SAMPLE
+            body["channels"] = MIC_CHANNELS
+            body["encoding"] = "pcm_s16le"
+            body["vadGated"] = isVadGated()
+            return body
+        }
+
+        private fun micLc3EventBody(data: ByteArray): HashMap<String, Any> {
+            val frameSizeBytes =
+                    (DeviceStore.store.get("bluetooth", "lc3_frame_size") as? Number)?.toInt()
+                            ?: DEFAULT_LC3_FRAME_SIZE_BYTES
+            val body = HashMap<String, Any>()
+            body["lc3"] = data
+            body["sampleRate"] = MIC_SAMPLE_RATE
+            body["channels"] = MIC_CHANNELS
+            body["encoding"] = "lc3"
+            body["frameDurationMs"] = LC3_FRAME_DURATION_MS
+            body["frameSizeBytes"] = frameSizeBytes
+            body["bitrate"] = frameSizeBytes * 8 * (1000 / LC3_FRAME_DURATION_MS)
+            body["packetizedFromGlasses"] = false
+            body["vadGated"] = isVadGated()
+            return body
+        }
+
+        private fun isVadGated(): Boolean =
+                !((DeviceStore.store.get("bluetooth", "bypass_vad") as? Boolean) ?: true)
 
         /** Save a setting */
         @JvmStatic

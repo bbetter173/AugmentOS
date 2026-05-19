@@ -1,7 +1,7 @@
 /**
  * MentraOS-only compatibility entrypoint.
  *
- * Partner apps should import from `@mentra/bluetooth-sdk`. This file is not a
+ * Apps should import from `@mentra/bluetooth-sdk`. This file is not a
  * package export; MentraOS resolves it through its local
  * `@mentra/bluetooth-sdk-internal` alias while the app is migrated onto the
  * public SDK surface.

@@ -1,8 +1,19 @@
 # React Native Hooks Proposal For The Bluetooth SDK
 
-This is a proposal for making the React Native SDK feel more React-native
-without hiding the underlying Bluetooth lifecycle. It is based on the current
-React Native starter app in the Partner Kit:
+This document started as a proposal for making the React Native SDK feel more
+React-native without hiding the underlying Bluetooth lifecycle. The stable hook
+set below is now implemented under:
+
+```ts
+import {
+  useBluetoothEvent,
+  useBluetoothScan,
+  useBluetoothStatus,
+  useGlassesConnection,
+} from '@mentra/bluetooth-sdk/react';
+```
+
+It is based on the current React Native starter app in the Partner Kit:
 
 ```text
 Mentra-Bluetooth-SDK-Partner-Kit/examples/react-native/src/useMentraSdk.ts
@@ -72,7 +83,7 @@ Add a React subpath:
 }
 ```
 
-Suggested source layout:
+Implemented source layout:
 
 ```text
 mobile/modules/bluetooth-sdk/src/react/index.ts
@@ -80,9 +91,6 @@ mobile/modules/bluetooth-sdk/src/react/useBluetoothEvent.ts
 mobile/modules/bluetooth-sdk/src/react/useBluetoothStatus.ts
 mobile/modules/bluetooth-sdk/src/react/useBluetoothScan.ts
 mobile/modules/bluetooth-sdk/src/react/useGlassesConnection.ts
-mobile/modules/bluetooth-sdk/src/react/usePhotoRequest.ts
-mobile/modules/bluetooth-sdk/src/react/useStreamSession.ts
-mobile/modules/bluetooth-sdk/src/react/useMicPcmRecorder.ts
 ```
 
 The SDK already has `react` as a peer dependency, so the subpath does not add a
@@ -125,6 +133,8 @@ function useBluetoothStatus(options?: {
   glassesStatus: Partial<GlassesStatus>;
   bluetoothStatus: Partial<BluetoothStatus>;
   connected: boolean;
+  error: unknown | null;
+  loading: boolean;
   ready: boolean;
   refresh: () => Promise<void>;
 }
@@ -242,6 +252,8 @@ function DevicePicker() {
 
 ### `usePhotoRequest`
 
+Not implemented yet.
+
 Correlates `requestPhoto(...)` calls with `photo_response` events.
 
 ```ts
@@ -273,6 +285,8 @@ SDK response event lifecycle.
 
 ### `useStreamSession`
 
+Not implemented yet.
+
 Owns stream start/stop state and keep-alive timer cleanup.
 
 ```ts
@@ -300,6 +314,8 @@ queries, and direct in-phone WebRTC receiver setup should stay in the starter
 kit because they are demo infrastructure, not Bluetooth SDK behavior.
 
 ### `useMicPcmRecorder`
+
+Not implemented yet.
 
 Small utility hook for the most common microphone event lifecycle.
 

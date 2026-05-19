@@ -131,6 +131,44 @@ console.log('Connected glasses:', {
 removeGlasses();
 ```
 
+## React Hooks
+
+React Native apps can use the optional hooks subpath for common lifecycle
+plumbing while keeping the root SDK available for direct commands:
+
+```tsx
+import {Button, Text, View} from 'react-native';
+import {DeviceModels} from '@mentra/bluetooth-sdk';
+import {useBluetoothEvent, useGlassesConnection} from '@mentra/bluetooth-sdk/react';
+
+export function DeviceScreen() {
+  const glasses = useGlassesConnection({
+    scanModel: DeviceModels.MentraLive,
+    scanTimeoutMs: 10_000,
+  });
+
+  useBluetoothEvent('button_press', (event) => {
+    console.log('Glasses button:', event.buttonId, event.pressType);
+  });
+
+  return (
+    <View>
+      <Text>{glasses.connected ? 'Connected' : 'Disconnected'}</Text>
+      <Button disabled={glasses.busy} title="Scan" onPress={() => glasses.scan.startScan()} />
+      {glasses.scan.devices.map((device) => (
+        <Button key={device.id} title={device.name} onPress={() => glasses.connect(device)} />
+      ))}
+      <Button disabled={!glasses.connected} title="Disconnect" onPress={glasses.disconnect} />
+    </View>
+  );
+}
+```
+
+The hooks do not request Android permissions or choose a persistence package for
+you. Ask for permissions in your app before calling scan/connect actions, and
+pass a `defaultDeviceStorage` adapter to `useGlassesConnection` if you want to
+restore a default device across app restarts.
+
 ## Status Shape
 
 React Native exposes `GlassesStatus.connection` as a discriminated union:

@@ -5,6 +5,8 @@ React Native and Expo SDK for connecting mobile apps directly to supported Mentr
 The package includes:
 
 - A React Native / Expo module API exposed as `BluetoothSdk`.
+- React hooks under `@mentra/bluetooth-sdk/react` for common scan,
+  connection, status, and event lifecycles.
 - Native Android code published as `com.mentra:bluetooth-sdk`.
 - Native iOS code published as the `MentraBluetoothSDK` CocoaPod.
 - An Expo config plugin that wires the native dependencies into generated Android and iOS projects.
@@ -140,6 +142,46 @@ if (isReadyGlassesConnectionStatus(glasses.connection)) {
 
 removeGlassesListener()
 ```
+
+## React Hooks
+
+React Native apps can import optional lifecycle helpers from the `react`
+subpath. The hooks use the same SDK types and still leave commands such as
+`requestPhoto()`, `startStream()`, and `setMicState()` on the root
+`BluetoothSdk` object.
+
+```tsx
+import {Button, Text, View} from 'react-native'
+import {DeviceModels} from '@mentra/bluetooth-sdk'
+import {useBluetoothEvent, useGlassesConnection} from '@mentra/bluetooth-sdk/react'
+
+export function DeviceScreen() {
+  const glasses = useGlassesConnection({
+    scanModel: DeviceModels.MentraLive,
+    scanTimeoutMs: 10_000,
+  })
+
+  useBluetoothEvent('button_press', (event) => {
+    console.log('Glasses button:', event.buttonId, event.pressType)
+  })
+
+  return (
+    <View>
+      <Text>{glasses.connected ? 'Connected' : 'Disconnected'}</Text>
+      <Button disabled={glasses.busy} title="Scan" onPress={() => glasses.scan.startScan()} />
+      {glasses.scan.devices.map((device) => (
+        <Button key={device.id} title={device.name} onPress={() => glasses.connect(device)} />
+      ))}
+      <Button disabled={!glasses.connected} title="Disconnect" onPress={glasses.disconnect} />
+    </View>
+  )
+}
+```
+
+The hooks do not request Android permissions or choose a persistence package for
+you. Ask for permissions in your app before calling scan/connect actions, and
+pass a `defaultDeviceStorage` adapter to `useGlassesConnection` if you want a
+default device to survive app restarts.
 
 React Native status exposes `GlassesStatus.connection` as a discriminated union:
 

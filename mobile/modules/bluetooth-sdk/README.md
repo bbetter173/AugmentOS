@@ -285,20 +285,26 @@ Use `rtmp://` or `rtmps://` for RTMP, `srt://` for SRT, and `http://` or `https:
 
 ## Events
 
-```ts
-const subscriptions = [
-  BluetoothSdk.addListener('button_press', (event) => console.log(event)),
-  BluetoothSdk.addListener('touch_event', (event) => console.log(event)),
-  BluetoothSdk.addListener('photo_response', (event) => console.log(event)),
-  BluetoothSdk.addListener('stream_status', (event) => console.log(event)),
-  BluetoothSdk.addListener('mic_pcm', (event) => {
+React Native components should use `useBluetoothEvent()` for hardware events:
+
+```tsx
+import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react'
+
+export function HardwareEventLogger() {
+  useBluetoothEvent('button_press', (event) => console.log(event))
+  useBluetoothEvent('touch_event', (event) => console.log(event))
+  useBluetoothEvent('photo_response', (event) => console.log(event))
+  useBluetoothEvent('stream_status', (event) => console.log(event))
+  useBluetoothEvent('mic_pcm', (event) => {
     console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding)
     console.log(event.pcm)
-  }),
-]
+  })
 
-subscriptions.forEach((subscription) => subscription.remove())
+  return null
+}
 ```
+
+For non-React modules, `BluetoothSdk.addListener(...)` is the low-level subscription API. Keep the returned subscription and call `remove()` when the listener is no longer needed.
 
 Common event names include `button_press`, `touch_event`, `head_up`, `battery_status`, `wifi_status_change`, `hotspot_status_change`, `photo_response`, `gallery_status`, `stream_status`, `keep_alive_ack`, `mic_pcm`, `mic_lc3`, `local_transcription`, `rgb_led_control_response`, `audio_connected`, `audio_disconnected`, and `log`.
 

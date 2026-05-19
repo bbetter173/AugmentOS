@@ -84,10 +84,16 @@ Use real hardware for these flows. Keep the glasses Wi-Fi active and make sure t
 
 Subscribe to stream status before starting a stream. Treat stream start as accepted, then drive UI from status events:
 
-```ts
-const sub = BluetoothSdk.addListener('stream_status', (event) => {
-  console.log(event);
-});
+```tsx
+import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
+
+export function StreamStatusLogger() {
+  useBluetoothEvent('stream_status', (event) => {
+    console.log(event);
+  });
+
+  return null;
+}
 ```
 
 Status values include initializing, active, stopped, and error states.

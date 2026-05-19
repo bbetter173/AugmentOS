@@ -28,18 +28,17 @@ Only documented imports are part of the supported app developer API. Undocumente
 <Tabs>
   <Tab title="React Native">
 
-```ts
-import BluetoothSdk from '@mentra/bluetooth-sdk';
-import {useMentraBluetooth} from '@mentra/bluetooth-sdk/react';
+```tsx
+import {useBluetoothEvent, useMentraBluetooth} from '@mentra/bluetooth-sdk/react';
 
 function DeviceScreen() {
   const mentra = useMentraBluetooth();
+  useBluetoothEvent('button_press', (event) => {
+    console.log(event.buttonId, event.pressType);
+  });
+
   console.log(mentra.glasses.connection.state);
 }
-
-BluetoothSdk.addListener('button_press', (event) => {
-  console.log(event.buttonId, event.pressType);
-});
 ```
 
   </Tab>
@@ -202,7 +201,7 @@ iOS exposes `GlassesStatus.connectionState` as the native `GlassesConnectionStat
   </Tab>
 </Tabs>
 
-Status snapshots are safe to read at any time in the native SDKs. In React Native, keep UI state derived from `useMentraBluetooth()` and typed `addListener` events. Treat command success as "command accepted"; keep UI state derived from status callbacks or hook state.
+Status snapshots are safe to read at any time in the native SDKs. In React Native, keep UI state derived from `useMentraBluetooth()` and typed `useBluetoothEvent()` handlers. Treat command success as "command accepted"; keep UI state derived from status callbacks or hook state.
 
 Native `GlassesStatus` fields:
 
@@ -235,7 +234,7 @@ These are the supported React Native app developer entrypoints:
 
 | Area | Methods |
 | --- | --- |
-| Status and subscriptions | `addListener`; React apps should use `useMentraBluetooth()` for connection, battery, Wi-Fi, hotspot, scan, and SDK state |
+| Status and subscriptions | `useMentraBluetooth`, `useBluetoothScan`, and `useBluetoothEvent` for React components; `addListener` is available as the lower-level non-React subscription API |
 | Default device | `getDefaultDevice`, `setDefaultDevice`, `clearDefaultDevice` |
 | Connection | `scan`, `startScan`, `stopScan`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
 | Display | `displayText`, `clearDisplay`, `showDashboard`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
@@ -277,24 +276,28 @@ Mentra Live has camera, microphone, and speaker hardware, but no display. G2 has
 
 ## Events
 
-React Native uses event listeners:
+React Native components should use `useBluetoothEvent()` for hardware events. The hook keeps the callback typed and removes the native subscription when the component unmounts:
 
-```ts
-const subscriptions = [
-  BluetoothSdk.addListener('button_press', (event) => console.log(event)),
-  BluetoothSdk.addListener('touch_event', (event) => console.log(event)),
-  BluetoothSdk.addListener('photo_response', (event) => console.log(event)),
-  BluetoothSdk.addListener('stream_status', (event) => console.log(event)),
-  BluetoothSdk.addListener('mic_pcm', (event) => {
+```tsx
+import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
+
+export function HardwareEventLogger() {
+  useBluetoothEvent('button_press', (event) => console.log(event));
+  useBluetoothEvent('touch_event', (event) => console.log(event));
+  useBluetoothEvent('photo_response', (event) => console.log(event));
+  useBluetoothEvent('stream_status', (event) => console.log(event));
+  useBluetoothEvent('mic_pcm', (event) => {
     console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding);
     console.log(event.pcm);
-  }),
-];
+  });
 
-subscriptions.forEach((subscription) => subscription.remove());
+  return null;
+}
 ```
 
-The React Native event surface is typed through `BluetoothSdkEventMap`. For example, `BluetoothSdk.addListener('photo_response', ...)` receives a `PhotoResponseEvent`, while `BluetoothSdk.addListener('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
+For non-React modules, `BluetoothSdk.addListener(...)` is the low-level subscription API. Keep the returned subscription and call `remove()` when the listener is no longer needed.
+
+The React Native event surface is typed through `BluetoothSdkEventMap`. For example, `useBluetoothEvent('photo_response', ...)` receives a `PhotoResponseEvent`, while `useBluetoothEvent('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
 
 Public React Native event payload fields use camelCase. For example, touch events expose `deviceModel` and `gestureName`, successful photo responses expose `uploadUrl`, hotspot errors expose `errorMessage`, and gallery status exposes `hasContent` and `cameraBusy`.
 

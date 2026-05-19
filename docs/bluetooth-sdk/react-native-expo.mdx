@@ -160,6 +160,12 @@ await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24);
 React Native apps can use the optional hooks subpath for common lifecycle
 plumbing while keeping the root SDK available for direct commands:
 
+| Hook | Use when |
+| --- | --- |
+| `useMentraBluetooth` | You want one React session object for status, scan, connect/disconnect, default-device state, and gallery mode. |
+| `useBluetoothScan` | You want a focused scan picker without the full connection/session helper. |
+| `useBluetoothEvent` | You want React-managed subscription cleanup for hardware events such as button presses, touch, battery, Wi-Fi, hotspot, photo, stream, or microphone events. |
+
 ```tsx
 import {Button, Text, View} from 'react-native';
 import {DeviceModels} from '@mentra/bluetooth-sdk';
@@ -183,6 +189,31 @@ export function DeviceScreen() {
         <Button key={device.id} title={device.name} onPress={() => mentra.connect(device)} />
       ))}
       <Button disabled={!mentra.glasses.connected} title="Disconnect" onPress={mentra.disconnect} />
+    </View>
+  );
+}
+```
+
+For a standalone picker, use `useBluetoothScan()` directly:
+
+```tsx
+import {Button, Text, View} from 'react-native';
+import {DeviceModels, type Device} from '@mentra/bluetooth-sdk';
+import {useBluetoothScan} from '@mentra/bluetooth-sdk/react';
+
+export function ScanPicker({onConnect}: {onConnect: (device: Device) => void}) {
+  const scan = useBluetoothScan({
+    model: DeviceModels.MentraLive,
+    timeoutMs: 10_000,
+  });
+
+  return (
+    <View>
+      <Button disabled={scan.scanning} title="Scan" onPress={() => scan.startScan()} />
+      {scan.error ? <Text>Scan failed</Text> : null}
+      {scan.devices.map((device) => (
+        <Button key={device.id} title={device.name} onPress={() => onConnect(device)} />
+      ))}
     </View>
   );
 }

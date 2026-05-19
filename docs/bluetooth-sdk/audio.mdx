@@ -51,12 +51,16 @@ Pass `bypassVad = false` only when your app intentionally wants VAD-gated microp
 <Tabs>
   <Tab title="React Native">
 
-```ts
-const sub = BluetoothSdk.addListener('local_transcription', (event) => {
-  console.log(`${event.text} final=${event.isFinal}`);
-});
+```tsx
+import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
 
-sub.remove();
+export function TranscriptLogger() {
+  useBluetoothEvent('local_transcription', (event) => {
+    console.log(`${event.text} final=${event.isFinal}`);
+  });
+
+  return null;
+}
 ```
 
   </Tab>
@@ -86,12 +90,18 @@ func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didReceive event: BluetoothEv
 
 React Native can listen for microphone PCM events. PCM events are self-describing so apps can pass the buffer directly to STT, WAV writing, or playback code without reading native SDK sources:
 
-```ts
-const sub = BluetoothSdk.addListener('mic_pcm', (event) => {
-  console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding);
-  console.log(`VAD gated: ${event.vadGated}`);
-  console.log(event.pcm);
-});
+```tsx
+import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
+
+export function MicPcmLogger() {
+  useBluetoothEvent('mic_pcm', (event) => {
+    console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding);
+    console.log(`VAD gated: ${event.vadGated}`);
+    console.log(event.pcm);
+  });
+
+  return null;
+}
 ```
 
 `mic_pcm` emits 16 kHz, 16-bit, mono, signed little-endian PCM. `vadGated` is `true` when Voice Activity Detection is allowed to gate emitted audio before it reaches your listener.

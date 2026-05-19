@@ -728,6 +728,10 @@ export interface Device {
   name: string
   /** Platform address/identifier when available: Android Bluetooth address, iOS CoreBluetooth identifier. */
   address?: string
+  /**
+   * Optional scan signal strength. It may be undefined at first discovery and
+   * appear in a later scan update when the platform reports RSSI metadata.
+   */
   rssi?: number
 }
 

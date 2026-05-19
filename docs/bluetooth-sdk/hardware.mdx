@@ -40,7 +40,7 @@ sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { nextDevices ->
     renderDevicePicker(nextDevices)
 }
 
-sdk.connect(devices.first())
+sdk.connect(chooseDevice(devices))
 ```
 
   </Tab>
@@ -53,11 +53,13 @@ try sdk.scan(model: .mentraLive, timeout: 10) { nextDevices in
     renderDevicePicker(nextDevices)
 }
 
-try sdk.connect(to: devices[0])
+try sdk.connect(to: chooseDevice(devices))
 ```
 
   </Tab>
 </Tabs>
+
+In multi-device environments, keep the picker explicit. Do not auto-connect to the first scan result; let the user choose the glasses they expect.
 
 ## Capability Areas
 

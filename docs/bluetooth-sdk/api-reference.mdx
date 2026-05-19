@@ -98,10 +98,14 @@ await BluetoothSdk.forget();
   <Tab title="Android">
 
 ```kotlin
-val scanSession = sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { devices ->
-    renderDevicePicker(devices)
+val devices = mutableListOf<Device>()
+val scanSession = sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { nextDevices ->
+    devices.clear()
+    devices.addAll(nextDevices)
+    renderDevicePicker(nextDevices)
 }
 
+val device = chooseDevice(devices)
 sdk.connect(device)
 sdk.setDefaultDevice(Device(model = DeviceModel.MENTRA_LIVE, name = "Mentra_Live_E7FA"))
 val defaultDevice = sdk.getDefaultDevice()
@@ -117,10 +121,13 @@ sdk.forget()
   <Tab title="iOS">
 
 ```swift
-let scanSession = try sdk.scan(model: .mentraLive, timeout: 10) { devices in
-    renderDevicePicker(devices)
+var devices: [Device] = []
+let scanSession = try sdk.scan(model: .mentraLive, timeout: 10) { nextDevices in
+    devices = nextDevices
+    renderDevicePicker(nextDevices)
 }
 
+let device = chooseDevice(devices)
 try sdk.connect(to: device)
 sdk.setDefaultDevice(Device(model: .mentraLive, name: "Mentra_Live_E7FA"))
 let defaultDevice = sdk.getDefaultDevice()
@@ -137,7 +144,7 @@ sdk.forget()
 
 Prefer connecting to a `Device` returned by SDK scan callbacks. If your app wants `connectDefault()` to work after restart, persist a small default-device record in app storage and restore it with `setDefaultDevice()` before calling `connectDefault()`.
 
-Use `scan()` for user-facing device pickers. The progressive result callback is for UI: render the nearby-device list every time it changes during scanning. The returned final result is for control flow: after the timeout/completion, choose a device from the last list and connect.
+Use `scan()` for user-facing device pickers. The progressive result callback is for UI: render the nearby-device list every time it changes during scanning. The returned final result is for control flow: after the timeout/completion, choose a device from the last list and connect. In multi-device environments, do not auto-connect to the first nearby glasses; present an explicit picker.
 
 ## Device Identity
 
@@ -150,9 +157,11 @@ Do not parse `id` for model, name, or address information. Use the typed fields 
 | `model` | Supported glasses family, such as Mentra Live or G2. |
 | `name` | Bluetooth/display name reported during scan. |
 | `address` / `identifier` | Platform device handle when available. Android commonly provides a Bluetooth address. iOS commonly provides a CoreBluetooth identifier. React Native exposes this value as `address`. |
-| `rssi` | Optional signal strength from scan results. It may be absent when the platform scan result does not include it yet. |
+| `rssi` | Optional signal strength from scan results. It may be undefined at first discovery and appear in a later scan update when the platform reports RSSI metadata. |
 
 When the platform does not provide an address or identifier, the SDK falls back to a `model:name` key.
+
+Do not require `rssi` for picker rows. Use SDK-provided stable discovery order by default, and treat RSSI as supplemental signal-strength metadata when it is present.
 
 ## Status
 

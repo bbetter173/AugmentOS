@@ -146,9 +146,9 @@ const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
   },
 });
 
-const device = devices[0];
+const device = await chooseDevice(devices);
 if (!device) {
-  throw new Error('No Mentra Live glasses found');
+  throw new Error('No Mentra Live glasses selected');
 }
 
 await BluetoothSdk.connect(device);

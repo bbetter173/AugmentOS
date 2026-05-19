@@ -79,16 +79,16 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
         context = context.applicationContext,
         listener = this,
     )
-    private var discoveredDevice: Device? = null
+    private var selectedDevice: Device? = null
 
     fun scan() {
         sdk.scan(DeviceModel.MENTRA_LIVE, timeoutMs = 10_000) { devices ->
-            discoveredDevice = devices.firstOrNull()
+            renderDevicePicker(devices, onSelect = { selectedDevice = it })
         }
     }
 
     fun connect() {
-        discoveredDevice?.let { sdk.connect(it) }
+        selectedDevice?.let { sdk.connect(it) }
     }
 
     fun refreshStatus() {
@@ -100,6 +100,10 @@ class GlassesController(context: Context) : MentraBluetoothSdkCallback() {
     override fun onGlassesStatusChanged(status: GlassesStatusUpdate) {
         // Keep app UI derived from SDK status.
         println("Glasses status changed: $status")
+    }
+
+    private fun renderDevicePicker(devices: List<Device>, onSelect: (Device) -> Unit) {
+        // Render devices in SDK-provided order and call onSelect with the user's choice.
     }
 
     fun close() {

@@ -123,14 +123,17 @@ const devices = await BluetoothSdk.scan(DeviceModels.MentraLive, {
   },
 })
 
-const device = devices[0]
+const device = await chooseDevice(devices)
 if (!device) {
-  throw new Error('No Mentra Live glasses found')
+  throw new Error('No Mentra Live glasses selected')
 }
 
 await BluetoothSdk.connect(device)
 await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
 ```
+
+In multi-device environments, present an explicit picker instead of
+auto-connecting to the first nearby device.
 
 Use `Device.id` as the stable app-facing key for scan rows, selected devices,
 and persisted default devices. Do not parse it for model, name, or address
@@ -138,6 +141,10 @@ information; use the typed `model`, `name`, `address`, and `rssi` fields
 instead. Android commonly uses a Bluetooth address when available, iOS commonly
 uses a CoreBluetooth identifier when available, and the SDK falls back to
 `model:name` when no platform identifier is available.
+
+`Device.rssi` is optional. A device can appear in scan results before the
+platform reports RSSI, so picker UI should handle `undefined` and avoid
+reordering rows just because RSSI metadata arrives later.
 
 ## React Hooks
 

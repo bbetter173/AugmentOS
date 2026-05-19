@@ -87,7 +87,7 @@ import MentraBluetoothSDK
 @MainActor
 final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
     private let sdk = MentraBluetoothSDK()
-    private var discoveredDevice: Device?
+    private var selectedDevice: Device?
 
     override init() {
         super.init()
@@ -96,13 +96,15 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
 
     func scan() throws {
         try sdk.scan(model: .mentraLive, timeout: 10) { [weak self] devices in
-            self?.discoveredDevice = devices.first
+            self?.renderDevicePicker(devices) { device in
+                self?.selectedDevice = device
+            }
         }
     }
 
     func connect() throws {
-        guard let discoveredDevice else { return }
-        try sdk.connect(to: discoveredDevice)
+        guard let selectedDevice else { return }
+        try sdk.connect(to: selectedDevice)
     }
 
     func refreshStatus() {
@@ -114,6 +116,10 @@ final class GlassesController: NSObject, MentraBluetoothSDKDelegate {
     func mentraBluetoothSDK(_ sdk: MentraBluetoothSDK, didUpdateGlassesStatus status: GlassesStatusUpdate) {
         // Keep app UI derived from SDK status.
         print("Glasses status changed: \(status)")
+    }
+
+    private func renderDevicePicker(_ devices: [Device], onSelect: @escaping (Device) -> Void) {
+        // Render devices in SDK-provided order and call onSelect with the user's choice.
     }
 
     deinit {

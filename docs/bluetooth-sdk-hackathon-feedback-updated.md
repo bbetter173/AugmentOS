@@ -94,7 +94,7 @@ Remaining follow-up: verify the emitted metadata on both iOS and Android hardwar
 
 ### 4. Scan Progress Is Much Better; Keep `connectFirst` Out Of The Happy Path
 
-Status: mostly addressed.
+Status: addressed in the current worktree.
 
 The old feedback criticized `connectFirst(DeviceModels.MentraLive)` because it hid scan progress and could connect to the wrong glasses in a room full of devices. That API is not present in the current React Native SDK surface.
 
@@ -105,23 +105,23 @@ Current good state:
 - `useBluetoothScan` and `useMentraBluetooth` give React apps a higher-level path without manually wiring status listeners.
 - Docs now explicitly say `onResults` is for live UI updates and the returned list is the final scan result.
 
-Recommended follow-up:
+Documented behavior:
 
-- Keep docs steering app developers toward explicit device pickers in multi-device environments.
-- Avoid presenting any future "connect to first nearby glasses" helper as the primary getting-started path.
-- Consider adding a starter-kit picker that sorts by RSSI only when RSSI is available, while keeping the SDK-provided stable order as the default display order.
+- Docs steer app developers toward explicit device pickers in multi-device environments.
+- The primary getting-started snippets no longer auto-connect to the first nearby glasses.
+- Picker guidance keeps the SDK-provided stable order as the default display order and treats RSSI as optional supplemental metadata.
 
 ### 5. RSSI Is Optional And Should Be Documented That Way
 
-Status: partially addressed.
+Status: addressed in the current worktree.
 
 The SDK type correctly has `Device.rssi?: number`, and `searchResults` now documents stable discovery order. The old report that an item can appear first with `rssi=?` and update later is still plausible because scan results may be discovered before RSSI is available or before platform-specific scan metadata has settled.
 
-Recommended follow-up:
+Documented behavior:
 
-- Document that `rssi` may be undefined at first discovery.
-- In example pickers, do not sort undefined RSSI entries below everything if that causes visible jumping or broken-looking lists.
-- If native scan callbacks can populate RSSI earlier for Mentra Live, do that, but the public contract should still allow `undefined`.
+- `Device.rssi` may be undefined at first discovery.
+- Apps should use the SDK-provided stable discovery order by default and treat RSSI as supplemental signal-strength metadata when present.
+- Picker UI should handle undefined RSSI without row jumping.
 
 ### 6. Photo Request Queue / Rate Limit Failures Still Need App-Facing Feedback
 

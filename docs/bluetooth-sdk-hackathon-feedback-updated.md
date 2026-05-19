@@ -10,7 +10,7 @@ The SDK is in a much better place than the original feedback implied:
 - The starter kit includes `setup-gstreamer-ios.sh`, and the iOS podspec attempts to install GStreamer automatically when missing from the default path.
 - `connectFirst` is no longer the relevant API shape. The SDK now exposes `scan(model, {onResults, timeoutMs})`, and the React layer exposes `useBluetoothScan` / `useMentraBluetooth` for picker-oriented flows.
 - `searchResults` now has an explicit stable-order contract in the SDK types.
-- The React Native public surface is being moved away from raw native status snapshots toward shaped hook state.
+- The React Native public surface now keeps raw native status snapshots behind the private adapter and directs apps to shaped hook state.
 
 The main remaining problems are less about "does the demo run at all?" and more about API clarity and production readiness:
 
@@ -166,7 +166,7 @@ Recommended follow-up:
 
 ### 9. React Native Status Shape Is Improving; Native Status Is Still Broad
 
-Status: partially addressed.
+Status: addressed for React Native in the current worktree. Native Android/iOS status grouping remains a later docs/API cleanup.
 
 The current React Native direction is good: public docs are moving developers toward `useMentraBluetooth()` with shaped state:
 
@@ -176,11 +176,12 @@ The current React Native direction is good: public docs are moving developers to
 
 This is better than asking apps to merge raw `glasses_status` and `bluetooth_status` snapshots. It also keeps snake_case native store details out of normal React app code.
 
-Recommended follow-up:
+Current React Native boundary:
 
-- Finish the public/private boundary so raw native status events and getters are not part of the supported React Native root export.
-- Keep raw native store keys private to `_private` / internal hooks.
-- For native Android/iOS, consider grouped status docs even if the SDK structs remain broad for backward compatibility.
+- The root `@mentra/bluetooth-sdk` export is now an explicit public facade instead of the native module object.
+- Raw native status getters/listeners such as `getGlassesStatus()`, `getBluetoothStatus()`, `onGlassesStatus()`, and `onBluetoothStatus()` stay private to `_private` and the React hooks.
+- Raw `glasses_status` / `bluetooth_status` events are not accepted by the public root `addListener`.
+- For native Android/iOS, grouped status docs/API cleanup can wait; the current pass intentionally does not change those SDKs.
 
 ### 10. iOS SDK Source Organization Is Still Hard To Read
 
@@ -223,4 +224,3 @@ These should not be repeated as current blockers:
 2. Split or gate GStreamer in the React Native direct receiver.
 3. Add photo request timeout/rate-limit errors.
 4. Document `Device.id` and optional `rssi` semantics.
-5. Continue polishing the React Native public/private status boundary.

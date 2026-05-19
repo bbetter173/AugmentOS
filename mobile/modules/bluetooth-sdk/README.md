@@ -172,6 +172,10 @@ you. Ask for permissions in your app before calling scan/connect actions, and
 pass a `defaultDeviceStorage` adapter to `useMentraBluetooth` if you want a
 default device to survive app restarts.
 
+The package root intentionally does not expose raw native status getters or raw
+`glasses_status` / `bluetooth_status` events. Use `useMentraBluetooth()` for
+shaped connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state.
+
 The React hook exposes `glasses.connection` as a discriminated union:
 
 ```ts

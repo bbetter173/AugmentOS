@@ -208,6 +208,8 @@ type GlassesConnectionStatus =
 
 Use `mentra.glasses.connection.state` for link-layer progress. `fullyBooted` only exists when `state === 'connected'`.
 
+The root `BluetoothSdk` export intentionally does not expose raw native status getters or raw `glasses_status` / `bluetooth_status` events. Use `useMentraBluetooth()` for connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state.
+
 ## Default Device
 
 React Native apps should persist their own default-device record if they want `connectDefault()` to work after restart:

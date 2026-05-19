@@ -232,6 +232,8 @@ The React Native root export intentionally exposes a narrower surface than the M
 
 React Native helper exports include `DeviceModels`, `isConnectedGlassesConnectionStatus`, `isReadyGlassesConnectionStatus`, `isBusyGlassesConnectionStatus`, `isConnectedWifiStatus`, and `isEnabledHotspotStatus`. The React subpath exports `useMentraBluetooth`, `useBluetoothScan`, and `useBluetoothEvent`.
 
+The React Native root export does not expose raw native status getters or raw status events. In app code, do not call `getGlassesStatus()`, `getBluetoothStatus()`, `onGlassesStatus()`, `onBluetoothStatus()`, or subscribe to `glasses_status` / `bluetooth_status`. Those native store details are private implementation hooks used by `@mentra/bluetooth-sdk/react` to produce shaped `mentra.glasses`, `mentra.sdk`, and `mentra.scan` state.
+
 Important defaults:
 
 - `scan(model, options)` reports progressive results through `options.onResults`, resolves with the final matching `Device[]`, and times out after 15 seconds unless `options.timeoutMs` is set.

@@ -34,7 +34,8 @@ import {
  *
  * This file intentionally lives under `_private` so the package root can expose
  * a small SDK surface while MentraOS uses its monorepo-only internal alias
- * during migration.
+ * during migration. Raw status getters/listeners stay here so React hooks can
+ * shape native store snapshots before app code sees them.
  */
 
 type GlassesListener = (changed: Partial<GlassesStatus>) => void

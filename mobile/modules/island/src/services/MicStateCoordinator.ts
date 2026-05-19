@@ -9,7 +9,7 @@
  * BluetoothSdk so the mic runs whenever at least one consumer needs it.
  */
 
-import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
+import {getRuntimeHooks} from "../runtime/config"
 
 const LOG_TAG = "MIC_COORDINATOR"
 
@@ -81,12 +81,23 @@ class MicStateCoordinator {
     //   `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`,
     // )
 
-    BluetoothSdk.update("core", {
-      should_send_pcm: shouldSendPcm,
-      should_send_lc3: shouldSendLc3,
-      should_send_transcript: shouldSendTranscript,
-      bypass_vad: bypassVad,
-    })
+    const setMicRequirements = getRuntimeHooks().setMicRequirements
+    if (!setMicRequirements) {
+      return
+    }
+
+    try {
+      void Promise.resolve(setMicRequirements({
+        shouldSendPcm,
+        shouldSendLc3,
+        shouldSendTranscript,
+        bypassVad,
+      })).catch((err) => {
+        console.error(`${LOG_TAG}: failed to apply mic requirements:`, err)
+      })
+    } catch (err) {
+      console.error(`${LOG_TAG}: failed to apply mic requirements:`, err)
+    }
   }
 
   /**

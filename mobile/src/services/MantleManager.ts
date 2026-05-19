@@ -165,6 +165,16 @@ class MantleManager {
           ),
       },
       setDisplayEvent: (event) => useDisplayStore.getState().setDisplayEvent(event),
+      sendDisplayEvent: (event) => BluetoothSdk.displayEvent(event),
+      subscribeGlassesStatus: (onChange) => BluetoothSdk.onGlassesStatus(onChange),
+      restartTranscriber: () => BluetoothSdk.restartTranscriber(),
+      setMicRequirements: (requirements) =>
+        BluetoothSdk.update("core", {
+          should_send_pcm: requirements.shouldSendPcm,
+          should_send_lc3: requirements.shouldSendLc3,
+          should_send_transcript: requirements.shouldSendTranscript,
+          bypass_vad: requirements.bypassVad,
+        }),
       requestMiniappSdkPhoto: (params) => requestMiniappSdkPhoto(params),
     })
 

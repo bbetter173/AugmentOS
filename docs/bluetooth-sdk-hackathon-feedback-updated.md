@@ -179,21 +179,19 @@ Current React Native boundary:
 - React app status is documented through `useMentraBluetooth()` and its `mentra.glasses`, `mentra.sdk`, and `mentra.scan` state.
 - For native Android/iOS, grouped status docs/API cleanup can wait; the current pass intentionally does not change those SDKs.
 
-### 10. iOS SDK Source Organization Is Still Hard To Read
+### 10. Native SDK Source Organization Needed The React Native Shape
 
-Status: still open, low priority.
+Status: addressed in the current worktree.
 
-`MentraBluetoothSDK.swift` is still very large. This does not block usage, but it makes source-level debugging harder for SDK consumers and Mentra engineers.
+The React Native SDK is the clearest reference shape: a small public facade, typed models, React hooks, and private native bridge details. Native iOS and Android now follow that direction more closely:
+
+- iOS keeps `MentraBluetoothSDK.swift` as the public facade and moves models/callbacks/helpers into focused `Audio`, `Camera`, `Connection`, `Errors`, `Events`, `Internal`, `Requests`, `Status`, `Streaming`, and `Types` files.
+- Android keeps `MentraBluetoothSdk.kt` as the facade and splits the former broad model file into the same domain groups.
 
 Recommended follow-up:
 
-- Split the iOS SDK source into focused files over time:
-  - public types
-  - scan/default-device connection logic
-  - mic/audio
-  - camera/gallery
-  - streaming
-  - event dispatch
+- Continue using the React Native SDK as the API-shape reference when future native-only functionality is added.
+- Keep raw store parsing and bridge helpers internal to the domain files rather than rebuilding a broad catch-all model file.
 
 ## Items That Are Now Outdated
 

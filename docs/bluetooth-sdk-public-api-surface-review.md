@@ -35,9 +35,11 @@ until the underlying behavior is fixed.
 - Android native facade:
   `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothSdk.kt`
 - Android native models/callbacks:
-  `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/MentraBluetoothModels.kt`
-- iOS native facade and models:
+  `mobile/modules/bluetooth-sdk/android/src/main/java/com/mentra/bluetoothsdk/{audio,camera,connection,events,internal,requests,status,streaming,types}/`
+- iOS native facade:
   `mobile/modules/bluetooth-sdk/ios/Source/MentraBluetoothSDK.swift`
+- iOS native models/callbacks:
+  `mobile/modules/bluetooth-sdk/ios/Source/{Audio,Camera,Connection,Errors,Events,Internal,Requests,Status,Streaming,Types}/`
 
 ## Exposed Feature Set
 

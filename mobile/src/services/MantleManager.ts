@@ -925,7 +925,15 @@ class MantleManager {
           if (status.status === "failed") {
             const raw = event as Record<string, unknown>
             const glassesTimeMs = Number(raw.glasses_time_ms ?? raw.glassesTimeMs ?? 0) || undefined
-            void handleOtaClockSkewFromGlasses(normalized.error_message, glassesTimeMs)
+            const errorCode = normalized.error_message
+            if (
+              errorCode === "clock_skew" ||
+              (errorCode === "ssl_error" && typeof glassesTimeMs === "number" && Number.isFinite(glassesTimeMs))
+            ) {
+              handleOtaClockSkewFromGlasses(errorCode, glassesTimeMs).catch((err) => {
+                console.warn("MANTLE: OTA clock skew auto-fix failed", err)
+              })
+            }
           }
 
           if (status.status === "complete" || status.status === "failed") {

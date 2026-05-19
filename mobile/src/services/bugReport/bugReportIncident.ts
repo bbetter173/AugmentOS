@@ -158,7 +158,7 @@ export async function buildBugReportFeedbackDataForBug(
   const deviceModel = useGlassesStore.getState().deviceModel
   const glassesBluetoothName = useGlassesStore.getState().bluetoothName
   const buildNumber = useGlassesStore.getState().buildNumber
-  const glassesFwVersion = useGlassesStore.getState().fwVersion
+  const glassesFirmwareVersion = useGlassesStore.getState().firmwareVersion
   const appVersion = useGlassesStore.getState().appVersion
   const serialNumber = useGlassesStore.getState().serialNumber
   const androidVersion = useGlassesStore.getState().androidVersion
@@ -202,7 +202,7 @@ export async function buildBugReportFeedbackDataForBug(
         bluetoothId: glassesBluetoothId || undefined,
         serialNumber: serialNumber || undefined,
         buildNumber: buildNumber || undefined,
-        fwVersion: glassesFwVersion || undefined,
+        firmwareVersion: glassesFirmwareVersion || undefined,
         appVersion: appVersion || undefined,
         androidVersion: androidVersion || undefined,
         ...glassesWifiInfo,

@@ -121,7 +121,7 @@ export interface FeedbackData {
     bluetoothId?: string;
     serialNumber?: string;
     buildNumber?: string;
-    fwVersion?: string;
+    firmwareVersion?: string;
     appVersion?: string;
     androidVersion?: string;
     wifiConnected?: boolean;

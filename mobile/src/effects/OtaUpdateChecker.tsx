@@ -394,8 +394,8 @@ export function OtaUpdateChecker() {
   const glassesConnected = useGlassesStore(selectGlassesConnected)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
   const glassesWifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
-  const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
-  const besFwVersion = useGlassesStore((state) => state.besFwVersion)
+  const mtkFirmwareVersion = useGlassesStore((state) => state.mtkFirmwareVersion)
+  const besFirmwareVersion = useGlassesStore((state) => state.besFirmwareVersion)
   const otaUpdateAvailable = useGlassesStore((state) => state.otaUpdateAvailable)
 
   // Keep a ref of the current pathname so async callbacks can check it
@@ -461,12 +461,12 @@ export function OtaUpdateChecker() {
       console.log(`OTA: Build number changed from ${last.build} to ${buildNumber}`)
       versionChanged = true
     }
-    if (mtkFwVersion && last.mtk && last.mtk !== mtkFwVersion) {
-      console.log(`OTA: MTK firmware changed from ${last.mtk} to ${mtkFwVersion}`)
+    if (mtkFirmwareVersion && last.mtk && last.mtk !== mtkFirmwareVersion) {
+      console.log(`OTA: MTK firmware changed from ${last.mtk} to ${mtkFirmwareVersion}`)
       versionChanged = true
     }
-    if (besFwVersion && last.bes && last.bes !== besFwVersion) {
-      console.log(`OTA: BES firmware changed from ${last.bes} to ${besFwVersion}`)
+    if (besFirmwareVersion && last.bes && last.bes !== besFirmwareVersion) {
+      console.log(`OTA: BES firmware changed from ${last.bes} to ${besFirmwareVersion}`)
       versionChanged = true
     }
 
@@ -478,9 +478,9 @@ export function OtaUpdateChecker() {
 
     // Update tracked versions
     if (buildNumber) last.build = buildNumber
-    if (mtkFwVersion) last.mtk = mtkFwVersion
-    if (besFwVersion) last.bes = besFwVersion
-  }, [buildNumber, mtkFwVersion, besFwVersion])
+    if (mtkFirmwareVersion) last.mtk = mtkFirmwareVersion
+    if (besFirmwareVersion) last.bes = besFirmwareVersion
+  }, [buildNumber, mtkFirmwareVersion, besFirmwareVersion])
 
   // Show pending update alert when user navigates back to /home.
   // Covers the case where the 3-min fallback timer fired while user was away,
@@ -607,18 +607,18 @@ export function OtaUpdateChecker() {
       }
 
       // Get latest firmware versions from store (they may have arrived during delay)
-      let latestMtkFwVersion = useGlassesStore.getState().mtkFwVersion
-      let latestBesFwVersion = useGlassesStore.getState().besFwVersion
+      let latestMtkFirmwareVersion = useGlassesStore.getState().mtkFirmwareVersion
+      let latestBesFirmwareVersion = useGlassesStore.getState().besFirmwareVersion
 
       // If BES version is still unknown after initial delay, wait up to 5s more.
       // After BES reflash, the chip takes longer to report its version - the first
       // version_info_3 often has empty bes_fw_version while the chip initializes.
-      if (!latestBesFwVersion) {
+      if (!latestBesFirmwareVersion) {
         console.log("OTA: BES version still unknown - waiting up to 5s for it to arrive...")
-        const besArrived = await waitForGlassesState("besFwVersion", (v) => !!v, 5000)
+        const besArrived = await waitForGlassesState("besFirmwareVersion", (v) => !!v, 5000)
         if (besArrived) {
-          latestBesFwVersion = useGlassesStore.getState().besFwVersion
-          console.log(`OTA: BES version arrived: ${latestBesFwVersion}`)
+          latestBesFirmwareVersion = useGlassesStore.getState().besFirmwareVersion
+          console.log(`OTA: BES version arrived: ${latestBesFirmwareVersion}`)
         } else {
           console.log("OTA: BES version still unknown after extended wait - proceeding without it")
         }
@@ -630,11 +630,11 @@ export function OtaUpdateChecker() {
       }
 
       console.log(
-        `OTA: check starting (MTK: ${latestMtkFwVersion || "unknown"}, BES: ${latestBesFwVersion || "unknown"})`,
+        `OTA: check starting (MTK: ${latestMtkFirmwareVersion || "unknown"}, BES: ${latestBesFirmwareVersion || "unknown"})`,
       )
       hasCheckedOta.current = true // Mark as checked to prevent duplicate checks
 
-      checkForOtaUpdate(OTA_VERSION_URL_PROD, buildNumber, latestMtkFwVersion, latestBesFwVersion)
+      checkForOtaUpdate(OTA_VERSION_URL_PROD, buildNumber, latestMtkFirmwareVersion, latestBesFirmwareVersion)
         .then(({updateAvailable, latestVersionInfo, updates}) => {
           console.log(
             `OTA: check completed - updateAvailable: ${updateAvailable}, updates: ${updates?.join(", ") || "none"}`,
@@ -741,8 +741,8 @@ export function OtaUpdateChecker() {
   }, [
     glassesConnected,
     buildNumber,
-    mtkFwVersion,
-    besFwVersion,
+    mtkFirmwareVersion,
+    besFirmwareVersion,
     glassesWifiConnected,
     defaultWearable,
     pathname,

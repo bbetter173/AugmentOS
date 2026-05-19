@@ -2077,15 +2077,15 @@ class MentraLive: NSObject, SGCManager {
                     DeviceStore.shared.apply("glasses", "otaVersionUrl", otaVersionUrl)
                 }
                 if let firmwareVersion = fields["firmware_version"] as? String {
-                    DeviceStore.shared.apply("glasses", "fwVersion", firmwareVersion)
+                    DeviceStore.shared.apply("glasses", "firmwareVersion", firmwareVersion)
                 }
-                if let besFwVersion = fields["bes_fw_version"] as? String {
-                    DeviceStore.shared.apply("glasses", "besFwVersion", besFwVersion)
+                if let besFirmwareVersion = fields["bes_fw_version"] as? String {
+                    DeviceStore.shared.apply("glasses", "besFirmwareVersion", besFirmwareVersion)
                 }
-                if let mtkFwVersion = fields["mtk_fw_version"] as? String {
+                if let mtkFirmwareVersion = fields["mtk_fw_version"] as? String {
                     // MTK firmware version (e.g., "20241130")
                     // Note: Stored separately from BES version for OTA patch matching
-                    DeviceStore.shared.apply("glasses", "mtkFwVersion", mtkFwVersion)
+                    DeviceStore.shared.apply("glasses", "mtkFirmwareVersion", mtkFirmwareVersion)
                 }
                 if let btMacAddress = fields["bt_mac_address"] as? String {
                     DeviceStore.shared.apply("glasses", "btMacAddress", btMacAddress)
@@ -2520,8 +2520,8 @@ class MentraLive: NSObject, SGCManager {
         // cannot leave a stale build number in RN (ASG is source of truth for PackageInfo).
         DeviceStore.shared.apply("glasses", "buildNumber", "")
         DeviceStore.shared.apply("glasses", "appVersion", "")
-        DeviceStore.shared.apply("glasses", "besFwVersion", "")
-        DeviceStore.shared.apply("glasses", "mtkFwVersion", "")
+        DeviceStore.shared.apply("glasses", "besFirmwareVersion", "")
+        DeviceStore.shared.apply("glasses", "mtkFirmwareVersion", "")
         Bridge.log("LIVE: Cleared cached version_info fields before refresh")
 
         // Perform SOC-dependent initialization
@@ -2592,7 +2592,7 @@ class MentraLive: NSObject, SGCManager {
         DeviceStore.shared.apply("glasses", "appVersion", appVersion)
         DeviceStore.shared.apply("glasses", "buildNumber", buildNumber)
         DeviceStore.shared.apply("glasses", "otaVersionUrl", otaVersionUrl)
-        DeviceStore.shared.apply("glasses", "fwVersion", firmwareVersion)
+        DeviceStore.shared.apply("glasses", "firmwareVersion", firmwareVersion)
         DeviceStore.shared.apply("glasses", "btMacAddress", btMacAddress)
         isNewVersion = (Int(buildNumber) ?? 0) >= 5
         DeviceStore.shared.apply("glasses", "deviceModel", deviceModel)

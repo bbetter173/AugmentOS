@@ -696,8 +696,8 @@ public class MentraLive extends SGCManager {
             // and the phone-side OTA check will disagree with glasses' PackageManager + ota_update_available.
             DeviceStore.INSTANCE.apply("glasses", "buildNumber", "");
             DeviceStore.INSTANCE.apply("glasses", "appVersion", "");
-            DeviceStore.INSTANCE.apply("glasses", "besFwVersion", "");
-            DeviceStore.INSTANCE.apply("glasses", "mtkFwVersion", "");
+            DeviceStore.INSTANCE.apply("glasses", "besFirmwareVersion", "");
+            DeviceStore.INSTANCE.apply("glasses", "mtkFirmwareVersion", "");
             Bridge.log("LIVE: Cleared cached version_info fields for fresh session");
         }
         
@@ -2775,7 +2775,7 @@ public class MentraLive extends SGCManager {
                 DeviceStore.INSTANCE.apply("glasses", "deviceModel", deviceModelLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "androidVersion", androidVersionLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "otaVersionUrl", otaVersionUrlLegacy != null ? otaVersionUrlLegacy : "");
-                DeviceStore.INSTANCE.apply("glasses", "fwVersion", firmwareVersionLegacy);
+                DeviceStore.INSTANCE.apply("glasses", "firmwareVersion", firmwareVersionLegacy);
                 DeviceStore.INSTANCE.apply("glasses", "btMacAddress", btMacAddressLegacy);
 
                 // Parse build number as integer for version checks (local field)
@@ -2958,13 +2958,13 @@ public class MentraLive extends SGCManager {
                         DeviceStore.INSTANCE.apply("glasses", "otaVersionUrl", (String) fields.get("ota_version_url"));
                     }
                     if (fields.containsKey("firmware_version")) {
-                        DeviceStore.INSTANCE.apply("glasses", "fwVersion", (String) fields.get("firmware_version"));
+                        DeviceStore.INSTANCE.apply("glasses", "firmwareVersion", (String) fields.get("firmware_version"));
                     }
                     if (fields.containsKey("bes_fw_version")) {
-                        DeviceStore.INSTANCE.apply("glasses", "besFwVersion", (String) fields.get("bes_fw_version"));
+                        DeviceStore.INSTANCE.apply("glasses", "besFirmwareVersion", (String) fields.get("bes_fw_version"));
                     }
                     if (fields.containsKey("mtk_fw_version")) {
-                        DeviceStore.INSTANCE.apply("glasses", "mtkFwVersion", (String) fields.get("mtk_fw_version"));
+                        DeviceStore.INSTANCE.apply("glasses", "mtkFirmwareVersion", (String) fields.get("mtk_fw_version"));
                     }
                     if (fields.containsKey("bt_mac_address")) {
                         DeviceStore.INSTANCE.apply("glasses", "btMacAddress", (String) fields.get("bt_mac_address"));

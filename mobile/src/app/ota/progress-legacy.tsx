@@ -70,8 +70,8 @@ export default function OtaProgressScreen() {
   const wifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const wifiStatusKnown = useGlassesStore((state) => state.wifiStatusKnown)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
-  const besFwVersion = useGlassesStore((state) => state.besFwVersion)
-  const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
+  const besFirmwareVersion = useGlassesStore((state) => state.besFirmwareVersion)
+  const mtkFirmwareVersion = useGlassesStore((state) => state.mtkFirmwareVersion)
 
   const [progressState, setProgressState] = useState<ProgressState>("starting")
   const [retryCount, setRetryCount] = useState(0)
@@ -388,11 +388,11 @@ export default function OtaProgressScreen() {
       const originalSequence = [...updateSequenceRef.current]
 
       // Check if BES update is still needed
-      if (updateSequenceRef.current.includes("bes") && besFwVersion) {
-        const besStillNeeded = checkBesUpdate(versionJson.bes_firmware, besFwVersion)
+      if (updateSequenceRef.current.includes("bes") && besFirmwareVersion) {
+        const besStillNeeded = checkBesUpdate(versionJson.bes_firmware, besFirmwareVersion)
         if (!besStillNeeded) {
           console.log(
-            `OTA REVALIDATE: BES no longer needs update (current: ${besFwVersion}, server: ${versionJson.bes_firmware?.version})`,
+            `OTA REVALIDATE: BES no longer needs update (current: ${besFirmwareVersion}, server: ${versionJson.bes_firmware?.version})`,
           )
           updateSequenceRef.current = updateSequenceRef.current.filter((u) => u !== "bes")
           sequenceChanged = true
@@ -400,10 +400,10 @@ export default function OtaProgressScreen() {
       }
 
       // Check if MTK update is still needed
-      if (updateSequenceRef.current.includes("mtk") && mtkFwVersion) {
-        const mtkPatch = findMatchingMtkPatch(versionJson.mtk_patches, mtkFwVersion)
+      if (updateSequenceRef.current.includes("mtk") && mtkFirmwareVersion) {
+        const mtkPatch = findMatchingMtkPatch(versionJson.mtk_patches, mtkFirmwareVersion)
         if (!mtkPatch) {
-          console.log(`OTA REVALIDATE: MTK no longer needs update (current: ${mtkFwVersion}, no matching patch)`)
+          console.log(`OTA REVALIDATE: MTK no longer needs update (current: ${mtkFirmwareVersion}, no matching patch)`)
           updateSequenceRef.current = updateSequenceRef.current.filter((u) => u !== "mtk")
           sequenceChanged = true
         }
@@ -447,7 +447,7 @@ export default function OtaProgressScreen() {
     }
 
     revalidateUpdateSequence()
-  }, [besFwVersion, mtkFwVersion])
+  }, [besFirmwareVersion, mtkFirmwareVersion])
 
   // Fallback: detect APK install success via build number increase for older glasses firmware
   // that does not send the explicit ota_status apk/step_complete signal on reconnect.

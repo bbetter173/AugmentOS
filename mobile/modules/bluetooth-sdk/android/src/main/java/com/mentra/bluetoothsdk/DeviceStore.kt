@@ -64,7 +64,7 @@ object DeviceStore {
         store.set("glasses", "connected", false)
         store.set("glasses", "connectionState", ConnTypes.DISCONNECTED)
         store.set("glasses", "deviceModel", "")
-        store.set("glasses", "fwVersion", "")
+        store.set("glasses", "firmwareVersion", "")
         store.set("glasses", "micEnabled", false)
         store.set("glasses", "btcConnected", false)
         store.set("glasses", "caseRemoved", true)

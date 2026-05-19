@@ -17,7 +17,7 @@ export default function DeviceInfoScreen() {
   const deviceModel = useGlassesStore((state) => state.deviceModel)
   const bluetoothName = useGlassesStore((state) => state.bluetoothName)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
-  const fwVersion = useGlassesStore((state) => state.fwVersion)
+  const firmwareVersion = useGlassesStore((state) => state.firmwareVersion)
   const btMacAddress = useGlassesStore((state) => state.btMacAddress)
   const appVersion = useGlassesStore((state) => state.appVersion)
   const serialNumber = useGlassesStore((state) => state.serialNumber)
@@ -43,7 +43,7 @@ export default function DeviceInfoScreen() {
           {/* Software Version */}
           <Group title={translate("deviceInfo:softwareVersion")}>
             {!!buildNumber && <RouteButton label={translate("deviceInfo:buildNumber")} text={buildNumber} />}
-            {!!fwVersion && <RouteButton label={translate("deviceInfo:firmwareVersion")} text={fwVersion} />}
+            {!!firmwareVersion && <RouteButton label={translate("deviceInfo:firmwareVersion")} text={firmwareVersion} />}
             {!!appVersion && <RouteButton label={translate("deviceInfo:appVersion")} text={appVersion} />}
           </Group>
 

@@ -71,7 +71,7 @@ export default function FeedbackPage() {
   const deviceModel = useGlassesStore((state) => state.deviceModel)
   const glassesBluetoothName = useGlassesStore((state) => state.bluetoothName)
   const buildNumber = useGlassesStore((state) => state.buildNumber)
-  const glassesFwVersion = useGlassesStore((state) => state.fwVersion)
+  const glassesFirmwareVersion = useGlassesStore((state) => state.firmwareVersion)
   const appVersion = useGlassesStore((state) => state.appVersion)
   const serialNumber = useGlassesStore((state) => state.serialNumber)
   const androidVersion = useGlassesStore((state) => state.androidVersion)
@@ -263,7 +263,7 @@ export default function FeedbackPage() {
             bluetoothId: glassesBluetoothId || undefined,
             serialNumber: serialNumber || undefined,
             buildNumber: buildNumber || undefined,
-            fwVersion: glassesFwVersion || undefined,
+            firmwareVersion: glassesFirmwareVersion || undefined,
             appVersion: appVersion || undefined,
             androidVersion: androidVersion || undefined,
             ...glassesWifiInfo,

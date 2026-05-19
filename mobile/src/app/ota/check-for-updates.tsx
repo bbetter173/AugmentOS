@@ -21,8 +21,8 @@ export default function OtaCheckForUpdatesScreen() {
   const {theme} = useAppTheme()
   const {replace, clearHistoryAndGoHome, push} = useNavigationStore.getState()
   const currentBuildNumber = useGlassesStore((state) => state.buildNumber)
-  const mtkFwVersion = useGlassesStore((state) => state.mtkFwVersion)
-  const besFwVersion = useGlassesStore((state) => state.besFwVersion)
+  const mtkFirmwareVersion = useGlassesStore((state) => state.mtkFirmwareVersion)
+  const besFirmwareVersion = useGlassesStore((state) => state.besFirmwareVersion)
   const glassesWifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const deviceName = defaultWearable || "Glasses"
@@ -121,13 +121,13 @@ export default function OtaCheckForUpdatesScreen() {
       // Match OtaUpdateChecker home path: BES often arrives late in version_info_3 (chip init after reflash).
       void BluetoothSdk.requestVersionInfo()
 
-      let latestBesFwVersion = useGlassesStore.getState().besFwVersion
-      if (!latestBesFwVersion) {
+      let latestBesFirmwareVersion = useGlassesStore.getState().besFirmwareVersion
+      if (!latestBesFirmwareVersion) {
         console.log("OTA: BES version still unknown - waiting up to 5s for it to arrive...")
-        await waitForGlassesState("besFwVersion", (v) => !!v, 5000)
-        latestBesFwVersion = useGlassesStore.getState().besFwVersion
-        if (latestBesFwVersion) {
-          console.log(`OTA: BES version arrived: ${latestBesFwVersion}`)
+        await waitForGlassesState("besFirmwareVersion", (v) => !!v, 5000)
+        latestBesFirmwareVersion = useGlassesStore.getState().besFirmwareVersion
+        if (latestBesFirmwareVersion) {
+          console.log(`OTA: BES version arrived: ${latestBesFirmwareVersion}`)
         } else {
           console.log("OTA: BES version still unknown after extended wait - proceeding without it")
         }
@@ -141,10 +141,10 @@ export default function OtaCheckForUpdatesScreen() {
         return
       }
 
-      let latestMtkFwVersion = useGlassesStore.getState().mtkFwVersion
-      if (!latestMtkFwVersion) {
-        await waitForGlassesState("mtkFwVersion", (v) => !!v, 2000)
-        latestMtkFwVersion = useGlassesStore.getState().mtkFwVersion
+      let latestMtkFirmwareVersion = useGlassesStore.getState().mtkFirmwareVersion
+      if (!latestMtkFirmwareVersion) {
+        await waitForGlassesState("mtkFirmwareVersion", (v) => !!v, 2000)
+        latestMtkFirmwareVersion = useGlassesStore.getState().mtkFirmwareVersion
       }
 
       if (cancelled || myGen !== performCheckGenerationRef.current) {
@@ -175,8 +175,8 @@ export default function OtaCheckForUpdatesScreen() {
         const result = await checkForOtaUpdate(
           OTA_VERSION_URL_PROD,
           currentBuildNumber,
-          latestMtkFwVersion,
-          latestBesFwVersion,
+          latestMtkFirmwareVersion,
+          latestBesFirmwareVersion,
         )
         console.log("📱 OTA check completed - result:", JSON.stringify(result))
 
@@ -250,7 +250,7 @@ export default function OtaCheckForUpdatesScreen() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkKey, currentBuildNumber, mtkFwVersion, besFwVersion, glassesConnected])
+  }, [checkKey, currentBuildNumber, mtkFirmwareVersion, besFirmwareVersion, glassesConnected])
 
   // Navigate to next step based on onboarding status
   const handleContinue = () => {

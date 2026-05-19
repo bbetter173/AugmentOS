@@ -360,9 +360,9 @@ public struct GlassesStatus: CustomStringConvertible {
     public var signalStrengthUpdatedAt: Int { intValue(values["signalStrengthUpdatedAt"]) ?? 0 }
     public var deviceModel: String { stringValue(values, "deviceModel") ?? "" }
     public var androidVersion: String { stringValue(values, "androidVersion") ?? "" }
-    public var firmwareVersion: String { stringValue(values, "fwVersion") ?? "" }
-    public var besFirmwareVersion: String { stringValue(values, "besFwVersion") ?? "" }
-    public var mtkFirmwareVersion: String { stringValue(values, "mtkFwVersion") ?? "" }
+    public var firmwareVersion: String { stringValue(values, "firmwareVersion") ?? "" }
+    public var besFirmwareVersion: String { stringValue(values, "besFirmwareVersion") ?? "" }
+    public var mtkFirmwareVersion: String { stringValue(values, "mtkFirmwareVersion") ?? "" }
     public var btMacAddress: String { stringValue(values, "btMacAddress") ?? "" }
     public var leftMacAddress: String { stringValue(values, "leftMacAddress") ?? "" }
     public var rightMacAddress: String { stringValue(values, "rightMacAddress") ?? "" }
@@ -564,9 +564,9 @@ public struct GlassesStatusUpdate: CustomStringConvertible {
     public var signalStrengthUpdatedAt: Int? { optionalIntValue(values, "signalStrengthUpdatedAt") }
     public var deviceModel: String? { optionalStringValue(values, "deviceModel") }
     public var androidVersion: String? { optionalStringValue(values, "androidVersion") }
-    public var firmwareVersion: String? { optionalStringValue(values, "fwVersion") }
-    public var besFirmwareVersion: String? { optionalStringValue(values, "besFwVersion") }
-    public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFwVersion") }
+    public var firmwareVersion: String? { optionalStringValue(values, "firmwareVersion") }
+    public var besFirmwareVersion: String? { optionalStringValue(values, "besFirmwareVersion") }
+    public var mtkFirmwareVersion: String? { optionalStringValue(values, "mtkFirmwareVersion") }
     public var btMacAddress: String? { optionalStringValue(values, "btMacAddress") }
     public var leftMacAddress: String? { optionalStringValue(values, "leftMacAddress") }
     public var rightMacAddress: String? { optionalStringValue(values, "rightMacAddress") }

@@ -120,7 +120,7 @@ const initialState: GlassesStore = {
   // device info
   deviceModel: "",
   androidVersion: "",
-  fwVersion: "",
+  firmwareVersion: "",
   btMacAddress: "",
   leftMacAddress: "",
   rightMacAddress: "",
@@ -131,8 +131,8 @@ const initialState: GlassesStore = {
   serialNumber: "",
   style: "",
   color: "",
-  mtkFwVersion: "",
-  besFwVersion: "",
+  mtkFirmwareVersion: "",
+  besFirmwareVersion: "",
   // wifi info
   wifi: {state: "disconnected"},
   wifiStatusKnown: false,

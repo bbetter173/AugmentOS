@@ -668,9 +668,9 @@ export interface GlassesStatus {
   // device info
   deviceModel: string
   androidVersion: string
-  fwVersion: string
-  besFwVersion: string
-  mtkFwVersion: string
+  firmwareVersion: string
+  besFirmwareVersion: string
+  mtkFirmwareVersion: string
   btMacAddress: string
   leftMacAddress: string
   rightMacAddress: string

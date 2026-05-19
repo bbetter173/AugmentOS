@@ -138,7 +138,7 @@ abstract class SGCManager {
         get() = DeviceStore.get("glasses", "otaVersionUrl") as? String ?: ""
 
     val firmwareVersion: String
-        get() = DeviceStore.get("glasses", "fwVersion") as? String ?: ""
+        get() = DeviceStore.get("glasses", "firmwareVersion") as? String ?: ""
 
     val btMacAddress: String
         get() = DeviceStore.get("glasses", "btMacAddress") as? String ?: ""

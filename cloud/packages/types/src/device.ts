@@ -10,7 +10,7 @@ export interface GlassesInfo {
   // Device identification
   modelName: string | null
   androidVersion?: string
-  fwVersion?: string
+  firmwareVersion?: string
   buildNumber?: string
   otaVersionUrl?: string
   appVersion?: string

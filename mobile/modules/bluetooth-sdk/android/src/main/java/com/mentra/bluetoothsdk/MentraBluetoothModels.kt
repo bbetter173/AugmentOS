@@ -150,9 +150,9 @@ data class GlassesStatus(
             "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
             "deviceModel" to deviceModel,
             "androidVersion" to androidVersion,
-            "fwVersion" to firmwareVersion,
-            "besFwVersion" to besFirmwareVersion,
-            "mtkFwVersion" to mtkFirmwareVersion,
+            "firmwareVersion" to firmwareVersion,
+            "besFirmwareVersion" to besFirmwareVersion,
+            "mtkFirmwareVersion" to mtkFirmwareVersion,
             "btMacAddress" to btMacAddress,
             "leftMacAddress" to leftMacAddress,
             "rightMacAddress" to rightMacAddress,
@@ -193,9 +193,9 @@ data class GlassesStatus(
                 signalStrengthUpdatedAt = longValue(values, "signalStrengthUpdatedAt") ?: 0L,
                 deviceModel = stringValue(values, "deviceModel") ?: "",
                 androidVersion = stringValue(values, "androidVersion") ?: "",
-                firmwareVersion = stringValue(values, "fwVersion") ?: "",
-                besFirmwareVersion = stringValue(values, "besFwVersion") ?: "",
-                mtkFirmwareVersion = stringValue(values, "mtkFwVersion") ?: "",
+                firmwareVersion = stringValue(values, "firmwareVersion") ?: "",
+                besFirmwareVersion = stringValue(values, "besFirmwareVersion") ?: "",
+                mtkFirmwareVersion = stringValue(values, "mtkFirmwareVersion") ?: "",
                 btMacAddress = stringValue(values, "btMacAddress") ?: "",
                 leftMacAddress = stringValue(values, "leftMacAddress") ?: "",
                 rightMacAddress = stringValue(values, "rightMacAddress") ?: "",
@@ -437,9 +437,9 @@ data class GlassesStatusUpdate(
             putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
             putIfNotNull("deviceModel", deviceModel)
             putIfNotNull("androidVersion", androidVersion)
-            putIfNotNull("fwVersion", firmwareVersion)
-            putIfNotNull("besFwVersion", besFirmwareVersion)
-            putIfNotNull("mtkFwVersion", mtkFirmwareVersion)
+            putIfNotNull("firmwareVersion", firmwareVersion)
+            putIfNotNull("besFirmwareVersion", besFirmwareVersion)
+            putIfNotNull("mtkFirmwareVersion", mtkFirmwareVersion)
             putIfNotNull("btMacAddress", btMacAddress)
             putIfNotNull("leftMacAddress", leftMacAddress)
             putIfNotNull("rightMacAddress", rightMacAddress)
@@ -484,9 +484,9 @@ data class GlassesStatusUpdate(
                 signalStrengthUpdatedAt = optionalLongValue(values, "signalStrengthUpdatedAt"),
                 deviceModel = optionalStringValue(values, "deviceModel"),
                 androidVersion = optionalStringValue(values, "androidVersion"),
-                firmwareVersion = optionalStringValue(values, "fwVersion"),
-                besFirmwareVersion = optionalStringValue(values, "besFwVersion"),
-                mtkFirmwareVersion = optionalStringValue(values, "mtkFwVersion"),
+                firmwareVersion = optionalStringValue(values, "firmwareVersion"),
+                besFirmwareVersion = optionalStringValue(values, "besFirmwareVersion"),
+                mtkFirmwareVersion = optionalStringValue(values, "mtkFirmwareVersion"),
                 btMacAddress = optionalStringValue(values, "btMacAddress"),
                 leftMacAddress = optionalStringValue(values, "leftMacAddress"),
                 rightMacAddress = optionalStringValue(values, "rightMacAddress"),

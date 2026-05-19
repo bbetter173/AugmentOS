@@ -158,7 +158,7 @@ extension SGCManager {
     }
 
     var firmwareVersion: String {
-        DeviceStore.shared.get("glasses", "fwVersion") as? String ?? ""
+        DeviceStore.shared.get("glasses", "firmwareVersion") as? String ?? ""
     }
 
     var btMacAddress: String {

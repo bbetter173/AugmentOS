@@ -3310,7 +3310,7 @@ class G2: NSObject, SGCManager {
             // Bridge.log("G2: Right firmware: \(rightVersion)")
             DeviceStore.shared.apply("glasses", "rightFirmwareVersion", rightVersion)
             // Use right version as the main version
-            DeviceStore.shared.apply("glasses", "fwVersion", rightVersion)
+            DeviceStore.shared.apply("glasses", "firmwareVersion", rightVersion)
         }
     }
 

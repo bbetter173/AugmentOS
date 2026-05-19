@@ -61,8 +61,6 @@ class MentraBluetoothSdk private constructor(
     fun clearDisplay()
     fun showDashboard()
 
-    @JvmOverloads fun setBrightness(level: Int, autoMode: Boolean? = null)
-    fun setAutoBrightness(enabled: Boolean)
     fun setDashboardPosition(request: MentraDashboardPositionRequest)
     fun setHeadUpAngle(angleDegrees: Int)
     fun setScreenDisabled(disabled: Boolean)
@@ -177,7 +175,7 @@ This two-store setup can remain internally, but it should not become the public 
 
 The target boundary is:
 
-- Public SDK callers use typed methods such as `setBrightness`, `setPreferredMic`, `startScan`, `connect`, `displayText`, and `setMicState`.
+- Public SDK callers use typed methods such as `setPreferredMic`, `startScan`, `connect`, `displayText`, and `setMicState`.
 - Public SDK callers receive typed callbacks such as `onGlassesStatusChanged`, `onBluetoothStatusChanged`, `onDeviceDiscovered`, and `onButtonPress`.
 - All hardware side effects currently hidden inside `DeviceStore.apply()` should have a typed public or adapter-only entrypoint before MentraOS removes blob sync.
 - `DeviceStore` remains an implementation detail behind `MentraBluetoothSdk`.

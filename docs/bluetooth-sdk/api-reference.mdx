@@ -222,7 +222,7 @@ The React Native root export intentionally exposes a narrower surface than the M
 | Status and subscriptions | `getGlassesStatus`, `getBluetoothStatus`, `onGlassesStatus`, `onBluetoothStatus`, `addListener` |
 | Default device | `getDefaultDevice`, `setDefaultDevice`, `clearDefaultDevice` |
 | Connection | `scan`, `startScan`, `stopScan`, `connect`, `connectDefault`, `cancelConnectionAttempt`, `disconnect`, `forget` |
-| Display | `displayText`, `clearDisplay`, `showDashboard`, `setBrightness`, `setAutoBrightness`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
+| Display | `displayText`, `clearDisplay`, `showDashboard`, `setDashboardPosition`, `setHeadUpAngle`, `setScreenDisabled` |
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
 | Camera and gallery | `photoRequest`, `queryGalleryStatus`, `setGalleryMode`, `setButtonPhotoSettings`, `setButtonVideoRecordingSettings`, `setButtonCameraLed`, `setButtonMaxRecordingTime`, `setCameraFov`, `startVideoRecording`, `stopVideoRecording` |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |
@@ -236,7 +236,6 @@ Important defaults:
 - `scan(model, options)` reports progressive results through `options.onResults`, resolves with the final matching `Device[]`, and times out after 15 seconds unless `options.timeoutMs` is set.
 - `connect` and `connectDefault` default `saveAsDefault` and `cancelExistingConnectionAttempt` to `true`.
 - `displayText(text, x, y, size)` defaults to `x = 0`, `y = 0`, and `size = 24`.
-- `setBrightness(level)` leaves auto-brightness unchanged; pass `setBrightness(level, false)` or call `setAutoBrightness(false)` when you need manual brightness.
 - `setMicState(enabled)` defaults to glasses microphone on, VAD bypass off, transcript events off, and LC3 events off.
 - `photoRequest(..., authToken, ...)` omits the `Authorization` header when `authToken` is `null` or empty.
 - `startStream` optional `video` and `audio` configs are omitted unless supplied, so the connected glasses use their model defaults.

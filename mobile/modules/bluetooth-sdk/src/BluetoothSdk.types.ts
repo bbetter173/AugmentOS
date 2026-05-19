@@ -559,8 +559,6 @@ export interface BluetoothSdkPublicModule {
   displayText(text: string, x?: number, y?: number, size?: number): Promise<void>
   clearDisplay(): Promise<void>
   showDashboard(): Promise<void>
-  setBrightness(level: number, autoMode?: boolean | null): Promise<void>
-  setAutoBrightness(enabled: boolean): Promise<void>
   setDashboardPosition(height: number, depth: number): Promise<void>
   setHeadUpAngle(angleDegrees: number): Promise<void>
   setScreenDisabled(disabled: boolean): Promise<void>

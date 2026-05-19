@@ -264,13 +264,12 @@ class MentraBluetoothSdk private constructor(
         deviceManager.showDashboard()
     }
 
-    @JvmOverloads
-    fun setBrightness(level: Int, autoMode: Boolean? = null) {
+    internal fun setBrightness(level: Int, autoMode: Boolean? = null) {
         autoMode?.let { DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "auto_brightness", it) }
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "brightness", level)
     }
 
-    fun setAutoBrightness(enabled: Boolean) {
+    internal fun setAutoBrightness(enabled: Boolean) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "auto_brightness", enabled)
     }
 

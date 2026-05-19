@@ -92,15 +92,12 @@ Dashboard support depends on the connected glasses model and firmware.
 
 ## Display Settings
 
-Display-related settings include brightness, auto-brightness, dashboard position, head-up angle, and screen enable/disable state.
+Display-related settings include dashboard position, head-up angle, and screen enable/disable state.
 
 <Tabs>
   <Tab title="Android">
 
 ```kotlin
-sdk.setBrightness(level = 60)
-sdk.setBrightness(level = 60, autoMode = false)
-sdk.setAutoBrightness(enabled = true)
 sdk.setDashboardPosition(height = 4, depth = 6)
 sdk.setHeadUpAngle(angleDegrees = 20)
 sdk.setScreenDisabled(false)
@@ -110,8 +107,6 @@ sdk.setScreenDisabled(false)
   <Tab title="iOS">
 
 ```swift
-try await sdk.setBrightness(60)
-try await sdk.setAutoBrightness(enabled: true)
 try await sdk.setDashboardPosition(height: 4, depth: 6)
 try await sdk.setHeadUpAngle(20)
 try await sdk.setScreenDisabled(false)
@@ -121,8 +116,6 @@ try await sdk.setScreenDisabled(false)
   <Tab title="React Native">
 
 ```ts
-await BluetoothSdk.setBrightness(60, false);
-await BluetoothSdk.setAutoBrightness(true);
 await BluetoothSdk.setDashboardPosition(4, 6);
 await BluetoothSdk.setHeadUpAngle(20);
 await BluetoothSdk.setScreenDisabled(false);

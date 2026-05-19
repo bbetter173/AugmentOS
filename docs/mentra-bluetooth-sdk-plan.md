@@ -459,8 +459,6 @@ await BluetoothSdk.forget()
 await BluetoothSdk.displayText(text, x, y, size)
 await BluetoothSdk.clearDisplay()
 await BluetoothSdk.showDashboard()
-await BluetoothSdk.setBrightness(level, autoMode)
-await BluetoothSdk.setAutoBrightness(enabled)
 await BluetoothSdk.setDashboardPosition(height, depth)
 await BluetoothSdk.setHeadUpAngle(angleDegrees)
 await BluetoothSdk.setScreenDisabled(disabled)
@@ -950,7 +948,7 @@ MentraOS should continue to work, but it should use the native SDK through a thi
 
 - `BluetoothSdkModule.kt` calls `MentraBluetoothSdk`.
 - `BluetoothSdkModule.swift` calls `MentraBluetoothSDK`.
-- A MentraOS TypeScript service watches relevant Zustand settings and calls typed SDK methods such as `setBrightness`, `setPreferredMic`, `connectDefault`, and `setMicState`.
+- A MentraOS TypeScript service watches relevant Zustand settings and calls typed SDK methods such as `setPreferredMic`, `connectDefault`, and `setMicState`; brightness remains an internal MentraOS setting path until the hardware command is reliable.
 - Native status callbacks update `useBluetoothStore` / `useGlassesStore`; MentraOS TypeScript remains responsible for cloud/websocket formatting.
 - The legacy TypeScript API can remain stable during migration while native customers use the native facade.
 - Generic store blob syncing should be deprecated once MentraOS has moved to typed calls.

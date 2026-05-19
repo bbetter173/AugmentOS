@@ -50,8 +50,6 @@ public final class MentraBluetoothSDK {
     public func clearDisplay() async throws
     public func showDashboard()
 
-    public func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws
-    public func setAutoBrightness(enabled: Bool) async throws
     public func setDashboardPosition(_ request: MentraDashboardPositionRequest) async throws
     public func setHeadUpAngle(_ angleDegrees: Int) async throws
     public func setScreenDisabled(_ disabled: Bool) async throws
@@ -161,7 +159,7 @@ This two-store setup can remain internally, but it should not become the public 
 
 The target boundary is:
 
-- Public SDK callers use typed methods such as `setBrightness`, `setPreferredMic`, `startScan`, `connect`, `displayText`, and `setMicState`.
+- Public SDK callers use typed methods such as `setPreferredMic`, `startScan`, `connect`, `displayText`, and `setMicState`.
 - Public SDK callers receive typed delegate callbacks such as `didUpdateGlassesStatus`, `didUpdateBluetoothStatus`, `didDiscover`, and `didReceive`.
 - All hardware side effects currently hidden inside `DeviceStore.apply()` should have a typed public or adapter-only entrypoint before MentraOS removes blob sync.
 - `DeviceStore` remains an implementation detail behind `MentraBluetoothSDK`.

@@ -178,7 +178,6 @@ await saveDeviceToYourAppStorage(null)
 ```ts
 await BluetoothSdk.clearDisplay()
 await BluetoothSdk.showDashboard()
-await BluetoothSdk.setBrightness(60, false)
 await BluetoothSdk.setDashboardPosition(4, 2)
 
 await BluetoothSdk.requestWifiScan()

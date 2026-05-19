@@ -82,8 +82,6 @@ forget(): Promise<void>
 displayText(text: string, x?: number, y?: number, size?: number): Promise<void>
 clearDisplay(): Promise<void>
 showDashboard(): Promise<void>
-setBrightness(level: number, autoMode?: boolean | null): Promise<void>
-setAutoBrightness(enabled: boolean): Promise<void>
 setDashboardPosition(height: number, depth: number): Promise<void>
 setHeadUpAngle(angleDegrees: number): Promise<void>
 setScreenDisabled(disabled: boolean): Promise<void>
@@ -288,9 +286,6 @@ fun displayText(text: String, x: Int = 0, y: Int = 0, size: Int = 24)
 fun displayText(request: DisplayTextRequest)
 fun clearDisplay()
 fun showDashboard()
-@JvmOverloads
-fun setBrightness(level: Int, autoMode: Boolean? = null)
-fun setAutoBrightness(enabled: Boolean)
 fun setDashboardPosition(height: Int, depth: Int)
 fun setDashboardPosition(request: DashboardPositionRequest)
 fun setHeadUpAngle(angleDegrees: Int)
@@ -475,8 +470,6 @@ public func displayText(_ text: String, x: Int = 0, y: Int = 0, size: Int = 24) 
 public func displayText(_ request: DisplayTextRequest) async throws
 public func clearDisplay() async throws
 public func showDashboard()
-public func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws
-public func setAutoBrightness(enabled: Bool) async throws
 public func setDashboardPosition(height: Int, depth: Int) async throws
 public func setDashboardPosition(_ request: DashboardPositionRequest) async throws
 public func setHeadUpAngle(_ angleDegrees: Int) async throws

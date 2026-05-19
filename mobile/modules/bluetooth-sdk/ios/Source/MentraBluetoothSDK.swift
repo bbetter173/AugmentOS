@@ -2212,14 +2212,14 @@ public final class MentraBluetoothSDK {
         DeviceManager.shared.showDashboard()
     }
 
-    public func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws {
+    func setBrightness(_ level: Int, autoMode: Bool? = nil) async throws {
         if let autoMode {
             DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "auto_brightness", autoMode)
         }
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "brightness", level)
     }
 
-    public func setAutoBrightness(enabled: Bool) async throws {
+    func setAutoBrightness(enabled: Bool) async throws {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "auto_brightness", enabled)
     }
 

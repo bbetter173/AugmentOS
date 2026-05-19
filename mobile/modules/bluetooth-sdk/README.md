@@ -129,11 +129,14 @@ if (!device) {
 }
 
 await BluetoothSdk.connect(device)
-await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
+await BluetoothSdk.requestVersionInfo()
 ```
 
 In multi-device environments, present an explicit picker instead of
 auto-connecting to the first nearby device.
+
+Mentra Live does not have a display. Use display commands only after gating by
+model capability.
 
 Use `Device.id` as the stable app-facing key for scan rows, selected devices,
 and persisted default devices. Do not parse it for model, name, or address

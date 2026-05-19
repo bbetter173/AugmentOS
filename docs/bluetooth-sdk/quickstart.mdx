@@ -4,7 +4,7 @@ description: "Install the Mentra Bluetooth SDK and connect a mobile app to smart
 icon: "rocket"
 ---
 
-This quickstart shows the shortest path from package install to displaying text on connected smart glasses.
+This quickstart shows the shortest path from package install to connecting to Mentra Live and reading glasses status.
 
 <Warning>
 Use a physical phone for Bluetooth testing. Simulators and emulators are useful for UI and compile checks, but they do not provide the real Bluetooth path.
@@ -94,7 +94,7 @@ android {
 }
 
 dependencies {
-    implementation("com.mentra:bluetooth-sdk:0.1.2")
+    implementation("com.mentra:bluetooth-sdk:0.1.5")
 }
 ```
 
@@ -109,7 +109,7 @@ platform :ios, '15.1'
 target 'YourApp' do
   use_frameworks!
 
-  pod 'MentraBluetoothSDK', '0.1.2'
+  pod 'MentraBluetoothSDK', '0.1.5'
 end
 ```
 
@@ -205,6 +205,7 @@ if (!device) {
 }
 
 await BluetoothSdk.connect(device);
+await BluetoothSdk.requestVersionInfo();
 ```
 
 `onResults` is the live UI path while scanning is in progress. The returned `devices` array is the final list after the scan timeout/completion, which is the right place for final selection, fallback behavior, or "connect to this device" logic. In rooms with multiple pairs of glasses, present an explicit picker instead of auto-connecting to the first nearby device.
@@ -213,8 +214,21 @@ Use `Device.id` as the stable app-facing key for scan rows, selected devices, an
 
 `Device.rssi` is optional. A device can appear in scan results before the platform reports RSSI, so picker UI should handle `undefined` and avoid reordering rows just because RSSI metadata arrives later.
 
-```ts
-await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24);
+In React components, use `useMentraBluetooth()` to render the current connection and status state:
+
+```tsx
+import {Text} from 'react-native';
+import {useMentraBluetooth} from '@mentra/bluetooth-sdk/react';
+
+export function GlassesStatusLabel() {
+  const mentra = useMentraBluetooth();
+
+  if (!mentra.glasses.connected) {
+    return <Text>Disconnected</Text>;
+  }
+
+  return <Text>Connected to {mentra.glasses.device.deviceModel || 'Mentra Live'}</Text>;
+}
 ```
 
   </Tab>

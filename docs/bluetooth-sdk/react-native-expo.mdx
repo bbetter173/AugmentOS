@@ -152,8 +152,10 @@ if (!device) {
 }
 
 await BluetoothSdk.connect(device);
-await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24);
+await BluetoothSdk.requestVersionInfo();
 ```
+
+Use the React hooks below to render connection and status state in components. Mentra Live does not have a display; use display commands only after gating by model capability.
 
 ## React Hooks
 

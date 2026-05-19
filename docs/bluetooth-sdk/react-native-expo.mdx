@@ -91,6 +91,49 @@ Configure permissions in the same root Expo app config. If your app already has 
 }
 ```
 
+## Background Operation On iOS
+
+If your React Native app needs BLE to keep running while the phone is locked or the app is backgrounded, add `bluetooth-central` to `ios.infoPlist.UIBackgroundModes`. If the app also keeps microphone capture or an audio session active in the background, add `audio` too:
+
+```json
+{
+  "expo": {
+    "ios": {
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "bluetooth-central",
+          "audio"
+        ],
+        "NSBluetoothAlwaysUsageDescription": "This app connects to your smart glasses over Bluetooth.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone when you enable audio features."
+      }
+    }
+  }
+}
+```
+
+Configure the iOS audio session before continuous mic capture. If your app does not already depend on `expo-audio`, install it with `bunx expo install expo-audio`. Then call `setAudioModeAsync` once during app startup or before enabling the microphone:
+
+```ts
+import {setAudioModeAsync} from 'expo-audio';
+
+await setAudioModeAsync({
+  allowsRecording: true,
+  allowsBackgroundRecording: true,
+  shouldPlayInBackground: true,
+  playsInSilentMode: true,
+  interruptionMode: 'duckOthers',
+});
+```
+
+Start continuous microphone capture while the app is foregrounded; iOS background mode lets an active session continue, but the SDK does not start the phone microphone from the background.
+
+Use `audio` background mode only when the app genuinely records or plays audio in the background. `bluetooth-central` is the BLE requirement; `audio` is the audio-session requirement for continuous mic/audio behavior.
+
+<Warning>
+The SDK does not currently use `CBCentralManagerOptionRestoreIdentifierKey` on iOS. Terminated-app Core Bluetooth state restoration is not supported yet. If iOS terminates the app, relaunch the app and reconnect from your normal startup flow.
+</Warning>
+
 ## Basic Usage
 
 ```ts

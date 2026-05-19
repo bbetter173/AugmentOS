@@ -18,7 +18,7 @@ The main remaining problems are less about "does the demo run at all?" and more 
 - `setMicState(..., bypassVad=false)` remains the default across React Native, Android, and iOS, but that mode is dangerous for third-party STT because it can emit VAD-gated, discontinuous PCM.
 - `MicPcmEvent` and `MicLc3Event` now include payload metadata in the current worktree.
 - Photo request rate limiting / queue overflow still appears silent from the app-facing API.
-- iOS background BLE and audio requirements still need first-class docs.
+- iOS background BLE and audio requirements are now documented in the Mintlify iOS and React Native setup pages.
 
 ## Open Issues
 
@@ -140,18 +140,17 @@ Recommended follow-up:
 
 ### 7. iOS Background BLE And Mic Requirements Need Dedicated Docs
 
-Status: still open.
+Status: addressed in the current worktree.
 
-The iOS docs currently cover deployment target, CocoaPods, and permission strings, but they do not explain what developers must configure for BLE and microphone behavior while the phone is locked or the app backgrounds.
+The Mintlify iOS and React Native setup pages now document what developers must configure for BLE and microphone behavior while the phone is locked or the app backgrounds.
 
-Recommended follow-up:
+Updated docs now cover:
 
-- Add a "Background Operation" section to the iOS and React Native docs.
-- Document required `UIBackgroundModes`, at minimum:
-  - `bluetooth-central` for BLE central behavior.
-  - `audio` for microphone/audio session behavior when using continuous mic capture.
-- For Expo / React Native, document the relevant `app.json` config and audio-session call, for example using `expo-audio` with background recording/playback enabled.
-- Explicitly state whether the SDK uses `CBCentralManagerOptionRestoreIdentifierKey` for state restoration. If it does not, document that terminated-app BLE restoration is not supported yet.
+- `UIBackgroundModes` with `bluetooth-central` for BLE central behavior.
+- `UIBackgroundModes` with `audio` when the app intentionally keeps microphone capture or audio playback active in the background.
+- Expo / React Native `app.json` configuration under `ios.infoPlist`.
+- `expo-audio` `setAudioModeAsync` setup for background recording/playback.
+- The current SDK limitation: iOS `CBCentralManager` instances are not created with `CBCentralManagerOptionRestoreIdentifierKey`, so terminated-app Core Bluetooth state restoration is not supported yet.
 
 ### 8. `Device.id` Semantics Should Be Documented
 
@@ -221,8 +220,7 @@ These should not be repeated as current blockers:
 ## Suggested Next Priority Order
 
 1. Document and/or change the `bypassVad` default for external STT.
-2. Add iOS background operation docs.
-3. Split or gate GStreamer in the React Native direct receiver.
-4. Add photo request timeout/rate-limit errors.
-5. Document `Device.id` and optional `rssi` semantics.
-6. Continue polishing the React Native public/private status boundary.
+2. Split or gate GStreamer in the React Native direct receiver.
+3. Add photo request timeout/rate-limit errors.
+4. Document `Device.id` and optional `rssi` semantics.
+5. Continue polishing the React Native public/private status boundary.

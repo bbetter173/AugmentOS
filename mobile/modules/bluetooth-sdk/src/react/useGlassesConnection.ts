@@ -97,6 +97,21 @@ export function useGlassesConnection(
   }, [])
 
   useEffect(() => {
+    const subscription = BluetoothSdk.addListener("default_device_changed", (event) => {
+      const nextDefaultDevice = event.device ?? null
+      setDefaultDeviceState(nextDefaultDevice)
+      void defaultDeviceStorageRef.current?.save(nextDefaultDevice).catch((nextError) => {
+        setOperationError(nextError)
+        onErrorRef.current?.(nextError)
+      })
+    })
+
+    return () => {
+      subscription.remove()
+    }
+  }, [])
+
+  useEffect(() => {
     if (!options.autoConnectDefault || autoConnectAttemptedRef.current || status.connected || !defaultDevice) {
       return
     }

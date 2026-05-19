@@ -20,3 +20,14 @@ export {
   type GlassesConnectionHookResult,
   type UseGlassesConnectionOptions,
 } from "./useGlassesConnection"
+export {
+  useMentraBluetooth,
+  type BatteryState,
+  type ConnectedGlassesInfo,
+  type GalleryModeState,
+  type GlassesRuntimeState,
+  type MentraBluetoothSession,
+  type PhoneSdkRuntimeState,
+  type ScanController,
+  type UseMentraBluetoothOptions,
+} from "./useMentraBluetooth"

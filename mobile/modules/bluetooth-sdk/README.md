@@ -132,6 +132,13 @@ await BluetoothSdk.connect(device)
 await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24)
 ```
 
+Use `Device.id` as the stable app-facing key for scan rows, selected devices,
+and persisted default devices. Do not parse it for model, name, or address
+information; use the typed `model`, `name`, `address`, and `rssi` fields
+instead. Android commonly uses a Bluetooth address when available, iOS commonly
+uses a CoreBluetooth identifier when available, and the SDK falls back to
+`model:name` when no platform identifier is available.
+
 ## React Hooks
 
 React Native apps can import optional lifecycle helpers from the `react`
@@ -222,7 +229,7 @@ await BluetoothSdk.setGalleryMode('auto')
 await BluetoothSdk.setGalleryMode('manual')
 
 await BluetoothSdk.setPreferredMic('auto')
-await BluetoothSdk.setMicState(true, true, false)
+await BluetoothSdk.setMicState(true)
 await BluetoothSdk.setOwnAppAudioPlaying(false)
 
 await BluetoothSdk.rgbLedControl(
@@ -235,6 +242,8 @@ await BluetoothSdk.rgbLedControl(
   3,
 )
 ```
+
+`setMicState(true)` defaults to continuous microphone PCM from the glasses. VAD means Voice Activity Detection; pass `false` as the third argument only when your app intentionally wants VAD-gated microphone events.
 
 ## Photo Upload
 

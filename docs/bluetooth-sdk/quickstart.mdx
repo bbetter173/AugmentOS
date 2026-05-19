@@ -209,6 +209,8 @@ await BluetoothSdk.connect(device);
 
 `onResults` is the live UI path while scanning is in progress. The returned `devices` array is the final list after the scan timeout/completion, which is the right place for final selection, fallback behavior, or "connect to this device" logic.
 
+Use `Device.id` as the stable app-facing key for scan rows, selected devices, and persisted default devices. Do not parse it for model, name, or address information; use the typed `model`, `name`, `address` / `identifier`, and `rssi` fields instead. Android commonly uses a Bluetooth address when available, iOS commonly uses a CoreBluetooth identifier when available, and the SDK falls back to `model:name` when no platform identifier is available.
+
 ```ts
 await BluetoothSdk.displayText('Hello from Mentra', 0, 0, 24);
 ```

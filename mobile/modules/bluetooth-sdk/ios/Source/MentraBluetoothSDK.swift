@@ -159,8 +159,10 @@ public enum DeviceModel: String {
 public struct Device: Identifiable, Equatable, CustomStringConvertible {
     public let model: DeviceModel
     public let name: String
+    /// CoreBluetooth identifier when available.
     public let identifier: String?
     public let rssi: Int?
+    /// Stable app-facing scan-result key. Do not parse; use typed fields instead.
     public let id: String
 
     public init(
@@ -527,7 +529,7 @@ public struct BluetoothStatus: CustomStringConvertible {
     public var shouldSendPcm: Bool { boolValue(values, "should_send_pcm") ?? false }
     public var shouldSendLc3: Bool { boolValue(values, "should_send_lc3") ?? false }
     public var shouldSendTranscript: Bool { boolValue(values, "should_send_transcript") ?? false }
-    public var bypassVad: Bool { boolValue(values, "bypass_vad") ?? false }
+    public var bypassVad: Bool { boolValue(values, "bypass_vad") ?? true }
     public var offlineCaptionsRunning: Bool { boolValue(values, "offline_captions_running") ?? false }
     public var localSttFallbackActive: Bool { boolValue(values, "local_stt_fallback_active") ?? false }
     public var shouldSendBootingMessage: Bool { boolValue(values, "shouldSendBootingMessage") ?? true }
@@ -2401,7 +2403,7 @@ public final class MentraBluetoothSDK {
     public func setMicState(
         enabled: Bool,
         useGlassesMic: Bool = true,
-        bypassVad: Bool = false,
+        bypassVad: Bool = true,
         sendTranscript: Bool = false,
         sendLc3Data: Bool = false
     ) {

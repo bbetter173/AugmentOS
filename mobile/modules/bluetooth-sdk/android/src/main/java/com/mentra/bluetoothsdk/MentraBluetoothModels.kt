@@ -35,8 +35,10 @@ enum class DeviceModel(val deviceType: String) {
 data class Device(
     val model: DeviceModel,
     val name: String,
+    /** Android Bluetooth address when available. */
     val address: String? = null,
     val rssi: Int? = null,
+    /** Stable app-facing scan-result key. Do not parse; use typed fields instead. */
     val id: String = address?.takeIf { it.isNotBlank() } ?: "${model.deviceType}:$name",
 ) {
     internal fun toMap(): Map<String, Any> =
@@ -371,7 +373,7 @@ data class BluetoothStatus(
                 shouldSendPcm = boolValue(values, "should_send_pcm") ?: false,
                 shouldSendLc3 = boolValue(values, "should_send_lc3") ?: false,
                 shouldSendTranscript = boolValue(values, "should_send_transcript") ?: false,
-                bypassVad = boolValue(values, "bypass_vad") ?: false,
+                bypassVad = boolValue(values, "bypass_vad") ?: true,
                 offlineCaptionsRunning = boolValue(values, "offline_captions_running") ?: false,
                 localSttFallbackActive = boolValue(values, "local_stt_fallback_active") ?: false,
                 shouldSendBootingMessage = boolValue(values, "shouldSendBootingMessage") ?: true,

@@ -96,7 +96,7 @@ class DeviceStore {
         store.set("bluetooth", "should_send_pcm", false)
         store.set("bluetooth", "should_send_lc3", false)
         store.set("bluetooth", "should_send_transcript", false)
-        store.set("bluetooth", "bypass_vad", false)
+        store.set("bluetooth", "bypass_vad", true)
     }
 
     func get(_ category: String, _ key: String) -> Any? {

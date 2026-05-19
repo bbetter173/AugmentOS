@@ -390,7 +390,7 @@ NativeBluetoothSdkModule.setMicState = function (
     nativeSetMicState(
       enabled,
       useGlassesMic ?? true,
-      bypassVad ?? false,
+      bypassVad ?? true,
       sendTranscript ?? false,
       sendLc3Data ?? false,
     ),

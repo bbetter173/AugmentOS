@@ -339,7 +339,7 @@ class MentraBluetoothSdk private constructor(
     fun setMicState(
         enabled: Boolean,
         useGlassesMic: Boolean = true,
-        bypassVad: Boolean = false,
+        bypassVad: Boolean = true,
         sendTranscript: Boolean = false,
         sendLc3Data: Boolean = false,
     ) {

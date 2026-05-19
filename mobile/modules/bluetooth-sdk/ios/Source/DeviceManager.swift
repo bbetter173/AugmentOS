@@ -1013,7 +1013,6 @@ struct ViewState {
 
     func handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
-        // setMicState(shouldSendPcData, shouldSendTranscript, false)
         // shouldSendBootingMessage = true  // Reset for next first connect
     }
 

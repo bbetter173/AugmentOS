@@ -457,7 +457,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                 self.bluetoothSdk().setMicState(
                     enabled: enabled,
                     useGlassesMic: useGlassesMic ?? true,
-                    bypassVad: bypassVad ?? false,
+                    bypassVad: bypassVad ?? true,
                     sendTranscript: sendTranscript ?? false,
                     sendLc3Data: sendLc3Data ?? false
                 )

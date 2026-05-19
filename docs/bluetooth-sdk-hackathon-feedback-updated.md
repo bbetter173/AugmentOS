@@ -15,7 +15,7 @@ The SDK is in a much better place than the original feedback implied:
 The main remaining problems are less about "does the demo run at all?" and more about API clarity and production readiness:
 
 - The React Native direct receiver still makes GStreamer a default native dependency for the example app, even for developers who only want phone photo upload.
-- `setMicState(..., bypassVad=false)` remains the default across React Native, Android, and iOS, but that mode is dangerous for third-party STT because it can emit VAD-gated, discontinuous PCM.
+- `setMicState(...)` now defaults to `bypassVad=true`, so app-facing PCM is continuous by default.
 - `MicPcmEvent` and `MicLc3Event` now include payload metadata in the current worktree.
 - Photo request rate limiting / queue overflow still appears silent from the app-facing API.
 - iOS background BLE and audio requirements are now documented in the Mintlify iOS and React Native setup pages.
@@ -40,25 +40,22 @@ Recommended follow-up:
 - Make the default React Native starter path photo-only unless the developer opts into direct WebRTC preview.
 - Keep GStreamer docs, but frame it as optional advanced setup rather than baseline starter-kit setup.
 
-### 2. `bypassVad=false` Is Still The Wrong Default For External STT PCM
+### 2. `bypassVad` Defaults To Continuous PCM
 
-Status: still open.
+Status: addressed in the current worktree.
 
-The public APIs still default `bypassVad` to `false`:
+The public APIs default `bypassVad` to `true`:
 
-- React Native wrapper: `setMicState(enabled, useGlassesMic = true, bypassVad = false, ...)`
-- Android native SDK: `setMicState(enabled = true, useGlassesMic = true, bypassVad = false, ...)`
-- iOS native SDK: `setMicState(enabled: true, useGlassesMic: true, bypassVad: false, ...)`
+- React Native wrapper: `setMicState(enabled, useGlassesMic = true, bypassVad = true, ...)`
+- Android native SDK: `setMicState(enabled = true, useGlassesMic = true, bypassVad = true, ...)`
+- iOS native SDK: `setMicState(enabled: true, useGlassesMic: true, bypassVad: true, ...)`
 
-That default is good only if the consumer expects SDK-owned VAD behavior. It is a bad default for third-party STT pipelines that expect continuous PCM, because VAD-gated PCM can drop leading/trailing frames and arrive in irregular bursts. The previous Roastbook symptom, repeated hallucinated tokens from downstream STT, is exactly the kind of failure this produces.
+Voice Activity Detection, or VAD, is the SDK speech detector. VAD-gated PCM can drop leading/trailing frames and arrive in irregular bursts, which is a bad default for third-party STT pipelines that expect continuous PCM. The app-facing default now favors continuous PCM for external STT, WAV writing, recording, and playback.
 
-Recommended follow-up:
+Current behavior:
 
-- Prefer changing the default to `bypassVad=true` for app-facing PCM.
-- If changing the default is too risky, document this prominently in `audio.mdx`, README, and API reference:
-  - Use `bypassVad=true` when sending PCM to external STT.
-  - Use `bypassVad=false` only when intentionally accepting SDK VAD-gated audio.
-- Consider a clearer API name or helper, such as `startPcmMic({continuous: true})`, so developers do not need to understand VAD behavior on day one.
+- Use the default `bypassVad=true` when sending PCM to external STT or writing/playing continuous audio.
+- Pass `bypassVad=false` only when intentionally accepting SDK VAD-gated microphone events.
 
 ### 3. `MicPcmEvent` And `MicLc3Event` Now Include Metadata
 
@@ -154,15 +151,15 @@ Updated docs now cover:
 
 ### 8. `Device.id` Semantics Should Be Documented
 
-Status: partially addressed in code, not clearly documented.
+Status: addressed in the current worktree.
 
 The native SDKs now consistently derive `Device.id` from the platform address/identifier when available, otherwise from `model:name`.
 
-Recommended follow-up:
+Documented behavior:
 
-- Document that `id` is the stable app-facing key for a scan result within the limits of the platform data available.
-- Document that Android commonly uses a Bluetooth address when available, while iOS commonly uses a CoreBluetooth identifier when available.
-- Tell apps not to parse `id` for model/name/address; use the typed fields.
+- `id` is the stable app-facing key for a scan result within the limits of the platform data available.
+- Android commonly uses a Bluetooth address when available, while iOS commonly uses a CoreBluetooth identifier when available.
+- Apps should not parse `id` for model/name/address; use the typed fields.
 
 ### 9. React Native Status Shape Is Improving; Native Status Is Still Broad
 
@@ -219,7 +216,5 @@ These should not be repeated as current blockers:
 
 ## Suggested Next Priority Order
 
-1. Document and/or change the `bypassVad` default for external STT.
-2. Split or gate GStreamer in the React Native direct receiver.
-3. Add photo request timeout/rate-limit errors.
-4. Document `Device.id` and optional `rssi` semantics.
+1. Split or gate GStreamer in the React Native direct receiver.
+2. Add photo request timeout/rate-limit errors.

@@ -718,9 +718,15 @@ export interface CoreSettings {
 }
 
 export interface Device {
+  /**
+   * Stable app-facing key for this scan result, within the limits of the
+   * platform identifier available to the SDK. Do not parse this value; use the
+   * typed model, name, address, and rssi fields instead.
+   */
   id: string
   model: DeviceModel
   name: string
+  /** Platform address/identifier when available: Android Bluetooth address, iOS CoreBluetooth identifier. */
   address?: string
   rssi?: number
 }

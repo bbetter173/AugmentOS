@@ -193,10 +193,22 @@ export function GalleryScreen() {
       const validationPromises = Object.entries(downloadedFiles).map(async ([name, file]) => {
         // console.log(`[GalleryScreen]   Checking file: ${name} at ${file.filePath}`)
         const fileExists = await RNFS.exists(file.filePath)
+        let isValidSize = false
+        if (fileExists) {
+          try {
+            const stat = await RNFS.stat(file.filePath)
+            isValidSize = stat.size > 0
+            if (!isValidSize) {
+              console.warn(`[GalleryScreen] Removing zero-byte local file from gallery index: ${name}`)
+            }
+          } catch (statError) {
+            console.warn(`[GalleryScreen] Could not stat local file ${name}:`, statError)
+          }
+        }
         return {
           name,
           file,
-          exists: fileExists,
+          exists: fileExists && isValidSize,
         }
       })
 

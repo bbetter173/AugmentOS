@@ -25,6 +25,7 @@ import {gallerySettingsService} from "./gallerySettingsService"
 import {gallerySyncNotifications} from "./gallerySyncNotifications"
 import {localStorageService} from "./localStorageService"
 import {mediaProcessingQueue} from "./mediaProcessingQueue"
+import {validateCaptureMetadataForDownload} from "./galleryMediaValidation"
 import {
   checkConnectivityRequirementsUI,
   checkFeaturePermissions,
@@ -1606,6 +1607,8 @@ class GallerySyncService {
           console.log(
             `[GallerySyncService]   📦 Downloading capture ${i + 1}/${captures.length}: ${capture.capture_id} (${capture.files.length} files)`,
           )
+
+          validateCaptureMetadataForDownload(capture)
 
           // Download all files in this capture
           const result = await asgCameraApi.downloadCapture(

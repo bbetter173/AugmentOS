@@ -10,6 +10,7 @@ import CrustModule from "crust"
 
 import {asgCameraApi} from "@/services/asg/asgCameraApi"
 import {localStorageService} from "@/services/asg/localStorageService"
+import {INVALID_DOWNLOADED_MEDIA, validateDownloadedMediaFile} from "@/services/asg/galleryMediaValidation"
 import {useGallerySyncStore} from "@/stores/gallerySync"
 import {BgTimer} from "@mentra/island"
 import {MediaLibraryPermissions} from "@/utils/permissions/MediaLibraryPermissions"
@@ -207,7 +208,36 @@ class MediaProcessingQueue {
       }
     }
 
-    // 5. Save to camera roll
+    // 5. Validate local file before persisting metadata or deleting from glasses
+    try {
+      await validateDownloadedMediaFile({
+        path: filePathToSave,
+        name: item.id,
+        expectedSize: item.totalSize,
+        mediaKind: item.type,
+      })
+    } catch (validationError: any) {
+      const reason =
+        validationError?.message?.includes(INVALID_DOWNLOADED_MEDIA) ?
+          validationError.message
+        : `${INVALID_DOWNLOADED_MEDIA}: ${item.id}`
+      console.error(`${TAG} Validation failed for ${item.id}: ${reason}`)
+      const store = useGallerySyncStore.getState()
+      store.onFileFailed(item.id, reason)
+      await RNFS.unlink(filePathToSave).catch(() => {})
+      for (const intermediate of [
+        item.primaryPath + ".hdr.jpg",
+        item.primaryPath + ".processed.jpg",
+        item.primaryPath + ".stabilized.mp4",
+      ]) {
+        if (intermediate !== filePathToSave) {
+          await RNFS.unlink(intermediate).catch(() => {})
+        }
+      }
+      throw new Error(reason)
+    }
+
+    // 6. Save to camera roll
     if (item.shouldAutoSave) {
       const success = await MediaLibraryPermissions.saveToLibrary(filePathToSave, item.timestamp)
       if (success) {
@@ -220,7 +250,7 @@ class MediaProcessingQueue {
       }
     }
 
-    // 6. Save metadata
+    // 7. Save metadata
     const isVideo = item.type === "video"
     const downloadedFile = localStorageService.convertToDownloadedFile(
       {
@@ -260,7 +290,7 @@ class MediaProcessingQueue {
       }
     }
 
-    // 7. Update file in sync queue with local paths for gallery display
+    // 8. Update file in sync queue with local paths for gallery display
     const store = useGallerySyncStore.getState()
     const localFileUrl = filePathToSave.startsWith("file://") ? filePathToSave : `file://${filePathToSave}`
     const localThumbUrl = localThumbnailPath
@@ -282,7 +312,7 @@ class MediaProcessingQueue {
       duration: item.duration,
     })
 
-    // 8. Delete from glasses now that processing is complete — but only if the
+    // 9. Delete from glasses now that processing is complete — but only if the
     // local file actually exists and has data. If the download was truncated or
     // processing failed silently, we must not destroy the only good copy.
     if (item.deleteFromGlasses && item.deleteFromGlasses.length > 0) {

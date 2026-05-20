@@ -34,6 +34,7 @@ import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -301,7 +302,12 @@ public class MediaCaptureService {
     private final AtomicReference<String> activePhotoJobRequestId = new AtomicReference<>(null);
     private final AtomicBoolean isCleaningUp = new AtomicBoolean(false);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    /** Exclude these capture directory names from Wi‑Fi sync until integrity check finishes. */
+    /**
+     * Capture IDs blocked from Wi‑Fi sync from the moment the output path is created until
+     * post-stop integrity validation completes (or the capture is cleaned up on error).
+     */
+    private final Set<String> videoCaptureIdsInFlight = ConcurrentHashMap.newKeySet();
+    /** Subset of in-flight captures that have stopped recording and are awaiting integrity check. */
     private final Set<String> videoCaptureIdsPendingIntegrityCheck = ConcurrentHashMap.newKeySet();
     private final ExecutorService videoIntegrityExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RecordedVideoIntegrity");
@@ -722,6 +728,11 @@ public class MediaCaptureService {
         currentVideoPath = videoFilePath;
         currentVideoLedEnabled = enableFlash; // Track LED state for this recording
         currentVideoSoundEnabled = enableSound; // Track sound state for this recording
+        final String captureIdAtStart = captureIdFromVideoAbsPath(videoFilePath);
+        if (captureIdAtStart != null) {
+            videoCaptureIdsInFlight.add(captureIdAtStart);
+            Log.d(TAG, "Video capture blocked from sync (in-flight): " + captureIdAtStart);
+        }
 
         try {
             // Play video start sound if enabled
@@ -789,7 +800,6 @@ public class MediaCaptureService {
                 @Override
                 public void onRecordingStopped(String videoId, String filePath) {
                     Log.d(TAG, "Video recording stopped: " + videoId + ", file: " + filePath);
-                    isRecordingVideo = false;
 
                     // Cancel max recording time check
                     if (recordingTimeCheckRunnable != null) {
@@ -807,6 +817,15 @@ public class MediaCaptureService {
 
                     final String pendingRequestId = requestId;
                     final String captureId = captureIdFromVideoAbsPath(filePath);
+
+                    // Block sync before clearing session state — no gap between active and pending.
+                    if (captureId != null) {
+                        videoCaptureIdsInFlight.remove(captureId);
+                        videoCaptureIdsPendingIntegrityCheck.add(captureId);
+                        Log.d(TAG, "Video capture pending integrity check: " + captureId);
+                    }
+
+                    isRecordingVideo = false;
                     currentVideoId = null;
                     currentVideoPath = null;
 
@@ -827,8 +846,6 @@ public class MediaCaptureService {
                         sendGalleryStatusUpdate();
                         return;
                     }
-
-                    videoCaptureIdsPendingIntegrityCheck.add(captureId);
 
                     try {
                         videoIntegrityExecutor.execute(() -> {
@@ -895,6 +912,8 @@ public class MediaCaptureService {
                 @Override
                 public void onRecordingError(String videoId, String errorMessage) {
                     Log.e(TAG, "Video recording error: " + videoId + ", error: " + errorMessage);
+                    clearVideoCaptureSyncBlocks(currentVideoPath);
+
                     isRecordingVideo = false;
                     
                     // Turn off RGB white LED on error (error path may not go through stopVideoRecording)
@@ -935,6 +954,7 @@ public class MediaCaptureService {
             }
 
             // Reset state on error
+            clearVideoCaptureSyncBlocks(videoFilePath);
             currentVideoId = null;
             currentVideoPath = null;
         }
@@ -1045,18 +1065,31 @@ public class MediaCaptureService {
      * capture group from sync/download while recording is in progress.
      */
     public String getActiveRecordingCaptureId() {
-        if (!isRecordingVideo || currentVideoPath == null) {
+        if (currentVideoPath == null) {
             return null;
         }
         return captureIdFromVideoAbsPath(currentVideoPath);
     }
 
     /**
-     * Capture directory names (e.g. VID_xxx) whose recording has stopped but integrity check
-     * has not finished — excluded from Wi‑Fi sync/download alongside in-progress recordings.
+     * Capture directory names excluded from Wi‑Fi sync/download: in-flight recordings (path
+     * created through MediaRecorder prepare/start) and captures awaiting integrity validation.
      */
     public Set<String> getPendingVideoIntegrityCaptureIds() {
-        return Collections.unmodifiableSet(videoCaptureIdsPendingIntegrityCheck);
+        Set<String> blocked = new HashSet<>();
+        blocked.addAll(videoCaptureIdsInFlight);
+        blocked.addAll(videoCaptureIdsPendingIntegrityCheck);
+        return Collections.unmodifiableSet(blocked);
+    }
+
+    private void clearVideoCaptureSyncBlocks(String videoAbsPath) {
+        String captureId = captureIdFromVideoAbsPath(videoAbsPath);
+        if (captureId == null) {
+            return;
+        }
+        videoCaptureIdsInFlight.remove(captureId);
+        videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+        Log.d(TAG, "Video capture unblocked from sync filters: " + captureId);
     }
 
     private static String captureIdFromVideoAbsPath(String absolutePath) {
@@ -2862,6 +2895,7 @@ public class MediaCaptureService {
                 videoIntegrityExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
+            videoCaptureIdsInFlight.clear();
             videoCaptureIdsPendingIntegrityCheck.clear();
 
             Log.d(TAG, "✅ MediaCaptureService cleanup complete");

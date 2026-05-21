@@ -636,7 +636,7 @@ class SocketComms {
     const roiStr: string = msg.roiPosition ?? "center"
     const numericRoi = ROI_MAP[roiStr] ?? 0
     console.log(`SOCKET: camera_fov_set fov=${fov} roi=${roiStr} (${numericRoi})`)
-    useSettingsStore.getState().setSetting(SETTINGS.camera_fov.key, {fov, roiPosition: numericRoi}, false)
+    useSettingsStore.getState().setSetting(SETTINGS.camera_fov.key, {fov, roi_position: numericRoi}, false)
   }
 
   private handle_show_wifi_setup(msg: any) {

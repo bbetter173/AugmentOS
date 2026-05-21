@@ -67,10 +67,10 @@ export default function CameraSettingsScreen() {
       ? Math.round(cameraFovSetting.fov)
       : CAMERA_FOV_MAX
   const currentRoi: CameraRoiPosition =
-    typeof cameraFovSetting?.roiPosition === "number" &&
-    cameraFovSetting.roiPosition >= 0 &&
-    cameraFovSetting.roiPosition <= 2
-      ? (cameraFovSetting.roiPosition as CameraRoiPosition)
+    typeof cameraFovSetting?.roi_position === "number" &&
+    cameraFovSetting.roi_position >= 0 &&
+    cameraFovSetting.roi_position <= 2
+      ? (cameraFovSetting.roi_position as CameraRoiPosition)
       : 0
 
   // Derive video resolution from settings
@@ -132,7 +132,7 @@ export default function CameraSettingsScreen() {
     try {
       const clampedFov = Math.round(Math.max(CAMERA_FOV_MIN, Math.min(CAMERA_FOV_MAX, fov)))
       const effectiveRoi = clampedFov === CAMERA_FOV_MAX ? 0 : roiPosition
-      setCameraFovSetting({fov: clampedFov, roiPosition: effectiveRoi})
+      setCameraFovSetting({fov: clampedFov, roi_position: effectiveRoi})
     } catch (error) {
       console.error("Failed to update camera FOV:", error)
     }

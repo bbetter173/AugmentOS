@@ -342,7 +342,7 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(
             ObservableStore.BLUETOOTH_CATEGORY,
             "camera_fov",
-            mapOf("fov" to fov.fov, "roiPosition" to fov.roiPosition),
+            mapOf("fov" to fov.fov, "roi_position" to fov.roiPosition),
         )
     }
 

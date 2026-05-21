@@ -85,7 +85,7 @@ class DeviceStore {
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
         store.set("bluetooth", "button_max_recording_time", 10)
-        store.set("bluetooth", "camera_fov", ["fov": 118, "roiPosition": 0])
+        store.set("bluetooth", "camera_fov", ["fov": 118, "roi_position": 0])
         store.set("bluetooth", "button_video_width", 1280)
         store.set("bluetooth", "button_video_height", 720)
         store.set("bluetooth", "button_video_fps", 30)

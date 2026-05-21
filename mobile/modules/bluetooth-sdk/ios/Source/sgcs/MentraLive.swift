@@ -4596,9 +4596,9 @@ extension MentraLive {
     }
 
     func sendCameraFovSetting() {
-        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roiPosition": 0]
+        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roi_position": 0]
         let fov = settings["fov"] as? Int ?? 118
-        let roiPosition = settings["roiPosition"] as? Int ?? 0
+        let roiPosition = settings["roi_position"] as? Int ?? 0
 
         Bridge.log("Sending camera FOV setting: fov=\(fov), roiPosition=\(roiPosition)")
 

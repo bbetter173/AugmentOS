@@ -6543,7 +6543,7 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Send camera FOV setting to glasses (K900 / Mentra Live). Reads fov and roiPosition from store.
+     * Send camera FOV setting to glasses (K900 / Mentra Live).
      */
     @Override
     public void sendCameraFovSetting() {
@@ -6555,7 +6555,7 @@ public class MentraLive extends SGCManager {
                 @SuppressWarnings("unchecked")
                 java.util.Map<String, Object> map = (java.util.Map<String, Object>) raw;
                 Object f = map.get("fov");
-                Object r = map.get("roiPosition");
+                Object r = map.get("roi_position");
                 if (f instanceof Number) fov = ((Number) f).intValue();
                 if (r instanceof Number) roiPosition = ((Number) r).intValue();
             }

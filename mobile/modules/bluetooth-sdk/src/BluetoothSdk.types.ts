@@ -221,6 +221,11 @@ export type CameraFovSetting = {
   roiPosition: number
 }
 
+type NativeCameraFovSetting = {
+  fov: number
+  roi_position: number
+}
+
 export type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
 export type MicMode = "phone" | "glasses" | "bluetoothClassic" | "bluetooth"
 
@@ -814,7 +819,7 @@ export type BluetoothSettingsUpdate = Partial<{
   button_video_fps: number
   button_camera_led: boolean
   button_max_recording_time: number
-  camera_fov: CameraFovSetting
+  camera_fov: NativeCameraFovSetting
   should_send_pcm: boolean
   should_send_lc3: boolean
   should_send_transcript: boolean

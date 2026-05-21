@@ -46,9 +46,9 @@ public enum CameraFov {
     var value: [String: Int] {
         switch self {
         case .standard:
-            ["fov": 118, "roiPosition": 0]
+            ["fov": 118, "roi_position": 0]
         case .wide:
-            ["fov": 118, "roiPosition": 0]
+            ["fov": 118, "roi_position": 0]
         }
     }
 }

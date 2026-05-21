@@ -370,7 +370,10 @@ NativeBluetoothSdkModule.setButtonMaxRecordingTime = function (minutes: number) 
 }
 
 NativeBluetoothSdkModule.setCameraFov = function (fov: CameraFov) {
-  return this.updateBluetoothSettings({camera_fov: CAMERA_FOV_SETTINGS[fov]})
+  const setting = CAMERA_FOV_SETTINGS[fov]
+  return this.updateBluetoothSettings({
+    camera_fov: {fov: setting.fov, roi_position: setting.roiPosition},
+  })
 }
 
 NativeBluetoothSdkModule.setMicState = function (

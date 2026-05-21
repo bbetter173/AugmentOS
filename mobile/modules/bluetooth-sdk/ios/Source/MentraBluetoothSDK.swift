@@ -376,6 +376,9 @@ public final class MentraBluetoothSDK {
     }
 
     public func requestPhoto(_ request: PhotoRequest) {
+        Bridge.log(
+            "NATIVE: PHOTO PIPELINE [3b/6] MentraBluetoothSdk.requestPhoto requestId=\(request.requestId) appId=\(request.appId)"
+        )
         DeviceManager.shared.requestPhoto(
             request.requestId,
             request.appId,
@@ -383,7 +386,9 @@ public final class MentraBluetoothSDK {
             request.webhookUrl,
             request.authToken,
             request.compress?.rawValue,
-            request.sound
+            request.flash,
+            request.sound,
+            exposureTimeNs: request.exposureTimeNs
         )
     }
 

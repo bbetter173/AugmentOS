@@ -65,7 +65,10 @@ public struct PhotoRequest {
     public let webhookUrl: String?
     public let authToken: String?
     public let compress: PhotoCompression?
+    public let flash: Bool
     public let sound: Bool
+    /// Sensor exposure time for this capture only (ns), or nil for auto exposure
+    public let exposureTimeNs: Double?
 
     public init(
         requestId: String,
@@ -74,7 +77,9 @@ public struct PhotoRequest {
         webhookUrl: String? = nil,
         authToken: String? = nil,
         compress: PhotoCompression? = nil,
-        sound: Bool
+        flash: Bool = true,
+        sound: Bool,
+        exposureTimeNs: Double? = nil
     ) {
         self.requestId = requestId
         self.appId = appId
@@ -82,7 +87,9 @@ public struct PhotoRequest {
         self.webhookUrl = webhookUrl
         self.authToken = authToken
         self.compress = compress
+        self.flash = flash
         self.sound = sound
+        self.exposureTimeNs = exposureTimeNs
     }
 }
 

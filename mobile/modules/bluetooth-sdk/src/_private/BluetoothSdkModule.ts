@@ -18,8 +18,7 @@ import {
   GlassesStatus,
   MicPreference,
   ObservableStoreCategory,
-  PhotoCompression,
-  PhotoSize,
+  PhotoRequestParams,
   PublicBluetoothStatus,
   RgbLedAction,
   RgbLedColor,
@@ -103,15 +102,7 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
   queryGalleryStatus(): Promise<void>
-  requestPhoto(
-    requestId: string,
-    appId: string,
-    size: PhotoSize,
-    webhookUrl: string | null,
-    authToken: string | null,
-    compress: PhotoCompression,
-    sound: boolean,
-  ): Promise<void>
+  requestPhoto(params: PhotoRequestParams): Promise<void>
 
   // OTA Commands
   sendOtaStart(): Promise<void>
@@ -485,6 +476,31 @@ NativeBluetoothSdkModule.scan = async function (
       .then(handleBluetoothStatus)
       .catch((error) => settle(error instanceof Error ? error : new Error(String(error))))
   })
+}
+
+/** Expo Android bridge rejects null values in Map<String, Any> — omit optional nullish fields. */
+function photoRequestParamsForNative(params: PhotoRequestParams): Record<string, string | number | boolean> {
+  const payload: Record<string, string | number | boolean> = {
+    requestId: params.requestId,
+    appId: params.appId,
+    size: params.size,
+    webhookUrl: params.webhookUrl ?? "",
+    compress: params.compress,
+    flash: true,
+    sound: params.sound,
+  }
+  if (params.authToken != null && params.authToken.length > 0) {
+    payload.authToken = params.authToken
+  }
+  if (params.exposureTimeNs != null && Number.isFinite(params.exposureTimeNs) && params.exposureTimeNs > 0) {
+    payload.exposureTimeNs = params.exposureTimeNs
+  }
+  return payload
+}
+
+const nativeRequestPhoto = NativeBluetoothSdkModule.requestPhoto.bind(NativeBluetoothSdkModule)
+NativeBluetoothSdkModule.requestPhoto = function (params: PhotoRequestParams) {
+  return nativeRequestPhoto(photoRequestParamsForNative(params) as unknown as PhotoRequestParams)
 }
 
 export default NativeBluetoothSdkModule

@@ -129,7 +129,7 @@ export default function OtaCheckForUpdatesScreen() {
         if (latestBesFirmwareVersion) {
           console.log(`OTA: BES version arrived: ${latestBesFirmwareVersion}`)
         } else {
-          console.log("OTA: BES version still unknown after extended wait - proceeding without it")
+          console.log("OTA: BES version still unknown after extended wait - will assume BES update if published")
         }
       }
 

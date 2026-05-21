@@ -226,6 +226,17 @@ export type CameraFovSetting = {
 export type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
 export type MicMode = "phone" | "glasses" | "bluetoothClassic" | "bluetooth"
 
+export type PhotoRequestParams = {
+  requestId: string
+  appId: string
+  size: PhotoSize
+  webhookUrl: string | null
+  authToken: string | null
+  compress: PhotoCompression
+  sound: boolean
+  exposureTimeNs?: number | null
+}
+
 export type StreamVideoConfig = {
   width?: number
   height?: number
@@ -584,15 +595,7 @@ export interface BluetoothSdkPublicModule {
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
   queryGalleryStatus(): Promise<void>
-  requestPhoto(
-    requestId: string,
-    appId: string,
-    size: PhotoSize,
-    webhookUrl: string | null,
-    authToken: string | null,
-    compress: PhotoCompression,
-    sound: boolean,
-  ): Promise<void>
+  requestPhoto(params: PhotoRequestParams): Promise<void>
   startVideoRecording(requestId: string, save: boolean, sound: boolean): Promise<void>
   stopVideoRecording(requestId: string): Promise<void>
 

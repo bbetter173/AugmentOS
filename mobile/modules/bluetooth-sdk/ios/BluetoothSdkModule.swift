@@ -314,11 +314,30 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             }
         }
 
-        AsyncFunction("requestPhoto") {
-            (
-                requestId: String, appId: String, size: String, webhookUrl: String?,
-                authToken: String?, compress: String?, sound: Bool
-            ) in
+        AsyncFunction("requestPhoto") { (params: [String: Any]) in
+            let requestId = params["requestId"] as? String ?? ""
+            let appId = params["appId"] as? String ?? ""
+            Bridge.log(
+                "NATIVE: PHOTO PIPELINE [3/6] BluetoothSdk.requestPhoto requestId=\(requestId) appId=\(appId)"
+            )
+            let size = params["size"] as? String ?? "medium"
+            let webhookUrl = params["webhookUrl"] as? String ?? ""
+            let authToken = params["authToken"] as? String ?? ""
+            let compress = params["compress"] as? String ?? "none"
+            let flash = params["flash"] as? Bool ?? true
+            let sound = params["sound"] as? Bool ?? true
+            let exposureTimeNs: Double?
+            switch params["exposureTimeNs"] {
+            case let value as Double:
+                exposureTimeNs = value
+            case let value as Int:
+                exposureTimeNs = Double(value)
+            case let value as NSNumber:
+                exposureTimeNs = value.doubleValue
+            default:
+                exposureTimeNs = nil
+            }
+
             await MainActor.run {
                 self.bluetoothSdk().requestPhoto(
                     PhotoRequest(
@@ -327,8 +346,10 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                         size: PhotoSize(rawValue: size) ?? .medium,
                         webhookUrl: webhookUrl,
                         authToken: authToken,
-                        compress: compress.flatMap(PhotoCompression.init(rawValue:)),
-                        sound: sound
+                        compress: PhotoCompression(rawValue: compress),
+                        flash: flash,
+                        sound: sound,
+                        exposureTimeNs: exposureTimeNs
                     )
                 )
             }

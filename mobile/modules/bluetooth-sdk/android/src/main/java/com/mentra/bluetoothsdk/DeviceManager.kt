@@ -1380,10 +1380,28 @@ class DeviceManager {
             webhookUrl: String,
             authToken: String?,
             compress: String,
-            sound: Boolean
+            flash: Boolean,
+            sound: Boolean,
+            exposureTimeNs: Double? = null,
     ) {
-        Bridge.log("MAN: requestPhoto: $requestId, $appId, $size, compress=$compress, flash=true, sound=$sound")
-        sgc?.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, true, sound)
+        val exposureNs: Long? =
+                exposureTimeNs?.takeIf { it.isFinite() && it > 0 }?.let { v ->
+                    when {
+                        v > Long.MAX_VALUE.toDouble() -> Long.MAX_VALUE
+                        else -> v.toLong()
+                    }
+                }
+        Bridge.log(
+                "MAN: PHOTO PIPELINE [4/6] DeviceManager.requestPhoto requestId=$requestId appId=$appId size=$size compress=$compress flash=$flash sound=$sound exposureTimeNs=$exposureNs sgc=${sgc?.javaClass?.simpleName ?: "null"}"
+        )
+        val activeSgc = sgc
+        if (activeSgc == null) {
+            Bridge.log(
+                    "MAN: PHOTO PIPELINE — sgc is null (glasses not connected); dropping requestId=$requestId"
+            )
+            return
+        }
+        activeSgc.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, flash, sound, exposureNs)
     }
 
     fun rgbLedControl(

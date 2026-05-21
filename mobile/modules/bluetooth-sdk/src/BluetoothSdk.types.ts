@@ -590,7 +590,7 @@ export interface BluetoothSdkPublicModule {
 
   setGalleryMode(mode: GalleryMode): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-  setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
@@ -810,7 +810,7 @@ export type BluetoothSettingsUpdate = Partial<{
   menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
   galleryModeAuto: boolean
   button_photo_size: ButtonPhotoSize
-  button_video_settings: {width: number; height: number; frameRate: number}
+  button_video_settings: {width: number; height: number; fps: number}
   button_video_width: number
   button_video_height: number
   button_video_fps: number

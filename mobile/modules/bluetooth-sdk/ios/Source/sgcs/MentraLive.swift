@@ -4514,11 +4514,11 @@ extension MentraLive {
             DeviceStore.shared.get("bluetooth", "button_video_settings") as? [String: Any] ?? [
                 "width": 1280,
                 "height": 720,
-                "frameRate": 30,
+                "fps": 30,
             ]
         let width = settings["width"] as? Int ?? 1280
         let height = settings["height"] as? Int ?? 720
-        let fps = settings["frameRate"] as? Int ?? 30
+        let fps = settings["fps"] as? Int ?? 30
 
         // Use defaults if not set
         let finalWidth = width > 0 ? width : 1280

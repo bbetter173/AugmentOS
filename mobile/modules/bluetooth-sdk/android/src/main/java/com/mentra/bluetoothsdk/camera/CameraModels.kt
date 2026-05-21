@@ -49,7 +49,7 @@ data class ButtonPhotoSettings(
 data class ButtonVideoRecordingSettings(
     val width: Int,
     val height: Int,
-    val frameRate: Int,
+    val fps: Int,
 )
 
 enum class CameraFov(val fov: Int, val roiPosition: Int) {

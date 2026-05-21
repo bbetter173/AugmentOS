@@ -35,12 +35,12 @@ public struct ButtonPhotoSettings {
 public struct ButtonVideoRecordingSettings {
     public let width: Int
     public let height: Int
-    public let frameRate: Int
+    public let fps: Int
 
-    public init(width: Int, height: Int, frameRate: Int) {
+    public init(width: Int, height: Int, fps: Int) {
         self.width = width
         self.height = height
-        self.frameRate = frameRate
+        self.fps = fps
     }
 }
 

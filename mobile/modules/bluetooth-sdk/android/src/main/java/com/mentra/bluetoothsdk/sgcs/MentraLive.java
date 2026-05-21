@@ -4772,7 +4772,7 @@ public class MentraLive extends SGCManager {
                 Map<String, Object> videoSettings = (Map<String, Object>) videoSettingsObj;
                 videoWidth = ((Number) videoSettings.getOrDefault("width", videoWidth)).intValue();
                 videoHeight = ((Number) videoSettings.getOrDefault("height", videoHeight)).intValue();
-                videoFps = ((Number) videoSettings.getOrDefault("frameRate", videoFps)).intValue();
+                videoFps = ((Number) videoSettings.getOrDefault("fps", videoFps)).intValue();
             } else {
                 Object width = DeviceStore.INSTANCE.get("bluetooth", "button_video_width");
                 Object height = DeviceStore.INSTANCE.get("bluetooth", "button_video_height");

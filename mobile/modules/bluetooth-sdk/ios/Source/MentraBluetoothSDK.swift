@@ -280,14 +280,14 @@ public final class MentraBluetoothSDK {
         try await setButtonPhotoSettings(size: settings.size)
     }
 
-    public func setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) async throws {
+    public func setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) async throws {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_width", width)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_height", height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", frameRate)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", fps)
     }
 
     public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws {
-        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, frameRate: settings.frameRate)
+        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, fps: settings.fps)
     }
 
     public func setButtonCameraLed(enabled: Bool) async throws {

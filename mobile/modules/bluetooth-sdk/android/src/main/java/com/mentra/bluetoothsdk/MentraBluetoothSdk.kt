@@ -320,14 +320,14 @@ class MentraBluetoothSdk private constructor(
         setButtonPhotoSettings(size = settings.size)
     }
 
-    fun setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) {
+    fun setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_width", width)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_height", height)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", frameRate)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", fps)
     }
 
     fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings) {
-        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, frameRate = settings.frameRate)
+        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, fps = settings.fps)
     }
 
     fun setButtonCameraLed(enabled: Boolean) {

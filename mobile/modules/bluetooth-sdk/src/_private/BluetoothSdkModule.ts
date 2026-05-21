@@ -97,7 +97,7 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   // Gallery Commands
   setGalleryMode(mode: GalleryMode): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-  setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
@@ -350,11 +350,11 @@ NativeBluetoothSdkModule.setButtonPhotoSettings = function (size: ButtonPhotoSiz
   return this.updateBluetoothSettings({button_photo_size: size})
 }
 
-NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (width: number, height: number, frameRate: number) {
+NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (width: number, height: number, fps: number) {
   return this.updateBluetoothSettings({
     button_video_width: width,
     button_video_height: height,
-    button_video_fps: frameRate,
+    button_video_fps: fps,
   })
 }
 

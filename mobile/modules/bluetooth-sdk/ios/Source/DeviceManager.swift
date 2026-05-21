@@ -225,6 +225,7 @@ struct ViewState {
         get { DeviceStore.shared.get("bluetooth", "shouldSendBootingMessage") as? Bool ?? true }
         set { DeviceStore.shared.apply("bluetooth", "shouldSendBootingMessage", newValue) }
     }
+    private var lastSystemTimeSyncConnectionKey = ""
 
     private var systemMicUnavailable: Bool {
         get { DeviceStore.shared.get("bluetooth", "systemMicUnavailable") as? Bool ?? false }
@@ -581,6 +582,7 @@ struct ViewState {
             Bridge.log("MAN: Manager already initialized, cleaning up previous sgc")
             sgc?.cleanup()
             sgc = nil
+            lastSystemTimeSyncConnectionKey = ""
         }
 
         if sgc != nil {
@@ -844,6 +846,9 @@ struct ViewState {
         defaultWearable = sgc.type
         searching = false
 
+        let connectionKey = "\(sgc.type):\(deviceName)"
+        syncSystemTimeOnceForConnection(sgc, connectionKey: connectionKey)
+
         // Show welcome message on first connect for all display glasses
         if shouldSendBootingMessage {
             Task {
@@ -879,6 +884,20 @@ struct ViewState {
             DeviceStore.shared.get("bluetooth", "dashboard_depth")
         )
         sgc.setDashboardPosition(h, d)
+    }
+
+    private func syncSystemTimeOnceForConnection(_ sgc: SGCManager, connectionKey: String) {
+        if sgc.type.contains(DeviceTypes.SIMULATED) {
+            return
+        }
+        if connectionKey == lastSystemTimeSyncConnectionKey {
+            return
+        }
+
+        lastSystemTimeSyncConnectionKey = connectionKey
+        let timestampMs = Int64(Date().timeIntervalSince1970 * 1000)
+        Bridge.log("MAN: Syncing glasses system time once for connection: \(timestampMs)")
+        sgc.sendSetSystemTime(timestampMs)
     }
 
     func handleControllerReady() {
@@ -925,6 +944,7 @@ struct ViewState {
 
     func handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
+        lastSystemTimeSyncConnectionKey = ""
         DeviceStore.shared.apply("glasses", "headUp", false)
         DeviceStore.shared.apply("glasses", "voiceActivityDetectionEnabled", true)
         // shouldSendBootingMessage = true  // Reset for next first connect
@@ -1317,6 +1337,7 @@ struct ViewState {
         sgc?.clearDisplay() // clear the screen
         sgc?.disconnect()
         sgc = nil // Clear the SGC reference after disconnect
+        lastSystemTimeSyncConnectionKey = ""
         searching = false
         micEnabled = false
         updateMicState()

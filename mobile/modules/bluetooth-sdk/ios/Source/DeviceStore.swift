@@ -80,7 +80,7 @@ class DeviceStore {
         store.set("bluetooth", "dashboard_depth", 2)
         store.set("bluetooth", "head_up_angle", 30)
         store.set("bluetooth", "contextual_dashboard", true)
-        store.set("bluetooth", "galleryModeAuto", true)
+        store.set("bluetooth", "gallery_mode", true)
         store.set("bluetooth", "screen_disabled", false)
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
@@ -215,7 +215,7 @@ class DeviceStore {
                 DeviceManager.shared.sgc?.setDashboardMenu(items)
             }
 
-        case ("bluetooth", "galleryModeAuto"):
+        case ("bluetooth", "gallery_mode"):
             DeviceManager.shared.sgc?.sendGalleryMode()
 
         case ("bluetooth", "screen_disabled"):

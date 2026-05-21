@@ -184,7 +184,7 @@ The hook should not hide everything. If the partner wants custom UI, they still 
 - Tests.
 - Advanced customers.
 - Debugging.
-- One-off commands like `displayText`, `requestPhoto`, or `setGalleryMode`.
+- One-off commands like `displayText`, `requestPhoto`, or `setGalleryModeEnabled`.
 
 React hooks should be the recommended app-building API for lifecycle-heavy flows:
 
@@ -233,7 +233,6 @@ Raw event names are still native/protocol-shaped (`glasses_status`, `bluetooth_s
 
 Some commands have positional parameter lists that are too long for JavaScript:
 
-- `requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, sound)`
 - `rgbLedControl(requestId, packageName, action, color, onDurationMs, offDurationMs, count)`
 - `setMicState(enabled, useGlassesMic, bypassVad, sendTranscript, sendLc3Data)`
 
@@ -473,11 +472,11 @@ Pattern link:
 
 Current lifecycle check:
 
-- Native `DeviceStore` initializes disconnected glasses state, disabled hotspot, disconnected Wi-Fi, empty scan results, and default settings such as `galleryModeAuto`.
+- Native `DeviceStore` initializes disconnected glasses state, disabled hotspot, disconnected Wi-Fi, empty scan results, and default settings such as `gallery_mode`.
 - Internal React status plumbing loads initial snapshots and merges native status/event patches; the exported hook exposes shaped state.
 - `connect(device)` saves default-device state if requested, sets pending wearable state, and calls native `connectByName(...)`. It does not guarantee the glasses are fully booted when the promise resolves.
 - `scan(...)` is different: it is intentionally a time-bounded operation. It returns final results after timeout/cancellation and can also stream intermediate results through `onResults`.
-- `requestPhoto(...)`, `startStream(...)`, `setMicState(...)`, and `setGalleryMode(...)` request behavior. The resulting state or response arrives through events/status updates.
+- `requestPhoto(...)`, `startStream(...)`, `setMicState(...)`, and `setGalleryModeEnabled(...)` request behavior. The resulting state or response arrives through events/status updates.
 
 Public contract:
 
@@ -508,12 +507,12 @@ Pattern link:
 
 ### Decision 5: Separate Desired Settings From Reported Device State
 
-`galleryModeAuto` is a good example of the subtlety.
+Gallery mode is a good example of the subtlety.
 
 Current behavior:
 
-- `galleryModeAuto` lives in the phone-side SDK settings store.
-- `setGalleryMode('auto' | 'manual')` writes that desired setting and asks connected glasses to apply it.
+- `gallery_mode` lives in the phone-side SDK settings store.
+- `setGalleryModeEnabled(true | false)` writes that desired setting and asks connected glasses to apply it.
 - The public app currently treats that value as if it always represents confirmed glasses behavior.
 
 Recommendation:
@@ -526,7 +525,7 @@ Possible shape:
 
 ```ts
 type GalleryModeState = {
-  desired: GalleryMode;
+  enabled: boolean;
   applying: boolean;
   lastError: unknown | null;
 };
@@ -573,7 +572,6 @@ Commands with several booleans or optional values are easy to call incorrectly:
 
 ```ts
 BluetoothSdk.setMicState(true, true, true);
-BluetoothSdk.requestPhoto(requestId, appId, size, webhookUrl, authToken, compress, sound);
 BluetoothSdk.rgbLedControl(requestId, packageName, action, color, onMs, offMs, count);
 ```
 
@@ -592,7 +590,7 @@ await BluetoothSdk.requestPhoto({
   appId,
   size: 'medium',
   webhookUrl,
-  compression: 'medium',
+  compress: 'medium',
   sound: true,
 });
 

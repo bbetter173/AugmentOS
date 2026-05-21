@@ -186,7 +186,7 @@ internal data class BluetoothStatus(
     val dashboardDepth: Int,
     val headUpAngle: Int,
     val contextualDashboard: Boolean,
-    val galleryModeAuto: Boolean,
+    val galleryModeEnabled: Boolean,
     val buttonPhotoSize: ButtonPhotoSize,
     val buttonCameraLed: Boolean,
     val buttonMaxRecordingTime: Int,
@@ -240,7 +240,7 @@ internal data class BluetoothStatus(
             "dashboard_depth" to dashboardDepth,
             "head_up_angle" to headUpAngle,
             "contextual_dashboard" to contextualDashboard,
-            "galleryModeAuto" to galleryModeAuto,
+            "galleryModeEnabled" to galleryModeEnabled,
             "button_photo_size" to buttonPhotoSize.value,
             "button_camera_led" to buttonCameraLed,
             "button_max_recording_time" to buttonMaxRecordingTime,
@@ -288,7 +288,8 @@ internal data class BluetoothStatus(
                 dashboardDepth = numberValue(values, "dashboard_depth") ?: 2,
                 headUpAngle = numberValue(values, "head_up_angle") ?: 30,
                 contextualDashboard = boolValue(values, "contextual_dashboard") ?: true,
-                galleryModeAuto = boolValue(values, "galleryModeAuto") ?: true,
+                galleryModeEnabled =
+                    boolValue(values, "gallery_mode") ?: boolValue(values, "galleryModeEnabled") ?: true,
                 buttonPhotoSize = ButtonPhotoSize.fromValue(stringValue(values, "button_photo_size")),
                 buttonCameraLed = boolValue(values, "button_camera_led") ?: true,
                 buttonMaxRecordingTime = numberValue(values, "button_max_recording_time") ?: 10,
@@ -491,7 +492,7 @@ internal data class BluetoothStatusUpdate(
     val dashboardDepth: Int? = null,
     val headUpAngle: Int? = null,
     val contextualDashboard: Boolean? = null,
-    val galleryModeAuto: Boolean? = null,
+    val galleryModeEnabled: Boolean? = null,
     val buttonPhotoSize: ButtonPhotoSize? = null,
     val buttonCameraLed: Boolean? = null,
     val buttonMaxRecordingTime: Int? = null,
@@ -535,7 +536,7 @@ internal data class BluetoothStatusUpdate(
             putIfNotNull("dashboard_depth", dashboardDepth)
             putIfNotNull("head_up_angle", headUpAngle)
             putIfNotNull("contextual_dashboard", contextualDashboard)
-            putIfNotNull("galleryModeAuto", galleryModeAuto)
+            putIfNotNull("galleryModeEnabled", galleryModeEnabled)
             buttonPhotoSize?.let { put("button_photo_size", it.value) }
             putIfNotNull("button_camera_led", buttonCameraLed)
             putIfNotNull("button_max_recording_time", buttonMaxRecordingTime)
@@ -585,7 +586,8 @@ internal data class BluetoothStatusUpdate(
                 dashboardDepth = optionalNumberValue(values, "dashboard_depth"),
                 headUpAngle = optionalNumberValue(values, "head_up_angle"),
                 contextualDashboard = optionalBoolValue(values, "contextual_dashboard"),
-                galleryModeAuto = optionalBoolValue(values, "galleryModeAuto"),
+                galleryModeEnabled =
+                    optionalBoolValue(values, "gallery_mode") ?: optionalBoolValue(values, "galleryModeEnabled"),
                 buttonPhotoSize =
                     optionalStringValue(values, "button_photo_size")?.let(ButtonPhotoSize::fromValue),
                 buttonCameraLed = optionalBoolValue(values, "button_camera_led"),

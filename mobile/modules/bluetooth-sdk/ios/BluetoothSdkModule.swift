@@ -291,21 +291,9 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("setGalleryMode") { (mode: String) in
-            let galleryMode: GalleryMode
-            switch mode.lowercased() {
-            case "auto":
-                galleryMode = .auto
-            case "manual":
-                galleryMode = .manual
-            default:
-                throw BluetoothError(
-                    code: "invalid_gallery_mode",
-                    message: "setGalleryMode mode must be \"auto\" or \"manual\"."
-                )
-            }
+        AsyncFunction("setGalleryModeEnabled") { (enabled: Bool) in
             let sdk = await MainActor.run { self.bluetoothSdk() }
-            try await sdk.setGalleryMode(galleryMode)
+            try await sdk.setGalleryModeEnabled(enabled)
         }
 
         AsyncFunction("queryGalleryStatus") {

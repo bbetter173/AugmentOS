@@ -14,15 +14,15 @@ Photo upload sends a JPEG from supported glasses to a webhook URL. In the starte
   <Tab title="React Native">
 
 ```ts
-await BluetoothSdk.requestPhoto(
-  `photo-${Date.now()}`,
-  'com.example.app',
-  'medium',
-  'https://api.example.com/mentra/photo',
-  'optional-token',
-  'medium',
-  true,
-);
+await BluetoothSdk.requestPhoto({
+  requestId: `photo-${Date.now()}`,
+  appId: 'com.example.app',
+  size: 'medium',
+  webhookUrl: 'https://api.example.com/mentra/photo',
+  authToken: 'optional-token',
+  compress: 'medium',
+  sound: true,
+});
 ```
 
   </Tab>
@@ -63,6 +63,48 @@ sdk.requestPhoto(
 </Tabs>
 
 The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`. The camera light is always enabled for photo capture.
+
+## Gallery Mode
+
+Mentra Live has gallery mode for the right action button. When gallery mode is enabled, a short press takes a photo, a long press starts video recording, and a short press stops the active video recording. Button and touch events are still reported to your app.
+
+<Tabs>
+  <Tab title="React Native">
+
+```ts
+await BluetoothSdk.setGalleryModeEnabled(true);
+await BluetoothSdk.setButtonPhotoSettings('medium');
+await BluetoothSdk.setButtonVideoRecordingSettings(1280, 720, 30);
+await BluetoothSdk.setButtonMaxRecordingTime(3);
+await BluetoothSdk.setCameraFov('wide');
+```
+
+  </Tab>
+  <Tab title="Android">
+
+```kotlin
+sdk.setGalleryModeEnabled(true)
+sdk.setButtonPhotoSettings(size = ButtonPhotoSize.MEDIUM)
+sdk.setButtonVideoRecordingSettings(width = 1280, height = 720, fps = 30)
+sdk.setButtonMaxRecordingTime(minutes = 3)
+sdk.setCameraFov(CameraFov.WIDE)
+```
+
+  </Tab>
+  <Tab title="iOS">
+
+```swift
+try await sdk.setGalleryModeEnabled(true)
+try await sdk.setButtonPhotoSettings(size: .medium)
+try await sdk.setButtonVideoRecordingSettings(width: 1280, height: 720, fps: 30)
+try await sdk.setButtonMaxRecordingTime(minutes: 3)
+try await sdk.setCameraFov(.wide)
+```
+
+  </Tab>
+</Tabs>
+
+Use `setGalleryModeEnabled(false)` when you want the action button to report events without triggering local gallery capture while the glasses are connected.
 
 ## Streaming
 

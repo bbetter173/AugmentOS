@@ -169,8 +169,8 @@ class DeviceManager {
         set(value) = DeviceStore.apply("bluetooth", "dashboard_depth", value)
 
     private var galleryMode: Boolean
-        get() = DeviceStore.store.get("bluetooth", "galleryModeAuto") as? Boolean ?: true
-        set(value) = DeviceStore.apply("bluetooth", "galleryModeAuto", value)
+        get() = DeviceStore.store.get("bluetooth", "gallery_mode") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "gallery_mode", value)
 
     // state:
     private var searching: Boolean

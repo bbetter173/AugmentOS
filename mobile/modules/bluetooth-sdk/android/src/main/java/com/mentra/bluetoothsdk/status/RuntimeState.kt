@@ -149,7 +149,7 @@ enum class MicMode(val value: String) {
 }
 
 data class GalleryModeState(
-    val desired: GalleryMode,
+    val enabled: Boolean,
 )
 
 data class PhoneSdkRuntimeState(
@@ -169,7 +169,7 @@ data class PhoneSdkRuntimeState(
             PhoneSdkRuntimeState(
                 currentMic = MicMode.fromValue(status.currentMic),
                 defaultDevice = status.defaultDevice,
-                galleryMode = GalleryModeState(if (status.galleryModeAuto) GalleryMode.AUTO else GalleryMode.MANUAL),
+                galleryMode = GalleryModeState(enabled = status.galleryModeEnabled),
                 lastLog = status.lastLog,
                 micRanking = status.micRanking.mapNotNull { MicMode.fromValue(it) },
                 otherBluetoothConnected = status.otherBtConnected,

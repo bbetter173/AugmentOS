@@ -11,7 +11,6 @@ import type {
   ConnectOptions,
   Device,
   DeviceModel,
-  GalleryMode,
   GlassesConnectionStatus,
   HotspotStatus,
   PublicBluetoothStatus,
@@ -83,7 +82,7 @@ export type GlassesRuntimeState =
 
 export type GalleryModeState = {
   applying: boolean
-  desired: GalleryMode
+  enabled: boolean
   error: unknown | null
 }
 
@@ -134,7 +133,7 @@ export type MentraBluetoothSession = {
   scan: ScanController
   sdk: PhoneSdkRuntimeState
   setDefaultDevice: (device: Device | null) => Promise<void>
-  setGalleryMode: (mode: GalleryMode) => Promise<void>
+  setGalleryModeEnabled: (enabled: boolean) => Promise<void>
 }
 
 function stringValue(value: unknown): string | undefined {
@@ -269,11 +268,11 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
   const [galleryModeApplying, setGalleryModeApplying] = useState(false)
   const [galleryModeError, setGalleryModeError] = useState<unknown | null>(null)
 
-  async function setGalleryMode(mode: GalleryMode) {
+  async function setGalleryModeEnabled(enabled: boolean) {
     setGalleryModeApplying(true)
     setGalleryModeError(null)
     try {
-      await BluetoothSdk.setGalleryMode(mode)
+      await BluetoothSdk.setGalleryModeEnabled(enabled)
     } catch (error) {
       setGalleryModeError(error)
       options.onError?.(error)
@@ -285,7 +284,7 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
 
   const galleryMode: GalleryModeState = {
     applying: galleryModeApplying,
-    desired: connection.bluetoothStatus.galleryModeAuto === false ? "manual" : "auto",
+    enabled: connection.bluetoothStatus.galleryModeEnabled !== false,
     error: galleryModeError,
   }
 
@@ -302,6 +301,6 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
     scan: scanController(connection),
     sdk: phoneSdkState(connection.bluetoothStatus, connection.defaultDevice, galleryMode),
     setDefaultDevice: connection.setDefaultDevice,
-    setGalleryMode,
+    setGalleryModeEnabled,
   }
 }

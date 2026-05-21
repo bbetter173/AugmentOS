@@ -3631,7 +3631,7 @@ public class MentraLive extends SGCManager {
 
     @Override
     public void sendGalleryMode() {
-        boolean active = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "galleryModeAuto");
+        boolean active = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "gallery_mode");
         Bridge.log("LIVE: 📸 Sending gallery mode active to glasses: " + active);
         try {
             JSONObject json = new JSONObject();

@@ -246,6 +246,10 @@ struct BluetoothStatus: CustomStringConvertible {
         if let searchResults = values["searchResults"] as? [[String: Any]] {
             normalizedValues["searchResults"] = searchResults.compactMap { Device(values: $0)?.dictionary }
         }
+        if let galleryMode = boolValue(values, "gallery_mode") {
+            normalizedValues["galleryModeEnabled"] = galleryMode
+            normalizedValues.removeValue(forKey: "gallery_mode")
+        }
         return normalizedValues
     }
 
@@ -294,7 +298,7 @@ struct BluetoothStatus: CustomStringConvertible {
     var dashboardDepth: Int { intValue(values["dashboard_depth"]) ?? 2 }
     var headUpAngle: Int { intValue(values["head_up_angle"]) ?? 30 }
     var contextualDashboard: Bool { boolValue(values, "contextual_dashboard") ?? true }
-    var galleryModeAuto: Bool { boolValue(values, "galleryModeAuto") ?? true }
+    var galleryModeEnabled: Bool { boolValue(values, "gallery_mode") ?? boolValue(values, "galleryModeEnabled") ?? true }
     var buttonPhotoSize: ButtonPhotoSize {
         ButtonPhotoSize(rawValue: stringValue(values, "button_photo_size") ?? "") ?? .medium
     }
@@ -403,6 +407,10 @@ struct BluetoothStatusUpdate: CustomStringConvertible {
         if let searchResults = values["searchResults"] as? [[String: Any]] {
             normalizedValues["searchResults"] = searchResults.compactMap { Device(values: $0)?.dictionary }
         }
+        if let galleryMode = optionalBoolValue(values, "gallery_mode") {
+            normalizedValues["galleryModeEnabled"] = galleryMode
+            normalizedValues.removeValue(forKey: "gallery_mode")
+        }
         self.values = normalizedValues
     }
 
@@ -440,7 +448,7 @@ struct BluetoothStatusUpdate: CustomStringConvertible {
     var dashboardDepth: Int? { optionalIntValue(values, "dashboard_depth") }
     var headUpAngle: Int? { optionalIntValue(values, "head_up_angle") }
     var contextualDashboard: Bool? { optionalBoolValue(values, "contextual_dashboard") }
-    var galleryModeAuto: Bool? { optionalBoolValue(values, "galleryModeAuto") }
+    var galleryModeEnabled: Bool? { optionalBoolValue(values, "gallery_mode") ?? optionalBoolValue(values, "galleryModeEnabled") }
     var buttonPhotoSize: ButtonPhotoSize? {
         optionalStringValue(values, "button_photo_size").flatMap(ButtonPhotoSize.init(rawValue:))
     }

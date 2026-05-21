@@ -190,8 +190,6 @@ export type RgbLedControlResponseEvent =
 
 export type RgbLedAction = "on" | "off"
 export type RgbLedColor = "red" | "green" | "blue" | "orange" | "white"
-/** `"auto"` enables local button photo/video capture; `"manual"` reports button events without local gallery capture. */
-export type GalleryMode = "auto" | "manual"
 export type PhotoSize = "small" | "medium" | "large" | "full"
 export type ButtonPhotoSize = "small" | "medium" | "large"
 export type PhotoCompression = "none" | "medium" | "heavy"
@@ -511,7 +509,7 @@ export type PublicBluetoothStatus = Pick<
   | "wifiScanResults"
   | "lastLog"
   | "otherBtConnected"
-  | "galleryModeAuto"
+  | "galleryModeEnabled"
 >
 
 export type BluetoothSdkEventMap = {
@@ -588,7 +586,7 @@ export interface BluetoothSdkPublicModule {
   forgetWifiNetwork(ssid: string): Promise<void>
   setHotspotState(enabled: boolean): Promise<void>
 
-  setGalleryMode(mode: GalleryMode): Promise<void>
+  setGalleryModeEnabled(enabled: boolean): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
   setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
@@ -790,7 +788,7 @@ export interface BluetoothStatus {
   lastLog: string[]
   otherBtConnected: boolean
   // desired settings the SDK sends to compatible connected glasses:
-  galleryModeAuto: boolean
+  galleryModeEnabled: boolean
 }
 
 export type BluetoothSettingsUpdate = Partial<{
@@ -808,7 +806,7 @@ export type BluetoothSettingsUpdate = Partial<{
   dashboard_height: number
   dashboard_depth: number
   menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
-  galleryModeAuto: boolean
+  gallery_mode: boolean
   button_photo_size: ButtonPhotoSize
   button_video_settings: {width: number; height: number; fps: number}
   button_video_width: number

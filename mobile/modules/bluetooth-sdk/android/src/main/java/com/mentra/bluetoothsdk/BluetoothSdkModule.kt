@@ -21,7 +21,10 @@ class BluetoothSdkModule : Module() {
                     sendEvent(
                             "bluetooth_status",
                             sdk?.getRawBluetoothStatus()?.toMap()
-                                    ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+                                    ?: BluetoothStatus.fromMap(
+                                                    DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+                                            )
+                                            .toMap()
                     )
                 }
 
@@ -209,7 +212,9 @@ class BluetoothSdkModule : Module() {
         }
 
         Function("getBluetoothStatus") {
-            sdk?.getRawBluetoothStatus()?.toMap() ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+            sdk?.getRawBluetoothStatus()?.toMap()
+                    ?: BluetoothStatus.fromMap(DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY))
+                            .toMap()
         }
 
         Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }
@@ -344,14 +349,8 @@ class BluetoothSdkModule : Module() {
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("setGalleryMode") { mode: String ->
-            val galleryMode =
-                    when (mode.lowercase()) {
-                        "auto" -> GalleryMode.AUTO
-                        "manual" -> GalleryMode.MANUAL
-                        else -> throw IllegalArgumentException("setGalleryMode mode must be \"auto\" or \"manual\".")
-                    }
-            sdk?.setGalleryMode(galleryMode)
+        AsyncFunction("setGalleryModeEnabled") { enabled: Boolean ->
+            sdk?.setGalleryModeEnabled(enabled)
         }
 
         AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }

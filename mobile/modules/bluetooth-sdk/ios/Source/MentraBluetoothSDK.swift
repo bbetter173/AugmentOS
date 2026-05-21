@@ -268,8 +268,8 @@ public final class MentraBluetoothSDK {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "screen_disabled", disabled)
     }
 
-    public func setGalleryMode(_ mode: GalleryMode) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "galleryModeAuto", mode == .auto)
+    public func setGalleryModeEnabled(_ enabled: Bool) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", enabled)
     }
 
     public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws {

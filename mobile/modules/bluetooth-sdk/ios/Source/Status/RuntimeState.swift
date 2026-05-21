@@ -235,10 +235,10 @@ public enum GlassesRuntimeState: CustomStringConvertible {
 }
 
 public struct GalleryModeState: Equatable {
-    public let desired: GalleryMode
+    public let enabled: Bool
 
-    public init(desired: GalleryMode) {
-        self.desired = desired
+    public init(enabled: Bool) {
+        self.enabled = enabled
     }
 }
 
@@ -288,7 +288,7 @@ public struct PhoneSdkRuntimeState: CustomStringConvertible {
     init(status: BluetoothStatus) {
         currentMic = MicMode(rawValue: status.currentMic)
         defaultDevice = status.defaultDevice
-        galleryMode = GalleryModeState(desired: status.galleryModeAuto ? .auto : .manual)
+        galleryMode = GalleryModeState(enabled: status.galleryModeEnabled)
         lastLog = status.lastLog
         micRanking = status.micRanking.compactMap(MicMode.init(rawValue:))
         otherBluetoothConnected = status.otherBtConnected

@@ -18,7 +18,7 @@ const initialState: BluetoothStatus = {
   wifiScanResults: [],
   lastLog: [],
   otherBtConnected: false,
-  galleryModeAuto: true,
+  galleryModeEnabled: true,
 }
 
 export const useCoreStore = create<CoreState>()(

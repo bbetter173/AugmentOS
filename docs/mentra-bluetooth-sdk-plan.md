@@ -84,7 +84,7 @@ brightness, auto_brightness, dashboard_height, dashboard_depth
 head_up_angle, preferred_mic, lc3_frame_size
 button_photo_size, button_camera_led
 button_max_recording_time, button_video_width, button_video_height
-button_video_fps, galleryModeAuto, screen_disabled, sensing_enabled
+button_video_fps, gallery_mode, screen_disabled, sensing_enabled
 ```
 
 **SGC Implementations:**
@@ -308,7 +308,7 @@ Remove MentraOS-specific side effects from Bluetooth SDK. The `apply()` function
 "bluetooth" to "dashboard_depth" -> sgc?.setDashboardDepthOnly(...)
 "bluetooth" to "head_up_angle" -> sgc?.setHeadUpAngle(...)
 "bluetooth" to "dashboard_menu_apps" -> sgc?.setDashboardMenu(...)
-"bluetooth" to "galleryModeAuto" -> sgc?.sendGalleryMode()
+"bluetooth" to "gallery_mode" -> sgc?.sendGalleryMode()
 "bluetooth" to "screen_disabled" -> sgc?.exit()/clearDisplay()
 "bluetooth" to "button_photo_size" -> sgc?.sendButtonPhotoSettings()
 "bluetooth" to "button_camera_led" -> sgc?.sendButtonCameraLedSetting()
@@ -464,7 +464,7 @@ await BluetoothSdk.setHeadUpAngle(angleDegrees)
 await BluetoothSdk.setScreenDisabled(disabled)
 await BluetoothSdk.requestPhoto(...)
 await BluetoothSdk.queryGalleryStatus()
-await BluetoothSdk.setGalleryMode(mode)
+await BluetoothSdk.setGalleryModeEnabled(enabled)
 await BluetoothSdk.setButtonPhotoSettings(size)
 await BluetoothSdk.setButtonVideoRecordingSettings(width, height, fps)
 await BluetoothSdk.setButtonCameraLed(enabled)

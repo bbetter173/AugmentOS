@@ -12,7 +12,6 @@ import {
   DashboardMenuItem,
   Device,
   DeviceModel,
-  GalleryMode,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
@@ -95,7 +94,7 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   logCurrentWifiFrequency(): Promise<void>
 
   // Gallery Commands
-  setGalleryMode(mode: GalleryMode): Promise<void>
+  setGalleryModeEnabled(enabled: boolean): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
   setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
@@ -344,6 +343,10 @@ NativeBluetoothSdkModule.setHeadUpAngle = function (angleDegrees: number) {
 
 NativeBluetoothSdkModule.setScreenDisabled = function (disabled: boolean) {
   return this.updateBluetoothSettings({screen_disabled: disabled})
+}
+
+NativeBluetoothSdkModule.setGalleryModeEnabled = function (enabled: boolean) {
+  return this.updateBluetoothSettings({gallery_mode: enabled})
 }
 
 NativeBluetoothSdkModule.setButtonPhotoSettings = function (size: ButtonPhotoSize) {

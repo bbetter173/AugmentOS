@@ -190,6 +190,11 @@ export function DeviceScreen() {
       {mentra.scan.devices.map((device) => (
         <Button key={device.id} title={device.name} onPress={() => mentra.connect(device)} />
       ))}
+      <Button
+        disabled={!mentra.glasses.connected || mentra.sdk.galleryMode.applying}
+        title={mentra.sdk.galleryMode.enabled ? 'Disable gallery mode' : 'Enable gallery mode'}
+        onPress={() => mentra.setGalleryModeEnabled(!mentra.sdk.galleryMode.enabled)}
+      />
       <Button disabled={!mentra.glasses.connected} title="Disconnect" onPress={mentra.disconnect} />
     </View>
   );
@@ -241,7 +246,7 @@ type GlassesConnectionStatus =
 
 Use `mentra.glasses.connection.state` for link-layer progress. `fullyBooted` only exists when `state === 'connected'`.
 
-Use `useMentraBluetooth()` as the React status API for connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state.
+Use `useMentraBluetooth()` as the React status API for connection, battery, Wi-Fi, hotspot, scan, and SDK runtime state. `mentra.sdk.galleryMode.enabled` reflects the desired gallery-mode setting sent to the glasses, and `mentra.sdk.galleryMode.applying` is true while `setGalleryModeEnabled(...)` is in flight.
 
 ## Default Device
 

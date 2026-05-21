@@ -1,10 +1,5 @@
 package com.mentra.bluetoothsdk
 
-enum class GalleryMode {
-    AUTO,
-    MANUAL,
-}
-
 enum class PhotoSize(val value: String) {
     SMALL("small"),
     MEDIUM("medium"),

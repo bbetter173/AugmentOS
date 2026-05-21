@@ -235,8 +235,8 @@ await BluetoothSdk.sendWifiCredentials('Office WiFi', 'secret')
 await BluetoothSdk.forgetWifiNetwork('Office WiFi')
 await BluetoothSdk.setHotspotState(true)
 
-await BluetoothSdk.setGalleryMode('auto')
-await BluetoothSdk.setGalleryMode('manual')
+await BluetoothSdk.setGalleryModeEnabled(true)
+await BluetoothSdk.setGalleryModeEnabled(false)
 
 await BluetoothSdk.setPreferredMic('auto')
 await BluetoothSdk.setMicState(true)
@@ -258,15 +258,15 @@ await BluetoothSdk.rgbLedControl(
 ## Photo Upload
 
 ```ts
-await BluetoothSdk.requestPhoto(
-  `photo-${Date.now()}`,
-  'com.example.app',
-  'medium',
-  'https://api.example.com/mentra/photo',
-  'optional-token',
-  'medium',
-  true,
-)
+await BluetoothSdk.requestPhoto({
+  requestId: `photo-${Date.now()}`,
+  appId: 'com.example.app',
+  size: 'medium',
+  webhookUrl: 'https://api.example.com/mentra/photo',
+  authToken: 'optional-token',
+  compress: 'medium',
+  sound: true,
+})
 ```
 
 The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`. The camera light is always enabled for photo capture.
@@ -335,4 +335,4 @@ Use `bunx expo run:android` for Android. Keep local paths in your shell or CI en
 
 ## Starter Example App
 
-The [Mentra Bluetooth SDK Starter Kit](https://github.com/Mentra-Community/Mentra-Bluetooth-SDK-Starter-Kit) includes starter example apps for Android, iOS, and React Native / Expo. The React Native starter demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery-button mode, and console event inspection.
+The [Mentra Bluetooth SDK Starter Kit](https://github.com/Mentra-Community/Mentra-Bluetooth-SDK-Starter-Kit) includes starter example apps for Android, iOS, and React Native / Expo. The React Native starter demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery mode, and console event inspection.

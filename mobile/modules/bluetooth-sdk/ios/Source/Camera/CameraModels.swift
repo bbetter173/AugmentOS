@@ -1,10 +1,5 @@
 import Foundation
 
-public enum GalleryMode {
-    case auto
-    case manual
-}
-
 public enum PhotoSize: String {
     case small
     case medium

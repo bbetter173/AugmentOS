@@ -308,8 +308,8 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "screen_disabled", disabled)
     }
 
-    fun setGalleryMode(mode: GalleryMode) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "galleryModeAuto", mode == GalleryMode.AUTO)
+    fun setGalleryModeEnabled(enabled: Boolean) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", enabled)
     }
 
     fun setButtonPhotoSettings(size: ButtonPhotoSize) {

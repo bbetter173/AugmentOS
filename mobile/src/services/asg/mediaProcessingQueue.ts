@@ -213,7 +213,6 @@ class MediaProcessingQueue {
       await validateDownloadedMediaFile({
         path: filePathToSave,
         name: item.id,
-        expectedSize: item.totalSize,
         mediaKind: item.type,
       })
     } catch (validationError: any) {

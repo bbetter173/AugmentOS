@@ -75,7 +75,6 @@ describe("galleryMediaValidation", () => {
       header.writeUInt32BE(8, 0) // box size
       header.write("ftyp", 4, 4, "ascii")
       header.write("isom", 8, 4, "ascii")
-
       ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
       ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 1024})
       ;(RNFS.read as jest.Mock).mockResolvedValue(header.toString("base64"))
@@ -88,6 +87,22 @@ describe("galleryMediaValidation", () => {
           mediaKind: "video",
         }),
       ).resolves.toBeUndefined()
+    })
+
+    it("accepts non-media sidecars when mediaKind is unknown", async () => {
+      ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+      ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 128})
+
+      await expect(
+        validateDownloadedMediaFile({
+          path: "/tmp/IMG_test/imu.json",
+          name: "IMG_test/imu.json",
+          expectedSize: 128,
+          mediaKind: "unknown",
+        }),
+      ).resolves.toBeUndefined()
+
+      expect(RNFS.read).not.toHaveBeenCalled()
     })
   })
 })

@@ -43,7 +43,6 @@ export class AsgCameraApiClient {
 
     // Only update if the URL actually changed
     if (this.baseUrl !== newUrl) {
-      const oldUrl = this.baseUrl
       this.baseUrl = newUrl
       this.port = newPort
       // console.log(`[ASG Camera API] Server changed from ${oldUrl} to ${this.baseUrl}`)
@@ -825,11 +824,12 @@ export class AsgCameraApiClient {
         }
 
         try {
+          const mediaKind = file.role === "sidecar" ? "unknown" : isVideo ? "video" : "photo"
           await validateDownloadedMediaFile({
             path: localFilePath,
             name: file.name,
             expectedSize: file.size,
-            mediaKind: isVideo ? "video" : "photo",
+            mediaKind,
           })
         } catch (validationErr) {
           await RNFS.unlink(localFilePath).catch(() => {})

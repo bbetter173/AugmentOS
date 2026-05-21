@@ -63,4 +63,25 @@ describe("mediaProcessingQueue", () => {
     expect(localStorageService.saveDownloadedFile).not.toHaveBeenCalled()
     expect(useGallerySyncStore.getState().failedFiles).toContain("VID_zero")
   })
+
+  it("does not compare processed output size against capture total size", async () => {
+    ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+    ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 100})
+    ;(RNFS.read as jest.Mock).mockResolvedValue(Buffer.from([0xff, 0xd8, 0x76, 0x61, 0x6c, 0x69, 0x64]).toString("base64"))
+
+    mediaProcessingQueue.reset()
+    mediaProcessingQueue.enqueue({
+      id: "IMG_with_sidecar",
+      type: "photo",
+      primaryPath: "/tmp/IMG_with_sidecar/base.jpg",
+      totalSize: 200,
+      shouldProcess: false,
+      shouldAutoSave: false,
+    })
+
+    await expect(mediaProcessingQueue.waitUntilDrained(5000)).resolves.toBeUndefined()
+
+    expect(localStorageService.saveDownloadedFile).toHaveBeenCalled()
+    expect(useGallerySyncStore.getState().failedFiles).not.toContain("IMG_with_sidecar")
+  })
 })

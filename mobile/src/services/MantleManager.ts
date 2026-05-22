@@ -170,12 +170,17 @@ class MantleManager {
       sendDisplayEvent: (event) => BluetoothSdk.displayEvent(event),
       subscribeGlassesStatus: (onChange) => BluetoothSdk.onGlassesStatus(onChange),
       restartTranscriber: () => BluetoothSdk.restartTranscriber(),
-      setMicRequirements: (requirements) =>
-        BluetoothSdk.update("core", {
+      setMicRequirements: (requirements) => {
+        const values: Record<string, unknown> = {
           should_send_pcm: requirements.shouldSendPcm,
           should_send_lc3: requirements.shouldSendLc3,
           should_send_transcript: requirements.shouldSendTranscript,
-        }),
+        }
+        if (requirements.voiceActivityDetectionEnabled !== undefined) {
+          values.voice_activity_detection_enabled = requirements.voiceActivityDetectionEnabled
+        }
+        return BluetoothSdk.update("core", values)
+      },
       requestMiniappSdkPhoto: (params) => requestMiniappSdkPhoto(params),
     })
 
@@ -559,8 +564,8 @@ class MantleManager {
       )
 
       this.subs.push(
-        BluetoothSdk.addListener("vad_status", (event) => {
-          socketComms.sendVadStatus(event.status)
+        BluetoothSdk.addListener("speaking_status", (event) => {
+          socketComms.sendVadStatus(event.speaking)
         }),
       )
 

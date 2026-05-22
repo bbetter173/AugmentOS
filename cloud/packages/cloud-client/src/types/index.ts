@@ -106,6 +106,7 @@ export interface SettingsUpdate {
     autoBrightness: boolean;
     sensingEnabled: boolean;
     alwaysOnStatusBar: boolean;
+    bypassVad: boolean;
     bypassAudioEncoding: boolean;
   };
   timestamp: Date;
@@ -113,6 +114,7 @@ export interface SettingsUpdate {
 
 export interface MicrophoneStateChange {
   isMicrophoneEnabled: boolean;
+  bypassVad?: boolean; // NEW: VAD bypass flag for PCM subscriptions
   timestamp: Date;
 }
 

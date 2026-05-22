@@ -438,7 +438,10 @@ class SocketComms {
 
   private async handle_microphone_state_change(msg: any) {
     const requiredDataStrings = msg.requiredData || []
-    console.log(`SOCKET: mic_state_change: requiredData = [${requiredDataStrings}]`)
+    const voiceActivityDetectionEnabled = typeof msg.bypassVad === "boolean" ? !msg.bypassVad : undefined
+    console.log(
+      `SOCKET: mic_state_change: requiredData = [${requiredDataStrings}], voiceActivityDetectionEnabled = ${voiceActivityDetectionEnabled}`,
+    )
     let shouldSendPcmData = false
     let shouldSendTranscript = false
     if (requiredDataStrings.includes("pcm")) {
@@ -468,6 +471,7 @@ class SocketComms {
       pcm: !!shouldSendPcmData,
       lc3: !!shouldSendPcmData, // online apps always want lc3
       transcript: !!shouldSendTranscript,
+      ...(voiceActivityDetectionEnabled === undefined ? {} : {voiceActivityDetectionEnabled}),
     })
   }
 

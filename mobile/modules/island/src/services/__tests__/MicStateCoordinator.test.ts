@@ -32,7 +32,12 @@ describe("MicStateCoordinator", () => {
   })
 
   test("union of cloud + local", () => {
-    MicStateCoordinator.setCloudRequirements({pcm: true, lc3: false, transcript: true})
+    MicStateCoordinator.setCloudRequirements({
+      pcm: true,
+      lc3: false,
+      transcript: true,
+      voiceActivityDetectionEnabled: false,
+    })
     MicStateCoordinator.setLocalRequirements({pcm: false, lc3: true})
     const lastCall = mockSetMicRequirements.mock.calls[mockSetMicRequirements.mock.calls.length - 1]
     expect(lastCall[0]).toEqual(
@@ -40,6 +45,7 @@ describe("MicStateCoordinator", () => {
         shouldSendPcm: false,
         shouldSendLc3: true,
         shouldSendTranscript: true,
+        voiceActivityDetectionEnabled: false,
       }),
     )
   })

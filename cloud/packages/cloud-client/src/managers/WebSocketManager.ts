@@ -200,6 +200,7 @@ export class WebSocketManager extends EventEmitter {
           metric_system_enabled: false,
           sensing_enabled: true,
           always_on_status_bar_enabled: false,
+          bypass_vad_for_debugging: false,
           bypass_audio_encoding_for_debugging: false,
           enforce_local_transcription: false,
           // optional diagnostics
@@ -330,6 +331,7 @@ export class WebSocketManager extends EventEmitter {
       case "microphone_state_change":
         this.emit("microphone_state_change", {
           isMicrophoneEnabled: message.isMicrophoneEnabled,
+          bypassVad: message.bypassVad || false, // NEW: Include VAD bypass flag
           timestamp: new Date(message.timestamp),
         });
         break;

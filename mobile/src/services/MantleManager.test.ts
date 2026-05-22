@@ -204,6 +204,7 @@ describe("MantleManager", () => {
         core_token: "server-token",
         auth_email: "from-server@example.com",
         power_saving_mode: false,
+        voice_activity_detection_enabled: false,
       }),
     )
     expect(coreModuleMock.updateBluetoothSettings).not.toHaveBeenCalledWith(
@@ -280,7 +281,7 @@ describe("MantleManager", () => {
       expect(useDisplayStore.getState().view).toBe("dashboard")
     })
 
-    emitCoreModuleEvent("vad_status", {type: "vad_status", status: true})
+    emitCoreModuleEvent("speaking_status", {type: "speaking_status", speaking: true})
     expect(socketComms.sendVadStatus).toHaveBeenCalledWith(true)
 
     emitCoreModuleEvent("battery_status", {

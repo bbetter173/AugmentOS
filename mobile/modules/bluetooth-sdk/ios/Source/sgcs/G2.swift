@@ -1454,8 +1454,7 @@ class G2: NSObject, SGCManager {
                     DeviceStore.shared.apply("glasses", "bluetoothName", btName)
                     DeviceStore.shared.apply("glasses", "deviceModel", DeviceTypes.G2)
 
-                    DeviceStore.shared.apply("glasses", "connected", true)
-                    DeviceStore.shared.apply("glasses", "fullyBooted", true)
+                    self.setFullyConnected()
 
                     // connnect a controller if we have one:
                     self.connectController()

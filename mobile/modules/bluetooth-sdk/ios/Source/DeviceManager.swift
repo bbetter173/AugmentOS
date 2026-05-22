@@ -1013,6 +1013,7 @@ struct ViewState {
 
     func handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
+        DeviceStore.shared.apply("glasses", "headUp", false)
         // shouldSendBootingMessage = true  // Reset for next first connect
     }
 

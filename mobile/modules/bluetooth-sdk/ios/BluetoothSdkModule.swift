@@ -20,6 +20,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             "touch_event",
             "head_up",
             "voice_activity_detection_status",
+            "speaking_status",
             "battery_status",
             "wifi_status_change",
             "hotspot_status_change",
@@ -294,6 +295,11 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("setGalleryModeEnabled") { (enabled: Bool) in
             let sdk = await MainActor.run { self.bluetoothSdk() }
             try await sdk.setGalleryModeEnabled(enabled)
+        }
+
+        AsyncFunction("setVoiceActivityDetectionEnabled") { (enabled: Bool) in
+            let sdk = await MainActor.run { self.bluetoothSdk() }
+            try await sdk.setVoiceActivityDetectionEnabled(enabled)
         }
 
         AsyncFunction("queryGalleryStatus") {
@@ -578,6 +584,8 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             sendEvent("touch_event", touch.values)
         case let .voiceActivityDetectionStatus(status):
             sendEvent("voice_activity_detection_status", status.values)
+        case let .speakingStatus(status):
+            sendEvent("speaking_status", status.values)
         case let .wifiStatus(status):
             sendEvent("wifi_status_change", status.values)
         case let .hotspotStatus(status):

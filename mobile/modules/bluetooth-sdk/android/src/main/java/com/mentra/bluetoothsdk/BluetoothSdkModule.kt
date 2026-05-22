@@ -80,6 +80,10 @@ class BluetoothSdkModule : Module() {
                     sendEvent("voice_activity_detection_status", event.values)
                 }
 
+                override fun onSpeakingStatus(event: SpeakingStatusEvent) {
+                    sendEvent("speaking_status", event.values)
+                }
+
                 override fun onBatteryStatus(event: BatteryStatusEvent) {
                     sendEvent("battery_status", event.values)
                 }
@@ -153,6 +157,7 @@ class BluetoothSdkModule : Module() {
             "touch_event",
             "head_up",
             "voice_activity_detection_status",
+            "speaking_status",
             "battery_status",
             "local_transcription",
             "wifi_status_change",
@@ -355,6 +360,10 @@ class BluetoothSdkModule : Module() {
 
         AsyncFunction("setGalleryModeEnabled") { enabled: Boolean ->
             sdk?.setGalleryModeEnabled(enabled)
+        }
+
+        AsyncFunction("setVoiceActivityDetectionEnabled") { enabled: Boolean ->
+            sdk?.setVoiceActivityDetectionEnabled(enabled)
         }
 
         AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }

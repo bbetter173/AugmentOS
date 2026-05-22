@@ -166,7 +166,7 @@ plumbing while keeping the root SDK available for direct commands:
 | --- | --- |
 | `useMentraBluetooth` | You want one React session object for status, scan, connect/disconnect, default-device state, and gallery mode. |
 | `useBluetoothScan` | You want a focused scan picker without the full connection/session helper. |
-| `useBluetoothEvent` | You want React-managed subscription cleanup for hardware events such as button presses, touch, battery, Wi-Fi, hotspot, photo, stream, or microphone events. |
+| `useBluetoothEvent` | You want React-managed subscription cleanup for hardware events such as button presses, touch, battery, Wi-Fi, hotspot, photo, stream, speaking, or microphone events. |
 
 ```tsx
 import {Button, Text, View} from 'react-native';
@@ -181,6 +181,10 @@ export function DeviceScreen() {
 
   useBluetoothEvent('button_press', (event) => {
     console.log('Glasses button:', event.buttonId, event.pressType);
+  });
+
+  useBluetoothEvent('speaking_status', (event) => {
+    console.log('Speaking:', event.speaking);
   });
 
   return (

@@ -201,6 +201,15 @@ public class Bridge private constructor() {
             sendTypedMessage("voice_activity_detection_status", body as Map<String, Any>)
         }
 
+        /** Send live speaking status reported by glasses-side Voice Activity Detection. */
+        @JvmStatic
+        fun sendSpeakingStatus(speaking: Boolean) {
+            val body = HashMap<String, Any>()
+            body["speaking"] = speaking
+            body["timestamp"] = System.currentTimeMillis()
+            sendTypedMessage("speaking_status", body as Map<String, Any>)
+        }
+
         /** Send battery status */
         @JvmStatic
         fun sendBatteryStatus(level: Int, charging: Boolean) {

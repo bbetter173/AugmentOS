@@ -769,7 +769,7 @@ The K900 microcontroller frames messages as `{"C": "<cmd>", "B": {...}, "V": 1}`
 | `sr_fbvol`            | Swipe volume status                                  | `swipe_volume_status`                     |
 | `hm_ota`              | BES OTA authorization response                       | (handled internally)                      |
 | `hs_ntfy`             | Hardware notification (newer firmware button format) | `button_press`                            |
-| `sr_vad`              | Voice Activity Detection event                       | (logged only)                             |
+| `sr_vad`              | Voice Activity Detection speaking state              | `speaking_status`                         |
 | `hs_syvr`             | System version report                                | (cached, triggers `request_version` push) |
 | `sr_btaddr`           | BT MAC address                                       | (persisted to system properties)          |
 | `sr_keyevt`           | Power button short press                             | (announces battery via audio asset)       |

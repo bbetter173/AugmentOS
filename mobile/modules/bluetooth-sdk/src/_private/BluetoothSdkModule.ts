@@ -95,6 +95,7 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
 
   // Gallery Commands
   setGalleryModeEnabled(enabled: boolean): Promise<void>
+  setVoiceActivityDetectionEnabled(enabled: boolean): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
   setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
@@ -345,6 +346,10 @@ NativeBluetoothSdkModule.setScreenDisabled = function (disabled: boolean) {
 
 NativeBluetoothSdkModule.setGalleryModeEnabled = function (enabled: boolean) {
   return this.updateBluetoothSettings({gallery_mode: enabled})
+}
+
+NativeBluetoothSdkModule.setVoiceActivityDetectionEnabled = function (enabled: boolean) {
+  return this.updateBluetoothSettings({voice_activity_detection_enabled: enabled})
 }
 
 NativeBluetoothSdkModule.setButtonPhotoSettings = function (size: ButtonPhotoSize) {

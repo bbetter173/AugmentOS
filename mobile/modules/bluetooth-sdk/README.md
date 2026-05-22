@@ -253,7 +253,7 @@ await BluetoothSdk.rgbLedControl(
 )
 ```
 
-`setMicState(true)` defaults to continuous microphone PCM from the glasses. The SDK does not apply phone-side Voice Activity Detection gating to microphone audio events; Voice Activity Detection status is reported separately through `voice_activity_detection_status` events when supported. Microphone events include the latest `voiceActivityDetectionEnabled` value.
+`setMicState(true)` defaults to continuous microphone PCM from the glasses. The SDK does not apply phone-side Voice Activity Detection gating to microphone audio events. Use `setVoiceActivityDetectionEnabled(false)` when you want glasses-side Voice Activity Detection disabled for continuous external STT, recording, or playback. `voice_activity_detection_status` reports whether glasses-side Voice Activity Detection is enabled, and `speaking_status` reports speaking/not-speaking when supported. Microphone events include the latest `voiceActivityDetectionEnabled` value.
 
 ## Photo Upload
 
@@ -305,6 +305,7 @@ export function HardwareEventLogger() {
   useBluetoothEvent('touch_event', (event) => console.log(event))
   useBluetoothEvent('photo_response', (event) => console.log(event))
   useBluetoothEvent('stream_status', (event) => console.log(event))
+  useBluetoothEvent('speaking_status', (event) => console.log(event.speaking))
   useBluetoothEvent('mic_pcm', (event) => {
     console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding)
     console.log(event.pcm)

@@ -27,6 +27,12 @@ export type VoiceActivityDetectionStatusEvent = {
   voiceActivityDetectionEnabled: boolean
 }
 
+export type SpeakingStatusEvent = {
+  type: "speaking_status"
+  speaking: boolean
+  timestamp: number
+}
+
 export type BatteryStatusEvent = {
   type: "battery_status"
   level: number
@@ -466,6 +472,7 @@ export type BluetoothSdkModuleEvents = {
   touch_event: (event: TouchEvent) => void
   head_up: (event: HeadUpEvent) => void
   voice_activity_detection_status: (event: VoiceActivityDetectionStatusEvent) => void
+  speaking_status: (event: SpeakingStatusEvent) => void
   battery_status: (event: BatteryStatusEvent) => void
   local_transcription: (event: LocalTranscriptionEvent) => void
   wifi_status_change: (event: WifiStatusChangeEvent) => void
@@ -527,6 +534,7 @@ export type BluetoothSdkEventMap = {
   touch_event: TouchEvent
   head_up: HeadUpEvent
   voice_activity_detection_status: VoiceActivityDetectionStatusEvent
+  speaking_status: SpeakingStatusEvent
   battery_status: BatteryStatusEvent
   local_transcription: LocalTranscriptionEvent
   wifi_status_change: WifiStatusChangeEvent
@@ -593,6 +601,7 @@ export interface BluetoothSdkPublicModule {
   setHotspotState(enabled: boolean): Promise<void>
 
   setGalleryModeEnabled(enabled: boolean): Promise<void>
+  setVoiceActivityDetectionEnabled(enabled: boolean): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
   setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
@@ -813,6 +822,7 @@ export type BluetoothSettingsUpdate = Partial<{
   dashboard_depth: number
   menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
   gallery_mode: boolean
+  voice_activity_detection_enabled: boolean
   button_photo_size: ButtonPhotoSize
   button_video_settings: {width: number; height: number; fps: number}
   button_video_width: number

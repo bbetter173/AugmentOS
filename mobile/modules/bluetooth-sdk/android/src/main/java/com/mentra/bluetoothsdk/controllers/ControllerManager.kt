@@ -133,8 +133,8 @@ abstract class ControllerManager {
     val micEnabled: Boolean
         get() = DeviceStore.get("glasses", "micEnabled") as? Boolean ?: false
 
-    val vadEnabled: Boolean
-        get() = DeviceStore.get("glasses", "vadEnabled") as? Boolean ?: false
+    val voiceActivityDetectionEnabled: Boolean
+        get() = DeviceStore.get("glasses", "voiceActivityDetectionEnabled") as? Boolean ?: false
 
     val batteryLevel: Int
         get() = DeviceStore.get("glasses", "batteryLevel") as? Int ?: -1

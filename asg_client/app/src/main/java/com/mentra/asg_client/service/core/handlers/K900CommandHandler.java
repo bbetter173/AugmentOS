@@ -117,8 +117,8 @@ public class K900CommandHandler {
                     break;
 
                 case "sr_vad":
-                    // Voice Activity Detection status from BES.
-                    handleVoiceActivityDetection(bData);
+                    // Speaking/not-speaking status from BES-side Voice Activity Detection.
+                    handleSpeakingStatus(bData);
                     break;
 
                 case "hs_syvr":
@@ -210,32 +210,32 @@ public class K900CommandHandler {
     }
 
     /**
-     * Handle Voice Activity Detection status from BES and forward it to the phone SDK.
+     * Handle speaking/not-speaking status from BES and forward it to the phone SDK.
      */
-    private void handleVoiceActivityDetection(JSONObject bData) {
+    private void handleSpeakingStatus(JSONObject bData) {
         if (bData != null) {
             int on = bData.optInt("on", -1);
             if (on == 0 || on == 1) {
-                Log.d(TAG, "🎤 Voice Activity Detection event received - " + (on == 1 ? "enabled" : "disabled"));
-                sendVoiceActivityDetectionStatus(on == 1);
+                Log.d(TAG, "🎤 Speaking status received - " + (on == 1 ? "speaking" : "not speaking"));
+                sendSpeakingStatus(on == 1);
             } else {
-                Log.d(TAG, "🎤 Voice Activity Detection event received without valid on field: " + bData);
+                Log.d(TAG, "🎤 Speaking status received without valid on field: " + bData);
             }
         } else {
-            Log.d(TAG, "🎤 Voice Activity Detection event received");
+            Log.d(TAG, "🎤 Speaking status received");
         }
     }
 
-    private void sendVoiceActivityDetectionStatus(boolean enabled) {
+    private void sendSpeakingStatus(boolean speaking) {
         try {
             JSONObject response = new JSONObject();
-            response.put("type", "voice_activity_detection_status");
-            response.put("voiceActivityDetectionEnabled", enabled);
+            response.put("type", "speaking_status");
+            response.put("speaking", speaking);
             response.put("timestamp", System.currentTimeMillis());
             boolean sent = communicationManager.sendBluetoothResponse(response);
-            Log.d(TAG, "🎤 Voice Activity Detection status forwarded to phone: " + enabled + " (sent=" + sent + ")");
+            Log.d(TAG, "🎤 Speaking status forwarded to phone: " + speaking + " (sent=" + sent + ")");
         } catch (JSONException e) {
-            Log.e(TAG, "Error creating Voice Activity Detection status response", e);
+            Log.e(TAG, "Error creating speaking status response", e);
         }
     }
 

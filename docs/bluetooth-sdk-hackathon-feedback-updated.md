@@ -50,12 +50,13 @@ The public APIs no longer expose `bypassVad`:
 - Android native SDK: `setMicState(enabled = true, useGlassesMic = true, sendTranscript = false, sendLc3Data = false)`
 - iOS native SDK: `setMicState(enabled: true, useGlassesMic: true, sendTranscript: false, sendLc3Data: false)`
 
-The SDK no longer applies phone-side Voice Activity Detection gating to app-facing PCM or LC3 events. That keeps external STT, WAV writing, recording, and playback on a continuous microphone stream. Voice Activity Detection status remains separate and is reported through `voice_activity_detection_status` when supported.
+The SDK no longer applies phone-side Voice Activity Detection gating to app-facing PCM or LC3 events. That keeps external STT, WAV writing, recording, and playback on a continuous microphone stream. Glasses-side Voice Activity Detection can be configured separately and reports both its enabled setting and live speaking state when supported.
 
 Current behavior:
 
 - Turn microphone capture on or off with `setMicState(enabled, ...)`.
-- Use `voice_activity_detection_status` only as a speech/activity signal, not as a phone-side audio gate.
+- Use `setVoiceActivityDetectionEnabled(...)` for the glasses-side Voice Activity Detection setting.
+- Use `speaking_status` as a speech/activity signal, not as a phone-side audio gate.
 
 ### 3. `MicPcmEvent` And `MicLc3Event` Now Include Metadata
 

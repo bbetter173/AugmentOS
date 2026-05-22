@@ -103,6 +103,10 @@ protocol SGCManager {
     func queryGalleryStatus()
     func sendGalleryMode()
 
+    // MARK: - Voice Activity Detection
+
+    func sendVoiceActivityDetectionSetting()
+
     // MARK: - Version Info
 
     func requestVersionInfo()
@@ -126,6 +130,10 @@ extension SGCManager {
     // MARK: - Dashboard Menu (default no-op — only G2 supports this)
 
     func setDashboardMenu(_: [[String: Any]]) {}
+
+    // MARK: - Voice Activity Detection (default no-op — Mentra Live supports this)
+
+    func sendVoiceActivityDetectionSetting() {}
 
     // MARK: - Default DeviceStore-backed property implementations
 
@@ -181,8 +189,8 @@ extension SGCManager {
         DeviceStore.shared.get("glasses", "micEnabled") as? Bool ?? false
     }
 
-    var vadEnabled: Bool {
-        DeviceStore.shared.get("glasses", "vadEnabled") as? Bool ?? false
+    var voiceActivityDetectionEnabled: Bool {
+        DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? false
     }
 
     var batteryLevel: Int {

@@ -239,7 +239,7 @@ These are the supported React Native app developer entrypoints:
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
 | Camera and gallery | `requestPhoto`, `queryGalleryStatus`, `setGalleryModeEnabled`, `setButtonPhotoSettings`, `setButtonVideoRecordingSettings`, `setButtonCameraLed`, `setButtonMaxRecordingTime`, `setCameraFov`, `startVideoRecording`, `stopVideoRecording` |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |
-| Audio | `setMicState`, `setPreferredMic`, `setOwnAppAudioPlaying`, `getGlassesMediaVolume`, `setGlassesMediaVolume` |
+| Audio | `setMicState`, `setVoiceActivityDetectionEnabled`, `setPreferredMic`, `setOwnAppAudioPlaying`, `getGlassesMediaVolume`, `setGlassesMediaVolume` |
 | LED and version | `rgbLedControl`, `requestVersionInfo` |
 
 React Native helper exports include `DeviceModels`, `isConnectedGlassesConnectionStatus`, `isReadyGlassesConnectionStatus`, `isBusyGlassesConnectionStatus`, `isConnectedWifiStatus`, and `isEnabledHotspotStatus`. The React subpath exports `useMentraBluetooth`, `useBluetoothScan`, and `useBluetoothEvent`.
@@ -251,7 +251,7 @@ Important defaults:
 - `scan(model, options)` reports progressive results through `options.onResults`, resolves with the final matching `Device[]`, and times out after 15 seconds unless `options.timeoutMs` is set.
 - `connect` and `connectDefault` default `saveAsDefault` and `cancelExistingConnectionAttempt` to `true`.
 - `displayText(text, x, y, size)` defaults to `x = 0`, `y = 0`, and `size = 24`.
-- `setMicState(enabled)` defaults to glasses microphone on, transcript events off, and LC3 events off. Microphone audio events are continuous while capture is enabled; Voice Activity Detection status is reported separately through `voice_activity_detection_status` events when supported. Microphone audio events include the latest `voiceActivityDetectionEnabled` value.
+- `setMicState(enabled)` defaults to glasses microphone on, transcript events off, and LC3 events off. Microphone audio events are continuous while capture is enabled. Use `setVoiceActivityDetectionEnabled(...)` for glasses-side Voice Activity Detection; `voice_activity_detection_status` reports whether it is enabled, and `speaking_status` reports speaking/not-speaking when supported. Microphone audio events include the latest `voiceActivityDetectionEnabled` value.
 - `requestPhoto({authToken, ...})` omits the `Authorization` header when `authToken` is `null` or empty.
 - `startStream` optional `video` and `audio` configs are omitted unless supplied, so the connected glasses use their model defaults.
 - Photo capture, video recording, and streaming always enable the camera light as a privacy indicator.
@@ -279,7 +279,7 @@ Use `setGalleryModeEnabled(true)` to enable local button capture, and `setGaller
 | Wi-Fi and hotspot | `requestWifiScan`, `sendWifiCredentials`, `forgetWifiNetwork`, `setHotspotState` |
 | Camera | `requestPhoto`, gallery mode, button photo settings, button video settings, camera field of view |
 | Streaming | `startStream`, `keepStreamAlive`, `stopStream` |
-| Audio | `setMicState`, audio callbacks, local transcription, media volume |
+| Audio | `setMicState`, Voice Activity Detection setting and events, audio callbacks, local transcription, media volume |
 | Settings | Brightness, dashboard position, head-up angle, screen disabled, gallery mode |
 | LEDs | `rgbLedControl` on supported glasses |
 | System | `requestVersionInfo` |
@@ -301,6 +301,7 @@ export function HardwareEventLogger() {
   useBluetoothEvent('touch_event', (event) => console.log(event));
   useBluetoothEvent('photo_response', (event) => console.log(event));
   useBluetoothEvent('stream_status', (event) => console.log(event));
+  useBluetoothEvent('speaking_status', (event) => console.log(event.speaking));
   useBluetoothEvent('mic_pcm', (event) => {
     console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding);
     console.log(event.pcm);
@@ -367,7 +368,8 @@ The React Native event surface is typed through `BluetoothSdkEventMap`. These ar
 | `button_press` | `ButtonPressEvent` | Glasses button press. |
 | `touch_event` | `TouchEvent` | Glasses touch or swipe gesture. |
 | `head_up` | `HeadUpEvent` | Head-up state changes. |
-| `voice_activity_detection_status` | `VoiceActivityDetectionStatusEvent` | Voice Activity Detection state changes. |
+| `voice_activity_detection_status` | `VoiceActivityDetectionStatusEvent` | Glasses-side Voice Activity Detection is enabled or disabled. |
+| `speaking_status` | `SpeakingStatusEvent` | Glasses-side Voice Activity Detection reports speaking or not speaking. |
 | `battery_status` | `BatteryStatusEvent` | Battery update from glasses. |
 | `local_transcription` | `LocalTranscriptionEvent` | SDK local transcription text update. |
 | `wifi_status_change` | `WifiStatusChangeEvent` | Glasses Wi-Fi connection state changes. |
@@ -388,11 +390,11 @@ The React Native event surface is typed through `BluetoothSdkEventMap`. These ar
 | `stream_status` | `StreamStatusEvent` | Camera stream lifecycle, reconnect, or error state changes. |
 | `keep_alive_ack` | `KeepAliveAckEvent` | Glasses acknowledge a stream keep-alive request. |
 
-For example, `useBluetoothEvent('photo_response', ...)` receives a `PhotoResponseEvent`, while `useBluetoothEvent('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `voiceActivityDetectionEnabled`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `voiceActivityDetectionEnabled`.
+For example, `useBluetoothEvent('photo_response', ...)` receives a `PhotoResponseEvent`, while `useBluetoothEvent('mic_pcm', ...)` receives a `MicPcmEvent`. `MicPcmEvent` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `voiceActivityDetectionEnabled`; `MicLc3Event` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `voiceActivityDetectionEnabled`. `speaking_status` is separate from microphone audio frames so apps can use continuous audio while still reacting to speech activity.
 
 Public React Native event payload fields use camelCase. For example, touch events expose `deviceModel` and `gestureName`, successful photo responses expose `uploadUrl`, hotspot errors expose `errorMessage`, and gallery status exposes `hasContent` and `cameraBusy`.
 
-Android and iOS expose typed callbacks/delegate methods instead of the React Native string event API. Android uses `MentraBluetoothSdkListener` methods such as `onStateChanged`, `onGlassesChanged`, `onSdkStateChanged`, `onScanChanged`, `onDeviceDiscovered`, `onButtonPress`, `onPhotoResponse`, `onMicPcm`, and `onStreamStatus`. iOS uses `MentraBluetoothSDKDelegate` methods such as `mentraBluetoothSDK(_:didUpdate:)`, `mentraBluetoothSDK(_:didUpdateGlasses:)`, `mentraBluetoothSDK(_:didUpdateSdkState:)`, `mentraBluetoothSDK(_:didUpdateScan:)`, `mentraBluetoothSDK(_:didDiscover:)`, `mentraBluetoothSDK(_:didReceive:)`, `mentraBluetoothSDK(_:didReceiveMicPcm:)`, and `mentraBluetoothSDK(_:didReceiveMicLc3:)`. Microphone audio callbacks use `MicPcmEvent` and `MicLc3Event` objects with the same metadata as React Native.
+Android and iOS expose typed callbacks/delegate methods instead of the React Native string event API. Android uses `MentraBluetoothSdkListener` methods such as `onStateChanged`, `onGlassesChanged`, `onSdkStateChanged`, `onScanChanged`, `onDeviceDiscovered`, `onButtonPress`, `onSpeakingStatus`, `onPhotoResponse`, `onMicPcm`, and `onStreamStatus`. iOS uses `MentraBluetoothSDKDelegate` methods such as `mentraBluetoothSDK(_:didUpdate:)`, `mentraBluetoothSDK(_:didUpdateGlasses:)`, `mentraBluetoothSDK(_:didUpdateSdkState:)`, `mentraBluetoothSDK(_:didUpdateScan:)`, `mentraBluetoothSDK(_:didDiscover:)`, `mentraBluetoothSDK(_:didReceive:)`, `mentraBluetoothSDK(_:didReceiveMicPcm:)`, and `mentraBluetoothSDK(_:didReceiveMicLc3:)`. Microphone audio callbacks use `MicPcmEvent` and `MicLc3Event` objects with the same metadata as React Native.
 
 | Event area | Examples |
 | --- | --- |

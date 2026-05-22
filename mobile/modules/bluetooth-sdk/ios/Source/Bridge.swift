@@ -91,7 +91,7 @@ class Bridge {
     private static func micPcmEventBody(_ data: Data) -> [String: Any] {
         let voiceActivityDetectionEnabled =
             DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? false
-        [
+        return [
             "pcm": data,
             "sampleRate": micSampleRate,
             "bitsPerSample": pcmBitsPerSample,
@@ -131,6 +131,14 @@ class Bridge {
             "voiceActivityDetectionEnabled": enabled,
         ]
         Bridge.sendTypedMessage("voice_activity_detection_status", body: body)
+    }
+
+    static func sendSpeakingStatus(_ speaking: Bool) {
+        let body: [String: Any] = [
+            "speaking": speaking,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        Bridge.sendTypedMessage("speaking_status", body: body)
     }
 
     static func sendBatteryStatus(level: Int, charging: Bool) {

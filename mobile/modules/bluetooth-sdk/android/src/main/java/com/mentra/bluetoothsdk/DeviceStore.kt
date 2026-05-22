@@ -123,6 +123,7 @@ object DeviceStore {
         store.set("bluetooth", "head_up_angle", 30)
         store.set("bluetooth", "contextual_dashboard", true)
         store.set("bluetooth", "gallery_mode", true)
+        store.set("bluetooth", "voice_activity_detection_enabled", false)
         store.set("bluetooth", "screen_disabled", false)
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
@@ -242,6 +243,9 @@ object DeviceStore {
             }
             "bluetooth" to "gallery_mode" -> {
                 DeviceManager.getInstance().sgc?.sendGalleryMode()
+            }
+            "bluetooth" to "voice_activity_detection_enabled" -> {
+                DeviceManager.getInstance().sgc?.sendVoiceActivityDetectionSetting()
             }
             "bluetooth" to "screen_disabled" -> {
                 (value as? Boolean)?.let { disabled ->

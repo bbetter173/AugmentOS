@@ -82,6 +82,7 @@ class DeviceStore {
         store.set("bluetooth", "head_up_angle", 30)
         store.set("bluetooth", "contextual_dashboard", true)
         store.set("bluetooth", "gallery_mode", true)
+        store.set("bluetooth", "voice_activity_detection_enabled", false)
         store.set("bluetooth", "screen_disabled", false)
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
@@ -217,6 +218,9 @@ class DeviceStore {
 
         case ("bluetooth", "gallery_mode"):
             DeviceManager.shared.sgc?.sendGalleryMode()
+
+        case ("bluetooth", "voice_activity_detection_enabled"):
+            DeviceManager.shared.sgc?.sendVoiceActivityDetectionSetting()
 
         case ("bluetooth", "screen_disabled"):
             if let disabled = value as? Bool {

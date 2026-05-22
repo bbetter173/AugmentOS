@@ -13,7 +13,6 @@ class Simulated: SGCManager {
         DeviceStore.shared.apply("glasses", "connectionState", ConnTypes.CONNECTED)
         DeviceStore.shared.apply("glasses", "micEnabled", false)
         DeviceStore.shared.apply("glasses", "voiceActivityDetectionEnabled", false)
-        DeviceStore.shared.apply("glasses", "vadEnabled", false)
         DeviceStore.shared.apply("glasses", "bluetoothClassicConnected", false)
     }
 

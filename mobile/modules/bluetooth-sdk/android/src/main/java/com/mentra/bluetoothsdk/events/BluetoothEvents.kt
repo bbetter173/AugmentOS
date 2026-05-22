@@ -34,6 +34,11 @@ data class VoiceActivityDetectionStatusEvent(
     val values: Map<String, Any>,
 )
 
+data class SpeakingStatusEvent(
+    val speaking: Boolean,
+    val values: Map<String, Any>,
+)
+
 interface MentraBluetoothSdkListener {
     fun onStateChanged(state: MentraBluetoothState) {}
     fun onGlassesChanged(glasses: GlassesRuntimeState) {}
@@ -46,6 +51,7 @@ interface MentraBluetoothSdkListener {
     fun onSwipe(event: SwipeEvent) {}
     fun onHeadUpChanged(headUp: Boolean) {}
     fun onVoiceActivityDetectionStatus(event: VoiceActivityDetectionStatusEvent) {}
+    fun onSpeakingStatus(event: SpeakingStatusEvent) {}
     fun onBatteryStatus(event: BatteryStatusEvent) {}
     fun onWifiStatusChanged(event: WifiStatusEvent) {}
     fun onHotspotStatusChanged(event: HotspotStatusEvent) {}

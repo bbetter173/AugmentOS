@@ -272,6 +272,10 @@ public final class MentraBluetoothSDK {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", enabled)
     }
 
+    public func setVoiceActivityDetectionEnabled(_ enabled: Bool) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "voice_activity_detection_enabled", enabled)
+    }
+
     public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_photo_size", size.rawValue)
     }
@@ -578,6 +582,11 @@ public final class MentraBluetoothSDK {
             delegate?.mentraBluetoothSDK(
                 self,
                 didReceive: .voiceActivityDetectionStatus(VoiceActivityDetectionStatusEvent(values: data))
+            )
+        case "speaking_status":
+            delegate?.mentraBluetoothSDK(
+                self,
+                didReceive: .speakingStatus(SpeakingStatusEvent(values: data))
             )
         case "hotspot_status_change":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(HotspotStatusEvent(values: data)))

@@ -312,6 +312,10 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", enabled)
     }
 
+    fun setVoiceActivityDetectionEnabled(enabled: Boolean) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "voice_activity_detection_enabled", enabled)
+    }
+
     fun setButtonPhotoSettings(size: ButtonPhotoSize) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_photo_size", size.value)
     }
@@ -611,9 +615,16 @@ class MentraBluetoothSdk private constructor(
                     it.onVoiceActivityDetectionStatus(
                         VoiceActivityDetectionStatusEvent(
                             voiceActivityDetectionEnabled =
-                                data["voiceActivityDetectionEnabled"] as? Boolean
-                                    ?: data["enabled"] as? Boolean
-                                    ?: false,
+                                data["voiceActivityDetectionEnabled"] as? Boolean ?: false,
+                            values = data,
+                        )
+                    )
+                }
+            "speaking_status" ->
+                dispatchToListeners {
+                    it.onSpeakingStatus(
+                        SpeakingStatusEvent(
+                            speaking = data["speaking"] as? Boolean ?: false,
                             values = data,
                         )
                     )

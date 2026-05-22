@@ -4559,8 +4559,8 @@ extension MentraLive {
         let enabled = DeviceStore.shared.get("bluetooth", "voice_activity_detection_enabled") as? Bool ?? true
         Bridge.log("LIVE: 🎤 Sending Voice Activity Detection setting to glasses: \(enabled)")
 
-        guard connectionState == ConnTypes.CONNECTED else {
-            Bridge.log("Cannot send Voice Activity Detection setting - not connected")
+        guard connectedPeripheral != nil, txCharacteristic != nil else {
+            Bridge.log("Cannot send Voice Activity Detection setting - BLE write path not ready")
             return
         }
 

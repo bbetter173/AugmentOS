@@ -334,17 +334,37 @@ public class AsgCameraServer extends AsgServer {
                 return createErrorResponse(Response.Status.REQUEST_TIMEOUT, "Gallery request timeout");
             }
 
+            // Filter BEFORE pagination so pages have a consistent size and total_count
+            // reflects only files that will actually be served.
+            List<FileMetadata> servableList = new ArrayList<>(photoMetadataList.size());
+            for (FileMetadata photoMetadata : photoMetadataList) {
+                if (isAvifTransferArtifact(photoMetadata.getFileName())) {
+                    logger.debug(TAG, "📚 Skipping AVIF transfer artifact in gallery: " + photoMetadata.getFileName());
+                    continue;
+                }
+                if (isImuSidecar(photoMetadata.getFileName())) {
+                    continue;
+                }
+                if (isHdrBracket(photoMetadata.getFileName())) {
+                    continue;
+                }
+                if (!shouldExposeServableFile(photoMetadata)) {
+                    continue;
+                }
+                servableList.add(photoMetadata);
+            }
+
             // Sort by modification time (newest first) BEFORE pagination
-            photoMetadataList.sort((a, b) -> Long.compare(b.getLastModified(), a.getLastModified()));
-            
-            // Apply pagination
-            int totalCount = photoMetadataList.size();
+            servableList.sort((a, b) -> Long.compare(b.getLastModified(), a.getLastModified()));
+
+            // Apply pagination on the filtered list
+            int totalCount = servableList.size();
             int endIndex = (limit > 0) ? Math.min(offset + limit, totalCount) : totalCount;
             int actualOffset = Math.min(offset, totalCount);
-            
-            List<FileMetadata> paginatedList = photoMetadataList.subList(actualOffset, endIndex);
+
+            List<FileMetadata> paginatedList = servableList.subList(actualOffset, endIndex);
             boolean hasMore = endIndex < totalCount;
-            
+
             logger.debug(TAG, "📚 Returning photos " + actualOffset + " to " + endIndex + " of " + totalCount);
 
             List<Map<String, Object>> photos = new ArrayList<>();
@@ -352,8 +372,8 @@ public class AsgCameraServer extends AsgServer {
             long totalSize = 0;
             long paginatedSize = 0;
 
-            // Calculate total size (for all photos)
-            for (FileMetadata metadata : photoMetadataList) {
+            // Calculate total size (for all servable photos)
+            for (FileMetadata metadata : servableList) {
                 totalSize += metadata.getFileSize();
             }
 
@@ -363,26 +383,6 @@ public class AsgCameraServer extends AsgServer {
                 if (System.currentTimeMillis() - startTime > timeoutMs) {
                     logger.warn(TAG, "📚 Gallery processing timeout after " + (System.currentTimeMillis() - startTime) + "ms");
                     return createErrorResponse(Response.Status.REQUEST_TIMEOUT, "Gallery processing timeout");
-                }
-
-                // Skip AVIF transfer artifacts - they should not appear in gallery
-                if (isAvifTransferArtifact(photoMetadata.getFileName())) {
-                    logger.debug(TAG, "📚 Skipping AVIF transfer artifact in gallery: " + photoMetadata.getFileName());
-                    continue;
-                }
-
-                // Skip IMU sidecar files - they are metadata, not displayable media
-                if (isImuSidecar(photoMetadata.getFileName())) {
-                    continue;
-                }
-
-                // Skip HDR bracket files - only the merged base file should appear
-                if (isHdrBracket(photoMetadata.getFileName())) {
-                    continue;
-                }
-
-                if (!shouldExposeServableFile(photoMetadata)) {
-                    continue;
                 }
 
                 Map<String, Object> photoInfo = new HashMap<>();

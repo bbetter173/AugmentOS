@@ -816,11 +816,17 @@ public class MediaCaptureService {
                     }
 
                     final String pendingRequestId = requestId;
-                    final String captureId = captureIdFromVideoAbsPath(filePath);
+                    // Prefer the path-derived ID so the integrity check uses the actual file written.
+                    // Fall back to the start-time ID so we always release the in-flight block we added,
+                    // even when the recorder reports a null/altered path.
+                    final String captureIdFromCallback = captureIdFromVideoAbsPath(filePath);
+                    final String captureId = captureIdFromCallback != null ? captureIdFromCallback : captureIdAtStart;
 
                     // Block sync before clearing session state — no gap between active and pending.
+                    if (captureIdAtStart != null) {
+                        videoCaptureIdsInFlight.remove(captureIdAtStart);
+                    }
                     if (captureId != null) {
-                        videoCaptureIdsInFlight.remove(captureId);
                         videoCaptureIdsPendingIntegrityCheck.add(captureId);
                         Log.d(TAG, "Video capture pending integrity check: " + captureId);
                     }
@@ -829,8 +835,12 @@ public class MediaCaptureService {
                     currentVideoId = null;
                     currentVideoPath = null;
 
-                    if (filePath == null || captureId == null) {
+                    if (filePath == null || captureIdFromCallback == null) {
                         Log.e(TAG, "onRecordingStopped received null filePath for " + pendingRequestId);
+                        if (captureId != null) {
+                            // Nothing to verify; release the pending block we just added.
+                            videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+                        }
                         if (mMediaCaptureListener != null) {
                             mMediaCaptureListener.onMediaError(
                                 pendingRequestId,
@@ -912,7 +922,15 @@ public class MediaCaptureService {
                 @Override
                 public void onRecordingError(String videoId, String errorMessage) {
                     Log.e(TAG, "Video recording error: " + videoId + ", error: " + errorMessage);
-                    clearVideoCaptureSyncBlocks(currentVideoPath);
+                    // Release the exact ID we registered at start so the in-flight block can't
+                    // leak even if currentVideoPath has already been cleared.
+                    if (captureIdAtStart != null) {
+                        videoCaptureIdsInFlight.remove(captureIdAtStart);
+                        videoCaptureIdsPendingIntegrityCheck.remove(captureIdAtStart);
+                        Log.d(TAG, "Video capture unblocked from sync filters (error): " + captureIdAtStart);
+                    } else {
+                        clearVideoCaptureSyncBlocks(currentVideoPath);
+                    }
 
                     isRecordingVideo = false;
                     

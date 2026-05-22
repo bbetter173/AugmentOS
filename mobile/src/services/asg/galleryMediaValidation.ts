@@ -63,8 +63,24 @@ function validateVideoSignature(base64Header: string): boolean {
     if (decodedBytes.length < 8) {
       return false
     }
-    // ISO BMFF: bytes 4-7 should be "ftyp"
-    return decodedBytes.substring(4, 8) === "ftyp"
+    // ISO BMFF (mp4, mov, 3gp): bytes 4-7 should be "ftyp"
+    if (decodedBytes.substring(4, 8) === "ftyp") {
+      return true
+    }
+    // RIFF/AVI: bytes 0-3 "RIFF", bytes 8-11 "AVI "
+    if (decodedBytes.length >= 12 && decodedBytes.substring(0, 4) === "RIFF" && decodedBytes.substring(8, 12) === "AVI ") {
+      return true
+    }
+    // EBML (WebM, MKV): bytes 0-3 are 0x1A 0x45 0xDF 0xA3
+    if (
+      decodedBytes.charCodeAt(0) === 0x1a &&
+      decodedBytes.charCodeAt(1) === 0x45 &&
+      decodedBytes.charCodeAt(2) === 0xdf &&
+      decodedBytes.charCodeAt(3) === 0xa3
+    ) {
+      return true
+    }
+    return false
   } catch {
     return false
   }

@@ -89,6 +89,39 @@ describe("galleryMediaValidation", () => {
       ).resolves.toBeUndefined()
     })
 
+    it("accepts AVI RIFF header", async () => {
+      const header = Buffer.alloc(12)
+      header.write("RIFF", 0, 4, "ascii")
+      header.writeUInt32LE(0, 4) // size
+      header.write("AVI ", 8, 4, "ascii")
+      ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+      ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 1024})
+      ;(RNFS.read as jest.Mock).mockResolvedValue(header.toString("base64"))
+
+      await expect(
+        validateDownloadedMediaFile({
+          path: "/tmp/VID_test/clip.avi",
+          name: "VID_test/clip.avi",
+          mediaKind: "video",
+        }),
+      ).resolves.toBeUndefined()
+    })
+
+    it("accepts EBML header for WebM/MKV", async () => {
+      const header = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0, 0, 0, 0, 0, 0, 0, 0])
+      ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+      ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 1024})
+      ;(RNFS.read as jest.Mock).mockResolvedValue(header.toString("base64"))
+
+      await expect(
+        validateDownloadedMediaFile({
+          path: "/tmp/VID_test/clip.webm",
+          name: "VID_test/clip.webm",
+          mediaKind: "video",
+        }),
+      ).resolves.toBeUndefined()
+    })
+
     it("accepts non-media sidecars when mediaKind is unknown", async () => {
       ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
       ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 128})

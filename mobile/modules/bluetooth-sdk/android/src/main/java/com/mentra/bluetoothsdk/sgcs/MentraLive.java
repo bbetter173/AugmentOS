@@ -3488,8 +3488,17 @@ public class MentraLive extends SGCManager {
     }
 
     private void handleSpeakingStatus(boolean speaking) {
+        if (!isVoiceActivityDetectionEnabled()) {
+            Bridge.log("LIVE: Ignoring speaking status because Voice Activity Detection is disabled");
+            return;
+        }
         Bridge.log("LIVE: Speaking status " + (speaking ? "speaking" : "not speaking"));
         Bridge.sendSpeakingStatus(speaking);
+    }
+
+    private boolean isVoiceActivityDetectionEnabled() {
+        Object value = DeviceStore.INSTANCE.get("bluetooth", "voice_activity_detection_enabled");
+        return !(value instanceof Boolean) || (Boolean) value;
     }
 
     private void handleSwitchStatus(int switchType, int switchValue, long timestamp) {

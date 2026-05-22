@@ -3554,6 +3554,10 @@ class MentraLive: NSObject, SGCManager {
     }
 
     private func handleSpeakingStatus(speaking: Bool) {
+        guard voiceActivityDetectionEnabled else {
+            Bridge.log("LIVE: Ignoring speaking status because Voice Activity Detection is disabled")
+            return
+        }
         Bridge.log("LIVE: Speaking status \(speaking ? "speaking" : "not speaking")")
         Bridge.sendSpeakingStatus(speaking)
     }

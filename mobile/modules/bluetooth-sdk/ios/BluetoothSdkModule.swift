@@ -19,7 +19,7 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             "button_press",
             "touch_event",
             "head_up",
-            "vad_status",
+            "voice_activity_detection_status",
             "battery_status",
             "wifi_status_change",
             "hotspot_status_change",
@@ -576,6 +576,8 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             )
         case let .touch(touch):
             sendEvent("touch_event", touch.values)
+        case let .voiceActivityDetectionStatus(status):
+            sendEvent("voice_activity_detection_status", status.values)
         case let .wifiStatus(status):
             sendEvent("wifi_status_change", status.values)
         case let .hotspotStatus(status):

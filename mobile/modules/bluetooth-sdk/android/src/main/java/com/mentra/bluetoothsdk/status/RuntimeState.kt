@@ -74,6 +74,7 @@ sealed interface GlassesRuntimeState {
         val hotspot: HotspotStatus,
         override val ready: Boolean,
         val signal: SignalState,
+        val voiceActivityDetectionEnabled: Boolean,
         val wifi: WifiStatus,
     ) : GlassesRuntimeState {
         override val connected: Boolean = true
@@ -95,6 +96,7 @@ sealed interface GlassesRuntimeState {
                     strengthDbm = status.signalStrength.takeUnless { it == -1 },
                     updatedAt = status.signalStrengthUpdatedAt.takeUnless { it <= 0L },
                 ),
+                voiceActivityDetectionEnabled = status.voiceActivityDetectionEnabled,
                 wifi = status.wifi,
             )
         }

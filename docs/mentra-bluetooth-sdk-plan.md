@@ -520,7 +520,7 @@ BluetoothSdk.addListener("glasses_not_ready", handler)
 BluetoothSdk.addListener("button_press", handler)
 BluetoothSdk.addListener("touch_event", handler)
 BluetoothSdk.addListener("head_up", handler)
-BluetoothSdk.addListener("vad_status", handler)
+BluetoothSdk.addListener("voice_activity_detection_status", handler)
 BluetoothSdk.addListener("battery_status", handler)
 BluetoothSdk.addListener("local_transcription", handler)
 BluetoothSdk.addListener("photo_response", handler)
@@ -548,7 +548,7 @@ The SDK emits raw/typed events. MentraOS-specific cloud protocol messages stay i
 
 ```ts
 BluetoothSdk.addListener("head_up", (event) => socketComms.sendHeadPosition(event.up))
-BluetoothSdk.addListener("vad_status", (event) => socketComms.sendVadStatus(event.status))
+BluetoothSdk.addListener("voice_activity_detection_status", (event) => socketComms.sendVoiceActivityDetectionStatus(event.voiceActivityDetectionEnabled))
 BluetoothSdk.addListener("battery_status", (event) =>
   socketComms.sendBatteryStatus(event.level, event.charging, event.timestamp),
 )

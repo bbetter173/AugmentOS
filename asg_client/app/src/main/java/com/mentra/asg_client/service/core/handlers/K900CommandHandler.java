@@ -117,7 +117,7 @@ public class K900CommandHandler {
                     break;
 
                 case "sr_vad":
-                    // Voice Activity Detection - acknowledge but don't process
+                    // Voice Activity Detection status from BES.
                     handleVoiceActivityDetection(bData);
                     break;
 
@@ -210,15 +210,32 @@ public class K900CommandHandler {
     }
 
     /**
-     * Handle voice activity detection events
-     * Just log these - no processing needed
+     * Handle Voice Activity Detection status from BES and forward it to the phone SDK.
      */
     private void handleVoiceActivityDetection(JSONObject bData) {
         if (bData != null) {
             int on = bData.optInt("on", -1);
-            Log.d(TAG, "🎤 Voice Activity Detection event received - VAD " + (on == 1 ? "ON" : "OFF"));
+            if (on == 0 || on == 1) {
+                Log.d(TAG, "🎤 Voice Activity Detection event received - " + (on == 1 ? "enabled" : "disabled"));
+                sendVoiceActivityDetectionStatus(on == 1);
+            } else {
+                Log.d(TAG, "🎤 Voice Activity Detection event received without valid on field: " + bData);
+            }
         } else {
             Log.d(TAG, "🎤 Voice Activity Detection event received");
+        }
+    }
+
+    private void sendVoiceActivityDetectionStatus(boolean enabled) {
+        try {
+            JSONObject response = new JSONObject();
+            response.put("type", "voice_activity_detection_status");
+            response.put("voiceActivityDetectionEnabled", enabled);
+            response.put("timestamp", System.currentTimeMillis());
+            boolean sent = communicationManager.sendBluetoothResponse(response);
+            Log.d(TAG, "🎤 Voice Activity Detection status forwarded to phone: " + enabled + " (sent=" + sent + ")");
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating Voice Activity Detection status response", e);
         }
     }
 

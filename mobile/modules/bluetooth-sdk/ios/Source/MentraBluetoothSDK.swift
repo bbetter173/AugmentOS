@@ -574,6 +574,11 @@ public final class MentraBluetoothSDK {
                 values: data
             )
             delegate?.mentraBluetoothSDK(self, didReceive: .localTranscription(event))
+        case "voice_activity_detection_status":
+            delegate?.mentraBluetoothSDK(
+                self,
+                didReceive: .voiceActivityDetectionStatus(VoiceActivityDetectionStatusEvent(values: data))
+            )
         case "hotspot_status_change":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(HotspotStatusEvent(values: data)))
         case "wifi_status_change":

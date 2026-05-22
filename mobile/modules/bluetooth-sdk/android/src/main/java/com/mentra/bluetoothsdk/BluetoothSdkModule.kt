@@ -76,6 +76,10 @@ class BluetoothSdkModule : Module() {
                     sendEvent("head_up", mapOf("up" to headUp))
                 }
 
+                override fun onVoiceActivityDetectionStatus(event: VoiceActivityDetectionStatusEvent) {
+                    sendEvent("voice_activity_detection_status", event.values)
+                }
+
                 override fun onBatteryStatus(event: BatteryStatusEvent) {
                     sendEvent("battery_status", event.values)
                 }
@@ -148,7 +152,7 @@ class BluetoothSdkModule : Module() {
             "button_press",
             "touch_event",
             "head_up",
-            "vad_status",
+            "voice_activity_detection_status",
             "battery_status",
             "local_transcription",
             "wifi_status_change",

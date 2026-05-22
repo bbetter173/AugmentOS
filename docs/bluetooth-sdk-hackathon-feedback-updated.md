@@ -50,12 +50,12 @@ The public APIs no longer expose `bypassVad`:
 - Android native SDK: `setMicState(enabled = true, useGlassesMic = true, sendTranscript = false, sendLc3Data = false)`
 - iOS native SDK: `setMicState(enabled: true, useGlassesMic: true, sendTranscript: false, sendLc3Data: false)`
 
-The SDK no longer applies phone-side Voice Activity Detection gating to app-facing PCM or LC3 events. That keeps external STT, WAV writing, recording, and playback on a continuous microphone stream. Glasses-side VAD status remains separate and is reported through `vad_status` when supported.
+The SDK no longer applies phone-side Voice Activity Detection gating to app-facing PCM or LC3 events. That keeps external STT, WAV writing, recording, and playback on a continuous microphone stream. Voice Activity Detection status remains separate and is reported through `voice_activity_detection_status` when supported.
 
 Current behavior:
 
 - Turn microphone capture on or off with `setMicState(enabled, ...)`.
-- Use `vad_status` only as a glasses-side speech/activity signal, not as a phone-side audio gate.
+- Use `voice_activity_detection_status` only as a speech/activity signal, not as a phone-side audio gate.
 
 ### 3. `MicPcmEvent` And `MicLc3Event` Now Include Metadata
 
@@ -71,6 +71,7 @@ export type MicPcmEvent = {
   bitsPerSample: 16
   channels: 1
   encoding: "pcm_s16le"
+  voiceActivityDetectionEnabled: boolean
 }
 
 export type MicLc3Event = {
@@ -83,10 +84,11 @@ export type MicLc3Event = {
   frameSizeBytes: number
   bitrate: number
   packetizedFromGlasses: boolean
+  voiceActivityDetectionEnabled: boolean
 }
 ```
 
-The event payload now says whether PCM is 16 kHz, 16-bit, mono, and signed little-endian. Native Android and iOS callbacks now receive `MicPcmEvent` and `MicLc3Event` objects instead of raw bytes. LC3 events now include the SDK's canonical sample rate, frame duration, frame size, derived bitrate, and whether the emitted frame is packetized exactly as received from glasses.
+The event payload now says whether PCM is 16 kHz, 16-bit, mono, signed little-endian, and whether Voice Activity Detection is currently enabled. Native Android and iOS callbacks now receive `MicPcmEvent` and `MicLc3Event` objects instead of raw bytes. LC3 events now include the SDK's canonical sample rate, frame duration, frame size, derived bitrate, and whether the emitted frame is packetized exactly as received from glasses.
 
 Remaining follow-up: verify the emitted metadata on both iOS and Android hardware while recording PCM and LC3, especially the current `lc3_frame_size` value.
 

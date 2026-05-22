@@ -253,7 +253,7 @@ await BluetoothSdk.rgbLedControl(
 )
 ```
 
-`setMicState(true)` defaults to continuous microphone PCM from the glasses. The SDK does not apply phone-side Voice Activity Detection gating to microphone audio events; glasses-side VAD status is reported separately through `vad_status` events when supported.
+`setMicState(true)` defaults to continuous microphone PCM from the glasses. The SDK does not apply phone-side Voice Activity Detection gating to microphone audio events; Voice Activity Detection status is reported separately through `voice_activity_detection_status` events when supported. Microphone events include the latest `voiceActivityDetectionEnabled` value.
 
 ## Photo Upload
 

@@ -1822,6 +1822,10 @@ class MentraLive: NSObject, SGCManager {
             let isCharging = json["charging"] as? Bool ?? charging
             updateBatteryStatus(level: level, isCharging: isCharging)
 
+        case "voice_activity_detection_status":
+            let enabled = json["voiceActivityDetectionEnabled"] as? Bool ?? false
+            handleVoiceActivityDetectionStatus(enabled: enabled)
+
         case "wifi_status":
             let connected = json["connected"] as? Bool ?? false
             let ssid = json["ssid"] as? String ?? ""
@@ -2251,6 +2255,14 @@ class MentraLive: NSObject, SGCManager {
 
         case "sr_vol":
             handleSrVol(json)
+
+        case "sr_vad":
+            if let bodyObj = json["B"] as? [String: Any],
+               let on = bodyObj["on"] as? Int,
+               on == 0 || on == 1
+            {
+                handleVoiceActivityDetectionStatus(enabled: on == 1)
+            }
 
         case "sr_shut":
             Bridge.log("K900 shutdown command received - glasses shutting down")
@@ -3520,6 +3532,11 @@ class MentraLive: NSObject, SGCManager {
         if level >= 0 {
             Bridge.sendBatteryStatus(level: level, charging: isCharging)
         }
+    }
+
+    private func handleVoiceActivityDetectionStatus(enabled: Bool) {
+        Bridge.log("LIVE: Voice Activity Detection \(enabled ? "enabled" : "disabled")")
+        Bridge.sendVoiceActivityDetectionStatus(enabled)
     }
 
     private func updateWifiStatus(connected: Bool, ssid: String, ip: String) {

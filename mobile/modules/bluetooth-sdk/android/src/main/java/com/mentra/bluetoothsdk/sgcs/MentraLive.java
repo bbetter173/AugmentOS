@@ -2332,6 +2332,11 @@ public class MentraLive extends SGCManager {
                 }
                 break;
 
+            case "voice_activity_detection_status":
+                handleVoiceActivityDetectionStatus(
+                        json.optBoolean("voiceActivityDetectionEnabled", false));
+                break;
+
             case "battery_status":
                 // Process battery status
                 int percent = json.optInt("percent", getBatteryLevel());
@@ -3209,6 +3214,20 @@ public class MentraLive extends SGCManager {
                 handleSrVol(json);
                 break;
 
+            case "sr_vad":
+                try {
+                    JSONObject bodyObj = json.optJSONObject("B");
+                    if (bodyObj != null) {
+                        int on = bodyObj.optInt("on", -1);
+                        if (on == 0 || on == 1) {
+                            handleVoiceActivityDetectionStatus(on == 1);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing sr_vad response", e);
+                }
+                break;
+
             case "sr_shut":
                 Bridge.log("LIVE: K900 shutdown command received - glasses shutting down");
                 lastShutdownTimeMs = System.currentTimeMillis();
@@ -3444,6 +3463,11 @@ public class MentraLive extends SGCManager {
         if (level >= 0) {
             Bridge.sendBatteryStatus(level, isCharging);
         }
+    }
+
+    private void handleVoiceActivityDetectionStatus(boolean enabled) {
+        Bridge.log("LIVE: Voice Activity Detection " + (enabled ? "enabled" : "disabled"));
+        Bridge.sendVoiceActivityDetectionStatus(enabled);
     }
 
     /**

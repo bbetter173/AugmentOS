@@ -133,6 +133,7 @@ struct GlassesStatus: CustomStringConvertible {
     var fullyBooted: Bool { boolValue(values, "fullyBooted") ?? false }
     var connected: Bool { boolValue(values, "connected") ?? false }
     var micEnabled: Bool { boolValue(values, "micEnabled") ?? false }
+    var voiceActivityDetectionEnabled: Bool { boolValue(values, "voiceActivityDetectionEnabled") ?? false }
     var connectionState: GlassesConnectionState { GlassesConnectionState(stringValue(values, "connectionState")) }
     var bluetoothClassicConnected: Bool { boolValue(values, "bluetoothClassicConnected") ?? false }
     var signalStrength: Int { intValue(values["signalStrength"]) ?? -1 }
@@ -338,6 +339,7 @@ struct GlassesStatusUpdate: CustomStringConvertible {
     var fullyBooted: Bool? { optionalBoolValue(values, "fullyBooted") }
     var connected: Bool? { optionalBoolValue(values, "connected") }
     var micEnabled: Bool? { optionalBoolValue(values, "micEnabled") }
+    var voiceActivityDetectionEnabled: Bool? { optionalBoolValue(values, "voiceActivityDetectionEnabled") }
     var connectionState: GlassesConnectionState? {
         GlassesConnectionState.fromValue(optionalStringValue(values, "connectionState"))
     }

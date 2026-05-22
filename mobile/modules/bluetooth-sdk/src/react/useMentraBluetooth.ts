@@ -77,6 +77,7 @@ export type GlassesRuntimeState =
       hotspot: HotspotStatus
       ready: boolean
       signal: SignalState
+      voiceActivityDetectionEnabled: boolean
       wifi: WifiStatus
     }
 
@@ -219,6 +220,7 @@ function runtimeGlassesState(status: Partial<PublicGlassesStatus>): GlassesRunti
       strengthDbm: numberValue((status as Record<string, unknown>).signalStrength),
       updatedAt: numberValue((status as Record<string, unknown>).signalStrengthUpdatedAt),
     },
+    voiceActivityDetectionEnabled: status.voiceActivityDetectionEnabled ?? false,
     wifi: status.wifi ?? {state: "disconnected"},
   }
 }

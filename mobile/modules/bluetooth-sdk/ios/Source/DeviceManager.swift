@@ -925,6 +925,7 @@ struct ViewState {
 
     func handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
+        DeviceStore.shared.apply("glasses", "voiceActivityDetectionEnabled", false)
         // shouldSendBootingMessage = true  // Reset for next first connect
     }
 
@@ -1313,6 +1314,7 @@ struct ViewState {
         DeviceStore.shared.apply("glasses", "deviceModel", "")
         DeviceStore.shared.apply("glasses", "fullyBooted", false)
         DeviceStore.shared.apply("glasses", "connected", false)
+        DeviceStore.shared.apply("glasses", "voiceActivityDetectionEnabled", false)
         // disconnect the controller as well:
         searchingController = false
         DeviceStore.shared.apply("glasses", "controllerConnected", false)

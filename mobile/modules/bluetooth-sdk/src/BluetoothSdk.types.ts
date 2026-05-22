@@ -22,9 +22,9 @@ export type HeadUpEvent = {
   up: boolean
 }
 
-export type VadStatusEvent = {
-  type: "vad_status"
-  status: boolean
+export type VoiceActivityDetectionStatusEvent = {
+  type: "voice_activity_detection_status"
+  voiceActivityDetectionEnabled: boolean
 }
 
 export type BatteryStatusEvent = {
@@ -61,6 +61,7 @@ export function createDisconnectedGlassesStatus(): Partial<GlassesStatus> {
   return {
     connection: {state: 'disconnected'},
     hotspot: {state: 'disabled'},
+    voiceActivityDetectionEnabled: false,
     wifi: {state: 'disconnected'},
   }
 }
@@ -313,6 +314,7 @@ export type MicPcmEvent = {
   bitsPerSample: 16
   channels: 1
   encoding: "pcm_s16le"
+  voiceActivityDetectionEnabled: boolean
 }
 
 export type MicLc3Event = {
@@ -325,6 +327,7 @@ export type MicLc3Event = {
   frameSizeBytes: number
   bitrate: number
   packetizedFromGlasses: boolean
+  voiceActivityDetectionEnabled: boolean
 }
 
 export type StreamStatusLifecycleState = "initializing" | "streaming" | "stopping" | "stopped"
@@ -462,7 +465,7 @@ export type BluetoothSdkModuleEvents = {
   button_press: (event: ButtonPressEvent) => void
   touch_event: (event: TouchEvent) => void
   head_up: (event: HeadUpEvent) => void
-  vad_status: (event: VadStatusEvent) => void
+  voice_activity_detection_status: (event: VoiceActivityDetectionStatusEvent) => void
   battery_status: (event: BatteryStatusEvent) => void
   local_transcription: (event: LocalTranscriptionEvent) => void
   wifi_status_change: (event: WifiStatusChangeEvent) => void
@@ -523,7 +526,7 @@ export type BluetoothSdkEventMap = {
   button_press: ButtonPressEvent
   touch_event: TouchEvent
   head_up: HeadUpEvent
-  vad_status: VadStatusEvent
+  voice_activity_detection_status: VoiceActivityDetectionStatusEvent
   battery_status: BatteryStatusEvent
   local_transcription: LocalTranscriptionEvent
   wifi_status_change: WifiStatusChangeEvent
@@ -667,6 +670,7 @@ export interface GlassesStatus {
   // state:
   connection: GlassesConnectionStatus
   micEnabled: boolean
+  voiceActivityDetectionEnabled: boolean
   bluetoothClassicConnected: boolean
   signalStrength: number
   /** Milliseconds since epoch when signalStrength was last refreshed by the phone BLE stack. */

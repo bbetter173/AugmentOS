@@ -606,6 +606,18 @@ class MentraBluetoothSdk private constructor(
                 }
             }
             "head_up" -> dispatchToListeners { it.onHeadUpChanged(data["up"] as? Boolean ?: false) }
+            "voice_activity_detection_status" ->
+                dispatchToListeners {
+                    it.onVoiceActivityDetectionStatus(
+                        VoiceActivityDetectionStatusEvent(
+                            voiceActivityDetectionEnabled =
+                                data["voiceActivityDetectionEnabled"] as? Boolean
+                                    ?: data["enabled"] as? Boolean
+                                    ?: false,
+                            values = data,
+                        )
+                    )
+                }
             "battery_status" ->
                 dispatchToListeners {
                     it.onBatteryStatus(

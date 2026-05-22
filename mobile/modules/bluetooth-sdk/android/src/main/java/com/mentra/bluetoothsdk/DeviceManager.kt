@@ -1097,6 +1097,7 @@ class DeviceManager {
     fun handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
         DeviceStore.apply("glasses", "headUp", false)
+        DeviceStore.apply("glasses", "voiceActivityDetectionEnabled", false)
     }
 
     fun handleControllerReady() {
@@ -1500,6 +1501,7 @@ class DeviceManager {
         DeviceStore.apply("glasses", "deviceModel", "")
         DeviceStore.apply("glasses", "fullyBooted", false)
         DeviceStore.apply("glasses", "connected", false)
+        DeviceStore.apply("glasses", "voiceActivityDetectionEnabled", false)
         // disconnect the controller as well:
         searchingController = false
         DeviceStore.apply("glasses", "controllerConnected", false)

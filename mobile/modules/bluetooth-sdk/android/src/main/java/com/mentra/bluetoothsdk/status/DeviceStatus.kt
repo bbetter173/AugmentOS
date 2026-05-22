@@ -32,6 +32,7 @@ internal data class GlassesStatus(
     val fullyBooted: Boolean,
     val connected: Boolean,
     val micEnabled: Boolean,
+    val voiceActivityDetectionEnabled: Boolean,
     val connectionState: GlassesConnectionState,
     val bluetoothClassicConnected: Boolean,
     val signalStrength: Int,
@@ -72,6 +73,7 @@ internal data class GlassesStatus(
         mapOf(
             "connection" to connectionState.toStatusMap(connected, fullyBooted),
             "micEnabled" to micEnabled,
+            "voiceActivityDetectionEnabled" to voiceActivityDetectionEnabled,
             "bluetoothClassicConnected" to bluetoothClassicConnected,
             "signalStrength" to signalStrength,
             "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
@@ -114,6 +116,7 @@ internal data class GlassesStatus(
                 fullyBooted = boolValue(values, "fullyBooted") ?: false,
                 connected = boolValue(values, "connected") ?: false,
                 micEnabled = boolValue(values, "micEnabled") ?: false,
+                voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?: false,
                 connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")),
                 bluetoothClassicConnected = boolValue(values, "bluetoothClassicConnected") ?: false,
                 signalStrength = numberValue(values, "signalStrength") ?: -1,
@@ -308,6 +311,7 @@ internal data class GlassesStatusUpdate(
     val fullyBooted: Boolean? = null,
     val connected: Boolean? = null,
     val micEnabled: Boolean? = null,
+    val voiceActivityDetectionEnabled: Boolean? = null,
     val connectionState: GlassesConnectionState? = null,
     val bluetoothClassicConnected: Boolean? = null,
     val signalStrength: Int? = null,
@@ -357,6 +361,7 @@ internal data class GlassesStatusUpdate(
                 put("connection", state.toStatusMap(connected == true, fullyBooted == true))
             }
             putIfNotNull("micEnabled", micEnabled)
+            putIfNotNull("voiceActivityDetectionEnabled", voiceActivityDetectionEnabled)
             putIfNotNull("bluetoothClassicConnected", bluetoothClassicConnected)
             putIfNotNull("signalStrength", signalStrength)
             putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
@@ -403,6 +408,7 @@ internal data class GlassesStatusUpdate(
                 fullyBooted = optionalBoolValue(values, "fullyBooted"),
                 connected = optionalBoolValue(values, "connected"),
                 micEnabled = optionalBoolValue(values, "micEnabled"),
+                voiceActivityDetectionEnabled = optionalBoolValue(values, "voiceActivityDetectionEnabled"),
                 connectionState = GlassesConnectionState.optionalFromValue(optionalStringValue(values, "connectionState")),
                 bluetoothClassicConnected = optionalBoolValue(values, "bluetoothClassicConnected"),
                 signalStrength = optionalNumberValue(values, "signalStrength"),

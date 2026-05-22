@@ -150,16 +150,23 @@ public class Bridge private constructor() {
         }
 
         private fun micPcmEventBody(data: ByteArray): HashMap<String, Any> {
+            val voiceActivityDetectionEnabled =
+                    DeviceStore.get("glasses", "voiceActivityDetectionEnabled") as? Boolean
+                            ?: false
             val body = HashMap<String, Any>()
             body["pcm"] = data
             body["sampleRate"] = MIC_SAMPLE_RATE
             body["bitsPerSample"] = PCM_BITS_PER_SAMPLE
             body["channels"] = MIC_CHANNELS
             body["encoding"] = "pcm_s16le"
+            body["voiceActivityDetectionEnabled"] = voiceActivityDetectionEnabled
             return body
         }
 
         private fun micLc3EventBody(data: ByteArray): HashMap<String, Any> {
+            val voiceActivityDetectionEnabled =
+                    DeviceStore.get("glasses", "voiceActivityDetectionEnabled") as? Boolean
+                            ?: false
             val frameSizeBytes =
                     (DeviceStore.store.get("bluetooth", "lc3_frame_size") as? Number)?.toInt()
                             ?: DEFAULT_LC3_FRAME_SIZE_BYTES
@@ -172,6 +179,7 @@ public class Bridge private constructor() {
             body["frameSizeBytes"] = frameSizeBytes
             body["bitrate"] = frameSizeBytes * 8 * (1000 / LC3_FRAME_DURATION_MS)
             body["packetizedFromGlasses"] = false
+            body["voiceActivityDetectionEnabled"] = voiceActivityDetectionEnabled
             return body
         }
 
@@ -184,12 +192,13 @@ public class Bridge private constructor() {
             sendTypedMessage("save_setting", body as Map<String, Any>)
         }
 
-        /** Send VAD (Voice Activity Detection) status */
+        /** Send Voice Activity Detection status */
         @JvmStatic
-        fun sendVadEvent(isSpeaking: Boolean) {
+        fun sendVoiceActivityDetectionStatus(enabled: Boolean) {
+            DeviceStore.set("glasses", "voiceActivityDetectionEnabled", enabled)
             val body = HashMap<String, Any>()
-            body["status"] = isSpeaking
-            sendTypedMessage("vad_status", body as Map<String, Any>)
+            body["voiceActivityDetectionEnabled"] = enabled
+            sendTypedMessage("voice_activity_detection_status", body as Map<String, Any>)
         }
 
         /** Send battery status */

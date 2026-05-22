@@ -117,8 +117,8 @@ public class K900CommandHandler {
                     break;
 
                 case "sr_vad":
-                    // Speaking/not-speaking status from BES-side Voice Activity Detection.
-                    handleSpeakingStatus(bData);
+                    // Voice Activity Detection - acknowledge but don't process
+                    handleVoiceActivityDetection(bData);
                     break;
 
                 case "hs_syvr":
@@ -210,32 +210,15 @@ public class K900CommandHandler {
     }
 
     /**
-     * Handle speaking/not-speaking status from BES and forward it to the phone SDK.
+     * Handle voice activity detection events
+     * Just log these - no processing needed
      */
-    private void handleSpeakingStatus(JSONObject bData) {
+    private void handleVoiceActivityDetection(JSONObject bData) {
         if (bData != null) {
             int on = bData.optInt("on", -1);
-            if (on == 0 || on == 1) {
-                Log.d(TAG, "🎤 Speaking status received - " + (on == 1 ? "speaking" : "not speaking"));
-                sendSpeakingStatus(on == 1);
-            } else {
-                Log.d(TAG, "🎤 Speaking status received without valid on field: " + bData);
-            }
+            Log.d(TAG, "🎤 Voice Activity Detection event received - VAD " + (on == 1 ? "ON" : "OFF"));
         } else {
-            Log.d(TAG, "🎤 Speaking status received");
-        }
-    }
-
-    private void sendSpeakingStatus(boolean speaking) {
-        try {
-            JSONObject response = new JSONObject();
-            response.put("type", "speaking_status");
-            response.put("speaking", speaking);
-            response.put("timestamp", System.currentTimeMillis());
-            boolean sent = communicationManager.sendBluetoothResponse(response);
-            Log.d(TAG, "🎤 Speaking status forwarded to phone: " + speaking + " (sent=" + sent + ")");
-        } catch (JSONException e) {
-            Log.e(TAG, "Error creating speaking status response", e);
+            Log.d(TAG, "🎤 Voice Activity Detection event received");
         }
     }
 

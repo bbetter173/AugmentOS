@@ -17,7 +17,7 @@ import {SETTINGS, useSetting} from "@/stores/settings"
  */
 export function GalleryModeSync() {
   const applets = useApps()
-  const [galleryMode, setGalleryMode] = useSetting(SETTINGS.galleryModeAuto.key)
+  const [galleryMode, setGalleryMode] = useSetting(SETTINGS.gallery_mode.key)
 
   useEffect(() => {
     // console.log(`📸 [GalleryModeSync] Effect triggered, ${applets.length} applets loaded`)
@@ -47,7 +47,7 @@ export function GalleryModeSync() {
     //   `[GalleryModeSync] Camera: ${cameraApp ? `RUNNING` : "NOT RUNNING"}, ` +
     //     `OtherApp: ${otherForegroundApp ? `RUNNING (${otherForegroundApp.name}, ${otherForegroundApp.packageName})` : "NOT RUNNING"}, ` +
     //     `Capture: ${shouldEnableCapture ? "ENABLED" : "DISABLED"} ` +
-    //     `(Setting galleryModeAuto to ${shouldEnableCapture})`,
+    //     `(Setting gallery_mode to ${shouldEnableCapture})`,
     // )
 
     if (galleryMode !== shouldEnableCapture) {

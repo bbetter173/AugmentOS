@@ -153,8 +153,8 @@ extension ControllerManager {
         DeviceStore.shared.get("glasses", "micEnabled") as? Bool ?? false
     }
 
-    var vadEnabled: Bool {
-        DeviceStore.shared.get("glasses", "vadEnabled") as? Bool ?? false
+    var voiceActivityDetectionEnabled: Bool {
+        DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? true
     }
 
     var batteryLevel: Int {

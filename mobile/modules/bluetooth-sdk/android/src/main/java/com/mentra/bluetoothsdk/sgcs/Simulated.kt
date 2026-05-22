@@ -14,6 +14,7 @@ class Simulated : SGCManager() {
         DeviceStore.apply("glasses", "connected", true)
         DeviceStore.apply("glasses", "connectionState", ConnTypes.CONNECTED)
         DeviceStore.apply("glasses", "micEnabled", false)
+        DeviceStore.apply("glasses", "voiceActivityDetectionEnabled", true)
     }
 
     // Audio Control

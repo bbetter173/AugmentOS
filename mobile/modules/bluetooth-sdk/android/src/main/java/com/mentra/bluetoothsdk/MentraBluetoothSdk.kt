@@ -308,8 +308,12 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "screen_disabled", disabled)
     }
 
-    fun setGalleryMode(mode: GalleryMode) {
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "galleryModeAuto", mode == GalleryMode.AUTO)
+    fun setGalleryModeEnabled(enabled: Boolean) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "gallery_mode", enabled)
+    }
+
+    fun setVoiceActivityDetectionEnabled(enabled: Boolean) {
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "voice_activity_detection_enabled", enabled)
     }
 
     fun setButtonPhotoSettings(size: ButtonPhotoSize) {
@@ -320,14 +324,14 @@ class MentraBluetoothSdk private constructor(
         setButtonPhotoSettings(size = settings.size)
     }
 
-    fun setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) {
+    fun setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_width", width)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_height", height)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", frameRate)
+        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "button_video_fps", fps)
     }
 
     fun setButtonVideoRecordingSettings(settings: ButtonVideoRecordingSettings) {
-        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, frameRate = settings.frameRate)
+        setButtonVideoRecordingSettings(width = settings.width, height = settings.height, fps = settings.fps)
     }
 
     fun setButtonCameraLed(enabled: Boolean) {
@@ -342,14 +346,13 @@ class MentraBluetoothSdk private constructor(
         DeviceStore.apply(
             ObservableStore.BLUETOOTH_CATEGORY,
             "camera_fov",
-            mapOf("fov" to fov.fov, "roiPosition" to fov.roiPosition),
+            mapOf("fov" to fov.fov, "roi_position" to fov.roiPosition),
         )
     }
 
     fun setMicState(
         enabled: Boolean,
         useGlassesMic: Boolean = true,
-        bypassVad: Boolean = true,
         sendTranscript: Boolean = false,
         sendLc3Data: Boolean = false,
     ) {
@@ -363,7 +366,6 @@ class MentraBluetoothSdk private constructor(
         applyMicState(
             sendPcmData = enabled,
             sendTranscript = enabled && sendTranscript,
-            bypassVad = bypassVad,
             sendLc3Data = enabled && sendLc3Data,
         )
     }
@@ -371,13 +373,11 @@ class MentraBluetoothSdk private constructor(
     private fun applyMicState(
         sendPcmData: Boolean,
         sendTranscript: Boolean,
-        bypassVad: Boolean,
         sendLc3Data: Boolean,
     ) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_pcm", sendPcmData)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_lc3", sendLc3Data)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_transcript", sendTranscript)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "bypass_vad", bypassVad)
         deviceManager.setMicState()
     }
 
@@ -610,6 +610,25 @@ class MentraBluetoothSdk private constructor(
                 }
             }
             "head_up" -> dispatchToListeners { it.onHeadUpChanged(data["up"] as? Boolean ?: false) }
+            "voice_activity_detection_status" ->
+                dispatchToListeners {
+                    it.onVoiceActivityDetectionStatus(
+                        VoiceActivityDetectionStatusEvent(
+                            voiceActivityDetectionEnabled =
+                                data["voiceActivityDetectionEnabled"] as? Boolean ?: true,
+                            values = data,
+                        )
+                    )
+                }
+            "speaking_status" ->
+                dispatchToListeners {
+                    it.onSpeakingStatus(
+                        SpeakingStatusEvent(
+                            speaking = data["speaking"] as? Boolean ?: false,
+                            values = data,
+                        )
+                    )
+                }
             "battery_status" ->
                 dispatchToListeners {
                     it.onBatteryStatus(

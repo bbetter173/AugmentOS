@@ -121,7 +121,7 @@ export interface GlassesInfo {
 
   // Device identification
   androidVersion?: string
-  firmwareVersion?: string
+  fwVersion?: string
   buildNumber?: string
   bluetoothName?: string
   serialNumber?: string

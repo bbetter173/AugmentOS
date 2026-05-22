@@ -19,7 +19,8 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             "button_press",
             "touch_event",
             "head_up",
-            "vad_status",
+            "voice_activity_detection_status",
+            "speaking_status",
             "battery_status",
             "wifi_status_change",
             "hotspot_status_change",
@@ -291,21 +292,14 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("setGalleryMode") { (mode: String) in
-            let galleryMode: GalleryMode
-            switch mode.lowercased() {
-            case "auto":
-                galleryMode = .auto
-            case "manual":
-                galleryMode = .manual
-            default:
-                throw BluetoothError(
-                    code: "invalid_gallery_mode",
-                    message: "setGalleryMode mode must be \"auto\" or \"manual\"."
-                )
-            }
+        AsyncFunction("setGalleryModeEnabled") { (enabled: Bool) in
             let sdk = await MainActor.run { self.bluetoothSdk() }
-            try await sdk.setGalleryMode(galleryMode)
+            try await sdk.setGalleryModeEnabled(enabled)
+        }
+
+        AsyncFunction("setVoiceActivityDetectionEnabled") { (enabled: Bool) in
+            let sdk = await MainActor.run { self.bluetoothSdk() }
+            try await sdk.setVoiceActivityDetectionEnabled(enabled)
         }
 
         AsyncFunction("queryGalleryStatus") {
@@ -470,7 +464,6 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("setMicState") { (
             enabled: Bool,
             useGlassesMic: Bool?,
-            bypassVad: Bool?,
             sendTranscript: Bool?,
             sendLc3Data: Bool?
         ) in
@@ -478,7 +471,6 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                 self.bluetoothSdk().setMicState(
                     enabled: enabled,
                     useGlassesMic: useGlassesMic ?? true,
-                    bypassVad: bypassVad ?? true,
                     sendTranscript: sendTranscript ?? false,
                     sendLc3Data: sendLc3Data ?? false
                 )
@@ -590,6 +582,10 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
             )
         case let .touch(touch):
             sendEvent("touch_event", touch.values)
+        case let .voiceActivityDetectionStatus(status):
+            sendEvent("voice_activity_detection_status", status.values)
+        case let .speakingStatus(status):
+            sendEvent("speaking_status", status.values)
         case let .wifiStatus(status):
             sendEvent("wifi_status_change", status.values)
         case let .hotspotStatus(status):

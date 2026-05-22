@@ -105,6 +105,7 @@ public class MentraLive extends SGCManager {
 
     // LC3 frame size for Mentra Live
     private static final int LC3_FRAME_SIZE = 40;
+    private static final int VOICE_ACTIVITY_DETECTION_SWITCH_TYPE = 8;
 
     // Local-only fields (not in parent SGCManager)
     private int buildNumberInt = 0; // Build number as integer for version checks
@@ -2332,6 +2333,15 @@ public class MentraLive extends SGCManager {
                 }
                 break;
 
+            case "voice_activity_detection_status":
+                handleVoiceActivityDetectionStatus(
+                        json.optBoolean("voiceActivityDetectionEnabled", true));
+                break;
+
+            case "speaking_status":
+                handleSpeakingStatus(json.optBoolean("speaking", false));
+                break;
+
             case "battery_status":
                 // Process battery status
                 int percent = json.optInt("percent", getBatteryLevel());
@@ -2623,15 +2633,14 @@ public class MentraLive extends SGCManager {
 
             case "switch_status":
                 // Process switch status report from glasses
-                int switchType = json.optInt("switch_type", -1);
-                int switchValue = json.optInt("switch_value", -1);
+                int switchType = json.has("switch_type") ? json.optInt("switch_type", -1) : json.optInt("switchType", -1);
+                int switchValue = json.has("switch_value") ? json.optInt("switch_value", -1) : json.optInt("switchValue", -1);
                 long switchTimestamp = json.optLong("timestamp", System.currentTimeMillis());
 
                 Log.d(TAG, "🔘 Received switch status - Type: " + switchType +
                       ", Value: " + switchValue);
 
-                // Send switch status to React Native
-                Bridge.sendSwitchStatus(switchType, switchValue, switchTimestamp);
+                handleSwitchStatus(switchType, switchValue, switchTimestamp);
                 break;
 
             case "sensor_data":
@@ -3209,6 +3218,33 @@ public class MentraLive extends SGCManager {
                 handleSrVol(json);
                 break;
 
+            case "sr_vad":
+                try {
+                    JSONObject bodyObj = optK900Body(json);
+                    if (bodyObj != null) {
+                        int on = bodyObj.optInt("on", -1);
+                        if (on == 0 || on == 1) {
+                            handleSpeakingStatus(on == 1);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing sr_vad response", e);
+                }
+                break;
+
+            case "sr_swit":
+                try {
+                    JSONObject bodyObj = optK900Body(json);
+                    if (bodyObj != null) {
+                        int type = bodyObj.optInt("type", -1);
+                        int value = bodyObj.optInt("switch", -1);
+                        handleSwitchStatus(type, value, System.currentTimeMillis());
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing sr_swit response", e);
+                }
+                break;
+
             case "sr_shut":
                 Bridge.log("LIVE: K900 shutdown command received - glasses shutting down");
                 lastShutdownTimeMs = System.currentTimeMillis();
@@ -3446,6 +3482,23 @@ public class MentraLive extends SGCManager {
         }
     }
 
+    private void handleVoiceActivityDetectionStatus(boolean enabled) {
+        Bridge.log("LIVE: Voice Activity Detection " + (enabled ? "enabled" : "disabled"));
+        Bridge.sendVoiceActivityDetectionStatus(enabled);
+    }
+
+    private void handleSpeakingStatus(boolean speaking) {
+        Bridge.log("LIVE: Speaking status " + (speaking ? "speaking" : "not speaking"));
+        Bridge.sendSpeakingStatus(speaking);
+    }
+
+    private void handleSwitchStatus(int switchType, int switchValue, long timestamp) {
+        Bridge.sendSwitchStatus(switchType, switchValue, timestamp);
+        if (switchType == VOICE_ACTIVITY_DETECTION_SWITCH_TYPE && (switchValue == 0 || switchValue == 1)) {
+            handleVoiceActivityDetectionStatus(switchValue == 1);
+        }
+    }
+
     /**
      * Update WiFi status and notify listeners
      * Matches iOS MentraLive.swift updateWifiStatus pattern
@@ -3631,7 +3684,7 @@ public class MentraLive extends SGCManager {
 
     @Override
     public void sendGalleryMode() {
-        boolean active = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "galleryModeAuto");
+        boolean active = (Boolean) DeviceStore.INSTANCE.get("bluetooth", "gallery_mode");
         Bridge.log("LIVE: 📸 Sending gallery mode active to glasses: " + active);
         try {
             JSONObject json = new JSONObject();
@@ -4772,7 +4825,7 @@ public class MentraLive extends SGCManager {
                 Map<String, Object> videoSettings = (Map<String, Object>) videoSettingsObj;
                 videoWidth = ((Number) videoSettings.getOrDefault("width", videoWidth)).intValue();
                 videoHeight = ((Number) videoSettings.getOrDefault("height", videoHeight)).intValue();
-                videoFps = ((Number) videoSettings.getOrDefault("frameRate", videoFps)).intValue();
+                videoFps = ((Number) videoSettings.getOrDefault("fps", videoFps)).intValue();
             } else {
                 Object width = DeviceStore.INSTANCE.get("bluetooth", "button_video_width");
                 Object height = DeviceStore.INSTANCE.get("bluetooth", "button_video_height");
@@ -6493,6 +6546,46 @@ public class MentraLive extends SGCManager {
 
         // Send gallery mode state (camera app running status)
         sendGalleryMode();
+
+        // Send glasses-side Voice Activity Detection setting.
+        sendVoiceActivityDetectionSetting();
+    }
+
+    @Override
+    public void sendVoiceActivityDetectionSetting() {
+        Object value = DeviceStore.INSTANCE.get("bluetooth", "voice_activity_detection_enabled");
+        boolean enabled = value instanceof Boolean ? (Boolean) value : true;
+
+        Bridge.log("LIVE: 🎤 Sending Voice Activity Detection setting to glasses: " + enabled);
+
+        if (!isConnected) {
+            Bridge.log("LIVE: Cannot send Voice Activity Detection setting - not connected");
+            return;
+        }
+
+        try {
+            JSONObject body = new JSONObject();
+            body.put("type", VOICE_ACTIVITY_DETECTION_SWITCH_TYPE);
+            body.put("switch", enabled ? 1 : 0);
+
+            JSONObject cmdObject = new JSONObject();
+            cmdObject.put("C", "cs_swit");
+            cmdObject.put("V", 1);
+            cmdObject.put("B", body.toString());
+
+            byte[] packedData =
+                    K900ProtocolUtils.packDataToK900(
+                            cmdObject.toString().getBytes(StandardCharsets.UTF_8),
+                            K900ProtocolUtils.CMD_TYPE_STRING);
+            if (packedData == null) {
+                Bridge.log("LIVE: Failed to pack Voice Activity Detection setting command");
+                return;
+            }
+            queueData(packedData);
+            Bridge.sendVoiceActivityDetectionStatus(enabled);
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating Voice Activity Detection setting command", e);
+        }
     }
 
     /**
@@ -6543,7 +6636,7 @@ public class MentraLive extends SGCManager {
     }
 
     /**
-     * Send camera FOV setting to glasses (K900 / Mentra Live). Reads fov and roiPosition from store.
+     * Send camera FOV setting to glasses (K900 / Mentra Live).
      */
     @Override
     public void sendCameraFovSetting() {
@@ -6555,7 +6648,7 @@ public class MentraLive extends SGCManager {
                 @SuppressWarnings("unchecked")
                 java.util.Map<String, Object> map = (java.util.Map<String, Object>) raw;
                 Object f = map.get("fov");
-                Object r = map.get("roiPosition");
+                Object r = map.get("roi_position");
                 if (f instanceof Number) fov = ((Number) f).intValue();
                 if (r instanceof Number) roiPosition = ((Number) r).intValue();
             }

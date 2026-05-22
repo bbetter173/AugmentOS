@@ -121,6 +121,7 @@ public enum GlassesRuntimeState: CustomStringConvertible {
         hotspot: HotspotStatus,
         ready: Bool,
         signal: SignalState,
+        voiceActivityDetectionEnabled: Bool,
         wifi: WifiStatus
     )
 
@@ -153,6 +154,7 @@ public enum GlassesRuntimeState: CustomStringConvertible {
                 strengthDbm: status.signalStrength == -1 ? nil : status.signalStrength,
                 updatedAt: status.signalStrengthUpdatedAt <= 0 ? nil : status.signalStrengthUpdatedAt
             ),
+            voiceActivityDetectionEnabled: status.voiceActivityDetectionEnabled,
             wifi: status.wifi
         )
     }
@@ -168,7 +170,7 @@ public enum GlassesRuntimeState: CustomStringConvertible {
         switch self {
         case let .disconnected(connection):
             connection
-        case let .connected(_, connection, _, _, _, _, _, _):
+        case let .connected(_, connection, _, _, _, _, _, _, _):
             connection
         }
     }
@@ -177,48 +179,55 @@ public enum GlassesRuntimeState: CustomStringConvertible {
         switch self {
         case .disconnected:
             false
-        case let .connected(_, _, _, _, _, ready, _, _):
+        case let .connected(_, _, _, _, _, ready, _, _, _):
             ready
         }
     }
 
     public var battery: GlassesBatteryState? {
-        guard case let .connected(battery, _, _, _, _, _, _, _) = self else {
+        guard case let .connected(battery, _, _, _, _, _, _, _, _) = self else {
             return nil
         }
         return battery
     }
 
     public var device: ConnectedGlassesInfo? {
-        guard case let .connected(_, _, device, _, _, _, _, _) = self else {
+        guard case let .connected(_, _, device, _, _, _, _, _, _) = self else {
             return nil
         }
         return device
     }
 
     public var firmware: FirmwareInfo? {
-        guard case let .connected(_, _, _, firmware, _, _, _, _) = self else {
+        guard case let .connected(_, _, _, firmware, _, _, _, _, _) = self else {
             return nil
         }
         return firmware
     }
 
     public var hotspot: HotspotStatus? {
-        guard case let .connected(_, _, _, _, hotspot, _, _, _) = self else {
+        guard case let .connected(_, _, _, _, hotspot, _, _, _, _) = self else {
             return nil
         }
         return hotspot
     }
 
     public var signal: SignalState? {
-        guard case let .connected(_, _, _, _, _, _, signal, _) = self else {
+        guard case let .connected(_, _, _, _, _, _, signal, _, _) = self else {
             return nil
         }
         return signal
     }
 
+    public var voiceActivityDetectionEnabled: Bool {
+        guard case let .connected(_, _, _, _, _, _, _, voiceActivityDetectionEnabled, _) = self else {
+            return false
+        }
+        return voiceActivityDetectionEnabled
+    }
+
     public var wifi: WifiStatus? {
-        guard case let .connected(_, _, _, _, _, _, _, wifi) = self else {
+        guard case let .connected(_, _, _, _, _, _, _, _, wifi) = self else {
             return nil
         }
         return wifi
@@ -228,17 +237,17 @@ public enum GlassesRuntimeState: CustomStringConvertible {
         switch self {
         case let .disconnected(connection):
             "GlassesRuntimeState(\(connection.rawValue))"
-        case let .connected(_, _, device, _, _, ready, _, _):
+        case let .connected(_, _, device, _, _, ready, _, _, _):
             "GlassesRuntimeState(connected: \(device), ready: \(ready))"
         }
     }
 }
 
 public struct GalleryModeState: Equatable {
-    public let desired: GalleryMode
+    public let enabled: Bool
 
-    public init(desired: GalleryMode) {
-        self.desired = desired
+    public init(enabled: Bool) {
+        self.enabled = enabled
     }
 }
 
@@ -288,7 +297,7 @@ public struct PhoneSdkRuntimeState: CustomStringConvertible {
     init(status: BluetoothStatus) {
         currentMic = MicMode(rawValue: status.currentMic)
         defaultDevice = status.defaultDevice
-        galleryMode = GalleryModeState(desired: status.galleryModeAuto ? .auto : .manual)
+        galleryMode = GalleryModeState(enabled: status.galleryModeEnabled)
         lastLog = status.lastLog
         micRanking = status.micRanking.compactMap(MicMode.init(rawValue:))
         otherBluetoothConnected = status.otherBtConnected

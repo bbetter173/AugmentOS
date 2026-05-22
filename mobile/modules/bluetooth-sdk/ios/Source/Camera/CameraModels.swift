@@ -1,10 +1,5 @@
 import Foundation
 
-public enum GalleryMode {
-    case auto
-    case manual
-}
-
 public enum PhotoSize: String {
     case small
     case medium
@@ -35,12 +30,12 @@ public struct ButtonPhotoSettings {
 public struct ButtonVideoRecordingSettings {
     public let width: Int
     public let height: Int
-    public let frameRate: Int
+    public let fps: Int
 
-    public init(width: Int, height: Int, frameRate: Int) {
+    public init(width: Int, height: Int, fps: Int) {
         self.width = width
         self.height = height
-        self.frameRate = frameRate
+        self.fps = fps
     }
 }
 
@@ -51,9 +46,9 @@ public enum CameraFov {
     var value: [String: Int] {
         switch self {
         case .standard:
-            ["fov": 118, "roiPosition": 0]
+            ["fov": 118, "roi_position": 0]
         case .wide:
-            ["fov": 118, "roiPosition": 0]
+            ["fov": 118, "roi_position": 0]
         }
     }
 }

@@ -21,7 +21,10 @@ class BluetoothSdkModule : Module() {
                     sendEvent(
                             "bluetooth_status",
                             sdk?.getRawBluetoothStatus()?.toMap()
-                                    ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+                                    ?: BluetoothStatus.fromMap(
+                                                    DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+                                            )
+                                            .toMap()
                     )
                 }
 
@@ -71,6 +74,14 @@ class BluetoothSdkModule : Module() {
 
                 override fun onHeadUpChanged(headUp: Boolean) {
                     sendEvent("head_up", mapOf("up" to headUp))
+                }
+
+                override fun onVoiceActivityDetectionStatus(event: VoiceActivityDetectionStatusEvent) {
+                    sendEvent("voice_activity_detection_status", event.values)
+                }
+
+                override fun onSpeakingStatus(event: SpeakingStatusEvent) {
+                    sendEvent("speaking_status", event.values)
                 }
 
                 override fun onBatteryStatus(event: BatteryStatusEvent) {
@@ -145,7 +156,8 @@ class BluetoothSdkModule : Module() {
             "button_press",
             "touch_event",
             "head_up",
-            "vad_status",
+            "voice_activity_detection_status",
+            "speaking_status",
             "battery_status",
             "local_transcription",
             "wifi_status_change",
@@ -209,7 +221,9 @@ class BluetoothSdkModule : Module() {
         }
 
         Function("getBluetoothStatus") {
-            sdk?.getRawBluetoothStatus()?.toMap() ?: DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY)
+            sdk?.getRawBluetoothStatus()?.toMap()
+                    ?: BluetoothStatus.fromMap(DeviceStore.store.getCategory(ObservableStore.BLUETOOTH_CATEGORY))
+                            .toMap()
         }
 
         Function("getDefaultDevice") { sdk?.getDefaultDevice()?.toMap() }
@@ -344,14 +358,12 @@ class BluetoothSdkModule : Module() {
 
         // MARK: - Gallery Commands
 
-        AsyncFunction("setGalleryMode") { mode: String ->
-            val galleryMode =
-                    when (mode.lowercase()) {
-                        "auto" -> GalleryMode.AUTO
-                        "manual" -> GalleryMode.MANUAL
-                        else -> throw IllegalArgumentException("setGalleryMode mode must be \"auto\" or \"manual\".")
-                    }
-            sdk?.setGalleryMode(galleryMode)
+        AsyncFunction("setGalleryModeEnabled") { enabled: Boolean ->
+            sdk?.setGalleryModeEnabled(enabled)
+        }
+
+        AsyncFunction("setVoiceActivityDetectionEnabled") { enabled: Boolean ->
+            sdk?.setVoiceActivityDetectionEnabled(enabled)
         }
 
         AsyncFunction("queryGalleryStatus") { sdk?.queryGalleryStatus() }
@@ -419,13 +431,11 @@ class BluetoothSdkModule : Module() {
         AsyncFunction("setMicState") {
                 enabled: Boolean,
                 useGlassesMic: Boolean?,
-                bypassVad: Boolean?,
                 sendTranscript: Boolean?,
                 sendLc3Data: Boolean? ->
             sdk?.setMicState(
                     enabled = enabled,
                     useGlassesMic = useGlassesMic ?: true,
-                    bypassVad = bypassVad ?: true,
                     sendTranscript = sendTranscript ?: false,
                     sendLc3Data = sendLc3Data ?: false,
             )

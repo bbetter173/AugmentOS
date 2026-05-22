@@ -116,9 +116,9 @@ sendWifiCredentials(ssid: string, password: string): Promise<void>
 forgetWifiNetwork(ssid: string): Promise<void>
 setHotspotState(enabled: boolean): Promise<void>
 
-setGalleryMode(mode: GalleryMode): Promise<void>
+setGalleryModeEnabled(enabled: boolean): Promise<void>
 setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
+setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
 setButtonCameraLed(enabled: boolean): Promise<void>
 setButtonMaxRecordingTime(minutes: number): Promise<void>
 setCameraFov(fov: CameraFov): Promise<void>
@@ -194,7 +194,7 @@ type HotspotStatus =
   | {state: "disabled"}
   | {state: "enabled"; ssid: string; password: string; localIp: string}
 
-type GalleryMode = "auto" | "manual"
+setGalleryModeEnabled(enabled: boolean)
 type PhotoSize = "small" | "medium" | "large" | "full"
 type ButtonPhotoSize = "small" | "medium" | "large"
 type PhotoCompression = "none" | "medium" | "heavy"
@@ -263,10 +263,10 @@ fun setDashboardPosition(request: DashboardPositionRequest)
 fun setHeadUpAngle(angleDegrees: Int)
 fun setScreenDisabled(disabled: Boolean)
 
-fun setGalleryMode(mode: GalleryMode)
+fun setGalleryModeEnabled(enabled: Boolean)
 fun setButtonPhotoSettings(size: ButtonPhotoSize)
 fun setButtonPhotoSettings(settings: ButtonPhotoSettings)
-fun setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int)
+fun setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int)
 fun setButtonCameraLed(enabled: Boolean)
 fun setButtonMaxRecordingTime(minutes: Int)
 fun setCameraFov(fov: CameraFov)
@@ -391,10 +391,10 @@ public func setDashboardPosition(_ request: DashboardPositionRequest) async thro
 public func setHeadUpAngle(_ angleDegrees: Int) async throws
 public func setScreenDisabled(_ disabled: Bool) async throws
 
-public func setGalleryMode(_ mode: GalleryMode) async throws
+public func setGalleryModeEnabled(_ enabled: Bool) async throws
 public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws
 public func setButtonPhotoSettings(_ settings: ButtonPhotoSettings) async throws
-public func setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) async throws
+public func setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) async throws
 public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws
 public func setButtonCameraLed(enabled: Bool) async throws
 public func setButtonMaxRecordingTime(minutes: Int) async throws

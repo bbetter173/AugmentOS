@@ -235,8 +235,8 @@ await BluetoothSdk.sendWifiCredentials('Office WiFi', 'secret')
 await BluetoothSdk.forgetWifiNetwork('Office WiFi')
 await BluetoothSdk.setHotspotState(true)
 
-await BluetoothSdk.setGalleryMode('auto')
-await BluetoothSdk.setGalleryMode('manual')
+await BluetoothSdk.setGalleryModeEnabled(true)
+await BluetoothSdk.setGalleryModeEnabled(false)
 
 await BluetoothSdk.setPreferredMic('auto')
 await BluetoothSdk.setMicState(true)
@@ -253,20 +253,20 @@ await BluetoothSdk.rgbLedControl(
 )
 ```
 
-`setMicState(true)` defaults to continuous microphone PCM from the glasses. VAD means Voice Activity Detection; pass `false` as the third argument only when your app intentionally wants VAD-gated microphone events.
+`setMicState(true)` defaults to continuous microphone PCM from the glasses. The SDK does not apply phone-side Voice Activity Detection gating to microphone audio events. Use `setVoiceActivityDetectionEnabled(false)` when you want glasses-side Voice Activity Detection disabled for continuous external STT, recording, or playback. `voice_activity_detection_status` reports whether glasses-side Voice Activity Detection is enabled, and `speaking_status` reports speaking/not-speaking when supported. Microphone events include the latest `voiceActivityDetectionEnabled` value.
 
 ## Photo Upload
 
 ```ts
-await BluetoothSdk.requestPhoto(
-  `photo-${Date.now()}`,
-  'com.example.app',
-  'medium',
-  'https://api.example.com/mentra/photo',
-  'optional-token',
-  'medium',
-  true,
-)
+await BluetoothSdk.requestPhoto({
+  requestId: `photo-${Date.now()}`,
+  appId: 'com.example.app',
+  size: 'medium',
+  webhookUrl: 'https://api.example.com/mentra/photo',
+  authToken: 'optional-token',
+  compress: 'medium',
+  sound: true,
+})
 ```
 
 The webhook should accept multipart form data with a `photo` file and `requestId`. If `authToken` is provided, the uploader adds `Authorization: Bearer <token>`. The camera light is always enabled for photo capture.
@@ -305,6 +305,7 @@ export function HardwareEventLogger() {
   useBluetoothEvent('touch_event', (event) => console.log(event))
   useBluetoothEvent('photo_response', (event) => console.log(event))
   useBluetoothEvent('stream_status', (event) => console.log(event))
+  useBluetoothEvent('speaking_status', (event) => console.log(event.speaking))
   useBluetoothEvent('mic_pcm', (event) => {
     console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding)
     console.log(event.pcm)
@@ -318,7 +319,7 @@ For non-React modules, `BluetoothSdk.addListener(...)` is the low-level subscrip
 
 Common event names include `button_press`, `touch_event`, `head_up`, `battery_status`, `wifi_status_change`, `hotspot_status_change`, `photo_response`, `gallery_status`, `stream_status`, `keep_alive_ack`, `mic_pcm`, `mic_lc3`, `local_transcription`, `rgb_led_control_response`, `audio_connected`, `audio_disconnected`, and `log`.
 
-React Native event payload fields use camelCase. For example, `touch_event` includes `gestureName`, `photo_response` success includes `uploadUrl`, and `gallery_status` includes `hasContent` and `cameraBusy`. `mic_pcm` includes `sampleRate`, `bitsPerSample`, `channels`, `encoding`, and `vadGated`; `mic_lc3` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`.
+React Native event payload fields use camelCase. For example, `touch_event` includes `gestureName`, `photo_response` success includes `uploadUrl`, and `gallery_status` includes `hasContent` and `cameraBusy`. `mic_pcm` includes `sampleRate`, `bitsPerSample`, `channels`, and `encoding`; `mic_lc3` includes `sampleRate`, `channels`, `encoding`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, and `packetizedFromGlasses`.
 
 Only documented imports are supported for app developers. Undocumented package subpaths or symbols with a leading underscore can change without notice.
 
@@ -335,4 +336,4 @@ Use `bunx expo run:android` for Android. Keep local paths in your shell or CI en
 
 ## Starter Example App
 
-The [Mentra Bluetooth SDK Starter Kit](https://github.com/Mentra-Community/Mentra-Bluetooth-SDK-Starter-Kit) includes starter example apps for Android, iOS, and React Native / Expo. The React Native starter demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery-button mode, and console event inspection.
+The [Mentra Bluetooth SDK Starter Kit](https://github.com/Mentra-Community/Mentra-Bluetooth-SDK-Starter-Kit) includes starter example apps for Android, iOS, and React Native / Expo. The React Native starter demonstrates scan/connect, display, camera photo upload, RTMP/SRT/WebRTC streaming, Wi-Fi/hotspot, microphone PCM, RGB LED, gallery mode, and console event inspection.

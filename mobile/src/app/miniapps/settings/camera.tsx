@@ -67,10 +67,10 @@ export default function CameraSettingsScreen() {
       ? Math.round(cameraFovSetting.fov)
       : CAMERA_FOV_MAX
   const currentRoi: CameraRoiPosition =
-    typeof cameraFovSetting?.roiPosition === "number" &&
-    cameraFovSetting.roiPosition >= 0 &&
-    cameraFovSetting.roiPosition <= 2
-      ? (cameraFovSetting.roiPosition as CameraRoiPosition)
+    typeof cameraFovSetting?.roi_position === "number" &&
+    cameraFovSetting.roi_position >= 0 &&
+    cameraFovSetting.roi_position <= 2
+      ? (cameraFovSetting.roi_position as CameraRoiPosition)
       : 0
 
   // Derive video resolution from settings
@@ -101,9 +101,9 @@ export default function CameraSettingsScreen() {
     }
     const width = resolution === "4K" ? 3840 : resolution === "1440p" ? 2560 : resolution === "1080p" ? 1920 : 1280
     const height = resolution === "4K" ? 2160 : resolution === "1440p" ? 1920 : resolution === "1080p" ? 1080 : 720
-    const frameRate = resolution === "4K" ? 15 : 30
-    setVideoSettings({width, height, frameRate})
-    BluetoothSdk.updateBluetoothSettings({button_video_width: width, button_video_height: height, button_video_fps: frameRate})
+    const fps = resolution === "4K" ? 15 : 30
+    setVideoSettings({width, height, fps})
+    BluetoothSdk.updateBluetoothSettings({button_video_width: width, button_video_height: height, button_video_fps: fps})
   }
 
   const _handleLedToggle = (enabled: boolean) => {
@@ -132,7 +132,7 @@ export default function CameraSettingsScreen() {
     try {
       const clampedFov = Math.round(Math.max(CAMERA_FOV_MIN, Math.min(CAMERA_FOV_MAX, fov)))
       const effectiveRoi = clampedFov === CAMERA_FOV_MAX ? 0 : roiPosition
-      setCameraFovSetting({fov: clampedFov, roiPosition: effectiveRoi})
+      setCameraFovSetting({fov: clampedFov, roi_position: effectiveRoi})
     } catch (error) {
       console.error("Failed to update camera FOV:", error)
     }

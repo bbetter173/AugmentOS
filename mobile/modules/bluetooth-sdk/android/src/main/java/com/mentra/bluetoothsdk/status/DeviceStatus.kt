@@ -32,6 +32,7 @@ internal data class GlassesStatus(
     val fullyBooted: Boolean,
     val connected: Boolean,
     val micEnabled: Boolean,
+    val voiceActivityDetectionEnabled: Boolean,
     val connectionState: GlassesConnectionState,
     val bluetoothClassicConnected: Boolean,
     val signalStrength: Int,
@@ -72,6 +73,7 @@ internal data class GlassesStatus(
         mapOf(
             "connection" to connectionState.toStatusMap(connected, fullyBooted),
             "micEnabled" to micEnabled,
+            "voiceActivityDetectionEnabled" to voiceActivityDetectionEnabled,
             "bluetoothClassicConnected" to bluetoothClassicConnected,
             "signalStrength" to signalStrength,
             "signalStrengthUpdatedAt" to signalStrengthUpdatedAt,
@@ -114,6 +116,7 @@ internal data class GlassesStatus(
                 fullyBooted = boolValue(values, "fullyBooted") ?: false,
                 connected = boolValue(values, "connected") ?: false,
                 micEnabled = boolValue(values, "micEnabled") ?: false,
+                voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?: true,
                 connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")),
                 bluetoothClassicConnected = boolValue(values, "bluetoothClassicConnected") ?: false,
                 signalStrength = numberValue(values, "signalStrength") ?: -1,
@@ -186,7 +189,7 @@ internal data class BluetoothStatus(
     val dashboardDepth: Int,
     val headUpAngle: Int,
     val contextualDashboard: Boolean,
-    val galleryModeAuto: Boolean,
+    val galleryModeEnabled: Boolean,
     val buttonPhotoSize: ButtonPhotoSize,
     val buttonCameraLed: Boolean,
     val buttonMaxRecordingTime: Int,
@@ -196,7 +199,6 @@ internal data class BluetoothStatus(
     val shouldSendPcm: Boolean,
     val shouldSendLc3: Boolean,
     val shouldSendTranscript: Boolean,
-    val bypassVad: Boolean,
     val offlineCaptionsRunning: Boolean,
     val localSttFallbackActive: Boolean,
     val shouldSendBootingMessage: Boolean,
@@ -240,7 +242,7 @@ internal data class BluetoothStatus(
             "dashboard_depth" to dashboardDepth,
             "head_up_angle" to headUpAngle,
             "contextual_dashboard" to contextualDashboard,
-            "galleryModeAuto" to galleryModeAuto,
+            "galleryModeEnabled" to galleryModeEnabled,
             "button_photo_size" to buttonPhotoSize.value,
             "button_camera_led" to buttonCameraLed,
             "button_max_recording_time" to buttonMaxRecordingTime,
@@ -250,7 +252,6 @@ internal data class BluetoothStatus(
             "should_send_pcm" to shouldSendPcm,
             "should_send_lc3" to shouldSendLc3,
             "should_send_transcript" to shouldSendTranscript,
-            "bypass_vad" to bypassVad,
             "offline_captions_running" to offlineCaptionsRunning,
             "local_stt_fallback_active" to localSttFallbackActive,
             "shouldSendBootingMessage" to shouldSendBootingMessage,
@@ -288,7 +289,8 @@ internal data class BluetoothStatus(
                 dashboardDepth = numberValue(values, "dashboard_depth") ?: 2,
                 headUpAngle = numberValue(values, "head_up_angle") ?: 30,
                 contextualDashboard = boolValue(values, "contextual_dashboard") ?: true,
-                galleryModeAuto = boolValue(values, "galleryModeAuto") ?: true,
+                galleryModeEnabled =
+                    boolValue(values, "gallery_mode") ?: boolValue(values, "galleryModeEnabled") ?: true,
                 buttonPhotoSize = ButtonPhotoSize.fromValue(stringValue(values, "button_photo_size")),
                 buttonCameraLed = boolValue(values, "button_camera_led") ?: true,
                 buttonMaxRecordingTime = numberValue(values, "button_max_recording_time") ?: 10,
@@ -298,7 +300,6 @@ internal data class BluetoothStatus(
                 shouldSendPcm = boolValue(values, "should_send_pcm") ?: false,
                 shouldSendLc3 = boolValue(values, "should_send_lc3") ?: false,
                 shouldSendTranscript = boolValue(values, "should_send_transcript") ?: false,
-                bypassVad = boolValue(values, "bypass_vad") ?: true,
                 offlineCaptionsRunning = boolValue(values, "offline_captions_running") ?: false,
                 localSttFallbackActive = boolValue(values, "local_stt_fallback_active") ?: false,
                 shouldSendBootingMessage = boolValue(values, "shouldSendBootingMessage") ?: true,
@@ -310,6 +311,7 @@ internal data class GlassesStatusUpdate(
     val fullyBooted: Boolean? = null,
     val connected: Boolean? = null,
     val micEnabled: Boolean? = null,
+    val voiceActivityDetectionEnabled: Boolean? = null,
     val connectionState: GlassesConnectionState? = null,
     val bluetoothClassicConnected: Boolean? = null,
     val signalStrength: Int? = null,
@@ -359,6 +361,7 @@ internal data class GlassesStatusUpdate(
                 put("connection", state.toStatusMap(connected == true, fullyBooted == true))
             }
             putIfNotNull("micEnabled", micEnabled)
+            putIfNotNull("voiceActivityDetectionEnabled", voiceActivityDetectionEnabled)
             putIfNotNull("bluetoothClassicConnected", bluetoothClassicConnected)
             putIfNotNull("signalStrength", signalStrength)
             putIfNotNull("signalStrengthUpdatedAt", signalStrengthUpdatedAt)
@@ -405,6 +408,7 @@ internal data class GlassesStatusUpdate(
                 fullyBooted = optionalBoolValue(values, "fullyBooted"),
                 connected = optionalBoolValue(values, "connected"),
                 micEnabled = optionalBoolValue(values, "micEnabled"),
+                voiceActivityDetectionEnabled = optionalBoolValue(values, "voiceActivityDetectionEnabled"),
                 connectionState = GlassesConnectionState.optionalFromValue(optionalStringValue(values, "connectionState")),
                 bluetoothClassicConnected = optionalBoolValue(values, "bluetoothClassicConnected"),
                 signalStrength = optionalNumberValue(values, "signalStrength"),
@@ -491,7 +495,7 @@ internal data class BluetoothStatusUpdate(
     val dashboardDepth: Int? = null,
     val headUpAngle: Int? = null,
     val contextualDashboard: Boolean? = null,
-    val galleryModeAuto: Boolean? = null,
+    val galleryModeEnabled: Boolean? = null,
     val buttonPhotoSize: ButtonPhotoSize? = null,
     val buttonCameraLed: Boolean? = null,
     val buttonMaxRecordingTime: Int? = null,
@@ -501,7 +505,6 @@ internal data class BluetoothStatusUpdate(
     val shouldSendPcm: Boolean? = null,
     val shouldSendLc3: Boolean? = null,
     val shouldSendTranscript: Boolean? = null,
-    val bypassVad: Boolean? = null,
     val offlineCaptionsRunning: Boolean? = null,
     val localSttFallbackActive: Boolean? = null,
     val shouldSendBootingMessage: Boolean? = null,
@@ -535,7 +538,7 @@ internal data class BluetoothStatusUpdate(
             putIfNotNull("dashboard_depth", dashboardDepth)
             putIfNotNull("head_up_angle", headUpAngle)
             putIfNotNull("contextual_dashboard", contextualDashboard)
-            putIfNotNull("galleryModeAuto", galleryModeAuto)
+            putIfNotNull("galleryModeEnabled", galleryModeEnabled)
             buttonPhotoSize?.let { put("button_photo_size", it.value) }
             putIfNotNull("button_camera_led", buttonCameraLed)
             putIfNotNull("button_max_recording_time", buttonMaxRecordingTime)
@@ -545,7 +548,6 @@ internal data class BluetoothStatusUpdate(
             putIfNotNull("should_send_pcm", shouldSendPcm)
             putIfNotNull("should_send_lc3", shouldSendLc3)
             putIfNotNull("should_send_transcript", shouldSendTranscript)
-            putIfNotNull("bypass_vad", bypassVad)
             putIfNotNull("offline_captions_running", offlineCaptionsRunning)
             putIfNotNull("local_stt_fallback_active", localSttFallbackActive)
             putIfNotNull("shouldSendBootingMessage", shouldSendBootingMessage)
@@ -585,7 +587,8 @@ internal data class BluetoothStatusUpdate(
                 dashboardDepth = optionalNumberValue(values, "dashboard_depth"),
                 headUpAngle = optionalNumberValue(values, "head_up_angle"),
                 contextualDashboard = optionalBoolValue(values, "contextual_dashboard"),
-                galleryModeAuto = optionalBoolValue(values, "galleryModeAuto"),
+                galleryModeEnabled =
+                    optionalBoolValue(values, "gallery_mode") ?: optionalBoolValue(values, "galleryModeEnabled"),
                 buttonPhotoSize =
                     optionalStringValue(values, "button_photo_size")?.let(ButtonPhotoSize::fromValue),
                 buttonCameraLed = optionalBoolValue(values, "button_camera_led"),
@@ -596,7 +599,6 @@ internal data class BluetoothStatusUpdate(
                 shouldSendPcm = optionalBoolValue(values, "should_send_pcm"),
                 shouldSendLc3 = optionalBoolValue(values, "should_send_lc3"),
                 shouldSendTranscript = optionalBoolValue(values, "should_send_transcript"),
-                bypassVad = optionalBoolValue(values, "bypass_vad"),
                 offlineCaptionsRunning = optionalBoolValue(values, "offline_captions_running"),
                 localSttFallbackActive = optionalBoolValue(values, "local_stt_fallback_active"),
                 shouldSendBootingMessage = optionalBoolValue(values, "shouldSendBootingMessage"),

@@ -903,6 +903,7 @@ class MentraLive: NSObject, SGCManager {
     // BLOCK_AUDIO_DUPLEX: When true, suspends LC3 mic while phone is playing audio via A2DP
     // to avoid overloading the MCU. Set to false to allow simultaneous A2DP + LC3 mic.
     private let BLOCK_AUDIO_DUPLEX = false
+    private static let voiceActivityDetectionSwitchType = 8
 
     var connectionState: String = ConnTypes.DISCONNECTED
 
@@ -1822,6 +1823,14 @@ class MentraLive: NSObject, SGCManager {
             let isCharging = json["charging"] as? Bool ?? charging
             updateBatteryStatus(level: level, isCharging: isCharging)
 
+        case "voice_activity_detection_status":
+            let enabled = json["voiceActivityDetectionEnabled"] as? Bool ?? true
+            handleVoiceActivityDetectionStatus(enabled: enabled)
+
+        case "speaking_status":
+            let speaking = json["speaking"] as? Bool ?? false
+            handleSpeakingStatus(speaking: speaking)
+
         case "wifi_status":
             let connected = json["connected"] as? Bool ?? false
             let ssid = json["ssid"] as? String ?? ""
@@ -1901,9 +1910,7 @@ class MentraLive: NSObject, SGCManager {
             let switchType = (json["switch_type"] as? Int) ?? (json["switchType"] as? Int) ?? -1
             let switchValue = (json["switch_value"] as? Int) ?? (json["switchValue"] as? Int) ?? -1
             let timestamp = parseTimestamp(json["timestamp"])
-            Bridge.sendSwitchStatus(
-                switchType: switchType, value: switchValue, timestamp: timestamp
-            )
+            handleSwitchStatus(switchType: switchType, value: switchValue, timestamp: timestamp)
 
         case "rgb_led_control_response":
             let requestId = json["requestId"] as? String ?? ""
@@ -2252,6 +2259,25 @@ class MentraLive: NSObject, SGCManager {
         case "sr_vol":
             handleSrVol(json)
 
+        case "sr_vad":
+            if let bodyObj = k900ParseBody(json["B"]),
+               let on = k900JsonInt(bodyObj, "on"),
+               on == 0 || on == 1
+            {
+                handleSpeakingStatus(speaking: on == 1)
+            }
+
+        case "sr_swit":
+            if let body = k900ParseBody(json["B"]) {
+                let switchType = k900JsonInt(body, "type") ?? -1
+                let switchValue = k900JsonInt(body, "switch") ?? -1
+                handleSwitchStatus(
+                    switchType: switchType,
+                    value: switchValue,
+                    timestamp: Int64(Date().timeIntervalSince1970 * 1000)
+                )
+            }
+
         case "sr_shut":
             Bridge.log("K900 shutdown command received - glasses shutting down")
             // Mark as killed to prevent reconnection attempts
@@ -2472,7 +2498,7 @@ class MentraLive: NSObject, SGCManager {
     }
 
     func sendGalleryMode() {
-        let active = DeviceStore.shared.get("bluetooth", "galleryModeAuto") as! Bool
+        let active = DeviceStore.shared.get("bluetooth", "gallery_mode") as! Bool
         Bridge.log("LIVE: 📸 Sending gallery mode active to glasses: \(active)")
 
         let json: [String: Any] = [
@@ -2667,7 +2693,7 @@ class MentraLive: NSObject, SGCManager {
         //     return
         // }
 
-        // // Forward PCM data to DeviceManager for VAD and server transmission (same as Android)
+        // // Forward PCM data to DeviceManager for audio events and server transmission (same as Android)
         // DeviceManager.shared.handlePcm(pcmData)
 
         // Bridge.log(
@@ -3519,6 +3545,23 @@ class MentraLive: NSObject, SGCManager {
 
         if level >= 0 {
             Bridge.sendBatteryStatus(level: level, charging: isCharging)
+        }
+    }
+
+    private func handleVoiceActivityDetectionStatus(enabled: Bool) {
+        Bridge.log("LIVE: Voice Activity Detection \(enabled ? "enabled" : "disabled")")
+        Bridge.sendVoiceActivityDetectionStatus(enabled)
+    }
+
+    private func handleSpeakingStatus(speaking: Bool) {
+        Bridge.log("LIVE: Speaking status \(speaking ? "speaking" : "not speaking")")
+        Bridge.sendSpeakingStatus(speaking)
+    }
+
+    private func handleSwitchStatus(switchType: Int, value: Int, timestamp: Int64) {
+        Bridge.sendSwitchStatus(switchType: switchType, value: value, timestamp: timestamp)
+        if switchType == Self.voiceActivityDetectionSwitchType, value == 0 || value == 1 {
+            handleVoiceActivityDetectionStatus(enabled: value == 1)
         }
     }
 
@@ -4507,6 +4550,42 @@ extension MentraLive {
 
         // Send gallery mode state (camera app running status)
         sendGalleryMode()
+
+        // Send glasses-side Voice Activity Detection setting.
+        sendVoiceActivityDetectionSetting()
+    }
+
+    func sendVoiceActivityDetectionSetting() {
+        let enabled = DeviceStore.shared.get("bluetooth", "voice_activity_detection_enabled") as? Bool ?? true
+        Bridge.log("LIVE: 🎤 Sending Voice Activity Detection setting to glasses: \(enabled)")
+
+        guard connectedPeripheral != nil, txCharacteristic != nil else {
+            Bridge.log("Cannot send Voice Activity Detection setting - BLE write path not ready")
+            return
+        }
+
+        do {
+            let bodyData = try JSONSerialization.data(withJSONObject: [
+                "type": Self.voiceActivityDetectionSwitchType,
+                "switch": enabled ? 1 : 0,
+            ])
+            guard let bodyString = String(data: bodyData, encoding: .utf8) else {
+                Bridge.log("LIVE: Failed to encode Voice Activity Detection payload")
+                return
+            }
+            let command: [String: Any] = [
+                "C": "cs_swit",
+                "V": 1,
+                "B": bodyString,
+            ]
+            if sendRawK900Command(command, wakeUp: true) {
+                Bridge.sendVoiceActivityDetectionStatus(enabled)
+            } else {
+                Bridge.log("LIVE: Failed to send Voice Activity Detection setting command")
+            }
+        } catch {
+            Bridge.log("LIVE: Error encoding Voice Activity Detection payload: \(error)")
+        }
     }
 
     func sendButtonVideoRecordingSettings() {
@@ -4514,11 +4593,11 @@ extension MentraLive {
             DeviceStore.shared.get("bluetooth", "button_video_settings") as? [String: Any] ?? [
                 "width": 1280,
                 "height": 720,
-                "frameRate": 30,
+                "fps": 30,
             ]
         let width = settings["width"] as? Int ?? 1280
         let height = settings["height"] as? Int ?? 720
-        let fps = settings["frameRate"] as? Int ?? 30
+        let fps = settings["fps"] as? Int ?? 30
 
         // Use defaults if not set
         let finalWidth = width > 0 ? width : 1280
@@ -4596,9 +4675,9 @@ extension MentraLive {
     }
 
     func sendCameraFovSetting() {
-        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roiPosition": 0]
+        let settings = DeviceStore.shared.get("bluetooth", "camera_fov") as? [String: Any] ?? ["fov": 118, "roi_position": 0]
         let fov = settings["fov"] as? Int ?? 118
-        let roiPosition = settings["roiPosition"] as? Int ?? 0
+        let roiPosition = settings["roi_position"] as? Int ?? 0
 
         Bridge.log("Sending camera FOV setting: fov=\(fov), roiPosition=\(roiPosition)")
 

@@ -268,8 +268,12 @@ public final class MentraBluetoothSDK {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "screen_disabled", disabled)
     }
 
-    public func setGalleryMode(_ mode: GalleryMode) async throws {
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "galleryModeAuto", mode == .auto)
+    public func setGalleryModeEnabled(_ enabled: Bool) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "gallery_mode", enabled)
+    }
+
+    public func setVoiceActivityDetectionEnabled(_ enabled: Bool) async throws {
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "voice_activity_detection_enabled", enabled)
     }
 
     public func setButtonPhotoSettings(size: ButtonPhotoSize) async throws {
@@ -280,14 +284,14 @@ public final class MentraBluetoothSDK {
         try await setButtonPhotoSettings(size: settings.size)
     }
 
-    public func setButtonVideoRecordingSettings(width: Int, height: Int, frameRate: Int) async throws {
+    public func setButtonVideoRecordingSettings(width: Int, height: Int, fps: Int) async throws {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_width", width)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_height", height)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", frameRate)
+        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "button_video_fps", fps)
     }
 
     public func setButtonVideoRecordingSettings(_ settings: ButtonVideoRecordingSettings) async throws {
-        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, frameRate: settings.frameRate)
+        try await setButtonVideoRecordingSettings(width: settings.width, height: settings.height, fps: settings.fps)
     }
 
     public func setButtonCameraLed(enabled: Bool) async throws {
@@ -305,7 +309,6 @@ public final class MentraBluetoothSDK {
     public func setMicState(
         enabled: Bool,
         useGlassesMic: Bool = true,
-        bypassVad: Bool = true,
         sendTranscript: Bool = false,
         sendLc3Data: Bool = false
     ) {
@@ -319,7 +322,6 @@ public final class MentraBluetoothSDK {
         applyMicState(
             sendPcmData: enabled,
             sendTranscript: enabled && sendTranscript,
-            bypassVad: bypassVad,
             sendLc3Data: enabled && sendLc3Data
         )
     }
@@ -327,13 +329,11 @@ public final class MentraBluetoothSDK {
     private func applyMicState(
         sendPcmData: Bool,
         sendTranscript: Bool,
-        bypassVad: Bool,
         sendLc3Data: Bool
     ) {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_pcm", sendPcmData)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_lc3", sendLc3Data)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_transcript", sendTranscript)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "bypass_vad", bypassVad)
         DeviceManager.shared.setMicState()
     }
 
@@ -578,6 +578,16 @@ public final class MentraBluetoothSDK {
                 values: data
             )
             delegate?.mentraBluetoothSDK(self, didReceive: .localTranscription(event))
+        case "voice_activity_detection_status":
+            delegate?.mentraBluetoothSDK(
+                self,
+                didReceive: .voiceActivityDetectionStatus(VoiceActivityDetectionStatusEvent(values: data))
+            )
+        case "speaking_status":
+            delegate?.mentraBluetoothSDK(
+                self,
+                didReceive: .speakingStatus(SpeakingStatusEvent(values: data))
+            )
         case "hotspot_status_change":
             delegate?.mentraBluetoothSDK(self, didReceive: .hotspotStatus(HotspotStatusEvent(values: data)))
         case "wifi_status_change":

@@ -74,6 +74,7 @@ sealed interface GlassesRuntimeState {
         val hotspot: HotspotStatus,
         override val ready: Boolean,
         val signal: SignalState,
+        val voiceActivityDetectionEnabled: Boolean,
         val wifi: WifiStatus,
     ) : GlassesRuntimeState {
         override val connected: Boolean = true
@@ -95,6 +96,7 @@ sealed interface GlassesRuntimeState {
                     strengthDbm = status.signalStrength.takeUnless { it == -1 },
                     updatedAt = status.signalStrengthUpdatedAt.takeUnless { it <= 0L },
                 ),
+                voiceActivityDetectionEnabled = status.voiceActivityDetectionEnabled,
                 wifi = status.wifi,
             )
         }
@@ -149,7 +151,7 @@ enum class MicMode(val value: String) {
 }
 
 data class GalleryModeState(
-    val desired: GalleryMode,
+    val enabled: Boolean,
 )
 
 data class PhoneSdkRuntimeState(
@@ -169,7 +171,7 @@ data class PhoneSdkRuntimeState(
             PhoneSdkRuntimeState(
                 currentMic = MicMode.fromValue(status.currentMic),
                 defaultDevice = status.defaultDevice,
-                galleryMode = GalleryModeState(if (status.galleryModeAuto) GalleryMode.AUTO else GalleryMode.MANUAL),
+                galleryMode = GalleryModeState(enabled = status.galleryModeEnabled),
                 lastLog = status.lastLog,
                 micRanking = status.micRanking.mapNotNull { MicMode.fromValue(it) },
                 otherBluetoothConnected = status.otherBtConnected,

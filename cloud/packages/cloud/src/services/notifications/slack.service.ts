@@ -185,7 +185,7 @@ export class SlackNotificationService {
     const glassesInfoParts: string[] = [];
     if (glasses && sys?.glassesConnected) {
       if (glasses.modelName) glassesInfoParts.push(`Model: ${this.escapeSlackText(glasses.modelName)}`);
-      if (glasses.firmwareVersion) glassesInfoParts.push(`FW: ${this.escapeSlackText(glasses.firmwareVersion)}`);
+      if (glasses.fwVersion) glassesInfoParts.push(`FW: ${this.escapeSlackText(glasses.fwVersion)}`);
       if (glasses.batteryLevel !== undefined && glasses.batteryLevel >= 0)
         glassesInfoParts.push(`Battery: ${glasses.batteryLevel}%`);
     }

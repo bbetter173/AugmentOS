@@ -2335,7 +2335,7 @@ public class MentraLive extends SGCManager {
 
             case "voice_activity_detection_status":
                 handleVoiceActivityDetectionStatus(
-                        json.optBoolean("voiceActivityDetectionEnabled", false));
+                        json.optBoolean("voiceActivityDetectionEnabled", true));
                 break;
 
             case "speaking_status":
@@ -6554,7 +6554,7 @@ public class MentraLive extends SGCManager {
     @Override
     public void sendVoiceActivityDetectionSetting() {
         Object value = DeviceStore.INSTANCE.get("bluetooth", "voice_activity_detection_enabled");
-        boolean enabled = value instanceof Boolean ? (Boolean) value : false;
+        boolean enabled = value instanceof Boolean ? (Boolean) value : true;
 
         Bridge.log("LIVE: 🎤 Sending Voice Activity Detection setting to glasses: " + enabled);
 

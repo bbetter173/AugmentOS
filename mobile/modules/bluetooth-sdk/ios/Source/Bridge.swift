@@ -90,7 +90,7 @@ class Bridge {
     @MainActor
     private static func micPcmEventBody(_ data: Data) -> [String: Any] {
         let voiceActivityDetectionEnabled =
-            DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? false
+            DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? true
         return [
             "pcm": data,
             "sampleRate": micSampleRate,
@@ -104,7 +104,7 @@ class Bridge {
     @MainActor
     private static func micLc3EventBody(_ data: Data) -> [String: Any] {
         let voiceActivityDetectionEnabled =
-            DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? false
+            DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? true
         let frameSizeBytes = DeviceStore.shared.get("bluetooth", "lc3_frame_size") as? Int ?? defaultLc3FrameSizeBytes
         return [
             "lc3": data,

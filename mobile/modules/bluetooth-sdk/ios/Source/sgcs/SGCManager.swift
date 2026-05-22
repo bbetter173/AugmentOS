@@ -190,7 +190,7 @@ extension SGCManager {
     }
 
     var voiceActivityDetectionEnabled: Bool {
-        DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? false
+        DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? true
     }
 
     var batteryLevel: Int {

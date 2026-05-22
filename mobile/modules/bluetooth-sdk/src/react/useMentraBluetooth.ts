@@ -221,7 +221,7 @@ function runtimeGlassesState(status: Partial<PublicGlassesStatus>): GlassesRunti
       strengthDbm: numberValue((status as Record<string, unknown>).signalStrength),
       updatedAt: numberValue((status as Record<string, unknown>).signalStrengthUpdatedAt),
     },
-    voiceActivityDetectionEnabled: status.voiceActivityDetectionEnabled ?? false,
+    voiceActivityDetectionEnabled: status.voiceActivityDetectionEnabled ?? true,
     wifi: status.wifi ?? {state: "disconnected"},
   }
 }

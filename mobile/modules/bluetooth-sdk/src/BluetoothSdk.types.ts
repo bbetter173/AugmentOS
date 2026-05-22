@@ -67,7 +67,7 @@ export function createDisconnectedGlassesStatus(): Partial<GlassesStatus> {
   return {
     connection: {state: 'disconnected'},
     hotspot: {state: 'disabled'},
-    voiceActivityDetectionEnabled: false,
+    voiceActivityDetectionEnabled: true,
     wifi: {state: 'disconnected'},
   }
 }

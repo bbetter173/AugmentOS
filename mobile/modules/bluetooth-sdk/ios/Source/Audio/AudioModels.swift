@@ -43,7 +43,7 @@ public struct MicPcmEvent: CustomStringConvertible {
         let bitsPerSample = intValue(values["bitsPerSample"]) ?? Self.bitsPerSample
         let channels = intValue(values["channels"]) ?? Self.channels
         let encoding = values["encoding"] as? String ?? Self.encoding
-        let voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? false
+        let voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? true
 
         var normalized = values
         normalized["type"] = "mic_pcm"
@@ -95,7 +95,7 @@ public struct MicLc3Event: CustomStringConvertible {
         let frameSizeBytes = intValue(values["frameSizeBytes"]) ?? Self.defaultFrameSizeBytes
         let bitrate = intValue(values["bitrate"]) ?? frameSizeBytes * 8 * (1000 / frameDurationMs)
         let packetizedFromGlasses = boolValue(values, "packetizedFromGlasses") ?? false
-        let voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? false
+        let voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? true
 
         var normalized = values
         normalized["type"] = "mic_lc3"

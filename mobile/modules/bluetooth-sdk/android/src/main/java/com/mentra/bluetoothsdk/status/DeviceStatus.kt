@@ -116,7 +116,7 @@ internal data class GlassesStatus(
                 fullyBooted = boolValue(values, "fullyBooted") ?: false,
                 connected = boolValue(values, "connected") ?: false,
                 micEnabled = boolValue(values, "micEnabled") ?: false,
-                voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?: false,
+                voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?: true,
                 connectionState = GlassesConnectionState.fromValue(stringValue(values, "connectionState")),
                 bluetoothClassicConnected = boolValue(values, "bluetoothClassicConnected") ?: false,
                 signalStrength = numberValue(values, "signalStrength") ?: -1,

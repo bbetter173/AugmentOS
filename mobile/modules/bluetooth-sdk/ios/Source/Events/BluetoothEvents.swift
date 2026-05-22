@@ -49,7 +49,7 @@ public struct VoiceActivityDetectionStatusEvent: CustomStringConvertible {
     public let values: [String: Any]
 
     public init(values: [String: Any]) {
-        voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? false
+        voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? true
         self.values = values
     }
 

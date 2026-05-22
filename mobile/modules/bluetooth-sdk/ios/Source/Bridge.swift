@@ -89,18 +89,22 @@ class Bridge {
 
     @MainActor
     private static func micPcmEventBody(_ data: Data) -> [String: Any] {
-        [
+        let voiceActivityDetectionEnabled =
+            DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? true
+        return [
             "pcm": data,
             "sampleRate": micSampleRate,
             "bitsPerSample": pcmBitsPerSample,
             "channels": micChannels,
             "encoding": "pcm_s16le",
-            "vadGated": isVadGated(),
+            "voiceActivityDetectionEnabled": voiceActivityDetectionEnabled,
         ]
     }
 
     @MainActor
     private static func micLc3EventBody(_ data: Data) -> [String: Any] {
+        let voiceActivityDetectionEnabled =
+            DeviceStore.shared.get("glasses", "voiceActivityDetectionEnabled") as? Bool ?? true
         let frameSizeBytes = DeviceStore.shared.get("bluetooth", "lc3_frame_size") as? Int ?? defaultLc3FrameSizeBytes
         return [
             "lc3": data,
@@ -111,13 +115,8 @@ class Bridge {
             "frameSizeBytes": frameSizeBytes,
             "bitrate": frameSizeBytes * 8 * (1000 / lc3FrameDurationMs),
             "packetizedFromGlasses": false,
-            "vadGated": isVadGated(),
+            "voiceActivityDetectionEnabled": voiceActivityDetectionEnabled,
         ]
-    }
-
-    @MainActor
-    private static func isVadGated() -> Bool {
-        !(DeviceStore.shared.get("bluetooth", "bypass_vad") as? Bool ?? true)
     }
 
     static func saveSetting(_ key: String, _ value: Any) {
@@ -125,9 +124,21 @@ class Bridge {
         Bridge.sendTypedMessage("save_setting", body: body)
     }
 
-    static func sendVadEvent(_ isSpeaking: Bool) {
-        let body: [String: Any] = ["status": isSpeaking]
-        Bridge.sendTypedMessage("vad_status", body: body)
+    @MainActor
+    static func sendVoiceActivityDetectionStatus(_ enabled: Bool) {
+        DeviceStore.shared.set("glasses", "voiceActivityDetectionEnabled", enabled)
+        let body: [String: Any] = [
+            "voiceActivityDetectionEnabled": enabled,
+        ]
+        Bridge.sendTypedMessage("voice_activity_detection_status", body: body)
+    }
+
+    static func sendSpeakingStatus(_ speaking: Bool) {
+        let body: [String: Any] = [
+            "speaking": speaking,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        Bridge.sendTypedMessage("speaking_status", body: body)
     }
 
     static func sendBatteryStatus(level: Int, charging: Bool) {

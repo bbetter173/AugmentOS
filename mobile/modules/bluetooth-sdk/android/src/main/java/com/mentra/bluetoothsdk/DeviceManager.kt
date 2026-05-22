@@ -132,10 +132,6 @@ class DeviceManager {
         get() = DeviceStore.store.get("bluetooth", "power_saving_mode") as? Boolean ?: false
         set(value) = DeviceStore.apply("bluetooth", "power_saving_mode", value)
 
-    private var bypassVad: Boolean
-        get() = DeviceStore.store.get("bluetooth", "bypass_vad") as? Boolean ?: true
-        set(value) = DeviceStore.apply("bluetooth", "bypass_vad", value)
-
     private var offlineCaptionsRunning: Boolean
         get() = DeviceStore.store.get("bluetooth", "offline_captions_running") as? Boolean ?: false
         set(value) = DeviceStore.apply("bluetooth", "offline_captions_running", value)
@@ -169,8 +165,8 @@ class DeviceManager {
         set(value) = DeviceStore.apply("bluetooth", "dashboard_depth", value)
 
     private var galleryMode: Boolean
-        get() = DeviceStore.store.get("bluetooth", "galleryModeAuto") as? Boolean ?: true
-        set(value) = DeviceStore.apply("bluetooth", "galleryModeAuto", value)
+        get() = DeviceStore.store.get("bluetooth", "gallery_mode") as? Boolean ?: true
+        set(value) = DeviceStore.apply("bluetooth", "gallery_mode", value)
 
     // state:
     private var searching: Boolean
@@ -240,10 +236,6 @@ class DeviceManager {
     private var audioOutputFormat: AudioOutputFormat = AudioOutputFormat.LC3
     private var lastLc3Event: Long? = null
     private var micReinitRunnable: Runnable? = null
-
-    // VAD
-    private val vadBuffer = mutableListOf<ByteArray>()
-    private var isSpeaking = false
 
     // STT
     private var transcriber: SherpaOnnxTranscriber? = null
@@ -604,13 +596,6 @@ class DeviceManager {
 
     // MARK: - Voice Data Handling
 
-    private fun checkSetVadStatus(speaking: Boolean) {
-        if (speaking != isSpeaking) {
-            isSpeaking = speaking
-            Bridge.sendVadEvent(isSpeaking)
-        }
-    }
-
     private fun convertAndSendMicLc3(pcmData: ByteArray) {
         synchronized(lc3Lock) {
             if (lc3EncoderPtr == 0L) {
@@ -633,21 +618,6 @@ class DeviceManager {
         }
         if (shouldSendLc3) {
             convertAndSendMicLc3(pcmData)
-        }
-    }
-
-    private fun emptyVadBuffer() {
-        while (vadBuffer.isNotEmpty()) {
-            val chunk = vadBuffer.removeAt(0)
-            handleSendingPcm(chunk) // Uses our encoder, not Bridge directly
-        }
-    }
-
-    private fun addToVadBuffer(chunk: ByteArray) {
-        val MAX_BUFFER_SIZE = 20
-        vadBuffer.add(chunk)
-        while (vadBuffer.size > MAX_BUFFER_SIZE) {
-            vadBuffer.removeAt(0)
         }
     }
 
@@ -1127,6 +1097,7 @@ class DeviceManager {
     fun handleDeviceDisconnected() {
         Bridge.log("MAN: Device disconnected")
         DeviceStore.apply("glasses", "headUp", false)
+        DeviceStore.apply("glasses", "voiceActivityDetectionEnabled", true)
     }
 
     fun handleControllerReady() {
@@ -1369,7 +1340,6 @@ class DeviceManager {
         val willSendPcm = shouldSendPcm || shouldSendLc3
         val willSendTranscript = shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive
         micEnabled = willSendPcm || willSendTranscript
-        vadBuffer.clear()
         updateMicState()
     }
 
@@ -1531,6 +1501,7 @@ class DeviceManager {
         DeviceStore.apply("glasses", "deviceModel", "")
         DeviceStore.apply("glasses", "fullyBooted", false)
         DeviceStore.apply("glasses", "connected", false)
+        DeviceStore.apply("glasses", "voiceActivityDetectionEnabled", true)
         // disconnect the controller as well:
         searchingController = false
         DeviceStore.apply("glasses", "controllerConnected", false)

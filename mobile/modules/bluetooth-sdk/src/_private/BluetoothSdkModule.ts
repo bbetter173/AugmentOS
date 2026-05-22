@@ -12,7 +12,6 @@ import {
   DashboardMenuItem,
   Device,
   DeviceModel,
-  GalleryMode,
   GlassesMediaVolumeGetResult,
   GlassesMediaVolumeSetResult,
   GlassesStatus,
@@ -95,9 +94,10 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   logCurrentWifiFrequency(): Promise<void>
 
   // Gallery Commands
-  setGalleryMode(mode: GalleryMode): Promise<void>
+  setGalleryModeEnabled(enabled: boolean): Promise<void>
+  setVoiceActivityDetectionEnabled(enabled: boolean): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-  setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
@@ -124,7 +124,6 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   setMicState(
     enabled: boolean,
     useGlassesMic?: boolean,
-    bypassVad?: boolean,
     sendTranscript?: boolean,
     sendLc3Data?: boolean,
   ): Promise<void>
@@ -292,7 +291,6 @@ NativeBluetoothSdkModule.getDefaultDevice = function () {
 const nativeSetMicState = NativeBluetoothSdkModule.setMicState.bind(NativeBluetoothSdkModule) as (
   enabled: boolean,
   useGlassesMic: boolean,
-  bypassVad: boolean,
   sendTranscript: boolean,
   sendLc3Data: boolean,
 ) => MaybePromise<void>
@@ -346,15 +344,23 @@ NativeBluetoothSdkModule.setScreenDisabled = function (disabled: boolean) {
   return this.updateBluetoothSettings({screen_disabled: disabled})
 }
 
+NativeBluetoothSdkModule.setGalleryModeEnabled = function (enabled: boolean) {
+  return this.updateBluetoothSettings({gallery_mode: enabled})
+}
+
+NativeBluetoothSdkModule.setVoiceActivityDetectionEnabled = function (enabled: boolean) {
+  return this.updateBluetoothSettings({voice_activity_detection_enabled: enabled})
+}
+
 NativeBluetoothSdkModule.setButtonPhotoSettings = function (size: ButtonPhotoSize) {
   return this.updateBluetoothSettings({button_photo_size: size})
 }
 
-NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (width: number, height: number, frameRate: number) {
+NativeBluetoothSdkModule.setButtonVideoRecordingSettings = function (width: number, height: number, fps: number) {
   return this.updateBluetoothSettings({
     button_video_width: width,
     button_video_height: height,
-    button_video_fps: frameRate,
+    button_video_fps: fps,
   })
 }
 
@@ -367,13 +373,15 @@ NativeBluetoothSdkModule.setButtonMaxRecordingTime = function (minutes: number) 
 }
 
 NativeBluetoothSdkModule.setCameraFov = function (fov: CameraFov) {
-  return this.updateBluetoothSettings({camera_fov: CAMERA_FOV_SETTINGS[fov]})
+  const setting = CAMERA_FOV_SETTINGS[fov]
+  return this.updateBluetoothSettings({
+    camera_fov: {fov: setting.fov, roi_position: setting.roiPosition},
+  })
 }
 
 NativeBluetoothSdkModule.setMicState = function (
   enabled: boolean,
   useGlassesMic?: boolean,
-  bypassVad?: boolean,
   sendTranscript?: boolean,
   sendLc3Data?: boolean,
 ) {
@@ -381,7 +389,6 @@ NativeBluetoothSdkModule.setMicState = function (
     nativeSetMicState(
       enabled,
       useGlassesMic ?? true,
-      bypassVad ?? true,
       sendTranscript ?? false,
       sendLc3Data ?? false,
     ),

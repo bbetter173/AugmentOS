@@ -28,6 +28,7 @@ class DeviceStore {
         store.set("glasses", "deviceModel", "")
         store.set("glasses", "firmwareVersion", "")
         store.set("glasses", "micEnabled", false)
+        store.set("glasses", "voiceActivityDetectionEnabled", true)
         store.set("glasses", "bluetoothClassicConnected", false)
         store.set("glasses", "caseRemoved", true)
         store.set("glasses", "caseOpen", true)
@@ -84,12 +85,13 @@ class DeviceStore {
         store.set("bluetooth", "dashboard_depth", 2)
         store.set("bluetooth", "head_up_angle", 30)
         store.set("bluetooth", "contextual_dashboard", true)
-        store.set("bluetooth", "galleryModeAuto", true)
+        store.set("bluetooth", "gallery_mode", true)
+        store.set("bluetooth", "voice_activity_detection_enabled", true)
         store.set("bluetooth", "screen_disabled", false)
         store.set("bluetooth", "button_photo_size", "medium")
         store.set("bluetooth", "button_camera_led", true)
         store.set("bluetooth", "button_max_recording_time", 10)
-        store.set("bluetooth", "camera_fov", ["fov": 118, "roiPosition": 0])
+        store.set("bluetooth", "camera_fov", ["fov": 118, "roi_position": 0])
         store.set("bluetooth", "button_video_width", 1280)
         store.set("bluetooth", "button_video_height", 720)
         store.set("bluetooth", "button_video_fps", 30)
@@ -100,7 +102,6 @@ class DeviceStore {
         store.set("bluetooth", "should_send_pcm", false)
         store.set("bluetooth", "should_send_lc3", false)
         store.set("bluetooth", "should_send_transcript", false)
-        store.set("bluetooth", "bypass_vad", true)
         store.set("bluetooth", "use_native_dashboard", false)
     }
 
@@ -219,8 +220,11 @@ class DeviceStore {
                 DeviceManager.shared.sgc?.setDashboardMenu(items)
             }
 
-        case ("bluetooth", "galleryModeAuto"):
+        case ("bluetooth", "gallery_mode"):
             DeviceManager.shared.sgc?.sendGalleryMode()
+
+        case ("bluetooth", "voice_activity_detection_enabled"):
+            DeviceManager.shared.sgc?.sendVoiceActivityDetectionSetting()
 
         case ("bluetooth", "screen_disabled"):
             if let disabled = value as? Bool {

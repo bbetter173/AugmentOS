@@ -117,6 +117,7 @@ const initialState: GlassesStore = {
   bluetoothClassicConnected: false,
   signalStrength: -1,
   signalStrengthUpdatedAt: 0,
+  voiceActivityDetectionEnabled: true,
   // device info
   deviceModel: "",
   androidVersion: "",

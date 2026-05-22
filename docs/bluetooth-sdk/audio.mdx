@@ -14,15 +14,16 @@ Mentra Live and G2 both have microphones. Mentra Live has a speaker; G2 does not
 
 Use `setMicState` when your app wants microphone audio from the connected glasses or phone microphone path.
 
-`enabled` turns microphone capture on or off. `useGlassesMic` selects the glasses microphone when `true`, or the phone microphone when `false`. `bypassVad` controls whether Voice Activity Detection can gate the audio stream.
+`enabled` turns microphone capture on or off. `useGlassesMic` selects the glasses microphone when `true`, or the phone microphone when `false`.
 
-Voice Activity Detection, or VAD, is the SDK's speech detector. When VAD gating is enabled, the SDK emits microphone audio only around detected speech. That is useful for speech-triggered features, but it can remove leading/trailing silence and make PCM arrive in uneven bursts. For external STT services, WAV writing, recording, and playback, keep `bypassVad` at its default `true` value so the app receives continuous PCM.
+Microphone audio events are emitted continuously from the selected microphone path while capture is enabled. The SDK does not apply phone-side Voice Activity Detection gating to PCM or LC3 events. Glasses-side Voice Activity Detection can be enabled or disabled with `setVoiceActivityDetectionEnabled(...)`; the current setting is reported through `voice_activity_detection_status`. When supported by the connected glasses, `speaking_status` reports whether the glasses currently detect speech. Microphone events also include the latest `voiceActivityDetectionEnabled` value.
 
 <Tabs>
   <Tab title="React Native">
 
 ```ts
 await BluetoothSdk.setMicState(true);
+await BluetoothSdk.setVoiceActivityDetectionEnabled(false);
 ```
 
   </Tab>
@@ -30,6 +31,7 @@ await BluetoothSdk.setMicState(true);
 
 ```kotlin
 sdk.setMicState(enabled = true)
+sdk.setVoiceActivityDetectionEnabled(false)
 ```
 
   </Tab>
@@ -37,14 +39,13 @@ sdk.setMicState(enabled = true)
 
 ```swift
 sdk.setMicState(enabled: true)
+try await sdk.setVoiceActivityDetectionEnabled(false)
 ```
 
   </Tab>
 </Tabs>
 
 Your app owns user-facing microphone permission copy, should ask for microphone access only when the feature needs it, and should provide a visible way to disable microphone streaming.
-
-Pass `bypassVad = false` only when your app intentionally wants VAD-gated microphone events.
 
 ## Local Transcription
 
@@ -96,7 +97,7 @@ import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
 export function MicPcmLogger() {
   useBluetoothEvent('mic_pcm', (event) => {
     console.log(event.sampleRate, event.bitsPerSample, event.channels, event.encoding);
-    console.log(`VAD gated: ${event.vadGated}`);
+    console.log(event.voiceActivityDetectionEnabled);
     console.log(event.pcm);
   });
 
@@ -104,11 +105,31 @@ export function MicPcmLogger() {
 }
 ```
 
-`mic_pcm` emits 16 kHz, 16-bit, mono, signed little-endian PCM. `vadGated` is `true` when Voice Activity Detection is allowed to gate emitted audio before it reaches your listener.
+`mic_pcm` emits continuous 16 kHz, 16-bit, mono, signed little-endian PCM while microphone capture is enabled.
 
-`mic_lc3` emits SDK-encoded LC3 frames with `sampleRate`, `channels`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `vadGated`. For SDK-encoded LC3 events, `packetizedFromGlasses` is `false`: the SDK decodes glasses microphone LC3 and re-encodes it to the SDK's canonical LC3 output format before emitting app-facing LC3 events.
+`mic_lc3` emits SDK-encoded LC3 frames with `sampleRate`, `channels`, `frameDurationMs`, `frameSizeBytes`, `bitrate`, `packetizedFromGlasses`, and `voiceActivityDetectionEnabled`. For SDK-encoded LC3 events, `packetizedFromGlasses` is `false`: the SDK decodes glasses microphone LC3 and re-encodes it to the SDK's canonical LC3 output format before emitting app-facing LC3 events.
 
 Native Android and iOS apps receive `MicPcmEvent` and `MicLc3Event` objects with the same metadata through the SDK listener/delegate surfaces. Disable microphone audio callbacks when the app finishes using them.
+
+## Voice Activity Detection
+
+Voice Activity Detection means the glasses firmware is detecting whether the microphone signal currently contains speech. Use it as a signal, not as a replacement for microphone capture:
+
+- `setVoiceActivityDetectionEnabled(false)` keeps app-facing PCM and LC3 audio continuous for external STT, recording, and playback.
+- `voice_activity_detection_status` reports whether glasses-side Voice Activity Detection is enabled.
+- `speaking_status` reports the current speaking/not-speaking state when the connected glasses provide it.
+
+```tsx
+import {useBluetoothEvent} from '@mentra/bluetooth-sdk/react';
+
+export function SpeakingLogger() {
+  useBluetoothEvent('speaking_status', (event) => {
+    console.log(event.speaking ? 'speaking' : 'not speaking');
+  });
+
+  return null;
+}
+```
 
 ## Mentra Live Speaker Playback
 

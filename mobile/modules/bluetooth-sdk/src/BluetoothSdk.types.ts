@@ -22,9 +22,15 @@ export type HeadUpEvent = {
   up: boolean
 }
 
-export type VadStatusEvent = {
-  type: "vad_status"
-  status: boolean
+export type VoiceActivityDetectionStatusEvent = {
+  type: "voice_activity_detection_status"
+  voiceActivityDetectionEnabled: boolean
+}
+
+export type SpeakingStatusEvent = {
+  type: "speaking_status"
+  speaking: boolean
+  timestamp: number
 }
 
 export type BatteryStatusEvent = {
@@ -61,6 +67,7 @@ export function createDisconnectedGlassesStatus(): Partial<GlassesStatus> {
   return {
     connection: {state: 'disconnected'},
     hotspot: {state: 'disabled'},
+    voiceActivityDetectionEnabled: true,
     wifi: {state: 'disconnected'},
   }
 }
@@ -190,8 +197,6 @@ export type RgbLedControlResponseEvent =
 
 export type RgbLedAction = "on" | "off"
 export type RgbLedColor = "red" | "green" | "blue" | "orange" | "white"
-/** `"auto"` enables local button photo/video capture; `"manual"` reports button events without local gallery capture. */
-export type GalleryMode = "auto" | "manual"
 export type PhotoSize = "small" | "medium" | "large" | "full"
 export type ButtonPhotoSize = "small" | "medium" | "large"
 export type PhotoCompression = "none" | "medium" | "heavy"
@@ -221,6 +226,11 @@ export type CameraFov = "standard" | "wide"
 export type CameraFovSetting = {
   fov: number
   roiPosition: number
+}
+
+type NativeCameraFovSetting = {
+  fov: number
+  roi_position: number
 }
 
 export type MicPreference = "auto" | "phone" | "glasses" | "bluetooth"
@@ -310,7 +320,7 @@ export type MicPcmEvent = {
   bitsPerSample: 16
   channels: 1
   encoding: "pcm_s16le"
-  vadGated: boolean
+  voiceActivityDetectionEnabled: boolean
 }
 
 export type MicLc3Event = {
@@ -323,7 +333,7 @@ export type MicLc3Event = {
   frameSizeBytes: number
   bitrate: number
   packetizedFromGlasses: boolean
-  vadGated: boolean
+  voiceActivityDetectionEnabled: boolean
 }
 
 export type StreamStatusLifecycleState = "initializing" | "streaming" | "stopping" | "stopped"
@@ -461,7 +471,8 @@ export type BluetoothSdkModuleEvents = {
   button_press: (event: ButtonPressEvent) => void
   touch_event: (event: TouchEvent) => void
   head_up: (event: HeadUpEvent) => void
-  vad_status: (event: VadStatusEvent) => void
+  voice_activity_detection_status: (event: VoiceActivityDetectionStatusEvent) => void
+  speaking_status: (event: SpeakingStatusEvent) => void
   battery_status: (event: BatteryStatusEvent) => void
   local_transcription: (event: LocalTranscriptionEvent) => void
   wifi_status_change: (event: WifiStatusChangeEvent) => void
@@ -511,7 +522,7 @@ export type PublicBluetoothStatus = Pick<
   | "wifiScanResults"
   | "lastLog"
   | "otherBtConnected"
-  | "galleryModeAuto"
+  | "galleryModeEnabled"
 >
 
 export type BluetoothSdkEventMap = {
@@ -522,7 +533,8 @@ export type BluetoothSdkEventMap = {
   button_press: ButtonPressEvent
   touch_event: TouchEvent
   head_up: HeadUpEvent
-  vad_status: VadStatusEvent
+  voice_activity_detection_status: VoiceActivityDetectionStatusEvent
+  speaking_status: SpeakingStatusEvent
   battery_status: BatteryStatusEvent
   local_transcription: LocalTranscriptionEvent
   wifi_status_change: WifiStatusChangeEvent
@@ -588,9 +600,10 @@ export interface BluetoothSdkPublicModule {
   forgetWifiNetwork(ssid: string): Promise<void>
   setHotspotState(enabled: boolean): Promise<void>
 
-  setGalleryMode(mode: GalleryMode): Promise<void>
+  setGalleryModeEnabled(enabled: boolean): Promise<void>
+  setVoiceActivityDetectionEnabled(enabled: boolean): Promise<void>
   setButtonPhotoSettings(size: ButtonPhotoSize): Promise<void>
-  setButtonVideoRecordingSettings(width: number, height: number, frameRate: number): Promise<void>
+  setButtonVideoRecordingSettings(width: number, height: number, fps: number): Promise<void>
   setButtonCameraLed(enabled: boolean): Promise<void>
   setButtonMaxRecordingTime(minutes: number): Promise<void>
   setCameraFov(fov: CameraFov): Promise<void>
@@ -606,7 +619,6 @@ export interface BluetoothSdkPublicModule {
   setMicState(
     enabled: boolean,
     useGlassesMic?: boolean,
-    bypassVad?: boolean,
     sendTranscript?: boolean,
     sendLc3Data?: boolean,
   ): Promise<void>
@@ -667,6 +679,7 @@ export interface GlassesStatus {
   // state:
   connection: GlassesConnectionStatus
   micEnabled: boolean
+  voiceActivityDetectionEnabled: boolean
   bluetoothClassicConnected: boolean
   signalStrength: number
   /** Milliseconds since epoch when signalStrength was last refreshed by the phone BLE stack. */
@@ -790,7 +803,7 @@ export interface BluetoothStatus {
   lastLog: string[]
   otherBtConnected: boolean
   // desired settings the SDK sends to compatible connected glasses:
-  galleryModeAuto: boolean
+  galleryModeEnabled: boolean
 }
 
 export type BluetoothSettingsUpdate = Partial<{
@@ -808,19 +821,19 @@ export type BluetoothSettingsUpdate = Partial<{
   dashboard_height: number
   dashboard_depth: number
   menu_apps: DashboardMenuItem[] | CoreDashboardMenuItem[] | Array<Record<string, unknown>> | null
-  galleryModeAuto: boolean
+  gallery_mode: boolean
+  voice_activity_detection_enabled: boolean
   button_photo_size: ButtonPhotoSize
-  button_video_settings: {width: number; height: number; frameRate: number}
+  button_video_settings: {width: number; height: number; fps: number}
   button_video_width: number
   button_video_height: number
   button_video_fps: number
   button_camera_led: boolean
   button_max_recording_time: number
-  camera_fov: CameraFovSetting
+  camera_fov: NativeCameraFovSetting
   should_send_pcm: boolean
   should_send_lc3: boolean
   should_send_transcript: boolean
-  bypass_vad: boolean
   offline_mode: boolean
   offline_captions_running: boolean
   local_stt_fallback_active: boolean

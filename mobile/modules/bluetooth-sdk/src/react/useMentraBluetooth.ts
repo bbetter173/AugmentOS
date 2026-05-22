@@ -11,7 +11,6 @@ import type {
   ConnectOptions,
   Device,
   DeviceModel,
-  GalleryMode,
   GlassesConnectionStatus,
   HotspotStatus,
   PublicBluetoothStatus,
@@ -78,12 +77,13 @@ export type GlassesRuntimeState =
       hotspot: HotspotStatus
       ready: boolean
       signal: SignalState
+      voiceActivityDetectionEnabled: boolean
       wifi: WifiStatus
     }
 
 export type GalleryModeState = {
   applying: boolean
-  desired: GalleryMode
+  enabled: boolean
   error: unknown | null
 }
 
@@ -134,7 +134,8 @@ export type MentraBluetoothSession = {
   scan: ScanController
   sdk: PhoneSdkRuntimeState
   setDefaultDevice: (device: Device | null) => Promise<void>
-  setGalleryMode: (mode: GalleryMode) => Promise<void>
+  setGalleryModeEnabled: (enabled: boolean) => Promise<void>
+  setVoiceActivityDetectionEnabled: (enabled: boolean) => Promise<void>
 }
 
 function stringValue(value: unknown): string | undefined {
@@ -220,6 +221,7 @@ function runtimeGlassesState(status: Partial<PublicGlassesStatus>): GlassesRunti
       strengthDbm: numberValue((status as Record<string, unknown>).signalStrength),
       updatedAt: numberValue((status as Record<string, unknown>).signalStrengthUpdatedAt),
     },
+    voiceActivityDetectionEnabled: status.voiceActivityDetectionEnabled ?? true,
     wifi: status.wifi ?? {state: "disconnected"},
   }
 }
@@ -269,11 +271,11 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
   const [galleryModeApplying, setGalleryModeApplying] = useState(false)
   const [galleryModeError, setGalleryModeError] = useState<unknown | null>(null)
 
-  async function setGalleryMode(mode: GalleryMode) {
+  async function setGalleryModeEnabled(enabled: boolean) {
     setGalleryModeApplying(true)
     setGalleryModeError(null)
     try {
-      await BluetoothSdk.setGalleryMode(mode)
+      await BluetoothSdk.setGalleryModeEnabled(enabled)
     } catch (error) {
       setGalleryModeError(error)
       options.onError?.(error)
@@ -283,9 +285,18 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
     }
   }
 
+  async function setVoiceActivityDetectionEnabled(enabled: boolean) {
+    try {
+      await BluetoothSdk.setVoiceActivityDetectionEnabled(enabled)
+    } catch (error) {
+      options.onError?.(error)
+      throw error
+    }
+  }
+
   const galleryMode: GalleryModeState = {
     applying: galleryModeApplying,
-    desired: connection.bluetoothStatus.galleryModeAuto === false ? "manual" : "auto",
+    enabled: connection.bluetoothStatus.galleryModeEnabled !== false,
     error: galleryModeError,
   }
 
@@ -302,6 +313,7 @@ export function useMentraBluetooth(options: UseMentraBluetoothOptions = {}): Men
     scan: scanController(connection),
     sdk: phoneSdkState(connection.bluetoothStatus, connection.defaultDevice, galleryMode),
     setDefaultDevice: connection.setDefaultDevice,
-    setGalleryMode,
+    setGalleryModeEnabled,
+    setVoiceActivityDetectionEnabled,
   }
 }

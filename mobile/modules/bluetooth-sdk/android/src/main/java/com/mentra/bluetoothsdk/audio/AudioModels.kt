@@ -13,7 +13,7 @@ data class MicPcmEvent(
     val bitsPerSample: Int,
     val channels: Int,
     val encoding: String,
-    val vadGated: Boolean,
+    val voiceActivityDetectionEnabled: Boolean,
 ) {
     constructor(values: Map<String, Any>) : this(
         pcm = values["pcm"] as? ByteArray ?: ByteArray(0),
@@ -21,7 +21,7 @@ data class MicPcmEvent(
         bitsPerSample = numberValue(values, "bitsPerSample") ?: BITS_PER_SAMPLE,
         channels = numberValue(values, "channels") ?: CHANNELS,
         encoding = stringValue(values, "encoding") ?: ENCODING,
-        vadGated = boolValue(values, "vadGated") ?: false,
+        voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?: true,
     )
 
     fun toMap(): Map<String, Any> =
@@ -32,7 +32,7 @@ data class MicPcmEvent(
             "bitsPerSample" to bitsPerSample,
             "channels" to channels,
             "encoding" to encoding,
-            "vadGated" to vadGated,
+            "voiceActivityDetectionEnabled" to voiceActivityDetectionEnabled,
         )
 
     companion object {
@@ -52,7 +52,7 @@ data class MicLc3Event(
     val frameSizeBytes: Int,
     val bitrate: Int,
     val packetizedFromGlasses: Boolean,
-    val vadGated: Boolean,
+    val voiceActivityDetectionEnabled: Boolean,
 ) {
     constructor(values: Map<String, Any>) : this(
         lc3 = values["lc3"] as? ByteArray ?: ByteArray(0),
@@ -63,7 +63,7 @@ data class MicLc3Event(
         frameSizeBytes = numberValue(values, "frameSizeBytes") ?: DEFAULT_FRAME_SIZE_BYTES,
         bitrate = numberValue(values, "bitrate") ?: DEFAULT_BITRATE,
         packetizedFromGlasses = boolValue(values, "packetizedFromGlasses") ?: false,
-        vadGated = boolValue(values, "vadGated") ?: false,
+        voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?: true,
     )
 
     fun toMap(): Map<String, Any> =
@@ -77,7 +77,7 @@ data class MicLc3Event(
             "frameSizeBytes" to frameSizeBytes,
             "bitrate" to bitrate,
             "packetizedFromGlasses" to packetizedFromGlasses,
-            "vadGated" to vadGated,
+            "voiceActivityDetectionEnabled" to voiceActivityDetectionEnabled,
         )
 
     companion object {

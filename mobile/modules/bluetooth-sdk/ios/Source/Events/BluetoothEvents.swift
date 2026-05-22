@@ -44,9 +44,39 @@ public struct TouchEvent: CustomStringConvertible {
     }
 }
 
+public struct VoiceActivityDetectionStatusEvent: CustomStringConvertible {
+    public let voiceActivityDetectionEnabled: Bool
+    public let values: [String: Any]
+
+    public init(values: [String: Any]) {
+        voiceActivityDetectionEnabled = boolValue(values, "voiceActivityDetectionEnabled") ?? true
+        self.values = values
+    }
+
+    public var description: String {
+        "VoiceActivityDetectionStatusEvent(voiceActivityDetectionEnabled: \(voiceActivityDetectionEnabled))"
+    }
+}
+
+public struct SpeakingStatusEvent: CustomStringConvertible {
+    public let speaking: Bool
+    public let values: [String: Any]
+
+    public init(values: [String: Any]) {
+        speaking = boolValue(values, "speaking") ?? false
+        self.values = values
+    }
+
+    public var description: String {
+        "SpeakingStatusEvent(speaking: \(speaking))"
+    }
+}
+
 public enum BluetoothEvent: CustomStringConvertible {
     case buttonPress(ButtonPressEvent)
     case touch(TouchEvent)
+    case voiceActivityDetectionStatus(VoiceActivityDetectionStatusEvent)
+    case speakingStatus(SpeakingStatusEvent)
     case wifiStatus(WifiStatusEvent)
     case hotspotStatus(HotspotStatusEvent)
     case hotspotError(HotspotErrorEvent)
@@ -61,6 +91,10 @@ public enum BluetoothEvent: CustomStringConvertible {
         case let .buttonPress(event):
             event.description
         case let .touch(event):
+            event.description
+        case let .voiceActivityDetectionStatus(event):
+            event.description
+        case let .speakingStatus(event):
             event.description
         case let .wifiStatus(event):
             event.description

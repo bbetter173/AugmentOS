@@ -285,9 +285,10 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: true,
     persist: true,
   },
+  // Legacy cloud/mobile setting name. Locally it maps to glasses-side Voice Activity Detection.
   bypass_vad_for_debugging: {
     key: "bypass_vad_for_debugging",
-    defaultValue: () => true,
+    defaultValue: () => false,
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -389,7 +390,7 @@ export const SETTINGS: Record<string, Setting> = {
     persist: true,
   },
   // button settings
-  // Legacy persisted/cloud key; hardware behavior is now controlled by galleryModeAuto plus capture settings.
+  // Legacy persisted/cloud key; hardware behavior is now controlled by gallery_mode plus capture settings.
   button_mode: {key: "button_mode", defaultValue: () => "photo", writable: true, saveOnServer: true, persist: true},
   button_photo_size: {
     key: "button_photo_size",
@@ -400,7 +401,7 @@ export const SETTINGS: Record<string, Setting> = {
   },
   button_video_settings: {
     key: "button_video_settings",
-    defaultValue: () => ({width: 1920, height: 1080, frameRate: 30}),
+    defaultValue: () => ({width: 1920, height: 1080, fps: 30}),
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -421,7 +422,7 @@ export const SETTINGS: Record<string, Setting> = {
   },
   camera_fov: {
     key: "camera_fov",
-    defaultValue: () => ({fov: 118, roiPosition: 0}),
+    defaultValue: () => ({fov: 118, roi_position: 0}),
     writable: true,
     saveOnServer: true,
     persist: true,
@@ -481,7 +482,7 @@ export const SETTINGS: Record<string, Setting> = {
     saveOnServer: false,
     persist: false,
   },
-  galleryModeAuto: {key: "galleryModeAuto", defaultValue: () => true, writable: true, saveOnServer: true, persist: true},
+  gallery_mode: {key: "gallery_mode", defaultValue: () => true, writable: true, saveOnServer: true, persist: true},
   gallery_sync_explained: {
     key: "gallery_sync_explained",
     defaultValue: () => false,
@@ -615,7 +616,7 @@ const CORE_SETTINGS_KEYS: string[] = [
   // offline applets:
   SETTINGS.offline_mode.key,
   SETTINGS.offline_captions_running.key,
-  SETTINGS.galleryModeAuto.key,
+  SETTINGS.gallery_mode.key,
 ]
 
 // const PER_GLASSES_SETTINGS_KEYS: string[] = [SETTINGS.preferred_mic.key]
@@ -822,6 +823,7 @@ export const useSettingsStore = create<SettingsState>()(
           coreSettings[setting.key] = state.getSetting(setting.key)
         }
       })
+      coreSettings.voice_activity_detection_enabled = !state.getSetting(SETTINGS.bypass_vad_for_debugging.key)
       return coreSettings
     },
     resetAllSettingsLocally: () => {

@@ -305,7 +305,6 @@ public final class MentraBluetoothSDK {
     public func setMicState(
         enabled: Bool,
         useGlassesMic: Bool = true,
-        bypassVad: Bool = true,
         sendTranscript: Bool = false,
         sendLc3Data: Bool = false
     ) {
@@ -319,7 +318,6 @@ public final class MentraBluetoothSDK {
         applyMicState(
             sendPcmData: enabled,
             sendTranscript: enabled && sendTranscript,
-            bypassVad: bypassVad,
             sendLc3Data: enabled && sendLc3Data
         )
     }
@@ -327,13 +325,11 @@ public final class MentraBluetoothSDK {
     private func applyMicState(
         sendPcmData: Bool,
         sendTranscript: Bool,
-        bypassVad: Bool,
         sendLc3Data: Bool
     ) {
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_pcm", sendPcmData)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_lc3", sendLc3Data)
         DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "should_send_transcript", sendTranscript)
-        DeviceStore.shared.apply(ObservableStore.bluetoothCategory, "bypass_vad", bypassVad)
         DeviceManager.shared.setMicState()
     }
 

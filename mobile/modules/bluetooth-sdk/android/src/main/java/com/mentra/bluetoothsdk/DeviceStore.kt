@@ -137,7 +137,6 @@ object DeviceStore {
         store.set("bluetooth", "should_send_pcm", false)
         store.set("bluetooth", "should_send_lc3", false)
         store.set("bluetooth", "should_send_transcript", false)
-        store.set("bluetooth", "bypass_vad", true)
         store.set("bluetooth", "use_native_dashboard", false)
     }
 

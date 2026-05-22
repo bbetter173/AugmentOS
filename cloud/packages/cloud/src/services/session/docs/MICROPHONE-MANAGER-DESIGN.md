@@ -98,7 +98,6 @@ The manager calculates the optimal `requiredData` array based on all active subs
   },
   isMicrophoneEnabled: boolean,
   requiredData: Array<'pcm' | 'transcription' | 'pcm_or_transcription'>,
-  bypassVad: boolean,  // Bypass Voice Activity Detection for PCM
   timestamp: Date
 }
 ```

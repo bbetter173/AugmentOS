@@ -175,7 +175,6 @@ class MantleManager {
           should_send_pcm: requirements.shouldSendPcm,
           should_send_lc3: requirements.shouldSendLc3,
           should_send_transcript: requirements.shouldSendTranscript,
-          bypass_vad: requirements.bypassVad,
         }),
       requestMiniappSdkPhoto: (params) => requestMiniappSdkPhoto(params),
     })

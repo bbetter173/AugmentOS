@@ -140,8 +140,7 @@ export class UserSettingsManager {
       autoBrightness: this.snapshot.auto_brightness ?? true,
       sensingEnabled: this.snapshot.sensing_enabled ?? true,
       alwaysOnStatusBar: this.snapshot.always_on_status_bar ?? false,
-      // Mobile uses "_for_debugging" suffix for these keys
-      bypassVad: this.snapshot.bypass_vad_for_debugging ?? false,
+      // Mobile uses "_for_debugging" suffix for this key
       bypassAudioEncoding: this.snapshot.bypass_audio_encoding_for_debugging ?? false,
       // Mobile uses preferred_mic indexed by device (e.g., preferred_mic:G1)
       preferredMic: preferredMic,

@@ -20,7 +20,6 @@ class MicStateCoordinator {
   private cloudWantsPcm = false
   private cloudWantsLc3 = false
   private cloudWantsTranscript = false
-  private cloudBypassVad = false
 
   // Local miniapp requirements (set when miniapps subscribe to audio streams)
   private localWantsPcm = false
@@ -39,13 +38,12 @@ class MicStateCoordinator {
    * Update cloud-side requirements. Called by SocketComms when the cloud
    * sends a mic_state_change message.
    */
-  public setCloudRequirements(req: {pcm: boolean; lc3: boolean; transcript: boolean; bypass_vad: boolean}): void {
+  public setCloudRequirements(req: {pcm: boolean; lc3: boolean; transcript: boolean}): void {
     this.cloudWantsPcm = req.pcm
     this.cloudWantsLc3 = req.lc3
     this.cloudWantsTranscript = req.transcript
-    this.cloudBypassVad = req.bypass_vad
     // console.log(
-    //   `${LOG_TAG}: cloud requirements updated — pcm=${req.pcm} lc3=${req.lc3} transcript=${req.transcript} bypass_vad=${req.bypass_vad}`,
+    //   `${LOG_TAG}: cloud requirements updated — pcm=${req.pcm} lc3=${req.lc3} transcript=${req.transcript}`,
     // )
     this.applyUnion()
   }
@@ -75,10 +73,9 @@ class MicStateCoordinator {
     const shouldSendPcm = this.localWantsPcm
     const shouldSendLc3 = this.cloudWantsPcm || this.cloudWantsLc3 || this.localWantsLc3
     const shouldSendTranscript = this.cloudWantsTranscript
-    const bypassVad = this.cloudBypassVad
 
     // console.log(
-    //   `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript} bypass_vad=${bypassVad}`,
+    //   `${LOG_TAG}: applying union — pcm=${shouldSendPcm} lc3=${shouldSendLc3} transcript=${shouldSendTranscript}`,
     // )
 
     const setMicRequirements = getRuntimeHooks().setMicRequirements
@@ -91,7 +88,6 @@ class MicStateCoordinator {
         shouldSendPcm,
         shouldSendLc3,
         shouldSendTranscript,
-        bypassVad,
       })).catch((err) => {
         console.error(`${LOG_TAG}: failed to apply mic requirements:`, err)
       })
@@ -107,7 +103,6 @@ class MicStateCoordinator {
     this.cloudWantsPcm = false
     this.cloudWantsLc3 = false
     this.cloudWantsTranscript = false
-    this.cloudBypassVad = false
     this.localWantsPcm = false
     this.localWantsLc3 = false
     this.applyUnion()

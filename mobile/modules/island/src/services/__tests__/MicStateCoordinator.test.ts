@@ -13,7 +13,7 @@ describe("MicStateCoordinator", () => {
   })
 
   test("cloud-only PCM requirement", () => {
-    MicStateCoordinator.setCloudRequirements({pcm: true, lc3: false, transcript: false, bypass_vad: false})
+    MicStateCoordinator.setCloudRequirements({pcm: true, lc3: false, transcript: false})
     expect(mockSetMicRequirements).toHaveBeenCalledWith(
       expect.objectContaining({
         shouldSendPcm: false,
@@ -32,7 +32,7 @@ describe("MicStateCoordinator", () => {
   })
 
   test("union of cloud + local", () => {
-    MicStateCoordinator.setCloudRequirements({pcm: true, lc3: false, transcript: true, bypass_vad: false})
+    MicStateCoordinator.setCloudRequirements({pcm: true, lc3: false, transcript: true})
     MicStateCoordinator.setLocalRequirements({pcm: false, lc3: true})
     const lastCall = mockSetMicRequirements.mock.calls[mockSetMicRequirements.mock.calls.length - 1]
     expect(lastCall[0]).toEqual(
@@ -45,7 +45,7 @@ describe("MicStateCoordinator", () => {
   })
 
   test("both off means all false", () => {
-    MicStateCoordinator.setCloudRequirements({pcm: false, lc3: false, transcript: false, bypass_vad: false})
+    MicStateCoordinator.setCloudRequirements({pcm: false, lc3: false, transcript: false})
     MicStateCoordinator.setLocalRequirements({pcm: false, lc3: false})
     const lastCall = mockSetMicRequirements.mock.calls[mockSetMicRequirements.mock.calls.length - 1]
     expect(lastCall[0]).toEqual(
@@ -57,7 +57,7 @@ describe("MicStateCoordinator", () => {
   })
 
   test("local unsubscribe doesn't kill cloud mic", () => {
-    MicStateCoordinator.setCloudRequirements({pcm: false, lc3: true, transcript: true, bypass_vad: false})
+    MicStateCoordinator.setCloudRequirements({pcm: false, lc3: true, transcript: true})
     MicStateCoordinator.setLocalRequirements({pcm: false, lc3: true})
     MicStateCoordinator.setLocalRequirements({pcm: false, lc3: false})
     const lastCall = mockSetMicRequirements.mock.calls[mockSetMicRequirements.mock.calls.length - 1]

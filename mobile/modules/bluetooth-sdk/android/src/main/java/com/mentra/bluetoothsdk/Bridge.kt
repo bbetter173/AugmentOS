@@ -156,7 +156,6 @@ public class Bridge private constructor() {
             body["bitsPerSample"] = PCM_BITS_PER_SAMPLE
             body["channels"] = MIC_CHANNELS
             body["encoding"] = "pcm_s16le"
-            body["vadGated"] = isVadGated()
             return body
         }
 
@@ -173,12 +172,8 @@ public class Bridge private constructor() {
             body["frameSizeBytes"] = frameSizeBytes
             body["bitrate"] = frameSizeBytes * 8 * (1000 / LC3_FRAME_DURATION_MS)
             body["packetizedFromGlasses"] = false
-            body["vadGated"] = isVadGated()
             return body
         }
-
-        private fun isVadGated(): Boolean =
-                !((DeviceStore.store.get("bluetooth", "bypass_vad") as? Boolean) ?: true)
 
         /** Save a setting */
         @JvmStatic

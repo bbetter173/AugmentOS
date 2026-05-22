@@ -15,7 +15,7 @@ The SDK is in a much better place than the original feedback implied:
 The main remaining problems are less about "does the demo run at all?" and more about API clarity and production readiness:
 
 - The React Native direct receiver still makes GStreamer a default native dependency for the example app, even for developers who only want phone photo upload.
-- `setMicState(...)` now defaults to `bypassVad=true`, so app-facing PCM is continuous by default.
+- `setMicState(...)` no longer exposes `bypassVad`; app-facing microphone audio events are continuous while capture is enabled.
 - `MicPcmEvent` and `MicLc3Event` now include payload metadata in the current worktree.
 - Photo request rate limiting / queue overflow still appears silent from the app-facing API.
 - iOS background BLE and audio requirements are now documented in the Mintlify iOS and React Native setup pages.
@@ -40,22 +40,22 @@ Recommended follow-up:
 - Make the default React Native starter path photo-only unless the developer opts into direct WebRTC preview.
 - Keep GStreamer docs, but frame it as optional advanced setup rather than baseline starter-kit setup.
 
-### 2. `bypassVad` Defaults To Continuous PCM
+### 2. Phone-Side VAD Gating Is Removed From App-Facing PCM
 
 Status: addressed in the current worktree.
 
-The public APIs default `bypassVad` to `true`:
+The public APIs no longer expose `bypassVad`:
 
-- React Native wrapper: `setMicState(enabled, useGlassesMic = true, bypassVad = true, ...)`
-- Android native SDK: `setMicState(enabled = true, useGlassesMic = true, bypassVad = true, ...)`
-- iOS native SDK: `setMicState(enabled: true, useGlassesMic: true, bypassVad: true, ...)`
+- React Native wrapper: `setMicState(enabled, useGlassesMic = true, sendTranscript = false, sendLc3Data = false)`
+- Android native SDK: `setMicState(enabled = true, useGlassesMic = true, sendTranscript = false, sendLc3Data = false)`
+- iOS native SDK: `setMicState(enabled: true, useGlassesMic: true, sendTranscript: false, sendLc3Data: false)`
 
-Voice Activity Detection, or VAD, is the SDK speech detector. VAD-gated PCM can drop leading/trailing frames and arrive in irregular bursts, which is a bad default for third-party STT pipelines that expect continuous PCM. The app-facing default now favors continuous PCM for external STT, WAV writing, recording, and playback.
+The SDK no longer applies phone-side Voice Activity Detection gating to app-facing PCM or LC3 events. That keeps external STT, WAV writing, recording, and playback on a continuous microphone stream. Glasses-side VAD status remains separate and is reported through `vad_status` when supported.
 
 Current behavior:
 
-- Use the default `bypassVad=true` when sending PCM to external STT or writing/playing continuous audio.
-- Pass `bypassVad=false` only when intentionally accepting SDK VAD-gated microphone events.
+- Turn microphone capture on or off with `setMicState(enabled, ...)`.
+- Use `vad_status` only as a glasses-side speech/activity signal, not as a phone-side audio gate.
 
 ### 3. `MicPcmEvent` And `MicLc3Event` Now Include Metadata
 
@@ -71,7 +71,6 @@ export type MicPcmEvent = {
   bitsPerSample: 16
   channels: 1
   encoding: "pcm_s16le"
-  vadGated: boolean
 }
 
 export type MicLc3Event = {
@@ -84,13 +83,12 @@ export type MicLc3Event = {
   frameSizeBytes: number
   bitrate: number
   packetizedFromGlasses: boolean
-  vadGated: boolean
 }
 ```
 
-The event payload now says whether PCM is 16 kHz, 16-bit, mono, signed little-endian, and VAD-gated. Native Android and iOS callbacks now receive `MicPcmEvent` and `MicLc3Event` objects instead of raw bytes. LC3 events now include the SDK's canonical sample rate, frame duration, frame size, derived bitrate, and whether the emitted frame is packetized exactly as received from glasses.
+The event payload now says whether PCM is 16 kHz, 16-bit, mono, and signed little-endian. Native Android and iOS callbacks now receive `MicPcmEvent` and `MicLc3Event` objects instead of raw bytes. LC3 events now include the SDK's canonical sample rate, frame duration, frame size, derived bitrate, and whether the emitted frame is packetized exactly as received from glasses.
 
-Remaining follow-up: verify the emitted metadata on both iOS and Android hardware while recording PCM and LC3, especially `vadGated` and the current `lc3_frame_size` value.
+Remaining follow-up: verify the emitted metadata on both iOS and Android hardware while recording PCM and LC3, especially the current `lc3_frame_size` value.
 
 ### 4. Scan Progress Is Much Better; Keep `connectFirst` Out Of The Happy Path
 
@@ -210,7 +208,7 @@ These should not be repeated as current blockers:
 - `useMentraBluetooth()` is a strong React Native direction because it gives app developers shaped state instead of native-store snapshots.
 - Stable scan-result ordering avoids UI churn when devices refresh.
 - The Expo plugin continues to hide most Android/iOS permission plumbing from React Native apps.
-- Continuous PCM with `bypassVad=true` is a good signal source once developers know to use it for external STT.
+- Continuous PCM is a good signal source for external STT.
 
 ## Suggested Next Priority Order
 

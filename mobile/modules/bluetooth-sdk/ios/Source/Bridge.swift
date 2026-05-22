@@ -95,7 +95,6 @@ class Bridge {
             "bitsPerSample": pcmBitsPerSample,
             "channels": micChannels,
             "encoding": "pcm_s16le",
-            "vadGated": isVadGated(),
         ]
     }
 
@@ -111,13 +110,7 @@ class Bridge {
             "frameSizeBytes": frameSizeBytes,
             "bitrate": frameSizeBytes * 8 * (1000 / lc3FrameDurationMs),
             "packetizedFromGlasses": false,
-            "vadGated": isVadGated(),
         ]
-    }
-
-    @MainActor
-    private static func isVadGated() -> Bool {
-        !(DeviceStore.shared.get("bluetooth", "bypass_vad") as? Bool ?? true)
     }
 
     static func saveSetting(_ key: String, _ value: Any) {

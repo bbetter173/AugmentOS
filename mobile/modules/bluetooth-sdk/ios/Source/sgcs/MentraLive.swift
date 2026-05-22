@@ -2667,7 +2667,7 @@ class MentraLive: NSObject, SGCManager {
         //     return
         // }
 
-        // // Forward PCM data to DeviceManager for VAD and server transmission (same as Android)
+        // // Forward PCM data to DeviceManager for audio events and server transmission (same as Android)
         // DeviceManager.shared.handlePcm(pcmData)
 
         // Bridge.log(

@@ -34,7 +34,6 @@ public struct MicPcmEvent: CustomStringConvertible {
     public let bitsPerSample: Int
     public let channels: Int
     public let encoding: String
-    public let vadGated: Bool
     public let values: [String: Any]
 
     public init(values: [String: Any]) {
@@ -43,7 +42,6 @@ public struct MicPcmEvent: CustomStringConvertible {
         let bitsPerSample = intValue(values["bitsPerSample"]) ?? Self.bitsPerSample
         let channels = intValue(values["channels"]) ?? Self.channels
         let encoding = values["encoding"] as? String ?? Self.encoding
-        let vadGated = boolValue(values, "vadGated") ?? false
 
         var normalized = values
         normalized["type"] = "mic_pcm"
@@ -52,19 +50,17 @@ public struct MicPcmEvent: CustomStringConvertible {
         normalized["bitsPerSample"] = bitsPerSample
         normalized["channels"] = channels
         normalized["encoding"] = encoding
-        normalized["vadGated"] = vadGated
 
         self.pcm = pcm
         self.sampleRate = sampleRate
         self.bitsPerSample = bitsPerSample
         self.channels = channels
         self.encoding = encoding
-        self.vadGated = vadGated
         self.values = normalized
     }
 
     public var description: String {
-        "MicPcmEvent(bytes: \(pcm.count), sampleRate: \(sampleRate), bitsPerSample: \(bitsPerSample), channels: \(channels), encoding: \(encoding), vadGated: \(vadGated))"
+        "MicPcmEvent(bytes: \(pcm.count), sampleRate: \(sampleRate), bitsPerSample: \(bitsPerSample), channels: \(channels), encoding: \(encoding))"
     }
 }
 
@@ -83,7 +79,6 @@ public struct MicLc3Event: CustomStringConvertible {
     public let frameSizeBytes: Int
     public let bitrate: Int
     public let packetizedFromGlasses: Bool
-    public let vadGated: Bool
     public let values: [String: Any]
 
     public init(values: [String: Any]) {
@@ -95,7 +90,6 @@ public struct MicLc3Event: CustomStringConvertible {
         let frameSizeBytes = intValue(values["frameSizeBytes"]) ?? Self.defaultFrameSizeBytes
         let bitrate = intValue(values["bitrate"]) ?? frameSizeBytes * 8 * (1000 / frameDurationMs)
         let packetizedFromGlasses = boolValue(values, "packetizedFromGlasses") ?? false
-        let vadGated = boolValue(values, "vadGated") ?? false
 
         var normalized = values
         normalized["type"] = "mic_lc3"
@@ -107,7 +101,6 @@ public struct MicLc3Event: CustomStringConvertible {
         normalized["frameSizeBytes"] = frameSizeBytes
         normalized["bitrate"] = bitrate
         normalized["packetizedFromGlasses"] = packetizedFromGlasses
-        normalized["vadGated"] = vadGated
 
         self.lc3 = lc3
         self.sampleRate = sampleRate
@@ -117,12 +110,11 @@ public struct MicLc3Event: CustomStringConvertible {
         self.frameSizeBytes = frameSizeBytes
         self.bitrate = bitrate
         self.packetizedFromGlasses = packetizedFromGlasses
-        self.vadGated = vadGated
         self.values = normalized
     }
 
     public var description: String {
-        "MicLc3Event(bytes: \(lc3.count), sampleRate: \(sampleRate), channels: \(channels), frameDurationMs: \(frameDurationMs), frameSizeBytes: \(frameSizeBytes), bitrate: \(bitrate), packetizedFromGlasses: \(packetizedFromGlasses), vadGated: \(vadGated))"
+        "MicLc3Event(bytes: \(lc3.count), sampleRate: \(sampleRate), channels: \(channels), frameDurationMs: \(frameDurationMs), frameSizeBytes: \(frameSizeBytes), bitrate: \(bitrate), packetizedFromGlasses: \(packetizedFromGlasses))"
     }
 }
 

@@ -458,7 +458,6 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
         AsyncFunction("setMicState") { (
             enabled: Bool,
             useGlassesMic: Bool?,
-            bypassVad: Bool?,
             sendTranscript: Bool?,
             sendLc3Data: Bool?
         ) in
@@ -466,7 +465,6 @@ public class BluetoothSdkModule: Module, MentraBluetoothSDKDelegate {
                 self.bluetoothSdk().setMicState(
                     enabled: enabled,
                     useGlassesMic: useGlassesMic ?? true,
-                    bypassVad: bypassVad ?? true,
                     sendTranscript: sendTranscript ?? false,
                     sendLc3Data: sendLc3Data ?? false
                 )

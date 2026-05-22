@@ -418,13 +418,11 @@ class BluetoothSdkModule : Module() {
         AsyncFunction("setMicState") {
                 enabled: Boolean,
                 useGlassesMic: Boolean?,
-                bypassVad: Boolean?,
                 sendTranscript: Boolean?,
                 sendLc3Data: Boolean? ->
             sdk?.setMicState(
                     enabled = enabled,
                     useGlassesMic = useGlassesMic ?: true,
-                    bypassVad = bypassVad ?: true,
                     sendTranscript = sendTranscript ?: false,
                     sendLc3Data = sendLc3Data ?: false,
             )

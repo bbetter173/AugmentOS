@@ -310,7 +310,6 @@ struct BluetoothStatus: CustomStringConvertible {
     var shouldSendPcm: Bool { boolValue(values, "should_send_pcm") ?? false }
     var shouldSendLc3: Bool { boolValue(values, "should_send_lc3") ?? false }
     var shouldSendTranscript: Bool { boolValue(values, "should_send_transcript") ?? false }
-    var bypassVad: Bool { boolValue(values, "bypass_vad") ?? true }
     var offlineCaptionsRunning: Bool { boolValue(values, "offline_captions_running") ?? false }
     var localSttFallbackActive: Bool { boolValue(values, "local_stt_fallback_active") ?? false }
     var shouldSendBootingMessage: Bool { boolValue(values, "shouldSendBootingMessage") ?? true }
@@ -460,7 +459,6 @@ struct BluetoothStatusUpdate: CustomStringConvertible {
     var shouldSendPcm: Bool? { optionalBoolValue(values, "should_send_pcm") }
     var shouldSendLc3: Bool? { optionalBoolValue(values, "should_send_lc3") }
     var shouldSendTranscript: Bool? { optionalBoolValue(values, "should_send_transcript") }
-    var bypassVad: Bool? { optionalBoolValue(values, "bypass_vad") }
     var offlineCaptionsRunning: Bool? { optionalBoolValue(values, "offline_captions_running") }
     var localSttFallbackActive: Bool? { optionalBoolValue(values, "local_stt_fallback_active") }
     var shouldSendBootingMessage: Bool? { optionalBoolValue(values, "shouldSendBootingMessage") }

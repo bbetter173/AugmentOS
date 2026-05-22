@@ -437,10 +437,8 @@ class SocketComms {
   }
 
   private async handle_microphone_state_change(msg: any) {
-    // const bypassVad = msg.bypassVad ?? true
-    const bypassVad = true
     const requiredDataStrings = msg.requiredData || []
-    console.log(`SOCKET: mic_state_change: requiredData = [${requiredDataStrings}], bypassVad = ${bypassVad}`)
+    console.log(`SOCKET: mic_state_change: requiredData = [${requiredDataStrings}]`)
     let shouldSendPcmData = false
     let shouldSendTranscript = false
     if (requiredDataStrings.includes("pcm")) {
@@ -466,17 +464,10 @@ class SocketComms {
       }
     }
 
-    // BluetoothSdk.updateCore({
-    //   // should_send_pcm: shouldSendPcmData,
-    //   should_send_lc3: shouldSendPcmData, // online apps always want lc3
-    //   should_send_transcript: shouldSendTranscript,
-    //   bypass_vad: bypassVad,
-    // })
     micStateCoordinator.setCloudRequirements({
       pcm: !!shouldSendPcmData,
       lc3: !!shouldSendPcmData, // online apps always want lc3
       transcript: !!shouldSendTranscript,
-      bypass_vad: !!bypassVad,
     })
   }
 

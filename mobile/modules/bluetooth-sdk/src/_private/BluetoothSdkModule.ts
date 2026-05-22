@@ -123,7 +123,6 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   setMicState(
     enabled: boolean,
     useGlassesMic?: boolean,
-    bypassVad?: boolean,
     sendTranscript?: boolean,
     sendLc3Data?: boolean,
   ): Promise<void>
@@ -291,7 +290,6 @@ NativeBluetoothSdkModule.getDefaultDevice = function () {
 const nativeSetMicState = NativeBluetoothSdkModule.setMicState.bind(NativeBluetoothSdkModule) as (
   enabled: boolean,
   useGlassesMic: boolean,
-  bypassVad: boolean,
   sendTranscript: boolean,
   sendLc3Data: boolean,
 ) => MaybePromise<void>
@@ -379,7 +377,6 @@ NativeBluetoothSdkModule.setCameraFov = function (fov: CameraFov) {
 NativeBluetoothSdkModule.setMicState = function (
   enabled: boolean,
   useGlassesMic?: boolean,
-  bypassVad?: boolean,
   sendTranscript?: boolean,
   sendLc3Data?: boolean,
 ) {
@@ -387,7 +384,6 @@ NativeBluetoothSdkModule.setMicState = function (
     nativeSetMicState(
       enabled,
       useGlassesMic ?? true,
-      bypassVad ?? true,
       sendTranscript ?? false,
       sendLc3Data ?? false,
     ),

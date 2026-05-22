@@ -349,7 +349,6 @@ class MentraBluetoothSdk private constructor(
     fun setMicState(
         enabled: Boolean,
         useGlassesMic: Boolean = true,
-        bypassVad: Boolean = true,
         sendTranscript: Boolean = false,
         sendLc3Data: Boolean = false,
     ) {
@@ -363,7 +362,6 @@ class MentraBluetoothSdk private constructor(
         applyMicState(
             sendPcmData = enabled,
             sendTranscript = enabled && sendTranscript,
-            bypassVad = bypassVad,
             sendLc3Data = enabled && sendLc3Data,
         )
     }
@@ -371,13 +369,11 @@ class MentraBluetoothSdk private constructor(
     private fun applyMicState(
         sendPcmData: Boolean,
         sendTranscript: Boolean,
-        bypassVad: Boolean,
         sendLc3Data: Boolean,
     ) {
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_pcm", sendPcmData)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_lc3", sendLc3Data)
         DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "should_send_transcript", sendTranscript)
-        DeviceStore.apply(ObservableStore.BLUETOOTH_CATEGORY, "bypass_vad", bypassVad)
         deviceManager.setMicState()
     }
 

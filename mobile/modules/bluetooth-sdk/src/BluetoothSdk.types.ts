@@ -313,7 +313,6 @@ export type MicPcmEvent = {
   bitsPerSample: 16
   channels: 1
   encoding: "pcm_s16le"
-  vadGated: boolean
 }
 
 export type MicLc3Event = {
@@ -326,7 +325,6 @@ export type MicLc3Event = {
   frameSizeBytes: number
   bitrate: number
   packetizedFromGlasses: boolean
-  vadGated: boolean
 }
 
 export type StreamStatusLifecycleState = "initializing" | "streaming" | "stopping" | "stopped"
@@ -609,7 +607,6 @@ export interface BluetoothSdkPublicModule {
   setMicState(
     enabled: boolean,
     useGlassesMic?: boolean,
-    bypassVad?: boolean,
     sendTranscript?: boolean,
     sendLc3Data?: boolean,
   ): Promise<void>
@@ -823,7 +820,6 @@ export type BluetoothSettingsUpdate = Partial<{
   should_send_pcm: boolean
   should_send_lc3: boolean
   should_send_transcript: boolean
-  bypass_vad: boolean
   offline_mode: boolean
   offline_captions_running: boolean
   local_stt_fallback_active: boolean

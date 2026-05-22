@@ -167,11 +167,6 @@ struct ViewState {
         set { DeviceStore.shared.apply("bluetooth", "sensing_enabled", newValue) }
     }
 
-    private var bypassVad: Bool {
-        get { DeviceStore.shared.get("bluetooth", "bypass_vad") as? Bool ?? true }
-        set { DeviceStore.shared.apply("bluetooth", "bypass_vad", newValue) }
-    }
-
     private var offlineCaptionsRunning: Bool {
         get { DeviceStore.shared.get("bluetooth", "offline_captions_running") as? Bool ?? false }
         set { DeviceStore.shared.apply("bluetooth", "offline_captions_running", newValue) }
@@ -285,11 +280,6 @@ struct ViewState {
     private var lastLc3Event: Date?
     private var micReinitTimer: Timer?
 
-    // VAD:
-    private var vad: SileroVADStrategy?
-    private var vadBuffer = [Data]()
-    private var isSpeaking = false
-
     /// STT:
     private var transcriber: SherpaOnnxTranscriber?
 
@@ -314,7 +304,6 @@ struct ViewState {
 
     override init() {
         Bridge.log("MAN: init()")
-        vad = SileroVADStrategy()
         super.init()
 
         // Start memory monitoring (logs every 30s to help detect leaks)
@@ -336,16 +325,6 @@ struct ViewState {
             Bridge.log("SherpaOnnxTranscriber fully initialized")
         }
 
-        Task {
-            self.vad?.setup(
-                sampleRate: .rate_16k,
-                frameSize: .size_1024,
-                quality: .normal,
-                silenceTriggerDurationMs: 4000,
-                speechTriggerDurationMs: 50
-            )
-        }
-
         // Initialize persistent LC3 converter for unified audio encoding
         lc3Converter = PcmConverter()
         Bridge.log("LC3 converter initialized for unified audio encoding")
@@ -361,13 +340,6 @@ struct ViewState {
     }
 
     // MARK: - AUX Voice Data Handling
-
-    private func checkSetVadStatus(speaking: Bool) {
-        if speaking != isSpeaking {
-            isSpeaking = speaking
-            Bridge.sendVadEvent(isSpeaking)
-        }
-    }
 
     private func convertAndSendMicLc3(_ pcmData: Data) {
         guard let lc3Converter = lc3Converter else {
@@ -393,23 +365,6 @@ struct ViewState {
         }
     }
 
-    private func emptyVadBuffer() {
-        // go through the buffer, popping from the first element in the array (FIFO):
-        while !vadBuffer.isEmpty {
-            let chunk = vadBuffer.removeFirst()
-            handleSendingPcm(chunk)
-        }
-    }
-
-    private func addToVadBuffer(_ chunk: Data) {
-        let MAX_BUFFER_SIZE = 20
-        vadBuffer.append(chunk)
-        while vadBuffer.count > MAX_BUFFER_SIZE {
-            // pop from the front of the array:
-            vadBuffer.removeFirst()
-        }
-    }
-
     /**
      * Handle raw LC3 audio data from glasses.
      * Decodes the glasses LC3 to PCM, then forwards to handlePcm for processing.
@@ -432,59 +387,16 @@ struct ViewState {
             Bridge.log("MAN: Failed to decode glasses LC3 audio")
             return
         }
-        // Forward to handlePcm which handles VAD and encoding
+        // Forward to handlePcm which handles SDK audio events and encoding.
         handlePcm(pcmData)
     }
 
     func handlePcm(_ pcmData: Data) {
-        // handle incoming PCM data from the microphone manager and feed to the VAD:
-        if bypassVad {
-            handleSendingPcm(pcmData)
+        handleSendingPcm(pcmData)
 
-            // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
-                transcriber?.acceptAudio(pcm16le: pcmData)
-            }
-            return
-        }
-
-        // feed PCM to the VAD:
-        guard let vad = vad else {
-            Bridge.log("VAD not initialized")
-            return
-        }
-
-        // convert audioData to Int16 array for VAD:
-        let pcmDataArray = pcmData.withUnsafeBytes { pointer -> [Int16] in
-            Array(
-                UnsafeBufferPointer(
-                    start: pointer.bindMemory(to: Int16.self).baseAddress,
-                    count: pointer.count / MemoryLayout<Int16>.stride
-                )
-            )
-        }
-
-        vad.checkVAD(pcm: pcmDataArray) { [weak self] state in
-            guard let self = self else { return }
-            Bridge.log("VAD State: \(state)")
-        }
-
-        let vadState = vad.currentState()
-        if vadState == .speeching {
-            checkSetVadStatus(speaking: true)
-            // first send out whatever's in the vadBuffer (if there is anything):
-            emptyVadBuffer()
-
-            handleSendingPcm(pcmData)
-
-            // Send PCM to local transcriber (always needs raw PCM)
-            if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
-                transcriber?.acceptAudio(pcm16le: pcmData)
-            }
-        } else {
-            checkSetVadStatus(speaking: false)
-            // add to the vadBuffer (stores PCM for potential later sending):
-            addToVadBuffer(pcmData)
+        // Send PCM to local transcriber.
+        if shouldSendTranscript || offlineCaptionsRunning || localSttFallbackActive {
+            transcriber?.acceptAudio(pcm16le: pcmData)
         }
     }
 

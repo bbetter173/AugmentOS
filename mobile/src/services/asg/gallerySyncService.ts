@@ -48,6 +48,11 @@ const TIMING = {
   WIFI_COOLDOWN_MS: 3000, // Wait 3 seconds after user visits WiFi settings before showing alert again
 } as const
 
+/** True when /api/sync has nothing to download (api_version=2 captures and legacy changed_files both empty). */
+function isSyncResponseEmpty(data: {captures?: CaptureGroup[]; changed_files?: PhotoInfo[]}): boolean {
+  return (!data.captures || data.captures.length === 0) && (!data.changed_files || data.changed_files.length === 0)
+}
+
 class GallerySyncService {
   private static instance: GallerySyncService
   private hotspotListenerRegistered = false
@@ -58,6 +63,10 @@ class GallerySyncService {
   private glassesStoreUnsubscribe: (() => void) | null = null
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null
   private waitingForWifiRetry = false
+  // Guards full-sync recovery so we don't re-download the entire gallery every sync
+  // when glasses retain leftover files (e.g. a previous delete-from-glasses failed).
+  // Keyed by `${client_id}:${last_sync_time}` — same pair = already tried, skip.
+  private lastFullSyncRetryKey: string | null = null
   private wifiSettingsOpenedAt: number | null = null // Timestamp when user was sent to WiFi settings
 
   private constructor() {}
@@ -1186,11 +1195,48 @@ class GallerySyncService {
 
       console.log("[GallerySyncService]   📡 Calling /api/sync endpoint...")
       const syncStartTime = Date.now()
-      const syncResponse = await asgCameraApi.syncWithServer(syncState.client_id, syncState.last_sync_time, true)
-      const _syncDuration = Date.now() - syncStartTime
+      let syncResponse = await asgCameraApi.syncWithServer(syncState.client_id, syncState.last_sync_time, true)
+      let _syncDuration = Date.now() - syncStartTime
       console.log(`[GallerySyncService]   ✅ /api/sync completed in ${_syncDuration}ms`)
 
-      const syncData = syncResponse.data || syncResponse
+      let syncData = syncResponse.data || syncResponse
+
+      // BLE gallery_status counts all files on glasses; /api/sync is incremental by last_sync_time.
+      // If the phone watermark is ahead of file mtimes (clock skew, deleted locals, etc.), retry once as full sync.
+      // Guard against re-firing every sync when glasses retain leftover files from a failed delete:
+      // only one retry per (client_id, last_sync_time) pair per process lifetime.
+      const retryKey = `${syncState.client_id}:${syncState.last_sync_time}`
+      if (
+        isSyncResponseEmpty(syncData) &&
+        syncState.last_sync_time > 0 &&
+        useGallerySyncStore.getState().glassesHasContent &&
+        this.lastFullSyncRetryKey !== retryKey
+      ) {
+        this.lastFullSyncRetryKey = retryKey
+        console.warn(
+          "[GallerySyncService] Desync detected: glasses report content but /api/sync returned empty. " +
+            `Retrying with last_sync_time=0 (was ${syncState.last_sync_time}).`,
+        )
+        const retryStartTime = Date.now()
+        syncResponse = await asgCameraApi.syncWithServer(syncState.client_id, 0, true)
+        _syncDuration = Date.now() - retryStartTime
+        console.log(`[GallerySyncService]   ✅ /api/sync full-sync retry completed in ${_syncDuration}ms`)
+        syncData = syncResponse.data || syncResponse
+        if (isSyncResponseEmpty(syncData)) {
+          console.warn("[GallerySyncService] Full-sync retry also returned empty — falling through to up-to-date path.")
+        } else {
+          console.log("[GallerySyncService] Full-sync retry succeeded — proceeding with download.")
+        }
+      } else if (
+        isSyncResponseEmpty(syncData) &&
+        syncState.last_sync_time > 0 &&
+        useGallerySyncStore.getState().glassesHasContent &&
+        this.lastFullSyncRetryKey === retryKey
+      ) {
+        console.warn(
+          "[GallerySyncService] Glasses still report content but /api/sync empty — already retried this watermark, skipping to avoid re-download loop.",
+        )
+      }
 
       console.log("[GallerySyncService]   📋 Sync response received:")
       console.log(`[GallerySyncService]      - Server time: ${syncData.server_time}`)

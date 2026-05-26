@@ -8,8 +8,17 @@ import {gallerySyncService} from "./gallerySyncService"
 import {useGallerySyncStore} from "@/stores/gallerySync"
 import {useGlassesStore} from "@/stores/glasses"
 import GlobalEventEmitter from "@/utils/GlobalEventEmitter"
+import type {CaptureGroup} from "@/types/asg"
 
 jest.mock("@mentra/bluetooth-sdk", () => {
+  const {coreModuleMock} = require("@/test-utils/mockCoreModule")
+  return {
+    __esModule: true,
+    default: coreModuleMock,
+  }
+})
+
+jest.mock("@mentra/bluetooth-sdk-internal", () => {
   const {coreModuleMock} = require("@/test-utils/mockCoreModule")
   return {
     __esModule: true,
@@ -66,6 +75,8 @@ jest.mock("@/services/asg/gallerySyncNotifications", () => ({
   gallerySyncNotifications: {
     requestPermissions: jest.fn(() => Promise.resolve()),
     showSyncError: jest.fn(),
+    showSyncStarted: jest.fn(() => Promise.resolve()),
+    showSyncComplete: jest.fn(() => Promise.resolve()),
   },
 }))
 
@@ -76,6 +87,7 @@ jest.mock("@/services/asg/localStorageService", () => ({
     updateSyncQueueIndex: jest.fn(() => Promise.resolve()),
     getSyncState: jest.fn(() => Promise.resolve({total_downloaded: 0, total_size: 0})),
     updateSyncState: jest.fn(() => Promise.resolve()),
+    saveSyncQueue: jest.fn(() => Promise.resolve()),
     clearSyncQueue: jest.fn(() => Promise.resolve()),
   },
 }))
@@ -100,6 +112,44 @@ jest.mock("@/services/asg/asgCameraApi", () => ({
 jest.mock("@/i18n", () => ({
   translate: jest.fn((key: string) => key),
 }))
+
+const mockGetSyncState = localStorageService.getSyncState as jest.Mock
+const mockSyncWithServer = asgCameraApi.syncWithServer as jest.Mock
+const mockSetServer = asgCameraApi.setServer as jest.Mock
+
+const EMPTY_SYNC_RESPONSE = {
+  data: {
+    api_version: 2,
+    server_time: 2000,
+    captures: [] as CaptureGroup[],
+    changed_files: [],
+  },
+}
+
+const FAKE_CAPTURE: CaptureGroup = {
+  capture_id: "IMG_20260205_163852_546_480",
+  type: "video",
+  timestamp: 1000,
+  total_size: 1000,
+  files: [{name: "IMG_20260205_163852_546_480/base.mp4", size: 1000, role: "primary"}],
+}
+
+const CAPTURE_SYNC_RESPONSE = {
+  data: {
+    api_version: 2,
+    server_time: 2000,
+    captures: [FAKE_CAPTURE],
+    changed_files: [],
+  },
+}
+
+const HOTSPOT_INFO = {ssid: "MentraLive_test", password: "00001111", ip: "192.168.43.1"}
+
+async function startFileDownload(): Promise<void> {
+  await (gallerySyncService as unknown as {startFileDownload: (info: typeof HOTSPOT_INFO) => Promise<void>}).startFileDownload(
+    HOTSPOT_INFO,
+  )
+}
 
 describe("GallerySyncService", () => {
   beforeEach(() => {
@@ -215,6 +265,149 @@ describe("GallerySyncService", () => {
       last_sync_time: failedTimestamp - 1,
       total_downloaded: 1,
       total_size: 100,
+    })
+  })
+
+  describe("startFileDownload /api/sync desync recovery", () => {
+    let executeCaptureDownloadSpy: jest.SpyInstance
+    let consoleWarnSpy: jest.SpyInstance
+
+    beforeEach(() => {
+      useGallerySyncStore.getState().setGlassesGalleryStatus(3, 5, 8, true)
+      // Reset the singleton's full-sync guard between tests so each test starts fresh.
+      ;(gallerySyncService as unknown as {lastFullSyncRetryKey: string | null}).lastFullSyncRetryKey = null
+
+      mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
+      mockSetServer.mockImplementation(() => {})
+
+      executeCaptureDownloadSpy = jest
+        .spyOn(gallerySyncService as unknown as {executeCaptureDownload: () => Promise<void>}, "executeCaptureDownload")
+        .mockResolvedValue(undefined)
+
+      consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      executeCaptureDownloadSpy.mockRestore()
+      consoleWarnSpy.mockRestore()
+    })
+
+    it("retries with last_sync_time=0 when glasses have content but incremental sync is empty", async () => {
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 1778211091355,
+        client_id: "test_client",
+        total_downloaded: 27,
+        total_size: 1000,
+      })
+      mockSyncWithServer.mockResolvedValueOnce(EMPTY_SYNC_RESPONSE).mockResolvedValueOnce(CAPTURE_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(2)
+      expect(mockSyncWithServer).toHaveBeenNthCalledWith(1, "test_client", 1778211091355, true)
+      expect(mockSyncWithServer).toHaveBeenNthCalledWith(2, "test_client", 0, true)
+      expect(executeCaptureDownloadSpy).toHaveBeenCalledWith([FAKE_CAPTURE], 2000)
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Desync detected: glasses report content but /api/sync returned empty"),
+      )
+    })
+
+    it("does not retry when glasses report no content", async () => {
+      useGallerySyncStore.getState().setGlassesGalleryStatus(0, 0, 0, false)
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 1778211091355,
+        client_id: "test_client",
+        total_downloaded: 27,
+        total_size: 1000,
+      })
+      mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(1)
+      expect(mockSyncWithServer).toHaveBeenCalledWith("test_client", 1778211091355, true)
+      expect(executeCaptureDownloadSpy).not.toHaveBeenCalled()
+      expect(useGallerySyncStore.getState().syncState).toBe("complete")
+    })
+
+    it("does not retry on first sync when last_sync_time is 0", async () => {
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 0,
+        client_id: "test_client",
+        total_downloaded: 0,
+        total_size: 0,
+      })
+      mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(1)
+      expect(mockSyncWithServer).toHaveBeenCalledWith("test_client", 0, true)
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Desync detected"))
+    })
+
+    it("retries at most once when full-sync retry is also empty", async () => {
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 1778211091355,
+        client_id: "test_client",
+        total_downloaded: 27,
+        total_size: 1000,
+      })
+      mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(2)
+      expect(executeCaptureDownloadSpy).not.toHaveBeenCalled()
+      expect(useGallerySyncStore.getState().syncState).toBe("complete")
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Full-sync retry also returned empty"),
+      )
+    })
+
+    it("does not retry when the first /api/sync response already has captures", async () => {
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 1778211091355,
+        client_id: "test_client",
+        total_downloaded: 27,
+        total_size: 1000,
+      })
+      mockSyncWithServer.mockResolvedValue(CAPTURE_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(1)
+      expect(executeCaptureDownloadSpy).toHaveBeenCalledWith([FAKE_CAPTURE], 2000)
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Desync detected"))
+    })
+
+    it("does not retry full-sync twice for the same (client_id, last_sync_time) pair", async () => {
+      // Regression: if glasses retain leftover files from a failed delete-from-glasses,
+      // `has_content` stays true and /api/sync stays empty for the same watermark. Without
+      // a guard, every sync would retry with last_sync_time=0 and re-download the whole gallery.
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 1778211091355,
+        client_id: "test_client",
+        total_downloaded: 27,
+        total_size: 1000,
+      })
+      mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      // onSyncComplete clears glassesHasContent; re-set it to simulate glasses still
+      // reporting leftover files (the exact desync condition the guard protects against).
+      useGallerySyncStore.getState().setGlassesGalleryStatus(3, 5, 8, true)
+
+      await startFileDownload()
+
+      // First call: incremental + full-sync retry = 2 calls.
+      // Second call: incremental only — guard suppresses the retry.
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(3)
+      expect(executeCaptureDownloadSpy).not.toHaveBeenCalled()
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("already retried this watermark, skipping to avoid re-download loop"),
+      )
     })
   })
 })

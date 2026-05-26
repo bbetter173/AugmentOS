@@ -1,4 +1,4 @@
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 
 import {detectClockSkew} from "@/services/asg/gallerySyncClock"
 import {
@@ -8,7 +8,7 @@ import {
   resetOtaClockFixCooldownForTests,
 } from "@/services/asg/glassesClockSync"
 
-jest.mock("@mentra/bluetooth-sdk", () => ({
+jest.mock("@mentra/bluetooth-sdk-internal", () => ({
   __esModule: true,
   default: {
     setSystemTime: jest.fn().mockResolvedValue(undefined),
@@ -25,8 +25,8 @@ jest.mock("@mentra/island", () => ({
   },
 }))
 
-const mockSetSystemTime = CoreModule.setSystemTime as jest.Mock
-const mockRetryOta = CoreModule.retryOtaVersionCheck as jest.Mock
+const mockSetSystemTime = BluetoothSdk.setSystemTime as jest.Mock
+const mockRetryOta = BluetoothSdk.retryOtaVersionCheck as jest.Mock
 
 jest.mock("@/stores/glasses", () => ({
   useGlassesStore: {

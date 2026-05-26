@@ -2,7 +2,7 @@
  * Push phone time to glasses only when clock skew is detected (gallery sync, OTA, etc.).
  */
 
-import CoreModule from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {BgTimer} from "@mentra/island"
 
 import {useGlassesStore} from "@/stores/glasses"
@@ -32,7 +32,7 @@ export async function fixGlassesClockIfSkewed(glassesServerTime: number, lastSyn
     return false
   }
   console.log(`[GlassesClockSync] ⏰ Clock skew detected (${reason}) — setting glasses time from phone`)
-  await CoreModule.setSystemTime(Date.now())
+  await BluetoothSdk.setSystemTime(Date.now())
   await delay(CLOCK_SETTLE_MS)
   return true
 }
@@ -72,7 +72,7 @@ export async function handleOtaClockSkewFromGlasses(
 
   lastOtaClockFixAt = Date.now()
   console.log("[GlassesClockSync] ⏰ Retrying glasses OTA version check after clock fix")
-  await CoreModule.retryOtaVersionCheck()
+  await BluetoothSdk.retryOtaVersionCheck()
   return true
 }
 
@@ -91,7 +91,7 @@ export async function maybeFixGlassesClockFromVersionInfo(systemTimeMs: number |
 
   if (useGlassesStore.getState().wifi.state === "connected") {
     console.log("[GlassesClockSync] ⏰ Glasses on WiFi — retrying OTA version check after clock fix")
-    await CoreModule.retryOtaVersionCheck()
+    await BluetoothSdk.retryOtaVersionCheck()
   }
 
   return true

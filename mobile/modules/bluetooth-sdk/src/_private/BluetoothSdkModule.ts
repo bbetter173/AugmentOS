@@ -125,12 +125,7 @@ declare class BluetoothSdkNativeModule extends NativeModule<BluetoothSdkModuleEv
   keepStreamAlive(params: StreamKeepAliveRequest): Promise<void>
 
   // Microphone Commands
-  setMicState(
-    enabled: boolean,
-    useGlassesMic?: boolean,
-    sendTranscript?: boolean,
-    sendLc3Data?: boolean,
-  ): Promise<void>
+  setMicState(enabled: boolean, useGlassesMic?: boolean, sendTranscript?: boolean, sendLc3Data?: boolean): Promise<void>
   setPreferredMic(preferredMic: MicPreference): Promise<void>
   restartTranscriber(): Promise<void>
 
@@ -280,7 +275,9 @@ NativeBluetoothSdkModule.getGlassesStatus = function () {
   return Promise.resolve(nativeGetGlassesStatus())
 }
 
-const nativeGetBluetoothStatus = NativeBluetoothSdkModule.getBluetoothStatus.bind(NativeBluetoothSdkModule) as () => MaybePromise<BluetoothStatus>
+const nativeGetBluetoothStatus = NativeBluetoothSdkModule.getBluetoothStatus.bind(
+  NativeBluetoothSdkModule,
+) as () => MaybePromise<BluetoothStatus>
 NativeBluetoothSdkModule.getBluetoothStatus = function () {
   return Promise.resolve(nativeGetBluetoothStatus())
 }
@@ -390,12 +387,7 @@ NativeBluetoothSdkModule.setMicState = function (
   sendLc3Data?: boolean,
 ) {
   return Promise.resolve(
-    nativeSetMicState(
-      enabled,
-      useGlassesMic ?? true,
-      sendTranscript ?? false,
-      sendLc3Data ?? false,
-    ),
+    nativeSetMicState(enabled, useGlassesMic ?? true, sendTranscript ?? false, sendLc3Data ?? false),
   )
 }
 
@@ -425,10 +417,7 @@ NativeBluetoothSdkModule.connect = function (device: Device, options?: ConnectOp
   return this.connectWithOptions(device, {...DEFAULT_CONNECT_OPTIONS, ...options})
 }
 
-NativeBluetoothSdkModule.scan = async function (
-  modelOrOptions: DeviceModel | ScanOptions,
-  options?: ScanModelOptions,
-) {
+NativeBluetoothSdkModule.scan = async function (modelOrOptions: DeviceModel | ScanOptions, options?: ScanModelOptions) {
   const scanOptions = normalizeScanArgs(modelOrOptions, options)
   const timeoutMs = normalizeTimeoutMs(scanOptions.timeoutMs ?? scanOptions.timeout, DEFAULT_SCAN_TIMEOUT_MS)
   let latestResults: Device[] = []

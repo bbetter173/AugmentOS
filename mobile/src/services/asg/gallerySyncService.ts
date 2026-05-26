@@ -50,11 +50,6 @@ const TIMING = {
   WIFI_COOLDOWN_MS: 3000, // Wait 3 seconds after user visits WiFi settings before showing alert again
 } as const
 
-/** True when /api/sync has nothing to download (api_version=2 captures and legacy changed_files both empty). */
-function isSyncResponseEmpty(data: {captures?: CaptureGroup[]; changed_files?: PhotoInfo[]}): boolean {
-  return (!data.captures || data.captures.length === 0) && (!data.changed_files || data.changed_files.length === 0)
-}
-
 type SyncManifestData = {
   api_version?: number
   client_id: string
@@ -1212,9 +1207,7 @@ class GallerySyncService {
     const alreadyRetriedForThisWatermark = this.lastFullSyncRetryKey === retryKey
     if (!clockFixed && store.glassesHasContent && lastSyncTime !== 0 && !alreadyRetriedForThisWatermark) {
       this.lastFullSyncRetryKey = retryKey
-      console.log(
-        "[GallerySyncService]   🔄 Empty sync but glasses report content — retrying with last_sync_time=0",
-      )
+      console.log("[GallerySyncService]   🔄 Empty sync but glasses report content — retrying with last_sync_time=0")
       syncData = await this.fetchSyncManifest(clientId, 0)
       if (!isSyncManifestEmpty(syncData)) {
         return {syncData, usedFullSync: true}
@@ -1825,18 +1818,22 @@ class GallerySyncService {
       // Update sync state — only advance watermark when captures were downloaded.
       let syncWatermark = serverTime
       const currentSyncState = await localStorageService.getSyncState()
-      if (downloadedCount === 0) {
-        syncWatermark = currentSyncState.last_sync_time
-        console.log("[GallerySyncService]   ℹ️ No captures downloaded — last_sync_time unchanged")
-      } else if (failedCount > 0 && oldestFailedTimestamp < Infinity) {
+      if (failedCount > 0 && oldestFailedTimestamp < Infinity) {
+        // Failures take priority — roll the watermark back before the oldest failure so it
+        // gets retried, regardless of whether anything else succeeded in this batch.
         syncWatermark = Math.max(0, oldestFailedTimestamp - 1)
         console.log(
           `[GallerySyncService]   ⚠️ ${failedCount} captures failed — sync watermark set to ${syncWatermark} instead of ${serverTime} so they will be retried`,
         )
+      } else if (downloadedCount === 0) {
+        syncWatermark = currentSyncState.last_sync_time
+        console.log("[GallerySyncService]   ℹ️ No captures downloaded — last_sync_time unchanged")
       } else if (maxSuccessfulTimestamp > 0) {
         syncWatermark = maxSuccessfulTimestamp
       }
-      if (downloadedCount > 0) {
+      // Persist if we downloaded anything OR if a failure needs the watermark rolled back
+      // (zero-byte / validation failures otherwise leave a stale watermark on disk).
+      if (downloadedCount > 0 || (failedCount > 0 && oldestFailedTimestamp < Infinity)) {
         await localStorageService.updateSyncState({
           last_sync_time: syncWatermark,
           total_downloaded: currentSyncState.total_downloaded + downloadedCount,

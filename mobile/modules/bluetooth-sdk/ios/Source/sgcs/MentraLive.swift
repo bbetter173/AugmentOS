@@ -2111,7 +2111,7 @@ class MentraLive: NSObject, SGCManager {
                     DeviceStore.shared.apply("glasses", "bluetoothMacAddress", bluetoothMacAddress)
                 }
                 if let systemTimeMs = fields["system_time_ms"] as? NSNumber {
-                    GlassesStore.shared.apply("glasses", "systemTimeMs", systemTimeMs.int64Value)
+                    DeviceStore.shared.apply("glasses", "systemTimeMs", systemTimeMs.int64Value)
                 }
 
                 // Send fields immediately to RN - no waiting for other chunks

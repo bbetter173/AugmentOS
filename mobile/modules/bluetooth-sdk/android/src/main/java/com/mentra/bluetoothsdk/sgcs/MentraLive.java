@@ -2989,7 +2989,7 @@ public class MentraLive extends SGCManager {
                     if (fields.containsKey("system_time_ms")) {
                         Object v = fields.get("system_time_ms");
                         if (v instanceof Number) {
-                            GlassesStore.INSTANCE.apply("glasses", "systemTimeMs", ((Number) v).longValue());
+                            DeviceStore.INSTANCE.apply("glasses", "systemTimeMs", ((Number) v).longValue());
                         }
                     }
 

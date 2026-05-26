@@ -3,6 +3,7 @@
  */
 
 import * as RNFS from "@dr.pogodin/react-native-fs"
+import {Buffer} from "buffer"
 
 export const INVALID_DOWNLOADED_MEDIA = "Invalid downloaded media"
 
@@ -14,6 +15,10 @@ export interface ValidateDownloadedMediaOptions {
   expectedSize?: number
   mediaKind?: MediaKind
 }
+
+// ISO BMFF brands that identify still-image (not video) containers. An mp4-like
+// header with one of these brands at bytes 8-11 must NOT pass video validation.
+const IMAGE_FTYP_BRANDS = new Set(["avif", "avis", "heic", "heix", "heim", "heis", "hevc", "hevx", "mif1", "msf1"])
 
 function isVideoFileName(name: string): boolean {
   return /\.(mp4|mov|avi|webm|mkv|3gp)$/i.test(name)
@@ -36,48 +41,73 @@ function detectMediaKind(name: string, override?: MediaKind): MediaKind {
   return "unknown"
 }
 
+function decodeHeader(base64Header: string): Buffer {
+  // Use Buffer (from the "buffer" polyfill) for byte-safe decoding; RN's atob
+  // is host-dependent and some implementations mangle bytes ≥ 0x80, which would
+  // mis-validate JPEG (0xFF 0xD8) and binary AVI/EBML headers.
+  return Buffer.from(base64Header, "base64")
+}
+
+function readAscii(bytes: Buffer, start: number, length: number): string {
+  if (bytes.length < start + length) return ""
+  return bytes.toString("ascii", start, start + length)
+}
+
 function validatePhotoSignature(base64Header: string): boolean {
   try {
-    const decodedBytes = atob(base64Header)
-    if (decodedBytes.length > 11) {
-      const ftypSignature = decodedBytes.substring(4, 12)
-      if (ftypSignature === "ftypavif") {
+    const bytes = decodeHeader(base64Header)
+    if (bytes.length >= 12 && readAscii(bytes, 4, 4) === "ftyp") {
+      const brand = readAscii(bytes, 8, 4)
+      // Image-only ISO BMFF brands (AVIF, HEIC, HEIF variants) are valid photos.
+      if (IMAGE_FTYP_BRANDS.has(brand)) {
         return true
       }
     }
-    if (decodedBytes.substring(0, 2) === "\xFF\xD8") {
+    // JPEG: 0xFF 0xD8
+    if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8) {
       return true
     }
-    if (decodedBytes.substring(0, 8) === "\x89PNG\r\n\x1a\n") {
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (
+      bytes.length >= 8 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47 &&
+      bytes[4] === 0x0d &&
+      bytes[5] === 0x0a &&
+      bytes[6] === 0x1a &&
+      bytes[7] === 0x0a
+    ) {
       return true
     }
+    return false
   } catch {
     return false
   }
-  return false
 }
 
 function validateVideoSignature(base64Header: string): boolean {
   try {
-    const decodedBytes = atob(base64Header)
-    if (decodedBytes.length < 8) {
+    const bytes = decodeHeader(base64Header)
+    if (bytes.length < 8) {
       return false
     }
-    // ISO BMFF (mp4, mov, 3gp): bytes 4-7 should be "ftyp"
-    if (decodedBytes.substring(4, 8) === "ftyp") {
+    // ISO BMFF (mp4, mov, 3gp): bytes 4-7 should be "ftyp" AND brand at 8-11 must
+    // not be an image-only brand (AVIF/HEIC share the ftyp container).
+    if (readAscii(bytes, 4, 4) === "ftyp") {
+      const brand = readAscii(bytes, 8, 4)
+      if (IMAGE_FTYP_BRANDS.has(brand)) {
+        return false
+      }
       return true
     }
     // RIFF/AVI: bytes 0-3 "RIFF", bytes 8-11 "AVI "
-    if (decodedBytes.length >= 12 && decodedBytes.substring(0, 4) === "RIFF" && decodedBytes.substring(8, 12) === "AVI ") {
+    if (bytes.length >= 12 && readAscii(bytes, 0, 4) === "RIFF" && readAscii(bytes, 8, 4) === "AVI ") {
       return true
     }
     // EBML (WebM, MKV): bytes 0-3 are 0x1A 0x45 0xDF 0xA3
-    if (
-      decodedBytes.charCodeAt(0) === 0x1a &&
-      decodedBytes.charCodeAt(1) === 0x45 &&
-      decodedBytes.charCodeAt(2) === 0xdf &&
-      decodedBytes.charCodeAt(3) === 0xa3
-    ) {
+    if (bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) {
       return true
     }
     return false

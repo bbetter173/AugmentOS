@@ -119,18 +119,32 @@ class MediaProcessingQueue {
 
     while (this.queue.length > 0 && !this.aborted && this.generation === myGeneration) {
       const item = this.queue.shift()!
+      let processFailed = false
       try {
         await this.processItem(item)
       } catch (error) {
         console.error(`${TAG} Error processing ${item.id}:`, error)
+        processFailed = true
       }
 
       // Exit if generation changed (reset was called during processing)
       if (this.generation !== myGeneration) break
 
-      // Mark processing complete in store
       const store = useGallerySyncStore.getState()
-      store.onFileProcessed(item.id)
+      if (!processFailed) {
+        // Success: increment processedFiles and remove from processingFiles set.
+        store.onFileProcessed(item.id)
+      } else {
+        // Failure: processItem already called onFileFailed. Calling onFileProcessed
+        // here would double-count the item (counted as both failed AND processed).
+        // Still clear the processingFiles entry so the UI doesn't show it as in-progress.
+        const current = store.processingFiles
+        if (current.has(item.id)) {
+          const newSet = new Set(current)
+          newSet.delete(item.id)
+          useGallerySyncStore.setState({processingFiles: newSet})
+        }
+      }
     }
 
     // Only clear isRunning if this loop owns the current generation

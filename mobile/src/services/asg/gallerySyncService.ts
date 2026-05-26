@@ -1684,6 +1684,32 @@ class GallerySyncService {
       await mediaProcessingQueue.waitUntilDrained()
       console.log("[GallerySyncService]   ✅ Processing queue drained")
 
+      // Reconcile failures from the processing queue. validateDownloadedMediaFile
+      // (post-download validation in mediaProcessingQueue) runs AFTER enqueue
+      // returns, so a failure there doesn't reach the per-capture catch above. The
+      // gallerySync store collects those failures via onFileFailed — pull them in
+      // here so the watermark holds them back for retry on the next sync.
+      const captureTimestampById = new Map<string, number>()
+      for (const c of captures) {
+        if (typeof c.timestamp === "number") {
+          captureTimestampById.set(c.capture_id, c.timestamp)
+        }
+      }
+      const failedSnapshot = useGallerySyncStore.getState().failedFiles
+      const observedFailures = new Set<string>(failedSnapshot)
+      for (const failedId of observedFailures) {
+        const ts = captureTimestampById.get(failedId)
+        if (ts === undefined) continue // failure from a different scope (e.g. file-level), skip
+        if (ts < oldestFailedTimestamp) {
+          oldestFailedTimestamp = ts
+        }
+      }
+      // failedCount should reflect the total set of failed captures from THIS batch.
+      const failedFromThisBatch = captures.filter((c) => observedFailures.has(c.capture_id)).length
+      if (failedFromThisBatch > failedCount) {
+        failedCount = failedFromThisBatch
+      }
+
       // Update sync state — only advance the watermark to serverTime if all
       // captures succeeded. If any failed, set it just before the oldest failure
       // so those captures are retried on the next sync.

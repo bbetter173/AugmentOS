@@ -823,12 +823,15 @@ public class MediaCaptureService {
                     final String captureId = captureIdFromCallback != null ? captureIdFromCallback : captureIdAtStart;
 
                     // Block sync before clearing session state — no gap between active and pending.
-                    if (captureIdAtStart != null) {
-                        videoCaptureIdsInFlight.remove(captureIdAtStart);
-                    }
+                    // Add to pending BEFORE removing from in-flight so a concurrent
+                    // getPendingVideoIntegrityCaptureIds() snapshot always observes the captureId in
+                    // at least one of the two sets (their union is what callers actually consume).
                     if (captureId != null) {
                         videoCaptureIdsPendingIntegrityCheck.add(captureId);
                         Log.d(TAG, "Video capture pending integrity check: " + captureId);
+                    }
+                    if (captureIdAtStart != null) {
+                        videoCaptureIdsInFlight.remove(captureIdAtStart);
                     }
 
                     isRecordingVideo = false;
@@ -2937,8 +2940,20 @@ public class MediaCaptureService {
                 return;
             }
 
-            // Build gallery status using shared utility
-            JSONObject response = com.mentra.asg_client.utils.GalleryStatusHelper.buildGalleryStatus(fileManager);
+            // Snapshot sync-block state so the broadcast hides the same captures that the
+            // HTTP server hides (in-flight recordings, pending integrity checks, zero-byte primaries).
+            final String activeCaptureId = getActiveRecordingCaptureId();
+            final java.util.Set<String> blockedCaptureIds = getPendingVideoIntegrityCaptureIds();
+
+            // Build gallery status using shared utility with sync-safe filters
+            JSONObject response =
+                    com.mentra.asg_client.utils.GalleryStatusHelper.buildGalleryStatus(
+                            fileManager,
+                            metadata ->
+                                    !com.mentra.asg_client.utils.GallerySyncFilter.isCaptureBlockedFromSync(
+                                            metadata.getFileName(), activeCaptureId, blockedCaptureIds)
+                                            && !com.mentra.asg_client.utils.GallerySyncFilter.isZeroBytePrimaryVideo(
+                                                    metadata.getFileName(), metadata.getFileSize()));
 
             // Send through bluetooth if available
             if (mServiceCallback != null) {

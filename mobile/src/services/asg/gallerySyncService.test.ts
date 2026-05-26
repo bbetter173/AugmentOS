@@ -181,4 +181,40 @@ describe("GallerySyncService", () => {
       total_size: 0,
     })
   })
+
+  it("holds back sync watermark when post-download validation fails async in the queue", async () => {
+    // Regression for the bug where validateDownloadedMediaFile failures inside
+    // mediaProcessingQueue (post-download, async) didn't surface to
+    // executeCaptureDownload's failedCount/oldestFailedTimestamp — letting the
+    // watermark advance to serverTime and skipping the broken capture forever.
+    const serverTime = 1_700_000_000_000
+    const failedTimestamp = serverTime - 10_000
+    const capture = {
+      capture_id: "VID_validation_fail",
+      type: "video" as const,
+      timestamp: failedTimestamp,
+      total_size: 100,
+      files: [{name: "VID_validation_fail/base.mp4", size: 100, role: "primary" as const}],
+    }
+    ;(asgCameraApi.downloadCapture as jest.Mock).mockResolvedValue({
+      primaryPath: "/tmp/VID_validation_fail/base.mp4",
+      bracketPaths: undefined,
+      sidecarPath: undefined,
+      captureDir: "/tmp/VID_validation_fail",
+    })
+    // Simulate the processing queue running and reporting a validation failure
+    // via the gallerySync store (the same path validateDownloadedMediaFile takes).
+    ;(mediaProcessingQueue.waitUntilDrained as jest.Mock).mockImplementation(async () => {
+      useGallerySyncStore.getState().onFileFailed(capture.capture_id, "Invalid downloaded media")
+    })
+
+    await (gallerySyncService as any).executeCaptureDownload([capture], serverTime)
+
+    expect(useGallerySyncStore.getState().failedFiles).toContain("VID_validation_fail")
+    expect(localStorageService.updateSyncState).toHaveBeenCalledWith({
+      last_sync_time: failedTimestamp - 1,
+      total_downloaded: 1,
+      total_size: 100,
+    })
+  })
 })

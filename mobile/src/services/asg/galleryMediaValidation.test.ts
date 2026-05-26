@@ -122,6 +122,58 @@ describe("galleryMediaValidation", () => {
       ).resolves.toBeUndefined()
     })
 
+    it("rejects AVIF files when mediaKind is video (ftyp avif brand)", async () => {
+      const header = Buffer.alloc(12)
+      header.writeUInt32BE(0x20, 0) // box size
+      header.write("ftyp", 4, 4, "ascii")
+      header.write("avif", 8, 4, "ascii")
+      ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+      ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 1024})
+      ;(RNFS.read as jest.Mock).mockResolvedValue(header.toString("base64"))
+
+      await expect(
+        validateDownloadedMediaFile({
+          path: "/tmp/VID_test/base.mp4",
+          name: "VID_test/base.mp4",
+          mediaKind: "video",
+        }),
+      ).rejects.toThrow("invalid video container")
+    })
+
+    it("accepts AVIF files when mediaKind is photo", async () => {
+      const header = Buffer.alloc(12)
+      header.writeUInt32BE(0x20, 0)
+      header.write("ftyp", 4, 4, "ascii")
+      header.write("avif", 8, 4, "ascii")
+      ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+      ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 1024})
+      ;(RNFS.read as jest.Mock).mockResolvedValue(header.toString("base64"))
+
+      await expect(
+        validateDownloadedMediaFile({
+          path: "/tmp/IMG_test/base.avif",
+          name: "IMG_test/base.avif",
+          mediaKind: "photo",
+        }),
+      ).resolves.toBeUndefined()
+    })
+
+    it("accepts JPEG header with high-bit bytes (atob-mangle regression)", async () => {
+      // 0xFF 0xD8 0xFF 0xE0 - common JPEG (JFIF) start
+      const header = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 0])
+      ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
+      ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 1024})
+      ;(RNFS.read as jest.Mock).mockResolvedValue(header.toString("base64"))
+
+      await expect(
+        validateDownloadedMediaFile({
+          path: "/tmp/IMG_test/base.jpg",
+          name: "IMG_test/base.jpg",
+          mediaKind: "photo",
+        }),
+      ).resolves.toBeUndefined()
+    })
+
     it("accepts non-media sidecars when mediaKind is unknown", async () => {
       ;(RNFS.exists as jest.Mock).mockResolvedValue(true)
       ;(RNFS.stat as jest.Mock).mockResolvedValue({size: 128})

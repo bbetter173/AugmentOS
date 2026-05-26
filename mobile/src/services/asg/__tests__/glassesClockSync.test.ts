@@ -89,4 +89,18 @@ describe("glassesClockSync", () => {
     expect(fixed).toBe(true)
     expect(mockRetryOta).toHaveBeenCalled()
   })
+
+  it("handleOtaClockSkewFromGlasses coalesces concurrent calls into one fix", async () => {
+    // Regression for cubic P2: glasses can emit two clock_skew events back-to-back during BLE
+    // handshake. Without coalescing, both calls would pass the cooldown guard and double-fix.
+    const glassesTime = Date.now() - 365 * 24 * 60 * 60 * 1000
+    const [a, b] = await Promise.all([
+      handleOtaClockSkewFromGlasses("clock_skew", glassesTime),
+      handleOtaClockSkewFromGlasses("clock_skew", glassesTime),
+    ])
+    expect(a).toBe(true)
+    expect(b).toBe(true)
+    expect(mockSetSystemTime).toHaveBeenCalledTimes(1)
+    expect(mockRetryOta).toHaveBeenCalledTimes(1)
+  })
 })

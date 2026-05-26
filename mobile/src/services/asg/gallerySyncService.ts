@@ -1618,7 +1618,10 @@ class GallerySyncService {
       }
       console.log("[GallerySyncService]   💾 Updating sync state in local storage...")
       const currentSyncState = await localStorageService.getSyncState()
-      if (downloadedCount > 0) {
+      // Persist if we downloaded anything OR if a failure needs the watermark rolled back.
+      // (Otherwise a clock-skew-triggered full sync where every legacy file fails would
+      // leave the stale future watermark on disk and never retry those files.)
+      if (downloadedCount > 0 || downloadResult.failed.length > 0) {
         await localStorageService.updateSyncState({
           last_sync_time: syncWatermark,
           total_downloaded: currentSyncState.total_downloaded + downloadedCount,

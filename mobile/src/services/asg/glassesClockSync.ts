@@ -13,10 +13,15 @@ export const CLOCK_SETTLE_MS = 500
 
 const OTA_CLOCK_FIX_COOLDOWN_MS = 30_000
 let lastOtaClockFixAt = 0
+// Coalesce concurrent OTA clock-fix attempts. Glasses can emit two clock_skew events
+// back-to-back during BLE handshake; without this guard both would await the BLE fix
+// + retry pair before either updated `lastOtaClockFixAt`.
+let inflightOtaClockFix: Promise<boolean> | null = null
 
 /** @internal test-only */
 export function resetOtaClockFixCooldownForTests(): void {
   lastOtaClockFixAt = 0
+  inflightOtaClockFix = null
 }
 
 function delay(ms: number): Promise<void> {
@@ -63,17 +68,31 @@ export async function handleOtaClockSkewFromGlasses(
     return false
   }
 
-  const glassesTime = hasGlassesTime ? glassesTimeMs : Date.now() - 86_400_000
-
-  const fixed = await fixGlassesClockIfSkewed(glassesTime, 0)
-  if (!fixed) {
-    return false
+  // Coalesce concurrent attempts: if a fix is already in flight, await its result instead
+  // of racing it through the cooldown guard.
+  if (inflightOtaClockFix) {
+    return inflightOtaClockFix
   }
 
-  lastOtaClockFixAt = Date.now()
-  console.log("[GlassesClockSync] ⏰ Retrying glasses OTA version check after clock fix")
-  await BluetoothSdk.retryOtaVersionCheck()
-  return true
+  const glassesTime = hasGlassesTime ? glassesTimeMs : Date.now() - 86_400_000
+
+  inflightOtaClockFix = (async () => {
+    try {
+      const fixed = await fixGlassesClockIfSkewed(glassesTime, 0)
+      if (!fixed) {
+        return false
+      }
+
+      lastOtaClockFixAt = Date.now()
+      console.log("[GlassesClockSync] ⏰ Retrying glasses OTA version check after clock fix")
+      await BluetoothSdk.retryOtaVersionCheck()
+      return true
+    } finally {
+      inflightOtaClockFix = null
+    }
+  })()
+
+  return inflightOtaClockFix
 }
 
 /**

@@ -63,6 +63,10 @@ class GallerySyncService {
   private glassesStoreUnsubscribe: (() => void) | null = null
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null
   private waitingForWifiRetry = false
+  // Guards full-sync recovery so we don't re-download the entire gallery every sync
+  // when glasses retain leftover files (e.g. a previous delete-from-glasses failed).
+  // Keyed by `${client_id}:${last_sync_time}` — same pair = already tried, skip.
+  private lastFullSyncRetryKey: string | null = null
   private wifiSettingsOpenedAt: number | null = null // Timestamp when user was sent to WiFi settings
 
   private constructor() {}
@@ -1199,11 +1203,16 @@ class GallerySyncService {
 
       // BLE gallery_status counts all files on glasses; /api/sync is incremental by last_sync_time.
       // If the phone watermark is ahead of file mtimes (clock skew, deleted locals, etc.), retry once as full sync.
+      // Guard against re-firing every sync when glasses retain leftover files from a failed delete:
+      // only one retry per (client_id, last_sync_time) pair per process lifetime.
+      const retryKey = `${syncState.client_id}:${syncState.last_sync_time}`
       if (
         isSyncResponseEmpty(syncData) &&
         syncState.last_sync_time > 0 &&
-        useGallerySyncStore.getState().glassesHasContent
+        useGallerySyncStore.getState().glassesHasContent &&
+        this.lastFullSyncRetryKey !== retryKey
       ) {
+        this.lastFullSyncRetryKey = retryKey
         console.warn(
           "[GallerySyncService] Desync detected: glasses report content but /api/sync returned empty. " +
             `Retrying with last_sync_time=0 (was ${syncState.last_sync_time}).`,
@@ -1218,6 +1227,15 @@ class GallerySyncService {
         } else {
           console.log("[GallerySyncService] Full-sync retry succeeded — proceeding with download.")
         }
+      } else if (
+        isSyncResponseEmpty(syncData) &&
+        syncState.last_sync_time > 0 &&
+        useGallerySyncStore.getState().glassesHasContent &&
+        this.lastFullSyncRetryKey === retryKey
+      ) {
+        console.warn(
+          "[GallerySyncService] Glasses still report content but /api/sync empty — already retried this watermark, skipping to avoid re-download loop.",
+        )
       }
 
       console.log("[GallerySyncService]   📋 Sync response received:")

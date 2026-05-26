@@ -274,6 +274,8 @@ describe("GallerySyncService", () => {
 
     beforeEach(() => {
       useGallerySyncStore.getState().setGlassesGalleryStatus(3, 5, 8, true)
+      // Reset the singleton's full-sync guard between tests so each test starts fresh.
+      ;(gallerySyncService as unknown as {lastFullSyncRetryKey: string | null}).lastFullSyncRetryKey = null
 
       mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
       mockSetServer.mockImplementation(() => {})
@@ -377,6 +379,35 @@ describe("GallerySyncService", () => {
       expect(mockSyncWithServer).toHaveBeenCalledTimes(1)
       expect(executeCaptureDownloadSpy).toHaveBeenCalledWith([FAKE_CAPTURE], 2000)
       expect(consoleWarnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Desync detected"))
+    })
+
+    it("does not retry full-sync twice for the same (client_id, last_sync_time) pair", async () => {
+      // Regression: if glasses retain leftover files from a failed delete-from-glasses,
+      // `has_content` stays true and /api/sync stays empty for the same watermark. Without
+      // a guard, every sync would retry with last_sync_time=0 and re-download the whole gallery.
+      mockGetSyncState.mockResolvedValue({
+        last_sync_time: 1778211091355,
+        client_id: "test_client",
+        total_downloaded: 27,
+        total_size: 1000,
+      })
+      mockSyncWithServer.mockResolvedValue(EMPTY_SYNC_RESPONSE)
+
+      await startFileDownload()
+
+      // onSyncComplete clears glassesHasContent; re-set it to simulate glasses still
+      // reporting leftover files (the exact desync condition the guard protects against).
+      useGallerySyncStore.getState().setGlassesGalleryStatus(3, 5, 8, true)
+
+      await startFileDownload()
+
+      // First call: incremental + full-sync retry = 2 calls.
+      // Second call: incremental only — guard suppresses the retry.
+      expect(mockSyncWithServer).toHaveBeenCalledTimes(3)
+      expect(executeCaptureDownloadSpy).not.toHaveBeenCalled()
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("already retried this watermark, skipping to avoid re-download loop"),
+      )
     })
   })
 })

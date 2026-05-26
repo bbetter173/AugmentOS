@@ -1,6 +1,9 @@
 import BluetoothSdk from "@mentra/bluetooth-sdk"
 
+import {asgCameraApi} from "@/services/asg/asgCameraApi"
 import {gallerySyncNotifications} from "@/services/asg/gallerySyncNotifications"
+import {localStorageService} from "@/services/asg/localStorageService"
+import {mediaProcessingQueue} from "@/services/asg/mediaProcessingQueue"
 import {gallerySyncService} from "./gallerySyncService"
 import {useGallerySyncStore} from "@/stores/gallerySync"
 import {useGlassesStore} from "@/stores/glasses"
@@ -70,17 +73,28 @@ jest.mock("@/services/asg/localStorageService", () => ({
   localStorageService: {
     getSyncQueue: jest.fn(() => Promise.resolve(null)),
     hasResumableSyncQueue: jest.fn(() => Promise.resolve(false)),
+    updateSyncQueueIndex: jest.fn(() => Promise.resolve()),
+    getSyncState: jest.fn(() => Promise.resolve({total_downloaded: 0, total_size: 0})),
+    updateSyncState: jest.fn(() => Promise.resolve()),
+    clearSyncQueue: jest.fn(() => Promise.resolve()),
   },
 }))
 
 jest.mock("@/services/asg/mediaProcessingQueue", () => ({
   mediaProcessingQueue: {
     reset: jest.fn(),
+    enqueue: jest.fn(),
+    waitUntilDrained: jest.fn(() => Promise.resolve()),
+    abort: jest.fn(),
   },
 }))
 
 jest.mock("@/services/asg/asgCameraApi", () => ({
-  asgCameraApi: {},
+  asgCameraApi: {
+    setServer: jest.fn(),
+    syncWithServer: jest.fn(),
+    downloadCapture: jest.fn(),
+  },
 }))
 
 jest.mock("@/i18n", () => ({
@@ -143,5 +157,64 @@ describe("GallerySyncService", () => {
     expect(useGallerySyncStore.getState().syncState).toBe("requesting_hotspot")
     expect(useGallerySyncStore.getState().syncServiceOpenedHotspot).toBe(true)
     expect(BluetoothSdk.setHotspotState).toHaveBeenCalledWith(true)
+  })
+
+  it("keeps sync watermark before zero-byte video captures", async () => {
+    const serverTime = 1_700_000_000_000
+    const failedTimestamp = serverTime - 5_000
+    const zeroByteCapture = {
+      capture_id: "VID_zero",
+      type: "video" as const,
+      timestamp: failedTimestamp,
+      total_size: 0,
+      files: [{name: "VID_zero/base.mp4", size: 0, role: "primary" as const}],
+    }
+
+    await (gallerySyncService as any).executeCaptureDownload([zeroByteCapture], serverTime)
+
+    expect(asgCameraApi.downloadCapture).not.toHaveBeenCalled()
+    expect(mediaProcessingQueue.enqueue).not.toHaveBeenCalled()
+    expect(useGallerySyncStore.getState().failedFiles).toContain("VID_zero")
+    expect(localStorageService.updateSyncState).toHaveBeenCalledWith({
+      last_sync_time: failedTimestamp - 1,
+      total_downloaded: 0,
+      total_size: 0,
+    })
+  })
+
+  it("holds back sync watermark when post-download validation fails async in the queue", async () => {
+    // Regression for the bug where validateDownloadedMediaFile failures inside
+    // mediaProcessingQueue (post-download, async) didn't surface to
+    // executeCaptureDownload's failedCount/oldestFailedTimestamp — letting the
+    // watermark advance to serverTime and skipping the broken capture forever.
+    const serverTime = 1_700_000_000_000
+    const failedTimestamp = serverTime - 10_000
+    const capture = {
+      capture_id: "VID_validation_fail",
+      type: "video" as const,
+      timestamp: failedTimestamp,
+      total_size: 100,
+      files: [{name: "VID_validation_fail/base.mp4", size: 100, role: "primary" as const}],
+    }
+    ;(asgCameraApi.downloadCapture as jest.Mock).mockResolvedValue({
+      primaryPath: "/tmp/VID_validation_fail/base.mp4",
+      bracketPaths: undefined,
+      sidecarPath: undefined,
+      captureDir: "/tmp/VID_validation_fail",
+    })
+    // Simulate the processing queue running and reporting a validation failure
+    // via the gallerySync store (the same path validateDownloadedMediaFile takes).
+    ;(mediaProcessingQueue.waitUntilDrained as jest.Mock).mockImplementation(async () => {
+      useGallerySyncStore.getState().onFileFailed(capture.capture_id, "Invalid downloaded media")
+    })
+
+    await (gallerySyncService as any).executeCaptureDownload([capture], serverTime)
+
+    expect(useGallerySyncStore.getState().failedFiles).toContain("VID_validation_fail")
+    expect(localStorageService.updateSyncState).toHaveBeenCalledWith({
+      last_sync_time: failedTimestamp - 1,
+      total_downloaded: 1,
+      total_size: 100,
+    })
   })
 })

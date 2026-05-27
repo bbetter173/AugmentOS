@@ -1,8 +1,9 @@
 #!/usr/bin/env zx
 
 import { setBuildEnv } from './set-build-env.mjs';
-import { withRetry } from './release-utils.mjs';
-import { readFile, writeFile, cp, mkdir } from 'fs/promises';
+import { withRetry, isSentryTransientError, writeSummary } from './release-utils.mjs';
+import { getBuildNumber } from './build-number.mjs';
+import { cp, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -39,26 +40,12 @@ const tag = ghTag(version);
 const prefix = apkPrefix(version);
 console.log(`Version: ${version} → tag: ${tag}, prefix: ${prefix}`);
 
-// ── Step 2: Bump versionCode in app.config.ts ─────────────────────────────────
+// ── Step 2: Derive build number ──────────────────────────────────────────────
 
-console.log('\n━━━ Step 2: Bumping versionCode in app.config.ts ━━━');
-const configPath = path.resolve('app.config.ts');
-let configContent = await readFile(configPath, 'utf-8');
-
-const versionCodeMatch = configContent.match(/versionCode:\s*(\d+)/);
-if (!versionCodeMatch) {
-  console.error('Could not find versionCode in app.config.ts');
-  process.exit(1);
-}
-
-const oldVersionCode = parseInt(versionCodeMatch[1], 10);
-const newVersionCode = oldVersionCode + 1;
-configContent = configContent.replace(
-  /versionCode:\s*\d+/,
-  `versionCode: ${newVersionCode}`
-);
-await writeFile(configPath, configContent);
-console.log(`versionCode: ${oldVersionCode} → ${newVersionCode}`);
+// app.config.ts already reads this via getBuildNumber(); we just capture the
+// same value here for logging/summary so it matches what gets baked in.
+const versionCode = getBuildNumber();
+console.log(`versionCode: ${versionCode}`);
 
 // ── Step 3: Prebuild + bundle ────────────────────────────────────────────────
 
@@ -92,7 +79,18 @@ console.log('Fastlane config copied to android/fastlane/');
 // ── Step 5: Build APK ─────────────────────────────────────────────────────────
 
 console.log('\n━━━ Step 5: Building APK ━━━');
-await $({ stdio: 'inherit', cwd: 'android' })`./gradlew assembleRelease`;
+// stdio piped manually so withRetry's predicate can inspect output for transient
+// Sentry/network errors; output still streams live to the terminal.
+await withRetry(
+  'gradlew assembleRelease',
+  () => {
+    const p = $({ cwd: 'android' })`./gradlew assembleRelease`;
+    p.stdout.pipe(process.stdout);
+    p.stderr.pipe(process.stderr);
+    return p;
+  },
+  { shouldRetry: isSentryTransientError }
+);
 
 const apkPath = path.resolve('android/app/build/outputs/apk/release/app-release.apk');
 if (!existsSync(apkPath)) {
@@ -162,7 +160,16 @@ console.log(`Uploaded ${apkName} to release ${tag}`);
 // ── Step 8: Build AAB ─────────────────────────────────────────────────────────
 
 console.log('\n━━━ Step 8: Building AAB ━━━');
-await $({ stdio: 'inherit', cwd: 'android' })`./gradlew bundleRelease`;
+await withRetry(
+  'gradlew bundleRelease',
+  () => {
+    const p = $({ cwd: 'android' })`./gradlew bundleRelease`;
+    p.stdout.pipe(process.stdout);
+    p.stderr.pipe(process.stderr);
+    return p;
+  },
+  { shouldRetry: isSentryTransientError }
+);
 
 const aabPath = path.resolve('android/app/build/outputs/bundle/release/app-release.aab');
 if (!existsSync(aabPath)) {
@@ -197,11 +204,12 @@ if (!existsSync(keyPath)) {
 const repoName = (await $`gh repo view --json nameWithOwner -q .nameWithOwner`).stdout.trim();
 const apkUrl = `https://github.com/${repoName}/releases/download/${tag}/${apkName}`;
 
-console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`Android release complete!`);
-console.log(`  Version: ${version} (versionCode ${newVersionCode})`);
-console.log(`  APK: ${apkUrl}`);
+const summaryLines = [
+  'Android release complete!',
+  `  Version: ${version} (versionCode ${versionCode})`,
+  `  APK: ${apkUrl}`,
+];
 if (existsSync(keyPath)) {
-  console.log(`  Google Play: AAB uploaded (internal track)`);
+  summaryLines.push('  Google Play: AAB uploaded (internal track)');
 }
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+await writeSummary('android', summaryLines);

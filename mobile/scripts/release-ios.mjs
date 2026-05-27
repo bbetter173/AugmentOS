@@ -59,11 +59,12 @@ console.log(`Version: ${version} → tag: ${tag}, prefix: ${prefix}`);
 
 // ── Step 2: Derive build number ──────────────────────────────────────────────
 
-// app.config.ts reads this via getBuildNumber(); capture the same value here
-// for logging/summary. The number Xcode actually bakes in comes from prebuild
-// re-reading app.config.ts a few seconds from now, which will be ≥ this value
-// (clock only moves forward), so it's safe to use this for display.
+// Pin the value via env var so every getBuildNumber() call in this process
+// tree (including app.config.ts evaluations during prebuild + Xcode's later
+// reads) returns the same number. Without pinning, the summary value can
+// drift from the value baked into the IPA by a few seconds.
 const buildNumber = getBuildNumber();
+process.env.MENTRAOS_PINNED_BUILD_NUMBER = String(buildNumber);
 console.log(`buildNumber: ${buildNumber}`);
 
 // ── Step 3: Prebuild iOS ──────────────────────────────────────────────────────

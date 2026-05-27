@@ -34,6 +34,12 @@ on:
 permissions:
   contents: write
 
+# All jobs check out `ref: ${{ github.sha }}` so each run builds the exact
+# commit that triggered it. If we used `ref: staging` instead, concurrent
+# pushes could race — the workflow run for commit A would build whatever
+# staging's tip happens to be when checkout actually runs, which may be
+# commit B that landed in the meantime.
+
 jobs:
   build-mobile-android:
     name: Build Mobile App (Android)
@@ -52,7 +58,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: staging
+          ref: ${{ github.sha }}
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -159,7 +165,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: staging
+          ref: ${{ github.sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -263,7 +269,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: staging
+          ref: ${{ github.sha }}
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -326,7 +332,7 @@ jobs:
       - name: Checkout to get staging SHA
         uses: actions/checkout@v4
         with:
-          ref: staging
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Download mobile Android artifact

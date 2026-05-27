@@ -63,8 +63,17 @@ export async function withRetry(label, fn, { attempts = 4, baseDelayMs = 3000, s
  * Predicate for withRetry: only retry when the error output looks like a
  * transient Sentry network/TLS failure during source-map upload.
  *
+ * Two layers of matching:
+ *   1. Sentry-tagged errors: explicit `sentry-cli` prefix + a Sentry-flavored
+ *      message. Cheap and unambiguous.
+ *   2. Bare transient errors: distinctive network/TLS signatures that only
+ *      surface during Sentry uploads in our pipeline (we don't do any other
+ *      outbound HTTPS in the archive/assemble phase). Catches cases where
+ *      the `sentry-cli` prefix got stripped by an outer wrapper or where
+ *      Sentry's CLI changes its error formatting.
+ *
  * Real build errors (Swift compile failures, missing files, etc.) will not
- * match these patterns and will fail immediately.
+ * match either layer and fail immediately.
  */
 export function isSentryTransientError(err) {
   const haystack = [
@@ -74,15 +83,23 @@ export function isSentryTransientError(err) {
   ].filter(Boolean).join('\n');
   if (!haystack) return false;
 
-  const patterns = [
+  // Layer 1: sentry-cli prefix + Sentry-flavored failure.
+  const sentryTagged = [
     /sentry-cli.*API request failed/i,
     /sentry-cli.*Failure when receiving data from the peer/i,
-    /sentry-cli.*OpenSSL.*bad record mac/i,
-    /sentry-cli.*connection (?:reset|refused|timed out)/i,
-    /sentry-cli.*(?:ECONNRESET|ETIMEDOUT|ENETUNREACH|EAI_AGAIN)/i,
     /sentry-cli.*502 Bad Gateway/i,
     /sentry-cli.*503 Service Unavailable/i,
     /sentry-cli.*504 Gateway Timeout/i,
   ];
-  return patterns.some((re) => re.test(haystack));
+  if (sentryTagged.some((re) => re.test(haystack))) return true;
+
+  // Layer 2: distinctive transient network/TLS errors. These are
+  // uniquely Sentry's territory during a release build (no other step
+  // does outbound HTTPS in the archive/assemble phase).
+  const bareTransient = [
+    /OpenSSL.*bad record mac/i,
+    /connection (?:reset|refused|timed out) by peer/i,
+    /\b(?:ECONNRESET|ETIMEDOUT|ENETUNREACH|EAI_AGAIN)\b/,
+  ];
+  return bareTransient.some((re) => re.test(haystack));
 }

@@ -42,9 +42,12 @@ console.log(`Version: ${version} → tag: ${tag}, prefix: ${prefix}`);
 
 // ── Step 2: Derive build number ──────────────────────────────────────────────
 
-// app.config.ts already reads this via getBuildNumber(); we just capture the
-// same value here for logging/summary so it matches what gets baked in.
+// Pin the value via env var so every getBuildNumber() call in this process
+// tree (including app.config.ts evaluations during prebuild) returns the
+// same number. Without pinning, the summary value can drift from the value
+// baked into the native project by a few seconds — small but real.
 const versionCode = getBuildNumber();
+process.env.MENTRAOS_PINNED_BUILD_NUMBER = String(versionCode);
 console.log(`versionCode: ${versionCode}`);
 
 // ── Step 3: Prebuild + bundle ────────────────────────────────────────────────

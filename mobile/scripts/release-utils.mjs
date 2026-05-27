@@ -98,7 +98,8 @@ export function isSentryTransientError(err) {
   // does outbound HTTPS in the archive/assemble phase).
   const bareTransient = [
     /OpenSSL.*bad record mac/i,
-    /connection (?:reset|refused|timed out) by peer/i,
+    /connection reset(?: by peer)?/i,
+    /connection (?:refused|timed out)/i,
     /\b(?:ECONNRESET|ETIMEDOUT|ENETUNREACH|EAI_AGAIN)\b/,
   ];
   return bareTransient.some((re) => re.test(haystack));

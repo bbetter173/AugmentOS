@@ -111,7 +111,7 @@ jobs:
       - name: Run release-android (signed APK + Beta_N upload + Play internal)
         working-directory: ./mobile
         env:
-          SENTRY_ALLOW_FAILURE: "true"
+          SENTRY_ALLOW_FAILURE: "false"
         # release-android.mjs handles: prebuild → gradle assemble/bundle →
         # GH release upload (v{X.Y}/_Beta_N.apk) → Play internal track upload
         # (if google-play-key.json is at ~/.mentra/credentials/).
@@ -218,7 +218,7 @@ jobs:
       - name: Run release-ios (signed IPA + Beta_N upload + TestFlight)
         working-directory: ./mobile
         env:
-          SENTRY_ALLOW_FAILURE: "true"
+            SENTRY_ALLOW_FAILURE: "true"
         # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
         # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
         # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).

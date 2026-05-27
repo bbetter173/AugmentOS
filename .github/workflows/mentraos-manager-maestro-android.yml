@@ -30,7 +30,7 @@ jobs:
       - name: Download APK from build workflow
         uses: dawidd6/action-download-artifact@v3
         with:
-          workflow: mentraos-manager-android-build.yml
+          workflow: mentra-app-android-build.yml
           workflow_conclusion: success
           name: app-debug
           path: ./

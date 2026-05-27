@@ -1,11 +1,19 @@
 name: Staging Builds
 
-# Builds the mobile app and ASG client from the staging branch and publishes
-# the artifacts to the `staging-builds` GitHub release. The latest builds are
-# always available at:
-#   - https://github.com/<owner>/<repo>/releases/download/staging-builds/mobile-latest.apk
-#   - https://github.com/<owner>/<repo>/releases/download/staging-builds/asg-latest.apk
-# Dated copies are retained for 7 days.
+# Builds the mobile app (Android + iOS) and ASG client from the staging branch
+# and publishes to TWO places:
+#
+#   1. The versioned release tag (`v2.10` etc.) with `_Beta_N` numbering.
+#      This is what `bun run release:android` / `release:ios` produce.
+#      Full history per version, accumulates over time.
+#
+#   2. The rolling-latest tag (`staging-builds`) with stable filenames:
+#        - mobile-latest.apk / mobile-latest.ipa / asg-latest.apk
+#        - Dated copies kept for 7 days.
+#
+# Mobile also uploads to TestFlight (iOS) and Play Store internal track
+# (Android), as the release scripts already do, IF the runner has the creds
+# at ~/.mentra/credentials/. Otherwise those steps skip silently.
 
 on:
   push:
@@ -27,8 +35,8 @@ permissions:
   contents: write
 
 jobs:
-  build-mobile:
-    name: Build Mobile App
+  build-mobile-android:
+    name: Build Mobile App (Android)
     runs-on: self-hosted
 
     steps:
@@ -90,12 +98,7 @@ jobs:
 
       - name: Setup environment
         working-directory: ./mobile
-        run: |
-          cp .env.example .env
-
-      - name: Run Expo prebuild
-        working-directory: ./mobile
-        run: bun expo prebuild --platform android
+        run: cp .env.example .env
 
       - name: Fix React Native symlinks
         working-directory: ./mobile
@@ -105,30 +108,142 @@ jobs:
             ./fix-react-native-symlinks.sh
           fi
 
-      - name: Build Android Release APK
-        id: gradle-build
-        working-directory: ./mobile/android
-        run: ./gradlew assembleRelease --build-cache --parallel
-        continue-on-error: true
+      - name: Run release-android (signed APK + Beta_N upload + Play internal)
+        working-directory: ./mobile
         env:
-          SENTRY_DISABLE_AUTO_UPLOAD: "true"
+          SENTRY_ALLOW_FAILURE: "true"
+        # release-android.mjs handles: prebuild → gradle assemble/bundle →
+        # GH release upload (v{X.Y}/_Beta_N.apk) → Play internal track upload
+        # (if google-play-key.json is at ~/.mentra/credentials/).
+        run: bun run release:android
 
-      - name: Retry build with clean cache (if first attempt failed)
-        if: steps.gradle-build.outcome == 'failure'
-        working-directory: ./mobile/android
+      - name: Locate built APK
+        id: find-apk
+        working-directory: ./mobile
         run: |
-          echo "First build failed, cleaning Gradle cache and retrying..."
-          ./gradlew --stop || true
-          rm -rf ~/.gradle/caches ~/.gradle/wrapper || true
-          ./gradlew assembleRelease --build-cache --parallel
-        env:
-          SENTRY_DISABLE_AUTO_UPLOAD: "true"
+          # release-android.mjs renames the APK to Mentra_*_Beta_N.apk in
+          # android/app/build/outputs/apk/release/. Grab whichever one is
+          # the newest (there should only be one per run).
+          APK=$(ls -t android/app/build/outputs/apk/release/Mentra_*_Beta_*.apk 2>/dev/null | head -1)
+          if [ -z "$APK" ]; then
+            echo "No Mentra_*_Beta_*.apk found in android/app/build/outputs/apk/release/" >&2
+            ls -la android/app/build/outputs/apk/release/ >&2
+            exit 1
+          fi
+          # Stable name for the upload-releases job.
+          cp "$APK" android/app/build/outputs/apk/release/app-release.apk
+          echo "Found APK: $APK"
 
-      - name: Upload artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: mobile-staging
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
+
+  build-mobile-ios:
+    name: Build Mobile App (iOS)
+    runs-on: [self-hosted, macOS, ARM64]
+
+    steps:
+      - name: Kill stale build processes
+        run: |
+          killall xcodebuild 2>/dev/null || true
+          killall Simulator 2>/dev/null || true
+          xcrun simctl shutdown all 2>/dev/null || true
+
+      - name: Clean previous build outputs only
+        run: |
+          rm -rf mobile/ios/build mobile/build mobile/node_modules
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Get cache week number
+        id: cache-week
+        run: echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            mobile/ios/Pods
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods
+          key: pods-${{ runner.os }}-${{ steps.cache-week.outputs.week }}-${{ hashFiles('mobile/ios/Podfile.lock', 'mobile/package.json') }}
+          restore-keys: |
+            pods-${{ runner.os }}-${{ steps.cache-week.outputs.week }}-
+            pods-${{ runner.os }}-
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('mobile/bun.lockb') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        id: bun-install
+        working-directory: ./mobile
+        run: bun install --no-frozen-lockfile
+        continue-on-error: true
+
+      - name: Retry bun install with clean node_modules (if first attempt failed)
+        if: steps.bun-install.outcome == 'failure'
+        working-directory: ./mobile
+        run: |
+          echo "First bun install failed, wiping node_modules and retrying..."
+          rm -rf node_modules
+          bun install --no-frozen-lockfile
+
+      - name: Setup environment
+        working-directory: ./mobile
+        run: cp .env.example .env
+
+      - name: Ensure iOS platform is installed
+        run: xcodebuild -downloadPlatform iOS || true
+
+      - name: Run release-ios (signed IPA + Beta_N upload + TestFlight)
+        working-directory: ./mobile
+        env:
+          SENTRY_ALLOW_FAILURE: "true"
+        # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
+        # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
+        # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).
+        run: bun run release:ios
+
+      - name: Locate built IPA
+        id: find-ipa
+        working-directory: ./mobile
+        run: |
+          # release-ios.mjs renames the IPA to Mentra_iOS_*_Beta_N.ipa under
+          # build/ios-export/. Grab the newest (there should only be one).
+          IPA=$(ls -t build/ios-export/Mentra_iOS_*_Beta_*.ipa 2>/dev/null | head -1)
+          if [ -z "$IPA" ]; then
+            echo "No Mentra_iOS_*_Beta_*.ipa found in build/ios-export/" >&2
+            ls -la build/ios-export/ >&2
+            exit 1
+          fi
+          cp "$IPA" build/ios-export/app-release.ipa
+          echo "Found IPA: $IPA"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-staging-ios
+          path: mobile/build/ios-export/app-release.ipa
 
   build-asg:
     name: Build ASG Client
@@ -159,8 +274,7 @@ jobs:
 
       - name: Setup environment
         working-directory: ./asg_client
-        run: |
-          cp .env.example .env
+        run: cp .env.example .env
 
       - name: Clone StreamPackLite dependency
         working-directory: ./asg_client
@@ -202,8 +316,8 @@ jobs:
           path: asg_client/app/build/outputs/apk/release/app-release.apk
 
   upload-releases:
-    name: Upload to Releases
-    needs: [build-mobile, build-asg]
+    name: Upload to staging-builds release
+    needs: [build-mobile-android, build-mobile-ios, build-asg]
     runs-on: ubuntu-latest
 
     steps:
@@ -213,11 +327,17 @@ jobs:
           ref: staging
           fetch-depth: 1
 
-      - name: Download mobile artifact
+      - name: Download mobile Android artifact
         uses: actions/download-artifact@v4
         with:
           name: mobile-staging
           path: ./mobile-apk
+
+      - name: Download mobile iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mobile-staging-ios
+          path: ./mobile-ipa
 
       - name: Download ASG artifact
         uses: actions/download-artifact@v4
@@ -231,7 +351,7 @@ jobs:
           echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
           echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Upload APKs to staging-builds release
+      - name: Upload artifacts to staging-builds release
         uses: actions/github-script@v7
         with:
           script: |
@@ -239,9 +359,8 @@ jobs:
             const date = '${{ steps.build-info.outputs.date }}';
             const sha = '${{ steps.build-info.outputs.sha }}';
 
-            const releaseBody = `Automated builds from the \`staging\` branch.\n\n**Latest builds:** ${date} (${sha})\n\n## Download Links\n\n- [Mobile App (latest)](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/staging-builds/mobile-latest.apk)\n- [ASG Client (latest)](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/staging-builds/asg-latest.apk)\n\n---\n\n*Builds older than 7 days are automatically cleaned up.*`;
+            const releaseBody = `Automated builds from the \`staging\` branch.\n\n**Latest builds:** ${date} (${sha})\n\n## Download Links\n\n- [Mobile App Android (latest)](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/staging-builds/mobile-latest.apk)\n- [Mobile App iOS (latest)](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/staging-builds/mobile-latest.ipa)\n- [ASG Client (latest)](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/staging-builds/asg-latest.apk)\n\nVersioned builds with \`_Beta_N\` numbering are also published under the per-version release tag (e.g. \`v2.10\`).\n\n---\n\n*Builds older than 7 days in this rolling-latest channel are automatically cleaned up.*`;
 
-            // Get or create the staging-builds release
             let release;
             try {
               release = await github.rest.repos.getReleaseByTag({
@@ -269,13 +388,14 @@ jobs:
 
             const uploads = [
               { path: './mobile-apk/app-release.apk', latestName: 'mobile-latest.apk', datedName: `mobile-staging-${date}-${sha}.apk` },
+              { path: './mobile-ipa/app-release.ipa', latestName: 'mobile-latest.ipa', datedName: `mobile-staging-${date}-${sha}.ipa` },
               { path: './asg-apk/app-release.apk', latestName: 'asg-latest.apk', datedName: `asg-staging-${date}-${sha}.apk` }
             ];
 
             for (const upload of uploads) {
-              const apkData = fs.readFileSync(upload.path);
+              const data = fs.readFileSync(upload.path);
 
-              // Delete existing -latest.apk if it exists
+              // Delete existing -latest asset if present.
               for (const asset of release.data.assets) {
                 if (asset.name === upload.latestName) {
                   console.log(`Deleting existing ${upload.latestName}`);
@@ -288,22 +408,22 @@ jobs:
                 }
               }
 
-              console.log(`Uploading ${upload.latestName} (${apkData.length} bytes)...`);
+              console.log(`Uploading ${upload.latestName} (${data.length} bytes)...`);
               await github.rest.repos.uploadReleaseAsset({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: releaseId,
                 name: upload.latestName,
-                data: apkData
+                data
               });
 
-              console.log(`Uploading ${upload.datedName} (${apkData.length} bytes)...`);
+              console.log(`Uploading ${upload.datedName} (${data.length} bytes)...`);
               await github.rest.repos.uploadReleaseAsset({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: releaseId,
                 name: upload.datedName,
-                data: apkData
+                data
               });
             }
 
@@ -314,7 +434,7 @@ jobs:
               body: releaseBody
             });
 
-            console.log('Successfully uploaded all APKs');
+            console.log('Successfully uploaded all artifacts');
 
       - name: Cleanup old staging builds
         if: ${{ github.event.inputs.skip_cleanup != 'true' }}
@@ -331,8 +451,8 @@ jobs:
               });
 
               for (const asset of release.data.assets) {
-                // Skip -latest.apk files
-                if (asset.name.endsWith('-latest.apk')) continue;
+                // Keep -latest files forever.
+                if (asset.name.endsWith('-latest.apk') || asset.name.endsWith('-latest.ipa')) continue;
 
                 const createdAt = new Date(asset.created_at);
                 if (createdAt < sevenDaysAgo) {

@@ -128,7 +128,12 @@ jobs:
         # release-android.mjs handles: prebuild → gradle assemble/bundle →
         # GH release upload (v{X.Y}/_Beta_N.apk) → Play internal track upload
         # (if google-play-key.json is at ~/.mentra/credentials/).
-        run: bun run release:android
+        run: |
+          # Force rbenv-managed Ruby ahead of system Ruby so the bundle install
+          # invoked inside release-android.mjs (for the android/fastlane Play
+          # upload) uses bundler 2+. See the iOS step for context.
+          export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+          bun run release:android
 
       - name: Locate built APK
         id: find-apk
@@ -249,6 +254,14 @@ jobs:
         # Assumes the runner has rbenv-managed Ruby 3.4+ on PATH (handled by
         # setup-runner.sh); macOS's system Ruby 2.6 + bundler <2 won't work.
         run: |
+          # Force rbenv-managed Ruby ahead of macOS's system Ruby 2.6, in
+          # case the runner service hasn't picked up an updated .env yet
+          # (it only re-reads .env on service restart, which we can't do
+          # over non-interactive SSH without sudo).
+          export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+          echo "Using ruby: $(which ruby) $(ruby -v)"
+          echo "Using bundle: $(which bundle)"
+
           # Strip any trailing whitespace / newlines from the secret value so
           # the Authorization header isn't malformed. tr handles \r and \n;
           # the env var rebinding (not just `export VAR=$(printf ...)`) is

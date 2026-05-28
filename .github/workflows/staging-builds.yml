@@ -278,10 +278,6 @@ jobs:
           # gh CLI inside release-ios.mjs uploads the IPA to a GH release.
           # GH_TOKEN is auto-provided per-run by Actions; gh picks it up.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tell release-ios.mjs to use manual signing against the fastlane
-          # match-installed provisioning profile rather than automatic signing
-          # (which only works on a laptop with Xcode interactively signed in).
-          MATCH_USE: "1"
         # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
         # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
         # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).

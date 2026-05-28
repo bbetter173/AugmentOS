@@ -628,9 +628,12 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
+        # All shell here is pure ASCII. Status symbols use Slack mrkdwn
+        # emoji codes (e.g. :white_check_mark:) instead of literal Unicode
+        # so the shell parser never has to deal with non-ASCII bytes.
         run: |
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "SLACK_WEBHOOK_NIGHTLY_BUILDS secret not set — skipping Slack notification."
+            echo "SLACK_WEBHOOK_NIGHTLY_BUILDS secret not set - skipping Slack notification."
             exit 0
           fi
 
@@ -639,15 +642,14 @@ jobs:
           COMMIT_SUBJECT=$(git log -1 --pretty=%s "$SHA")
           COMMIT_AUTHOR=$(git log -1 --pretty=%an "$SHA")
 
-          # Map GH Actions job conclusions → emoji + human label.
-          # success → ✅, failure → ❌, skipped → ⏭️, cancelled → 🚫, anything else → ⚠️
+          # Map GH Actions job conclusions to Slack emoji shortcode + label.
           icon() {
             case "$1" in
-              success) echo "✅" ;;
-              failure) echo "❌" ;;
-              skipped) echo "⏭️" ;;
-              cancelled) echo "🚫" ;;
-              *) echo "⚠️" ;;
+              success) echo ":white_check_mark:" ;;
+              failure) echo ":x:" ;;
+              skipped) echo ":fast_forward:" ;;
+              cancelled) echo ":no_entry:" ;;
+              *) echo ":warning:" ;;
             esac
           }
           label() {
@@ -665,19 +667,18 @@ jobs:
           ASG_ICON=$(icon "$ASG_RESULT")
           UPLOAD_ICON=$(icon "$UPLOAD_RESULT")
 
-          # Overall header: ✅ if upload succeeded AND all three built; ⚠️ if
-          # some platforms shipped but others failed; ❌ if nothing shipped.
+          # Overall header.
           if [ "$UPLOAD_RESULT" = "success" ] && \
              [ "$ANDROID_RESULT" = "success" ] && \
              [ "$IOS_RESULT" = "success" ] && \
              [ "$ASG_RESULT" = "success" ]; then
-            HEADER_ICON="✅"
+            HEADER_ICON=":white_check_mark:"
             HEADER_TEXT="Staging build complete"
           elif [ "$UPLOAD_RESULT" = "success" ]; then
-            HEADER_ICON="⚠️"
+            HEADER_ICON=":warning:"
             HEADER_TEXT="Staging build partial (some platforms failed)"
           else
-            HEADER_ICON="❌"
+            HEADER_ICON=":x:"
             HEADER_TEXT="Staging build failed"
           fi
 
@@ -688,8 +689,6 @@ jobs:
           IOS_URL="${RELEASE_BASE}/mobile-latest.ipa"
           ASG_URL="${RELEASE_BASE}/asg-latest.apk"
 
-          # Per-platform "details" line. For successes we link the latest
-          # artifact; for failures we point at the run log.
           android_detail() {
             if [ "$ANDROID_RESULT" = "success" ]; then
               echo "<${ANDROID_URL}|Download mobile-latest.apk>"
@@ -719,25 +718,20 @@ jobs:
           IOS_LABEL=$(label "$IOS_RESULT")
           ASG_LABEL=$(label "$ASG_RESULT")
 
-          # Note: ${{ github.event.head_commit.message }} would be ideal but
-          # is only set on push events. We use git for both push and
-          # workflow_dispatch so the field is always populated.
-
-          # Build the JSON payload with jq so commit subjects with
-          # quotes/newlines don't break the message. `$'\n'` is bash's
-          # literal newline (Slack's mrkdwn doesn't interpret `\n`).
+          # Build the JSON payload with jq. NL is a real newline; Slack
+          # mrkdwn renders backslash-n as the literal 2 chars, not a break.
           NL=$'\n'
           PAYLOAD=$(jq -n \
             --arg header "${HEADER_ICON} ${HEADER_TEXT}" \
-            --arg context "Commit <${COMMIT_URL}|\`${COMMIT_SHORT}\`> by ${COMMIT_AUTHOR} • <${RUN_URL}|View run>" \
+            --arg context "Commit <${COMMIT_URL}|\`${COMMIT_SHORT}\`> by ${COMMIT_AUTHOR} - <${RUN_URL}|View run>" \
             --arg commit_msg "${COMMIT_SUBJECT}" \
-            --arg android "*${ANDROID_ICON} Android (mobile)* — ${ANDROID_LABEL}${NL}${ANDROID_DETAIL}" \
-            --arg ios "*${IOS_ICON} iOS (mobile)* — ${IOS_LABEL}${NL}${IOS_DETAIL}" \
-            --arg asg "*${ASG_ICON} ASG client* — ${ASG_LABEL}${NL}${ASG_DETAIL}" \
+            --arg android "*${ANDROID_ICON} Android (mobile)* - ${ANDROID_LABEL}${NL}${ANDROID_DETAIL}" \
+            --arg ios "*${IOS_ICON} iOS (mobile)* - ${IOS_LABEL}${NL}${IOS_DETAIL}" \
+            --arg asg "*${ASG_ICON} ASG client* - ${ASG_LABEL}${NL}${ASG_DETAIL}" \
             --arg upload "_Publishing step:_ ${UPLOAD_ICON} ${UPLOAD_RESULT}" \
             '{
               blocks: [
-                { type: "header", text: { type: "plain_text", text: $header } },
+                { type: "header", text: { type: "plain_text", text: $header, emoji: true } },
                 { type: "section", text: { type: "mrkdwn", text: $commit_msg } },
                 { type: "divider" },
                 { type: "section", text: { type: "mrkdwn", text: $android } },
@@ -751,7 +745,7 @@ jobs:
               ]
             }')
 
-          echo "Posting to Slack…"
+          echo "Posting to Slack..."
           curl -fsS -X POST -H "Content-Type: application/json" \
             --data "$PAYLOAD" "$SLACK_WEBHOOK_URL"
           echo

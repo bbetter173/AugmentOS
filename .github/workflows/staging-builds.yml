@@ -77,10 +77,9 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
+      # Bun is pre-installed on the self-hosted runners by setup-runner.sh.
+      # We skip oven-sh/setup-bun@v1 because it re-downloads bun every run
+      # over a network that occasionally flakes, causing avoidable failures.
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -178,10 +177,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
+      # Bun is pre-installed on the self-hosted runners by setup-runner.sh.
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

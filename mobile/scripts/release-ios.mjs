@@ -94,15 +94,17 @@ const archivePath = path.resolve('build/Mentra.xcarchive');
 // profile that fastlane match installed (or, on a laptop, lets Xcode
 // fetch one on-demand from your signed-in Apple Dev account).
 //
-// We deliberately don't pass per-target manual signing flags like
-// PROVISIONING_PROFILE_SPECIFIER on the command line — those get applied
-// to every target including static library deps that don't need signing,
-// which breaks the archive. Automatic signing + match-installed profile
-// in the keychain is the canonical fastlane-match path.
+// CODE_SIGN_IDENTITY="Apple Distribution" forces Xcode to pick the
+// Distribution cert match installs (rather than any "Apple Development"
+// cert that might be lingering in the runner's login keychain from when
+// Xcode was signed in to a personal Apple account). Static-library
+// targets have CODE_SIGNING_ALLOWED=NO so they ignore this override.
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const archiveSigningArgs = isCI ? ['CODE_SIGN_IDENTITY=Apple Distribution'] : [];
 await withRetry(
   'xcodebuild archive',
   () => {
-    const p = $`xcodebuild archive -workspace ios/Mentra.xcworkspace -scheme Mentra -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} -allowProvisioningUpdates DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
+    const p = $`xcodebuild archive -workspace ios/Mentra.xcworkspace -scheme Mentra -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} -allowProvisioningUpdates DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal ${archiveSigningArgs}`;
     p.stdout.pipe(process.stdout);
     p.stderr.pipe(process.stderr);
     return p;

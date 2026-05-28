@@ -194,21 +194,17 @@ if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !
     );
     console.log('IPA uploaded to App Store Connect (TestFlight)');
   } catch (err) {
-    // TestFlight rejects builds with the same CFBundleShortVersionString as
-    // a previously-approved/closed train ("Invalid Pre-Release Train", "must
-    // contain a higher version"). The IPA itself is still valid and has
-    // already been uploaded to the GH release. Don't fail the whole build —
-    // it just means the user needs to bump EXPO_PUBLIC_MENTRAOS_VERSION
-    // before they can ship to TestFlight again. Other altool failures
-    // (auth, network) re-raise so they still surface.
-    const msg = (err?.stdout || '') + (err?.stderr || '') + (err?.message || '');
-    if (/Invalid Pre-Release Train|must contain a higher version|train.*closed/i.test(msg)) {
-      console.warn('\n⚠️  TestFlight upload skipped: version is closed for new builds.');
-      console.warn('   The signed IPA was still uploaded to the GitHub release.');
-      console.warn('   Bump EXPO_PUBLIC_MENTRAOS_VERSION in .env to ship a new TestFlight build.');
-    } else {
-      throw err;
-    }
+    // TestFlight upload is a publish-side concern, not a build-correctness
+    // check. The signed IPA itself is valid and has already been published
+    // to the GitHub release at this point. Common failure modes — version
+    // already approved/closed, network blip, transient ASC outage — should
+    // not fail the workflow because the artifact is fine and re-uploadable.
+    // Print a clear warning so the user can investigate.
+    console.warn('\n⚠️  TestFlight upload failed — continuing because the signed IPA');
+    console.warn('   was still published to the GitHub release.');
+    console.warn('   Common cause: EXPO_PUBLIC_MENTRAOS_VERSION matches a previously');
+    console.warn('   approved/closed TestFlight train. Bump it to enable TestFlight.');
+    console.warn('   Original error:', err?.message || err);
   }
 }
 

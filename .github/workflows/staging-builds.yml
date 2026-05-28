@@ -232,7 +232,11 @@ jobs:
         working-directory: ./mobile
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          # Raw secret value. We sanitize it below before exporting to match,
+          # because if a stray newline got into the saved secret, fastlane
+          # interpolates it directly into the `Authorization: Basic <value>`
+          # HTTP header, which GitHub rejects with HTTP 400.
+          RAW_MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           # Runner login password — needed so the imported distribution cert
           # can be added to the login keychain non-interactively. Stored as a
           # secret out of convention, even though `mentra` isn't sensitive
@@ -245,6 +249,11 @@ jobs:
         # Assumes the runner has rbenv-managed Ruby 3.4+ on PATH (handled by
         # setup-runner.sh); macOS's system Ruby 2.6 + bundler <2 won't work.
         run: |
+          # Strip any trailing whitespace / newlines from the secret value so
+          # the Authorization header isn't malformed. tr handles \r and \n;
+          # the env var rebinding (not just `export VAR=$(printf ...)`) is
+          # safer because some shells preserve the newline through `$(...)`.
+          export MATCH_GIT_BASIC_AUTHORIZATION="$(printf '%s' "$RAW_MATCH_GIT_BASIC_AUTHORIZATION" | tr -d '\r\n')"
           bundle install
           bundle exec fastlane match appstore --readonly
 

@@ -56,6 +56,7 @@ jobs:
       beta_number: ${{ steps.release-status.outputs.beta_number }}
       tag: ${{ steps.release-status.outputs.tag }}
       version: ${{ steps.release-status.outputs.version }}
+      version_code: ${{ steps.release-status.outputs.version_code }}
       google_play: ${{ steps.release-status.outputs.google_play }}
       google_play_detail: ${{ steps.release-status.outputs.google_play_detail }}
 
@@ -186,6 +187,7 @@ jobs:
           echo "beta_number=$(jq -r '.beta_number // ""' "$STATUS")"     >> $GITHUB_OUTPUT
           echo "tag=$(jq -r '.tag // ""' "$STATUS")"                     >> $GITHUB_OUTPUT
           echo "version=$(jq -r '.version // ""' "$STATUS")"             >> $GITHUB_OUTPUT
+          echo "version_code=$(jq -r '.versionCode // ""' "$STATUS")"    >> $GITHUB_OUTPUT
           echo "google_play=$(jq -r '.google_play // ""' "$STATUS")"     >> $GITHUB_OUTPUT
           # Detail strings can contain special chars; base64-encode to be
           # safe across the GITHUB_OUTPUT round-trip, then slack-notify
@@ -203,6 +205,7 @@ jobs:
       beta_number: ${{ steps.release-status.outputs.beta_number }}
       tag: ${{ steps.release-status.outputs.tag }}
       version: ${{ steps.release-status.outputs.version }}
+      build_number: ${{ steps.release-status.outputs.build_number }}
       testflight: ${{ steps.release-status.outputs.testflight }}
       testflight_detail: ${{ steps.release-status.outputs.testflight_detail }}
 
@@ -418,6 +421,7 @@ jobs:
           echo "beta_number=$(jq -r '.beta_number // ""' "$STATUS")"     >> $GITHUB_OUTPUT
           echo "tag=$(jq -r '.tag // ""' "$STATUS")"                     >> $GITHUB_OUTPUT
           echo "version=$(jq -r '.version // ""' "$STATUS")"             >> $GITHUB_OUTPUT
+          echo "build_number=$(jq -r '.buildNumber // ""' "$STATUS")"    >> $GITHUB_OUTPUT
           echo "testflight=$(jq -r '.testflight // ""' "$STATUS")"       >> $GITHUB_OUTPUT
           DETAIL=$(jq -r '.testflight_detail // ""' "$STATUS" | base64)
           echo "testflight_detail=$DETAIL"                               >> $GITHUB_OUTPUT
@@ -694,12 +698,14 @@ jobs:
           ANDROID_APK_URL: ${{ needs.build-mobile-android.outputs.apk_url }}
           ANDROID_BETA: ${{ needs.build-mobile-android.outputs.beta_number }}
           ANDROID_VERSION: ${{ needs.build-mobile-android.outputs.version }}
+          ANDROID_VERSION_CODE: ${{ needs.build-mobile-android.outputs.version_code }}
           ANDROID_PLAY: ${{ needs.build-mobile-android.outputs.google_play }}
           ANDROID_PLAY_DETAIL_B64: ${{ needs.build-mobile-android.outputs.google_play_detail }}
           IOS_IPA_NAME: ${{ needs.build-mobile-ios.outputs.ipa_name }}
           IOS_IPA_URL: ${{ needs.build-mobile-ios.outputs.ipa_url }}
           IOS_BETA: ${{ needs.build-mobile-ios.outputs.beta_number }}
           IOS_VERSION: ${{ needs.build-mobile-ios.outputs.version }}
+          IOS_BUILD_NUMBER: ${{ needs.build-mobile-ios.outputs.build_number }}
           IOS_TESTFLIGHT: ${{ needs.build-mobile-ios.outputs.testflight }}
           IOS_TESTFLIGHT_DETAIL_B64: ${{ needs.build-mobile-ios.outputs.testflight_detail }}
           # From upload-releases job — the exact date+sha used in the
@@ -812,7 +818,7 @@ jobs:
             local lines=""
             if [ "$ANDROID_RESULT" = "success" ] && [ -n "$ANDROID_APK_URL" ]; then
               # Show version + Beta_N + APK link.
-              lines="*v${ANDROID_VERSION} Beta ${ANDROID_BETA}* - <${ANDROID_APK_URL}|${ANDROID_APK_NAME}>"
+              lines="*v${ANDROID_VERSION} (versionCode ${ANDROID_VERSION_CODE}) Beta ${ANDROID_BETA}* - <${ANDROID_APK_URL}|${ANDROID_APK_NAME}>"
               # Add Play upload sub-line.
               local play_icon
               play_icon=$(substatus_icon "$ANDROID_PLAY")
@@ -830,7 +836,7 @@ jobs:
           ios_detail() {
             local lines=""
             if [ "$IOS_RESULT" = "success" ] && [ -n "$IOS_IPA_URL" ]; then
-              lines="*v${IOS_VERSION} Beta ${IOS_BETA}* - <${IOS_IPA_URL}|${IOS_IPA_NAME}>"
+              lines="*v${IOS_VERSION} (build ${IOS_BUILD_NUMBER}) Beta ${IOS_BETA}* - <${IOS_IPA_URL}|${IOS_IPA_NAME}>"
               local tf_icon
               tf_icon=$(substatus_icon "$IOS_TESTFLIGHT")
               case "$IOS_TESTFLIGHT" in

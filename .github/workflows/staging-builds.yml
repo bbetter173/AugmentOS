@@ -77,9 +77,15 @@ jobs:
         with:
           node-version: "20"
 
-      # Bun is pre-installed on the self-hosted runners by setup-runner.sh.
-      # We skip oven-sh/setup-bun@v1 because it re-downloads bun every run
-      # over a network that occasionally flakes, causing avoidable failures.
+      # Bun + rbenv are pre-installed on the self-hosted runners by
+      # setup-runner.sh but the runner's launchd service inherits PATH from
+      # the OS, not from .env. Push the runner-managed binary dirs into
+      # GITHUB_PATH so every subsequent step in this job sees them.
+      - name: Add runner-managed tools to PATH
+        run: |
+          echo "$HOME/.rbenv/shims" >> $GITHUB_PATH
+          echo "$HOME/.rbenv/bin" >> $GITHUB_PATH
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -177,7 +183,15 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      # Bun is pre-installed on the self-hosted runners by setup-runner.sh.
+      # Bun + rbenv are pre-installed on the self-hosted runners by
+      # setup-runner.sh. The runner's launchd service inherits PATH from
+      # the OS, not from .env. Push the runner-managed binary dirs into
+      # GITHUB_PATH so every subsequent step in this job sees them.
+      - name: Add runner-managed tools to PATH
+        run: |
+          echo "$HOME/.rbenv/shims" >> $GITHUB_PATH
+          echo "$HOME/.rbenv/bin" >> $GITHUB_PATH
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

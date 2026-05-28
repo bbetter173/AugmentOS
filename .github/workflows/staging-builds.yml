@@ -257,24 +257,53 @@ jobs:
           bundle install
 
           # Create a per-build keychain so we don't depend on knowing the
-          # runner login keychain password. Add it to the search list so
-          # xcodebuild can find the cert during archive.
+          # runner login keychain password. Make it the FIRST keychain in
+          # the user search list (so xcodebuild finds the cert) plus keep
+          # the original keychains around so other tools work normally.
           KEYCHAIN_NAME="mentra-ci-build.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME" || true
-          security set-keychain-settings -lut 3600 "$KEYCHAIN_NAME"
+
+          # Wipe any leftover keychain from a previous run.
+          security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
-          security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+
+          # Install Apple's WWDR intermediate certs into the same keychain
+          # so the imported distribution cert validates as "trusted for
+          # codesigning". Without these, security find-identity reports
+          # "0 valid identities found" even though the cert is imported.
+          for wwdr in G2 G4 G5 G6; do
+            url="https://www.apple.com/certificateauthority/AppleWWDRCA${wwdr}.cer"
+            tmp="$(mktemp -t wwdr-XXXXXX).cer"
+            if curl -fsSL -o "$tmp" "$url"; then
+              security import "$tmp" -k "$KEYCHAIN_NAME" -T /usr/bin/codesign 2>&1 | grep -v "already exists" || true
+              rm -f "$tmp"
+            fi
+          done
+
+          # Put our keychain first in the search list while keeping the
+          # rest (system keychain provides Apple roots).
+          security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '" ' | tr '\n' ' ')
           security default-keychain -s "$KEYCHAIN_NAME"
 
           bundle exec fastlane match appstore --readonly \
             --keychain_name "$KEYCHAIN_NAME" \
             --keychain_password "$KEYCHAIN_PASSWORD"
 
-          # Sanity check: print the installed signing identity (cert in this
-          # keychain) so we can see in logs whether match imported it.
+          # Persist the keychain name+password to GITHUB_ENV so subsequent
+          # steps (release-ios) can re-unlock and confirm setup is intact.
+          echo "MENTRA_CI_KEYCHAIN=$KEYCHAIN_NAME" >> "$GITHUB_ENV"
+          echo "MENTRA_CI_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+          # Sanity check
           echo "---signing identities in $KEYCHAIN_NAME---"
           security find-identity -v -p codesigning "$KEYCHAIN_NAME" || true
+          echo "---all keychains in search list---"
+          security list-keychains -d user
+          echo "---all signing identities visible to xcodebuild---"
+          security find-identity -v -p codesigning
 
       - name: Run release-ios (signed IPA + Beta_N upload + TestFlight)
         working-directory: ./mobile
@@ -287,10 +316,21 @@ jobs:
         # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
         # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
         # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).
-        # Debug: list signing identities visible to xcodebuild before the
-        # archive runs. If empty, the match step's keychain didn't persist.
         run: |
           export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+
+          # Re-unlock the per-build keychain (each step is a fresh shell,
+          # so any unlock the match step did has expired). MENTRA_CI_KEYCHAIN
+          # and MENTRA_CI_KEYCHAIN_PASSWORD were exported to GITHUB_ENV by
+          # the previous match step.
+          if [ -n "${MENTRA_CI_KEYCHAIN:-}" ]; then
+            security unlock-keychain -p "$MENTRA_CI_KEYCHAIN_PASSWORD" "$MENTRA_CI_KEYCHAIN" || true
+            # `security set-keychain-settings` with no -t means never re-lock
+            # while this process runs. Xcode forks long-lived subprocesses so
+            # the keychain must stay unlocked for the entire archive.
+            security set-keychain-settings "$MENTRA_CI_KEYCHAIN" || true
+          fi
+
           echo "---available signing identities---"
           security find-identity -v -p codesigning || true
           echo "---available provisioning profiles---"

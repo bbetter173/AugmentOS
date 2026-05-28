@@ -188,10 +188,28 @@ if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !
 } else {
   // altool looks for AuthKey_<id>.p8 in $API_PRIVATE_KEYS_DIR
   const keyDir = path.dirname(ascConfig.ASC_API_KEY_PATH);
-  await withRetry('altool TestFlight upload', () =>
-    $({ stdio: 'inherit', env: { ...process.env, API_PRIVATE_KEYS_DIR: keyDir } })`xcrun altool --upload-app -f ${ipaPath} -t ios --apiKey ${ascConfig.ASC_API_KEY_ID} --apiIssuer ${ascConfig.ASC_API_ISSUER_ID}`
-  );
-  console.log('IPA uploaded to App Store Connect (TestFlight)');
+  try {
+    await withRetry('altool TestFlight upload', () =>
+      $({ stdio: 'inherit', env: { ...process.env, API_PRIVATE_KEYS_DIR: keyDir } })`xcrun altool --upload-app -f ${ipaPath} -t ios --apiKey ${ascConfig.ASC_API_KEY_ID} --apiIssuer ${ascConfig.ASC_API_ISSUER_ID}`
+    );
+    console.log('IPA uploaded to App Store Connect (TestFlight)');
+  } catch (err) {
+    // TestFlight rejects builds with the same CFBundleShortVersionString as
+    // a previously-approved/closed train ("Invalid Pre-Release Train", "must
+    // contain a higher version"). The IPA itself is still valid and has
+    // already been uploaded to the GH release. Don't fail the whole build —
+    // it just means the user needs to bump EXPO_PUBLIC_MENTRAOS_VERSION
+    // before they can ship to TestFlight again. Other altool failures
+    // (auth, network) re-raise so they still surface.
+    const msg = (err?.stdout || '') + (err?.stderr || '') + (err?.message || '');
+    if (/Invalid Pre-Release Train|must contain a higher version|train.*closed/i.test(msg)) {
+      console.warn('\n⚠️  TestFlight upload skipped: version is closed for new builds.');
+      console.warn('   The signed IPA was still uploaded to the GitHub release.');
+      console.warn('   Bump EXPO_PUBLIC_MENTRAOS_VERSION in .env to ship a new TestFlight build.');
+    } else {
+      throw err;
+    }
+  }
 }
 
 // ── Step 7: Upload IPA to GitHub release ──────────────────────────────────────

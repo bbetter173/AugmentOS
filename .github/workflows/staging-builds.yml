@@ -432,6 +432,9 @@ jobs:
   upload-releases:
     name: Upload to staging-builds release
     needs: [build-mobile-android, build-mobile-ios, build-asg]
+    # Run even if some build jobs failed — publish whichever artifacts did
+    # make it. Skip only if ALL three failed (no artifacts to upload).
+    if: always() && (needs.build-mobile-android.result == 'success' || needs.build-mobile-ios.result == 'success' || needs.build-asg.result == 'success')
     runs-on: ubuntu-latest
 
     steps:
@@ -442,18 +445,21 @@ jobs:
           fetch-depth: 1
 
       - name: Download mobile Android artifact
+        if: needs.build-mobile-android.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: mobile-staging
           path: ./mobile-apk
 
       - name: Download mobile iOS artifact
+        if: needs.build-mobile-ios.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: mobile-staging-ios
           path: ./mobile-ipa
 
       - name: Download ASG artifact
+        if: needs.build-asg.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: asg-staging
@@ -507,6 +513,14 @@ jobs:
             ];
 
             for (const upload of uploads) {
+              // Skip artifacts that weren't downloaded (because the build
+              // job for that platform failed). Partial publish is fine —
+              // it's better to ship the platforms that did build than to
+              // skip the whole upload step.
+              if (!fs.existsSync(upload.path)) {
+                console.log(`Skipping ${upload.latestName}: ${upload.path} not present (upstream job didn't produce it)`);
+                continue;
+              }
               const data = fs.readFileSync(upload.path);
 
               // Delete existing -latest asset if present.

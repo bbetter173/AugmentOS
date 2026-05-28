@@ -284,6 +284,9 @@ jobs:
           # gh CLI inside release-ios.mjs uploads the IPA to a GH release.
           # GH_TOKEN is auto-provided per-run by Actions; gh picks it up.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
+        # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
+        # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).
         # Debug: list signing identities visible to xcodebuild before the
         # archive runs. If empty, the match step's keychain didn't persist.
         run: |
@@ -294,10 +297,6 @@ jobs:
           ls -la ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/ 2>/dev/null | head -10 || true
           echo "---"
           bun run release:ios
-        # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
-        # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
-        # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).
-        run: bun run release:ios
 
       - name: Locate built IPA
         id: find-ipa

@@ -477,6 +477,44 @@ sudo mdutil -i off "$HOME/Library/Caches/CocoaPods" 2>/dev/null || true
 ok "Spotlight indexing disabled for build artifact directories"
 
 # ---------------------------------------------------------------------------
+# Weekly cache cleanup scheduler
+# ---------------------------------------------------------------------------
+# Runs runner-cleanup.sh every Sunday at 03:00 local. The script auto-defers
+# if a build is active, so this never interrupts work. See
+# mobile/scripts/runner-cleanup.sh + .plist.template for the moving parts.
+
+info "Installing weekly cache cleanup scheduler"
+
+SCRIPT_DIR_ABS="$(cd "$(dirname "$0")" && pwd)"
+CLEANUP_SCRIPT_SRC="$SCRIPT_DIR_ABS/runner-cleanup.sh"
+CLEANUP_PLIST_SRC="$SCRIPT_DIR_ABS/runner-cleanup.plist.template"
+CLEANUP_SCRIPT_DST="$RUNNER_BASE_DIR/runner-cleanup.sh"
+CLEANUP_PLIST_DST="$HOME/Library/LaunchAgents/com.mentra.runner-cleanup.plist"
+
+if [[ ! -f "$CLEANUP_SCRIPT_SRC" ]]; then
+    warn "runner-cleanup.sh not found next to setup-runner.sh — skipping cleanup scheduler install."
+elif [[ ! -f "$CLEANUP_PLIST_SRC" ]]; then
+    warn "runner-cleanup.plist.template not found — skipping cleanup scheduler install."
+else
+    # Copy the script to a stable location (the in-repo path is volatile —
+    # workflow runs check out fresh into _work/.../scripts/). The plist
+    # references the stable copy.
+    mkdir -p "$RUNNER_BASE_DIR"
+    cp "$CLEANUP_SCRIPT_SRC" "$CLEANUP_SCRIPT_DST"
+    chmod +x "$CLEANUP_SCRIPT_DST"
+
+    # Render the plist with $HOME substituted into the @@HOME_DIR@@ placeholder.
+    mkdir -p "$(dirname "$CLEANUP_PLIST_DST")"
+    sed "s|@@HOME_DIR@@|$HOME|g" "$CLEANUP_PLIST_SRC" > "$CLEANUP_PLIST_DST"
+
+    # Reload the plist (unload then load) so config changes take effect.
+    launchctl unload "$CLEANUP_PLIST_DST" 2>/dev/null || true
+    launchctl load -w "$CLEANUP_PLIST_DST" 2>/dev/null || true
+
+    ok "Weekly cleanup scheduled: Sundays 03:00 (script: $CLEANUP_SCRIPT_DST)"
+fi
+
+# ---------------------------------------------------------------------------
 # GitHub Actions runner(s)
 # ---------------------------------------------------------------------------
 
@@ -566,5 +604,10 @@ cat <<EOF
     - Copy ~/.mentra/credentials/ from an existing runner (or your laptop):
         scp ~/.mentra/credentials/{appstore-connect.env,AuthKey_*.p8,google-play-key.json} \\
             user@$RUNNER_NAME_BASE:~/.mentra/credentials/
+
+  Automated maintenance:
+    - Weekly cache cleanup runs Sundays at 03:00 (defers if a build is active).
+      Logs: $RUNNER_BASE_DIR/runner-cleanup.log
+      Manual deep clean: $RUNNER_BASE_DIR/runner-cleanup.sh --tier all --force
 ==========================================================================
 EOF

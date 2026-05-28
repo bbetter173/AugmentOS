@@ -119,6 +119,9 @@ jobs:
         env:
           SENTRY_ALLOW_FAILURE: "false"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # gh CLI inside release-android.mjs uploads the APK to a GH release.
+          # GH_TOKEN is auto-provided per-run by Actions; gh picks it up.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # release-android.mjs handles: prebuild → gradle assemble/bundle →
         # GH release upload (v{X.Y}/_Beta_N.apk) → Play internal track upload
         # (if google-play-key.json is at ~/.mentra/credentials/).
@@ -227,6 +230,9 @@ jobs:
         env:
           SENTRY_ALLOW_FAILURE: "false"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # gh CLI inside release-ios.mjs uploads the IPA to a GH release.
+          # GH_TOKEN is auto-provided per-run by Actions; gh picks it up.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
         # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
         # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).

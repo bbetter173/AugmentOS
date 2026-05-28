@@ -170,4 +170,21 @@ Both tiers are run by the weekly scheduler.
 
 ## Linux runner support
 
-Not implemented yet. The cleanup script (`runner-cleanup.sh`) is already cross-platform and the systemd unit files (`runner-cleanup.service.template`, `runner-cleanup.timer.template`) are ready. `setup-runner.sh` itself currently bails on Linux. When we onboard a Linux build box, expect to do ~half a day of platform-branch work in setup-runner.sh covering: apt-get instead of brew, Android SDK manual download, GitHub Actions runner Linux tarball, systemd unit install instead of launchd plist. The pieces are all here; just needs to be wired up and tested on actual hardware.
+**Status: best-effort, untested.** `setup-runner.sh` has been extended with `case "$(uname -s)"` branches for Ubuntu/Debian (apt-get instead of brew, Linux Android SDK install, systemd timer instead of launchd plist for the cleanup scheduler, Linux-x64/arm64 GitHub Actions runner tarball, etc.) but nothing has been exercised on a real Linux box yet. Expect to fix bugs the first time you actually onboard a Linux runner.
+
+A Linux runner only supports the Android + ASG client jobs, not iOS (Xcode-only). The `staging-builds.yml` Android job has `runs-on: [self-hosted, macOS, ARM64]` which currently excludes Linux — change to bare `self-hosted` once you have a working Linux runner and want it to pick up Android load.
+
+Onboarding a Linux runner (after merge):
+
+```bash
+# On the Linux box:
+git clone https://github.com/Mentra-Community/MentraOS.git
+cd MentraOS/mobile/scripts
+GH_RUNNER_TOKEN=ghs_xxx ./setup-runner.sh
+
+# Then on your laptop:
+scp ~/.mentra/credentials/google-play-key.json <user>@<linux-runner>:~/.mentra/credentials/
+scp ~/.gradle/gradle.properties <user>@<linux-runner>:~/.gradle/gradle.properties
+```
+
+(No `appstore-connect.env` or `AuthKey_*.p8` needed since Linux doesn't do iOS.)

@@ -181,10 +181,16 @@ console.log('\n━━━ Step 6: Uploading to App Store Connect ━━━');
 
 const ascConfig = loadASCConfig();
 
+// Track TestFlight result so we can surface it in the summary file
+// release-status.json (consumed by the workflow's Slack notification).
+let testflightStatus = 'skipped';
+let testflightDetail = null;
+
 if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !existsSync(ascConfig.ASC_API_KEY_PATH || '')) {
   console.log('⚠️  App Store Connect credentials not found at ~/.mentra/credentials/appstore-connect.env');
   console.log('   Skipping TestFlight upload.');
   console.log('   To enable: create ~/.mentra/credentials/appstore-connect.env with ASC_API_KEY_ID, ASC_API_ISSUER_ID, ASC_API_KEY_PATH');
+  testflightDetail = 'credentials missing on runner';
 } else {
   // altool looks for AuthKey_<id>.p8 in $API_PRIVATE_KEYS_DIR
   const keyDir = path.dirname(ascConfig.ASC_API_KEY_PATH);
@@ -193,6 +199,7 @@ if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !
       $({ stdio: 'inherit', env: { ...process.env, API_PRIVATE_KEYS_DIR: keyDir } })`xcrun altool --upload-app -f ${ipaPath} -t ios --apiKey ${ascConfig.ASC_API_KEY_ID} --apiIssuer ${ascConfig.ASC_API_ISSUER_ID}`
     );
     console.log('IPA uploaded to App Store Connect (TestFlight)');
+    testflightStatus = 'success';
   } catch (err) {
     // TestFlight upload is a publish-side concern, not a build-correctness
     // check. The signed IPA itself is valid and has already been published
@@ -205,6 +212,15 @@ if (!ascConfig || !ascConfig.ASC_API_KEY_ID || !ascConfig.ASC_API_ISSUER_ID || !
     console.warn('   Common cause: EXPO_PUBLIC_MENTRAOS_VERSION matches a previously');
     console.warn('   approved/closed TestFlight train. Bump it to enable TestFlight.');
     console.warn('   Original error:', err?.message || err);
+    testflightStatus = 'failure';
+    // Heuristic: if the error mentions the closed-train pattern, surface that;
+    // otherwise show the first line of the error.
+    const msg = String(err?.message || err || '');
+    if (/closed for new build submissions|must contain a higher version|Invalid Pre-Release Train/i.test(msg)) {
+      testflightDetail = 'version closed (bump EXPO_PUBLIC_MENTRAOS_VERSION)';
+    } else {
+      testflightDetail = msg.split('\n')[0].slice(0, 200);
+    }
   }
 }
 
@@ -272,7 +288,36 @@ const summaryLines = [
   `  Version: ${version} (buildNumber ${buildNumber})`,
   `  IPA: ${ipaUrl}`,
 ];
-if (ascConfig && existsSync(ascConfig.ASC_API_KEY_PATH || '')) {
+if (testflightStatus === 'success') {
   summaryLines.push('  TestFlight: uploaded');
+} else if (testflightStatus === 'failure') {
+  summaryLines.push(`  TestFlight: FAILED (${testflightDetail || 'see logs'})`);
+} else {
+  summaryLines.push('  TestFlight: skipped (no credentials on runner)');
 }
 await writeSummary('ios', summaryLines);
+
+// Structured status file for the staging-builds workflow's Slack notification.
+// Consumed by the "Build Mobile App (iOS)" job's post-script step which emits
+// these values as job outputs that slack-notify reads.
+const statusPath = path.resolve('build/release-status.json');
+const { writeFile: writeStatusFile } = await import('fs/promises');
+await writeStatusFile(
+  statusPath,
+  JSON.stringify(
+    {
+      platform: 'ios',
+      version,
+      buildNumber,
+      beta_number: betaNumber,
+      ipa_name: ipaName,
+      ipa_url: ipaUrl,
+      tag,
+      testflight: testflightStatus, // 'success' | 'failure' | 'skipped'
+      testflight_detail: testflightDetail,
+    },
+    null,
+    2,
+  ),
+);
+console.log(`Wrote release status: ${statusPath}`);

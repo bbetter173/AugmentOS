@@ -187,19 +187,45 @@ console.log('\n━━━ Step 9: Uploading AAB to Google Play ━━━');
 
 const keyPath = process.env.GOOGLE_PLAY_JSON_KEY || path.join(os.homedir(), '.mentra', 'credentials', 'google-play-key.json');
 
+// Track Play Store upload result so we can surface it in the release-status
+// JSON consumed by the staging-builds workflow Slack notification.
+let playStatus = 'skipped';
+let playDetail = null;
+
 if (!existsSync(keyPath)) {
   console.log(`⚠️  Google Play key not found at ${keyPath}`);
   console.log('   Skipping Google Play upload.');
   console.log('   To enable: place service account key at ~/.mentra/credentials/google-play-key.json');
   console.log('   or set GOOGLE_PLAY_JSON_KEY env var.');
+  playDetail = 'credentials missing on runner';
 } else {
   process.env.GOOGLE_PLAY_JSON_KEY = keyPath;
   // Install gems and run fastlane
   await $({ stdio: 'inherit', cwd: 'android' })`bundle install`;
-  await withRetry('fastlane google_play', () =>
-    $({ stdio: 'inherit', cwd: 'android' })`bundle exec fastlane google_play`
-  );
-  console.log('AAB uploaded to Google Play (internal track)');
+  try {
+    await withRetry('fastlane google_play', () =>
+      $({ stdio: 'inherit', cwd: 'android' })`bundle exec fastlane google_play`
+    );
+    console.log('AAB uploaded to Google Play (internal track)');
+    playStatus = 'success';
+  } catch (err) {
+    // Same philosophy as iOS TestFlight: Play upload is a publish-side
+    // concern. The signed APK + AAB are already on the GH release. Don't
+    // fail the build over a transient Play API outage or a previously-
+    // uploaded versionCode collision; warn loud and continue.
+    console.warn('\n⚠️  Google Play upload failed — continuing because the signed APK + AAB');
+    console.warn('   were still published to the GitHub release.');
+    console.warn('   Original error:', err?.message || err);
+    playStatus = 'failure';
+    const msg = String(err?.message || err || '');
+    if (/wrong key|signed with the wrong/i.test(msg)) {
+      playDetail = 'AAB signed with wrong key (check upload-keystore)';
+    } else if (/version code|already.+used/i.test(msg)) {
+      playDetail = 'versionCode already used (bump build number)';
+    } else {
+      playDetail = msg.split('\n')[0].slice(0, 200);
+    }
+  }
 }
 
 // ── Done ──────────────────────────────────────────────────────────────────────
@@ -212,7 +238,35 @@ const summaryLines = [
   `  Version: ${version} (versionCode ${versionCode})`,
   `  APK: ${apkUrl}`,
 ];
-if (existsSync(keyPath)) {
+if (playStatus === 'success') {
   summaryLines.push('  Google Play: AAB uploaded (internal track)');
+} else if (playStatus === 'failure') {
+  summaryLines.push(`  Google Play: FAILED (${playDetail || 'see logs'})`);
+} else {
+  summaryLines.push('  Google Play: skipped (no credentials on runner)');
 }
 await writeSummary('android', summaryLines);
+
+// Structured status file for the staging-builds workflow's Slack notification.
+const statusPath = path.resolve('build/release-status.json');
+const { writeFile: writeStatusFile, mkdir: mkdirP } = await import('fs/promises');
+await mkdirP(path.dirname(statusPath), { recursive: true });
+await writeStatusFile(
+  statusPath,
+  JSON.stringify(
+    {
+      platform: 'android',
+      version,
+      versionCode,
+      beta_number: betaNumber,
+      apk_name: apkName,
+      apk_url: apkUrl,
+      tag,
+      google_play: playStatus, // 'success' | 'failure' | 'skipped'
+      google_play_detail: playDetail,
+    },
+    null,
+    2,
+  ),
+);
+console.log(`Wrote release status: ${statusPath}`);

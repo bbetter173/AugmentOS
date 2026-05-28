@@ -48,6 +48,17 @@ jobs:
     # ASG client below stays unconstrained because it's a clean gradle build.
     runs-on: [self-hosted, macOS, ARM64]
 
+    # Surface release-status.json fields as job outputs so slack-notify can
+    # build a per-platform status section. See mobile/scripts/release-android.mjs.
+    outputs:
+      apk_name: ${{ steps.release-status.outputs.apk_name }}
+      apk_url: ${{ steps.release-status.outputs.apk_url }}
+      beta_number: ${{ steps.release-status.outputs.beta_number }}
+      tag: ${{ steps.release-status.outputs.tag }}
+      version: ${{ steps.release-status.outputs.version }}
+      google_play: ${{ steps.release-status.outputs.google_play }}
+      google_play_detail: ${{ steps.release-status.outputs.google_play_detail }}
+
     steps:
       - name: Get cache week number
         id: cache-week
@@ -163,9 +174,37 @@ jobs:
           name: mobile-staging
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
 
+      # Read release-status.json (written by release-android.mjs) and expose
+      # its fields as step outputs the workflow's `outputs:` block references.
+      - name: Read release status
+        id: release-status
+        if: always() && hashFiles('mobile/build/release-status.json') != ''
+        run: |
+          STATUS=mobile/build/release-status.json
+          echo "apk_name=$(jq -r '.apk_name // ""' "$STATUS")"           >> $GITHUB_OUTPUT
+          echo "apk_url=$(jq -r '.apk_url // ""' "$STATUS")"             >> $GITHUB_OUTPUT
+          echo "beta_number=$(jq -r '.beta_number // ""' "$STATUS")"     >> $GITHUB_OUTPUT
+          echo "tag=$(jq -r '.tag // ""' "$STATUS")"                     >> $GITHUB_OUTPUT
+          echo "version=$(jq -r '.version // ""' "$STATUS")"             >> $GITHUB_OUTPUT
+          echo "google_play=$(jq -r '.google_play // ""' "$STATUS")"     >> $GITHUB_OUTPUT
+          # Detail strings can contain special chars; base64-encode to be
+          # safe across the GITHUB_OUTPUT round-trip, then slack-notify
+          # decodes.
+          DETAIL=$(jq -r '.google_play_detail // ""' "$STATUS" | base64)
+          echo "google_play_detail=$DETAIL"                              >> $GITHUB_OUTPUT
+
   build-mobile-ios:
     name: Build Mobile App (iOS)
     runs-on: [self-hosted, macOS, ARM64]
+
+    outputs:
+      ipa_name: ${{ steps.release-status.outputs.ipa_name }}
+      ipa_url: ${{ steps.release-status.outputs.ipa_url }}
+      beta_number: ${{ steps.release-status.outputs.beta_number }}
+      tag: ${{ steps.release-status.outputs.tag }}
+      version: ${{ steps.release-status.outputs.version }}
+      testflight: ${{ steps.release-status.outputs.testflight }}
+      testflight_detail: ${{ steps.release-status.outputs.testflight_detail }}
 
     steps:
       - name: Kill stale build processes
@@ -368,6 +407,20 @@ jobs:
         with:
           name: mobile-staging-ios
           path: mobile/build/ios-export/app-release.ipa
+
+      - name: Read release status
+        id: release-status
+        if: always() && hashFiles('mobile/build/release-status.json') != ''
+        run: |
+          STATUS=mobile/build/release-status.json
+          echo "ipa_name=$(jq -r '.ipa_name // ""' "$STATUS")"           >> $GITHUB_OUTPUT
+          echo "ipa_url=$(jq -r '.ipa_url // ""' "$STATUS")"             >> $GITHUB_OUTPUT
+          echo "beta_number=$(jq -r '.beta_number // ""' "$STATUS")"     >> $GITHUB_OUTPUT
+          echo "tag=$(jq -r '.tag // ""' "$STATUS")"                     >> $GITHUB_OUTPUT
+          echo "version=$(jq -r '.version // ""' "$STATUS")"             >> $GITHUB_OUTPUT
+          echo "testflight=$(jq -r '.testflight // ""' "$STATUS")"       >> $GITHUB_OUTPUT
+          DETAIL=$(jq -r '.testflight_detail // ""' "$STATUS" | base64)
+          echo "testflight_detail=$DETAIL"                               >> $GITHUB_OUTPUT
 
   build-asg:
     name: Build ASG Client
@@ -628,6 +681,20 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
+          # Per-platform release metadata from the build jobs' release-status.json.
+          # These come from steps.release-status.outputs.* surfaced as job outputs.
+          ANDROID_APK_NAME: ${{ needs.build-mobile-android.outputs.apk_name }}
+          ANDROID_APK_URL: ${{ needs.build-mobile-android.outputs.apk_url }}
+          ANDROID_BETA: ${{ needs.build-mobile-android.outputs.beta_number }}
+          ANDROID_VERSION: ${{ needs.build-mobile-android.outputs.version }}
+          ANDROID_PLAY: ${{ needs.build-mobile-android.outputs.google_play }}
+          ANDROID_PLAY_DETAIL_B64: ${{ needs.build-mobile-android.outputs.google_play_detail }}
+          IOS_IPA_NAME: ${{ needs.build-mobile-ios.outputs.ipa_name }}
+          IOS_IPA_URL: ${{ needs.build-mobile-ios.outputs.ipa_url }}
+          IOS_BETA: ${{ needs.build-mobile-ios.outputs.beta_number }}
+          IOS_VERSION: ${{ needs.build-mobile-ios.outputs.version }}
+          IOS_TESTFLIGHT: ${{ needs.build-mobile-ios.outputs.testflight }}
+          IOS_TESTFLIGHT_DETAIL_B64: ${{ needs.build-mobile-ios.outputs.testflight_detail }}
         # All shell here is pure ASCII. Status symbols use Slack mrkdwn
         # emoji codes (e.g. :white_check_mark:) instead of literal Unicode
         # so the shell parser never has to deal with non-ASCII bytes.
@@ -684,28 +751,74 @@ jobs:
 
           RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
           COMMIT_URL="https://github.com/${REPO}/commit/${SHA}"
-          RELEASE_BASE="https://github.com/${REPO}/releases/download/staging-builds"
-          ANDROID_URL="${RELEASE_BASE}/mobile-latest.apk"
-          IOS_URL="${RELEASE_BASE}/mobile-latest.ipa"
-          ASG_URL="${RELEASE_BASE}/asg-latest.apk"
 
-          android_detail() {
-            if [ "$ANDROID_RESULT" = "success" ]; then
-              echo "<${ANDROID_URL}|Download mobile-latest.apk>"
+          # Helper: emoji shortcode for a sub-status (TestFlight, Play).
+          substatus_icon() {
+            case "$1" in
+              success) echo ":white_check_mark:" ;;
+              failure) echo ":x:" ;;
+              skipped) echo ":fast_forward:" ;;
+              *) echo ":grey_question:" ;;
+            esac
+          }
+
+          # Helper: decode base64 detail, return empty if input is empty.
+          decode_b64() {
+            if [ -z "$1" ]; then
+              echo ""
             else
-              echo "<${RUN_URL}|See run logs>"
+              echo "$1" | base64 --decode 2>/dev/null || echo ""
             fi
           }
-          ios_detail() {
-            if [ "$IOS_RESULT" = "success" ]; then
-              echo "<${IOS_URL}|Download mobile-latest.ipa>"
+
+          # Per-platform detail lines built from the build jobs' outputs.
+          # Use the Beta_N versioned URL (not mobile-latest) so the link
+          # makes it clear which build this notification is about.
+          ANDROID_PLAY_DETAIL=$(decode_b64 "$ANDROID_PLAY_DETAIL_B64")
+          IOS_TESTFLIGHT_DETAIL=$(decode_b64 "$IOS_TESTFLIGHT_DETAIL_B64")
+          # ASG client doesn't write a release-status.json (no versioning logic
+          # in its job), so we just link to the rolling URL.
+          ASG_LATEST_URL="https://github.com/${REPO}/releases/download/staging-builds/asg-latest.apk"
+
+          android_detail() {
+            local lines=""
+            if [ "$ANDROID_RESULT" = "success" ] && [ -n "$ANDROID_APK_URL" ]; then
+              # Show version + Beta_N + APK link.
+              lines="*v${ANDROID_VERSION} Beta ${ANDROID_BETA}* - <${ANDROID_APK_URL}|${ANDROID_APK_NAME}>"
+              # Add Play upload sub-line.
+              local play_icon
+              play_icon=$(substatus_icon "$ANDROID_PLAY")
+              case "$ANDROID_PLAY" in
+                success) lines="${lines}\nGoogle Play internal: ${play_icon} uploaded" ;;
+                failure) lines="${lines}\nGoogle Play internal: ${play_icon} ${ANDROID_PLAY_DETAIL:-failed}" ;;
+                skipped) lines="${lines}\nGoogle Play internal: ${play_icon} skipped (${ANDROID_PLAY_DETAIL:-no creds})" ;;
+                *)       lines="${lines}\nGoogle Play internal: ${play_icon} ${ANDROID_PLAY:-unknown}" ;;
+              esac
             else
-              echo "<${RUN_URL}|See run logs>"
+              lines="<${RUN_URL}|See run logs>"
             fi
+            printf '%b' "$lines"
+          }
+          ios_detail() {
+            local lines=""
+            if [ "$IOS_RESULT" = "success" ] && [ -n "$IOS_IPA_URL" ]; then
+              lines="*v${IOS_VERSION} Beta ${IOS_BETA}* - <${IOS_IPA_URL}|${IOS_IPA_NAME}>"
+              local tf_icon
+              tf_icon=$(substatus_icon "$IOS_TESTFLIGHT")
+              case "$IOS_TESTFLIGHT" in
+                success) lines="${lines}\nTestFlight: ${tf_icon} uploaded" ;;
+                failure) lines="${lines}\nTestFlight: ${tf_icon} ${IOS_TESTFLIGHT_DETAIL:-failed}" ;;
+                skipped) lines="${lines}\nTestFlight: ${tf_icon} skipped (${IOS_TESTFLIGHT_DETAIL:-no creds})" ;;
+                *)       lines="${lines}\nTestFlight: ${tf_icon} ${IOS_TESTFLIGHT:-unknown}" ;;
+              esac
+            else
+              lines="<${RUN_URL}|See run logs>"
+            fi
+            printf '%b' "$lines"
           }
           asg_detail() {
             if [ "$ASG_RESULT" = "success" ]; then
-              echo "<${ASG_URL}|Download asg-latest.apk>"
+              echo "<${ASG_LATEST_URL}|Download asg-latest.apk>"
             else
               echo "<${RUN_URL}|See run logs>"
             fi

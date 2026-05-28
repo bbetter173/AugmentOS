@@ -89,10 +89,41 @@ const archivePath = path.resolve('build/Mentra.xcarchive');
 
 // stdio:'pipe' so withRetry's predicate can inspect output for transient
 // Sentry/network errors; we still pipe to the terminal so progress is visible.
+//
+// Signing strategy (when MATCH_USE=1, set by CI):
+//   - CODE_SIGN_STYLE=Manual + PROVISIONING_PROFILE_SPECIFIER pointing at
+//     the fastlane match-installed profile. Bypasses Xcode's automatic
+//     signing (which fails when only an App Store profile is installed —
+//     it looks for Development first).
+//   - CODE_SIGN_IDENTITY targets the Apple Distribution cert that match
+//     installed into the keychain.
+// Local laptop runs (MATCH_USE unset) keep the previous behavior:
+// automatic signing + -allowProvisioningUpdates, which is what works
+// against your personal Xcode-managed signing setup.
+const useMatch = process.env.MATCH_USE === '1';
+const archiveArgs = [
+  'xcodebuild', 'archive',
+  '-workspace', 'ios/Mentra.xcworkspace',
+  '-scheme', 'Mentra',
+  '-configuration', 'Release',
+  '-destination', 'generic/platform=iOS',
+  '-archivePath', archivePath,
+  `DEVELOPMENT_TEAM=${teamId}`,
+  'SWIFT_STRICT_CONCURRENCY=minimal',
+];
+if (useMatch) {
+  archiveArgs.push(
+    'CODE_SIGN_STYLE=Manual',
+    'PROVISIONING_PROFILE_SPECIFIER=match AppStore com.mentra.mentra',
+    'CODE_SIGN_IDENTITY=Apple Distribution',
+  );
+} else {
+  archiveArgs.push('-allowProvisioningUpdates');
+}
 await withRetry(
   'xcodebuild archive',
   () => {
-    const p = $`xcodebuild archive -workspace ios/Mentra.xcworkspace -scheme Mentra -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
+    const p = $`${archiveArgs}`;
     p.stdout.pipe(process.stdout);
     p.stderr.pipe(process.stderr);
     return p;
@@ -113,7 +144,9 @@ console.log('\n━━━ Step 5: Exporting IPA ━━━');
 const exportPath = path.resolve('build/ios-export');
 // Clean previous export to avoid picking up stale IPAs
 await $`rm -rf ${exportPath}`;
-const exportOptionsPlist = path.resolve('ci/ios-export/ExportOptions.plist');
+const exportOptionsPlist = useMatch
+  ? path.resolve('ci/ios-export/ExportOptions-Match.plist')
+  : path.resolve('ci/ios-export/ExportOptions.plist');
 
 await $({ stdio: 'inherit' })`xcodebuild -exportArchive -archivePath ${archivePath} -exportOptionsPlist ${exportOptionsPlist} -exportPath ${exportPath} -allowProvisioningUpdates`;
 

@@ -237,38 +237,44 @@ jobs:
         working-directory: ./mobile
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          # Raw secret value. We sanitize it below before exporting to match,
-          # because if a stray newline got into the saved secret, fastlane
-          # interpolates it directly into the `Authorization: Basic <value>`
-          # HTTP header, which GitHub rejects with HTTP 400.
           RAW_MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-          # Runner login password — needed so the imported distribution cert
-          # can be added to the login keychain non-interactively. Stored as a
-          # secret out of convention, even though `mentra` isn't sensitive
-          # outside the LAN.
-          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
         # Pulls the encrypted distribution cert + provisioning profile from
         # Mentra-Community/match-certs, decrypts with MATCH_PASSWORD, installs
-        # into the runner's login keychain. --readonly guarantees we never
-        # accidentally regenerate certs from CI (only your laptop should).
-        # Assumes the runner has rbenv-managed Ruby 3.4+ on PATH (handled by
-        # setup-runner.sh); macOS's system Ruby 2.6 + bundler <2 won't work.
+        # into an ephemeral keychain we create just for this build. The
+        # ephemeral keychain avoids needing the runner's login keychain
+        # password (which differs between machines + can't be reliably
+        # rotated by CI) and gets discarded automatically with the runner.
         run: |
-          # Force rbenv-managed Ruby ahead of macOS's system Ruby 2.6, in
-          # case the runner service hasn't picked up an updated .env yet
-          # (it only re-reads .env on service restart, which we can't do
-          # over non-interactive SSH without sudo).
+          set -e
+          # Force rbenv-managed Ruby ahead of macOS's system Ruby 2.6.
           export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
           echo "Using ruby: $(which ruby) $(ruby -v)"
-          echo "Using bundle: $(which bundle)"
 
           # Strip any trailing whitespace / newlines from the secret value so
-          # the Authorization header isn't malformed. tr handles \r and \n;
-          # the env var rebinding (not just `export VAR=$(printf ...)`) is
-          # safer because some shells preserve the newline through `$(...)`.
+          # the Authorization header isn't malformed.
           export MATCH_GIT_BASIC_AUTHORIZATION="$(printf '%s' "$RAW_MATCH_GIT_BASIC_AUTHORIZATION" | tr -d '\r\n')"
+
           bundle install
-          bundle exec fastlane match appstore --readonly
+
+          # Create a per-build keychain so we don't depend on knowing the
+          # runner login keychain password. Add it to the search list so
+          # xcodebuild can find the cert during archive.
+          KEYCHAIN_NAME="mentra-ci-build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME" || true
+          security set-keychain-settings -lut 3600 "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$KEYCHAIN_NAME"
+
+          bundle exec fastlane match appstore --readonly \
+            --keychain_name "$KEYCHAIN_NAME" \
+            --keychain_password "$KEYCHAIN_PASSWORD"
+
+          # Sanity check: print the installed signing identity (cert in this
+          # keychain) so we can see in logs whether match imported it.
+          echo "---signing identities in $KEYCHAIN_NAME---"
+          security find-identity -v -p codesigning "$KEYCHAIN_NAME" || true
 
       - name: Run release-ios (signed IPA + Beta_N upload + TestFlight)
         working-directory: ./mobile
@@ -278,6 +284,16 @@ jobs:
           # gh CLI inside release-ios.mjs uploads the IPA to a GH release.
           # GH_TOKEN is auto-provided per-run by Actions; gh picks it up.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Debug: list signing identities visible to xcodebuild before the
+        # archive runs. If empty, the match step's keychain didn't persist.
+        run: |
+          export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+          echo "---available signing identities---"
+          security find-identity -v -p codesigning || true
+          echo "---available provisioning profiles---"
+          ls -la ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/ 2>/dev/null | head -10 || true
+          echo "---"
+          bun run release:ios
         # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
         # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
         # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).

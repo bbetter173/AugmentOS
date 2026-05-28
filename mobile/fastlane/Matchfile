@@ -16,7 +16,10 @@
 #   bundle exec fastlane match appstore
 # All runners will pick up the new cert on their next build.
 
-git_url("git@github.com:Mentra-Community/match-certs.git")
+# HTTPS URL so the runners can clone via MATCH_GIT_BASIC_AUTHORIZATION
+# (base64-encoded user:PAT). Local invocations on machines with SSH keys
+# work too — git resolves https → ssh via insteadOf rewrites if configured.
+git_url("https://github.com/Mentra-Community/match-certs.git")
 
 storage_mode("git")
 

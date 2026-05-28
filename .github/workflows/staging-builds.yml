@@ -225,6 +225,22 @@ jobs:
       - name: Ensure iOS platform is installed
         run: xcodebuild -downloadPlatform iOS || true
 
+      - name: Install signing assets (fastlane match, readonly)
+        working-directory: ./mobile
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          # Runner login password — needed so the imported distribution cert
+          # can be added to the login keychain non-interactively. Stored as a
+          # secret out of convention, even though `mentra` isn't sensitive
+          # outside the LAN.
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+        # Pulls the encrypted distribution cert + provisioning profile from
+        # Mentra-Community/match-certs, decrypts with MATCH_PASSWORD, installs
+        # into the runner's login keychain. --readonly guarantees we never
+        # accidentally regenerate certs from CI (only your laptop should).
+        run: bundle install && bundle exec fastlane match appstore --readonly
+
       - name: Run release-ios (signed IPA + Beta_N upload + TestFlight)
         working-directory: ./mobile
         env:

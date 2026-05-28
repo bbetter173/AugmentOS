@@ -500,6 +500,13 @@ jobs:
     if: always() && (needs.build-mobile-android.result == 'success' || needs.build-mobile-ios.result == 'success' || needs.build-asg.result == 'success')
     runs-on: ubuntu-latest
 
+    # Surface the date + short SHA that the dated-artifact filenames use,
+    # so slack-notify can link at e.g. asg-staging-<date>-<sha>.apk
+    # instead of asg-latest.apk.
+    outputs:
+      build_date: ${{ steps.build-info.outputs.date }}
+      short_sha: ${{ steps.build-info.outputs.sha }}
+
     steps:
       - name: Checkout to get staging SHA
         uses: actions/checkout@v4
@@ -695,6 +702,12 @@ jobs:
           IOS_VERSION: ${{ needs.build-mobile-ios.outputs.version }}
           IOS_TESTFLIGHT: ${{ needs.build-mobile-ios.outputs.testflight }}
           IOS_TESTFLIGHT_DETAIL_B64: ${{ needs.build-mobile-ios.outputs.testflight_detail }}
+          # From upload-releases job — the exact date+sha used in the
+          # dated artifact filenames. Avoids a UTC-midnight boundary case
+          # where slack-notify would compute a different date than the
+          # upload step.
+          BUILD_DATE: ${{ needs.upload-releases.outputs.build_date }}
+          BUILD_SHORT_SHA: ${{ needs.upload-releases.outputs.short_sha }}
         # All shell here is pure ASCII. Status symbols use Slack mrkdwn
         # emoji codes (e.g. :white_check_mark:) instead of literal Unicode
         # so the shell parser never has to deal with non-ASCII bytes.
@@ -776,9 +789,24 @@ jobs:
           # makes it clear which build this notification is about.
           ANDROID_PLAY_DETAIL=$(decode_b64 "$ANDROID_PLAY_DETAIL_B64")
           IOS_TESTFLIGHT_DETAIL=$(decode_b64 "$IOS_TESTFLIGHT_DETAIL_B64")
-          # ASG client doesn't write a release-status.json (no versioning logic
-          # in its job), so we just link to the rolling URL.
-          ASG_LATEST_URL="https://github.com/${REPO}/releases/download/staging-builds/asg-latest.apk"
+          # ASG doesn't have a per-version release tag like the mobile app,
+          # but the upload-releases job publishes a per-commit dated copy at
+          # `asg-staging-<date>-<sha>.apk` alongside the rolling
+          # `asg-latest.apk`. Use the dated URL so the Slack message points
+          # at this specific commit's build (gets pruned after 7 days per
+          # the staging-builds release cleanup — same window where stale
+          # Slack messages stop being interesting anyway). Reuse date+sha
+          # from upload-releases so the link stays in sync if the run
+          # crosses a UTC midnight boundary.
+          if [ -n "$BUILD_DATE" ] && [ -n "$BUILD_SHORT_SHA" ]; then
+            ASG_NAME="asg-staging-${BUILD_DATE}-${BUILD_SHORT_SHA}.apk"
+            ASG_URL="https://github.com/${REPO}/releases/download/staging-builds/${ASG_NAME}"
+          else
+            # Fallback: upload-releases didn't run (all builds failed), so
+            # link to rolling-latest in case it's still around.
+            ASG_NAME="asg-latest.apk"
+            ASG_URL="https://github.com/${REPO}/releases/download/staging-builds/asg-latest.apk"
+          fi
 
           android_detail() {
             local lines=""
@@ -818,7 +846,7 @@ jobs:
           }
           asg_detail() {
             if [ "$ASG_RESULT" = "success" ]; then
-              echo "<${ASG_LATEST_URL}|Download asg-latest.apk>"
+              echo "<${ASG_URL}|${ASG_NAME}>"
             else
               echo "<${RUN_URL}|See run logs>"
             fi

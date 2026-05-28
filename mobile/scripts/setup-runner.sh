@@ -14,6 +14,20 @@
 #      runners — pass --runners 0 to skip runner registration entirely if
 #      you've already set them up by hand).
 #
+# Manual post-install steps (do these once after running this script):
+#   1. Copy ~/.mentra/credentials/ from an existing runner (or your laptop).
+#      Three files are required for the staging-builds workflow:
+#        - appstore-connect.env       (ASC API key id + issuer id)
+#        - AuthKey_<id>.p8             (ASC API private key)
+#        - google-play-key.json        (Play Store internal-track service acct)
+#      Auth proper to your team — these are NOT in this repo.
+#
+# What this script does NOT need to set up:
+#   - iOS signing identity / provisioning profile. The staging-builds workflow
+#     pulls the encrypted distribution cert + provisioning profile from
+#     Mentra-Community/match-certs via fastlane match on every build run, so
+#     each runner gets a fresh import per build. No per-runner Xcode bootstrap.
+#
 # Required env vars (only when registering runners):
 #   GH_RUNNER_TOKEN   - short-lived registration token from
 #                       Repo > Settings > Actions > Runners > New self-hosted runner
@@ -278,6 +292,17 @@ if ! command -v fastlane >/dev/null 2>&1; then
     gem install fastlane --no-document || sudo gem install fastlane --no-document
 fi
 
+# Required by mobile/scripts/set-build-env.mjs (called at the top of
+# release-android.mjs / release-ios.mjs). The script reads `git config
+# user.name` to label the build in the in-app debug menu. If unset,
+# release scripts crash at Step 1. Value is purely cosmetic; pick anything
+# that's safe to display in the app's debug overlay.
+if [[ -z "$(git config --global user.name 2>/dev/null)" ]]; then
+    git config --global user.name "Mentra CI"
+    git config --global user.email "ci@mentra.glass"
+    ok "Set global git identity (Mentra CI <ci@mentra.glass>)"
+fi
+
 ok "Core toolchain installed"
 
 # ---------------------------------------------------------------------------
@@ -498,5 +523,8 @@ cat <<EOF
     - System Settings > Lock Screen > Require password "Never"
     - Sign in to the Apple Developer account in Xcode (Settings > Accounts)
     - Confirm runner(s) appear at $GH_RUNNER_URL/settings/actions/runners
+    - Copy ~/.mentra/credentials/ from an existing runner (or your laptop):
+        scp ~/.mentra/credentials/{appstore-connect.env,AuthKey_*.p8,google-play-key.json} \\
+            user@$RUNNER_NAME_BASE:~/.mentra/credentials/
 ==========================================================================
 EOF

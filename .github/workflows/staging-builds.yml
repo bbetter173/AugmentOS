@@ -77,10 +77,15 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
+      # Bun + rbenv are pre-installed on the self-hosted runners by
+      # setup-runner.sh but the runner's launchd service inherits PATH from
+      # the OS, not from .env. Push the runner-managed binary dirs into
+      # GITHUB_PATH so every subsequent step in this job sees them.
+      - name: Add runner-managed tools to PATH
+        run: |
+          echo "$HOME/.rbenv/shims" >> $GITHUB_PATH
+          echo "$HOME/.rbenv/bin" >> $GITHUB_PATH
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -128,7 +133,12 @@ jobs:
         # release-android.mjs handles: prebuild → gradle assemble/bundle →
         # GH release upload (v{X.Y}/_Beta_N.apk) → Play internal track upload
         # (if google-play-key.json is at ~/.mentra/credentials/).
-        run: bun run release:android
+        run: |
+          # Force rbenv-managed Ruby ahead of system Ruby so the bundle install
+          # invoked inside release-android.mjs (for the android/fastlane Play
+          # upload) uses bundler 2+. See the iOS step for context.
+          export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+          bun run release:android
 
       - name: Locate built APK
         id: find-apk
@@ -173,10 +183,15 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
+      # Bun + rbenv are pre-installed on the self-hosted runners by
+      # setup-runner.sh. The runner's launchd service inherits PATH from
+      # the OS, not from .env. Push the runner-managed binary dirs into
+      # GITHUB_PATH so every subsequent step in this job sees them.
+      - name: Add runner-managed tools to PATH
+        run: |
+          echo "$HOME/.rbenv/shims" >> $GITHUB_PATH
+          echo "$HOME/.rbenv/bin" >> $GITHUB_PATH
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -232,21 +247,73 @@ jobs:
         working-directory: ./mobile
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-          # Runner login password — needed so the imported distribution cert
-          # can be added to the login keychain non-interactively. Stored as a
-          # secret out of convention, even though `mentra` isn't sensitive
-          # outside the LAN.
-          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          RAW_MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         # Pulls the encrypted distribution cert + provisioning profile from
         # Mentra-Community/match-certs, decrypts with MATCH_PASSWORD, installs
-        # into the runner's login keychain. --readonly guarantees we never
-        # accidentally regenerate certs from CI (only your laptop should).
-        # Assumes the runner has rbenv-managed Ruby 3.4+ on PATH (handled by
-        # setup-runner.sh); macOS's system Ruby 2.6 + bundler <2 won't work.
+        # into an ephemeral keychain we create just for this build. The
+        # ephemeral keychain avoids needing the runner's login keychain
+        # password (which differs between machines + can't be reliably
+        # rotated by CI) and gets discarded automatically with the runner.
         run: |
+          set -e
+          # Force rbenv-managed Ruby ahead of macOS's system Ruby 2.6.
+          export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+          echo "Using ruby: $(which ruby) $(ruby -v)"
+
+          # Strip any trailing whitespace / newlines from the secret value so
+          # the Authorization header isn't malformed.
+          export MATCH_GIT_BASIC_AUTHORIZATION="$(printf '%s' "$RAW_MATCH_GIT_BASIC_AUTHORIZATION" | tr -d '\r\n')"
+
           bundle install
-          bundle exec fastlane match appstore --readonly
+
+          # Create a per-build keychain so we don't depend on knowing the
+          # runner login keychain password. Make it the FIRST keychain in
+          # the user search list (so xcodebuild finds the cert) plus keep
+          # the original keychains around so other tools work normally.
+          KEYCHAIN_NAME="mentra-ci-build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+
+          # Wipe any leftover keychain from a previous run.
+          security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Install Apple's WWDR intermediate certs into the same keychain
+          # so the imported distribution cert validates as "trusted for
+          # codesigning". Without these, security find-identity reports
+          # "0 valid identities found" even though the cert is imported.
+          for wwdr in G2 G4 G5 G6; do
+            url="https://www.apple.com/certificateauthority/AppleWWDRCA${wwdr}.cer"
+            tmp="$(mktemp -t wwdr-XXXXXX).cer"
+            if curl -fsSL -o "$tmp" "$url"; then
+              security import "$tmp" -k "$KEYCHAIN_NAME" -T /usr/bin/codesign 2>&1 | grep -v "already exists" || true
+              rm -f "$tmp"
+            fi
+          done
+
+          # Put our keychain first in the search list while keeping the
+          # rest (system keychain provides Apple roots).
+          security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '" ' | tr '\n' ' ')
+          security default-keychain -s "$KEYCHAIN_NAME"
+
+          bundle exec fastlane match appstore --readonly \
+            --keychain_name "$KEYCHAIN_NAME" \
+            --keychain_password "$KEYCHAIN_PASSWORD"
+
+          # Persist the keychain name+password to GITHUB_ENV so subsequent
+          # steps (release-ios) can re-unlock and confirm setup is intact.
+          echo "MENTRA_CI_KEYCHAIN=$KEYCHAIN_NAME" >> "$GITHUB_ENV"
+          echo "MENTRA_CI_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+          # Sanity check
+          echo "---signing identities in $KEYCHAIN_NAME---"
+          security find-identity -v -p codesigning "$KEYCHAIN_NAME" || true
+          echo "---all keychains in search list---"
+          security list-keychains -d user
+          echo "---all signing identities visible to xcodebuild---"
+          security find-identity -v -p codesigning
 
       - name: Run release-ios (signed IPA + Beta_N upload + TestFlight)
         working-directory: ./mobile
@@ -259,7 +326,27 @@ jobs:
         # release-ios.mjs handles: prebuild → pod install → xcodebuild archive
         # → xcodebuild exportArchive → GH release upload (v{X.Y}/_Beta_N.ipa)
         # → TestFlight upload (if appstore-connect.env is at ~/.mentra/credentials/).
-        run: bun run release:ios
+        run: |
+          export PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$PATH"
+
+          # Re-unlock the per-build keychain (each step is a fresh shell,
+          # so any unlock the match step did has expired). MENTRA_CI_KEYCHAIN
+          # and MENTRA_CI_KEYCHAIN_PASSWORD were exported to GITHUB_ENV by
+          # the previous match step.
+          if [ -n "${MENTRA_CI_KEYCHAIN:-}" ]; then
+            security unlock-keychain -p "$MENTRA_CI_KEYCHAIN_PASSWORD" "$MENTRA_CI_KEYCHAIN" || true
+            # `security set-keychain-settings` with no -t means never re-lock
+            # while this process runs. Xcode forks long-lived subprocesses so
+            # the keychain must stay unlocked for the entire archive.
+            security set-keychain-settings "$MENTRA_CI_KEYCHAIN" || true
+          fi
+
+          echo "---available signing identities---"
+          security find-identity -v -p codesigning || true
+          echo "---available provisioning profiles---"
+          ls -la ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/ 2>/dev/null | head -10 || true
+          echo "---"
+          bun run release:ios
 
       - name: Locate built IPA
         id: find-ipa
@@ -355,6 +442,9 @@ jobs:
   upload-releases:
     name: Upload to staging-builds release
     needs: [build-mobile-android, build-mobile-ios, build-asg]
+    # Run even if some build jobs failed — publish whichever artifacts did
+    # make it. Skip only if ALL three failed (no artifacts to upload).
+    if: always() && (needs.build-mobile-android.result == 'success' || needs.build-mobile-ios.result == 'success' || needs.build-asg.result == 'success')
     runs-on: ubuntu-latest
 
     steps:
@@ -365,18 +455,21 @@ jobs:
           fetch-depth: 1
 
       - name: Download mobile Android artifact
+        if: needs.build-mobile-android.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: mobile-staging
           path: ./mobile-apk
 
       - name: Download mobile iOS artifact
+        if: needs.build-mobile-ios.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: mobile-staging-ios
           path: ./mobile-ipa
 
       - name: Download ASG artifact
+        if: needs.build-asg.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: asg-staging
@@ -430,6 +523,14 @@ jobs:
             ];
 
             for (const upload of uploads) {
+              // Skip artifacts that weren't downloaded (because the build
+              // job for that platform failed). Partial publish is fine —
+              // it's better to ship the platforms that did build than to
+              // skip the whole upload step.
+              if (!fs.existsSync(upload.path)) {
+                console.log(`Skipping ${upload.latestName}: ${upload.path} not present (upstream job didn't produce it)`);
+                continue;
+              }
               const data = fs.readFileSync(upload.path);
 
               // Delete existing -latest asset if present.

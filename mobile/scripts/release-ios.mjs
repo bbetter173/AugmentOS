@@ -1,8 +1,8 @@
 #!/usr/bin/env zx
 
 import { setBuildEnv } from './set-build-env.mjs';
-import { withRetry } from './release-utils.mjs';
-import { readFile, writeFile } from 'fs/promises';
+import { withRetry, isSentryTransientError, writeSummary } from './release-utils.mjs';
+import { getBuildNumber } from './build-number.mjs';
 import { existsSync } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -57,34 +57,15 @@ const tag = ghTag(version);
 const prefix = ipaPrefix(version);
 console.log(`Version: ${version} → tag: ${tag}, prefix: ${prefix}`);
 
-// ── Step 2: Bump buildNumber and versionCode in app.config.ts ────────────────
+// ── Step 2: Derive build number ──────────────────────────────────────────────
 
-console.log('\n━━━ Step 2: Bumping buildNumber/versionCode in app.config.ts ━━━');
-const configPath = path.resolve('app.config.ts');
-let configContent = await readFile(configPath, 'utf-8');
-
-const versionCodeMatch = configContent.match(/versionCode:\s*(\d+)/);
-const buildNumberMatch = configContent.match(/buildNumber:\s*"(\d+)"/);
-if (!versionCodeMatch || !buildNumberMatch) {
-  console.error('Could not find versionCode or buildNumber in app.config.ts');
-  process.exit(1);
-}
-
-const oldVersionCode = parseInt(versionCodeMatch[1], 10);
-const oldBuildNumber = parseInt(buildNumberMatch[1], 10);
-const newBuildNumber = Math.max(oldVersionCode, oldBuildNumber) + 1;
-
-configContent = configContent.replace(
-  /versionCode:\s*\d+/,
-  `versionCode: ${newBuildNumber}`
-);
-configContent = configContent.replace(
-  /buildNumber:\s*"\d+"/,
-  `buildNumber: "${newBuildNumber}"`
-);
-await writeFile(configPath, configContent);
-console.log(`versionCode: ${oldVersionCode} → ${newBuildNumber}`);
-console.log(`buildNumber: ${oldBuildNumber} → ${newBuildNumber}`);
+// Pin the value via env var so every getBuildNumber() call in this process
+// tree (including app.config.ts evaluations during prebuild + Xcode's later
+// reads) returns the same number. Without pinning, the summary value can
+// drift from the value baked into the IPA by a few seconds.
+const buildNumber = getBuildNumber();
+process.env.MENTRAOS_PINNED_BUILD_NUMBER = String(buildNumber);
+console.log(`buildNumber: ${buildNumber}`);
 
 // ── Step 3: Prebuild iOS ──────────────────────────────────────────────────────
 
@@ -106,7 +87,18 @@ if (!teamId) {
 
 const archivePath = path.resolve('build/Mentra.xcarchive');
 
-await $({ stdio: 'inherit' })`xcodebuild archive -workspace ios/Mentra.xcworkspace -scheme Mentra -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
+// stdio:'pipe' so withRetry's predicate can inspect output for transient
+// Sentry/network errors; we still pipe to the terminal so progress is visible.
+await withRetry(
+  'xcodebuild archive',
+  () => {
+    const p = $`xcodebuild archive -workspace ios/Mentra.xcworkspace -scheme Mentra -configuration Release -destination generic/platform=iOS -archivePath ${archivePath} DEVELOPMENT_TEAM=${teamId} SWIFT_STRICT_CONCURRENCY=minimal`;
+    p.stdout.pipe(process.stdout);
+    p.stderr.pipe(process.stderr);
+    return p;
+  },
+  { shouldRetry: isSentryTransientError }
+);
 
 if (!existsSync(archivePath)) {
   console.error('Archive not found at:', archivePath);
@@ -212,11 +204,12 @@ console.log(`Uploaded ${ipaName} to release ${tag}`);
 const repoName = (await $`gh repo view --json nameWithOwner -q .nameWithOwner`).stdout.trim();
 const ipaUrl = `https://github.com/${repoName}/releases/download/${tag}/${ipaName}`;
 
-console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('iOS release complete!');
-console.log(`  Version: ${version}`);
-console.log(`  IPA: ${ipaUrl}`);
+const summaryLines = [
+  'iOS release complete!',
+  `  Version: ${version} (buildNumber ${buildNumber})`,
+  `  IPA: ${ipaUrl}`,
+];
 if (ascConfig && existsSync(ascConfig.ASC_API_KEY_PATH || '')) {
-  console.log('  TestFlight: uploaded');
+  summaryLines.push('  TestFlight: uploaded');
 }
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+await writeSummary('ios', summaryLines);

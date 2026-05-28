@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "asg_client/**"
-      - ".github/workflows/mentraos-asg-client-build.yml"
+      - ".github/workflows/mentra-asg-client-build.yml"
   push:
     branches:
       - main

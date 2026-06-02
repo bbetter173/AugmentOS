@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -57,7 +58,17 @@ public class ImuRecorder implements SensorEventListener {
   private final Handler mSensorHandler;
 
   private volatile boolean mRecording = false;
-  private long mStartTimeNs = 0;
+  // Baseline for the zero-based relative sample times in the JSON. Set lazily from the FIRST sensor
+  // event's timestamp so the math stays within a single clock domain — SensorEvent.timestamp is
+  // elapsedRealtimeNanos (time since boot), NOT System.nanoTime(); mixing them previously produced a
+  // bogus multi-hundred-second durationMs and a large constant per-sample offset. -1 = unset.
+  private long mBaseTimestampNs = -1;
+  // Absolute capture anchor in the elapsedRealtimeNanos clock, captured at startRecording(). This is
+  // the SAME clock Android's camera2 reports in SENSOR_TIMESTAMP when SENSOR_INFO_TIMESTAMP_SOURCE is
+  // REALTIME. Recording it lets the phone correlate IMU samples to video frames to sub-ms once the
+  // MTK HAL advertises REALTIME frame timestamps. Today the camera reports UNKNOWN, so this is the
+  // forward-compatible anchor — the IMU side is already on the correct clock and needs no rework.
+  private long mStartElapsedRealtimeNs = 0;
 
   // Latest values (updated independently by each sensor). Touched only on the sensor thread.
   private final float[] mLatestAccel = new float[3];
@@ -107,7 +118,8 @@ public class ImuRecorder implements SensorEventListener {
     mTargetDir = parentDir;
     mPartialFile = new File(parentDir, PARTIAL_NAME);
     mSampleCount = 0;
-    mStartTimeNs = System.nanoTime();
+    mBaseTimestampNs = -1; // baselined off the first event below
+    mStartElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos();
 
     try {
       mStreamWriter = new BufferedWriter(new FileWriter(mPartialFile, false));
@@ -211,9 +223,13 @@ public class ImuRecorder implements SensorEventListener {
   /** Append one compact sample line: [relativeTimeMs, ax, ay, az, gx, gy, gz]. Sensor thread only. */
   private void writeSampleLine(long timestampNs) {
     if (mStreamWriter == null) return;
+    if (mBaseTimestampNs < 0) {
+      // First event seen: this becomes t=0 so relative times start at ~0 within the event clock.
+      mBaseTimestampNs = timestampNs;
+    }
     try {
       JSONArray sample = new JSONArray();
-      sample.put(Math.round((timestampNs - mStartTimeNs) / 1_000_000.0));
+      sample.put(Math.round((timestampNs - mBaseTimestampNs) / 1_000_000.0));
       sample.put(round4(mLatestAccel[0]));
       sample.put(round4(mLatestAccel[1]));
       sample.put(round4(mLatestAccel[2]));
@@ -292,10 +308,19 @@ public class ImuRecorder implements SensorEventListener {
     }
 
     JSONObject root = new JSONObject();
-    root.put("version", 1);
+    root.put("version", 2);
     root.put("sampleCount", samples.length());
     root.put("samplingRateHz", 100);
-    root.put("startTimeNs", mStartTimeNs);
+    // clockSource documents the time base of the absolute timestamps below: Android's
+    // elapsedRealtimeNanos (boot-monotonic). This is the clock camera2 SENSOR_TIMESTAMP uses when
+    // the camera advertises SENSOR_INFO_TIMESTAMP_SOURCE = REALTIME, enabling IMU↔video correlation.
+    root.put("clockSource", "elapsedRealtimeNanos");
+    // Absolute elapsedRealtimeNanos of each sample's relative t=0 (the first sensor event).
+    // sampleAbsoluteNs = startTimeNs + relativeMs * 1_000_000.
+    root.put("startTimeNs", mBaseTimestampNs);
+    // Absolute elapsedRealtimeNanos captured at startRecording() (≈ MediaRecorder.start()), before
+    // the first sensor event arrived. Lets the consumer bound the IMU window against video start.
+    root.put("recordingStartElapsedRealtimeNs", mStartElapsedRealtimeNs);
     root.put("durationMs", lastRelMs);
     root.put("samples", samples);
 

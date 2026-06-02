@@ -40,9 +40,11 @@ import java.io.IOException;
  * <h3>Streaming</h3>
  * Samples are streamed to a {@code imu.jsonl.partial} file as they arrive rather than buffered in
  * memory, bounding memory use on long recordings. At graceful stop the partial is assembled into the
- * canonical {@code imu.json} object and removed. On any failure or cancel the partial is discarded:
- * the camera pipeline's {@code deleteCorruptCapture} wipes the whole capture directory on a failed
- * recording anyway, so there is no surviving media for an orphaned sidecar to belong to.
+ * canonical {@code imu.json} object and removed. If assembly fails on an otherwise-successful stop
+ * the partial is retained (it is the only copy of the IMU data and the media file survives), so it
+ * can be recovered/retried; {@code .partial} files are excluded from gallery/Wi-Fi sync. On a
+ * capture failure or {@link #cancel()} the partial is deleted — there the camera pipeline wipes the
+ * whole capture directory, so there is no surviving media for a sidecar to belong to.
  */
 public class ImuRecorder implements SensorEventListener {
   private static final String TAG = "ImuRecorder";
@@ -166,17 +168,21 @@ public class ImuRecorder implements SensorEventListener {
       int written = assembleSidecar(partial, new File(sidecarPath));
       if (written == 0) {
         Log.w(TAG, "No IMU samples captured");
+        partial.delete();
         return null;
       }
+      partial.delete();
       Log.d(TAG, "IMU sidecar written: " + sidecarPath + " (" + written + " samples)");
       return sidecarPath;
     } catch (JSONException | IOException e) {
-      Log.e(TAG, "Failed to assemble IMU sidecar", e);
+      // Retain the partial. On a graceful stop the media file survives even when sidecar
+      // assembly fails (this method swallows the error rather than propagating it, so the camera
+      // pipeline does NOT wipe the directory), so the partial is the only copy of the IMU data —
+      // keep it for recovery/retry. It is excluded from gallery/Wi-Fi sync by the .partial filter
+      // in FileManagerImpl, so retaining it can't leak a bogus capture file. The cancel() path
+      // (used on capture failure, where the directory IS wiped) still deletes it.
+      Log.e(TAG, "Failed to assemble IMU sidecar; retaining partial at " + partial.getAbsolutePath(), e);
       return null;
-    } finally {
-      // Always discard the partial — a failed capture's directory is wiped by the camera pipeline,
-      // and a successful assembly no longer needs it. Never leave it to be served by gallery sync.
-      partial.delete();
     }
   }
 

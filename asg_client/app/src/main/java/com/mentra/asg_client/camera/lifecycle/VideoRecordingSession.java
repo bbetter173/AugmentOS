@@ -240,7 +240,7 @@ public final class VideoRecordingSession {
 
                 ImuRecorder imu = hooks.ensureImuRecorder();
                 if (imu != null) {
-                    imu.startRecording();
+                    imu.startRecording(currentVideoPath);
                 }
 
                 pendingSettings = null;

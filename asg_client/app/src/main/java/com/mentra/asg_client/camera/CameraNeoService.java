@@ -943,6 +943,10 @@ public class CameraNeoService extends LifecycleService {
             }
             closeCamera();
             stopBackgroundThread();
+            if (mImuRecorder != null) {
+                mImuRecorder.release();
+                mImuRecorder = null;
+            }
             releaseWakeLocks();
             
             sInstance = null;

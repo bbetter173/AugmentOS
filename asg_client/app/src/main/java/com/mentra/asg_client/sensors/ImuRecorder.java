@@ -5,52 +5,69 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Records IMU (accelerometer + gyroscope) data during photo/video capture.
  * Writes a sidecar JSON file alongside the media file for phone-side
  * post-processing (e.g., gyro-based video stabilization).
  *
- * Sampling at ~100Hz, captures timestamp + accel[3] + gyro[3] per sample.
+ * <p>Sampling at ~100Hz, captures timestamp + accel[3] + gyro[3] per sample.
+ *
+ * <h3>Threading</h3>
+ * Sensor callbacks are delivered on a dedicated {@link HandlerThread} owned by this recorder, NOT
+ * the thread that calls {@link #startRecording()}. This matters: the camera pipeline calls
+ * {@code startRecording()} from a background {@code HandlerThread} that has a Looper but never
+ * pumps sensor events, and the no-Handler {@code registerListener} overload posts to the
+ * <em>main</em> looper. Registering against our own handler guarantees delivery regardless of the
+ * caller's thread (the previous code silently captured zero samples on longer video recordings —
+ * registration succeeded but no {@code onSensorChanged} ever fired).
+ *
+ * <h3>Crash safety</h3>
+ * Samples are streamed to a {@code imu.jsonl.partial} file as they arrive rather than buffered in
+ * memory and written only at stop. A non-graceful termination (process kill, MediaRecorder.stop()
+ * throw) therefore leaves the captured samples on disk for recovery instead of losing the whole
+ * track. At graceful stop the partial is assembled into the canonical {@code imu.json} object.
  */
 public class ImuRecorder implements SensorEventListener {
   private static final String TAG = "ImuRecorder";
   private static final int SAMPLING_PERIOD_US = 10000; // 100Hz
+  private static final String PARTIAL_NAME = "imu.jsonl.partial";
+  private static final String SIDECAR_NAME = "imu.json";
 
   private final SensorManager mSensorManager;
   private final Sensor mAccelerometer;
   private final Sensor mGyroscope;
 
+  // Dedicated thread so sensor callbacks are delivered independently of the caller's thread.
+  private final HandlerThread mSensorThread;
+  private final Handler mSensorHandler;
+
   private volatile boolean mRecording = false;
-  private final List<ImuSample> mSamples = new ArrayList<>();
   private long mStartTimeNs = 0;
 
-  // Latest values (updated independently by each sensor)
+  // Latest values (updated independently by each sensor). Touched only on the sensor thread.
   private final float[] mLatestAccel = new float[3];
   private final float[] mLatestGyro = new float[3];
 
-  private static class ImuSample {
-    final long timestampNs;
-    final float[] accel;
-    final float[] gyro;
-
-    ImuSample(long ts, float[] a, float[] g) {
-      this.timestampNs = ts;
-      this.accel = a.clone();
-      this.gyro = g.clone();
-    }
-  }
+  // Streaming sink for the in-progress capture. Touched only on the sensor thread.
+  private BufferedWriter mStreamWriter;
+  private File mPartialFile;
+  private File mTargetDir;
+  private int mSampleCount;
 
   public ImuRecorder(Context context) {
     mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
@@ -63,35 +80,58 @@ public class ImuRecorder implements SensorEventListener {
     if (mGyroscope == null) {
       Log.w(TAG, "Gyroscope not available");
     }
+
+    mSensorThread = new HandlerThread("ImuRecorder");
+    mSensorThread.start();
+    mSensorHandler = new Handler(mSensorThread.getLooper());
   }
 
   /**
    * Start recording IMU data. Call this when photo/video capture begins.
+   *
+   * @param mediaFilePath Path to the media file being captured; the sidecar is written next to it.
+   *     The parent directory must already exist (the media file lives there).
    */
-  public void startRecording() {
+  public void startRecording(String mediaFilePath) {
     if (mRecording) {
       Log.w(TAG, "Already recording");
       return;
     }
 
-    synchronized (mSamples) {
-      mSamples.clear();
+    File parentDir = new File(mediaFilePath).getParentFile();
+    if (parentDir == null) {
+      Log.w(TAG, "Cannot resolve capture directory for " + mediaFilePath + "; IMU not recorded");
+      return;
     }
+
+    mTargetDir = parentDir;
+    mPartialFile = new File(parentDir, PARTIAL_NAME);
+    mSampleCount = 0;
     mStartTimeNs = System.nanoTime();
+
+    try {
+      mStreamWriter = new BufferedWriter(new FileWriter(mPartialFile, false));
+    } catch (IOException e) {
+      Log.e(TAG, "Failed to open IMU stream file", e);
+      mStreamWriter = null;
+      return;
+    }
+
     mRecording = true;
 
     if (mAccelerometer != null) {
-      mSensorManager.registerListener(this, mAccelerometer, SAMPLING_PERIOD_US);
+      mSensorManager.registerListener(this, mAccelerometer, SAMPLING_PERIOD_US, mSensorHandler);
     }
     if (mGyroscope != null) {
-      mSensorManager.registerListener(this, mGyroscope, SAMPLING_PERIOD_US);
+      mSensorManager.registerListener(this, mGyroscope, SAMPLING_PERIOD_US, mSensorHandler);
     }
 
-    Log.d(TAG, "IMU recording started");
+    Log.d(TAG, "IMU recording started (streaming to " + mPartialFile.getAbsolutePath() + ")");
   }
 
   /**
-   * Stop recording and write the sidecar JSON file.
+   * Stop recording and assemble the sidecar JSON file from the streamed samples.
+   *
    * @param mediaFilePath Path to the media file (e.g., IMG_xxx.jpg or VID_xxx.mp4)
    * @return Path to the sidecar JSON file, or null on failure
    */
@@ -99,81 +139,66 @@ public class ImuRecorder implements SensorEventListener {
     mRecording = false;
     mSensorManager.unregisterListener(this);
 
-    List<ImuSample> captured;
-    synchronized (mSamples) {
-      captured = new ArrayList<>(mSamples);
-      mSamples.clear();
-    }
+    // Flush + close the stream on the sensor thread so it can't race with a late onSensorChanged,
+    // then continue assembly on the caller's thread once the sink is quiesced.
+    flushAndCloseStreamSync();
 
-    if (captured.isEmpty()) {
+    File parentDir = new File(mediaFilePath).getParentFile();
+    File partial = new File(parentDir, PARTIAL_NAME);
+    if (!partial.exists()) {
       Log.w(TAG, "No IMU samples captured");
       return null;
     }
 
-    // Generate sidecar path: save imu.json inside the capture folder
-    File parentDir = new File(mediaFilePath).getParentFile();
-    String sidecarPath = new File(parentDir, "imu.json").getAbsolutePath();
-
+    String sidecarPath = new File(parentDir, SIDECAR_NAME).getAbsolutePath();
     try {
-      JSONObject root = new JSONObject();
-      root.put("version", 1);
-      root.put("sampleCount", captured.size());
-      root.put("samplingRateHz", 100);
-      root.put("startTimeNs", mStartTimeNs);
-      root.put("durationMs", (captured.get(captured.size() - 1).timestampNs - mStartTimeNs) / 1_000_000);
-
-      JSONArray samples = new JSONArray();
-      for (ImuSample s : captured) {
-        JSONArray sample = new JSONArray();
-        // Compact format: [relativeTimeMs, ax, ay, az, gx, gy, gz]
-        sample.put(Math.round((s.timestampNs - mStartTimeNs) / 1_000_000.0));
-        sample.put(round4(s.accel[0]));
-        sample.put(round4(s.accel[1]));
-        sample.put(round4(s.accel[2]));
-        sample.put(round4(s.gyro[0]));
-        sample.put(round4(s.gyro[1]));
-        sample.put(round4(s.gyro[2]));
-        samples.put(sample);
+      int written = assembleSidecar(partial, new File(sidecarPath));
+      if (written == 0) {
+        Log.w(TAG, "No IMU samples captured");
+        partial.delete();
+        return null;
       }
-      root.put("samples", samples);
-
-      File sidecarFile = new File(sidecarPath);
-      try (FileWriter writer = new FileWriter(sidecarFile)) {
-        writer.write(root.toString());
-      }
-
-      Log.d(TAG, "IMU sidecar written: " + sidecarPath + " (" + captured.size() + " samples)");
+      partial.delete();
+      Log.d(TAG, "IMU sidecar written: " + sidecarPath + " (" + written + " samples)");
       return sidecarPath;
-
     } catch (JSONException | IOException e) {
-      Log.e(TAG, "Failed to write IMU sidecar", e);
+      // Leave the partial in place — it still holds the raw samples for later recovery.
+      Log.e(TAG, "Failed to assemble IMU sidecar; partial retained at " + partial.getAbsolutePath(), e);
       return null;
     }
   }
 
-  /** Cancel recording without saving. */
+  /** Cancel recording without saving; discards the partial stream. */
   public void cancel() {
     mRecording = false;
     mSensorManager.unregisterListener(this);
-    synchronized (mSamples) {
-      mSamples.clear();
+    flushAndCloseStreamSync();
+    if (mPartialFile != null && mPartialFile.exists()) {
+      mPartialFile.delete();
     }
+  }
+
+  /** Release the sensor thread. Call when the recorder is no longer needed. */
+  public void release() {
+    cancel();
+    mSensorThread.quitSafely();
   }
 
   @Override
   public void onSensorChanged(SensorEvent event) {
+    // Runs on mSensorThread.
     if (!mRecording) return;
 
     switch (event.sensor.getType()) {
       case Sensor.TYPE_ACCELEROMETER:
         System.arraycopy(event.values, 0, mLatestAccel, 0, 3);
-        // Record a combined sample on each accel event (accel drives the sampling rate)
-        synchronized (mSamples) {
-          mSamples.add(new ImuSample(event.timestamp, mLatestAccel, mLatestGyro));
-        }
+        // Accel drives the sampling rate: emit one combined sample per accel event.
+        writeSampleLine(event.timestamp);
         break;
       case Sensor.TYPE_GYROSCOPE:
         System.arraycopy(event.values, 0, mLatestGyro, 0, 3);
+        break;
+      default:
         break;
     }
   }
@@ -181,6 +206,103 @@ public class ImuRecorder implements SensorEventListener {
   @Override
   public void onAccuracyChanged(Sensor sensor, int accuracy) {
     // Not needed
+  }
+
+  /** Append one compact sample line: [relativeTimeMs, ax, ay, az, gx, gy, gz]. Sensor thread only. */
+  private void writeSampleLine(long timestampNs) {
+    if (mStreamWriter == null) return;
+    try {
+      JSONArray sample = new JSONArray();
+      sample.put(Math.round((timestampNs - mStartTimeNs) / 1_000_000.0));
+      sample.put(round4(mLatestAccel[0]));
+      sample.put(round4(mLatestAccel[1]));
+      sample.put(round4(mLatestAccel[2]));
+      sample.put(round4(mLatestGyro[0]));
+      sample.put(round4(mLatestGyro[1]));
+      sample.put(round4(mLatestGyro[2]));
+      mStreamWriter.write(sample.toString());
+      mStreamWriter.write('\n');
+      mSampleCount++;
+    } catch (IOException | JSONException e) {
+      Log.e(TAG, "Failed to write IMU sample", e);
+    }
+  }
+
+  /** Quiesce the sensor sink: run flush+close on the sensor thread and block until done. */
+  private void flushAndCloseStreamSync() {
+    final Object lock = new Object();
+    final boolean[] done = {false};
+    boolean posted = mSensorHandler.post(() -> {
+      closeStreamOnSensorThread();
+      synchronized (lock) {
+        done[0] = true;
+        lock.notifyAll();
+      }
+    });
+    if (!posted) {
+      // Looper already gone; close inline as a best effort.
+      closeStreamOnSensorThread();
+      return;
+    }
+    synchronized (lock) {
+      while (!done[0]) {
+        try {
+          lock.wait();
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          return;
+        }
+      }
+    }
+  }
+
+  private void closeStreamOnSensorThread() {
+    if (mStreamWriter == null) return;
+    try {
+      mStreamWriter.flush();
+      mStreamWriter.close();
+    } catch (IOException e) {
+      Log.e(TAG, "Failed to close IMU stream", e);
+    } finally {
+      mStreamWriter = null;
+    }
+  }
+
+  /**
+   * Read the streamed JSONL partial and write the canonical {@code imu.json} object. Keeps the
+   * exact same on-disk schema the previous in-memory implementation produced.
+   *
+   * @return number of samples written.
+   */
+  private int assembleSidecar(File partial, File sidecar) throws IOException, JSONException {
+    JSONArray samples = new JSONArray();
+    long lastRelMs = 0;
+    try (BufferedReader reader = new BufferedReader(new FileReader(partial))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.isEmpty()) continue;
+        JSONArray sample = new JSONArray(line);
+        lastRelMs = sample.getLong(0);
+        samples.put(sample);
+      }
+    }
+
+    if (samples.length() == 0) {
+      return 0;
+    }
+
+    JSONObject root = new JSONObject();
+    root.put("version", 1);
+    root.put("sampleCount", samples.length());
+    root.put("samplingRateHz", 100);
+    root.put("startTimeNs", mStartTimeNs);
+    root.put("durationMs", lastRelMs);
+    root.put("samples", samples);
+
+    try (FileWriter writer = new FileWriter(sidecar)) {
+      writer.write(root.toString());
+    }
+    return samples.length();
   }
 
   private static double round4(float v) {

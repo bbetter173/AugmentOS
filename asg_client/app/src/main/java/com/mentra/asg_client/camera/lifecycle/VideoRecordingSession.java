@@ -184,6 +184,13 @@ public final class VideoRecordingSession {
             Log.e(TAG, "MediaRecorder error: what=" + what + ", extra=" + extra);
             isRecording = false;
             String errorMsg = VideoRecorderPolicy.mediaRecorderErrorMessage(what);
+            // Stop IMU first: it unregisters the sensor listener and closes/discards the partial.
+            // Otherwise the listener keeps running and writing into a directory deleteCorruptCapture
+            // is about to wipe. Mirrors the stop()-failure path.
+            ImuRecorder imu = hooks.currentImuRecorder();
+            if (imu != null) {
+                imu.cancel();
+            }
             deleteCorruptCapture(currentVideoPath);
             notifyError(currentVideoId, errorMsg);
             try {

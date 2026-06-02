@@ -37,11 +37,12 @@ import java.io.IOException;
  * caller's thread (the previous code silently captured zero samples on longer video recordings —
  * registration succeeded but no {@code onSensorChanged} ever fired).
  *
- * <h3>Crash safety</h3>
+ * <h3>Streaming</h3>
  * Samples are streamed to a {@code imu.jsonl.partial} file as they arrive rather than buffered in
- * memory and written only at stop. A non-graceful termination (process kill, MediaRecorder.stop()
- * throw) therefore leaves the captured samples on disk for recovery instead of losing the whole
- * track. At graceful stop the partial is assembled into the canonical {@code imu.json} object.
+ * memory, bounding memory use on long recordings. At graceful stop the partial is assembled into the
+ * canonical {@code imu.json} object and removed. On any failure or cancel the partial is discarded:
+ * the camera pipeline's {@code deleteCorruptCapture} wipes the whole capture directory on a failed
+ * recording anyway, so there is no surviving media for an orphaned sidecar to belong to.
  */
 public class ImuRecorder implements SensorEventListener {
   private static final String TAG = "ImuRecorder";
@@ -77,8 +78,6 @@ public class ImuRecorder implements SensorEventListener {
   // Streaming sink for the in-progress capture. Touched only on the sensor thread.
   private BufferedWriter mStreamWriter;
   private File mPartialFile;
-  private File mTargetDir;
-  private int mSampleCount;
 
   public ImuRecorder(Context context) {
     mSensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
@@ -115,9 +114,7 @@ public class ImuRecorder implements SensorEventListener {
       return;
     }
 
-    mTargetDir = parentDir;
     mPartialFile = new File(parentDir, PARTIAL_NAME);
-    mSampleCount = 0;
     mBaseTimestampNs = -1; // baselined off the first event below
     mStartElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos();
 
@@ -155,28 +152,31 @@ public class ImuRecorder implements SensorEventListener {
     // then continue assembly on the caller's thread once the sink is quiesced.
     flushAndCloseStreamSync();
 
-    File parentDir = new File(mediaFilePath).getParentFile();
-    File partial = new File(parentDir, PARTIAL_NAME);
-    if (!partial.exists()) {
+    File partial = mPartialFile;
+    if (partial == null || !partial.exists()) {
       Log.w(TAG, "No IMU samples captured");
       return null;
     }
 
+    // Sidecar lands next to the media file; the partial lives in the same dir but use the stored
+    // reference for it so stop and cancel always agree on the path.
+    File parentDir = new File(mediaFilePath).getParentFile();
     String sidecarPath = new File(parentDir, SIDECAR_NAME).getAbsolutePath();
     try {
       int written = assembleSidecar(partial, new File(sidecarPath));
       if (written == 0) {
         Log.w(TAG, "No IMU samples captured");
-        partial.delete();
         return null;
       }
-      partial.delete();
       Log.d(TAG, "IMU sidecar written: " + sidecarPath + " (" + written + " samples)");
       return sidecarPath;
     } catch (JSONException | IOException e) {
-      // Leave the partial in place — it still holds the raw samples for later recovery.
-      Log.e(TAG, "Failed to assemble IMU sidecar; partial retained at " + partial.getAbsolutePath(), e);
+      Log.e(TAG, "Failed to assemble IMU sidecar", e);
       return null;
+    } finally {
+      // Always discard the partial — a failed capture's directory is wiped by the camera pipeline,
+      // and a successful assembly no longer needs it. Never leave it to be served by gallery sync.
+      partial.delete();
     }
   }
 
@@ -238,7 +238,6 @@ public class ImuRecorder implements SensorEventListener {
       sample.put(round4(mLatestGyro[2]));
       mStreamWriter.write(sample.toString());
       mStreamWriter.write('\n');
-      mSampleCount++;
     } catch (IOException | JSONException e) {
       Log.e(TAG, "Failed to write IMU sample", e);
     }

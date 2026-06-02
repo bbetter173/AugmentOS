@@ -276,6 +276,12 @@ public final class VideoRecordingSession {
                 Log.e(TAG, "Failed to start recording after delay", e);
                 notifyError(currentVideoId, "Failed to start recording: " + e.getMessage());
                 isRecording = false;
+                // IMU may already be recording (started above); stop it so the sensor listener and
+                // partial stream don't keep running after a failed start.
+                ImuRecorder imu = hooks.currentImuRecorder();
+                if (imu != null) {
+                    imu.cancel();
+                }
             }
         }, VideoRecorderPolicy.RECORDER_SURFACE_WARMUP_MS);
     }

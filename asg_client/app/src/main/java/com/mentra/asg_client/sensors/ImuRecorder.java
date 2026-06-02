@@ -125,6 +125,11 @@ public class ImuRecorder implements SensorEventListener {
     } catch (IOException e) {
       Log.e(TAG, "Failed to open IMU stream file", e);
       mStreamWriter = null;
+      // FileWriter may have created a zero-byte file before failing; don't leave it behind.
+      if (mPartialFile.exists()) {
+        mPartialFile.delete();
+      }
+      mPartialFile = null;
       return;
     }
 
@@ -186,19 +191,29 @@ public class ImuRecorder implements SensorEventListener {
     }
   }
 
-  /** Cancel recording without saving; discards the partial stream. */
-  public void cancel() {
+  /** Stop sensor delivery and close the stream, leaving the partial file untouched. */
+  private void stopSensors() {
     mRecording = false;
     mSensorManager.unregisterListener(this);
     flushAndCloseStreamSync();
+  }
+
+  /** Cancel recording without saving; discards the partial stream. */
+  public void cancel() {
+    stopSensors();
     if (mPartialFile != null && mPartialFile.exists()) {
       mPartialFile.delete();
     }
   }
 
-  /** Release the sensor thread. Call when the recorder is no longer needed. */
+  /**
+   * Release the sensor thread. Call when the recorder is no longer needed. Stops sensor delivery but
+   * does NOT delete a retained partial: a graceful stop whose imu.json assembly failed keeps the
+   * partial as the only copy of the IMU data, and the camera service calls release() on teardown
+   * shortly after every recording — deleting here would destroy that recovery copy.
+   */
   public void release() {
-    cancel();
+    stopSensors();
     mSensorThread.quitSafely();
   }
 

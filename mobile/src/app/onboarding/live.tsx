@@ -1,59 +1,14 @@
 import {Screen} from "@/components/ignite"
 import {OnboardingGuide, OnboardingStep} from "@/components/onboarding/OnboardingGuide"
+import {waitForButtonPress, waitForTouchGesture} from "@/components/onboarding/waitForGlassesEvent"
 import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import showAlert from "@/utils/AlertUtils"
-import BluetoothSdk, {TouchEvent} from "@mentra/bluetooth-sdk"
 import {useMemo} from "react"
 import {Platform} from "react-native"
 
 const CDN_BASE = "https://mentra-videos-cdn.mentraglass.com/onboarding/mentra-live/light"
-
-// Resolve once a button press matching `pressTypes` arrives. The listener is
-// removed both when it fires AND when the step is left (signal aborts), so it
-// never leaks across re-renders.
-const waitForButtonPress = (signal: AbortSignal, pressTypes: string[]): Promise<void> => {
-  return new Promise<void>((resolve) => {
-    if (signal.aborted) {
-      resolve()
-      return
-    }
-    const unsub = BluetoothSdk.addListener("button_press", (data: any) => {
-      if (data?.type === "button_press" && pressTypes.includes(data?.pressType)) {
-        unsub.remove()
-        signal.removeEventListener("abort", onAbort)
-        resolve()
-      }
-    })
-    const onAbort = () => {
-      unsub.remove()
-    }
-    signal.addEventListener("abort", onAbort)
-  })
-}
-
-// Resolve once a touch gesture in `gestureNames` arrives. Same abort-safe
-// cleanup contract as waitForButtonPress.
-const waitForTouchGesture = (signal: AbortSignal, gestureNames: string[]): Promise<void> => {
-  return new Promise<void>((resolve) => {
-    if (signal.aborted) {
-      resolve()
-      return
-    }
-    const unsub = BluetoothSdk.addListener("touch_event", (data: TouchEvent) => {
-      if (data?.gestureName && gestureNames.includes(data.gestureName)) {
-        unsub.remove()
-        signal.removeEventListener("abort", onAbort)
-        resolve()
-      }
-    })
-    const onAbort = () => {
-      unsub.remove()
-    }
-    signal.addEventListener("abort", onAbort)
-  })
-}
 
 export default function MentraLiveOnboarding() {
   const {clearHistoryAndGoHome} = useNavigationStore.getState()

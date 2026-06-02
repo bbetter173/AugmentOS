@@ -86,7 +86,7 @@ const buildSteps = (): OnboardingStep[] => [
           return
         }
         const unsub = BluetoothSdk.addListener("button_press", (data: any) => {
-          if (data?.type === "button_press" && data?.pressType === "short") {
+          if (data?.pressType === "short") {
             unsub.remove()
             signal.removeEventListener("abort", onAbort)
             resolve()

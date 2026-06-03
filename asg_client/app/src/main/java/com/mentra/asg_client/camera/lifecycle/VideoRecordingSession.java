@@ -242,12 +242,17 @@ public final class VideoRecordingSession {
                 }
 
                 mediaRecorder.start();
+                // Anchor for the video timeline on the IMU clock (elapsedRealtimeNanos), captured as
+                // close to recorder start as possible. Written to the IMU sidecar so the consumer can
+                // align frames (relative MP4 PTS) to IMU samples and subtract the fixed startup offset.
+                long videoStartElapsedRealtimeNs = android.os.SystemClock.elapsedRealtimeNanos();
                 isRecording = true;
                 recordingStartTime = System.currentTimeMillis();
 
                 ImuRecorder imu = hooks.ensureImuRecorder();
                 if (imu != null) {
                     imu.startRecording(currentVideoPath);
+                    imu.setVideoStartAnchor(videoStartElapsedRealtimeNs);
                 }
 
                 pendingSettings = null;

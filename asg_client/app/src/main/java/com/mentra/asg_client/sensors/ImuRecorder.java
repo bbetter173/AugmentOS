@@ -72,6 +72,13 @@ public class ImuRecorder implements SensorEventListener {
   // MTK HAL advertises REALTIME frame timestamps. Today the camera reports UNKNOWN, so this is the
   // forward-compatible anchor — the IMU side is already on the correct clock and needs no rework.
   private long mStartElapsedRealtimeNs = 0;
+  // Absolute elapsedRealtimeNanos captured by the video pipeline right after MediaRecorder.start(),
+  // i.e. the wall-clock anchor for the video timeline on the SAME clock as the IMU samples. The MP4
+  // itself only carries relative PTS, so this is what lets the consumer place frame N at
+  // videoStart + PTS_N and subtract the fixed camera/IMU startup offset (the ~100ms the data partner
+  // measured). It is recorder-start, not per-frame start-of-exposure, so it removes the constant
+  // offset but is not a sub-ms hardware sync. 0 = not set (e.g. photo captures, which have no video).
+  private long mVideoStartElapsedRealtimeNs = 0;
 
   // Latest values (updated independently by each sensor). Touched only on the sensor thread.
   private final float[] mLatestAccel = new float[3];
@@ -119,6 +126,7 @@ public class ImuRecorder implements SensorEventListener {
     mPartialFile = new File(parentDir, PARTIAL_NAME);
     mBaseTimestampNs = -1; // baselined off the first event below
     mStartElapsedRealtimeNs = SystemClock.elapsedRealtimeNanos();
+    mVideoStartElapsedRealtimeNs = 0; // set by the video pipeline via setVideoStartAnchor()
 
     try {
       mStreamWriter = new BufferedWriter(new FileWriter(mPartialFile, false));
@@ -143,6 +151,17 @@ public class ImuRecorder implements SensorEventListener {
     }
 
     Log.d(TAG, "IMU recording started (streaming to " + mPartialFile.getAbsolutePath() + ")");
+  }
+
+  /**
+   * Record the video timeline's absolute anchor on the elapsedRealtimeNanos clock. Call from the
+   * video pipeline immediately after {@code MediaRecorder.start()}, passing
+   * {@code SystemClock.elapsedRealtimeNanos()}. Written to the sidecar as
+   * {@code videoStartElapsedRealtimeNs} so the consumer can align frame N (relative PTS) to IMU
+   * samples and subtract the fixed camera/IMU startup offset. No-op for photo captures.
+   */
+  public void setVideoStartAnchor(long elapsedRealtimeNs) {
+    mVideoStartElapsedRealtimeNs = elapsedRealtimeNs;
   }
 
   /**
@@ -341,6 +360,13 @@ public class ImuRecorder implements SensorEventListener {
     // Absolute elapsedRealtimeNanos captured at startRecording() (≈ MediaRecorder.start()), before
     // the first sensor event arrived. Lets the consumer bound the IMU window against video start.
     root.put("recordingStartElapsedRealtimeNs", mStartElapsedRealtimeNs);
+    // Absolute elapsedRealtimeNanos anchor for the video timeline (recorder start). Present only for
+    // video captures. Frame N's absolute time ≈ videoStartElapsedRealtimeNs + framePtsNs; align that
+    // against the IMU samples (same clock) to remove the fixed camera/IMU startup offset. Omitted
+    // when 0 (e.g. photo captures, or if the video pipeline did not set it).
+    if (mVideoStartElapsedRealtimeNs > 0) {
+      root.put("videoStartElapsedRealtimeNs", mVideoStartElapsedRealtimeNs);
+    }
     root.put("durationMs", lastRelMs);
     root.put("samples", samples);
 

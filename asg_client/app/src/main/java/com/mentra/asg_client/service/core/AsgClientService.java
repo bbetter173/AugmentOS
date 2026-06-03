@@ -20,11 +20,16 @@ import android.util.Size;
 
 import com.dev.api.DevApi;
 import com.mentra.asg_client.SysControl;
+import com.mentra.asg_client.camera.UvcStreamingState;
+import com.mentra.asg_client.hardware.K900RgbLedController;
 import com.mentra.asg_client.io.bluetooth.interfaces.BluetoothStateListener;
+import com.mentra.asg_client.io.hardware.core.HardwareManagerFactory;
+import com.mentra.asg_client.io.hardware.interfaces.IHardwareManager;
 import com.mentra.asg_client.io.media.core.MediaCaptureService;
 import com.mentra.asg_client.io.media.interfaces.ServiceCallbackInterface;
 import com.mentra.asg_client.io.media.managers.MediaUploadQueueManager;
 import com.mentra.asg_client.io.network.interfaces.NetworkStateListener;
+import com.mentra.asg_client.io.ota.helpers.OtaHelper;
 import com.mentra.asg_client.io.ota.utils.OtaConstants;
 import com.mentra.asg_client.io.streaming.events.StreamingEvent;
 import com.mentra.asg_client.service.communication.interfaces.ICommunicationManager;
@@ -74,6 +79,9 @@ public class AsgClientService extends Service implements NetworkStateListener, B
     public static final String ACTION_RESTART_CAMERA = "com.mentra.asg_client.ACTION_RESTART_CAMERA";
     public static final String ACTION_I2S_AUDIO_STATE = "com.mentra.asg_client.ACTION_I2S_AUDIO_STATE";
     public static final String EXTRA_I2S_AUDIO_PLAYING = "extra_i2s_audio_playing";
+    public static final String ACTION_UVC_STREAMING_CHANGED =
+            "com.mentra.asg_client.ACTION_UVC_STREAMING_CHANGED";
+    public static final String EXTRA_UVC_STREAMING = "extra_uvc_streaming";
     public static final String ACTION_START_OTA_UPDATER = "ACTION_START_OTA_UPDATER";
 
     // OTA Update progress actions
@@ -85,6 +93,8 @@ public class AsgClientService extends Service implements NetworkStateListener, B
     private static final String ACTION_HEARTBEAT = "com.mentra.asg_client.ACTION_HEARTBEAT";
     private static final String ACTION_HEARTBEAT_ACK = "com.mentra.asg_client.ACTION_HEARTBEAT_ACK";
     private static final long HEARTBEAT_TIMEOUT_MS = 35000; // 35 seconds timeout
+    /** Solid white RGB LED duration while USB UVC streaming (same as video recording). */
+    private static final int UVC_STREAMING_LED_DURATION_MS = 1_800_000;
 
     // ---------------------------------------------
     // Dependency Injection Container
@@ -108,6 +118,7 @@ public class AsgClientService extends Service implements NetworkStateListener, B
     // private boolean isAugmentosBound = false;
     private static AsgClientService instance;
     private boolean lastI2sPlaying = false;
+    private boolean lastUvcStreaming = false;
     private boolean isConnected = false; // Track connection state based on heartbeat
 
     // ---------------------------------------------
@@ -203,7 +214,7 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             Log.d(TAG, "✅ EventBus registration successful");
 
             // EIS is toggled on/off at point of use:
-            // - Enabled before video recording (CameraNeo)
+            // - Enabled before video recording (CameraNeoService)
             // - Disabled before streaming (StreamCommandHandler)
             SysControl.setEisEnable(this, false);
 
@@ -279,6 +290,12 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             if (ACTION_I2S_AUDIO_STATE.equals(action)) {
                 boolean playing = intent.getBooleanExtra(EXTRA_I2S_AUDIO_PLAYING, false);
                 handleI2SAudioState(playing);
+                return START_STICKY;
+            }
+
+            if (ACTION_UVC_STREAMING_CHANGED.equals(action)) {
+                boolean streaming = intent.getBooleanExtra(EXTRA_UVC_STREAMING, false);
+                handleUvcStreamingState(streaming);
                 return START_STICKY;
             }
 
@@ -373,6 +390,70 @@ public class AsgClientService extends Service implements NetworkStateListener, B
 
     public static AsgClientService getInstance() {
         return instance;
+    }
+
+    /** Handle MTK UVC streaming state forwarded from {@link com.mentra.asg_client.receiver.UvcStreamingBroadcastReceiver}. */
+    public void handleUvcStreamingState(boolean streaming) {
+        if (streaming == lastUvcStreaming) {
+            Log.d(TAG, "UVC streaming state unchanged (" + streaming + "), skipping LED update");
+            return;
+        }
+
+        lastUvcStreaming = streaming;
+        Log.i(TAG, "UVC streaming state: " + (streaming ? "active" : "inactive"));
+        UvcStreamingState.setStreaming(streaming);
+        applyUvcStreamingLed(streaming);
+    }
+
+    /**
+     * Drive privacy indicators while USB UVC webcam mode is active — same pairing as video
+     * recording: local MTK front-facing flash LED plus BES RGB ring (solid white).
+     */
+    private void applyUvcStreamingLed(boolean streaming) {
+        IHardwareManager hardwareManager = getHardwareManagerForLed();
+        if (hardwareManager == null) {
+            Log.w(TAG, "Hardware manager not available; skipping UVC streaming LED update");
+            return;
+        }
+
+        if (streaming) {
+            if (hardwareManager.supportsRecordingLed()) {
+                hardwareManager.setRecordingLedOn();
+                Log.i(TAG, "UVC streaming front-facing recording flash LED on");
+            } else {
+                Log.w(TAG, "Recording flash LED not supported on this device");
+            }
+
+            if (hardwareManager.supportsRgbLed()) {
+                sendRgbLedControlAuthority(true);
+                hardwareManager.setRgbLedSolidWhite(
+                        UVC_STREAMING_LED_DURATION_MS,
+                        K900RgbLedController.DEFAULT_RGB_LED_BRIGHTNESS);
+                Log.i(TAG, "UVC streaming RGB ring LED on (solid white)");
+            } else {
+                Log.w(TAG, "RGB LED not supported on this device");
+            }
+        } else {
+            if (hardwareManager.supportsRecordingLed()) {
+                hardwareManager.setRecordingLedOff();
+                Log.i(TAG, "UVC streaming front-facing recording flash LED off");
+            }
+            if (hardwareManager.supportsRgbLed()) {
+                hardwareManager.setRgbLedOff();
+                Log.i(TAG, "UVC streaming RGB ring LED off");
+            }
+        }
+    }
+
+    private IHardwareManager getHardwareManagerForLed() {
+        IHardwareManager hardwareManager = HardwareManagerFactory.getInstance(this);
+        if (serviceContainer != null && serviceContainer.getServiceManager() != null) {
+            var bluetoothManager = serviceContainer.getServiceManager().getBluetoothManager();
+            if (bluetoothManager != null) {
+                hardwareManager.setBluetoothManager(bluetoothManager);
+            }
+        }
+        return hardwareManager;
     }
 
     public void handleI2SAudioState(boolean playing) {
@@ -801,6 +882,13 @@ public class AsgClientService extends Service implements NetworkStateListener, B
         Log.i(TAG, "📶 Bluetooth connection state changed: " + (connected ? "CONNECTED" : "DISCONNECTED"));
 
         if (connected) {
+            // Send the pending APK-done signal immediately on reconnect (before WiFi/version info).
+            // This is the primary path for the phone to learn the APK updated successfully.
+            OtaHelper otaHelper = OtaHelper.getInstance();
+            if (otaHelper != null) {
+                otaHelper.onPhoneConnected();
+            }
+
             Log.d(TAG, "⏱️ Scheduling WiFi status send in 3 seconds");
             // Send WiFi status after delay
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -842,8 +930,9 @@ public class AsgClientService extends Service implements NetworkStateListener, B
         }
 
         Log.i(TAG, "📥 Received " + data.length + " bytes from Bluetooth");
-        Log.d(TAG, "📋 Data preview: " + new String(data, 0, Math.min(data.length, 100)) + 
-                  (data.length > 100 ? "..." : ""));
+        String incomingPayload = new String(data, StandardCharsets.UTF_8);
+        Log.d(TAG, "📋 Data preview: " + incomingPayload.substring(0, Math.min(incomingPayload.length(), 100)) +
+                  (incomingPayload.length() > 100 ? "..." : ""));
 
         // BLE/serial can deliver data before getInterfaceReferences() runs (e.g. right after
         // MY_PACKAGE_REPLACED when the service is still in onCreate). Guard to avoid NPE.
@@ -952,6 +1041,7 @@ public class AsgClientService extends Service implements NetworkStateListener, B
                 chunk1.put("build_number", buildNumber);
                 chunk1.put("device_model", deviceModel);
                 chunk1.put("android_version", androidVersion);
+                chunk1.put("system_time_ms", System.currentTimeMillis());
 
                 Log.d(TAG, "📤 Sending version_info_1: " + chunk1.toString());
                 serviceContainer.getServiceManager().getBluetoothManager().sendData(chunk1.toString().getBytes(StandardCharsets.UTF_8));
@@ -1250,6 +1340,14 @@ public class AsgClientService extends Service implements NetworkStateListener, B
      */
     public boolean isConnected() {
         return isConnected;
+    }
+
+    /**
+     * Handle the phone_ready/glasses_ready handshake completing over Bluetooth.
+     */
+    public void onPhoneReadyHandshakeComplete() {
+        Log.d(TAG, "📱 Phone ready handshake complete - marking phone connection active");
+        resetHeartbeatTimeout();
     }
 
     /**
@@ -1591,4 +1689,4 @@ public class AsgClientService extends Service implements NetworkStateListener, B
             Log.e(TAG, "🗑️ Error cleaning up orphaned BLE transfers", e);
         }
     }
-} 
+}

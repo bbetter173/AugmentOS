@@ -11,7 +11,7 @@ import com.mentra.asg_client.io.file.core.FileManager;
 import com.mentra.asg_client.io.media.upload.MediaUploadService;
 import com.mentra.asg_client.io.media.managers.MediaUploadQueueManager;
 import com.mentra.asg_client.io.media.interfaces.ServiceCallbackInterface;
-import com.mentra.asg_client.camera.CameraNeo;
+import com.mentra.asg_client.camera.CameraNeoService;
 import com.mentra.asg_client.settings.VideoSettings;
 import com.mentra.asg_client.io.hardware.interfaces.IHardwareManager;
 import com.mentra.asg_client.io.hardware.core.HardwareManagerFactory;
@@ -34,6 +34,7 @@ import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -45,6 +46,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
@@ -293,23 +295,32 @@ public class MediaCaptureService {
     // Track requested photo size per request for proper fallback handling
     private Map<String, String> photoRequestedSizes = new HashMap<>();
     
-    // Upload state tracking - prevent concurrent uploads
-    private volatile boolean isUploadingPhoto = false;
-    private final Object uploadLock = new Object();
-
-    // Capture state tracking - prevent concurrent camera captures from SDK
-    private final AtomicBoolean isCapturingPhoto = new AtomicBoolean(false);
+    // Photo job state tracking - one photo job (capture + upload/BLE-handoff) in flight at a time.
+    // Set on entry to takePhotoAndUpload / takePhotoForBleTransfer; cleared only at terminal
+    // exits (success or failure) of the full pipeline, NOT on the capture→upload transition.
+    // Concurrent SDK photo requests are rejected with CAMERA_BUSY while this is true.
+    private final AtomicReference<String> activePhotoJobRequestId = new AtomicReference<>(null);
     private final AtomicBoolean isCleaningUp = new AtomicBoolean(false);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    /** Exclude these capture directory names from Wi‑Fi sync until integrity check finishes. */
+    /**
+     * Capture IDs blocked from Wi‑Fi sync from the moment the output path is created until
+     * post-stop integrity validation completes (or the capture is cleaned up on error).
+     */
+    private final Set<String> videoCaptureIdsInFlight = ConcurrentHashMap.newKeySet();
+    /** Subset of in-flight captures that have stopped recording and are awaiting integrity check. */
     private final Set<String> videoCaptureIdsPendingIntegrityCheck = ConcurrentHashMap.newKeySet();
     private final ExecutorService videoIntegrityExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RecordedVideoIntegrity");
         t.setPriority(Thread.NORM_PRIORITY - 1);
         return t;
     });
-    private static final long CAPTURE_SAFETY_TIMEOUT_MS = 15000; // 15 seconds
+    // Safety timeout covers the full job (capture + upload/BLE-handoff). Sized to outlast a
+    // slow webhook upload on flaky WiFi so we don't prematurely free the flag while the upload
+    // is still grinding. Force-resets isPhotoJobInFlight if no terminal callback fires.
+    private static final long CAPTURE_SAFETY_TIMEOUT_MS = 45000; // 45 seconds
+    private final Object captureSafetyTimeoutLock = new Object();
     private Runnable captureSafetyTimeout;
+    private String captureSafetyTimeoutRequestId;
 
     // Per-request timing instrumentation (gated by ENABLE_PHOTO_TIMING_LOGS)
     private final Map<String, Map<String, Long>> photoTimings = new HashMap<>();
@@ -550,7 +561,7 @@ public class MediaCaptureService {
      */
     public void startVideoRecording(VideoSettings settings, boolean enableFlash, int maxRecordingTimeMinutes, int initialBatteryLevel) {
         // Note: Removed assertMainThread() - this is called from Bluetooth worker thread via command handlers
-        // Thread safety is maintained through CameraNeo's internal threading and Handler usage
+        // Thread safety is maintained through CameraNeoService's internal threading and Handler usage
         Log.d(TAG, "startVideoRecording called with settings: " + settings + ", enableFlash: " + enableFlash + ", maxRecordingTimeMinutes: " + maxRecordingTimeMinutes + ", initialBatteryLevel: " + initialBatteryLevel);
 
         // Check if battery is too low to start recording (query current level for accuracy)
@@ -694,7 +705,7 @@ public class MediaCaptureService {
         }
         
         // Check if camera is actively in use (this will return false for kept-alive idle camera)
-        if (CameraNeo.isCameraInUse()) {
+        if (CameraNeoService.isCameraInUse()) {
             Log.e(TAG, "Cannot start video - camera actively in use");
             if (mMediaCaptureListener != null) {
                 mMediaCaptureListener.onMediaError(requestId, "Camera busy", 
@@ -710,13 +721,18 @@ public class MediaCaptureService {
         }
 
         // Close kept-alive camera if it exists to free resources for video recording
-        CameraNeo.closeKeptAliveCamera();
+        CameraNeoService.closeKeptAliveCamera();
 
         // Save info for the current recording session
         currentVideoId = requestId;
         currentVideoPath = videoFilePath;
         currentVideoLedEnabled = enableFlash; // Track LED state for this recording
         currentVideoSoundEnabled = enableSound; // Track sound state for this recording
+        final String captureIdAtStart = captureIdFromVideoAbsPath(videoFilePath);
+        if (captureIdAtStart != null) {
+            videoCaptureIdsInFlight.add(captureIdAtStart);
+            Log.d(TAG, "Video capture blocked from sync (in-flight): " + captureIdAtStart);
+        }
 
         try {
             // Play video start sound if enabled
@@ -727,8 +743,8 @@ public class MediaCaptureService {
                 triggerVideoRecordingLed(); // Trigger solid white LED for video recording duration
             }
 
-            // Start video recording using CameraNeo
-            CameraNeo.startVideoRecording(mContext, requestId, videoFilePath, settings, new CameraNeo.VideoRecordingCallback() {
+            // Start video recording using CameraNeoService
+            CameraNeoService.startVideoRecording(mContext, requestId, videoFilePath, settings, new CameraNeoService.VideoRecordingCallback() {
                 @Override
                 public void onRecordingStarted(String videoId) {
                     Log.d(TAG, "Video recording started with ID: " + videoId);
@@ -784,7 +800,6 @@ public class MediaCaptureService {
                 @Override
                 public void onRecordingStopped(String videoId, String filePath) {
                     Log.d(TAG, "Video recording stopped: " + videoId + ", file: " + filePath);
-                    isRecordingVideo = false;
 
                     // Cancel max recording time check
                     if (recordingTimeCheckRunnable != null) {
@@ -801,12 +816,34 @@ public class MediaCaptureService {
                     }
 
                     final String pendingRequestId = requestId;
-                    final String captureId = captureIdFromVideoAbsPath(filePath);
+                    // Prefer the path-derived ID so the integrity check uses the actual file written.
+                    // Fall back to the start-time ID so we always release the in-flight block we added,
+                    // even when the recorder reports a null/altered path.
+                    final String captureIdFromCallback = captureIdFromVideoAbsPath(filePath);
+                    final String captureId = captureIdFromCallback != null ? captureIdFromCallback : captureIdAtStart;
+
+                    // Block sync before clearing session state — no gap between active and pending.
+                    // Add to pending BEFORE removing from in-flight so a concurrent
+                    // getPendingVideoIntegrityCaptureIds() snapshot always observes the captureId in
+                    // at least one of the two sets (their union is what callers actually consume).
+                    if (captureId != null) {
+                        videoCaptureIdsPendingIntegrityCheck.add(captureId);
+                        Log.d(TAG, "Video capture pending integrity check: " + captureId);
+                    }
+                    if (captureIdAtStart != null) {
+                        videoCaptureIdsInFlight.remove(captureIdAtStart);
+                    }
+
+                    isRecordingVideo = false;
                     currentVideoId = null;
                     currentVideoPath = null;
 
-                    if (filePath == null || captureId == null) {
+                    if (filePath == null || captureIdFromCallback == null) {
                         Log.e(TAG, "onRecordingStopped received null filePath for " + pendingRequestId);
+                        if (captureId != null) {
+                            // Nothing to verify; release the pending block we just added.
+                            videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+                        }
                         if (mMediaCaptureListener != null) {
                             mMediaCaptureListener.onMediaError(
                                 pendingRequestId,
@@ -822,8 +859,6 @@ public class MediaCaptureService {
                         sendGalleryStatusUpdate();
                         return;
                     }
-
-                    videoCaptureIdsPendingIntegrityCheck.add(captureId);
 
                     try {
                         videoIntegrityExecutor.execute(() -> {
@@ -890,6 +925,16 @@ public class MediaCaptureService {
                 @Override
                 public void onRecordingError(String videoId, String errorMessage) {
                     Log.e(TAG, "Video recording error: " + videoId + ", error: " + errorMessage);
+                    // Release the exact ID we registered at start so the in-flight block can't
+                    // leak even if currentVideoPath has already been cleared.
+                    if (captureIdAtStart != null) {
+                        videoCaptureIdsInFlight.remove(captureIdAtStart);
+                        videoCaptureIdsPendingIntegrityCheck.remove(captureIdAtStart);
+                        Log.d(TAG, "Video capture unblocked from sync filters (error): " + captureIdAtStart);
+                    } else {
+                        clearVideoCaptureSyncBlocks(currentVideoPath);
+                    }
+
                     isRecordingVideo = false;
                     
                     // Turn off RGB white LED on error (error path may not go through stopVideoRecording)
@@ -930,6 +975,7 @@ public class MediaCaptureService {
             }
 
             // Reset state on error
+            clearVideoCaptureSyncBlocks(videoFilePath);
             currentVideoId = null;
             currentVideoPath = null;
         }
@@ -992,8 +1038,8 @@ public class MediaCaptureService {
 
             stopVideoRecordingLed(); // Stop white LED when video recording stops
 
-            // Stop the recording via CameraNeo
-            CameraNeo.stopVideoRecording(mContext, currentVideoId);
+            // Stop the recording via CameraNeoService
+            CameraNeoService.stopVideoRecording(mContext, currentVideoId);
 
         } catch (Exception e) {
             Log.e(TAG, "Error stopping video recording", e);
@@ -1040,18 +1086,31 @@ public class MediaCaptureService {
      * capture group from sync/download while recording is in progress.
      */
     public String getActiveRecordingCaptureId() {
-        if (!isRecordingVideo || currentVideoPath == null) {
+        if (currentVideoPath == null) {
             return null;
         }
         return captureIdFromVideoAbsPath(currentVideoPath);
     }
 
     /**
-     * Capture directory names (e.g. VID_xxx) whose recording has stopped but integrity check
-     * has not finished — excluded from Wi‑Fi sync/download alongside in-progress recordings.
+     * Capture directory names excluded from Wi‑Fi sync/download: in-flight recordings (path
+     * created through MediaRecorder prepare/start) and captures awaiting integrity validation.
      */
     public Set<String> getPendingVideoIntegrityCaptureIds() {
-        return Collections.unmodifiableSet(videoCaptureIdsPendingIntegrityCheck);
+        Set<String> blocked = new HashSet<>();
+        blocked.addAll(videoCaptureIdsInFlight);
+        blocked.addAll(videoCaptureIdsPendingIntegrityCheck);
+        return Collections.unmodifiableSet(blocked);
+    }
+
+    private void clearVideoCaptureSyncBlocks(String videoAbsPath) {
+        String captureId = captureIdFromVideoAbsPath(videoAbsPath);
+        if (captureId == null) {
+            return;
+        }
+        videoCaptureIdsInFlight.remove(captureId);
+        videoCaptureIdsPendingIntegrityCheck.remove(captureId);
+        Log.d(TAG, "Video capture unblocked from sync filters: " + captureId);
     }
 
     private static String captureIdFromVideoAbsPath(String absolutePath) {
@@ -1152,8 +1211,8 @@ public class MediaCaptureService {
             return;
         }
 
-        // Note: No need to check CameraNeo.isCameraInUse() for photos
-        // The camera's keep-alive system handles rapid photo taking gracefully
+        // Note: No isCapturingPhoto guard here — button photos enqueue into QueuedPhotoRequestQueue
+        // so rapid presses serialize through CameraNeoService burst reuse (not CAMERA_BUSY).
 
         // Add milliseconds and a random component to ensure uniqueness even in rapid capture
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date());
@@ -1208,13 +1267,14 @@ public class MediaCaptureService {
 
         // Use the new enqueuePhotoRequest for thread-safe rapid capture
         // isFromSdk=false because this is a button-triggered photo (local storage, high quality)
-        CameraNeo.enqueuePhotoRequest(
+        CameraNeoService.enqueuePhotoRequest(
                 mContext,
                 photoFilePath,
                 size,
                 enableFlash,
                 false,  // isFromSdk - button photo, use high quality resolution
-                new CameraNeo.PhotoCaptureCallback() {
+                null,  // exposureTimeNs — auto exposure for button photos
+                new CameraNeoService.PhotoCaptureCallback() {
                     @Override
                     public void onPhotoCaptured(String filePath) {
                         // Calculate end-to-end timing from request to capture
@@ -1225,7 +1285,7 @@ public class MediaCaptureService {
                         
                         Log.d(TAG, "Local photo captured successfully at: " + filePath);
                         
-                        // LED is now managed by CameraNeo and will turn off when camera closes
+                        // LED is now managed by CameraNeoService and will turn off when camera closes
                         
                         // Notify through standard capture listener if set up
                         if (mMediaCaptureListener != null) {
@@ -1241,7 +1301,7 @@ public class MediaCaptureService {
                     public void onPhotoError(String errorMessage) {
                         Log.e(TAG, "Failed to capture offline photo: " + errorMessage);
 
-                        // LED is now managed by CameraNeo and will turn off when camera closes
+                        // LED is now managed by CameraNeoService and will turn off when camera closes
 
                         if (mMediaCaptureListener != null) {
                             mMediaCaptureListener.onMediaError(requestId, errorMessage, MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
@@ -1262,8 +1322,9 @@ public class MediaCaptureService {
      * @param enableFlash Whether to enable privacy flash LED
      * @param enableSound Whether to enable shutter sound
      * @param compress Compression level (none, medium, heavy)
+     * @param exposureTimeNs optional sensor exposure time in nanoseconds for this capture only; {@code null} = auto
      */
-    public void takePhotoAndUpload(String photoFilePath, String requestId, String webhookUrl, String authToken, boolean save, String size, boolean enableFlash, boolean enableSound, String compress) {
+    public void takePhotoAndUpload(String photoFilePath, String requestId, String webhookUrl, String authToken, boolean save, String size, boolean enableFlash, boolean enableSound, String compress, Long exposureTimeNs) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
         recordTiming(requestId, "request_start");
@@ -1309,26 +1370,11 @@ public class MediaCaptureService {
             return;
         }
 
-        // Check if already uploading - skip request if busy
-        synchronized (uploadLock) {
-            if (isUploadingPhoto) {
-                Log.w(TAG, "🚫 Upload busy - skipping photo request: " + requestId);
-
-                // Send error response to phone using existing photo error function
-                sendPhotoErrorResponse(requestId, "UPLOAD_SYSTEM_BUSY", "Upload system busy - request skipped");
-
-                // Also notify local listener
-                if (mMediaCaptureListener != null) {
-                    mMediaCaptureListener.onMediaError(requestId, "Upload system busy - request skipped", MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
-                }
-                return;
-            }
-        }
-
-        // Check if camera capture is already in progress - reject concurrent SDK requests
-        if (!isCapturingPhoto.compareAndSet(false, true)) {
-            Log.w(TAG, "🚫 Camera busy - photo capture already in progress: " + requestId);
-            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo capture is in progress");
+        // Single-flight guard: reject if any photo job (capture or upload) is already in progress.
+        // The flag stays set across capture → upload; cleared only at terminal exits below.
+        if (!acquirePhotoJob(requestId)) {
+            Log.w(TAG, "🚫 Photo job in flight - rejecting concurrent request: " + requestId);
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo job is in progress");
             return;
         }
         startCaptureSafetyTimeout(requestId);
@@ -1348,12 +1394,11 @@ public class MediaCaptureService {
             mMediaCaptureListener.onPhotoCapturing(requestId);
         }
 
-        // LED control is now handled by CameraNeo tied to camera lifecycle
+        // LED control is now handled by CameraNeoService tied to camera lifecycle
 
         // TESTING: Check for fake camera capture failure
         if (PhotoCaptureTestFramework.shouldFail("CAMERA_CAPTURE")) {
-            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+            releasePhotoJob(requestId);
             Log.e(TAG, "TESTING: Simulating camera capture failure");
             sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
                 PhotoCaptureTestFramework.getErrorMessage());
@@ -1380,17 +1425,24 @@ public class MediaCaptureService {
             // Use the new enqueuePhotoRequest for thread-safe rapid capture
             // isFromSdk=true because this is an SDK-requested photo (take_photo command)
             recordTiming(requestId, "enqueue_camera");
-            CameraNeo.enqueuePhotoRequest(
+            if (exposureTimeNs != null && exposureTimeNs > 0L) {
+                Log.i(TAG, "Using manual exposure time right before picture request - ID: "
+                        + requestId + ", exposureTimeNs=" + exposureTimeNs + " ns");
+            }
+            CameraNeoService.enqueuePhotoRequest(
                     mContext,
                     photoFilePath,
                     size,
                     enableFlash,
                     true,  // isFromSdk - use optimized resolution for fast transfer
-                    new CameraNeo.PhotoCaptureCallback() {
+                    exposureTimeNs,
+                    new CameraNeoService.PhotoCaptureCallback() {
                         @Override
                         public void onPhotoCaptured(String filePath) {
-                            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+                            // NOTE: do NOT clear isPhotoJobInFlight here — the job continues
+                            // through the webhook upload phase below. Flag is cleared only at
+                            // terminal exits inside uploadPhotoToWebhook (or its BLE fallback).
+                            // Safety timeout stays armed to cover the upload phase too.
                             recordTiming(requestId, "photo_captured");
 
                             // Calculate end-to-end timing from request to capture
@@ -1401,7 +1453,7 @@ public class MediaCaptureService {
 
                             Log.d(TAG, "Photo captured successfully at: " + filePath);
 
-                            // LED is now managed by CameraNeo and will turn off when camera closes
+                            // LED is now managed by CameraNeoService and will turn off when camera closes
 
                             // Notify that we've captured the photo
                             if (mMediaCaptureListener != null) {
@@ -1414,17 +1466,19 @@ public class MediaCaptureService {
                                 // Upload directly to app webhook
                                 recordTiming(requestId, "upload_start");
                                 uploadPhotoToWebhook(filePath, requestId, webhookUrl, authToken, compress);
+                            } else {
+                                // No webhook → no upload phase to run. Job ends here.
+                                releasePhotoJob(requestId);
                             }
                         }
 
                         @Override
                         public void onPhotoError(String errorMessage) {
-                            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+                            releasePhotoJob(requestId);
 
                             Log.e(TAG, "Failed to capture photo: " + errorMessage);
 
-                            // LED is now managed by CameraNeo and will turn off when camera closes
+                            // LED is now managed by CameraNeoService and will turn off when camera closes
 
                             dumpTimings(requestId);
                             sendMediaErrorResponse(requestId, errorMessage, MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
@@ -1436,8 +1490,7 @@ public class MediaCaptureService {
                     }
             );
         } catch (Exception e) {
-            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+            releasePhotoJob(requestId);
             Log.e(TAG, "Error taking photo", e);
             sendMediaErrorResponse(requestId, "Error taking photo: " + e.getMessage(), MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
 
@@ -1449,49 +1502,69 @@ public class MediaCaptureService {
     }
 
     /**
-     * Check if currently uploading a photo
-     * @return true if upload is in progress, false otherwise
+     * Check if a photo job (capture or upload/BLE-handoff) is currently in progress.
+     * Used to reject concurrent SDK photo requests with CAMERA_BUSY.
      */
-    public boolean isUploadingPhoto() {
-        synchronized (uploadLock) {
-            return isUploadingPhoto;
+    public boolean isPhotoJobInFlight() {
+        return activePhotoJobRequestId.get() != null;
+    }
+
+    private boolean acquirePhotoJob(String requestId) {
+        return activePhotoJobRequestId.compareAndSet(null, requestId);
+    }
+
+    private void releasePhotoJob(String requestId) {
+        if (activePhotoJobRequestId.compareAndSet(requestId, null)) {
+            cancelCaptureSafetyTimeout(requestId);
+        } else {
+            Log.w(TAG, "Ignoring stale photo job release for " + requestId +
+                "; active job is " + activePhotoJobRequestId.get());
         }
     }
 
     /**
-     * Check if a photo capture is currently in progress.
-     * Used to reject concurrent SDK photo requests with CAMERA_BUSY.
-     */
-    public boolean isCapturingPhoto() {
-        return isCapturingPhoto.get();
-    }
-
-    /**
-     * Start the capture safety timeout. If the callback never fires
-     * (e.g., CameraNeo crashes, lock timeout, service destroyed),
-     * force-reset isCapturingPhoto after 15 seconds to prevent permanent lockout.
+     * Start the photo-job safety timeout. If no terminal callback fires
+     * (e.g., CameraNeo crashes, lock timeout, upload thread dies),
+     * force-reset isPhotoJobInFlight after CAPTURE_SAFETY_TIMEOUT_MS to prevent
+     * permanent lockout. Sized to outlast a slow webhook upload.
      */
     private void startCaptureSafetyTimeout(String requestId) {
-        cancelCaptureSafetyTimeout();
-        captureSafetyTimeout = () -> {
-            if (isCapturingPhoto.compareAndSet(true, false)) {
-                Log.e(TAG, "⚠️ SAFETY TIMEOUT: isCapturingPhoto force-reset after " +
-                    CAPTURE_SAFETY_TIMEOUT_MS + "ms - callback never fired for " + requestId);
+        Runnable timeout = new Runnable() {
+            @Override
+            public void run() {
+                if (!activePhotoJobRequestId.compareAndSet(requestId, null)) {
+                    return;
+                }
+                synchronized (captureSafetyTimeoutLock) {
+                    if (captureSafetyTimeout == this) {
+                        captureSafetyTimeout = null;
+                        captureSafetyTimeoutRequestId = null;
+                    }
+                }
+                Log.e(TAG, "⚠️ SAFETY TIMEOUT: isPhotoJobInFlight force-reset after " +
+                    CAPTURE_SAFETY_TIMEOUT_MS + "ms - no terminal callback fired for " + requestId);
                 dumpTimings(requestId);
                 sendPhotoErrorResponse(requestId, "CAPTURE_TIMEOUT",
-                    "Photo capture timed out on glasses - camera callback never fired");
+                    "Photo job timed out on glasses - no terminal callback fired");
             }
         };
-        mainHandler.postDelayed(captureSafetyTimeout, CAPTURE_SAFETY_TIMEOUT_MS);
+        synchronized (captureSafetyTimeoutLock) {
+            captureSafetyTimeout = timeout;
+            captureSafetyTimeoutRequestId = requestId;
+        }
+        mainHandler.postDelayed(timeout, CAPTURE_SAFETY_TIMEOUT_MS);
     }
 
     /**
      * Cancel the capture safety timeout (called when callback fires normally).
      */
-    private void cancelCaptureSafetyTimeout() {
-        if (captureSafetyTimeout != null) {
-            mainHandler.removeCallbacks(captureSafetyTimeout);
-            captureSafetyTimeout = null;
+    private void cancelCaptureSafetyTimeout(String requestId) {
+        synchronized (captureSafetyTimeoutLock) {
+            if (captureSafetyTimeout != null && requestId.equals(captureSafetyTimeoutRequestId)) {
+                mainHandler.removeCallbacks(captureSafetyTimeout);
+                captureSafetyTimeout = null;
+                captureSafetyTimeoutRequestId = null;
+            }
         }
     }
 
@@ -1537,21 +1610,22 @@ public class MediaCaptureService {
     private void uploadPhotoToWebhook(String photoFilePath, String requestId, String webhookUrl, String authToken, String compress) {
         // TESTING: Check for fake upload failure
         if (PhotoCaptureTestFramework.shouldFail("UPLOAD")) {
+            releasePhotoJob(requestId);
             Log.e(TAG, "TESTING: Simulating upload failure");
-            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(), 
+            sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
                 PhotoCaptureTestFramework.getErrorMessage());
             return;
         }
-        
+
         // TESTING: Add fake delay for upload
         PhotoCaptureTestFramework.addFakeDelay("UPLOAD");
 
-        // Set upload state to busy
+        // isPhotoJobInFlight is already true from takePhotoAndUpload entry; the job continues
+        // through the upload phase and is cleared at terminal exits in performDirectUpload
+        // (success, no-fallback failure, no-fallback exception) or by the BLE handoff path
+        // when a fallback runs.
         recordTiming(requestId, "webhook_upload_begin");
-        synchronized (uploadLock) {
-            isUploadingPhoto = true;
-            Log.d(TAG, "📤 Starting upload - system marked as busy: " + requestId);
-        }
+        Log.d(TAG, "📤 Starting upload for: " + requestId);
 
         // Process upload based on SDK compression setting
         processUploadWithCompression(photoFilePath, requestId, webhookUrl, authToken, compress);
@@ -1832,12 +1906,10 @@ public class MediaCaptureService {
                     if (mMediaCaptureListener != null) {
                         mMediaCaptureListener.onPhotoUploaded(requestId, webhookUrl);
                     }
-                    
-                    // Reset upload state
-                    synchronized (uploadLock) {
-                        isUploadingPhoto = false;
-                        Log.d(TAG, "✅ Upload completed - system marked as available");
-                    }
+
+                    // Terminal success — release the photo job.
+                    releasePhotoJob(requestId);
+                    Log.d(TAG, "✅ Photo job complete - system available: " + requestId);
                 } else {
                     String errorMessage = "Upload failed with status: " + response.code();
                     Log.e(TAG, "❌ " + errorMessage + " to webhook: " + webhookUrl);
@@ -1859,13 +1931,10 @@ public class MediaCaptureService {
                         if (requestedSize == null || requestedSize.isEmpty()) requestedSize = "medium";
                         // Reuse the existing photo file that was already captured
                         Log.d(TAG, "♻️ Reusing existing photo for BLE transfer");
-                        
-                        // Reset upload state before BLE fallback
-                        synchronized (uploadLock) {
-                            isUploadingPhoto = false;
-                            Log.d(TAG, "🔄 Upload failed, switching to BLE - system marked as available");
-                        }
-                        
+
+                        // Job continues into BLE fallback — do NOT clear isPhotoJobInFlight here.
+                        // compressAndSendViaBle's finally block owns the clear after handoff.
+                        Log.d(TAG, "🔄 Webhook failed, handing off to BLE transfer: " + requestId);
                         reusePhotoForBleTransfer(photoFilePath, requestId, bleImgId, shouldSave, requestedSize);
                         return; // Exit early - BLE transfer will handle cleanup
                     }
@@ -1900,12 +1969,10 @@ public class MediaCaptureService {
                     if (mMediaCaptureListener != null) {
                         mMediaCaptureListener.onMediaError(requestId, errorMessage, MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
                     }
-                    
-                    // Reset upload state
-                    synchronized (uploadLock) {
-                        isUploadingPhoto = false;
-                        Log.d(TAG, "❌ Upload failed - system marked as available");
-                    }
+
+                    // Terminal failure (no BLE fallback) — release the photo job.
+                    releasePhotoJob(requestId);
+                    Log.d(TAG, "❌ Photo job failed - system available: " + requestId);
                 }
 
                 response.close();
@@ -1931,13 +1998,10 @@ public class MediaCaptureService {
                     if (requestedSizeFallback1 == null || requestedSizeFallback1.isEmpty()) requestedSizeFallback1 = "medium";
                     // Reuse the existing photo file that was already captured
                     Log.d(TAG, "♻️ Reusing existing photo for BLE transfer");
-                    
-                    // Reset upload state before BLE fallback
-                    synchronized (uploadLock) {
-                        isUploadingPhoto = false;
-                        Log.d(TAG, "🔄 Upload exception, switching to BLE - system marked as available");
-                    }
-                    
+
+                    // Job continues into BLE fallback — do NOT clear isPhotoJobInFlight here.
+                    // compressAndSendViaBle's finally block owns the clear after handoff.
+                    Log.d(TAG, "🔄 Webhook exception, handing off to BLE transfer: " + requestId);
                     reusePhotoForBleTransfer(photoFilePath, requestId, bleImgId, shouldSaveFallback1, requestedSizeFallback1);
                     return; // Exit early - BLE transfer will handle cleanup
                 }
@@ -1973,12 +2037,10 @@ public class MediaCaptureService {
                 if (mMediaCaptureListener != null) {
                     mMediaCaptureListener.onMediaError(requestId, "Upload error: " + e.getMessage(), MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
                 }
-                
-                // Reset upload state
-                synchronized (uploadLock) {
-                    isUploadingPhoto = false;
-                    Log.d(TAG, "💥 Upload exception - system marked as available");
-                }
+
+                // Terminal exception (no BLE fallback) — release the photo job.
+                releasePhotoJob(requestId);
+                Log.d(TAG, "💥 Photo job exception - system available: " + requestId);
             }
         }).start();
     }
@@ -2206,8 +2268,9 @@ public class MediaCaptureService {
      * @param bleImgId BLE image ID for fallback
      * @param save Whether to keep the photo on device
      * @param compress Compression level (none, medium, heavy)
+     * @param exposureTimeNs optional sensor exposure time in nanoseconds for this capture only; {@code null} = auto
      */
-    public void takePhotoAutoTransfer(String photoFilePath, String requestId, String webhookUrl, String authToken, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound, String compress) {
+    public void takePhotoAutoTransfer(String photoFilePath, String requestId, String webhookUrl, String authToken, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound, String compress, Long exposureTimeNs) {
         // Check if camera HAL is restarting after FOV change
         if (CameraRestartCooldown.isActive()) {
             Log.w(TAG, "Cannot take photo - camera HAL restarting after FOV change");
@@ -2237,11 +2300,11 @@ public class MediaCaptureService {
             photoRequestedSizes.put(requestId, size);
 
             Log.d(TAG, "📶 WiFi connected - attempting direct upload for " + requestId);
-            takePhotoAndUpload(photoFilePath, requestId, webhookUrl, authToken, save, size, enableFlash, enableSound, compress);
+            takePhotoAndUpload(photoFilePath, requestId, webhookUrl, authToken, save, size, enableFlash, enableSound, compress, exposureTimeNs);
         } else {
             // No WiFi - skip webhook entirely, go straight to BLE (saves 2-5s timeout wait)
             Log.d(TAG, "📵 No WiFi - skipping webhook, using BLE transfer for " + requestId);
-            takePhotoForBleTransfer(photoFilePath, requestId, bleImgId, save, size, enableFlash, enableSound);
+            takePhotoForBleTransfer(photoFilePath, requestId, bleImgId, save, size, enableFlash, enableSound, exposureTimeNs);
         }
     }
 
@@ -2252,7 +2315,7 @@ public class MediaCaptureService {
      * @param bleImgId BLE image ID to use as filename
      * @param save Whether to keep the original photo on device
      */
-    public void takePhotoForBleTransfer(String photoFilePath, String requestId, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound) {
+    public void takePhotoForBleTransfer(String photoFilePath, String requestId, String bleImgId, boolean save, String size, boolean enableFlash, boolean enableSound, Long exposureTimeNs) {
         // Start timing for end-to-end photo capture performance measurement
         final long requestStartTimeMs = System.currentTimeMillis();
         recordTiming(requestId, "ble_request_start");
@@ -2296,10 +2359,11 @@ public class MediaCaptureService {
             return;
         }
 
-        // Check if camera capture is already in progress - reject concurrent SDK requests
-        if (!isCapturingPhoto.compareAndSet(false, true)) {
-            Log.w(TAG, "🚫 Camera busy - photo capture already in progress: " + requestId);
-            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo capture is in progress");
+        // Single-flight guard: reject if any photo job (capture or upload/BLE-handoff) is in flight.
+        // Flag stays set through capture → BLE compression → BLE handoff; cleared at terminal exits.
+        if (!acquirePhotoJob(requestId)) {
+            Log.w(TAG, "🚫 Photo job in flight - rejecting concurrent BLE request: " + requestId);
+            sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Another photo job is in progress");
             return;
         }
         startCaptureSafetyTimeout(requestId);
@@ -2313,12 +2377,11 @@ public class MediaCaptureService {
             mMediaCaptureListener.onPhotoCapturing(requestId);
         }
 
-        // LED control is now handled by CameraNeo tied to camera lifecycle
+        // LED control is now handled by CameraNeoService tied to camera lifecycle
 
         // TESTING: Check for fake camera capture failure
         if (PhotoCaptureTestFramework.shouldFail("CAMERA_CAPTURE")) {
-            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+            releasePhotoJob(requestId);
             Log.e(TAG, "TESTING: Simulating camera capture failure for BLE transfer - " +
                 PhotoCaptureTestFramework.getErrorCode() + ": " + PhotoCaptureTestFramework.getErrorMessage());
             sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
@@ -2341,16 +2404,21 @@ public class MediaCaptureService {
         }
 
         try {
-            // Use CameraNeo for photo capture
+            // Use CameraNeoService for photo capture
             recordTiming(requestId, "enqueue_camera");
-            CameraNeo.takePictureWithCallback(
+            CameraNeoService.enqueuePhotoRequest(
                     mContext,
                     photoFilePath,
-                    new CameraNeo.PhotoCaptureCallback() {
+                    size,
+                    enableFlash,
+                    true,  // isFromSdk — same sizing as webhook SDK path
+                    exposureTimeNs,
+                    new CameraNeoService.PhotoCaptureCallback() {
                         @Override
                         public void onPhotoCaptured(String filePath) {
-                            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+                            // NOTE: do NOT clear isPhotoJobInFlight here — the job continues
+                            // through BLE compression + handoff. Flag is cleared in
+                            // compressAndSendViaBle's finally block.
                             recordTiming(requestId, "photo_captured");
 
                             // Calculate end-to-end timing from request to capture
@@ -2361,7 +2429,7 @@ public class MediaCaptureService {
 
                             Log.d(TAG, "Photo captured successfully for BLE transfer: " + filePath);
 
-                            // LED is now managed by CameraNeo and will turn off when camera closes
+                            // LED is now managed by CameraNeoService and will turn off when camera closes
 
                             // Notify that we've captured the photo
                             if (mMediaCaptureListener != null) {
@@ -2375,12 +2443,11 @@ public class MediaCaptureService {
 
                         @Override
                         public void onPhotoError(String errorMessage) {
-                            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+                            releasePhotoJob(requestId);
 
                             Log.e(TAG, "Failed to capture photo for BLE: " + errorMessage);
 
-                            // LED is now managed by CameraNeo and will turn off when camera closes
+                            // LED is now managed by CameraNeoService and will turn off when camera closes
 
                             dumpTimings(requestId);
                             sendPhotoErrorResponse(requestId, "CAMERA_CAPTURE_FAILED", errorMessage);
@@ -2389,12 +2456,10 @@ public class MediaCaptureService {
                                 mMediaCaptureListener.onMediaError(requestId, errorMessage, MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
                             }
                         }
-                    },
-                    size
+                    }
             );
         } catch (Exception e) {
-            cancelCaptureSafetyTimeout();
-            isCapturingPhoto.set(false);
+            releasePhotoJob(requestId);
             Log.e(TAG, "Error taking photo for BLE", e);
             sendMediaErrorResponse(requestId, "Error taking photo: " + e.getMessage(), MediaUploadQueueManager.MEDIA_TYPE_PHOTO);
 
@@ -2414,6 +2479,11 @@ public class MediaCaptureService {
         if (RtmpStreamingService.isStreaming() || SrtStreamingService.isStreaming() || WhipStreamingService.isStreaming()) {
             Log.e(TAG, "Cannot transfer photo via BLE - streaming active");
             sendPhotoErrorResponse(requestId, "CAMERA_BUSY", "Camera busy with streaming");
+            photoSaveFlags.remove(requestId);
+            photoBleIds.remove(requestId);
+            photoOriginalPaths.remove(requestId);
+            photoRequestedSizes.remove(requestId);
+            releasePhotoJob(requestId);
             return;
         }
 
@@ -2444,12 +2514,13 @@ public class MediaCaptureService {
 
             // TESTING: Check for fake compression failure
             if (PhotoCaptureTestFramework.shouldFail("COMPRESSION")) {
+                releasePhotoJob(requestId);
                 Log.e(TAG, "TESTING: Simulating compression failure");
-                sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(), 
+                sendPhotoErrorResponse(requestId, PhotoCaptureTestFramework.getErrorCode(),
                     PhotoCaptureTestFramework.getErrorMessage());
                 return;
             }
-            
+
             // TESTING: Add fake delay for compression
             PhotoCaptureTestFramework.addFakeDelay("COMPRESSION");
 
@@ -2545,6 +2616,12 @@ public class MediaCaptureService {
 
                 // Clean up flag on error too
                 photoSaveFlags.remove(requestId);
+            } finally {
+                // BLE compress + handoff (or its failure) ends our authority over the photo
+                // job. From here, mServiceCallback.isBleTransferInProgress() is the active
+                // gate against new requests (enforced by PhotoCommandHandler).
+                releasePhotoJob(requestId);
+                Log.d(TAG, "📡 BLE handoff complete - photo job released: " + requestId);
             }
         }).start();
     }
@@ -2839,6 +2916,7 @@ public class MediaCaptureService {
                 videoIntegrityExecutor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
+            videoCaptureIdsInFlight.clear();
             videoCaptureIdsPendingIntegrityCheck.clear();
 
             Log.d(TAG, "✅ MediaCaptureService cleanup complete");
@@ -2862,8 +2940,20 @@ public class MediaCaptureService {
                 return;
             }
 
-            // Build gallery status using shared utility
-            JSONObject response = com.mentra.asg_client.utils.GalleryStatusHelper.buildGalleryStatus(fileManager);
+            // Snapshot sync-block state so the broadcast hides the same captures that the
+            // HTTP server hides (in-flight recordings, pending integrity checks, zero-byte primaries).
+            final String activeCaptureId = getActiveRecordingCaptureId();
+            final java.util.Set<String> blockedCaptureIds = getPendingVideoIntegrityCaptureIds();
+
+            // Build gallery status using shared utility with sync-safe filters
+            JSONObject response =
+                    com.mentra.asg_client.utils.GalleryStatusHelper.buildGalleryStatus(
+                            fileManager,
+                            metadata ->
+                                    !com.mentra.asg_client.utils.GallerySyncFilter.isCaptureBlockedFromSync(
+                                            metadata.getFileName(), activeCaptureId, blockedCaptureIds)
+                                            && !com.mentra.asg_client.utils.GallerySyncFilter.isZeroBytePrimaryVideo(
+                                                    metadata.getFileName(), metadata.getFileSize()));
 
             // Send through bluetooth if available
             if (mServiceCallback != null) {

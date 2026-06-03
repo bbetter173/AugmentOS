@@ -1,14 +1,13 @@
 import {DeviceTypes, getModelCapabilities} from "@/../../cloud/packages/types/src"
-import CoreModule, {GlassesNotReadyEvent} from "core"
-import {ReactNode, useState, useEffect} from "react"
-import {ActivityIndicator, Image, ImageSourcePropType, TouchableOpacity, View, ViewStyle} from "react-native"
+import BluetoothSdk, {GlassesNotReadyEvent} from "@mentra/bluetooth-sdk-internal"
+import {useState, useEffect, type ReactNode} from "react"
+import {ActivityIndicator, Image, TouchableOpacity, View, type ImageSourcePropType, type ViewStyle} from "react-native"
 import GlassView from "@/components/ui/GlassView"
 import {Button, Icon, Text} from "@/components/ignite"
-import ConnectedSimulatedGlassesInfo from "@/components/mirror/ConnectedSimulatedGlassesInfo"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n"
-import {useGlassesStore} from "@/stores/glasses"
+import {isGlassesConnected, isGlassesReady, useGlassesStore} from "@/stores/glasses"
 import {useSearchingState} from "@/hooks/useSearchingState"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
@@ -22,6 +21,7 @@ import {
 
 import MicIcon from "assets/icons/component/MicIcon"
 import {useCoreStore} from "@/stores/core"
+import GlassesDisplayMirror from "@/components/mirror/GlassesDisplayMirror"
 
 const getBatteryIcon = (batteryLevel: number): string => {
   if (batteryLevel >= 75) return "battery-3"
@@ -42,12 +42,7 @@ type DeviceStatusProps = {
   className?: string
 }
 
-export const DeviceStatus = ({
-  onPress,
-  image,
-  children,
-  className = "h-28",
-}: DeviceStatusProps) => {
+export const DeviceStatus = ({onPress, image, children, className = "h-28"}: DeviceStatusProps) => {
   return (
     <TouchableOpacity onPress={onPress} className={className}>
       <GlassView className="px-6 justify-center flex-1 rounded-2xl flex-row gap-2 h-full">
@@ -64,12 +59,12 @@ export const DeviceStatus = ({
 
 export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   const {theme} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false)
-  const glassesConnected = useGlassesStore((state) => state.connected)
-  const glassesFullyBooted = useGlassesStore((state) => state.fullyBooted)
-  const glassesConnectionState = useGlassesStore((state) => state.connectionState)
+  const glassesConnection = useGlassesStore((state) => state.connection)
+  const glassesConnected = isGlassesConnected(glassesConnection)
+  const glassesFullyBooted = isGlassesReady(glassesConnection)
   const glassesStyle = useGlassesStore((state) => state.style)
   const color = useGlassesStore((state) => state.color)
   const caseRemoved = useGlassesStore((state) => state.caseRemoved)
@@ -77,13 +72,13 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   const caseOpen = useGlassesStore((state) => state.caseOpen)
   const batteryLevel = useGlassesStore((state) => state.batteryLevel)
   const charging = useGlassesStore((state) => state.charging)
-  const wifiConnected = useGlassesStore((state) => state.wifiConnected)
+  const wifiConnected = useGlassesStore((state) => state.wifi.state === "connected")
   const searching = useCoreStore((state) => state.searching)
   const [showGlassesBooting, setShowGlassesBooting] = useState(false)
 
   // Listen for glasses_not_ready event to know when glasses are actually booting
   useEffect(() => {
-    const sub = CoreModule.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
+    const sub = BluetoothSdk.addListener("glasses_not_ready", (_event: GlassesNotReadyEvent) => {
       setShowGlassesBooting(true)
     })
     return () => {
@@ -98,17 +93,33 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
     }
   }, [glassesFullyBooted, glassesConnected])
 
-  const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnectionState)
+  const {wasSearching, nativeLinkBusy, resetSearching} = useSearchingState(searching, glassesConnection)
 
   if (defaultWearable.includes(DeviceTypes.SIMULATED)) {
     return (
-      <ConnectedSimulatedGlassesInfo style={style} mirrorStyle={{backgroundColor: theme.colors.primary_foreground}} />
+      <GlassView className="bg-primary-foreground p-5" style={style}>
+        <View className="flex-row justify-between items-center mb-4">
+          <Text className="font-semibold text-secondary-foreground text-lg" tx="onboarding:phoneMode" />
+        </View>
+        <GlassesDisplayMirror fallbackMessage="Glasses mirror" style={{backgroundColor: theme.colors.background}} />
+        {/* <TouchableOpacity style={{position: "absolute", bottom: 10, right: 10}} onPress={navigateToFullScreen}>
+          <Icon name="fullscreen" size={24} color={theme.colors.secondary_foreground} />
+        </TouchableOpacity> */}
+        <Button
+          className="mt-3"
+          flex={false}
+          flexContainer={false}
+          tx="home:connectGlasses"
+          preset="primary"
+          onPress={() => push("/pairing/select-glasses-model", {transition: "simple_push"})}
+        />
+      </GlassView>
     )
   }
 
   const connectGlasses = async () => {
     if (!defaultWearable) {
-      push("/pairing/select-glasses-model")
+      push("/pairing/select-glasses-model", {transition: "simple_push"})
       return
     }
 
@@ -118,16 +129,16 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
       if (!requirementsCheck) {
         return
       }
+      await BluetoothSdk.connectDefault()
     } catch (error) {
       console.error("connect to glasses error:", error)
       showAlert("Connection Error", "Failed to connect to glasses. Please try again.", [{text: "OK"}])
     }
-    await CoreModule.connectDefault()
   }
 
   const handleConnectOrDisconnect = async () => {
     if (searching || nativeLinkBusy) {
-      await CoreModule.disconnect()
+      await BluetoothSdk.disconnect()
       setIsCheckingConnectivity(false)
       resetSearching()
     } else {
@@ -154,15 +165,16 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   let isSearching = searching || isCheckingConnectivity || wasSearching || nativeLinkBusy
-  let connectingText = translate("home:connectingGlasses")
+  let _connectingText = translate("home:connectingGlasses")
+  // Only show booting message when we've received a glasses_not_ready event
   if (showGlassesBooting) {
-    connectingText = "Glasses are booting..."
+    _connectingText = "Glasses are booting..."
   } else if (nativeLinkBusy && !searching) {
-    connectingText = translate("glasses:glassesAreReconnecting")
+    _connectingText = translate("glasses:glassesAreReconnecting")
   }
 
   const features = getModelCapabilities(defaultWearable)
-  const onPress = () => push("/miniapps/settings/glasses")
+  const onPress = () => push("/miniapps/settings/glasses", {transition: "simple_push"})
 
   if (!glassesConnected || !glassesFullyBooted || isSearching) {
     return (
@@ -216,11 +228,17 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
         <Icon name="bluetooth-connected" size={22} color={theme.colors.foreground} />
         {features?.hasWifi &&
           (wifiConnected ? (
-            <Button compactIcon className="bg-transparent -m-2" onPress={() => push("/wifi/scan")}>
+            <Button
+              compactIcon
+              className="bg-transparent -m-2"
+              onPress={() => push("/wifi/scan", {transition: "simple_push"})}>
               <Icon name="wifi" size={18} color={theme.colors.foreground} />
             </Button>
           ) : (
-            <Button compactIcon className="bg-transparent -m-2" onPress={() => push("/wifi/scan")}>
+            <Button
+              compactIcon
+              className="bg-transparent -m-2"
+              onPress={() => push("/wifi/scan", {transition: "simple_push"})}>
               <Icon name="wifi-off" size={18} color={theme.colors.foreground} />
             </Button>
           ))}
@@ -231,7 +249,7 @@ export const GlassesStatus = ({style}: {style?: ViewStyle}) => {
 
 export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
   const {theme} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [defaultController] = useSetting(SETTINGS.default_controller.key)
   const controllerConnected = useGlassesStore((state) => state.controllerConnected)
   const controllerFullyBooted = useGlassesStore((state) => state.controllerFullyBooted)
@@ -240,9 +258,9 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
 
   const handleConnectOrDisconnect = async () => {
     if (isSearching) {
-      await CoreModule.disconnectController()
+      await BluetoothSdk.disconnectController()
     } else {
-      await CoreModule.connectDefaultController()
+      await BluetoothSdk.connectDefaultController()
     }
   }
 
@@ -252,7 +270,7 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
     return null
   }
 
-  const onPress = () => push("/miniapps/settings/controller")
+  const onPress = () => push("/miniapps/settings/controller", {transition: "simple_push"})
 
   if (!controllerConnected || !controllerFullyBooted) {
     return (
@@ -289,19 +307,12 @@ export const ControllerStatus = ({style}: {style?: ViewStyle}) => {
   }
 
   return (
-    <DeviceStatus
-      onPress={onPress}
-      image={getCurrentGlassesImage()}
-      className="h-28 mt-2">
+    <DeviceStatus onPress={onPress} image={getCurrentGlassesImage()} className="h-28 mt-2">
       <Text className="font-semibold text-secondary-foreground text-base" text={defaultController} />
       <View className="flex-row items-center gap-3">
         {controllerBatteryLevel !== -1 && (
           <View className="flex-row items-center gap-1">
-            <Icon
-              name={getBatteryIcon(controllerBatteryLevel) as any}
-              size={22}
-              color={theme.colors.foreground}
-            />
+            <Icon name={getBatteryIcon(controllerBatteryLevel) as any} size={22} color={theme.colors.foreground} />
             <Text className="text-secondary-foreground text-sm" text={`${controllerBatteryLevel}%`} />
           </View>
         )}

@@ -5,11 +5,12 @@ import {View, ViewStyle, ActivityIndicator, Platform, Animated, ScrollView} from
 
 import {MentraLogoStandalone} from "@/components/brands/MentraLogoStandalone"
 import {Text, Button, Header, Icon} from "@/components/ignite"
-import {focusEffectPreventBack, useNavigationHistory} from "@/contexts/NavigationHistoryContext"
+import {focusEffectPreventBack} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {SETTINGS, useSetting} from "@/stores/settings"
 import {translate} from "@/i18n/translate"
-import {BgTimer} from "@/utils/timers"
+import {BgTimer} from "@mentra/island"
 
 interface BaseStep {
   name: string
@@ -24,7 +25,11 @@ interface BaseStep {
   bullets?: string[]
   numberedBullets?: string[]
   fadeOut?: boolean // if true, the step will fade out after the duration
-  waitFn?: () => Promise<void>
+  // Resolves when the step's required user action is detected. Receives an
+  // AbortSignal that fires when the step is left or the component re-renders;
+  // implementations MUST remove any event listeners they register when aborted,
+  // otherwise listeners leak across re-renders (see OnboardingGuide waitFn effect).
+  waitFn?: (signal: AbortSignal) => Promise<void>
 }
 
 interface VideoStep extends BaseStep {
@@ -87,7 +92,7 @@ export function OnboardingGuide({
   preventBack = false,
   requiresGlassesConnection: _requiresGlassesConnection = false,
 }: OnboardingGuideProps) {
-  const {clearHistoryAndGoHome} = useNavigationHistory()
+  const {clearHistoryAndGoHome} = useNavigationStore.getState()
   const {theme} = useAppTheme()
   const [superMode] = useSetting(SETTINGS.super_mode.key)
 
@@ -755,20 +760,27 @@ export function OnboardingGuide({
   useEffect(() => {
     if (!step.waitFn) return
 
-    let cancelled = false
+    const controller = new AbortController()
+    let advanceTimer: number | null = null
     setWaitState(true)
 
-    step.waitFn().then(() => {
-      if (cancelled) return
+    step.waitFn(controller.signal).then(() => {
+      if (controller.signal.aborted) return
       setWaitState(false)
-      BgTimer.setTimeout(() => {
-        if (cancelled) return
+      advanceTimer = BgTimer.setTimeout(() => {
+        if (controller.signal.aborted) return
         handleNext(true)
       }, 1500)
     })
 
     return () => {
-      cancelled = true
+      // Abort signals the waitFn to remove its event listener(s); without this
+      // every re-render leaks a button_press/touch_event listener and the step
+      // can resolve from a stale subscription, breaking photo/video detection.
+      controller.abort()
+      if (advanceTimer != null) {
+        BgTimer.clearTimeout(advanceTimer)
+      }
     }
   }, [step.waitFn])
 

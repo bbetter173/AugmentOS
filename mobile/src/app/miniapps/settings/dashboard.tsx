@@ -6,22 +6,22 @@ import {Header, Screen} from "@/components/ignite"
 import HeadUpAngleComponent from "@/components/settings/HeadUpAngleComponent"
 import ToggleSetting from "@/components/settings/ToggleSetting"
 import {RouteButton} from "@/components/ui/RouteButton"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import {translate} from "@/i18n/translate"
-import {useGlassesStore} from "@/stores/glasses"
+import {selectGlassesConnected, useGlassesStore} from "@/stores/glasses"
 import {SETTINGS, useSetting} from "@/stores/settings"
 
 export default function DashboardSettingsScreen() {
   const {theme} = useAppTheme()
-  const {goBack} = useNavigationHistory()
+  const {goBack} = useNavigationStore.getState()
   const [headUpAngleComponentVisible, setHeadUpAngleComponentVisible] = useState(false)
   const [defaultWearable] = useSetting(SETTINGS.default_wearable.key)
   const [headUpAngle, setHeadUpAngle] = useSetting(SETTINGS.head_up_angle.key)
   const [contextualDashboardEnabled, setContextualDashboardEnabled] = useSetting(SETTINGS.contextual_dashboard.key)
   const [metricSystemEnabled, setMetricSystemEnabled] = useSetting(SETTINGS.metric_system.key)
   const features = getModelCapabilities(defaultWearable)
-  const glassesConnected = useGlassesStore((state) => state.connected)
+  const glassesConnected = useGlassesStore(selectGlassesConnected)
 
   // -- Handlers --
   const toggleContextualDashboard = async () => {

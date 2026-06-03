@@ -1,19 +1,31 @@
-import CoreModule from "core"
+import {type RgbLedControlResponseEvent, type TouchEvent} from "@mentra/bluetooth-sdk"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
+import {
+  displayProcessor,
+  localMiniappRuntime,
+  localSttFallbackCoordinator,
+  micStateCoordinator,
+  throttle,
+} from "@mentra/island"
 
-import {push} from "@/contexts/NavigationHistoryContext"
 import audioPlaybackService from "@/services/AudioPlaybackService"
-import displayProcessor from "@/services/DisplayProcessor"
 import mantle from "@/services/MantleManager"
+import restComms from "@/services/RestComms"
+import {
+  normalizePhotoCompression,
+  normalizePhotoSize,
+  normalizeRgbLedAction,
+  normalizeRgbLedColor,
+} from "@/services/SocketComms.normalizers"
 import udp from "@/services/UdpManager"
 import ws from "@/services/WebSocketManager"
-import {useAppletStatusStore} from "@/stores/applets"
+import miniappCatalog from "@/services/miniapps/MiniappCatalog"
 import {useDisplayStore} from "@/stores/display"
-import {useGlassesStore} from "@/stores/glasses"
-import {useSettingsStore, SETTINGS} from "@/stores/settings"
+import {isGlassesConnected, useGlassesStore} from "@/stores/glasses"
+import {useNavigationStore} from "@/stores/navigation"
+import {SETTINGS, useSettingsStore} from "@/stores/settings"
 import {showAlert} from "@/utils/AlertUtils"
-import restComms from "@/services/RestComms"
 import {checkFeaturePermissions, PermissionFeatures} from "@/utils/PermissionsUtils"
-import {throttle} from "@/utils/timers"
 
 class SocketComms {
   private static instance: SocketComms | null = null
@@ -106,12 +118,13 @@ class SocketComms {
     const glassesInfo = useGlassesStore.getState()
 
     // Always include WiFi info - null means "unknown", false means "explicitly disconnected"
+    const wifi = glassesInfo.wifi
     const wifiInfo = {
-      connected: glassesInfo.wifiConnected ?? null,
-      ssid: glassesInfo.wifiSsid ?? null,
+      connected: glassesInfo.wifiStatusKnown ? wifi.state === "connected" : null,
+      ssid: wifi.state === "connected" ? wifi.ssid : null,
     }
 
-    const connected = glassesInfo.connected
+    const connected = isGlassesConnected(glassesInfo.connection)
 
     ws.sendText(
       JSON.stringify({
@@ -125,14 +138,14 @@ class SocketComms {
     )
   }
 
-  public sendBatteryStatus(): void {
-    const batteryLevel = useGlassesStore.getState().batteryLevel
-    const charging = useGlassesStore.getState().charging
+  public sendBatteryStatus(level?: number, charging?: boolean, timestamp: number = Date.now()): void {
+    const batteryLevel = level ?? useGlassesStore.getState().batteryLevel
+    const isCharging = charging ?? useGlassesStore.getState().charging
     const msg = {
       type: "glasses_battery_update",
       level: batteryLevel,
-      charging: charging,
-      timestamp: Date.now(),
+      charging: isCharging,
+      timestamp,
     }
     ws.sendText(JSON.stringify(msg))
   }
@@ -192,18 +205,6 @@ class SocketComms {
     ws.sendText(jsonString)
   }
 
-  public sendPhotoResponse(requestId: string, photoUrl: string) {
-    const event = {
-      type: "photo_response",
-      requestId: requestId,
-      photoUrl: photoUrl,
-      timestamp: Date.now(),
-    }
-
-    const jsonString = JSON.stringify(event)
-    ws.sendText(jsonString)
-  }
-
   public sendVideoStreamResponse(appId: string, streamUrl: string) {
     const event = {
       type: "video_stream_response",
@@ -216,11 +217,11 @@ class SocketComms {
     ws.sendText(jsonString)
   }
 
-  public sendTouchEvent(event: {device_model: string; gesture_name: string; timestamp: number}) {
+  public sendTouchEvent(event: TouchEvent) {
     const payload = {
       type: "touch_event",
-      device_model: event.device_model,
-      gesture_name: event.gesture_name,
+      device_model: event.deviceModel,
+      gesture_name: event.gestureName,
       timestamp: event.timestamp,
     }
     ws.sendText(JSON.stringify(payload))
@@ -235,6 +236,20 @@ class SocketComms {
     ws.sendText(JSON.stringify(payload))
   }
 
+  /** Send an arbitrary message over the phone↔cloud WebSocket. */
+  public sendMessage(msg: object) {
+    ws.sendText(JSON.stringify(msg))
+  }
+
+  public updatePhoneSubscriptions(subscriptions: string[]) {
+    const msg = {
+      type: "phone_subscription_update",
+      subscriptions,
+      timestamp: new Date().toISOString(),
+    }
+    ws.sendText(JSON.stringify(msg))
+  }
+
   public sendSwitchStatus(switchType: number, switchValue: number, timestamp: number) {
     const payload = {
       type: "switch_status",
@@ -245,18 +260,18 @@ class SocketComms {
     ws.sendText(JSON.stringify(payload))
   }
 
-  public sendRgbLedControlResponse(requestId: string, success: boolean, errorMessage?: string | null) {
-    if (!requestId) {
+  public sendRgbLedControlResponse(event: RgbLedControlResponseEvent) {
+    if (!event.requestId) {
       console.log("SOCKET: Skipping RGB LED control response - missing requestId")
       return
     }
-    const payload: any = {
+    const payload: {type: string; requestId: string; success: boolean; error?: string} = {
       type: "rgb_led_control_response",
-      requestId,
-      success,
+      requestId: event.requestId,
+      success: event.state === "success",
     }
-    if (errorMessage) {
-      payload.error = errorMessage
+    if (event.state === "error") {
+      payload.error = event.errorCode
     }
     ws.sendText(JSON.stringify(payload))
   }
@@ -404,7 +419,7 @@ class SocketComms {
   }
 
   private refreshAppletsThrottled = throttle(() => {
-    useAppletStatusStore.getState().refreshApplets()
+    void miniappCatalog.refresh()
   }, 500)
 
   private handle_app_state_change(msg: any) {
@@ -422,10 +437,11 @@ class SocketComms {
   }
 
   private async handle_microphone_state_change(msg: any) {
-    // const bypassVad = msg.bypassVad ?? true
-    const bypassVad = true
     const requiredDataStrings = msg.requiredData || []
-    console.log(`SOCKET: mic_state_change: requiredData = [${requiredDataStrings}], bypassVad = ${bypassVad}`)
+    const voiceActivityDetectionEnabled = typeof msg.bypassVad === "boolean" ? !msg.bypassVad : undefined
+    console.log(
+      `SOCKET: mic_state_change: requiredData = [${requiredDataStrings}], voiceActivityDetectionEnabled = ${voiceActivityDetectionEnabled}`,
+    )
     let shouldSendPcmData = false
     let shouldSendTranscript = false
     if (requiredDataStrings.includes("pcm")) {
@@ -451,11 +467,11 @@ class SocketComms {
       }
     }
 
-    CoreModule.update("core", {
-      // should_send_pcm: shouldSendPcmData,
-      should_send_lc3: shouldSendPcmData, // online apps always want lc3
-      should_send_transcript: shouldSendTranscript,
-      bypass_vad: bypassVad,
+    micStateCoordinator.setCloudRequirements({
+      pcm: !!shouldSendPcmData,
+      lc3: !!shouldSendPcmData, // online apps always want lc3
+      transcript: !!shouldSendTranscript,
+      ...(voiceActivityDetectionEnabled === undefined ? {} : {voiceActivityDetectionEnabled}),
     })
   }
 
@@ -473,7 +489,7 @@ class SocketComms {
       processedEvent = msg
     }
 
-    CoreModule.displayEvent(processedEvent)
+    BluetoothSdk.displayEvent(processedEvent)
     const displayEventStr = JSON.stringify(processedEvent)
     useDisplayStore.getState().setDisplayEvent(displayEventStr)
   }
@@ -507,64 +523,84 @@ class SocketComms {
       return
     }
     console.log(`SOCKET: Received app_started message for package: ${msg.packageName}`)
-    useAppletStatusStore.getState().refreshApplets()
+    void miniappCatalog.refresh()
   }
   private handle_app_stopped(msg: any) {
     console.log(`SOCKET: Received app_stopped message for package: ${msg.packageName}`)
-    useAppletStatusStore.getState().refreshApplets()
+    void miniappCatalog.refresh()
   }
 
   private handle_photo_request(msg: any) {
     const requestId = msg.requestId ?? ""
     const appId = msg.appId ?? ""
     const webhookUrl = msg.webhookUrl ?? ""
-    const size = msg.size ?? "medium"
-    const authToken = msg.authToken ?? ""
-    const compress = msg.compress ?? "none"
-    const flash = msg.flash ?? true
+    const size = normalizePhotoSize(msg.size)
+    const authToken = typeof msg.authToken === "string" && msg.authToken.length > 0 ? msg.authToken : null
+    const compress = normalizePhotoCompression(msg.compress)
     const sound = msg.sound ?? true
+    const rawExp = msg.exposureTimeNs
+    const exposureTimeNs = typeof rawExp === "number" && Number.isFinite(rawExp) && rawExp > 0 ? rawExp : null
     console.log(
-      `Received photo_request, requestId: ${requestId}, appId: ${appId}, webhookUrl: ${webhookUrl}, size: ${size} authToken: ${authToken} compress: ${compress} flash: ${flash} sound: ${sound}`,
+      `SOCKET: PHOTO PIPELINE [1/6] Received photo_request requestId=${requestId} appId=${appId} webhookUrl=${webhookUrl} size=${size} compress=${compress} sound=${sound} exposureTimeNs=${exposureTimeNs ?? "none"} authToken=${authToken ? "set" : "none"}`,
     )
     if (!requestId || !appId) {
-      console.log("Invalid photo request: missing requestId or appId")
+      console.log(
+        `SOCKET: PHOTO PIPELINE — invalid photo_request (missing requestId=${requestId || "empty"} or appId=${appId || "empty"})`,
+      )
       return
     }
-    // Parameter order: requestId, appId, size, webhookUrl, authToken, compress, flash, sound
-    CoreModule.photoRequest(requestId, appId, size, webhookUrl, authToken, compress, flash, sound)
+    console.log(`SOCKET: PHOTO PIPELINE [2/6] Forwarding to BluetoothSdk.requestPhoto requestId=${requestId}`)
+    void BluetoothSdk.requestPhoto({
+      requestId,
+      appId,
+      size,
+      webhookUrl,
+      authToken,
+      compress,
+      sound,
+      exposureTimeNs,
+    })
+      .then(() => {
+        console.log(`SOCKET: PHOTO PIPELINE [3/6] BluetoothSdk.requestPhoto resolved requestId=${requestId}`)
+      })
+      .catch((err: unknown) => {
+        console.log(
+          `SOCKET: PHOTO PIPELINE — BluetoothSdk.requestPhoto failed requestId=${requestId}:`,
+          err instanceof Error ? err.message : err,
+        )
+      })
   }
 
   private handle_start_stream(msg: any) {
     const streamUrl = msg.streamUrl
     if (streamUrl) {
-      CoreModule.startStream(msg)
+      BluetoothSdk.startStream(msg)
     } else {
       console.log("Invalid stream request: missing stream URL")
     }
   }
 
   private handle_stop_stream() {
-    CoreModule.stopStream()
+    BluetoothSdk.stopStream()
   }
 
   private handle_keep_stream_alive(msg: any) {
     console.log(`SOCKET: Received KEEP_STREAM_ALIVE: ${JSON.stringify(msg)}`)
-    CoreModule.keepStreamAlive(msg)
+    BluetoothSdk.keepStreamAlive(msg)
   }
 
   private handle_start_video_recording(msg: any) {
     console.log(`SOCKET: Received START_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const videoRequestId = msg.requestId || `video_${Date.now()}`
     const save = msg.save !== false
-    const flash = msg.flash ?? true
     const sound = msg.sound ?? true
-    CoreModule.startVideoRecording(videoRequestId, save, flash, sound)
+    BluetoothSdk.startVideoRecording(videoRequestId, save, sound)
   }
 
   private handle_stop_video_recording(msg: any) {
     console.log(`SOCKET: Received STOP_VIDEO_RECORDING: ${JSON.stringify(msg)}`)
     const stopRequestId = msg.requestId || ""
-    CoreModule.stopVideoRecording(stopRequestId)
+    BluetoothSdk.stopVideoRecording(stopRequestId)
   }
 
   private handle_rgb_led_control(msg: any) {
@@ -578,11 +614,11 @@ class SocketComms {
       return Number.isFinite(coerced) ? coerced : fallback
     }
 
-    CoreModule.rgbLedControl(
+    BluetoothSdk.rgbLedControl(
       msg.requestId,
       msg.packageName ?? null,
-      msg.action ?? "off",
-      msg.color ?? null,
+      normalizeRgbLedAction(msg.action),
+      normalizeRgbLedColor(msg.color),
       coerceNumber(msg.ontime, 1000),
       coerceNumber(msg.offtime, 0),
       coerceNumber(msg.count, 1),
@@ -609,7 +645,8 @@ class SocketComms {
         {
           text: "Setup WiFi",
           onPress: () => {
-            push("/wifi/scan")
+            const nav = useNavigationStore.getState()
+            nav.push("/wifi/scan")
           },
         },
       ],
@@ -768,6 +805,22 @@ class SocketComms {
 
       case "udp_ping_ack":
         this.handle_udp_ping_ack(msg)
+        break
+
+      case "data_stream": {
+        const streamType = msg.streamType
+        if (typeof streamType === "string" && streamType.startsWith("transcription:")) {
+          localSttFallbackCoordinator.onCloudTranscript()
+        }
+        localMiniappRuntime.forwardEvent(streamType, msg.data)
+        break
+      }
+
+      case "phone_photo_ready":
+      case "phone_stream_status":
+      case "phone_managed_stream_status":
+        // Forward Phase 5 messages to LocalMiniappRuntime
+        localMiniappRuntime.handleCloudMessage(msg)
         break
 
       default:

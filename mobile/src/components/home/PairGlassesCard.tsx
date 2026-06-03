@@ -1,15 +1,15 @@
 import {View, ViewStyle} from "react-native"
 
 import {Button, Text} from "@/components/ignite"
-import {useNavigationHistory} from "@/contexts/NavigationHistoryContext"
 import {useAppTheme} from "@/contexts/ThemeContext"
+import {useNavigationStore} from "@/stores/navigation"
 import GlassView from "@/components/ui/GlassView"
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {useState} from "react"
 
 export const PairGlassesCard = ({style}: {style?: ViewStyle}) => {
   const {theme} = useAppTheme()
-  const {push} = useNavigationHistory()
+  const {push} = useNavigationStore.getState()
   const [started, setStarted] = useState(false)
 
   if (!started) {
@@ -46,7 +46,7 @@ export const PairGlassesCard = ({style}: {style?: ViewStyle}) => {
           tx="home:start"
           preset="primary"
           onPress={() => {
-            CoreModule.connectSimulated()
+            BluetoothSdk.connectSimulated()
           }}
         />
         <Button

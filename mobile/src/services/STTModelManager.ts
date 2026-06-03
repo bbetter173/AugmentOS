@@ -1,4 +1,4 @@
-import CoreModule from "core"
+import BluetoothSdk from "@mentra/bluetooth-sdk-internal"
 import {Platform} from "react-native"
 import * as RNFS from "@dr.pogodin/react-native-fs"
 
@@ -78,6 +78,36 @@ class STTModelManager {
       requiredFiles: ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"],
       languageCode: "ko-KR",
     },
+    // Kroko streaming zipformer models (Aug 2025) — small footprint (~60-125MB).
+    // Uncomment to expand language support. Kroko claims competitive WER vs Whisper v3
+    // on non-English languages but publishes no standardized benchmarks; test before shipping.
+    // "sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06": {
+    //   id: "sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06",
+    //   displayName: "French",
+    //   fileName: "sherpa-onnx-streaming-zipformer-fr-kroko-2025-08-06",
+    //   size: 57 * 1024 * 1024, // 57MB
+    //   type: "transducer",
+    //   requiredFiles: ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"],
+    //   languageCode: "fr-FR",
+    // },
+    // "sherpa-onnx-streaming-zipformer-de-kroko-2025-08-06": {
+    //   id: "sherpa-onnx-streaming-zipformer-de-kroko-2025-08-06",
+    //   displayName: "German",
+    //   fileName: "sherpa-onnx-streaming-zipformer-de-kroko-2025-08-06",
+    //   size: 58 * 1024 * 1024, // 58MB
+    //   type: "transducer",
+    //   requiredFiles: ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"],
+    //   languageCode: "de-DE",
+    // },
+    // "sherpa-onnx-streaming-zipformer-es-kroko-2025-08-06": {
+    //   id: "sherpa-onnx-streaming-zipformer-es-kroko-2025-08-06",
+    //   displayName: "Spanish",
+    //   fileName: "sherpa-onnx-streaming-zipformer-es-kroko-2025-08-06",
+    //   size: 124 * 1024 * 1024, // 124MB
+    //   type: "transducer",
+    //   requiredFiles: ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"],
+    //   languageCode: "es-ES",
+    // },
     // NOTE (yash): commenting this one for now because sherpa doesn't provide the language for multilingual models. And our current cloud architecture depends on the language
     // "sherpa-onnx-nemo-fast-conformer-ctc-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8": {
     //   id: "sherpa-onnx-nemo-fast-conformer-ctc-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8",
@@ -108,7 +138,7 @@ class STTModelManager {
 
   async getCurrentModelIdFromPreferences(): Promise<string> {
     try {
-      let path = await CoreModule.getSttModelPath()
+      let path = await BluetoothSdk.getSttModelPath()
       const modelId = path && path.length > 0 ? this.getModelIdFromPath(path) : ""
 
       this.setCurrentModelId(modelId)
@@ -127,6 +157,11 @@ class STTModelManager {
     if (this.models[modelId]) {
       this.currentModelId = modelId
     }
+  }
+
+  getLanguageForModel(modelId?: string): string {
+    const id = modelId || this.currentModelId
+    return this.models[id]?.languageCode ?? "en-US"
   }
 
   getAvailableModels(): ModelConfig[] {
@@ -181,7 +216,7 @@ class STTModelManager {
       }
 
       // Validate model with native module
-      const isValid = await CoreModule.validateSttModel(modelPath)
+      const isValid = await BluetoothSdk.validateSttModel(modelPath)
       return isValid
     } catch (error) {
       console.error("Error checking model availability:", error)
@@ -244,7 +279,7 @@ class STTModelManager {
       const downloadOptions = {
         fromUrl: modelUrl,
         toFile: tempPath,
-        progress: (res: RNFS.DownloadProgressCallbackResult) => {
+        progress: (res: RNFS.DownloadProgressCallbackResultT) => {
           const percentage = Math.round((res.bytesWritten / res.contentLength) * 100)
           onProgress?.({
             jobId: res.jobId,
@@ -254,7 +289,7 @@ class STTModelManager {
           })
         },
         progressDivider: 10, // Update every 10%
-        begin: (res: RNFS.DownloadBeginCallbackResult) => {
+        begin: (res: RNFS.DownloadBeginCallbackResultT) => {
           console.log("Download started:", res)
         },
         connectionTimeout: 30000,
@@ -280,7 +315,7 @@ class STTModelManager {
       console.log(`Calling native extractTarBz2 for ${Platform.OS}...`)
       try {
         onExtractionProgress?.({percentage: 25})
-        const extractionResult = await CoreModule.extractTarBz2(tempPath, finalPath)
+        const extractionResult = await BluetoothSdk.extractTarBz2(tempPath, finalPath)
         if (!extractionResult) {
           throw new Error("Native extraction returned failure status")
         }
@@ -349,7 +384,7 @@ class STTModelManager {
   }
 
   private async setNativeModelPath(path: string, languageCode: string): Promise<void> {
-    CoreModule.setSttModelDetails(path, languageCode)
+    BluetoothSdk.setSttModelDetails(path, languageCode)
     return
   }
 

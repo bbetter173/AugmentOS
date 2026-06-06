@@ -236,8 +236,9 @@ public class OtaService extends Service {
                 //
                 // The decision is read from a flag OtaHelper set at install kickoff (based on
                 // whether a BES update follows), NOT from session state — so it is correct on both
-                // the session path and the legacy/no-session path below.
-                boolean shouldRebootAfterMtk = otaHelper != null && otaHelper.shouldRebootAfterMtkInstall();
+                // the session path and the legacy/no-session path below. consume*() clears the flag
+                // so a duplicate/late SUCCESS event can't schedule a second reboot.
+                boolean shouldRebootAfterMtk = otaHelper != null && otaHelper.consumeRebootAfterMtkInstall();
 
                 if (otaHelper != null) {
                     otaHelper.sendMtkInstallProgressToPhone("FINISHED", 100, null);

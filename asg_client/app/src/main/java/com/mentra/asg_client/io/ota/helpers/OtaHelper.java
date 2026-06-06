@@ -352,13 +352,16 @@ public class OtaHelper {
     }
 
     /**
-     * Whether the most recently started MTK install should trigger a self-reboot on success —
-     * i.e. it is an MTK-only update with no BES step to power-cycle the device. Set by
-     * {@link #checkAndUpdateMtkFirmware} at install kickoff and read by OtaService's MTK SUCCESS
-     * handler, so it works regardless of whether an OTA session is active.
+     * Returns whether the most recently started MTK install should trigger a self-reboot on
+     * success — i.e. it is an MTK-only update with no BES step to power-cycle the device — and
+     * atomically clears the flag. Read-and-clear so a duplicate or late MTK SUCCESS event cannot
+     * schedule a second/stale reboot; the flag is re-armed only at the next MTK install kickoff
+     * (see {@link #checkAndUpdateMtkFirmware}). Works regardless of whether an OTA session exists.
      */
-    public boolean shouldRebootAfterMtkInstall() {
-        return rebootAfterMtkInstall;
+    public synchronized boolean consumeRebootAfterMtkInstall() {
+        boolean reboot = rebootAfterMtkInstall;
+        rebootAfterMtkInstall = false;
+        return reboot;
     }
 
     /**

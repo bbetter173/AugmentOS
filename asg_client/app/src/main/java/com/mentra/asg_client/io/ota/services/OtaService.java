@@ -229,21 +229,15 @@ public class OtaService extends Service {
                 updateNotification("MTK firmware updated successfully");
                 Log.i(TAG, "📱 MTK system SUCCESS received - staged for next reboot");
 
-                // Decide BEFORE advancing the session whether this MTK step is the final one.
-                // MTK A/B updates only take effect after a reboot. When a BES update follows,
-                // the BES install power-cycles the device and applies the staged MTK image as a
-                // side effect, so we must NOT reboot here. When MTK is the last/only step there
-                // is nothing to trigger that reboot, so we issue it ourselves (see below).
-                boolean mtkWasFinalStep = false;
-                if (otaHelper != null) {
-                    OtaSessionManager session = otaHelper.getSessionManager();
-                    if (session != null && session.hasActiveSession()) {
-                        int idx = session.getCurrentStepIndex();
-                        boolean mtkIsCurrentStep = "mtk".equals(session.getStepType(idx));
-                        boolean isLastStep = (idx + 1) >= session.getTotalSteps();
-                        mtkWasFinalStep = mtkIsCurrentStep && isLastStep;
-                    }
-                }
+                // MTK A/B updates only take effect after a reboot. When a BES update follows, the
+                // BES install power-cycles the device and applies the staged MTK image as a side
+                // effect, so we must NOT reboot here. For an MTK-only update nothing else triggers
+                // that reboot, so we issue it ourselves once the install reports success.
+                //
+                // The decision is read from a flag OtaHelper set at install kickoff (based on
+                // whether a BES update follows), NOT from session state — so it is correct on both
+                // the session path and the legacy/no-session path below.
+                boolean shouldRebootAfterMtk = otaHelper != null && otaHelper.shouldRebootAfterMtkInstall();
 
                 if (otaHelper != null) {
                     otaHelper.sendMtkInstallProgressToPhone("FINISHED", 100, null);
@@ -264,7 +258,7 @@ public class OtaService extends Service {
                 // firmware ourselves after a short delay (lets the phone receive the
                 // "complete" status first). Historically MTK was always bundled with a BES
                 // update, whose MCU-level install power-cycled the device automatically.
-                if (mtkWasFinalStep) {
+                if (shouldRebootAfterMtk) {
                     scheduleMtkRebootToApplyUpdate();
                 }
                 break;

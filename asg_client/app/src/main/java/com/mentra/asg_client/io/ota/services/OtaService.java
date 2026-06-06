@@ -34,7 +34,13 @@ public class OtaService extends Service {
     private static final String TAG = OtaConstants.TAG;
     private static final String CHANNEL_ID = "ota_service_channel";
     private static final int NOTIFICATION_ID = 2001;
-    
+
+    // Delay before rebooting to apply a staged MTK-only update. Gives the BLE
+    // ota_status "complete" message time to reach the phone before we drop the
+    // connection, so the phone settles on its "complete" UI rather than a bare
+    // "disconnected" spinner during the reboot.
+    private static final long MTK_REBOOT_DELAY_MS = 3000;
+
     private OtaHelper otaHelper;
     
     @Override
@@ -223,6 +229,22 @@ public class OtaService extends Service {
                 updateNotification("MTK firmware updated successfully");
                 Log.i(TAG, "📱 MTK system SUCCESS received - staged for next reboot");
 
+                // Decide BEFORE advancing the session whether this MTK step is the final one.
+                // MTK A/B updates only take effect after a reboot. When a BES update follows,
+                // the BES install power-cycles the device and applies the staged MTK image as a
+                // side effect, so we must NOT reboot here. When MTK is the last/only step there
+                // is nothing to trigger that reboot, so we issue it ourselves (see below).
+                boolean mtkWasFinalStep = false;
+                if (otaHelper != null) {
+                    OtaSessionManager session = otaHelper.getSessionManager();
+                    if (session != null && session.hasActiveSession()) {
+                        int idx = session.getCurrentStepIndex();
+                        boolean mtkIsCurrentStep = "mtk".equals(session.getStepType(idx));
+                        boolean isLastStep = (idx + 1) >= session.getTotalSteps();
+                        mtkWasFinalStep = mtkIsCurrentStep && isLastStep;
+                    }
+                }
+
                 if (otaHelper != null) {
                     otaHelper.sendMtkInstallProgressToPhone("FINISHED", 100, null);
                     // Session-based path: auto-advance to the next step (e.g. BES) immediately
@@ -236,6 +258,14 @@ public class OtaService extends Service {
                     }
                 } else {
                     sendMtkUpdateCompleteMessage();
+                }
+
+                // MTK-only update: no BES step will reboot for us, so apply the staged
+                // firmware ourselves after a short delay (lets the phone receive the
+                // "complete" status first). Historically MTK was always bundled with a BES
+                // update, whose MCU-level install power-cycled the device automatically.
+                if (mtkWasFinalStep) {
+                    scheduleMtkRebootToApplyUpdate();
                 }
                 break;
             case ERROR:
@@ -253,6 +283,25 @@ public class OtaService extends Service {
         Log.i(TAG, "Sending MTK update complete broadcast");
         Intent intent = new Intent("com.mentra.asg_client.MTK_UPDATE_COMPLETE");
         sendBroadcast(intent);
+    }
+
+    /**
+     * Reboot the device to apply a staged MTK-only firmware update.
+     *
+     * MTK A/B updates do not change ro.custom.ota.version until the device reboots. When MTK is
+     * bundled with a BES update the BES install power-cycles the device for us; for an MTK-only
+     * update nothing else triggers the reboot, so the device would otherwise keep re-offering the
+     * same patch (current firmware still matches the patch's start_firmware) in a loop.
+     *
+     * Delayed so the phone receives the BLE "complete" status before the connection drops.
+     */
+    private void scheduleMtkRebootToApplyUpdate() {
+        Log.i(TAG, "🔄 MTK was the final OTA step (no BES update) - rebooting in "
+                + (MTK_REBOOT_DELAY_MS / 1000) + "s to apply staged firmware");
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.i(TAG, "🔄 Rebooting now to apply staged MTK firmware update");
+            SysControl.reboot(getApplicationContext());
+        }, MTK_REBOOT_DELAY_MS);
     }
     
     @Subscribe(threadMode = ThreadMode.MAIN)
